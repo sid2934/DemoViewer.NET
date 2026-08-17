@@ -1,53 +1,43 @@
-## What's new in 0.6.0
+## What's new in 0.7.0
 
-**Updates grew a face.** The update offer is now a window — version, release date, and the full
-release notes, rendered in-app — instead of a one-line banner. The banner remains as a reminder
-with a **Details…** button. And after any update, the first launch shows a **What's new** window
-with the notes for the version you just received, once, so you never have to wonder what changed.
+**DemoViewer.NET is now open source.** The full source lives at
+[github.com/sid2934/DemoViewer.NET](https://github.com/sid2934/DemoViewer.NET) under MIT, and
+releases and auto-updates now come straight from this repository. The parser and analysis engine
+also ship as NuGet packages (`Cs2DemoKit.*`) for anyone building their own demo tools.
 
-**The app now tells you when a demo is damaged.** Demos with corrupted data used to produce a
-plausible-looking match page with no players and no explanation. The parser now reports what it
-had to skip, and Match Overview shows a **"This demo may be damaged"** banner explaining that
-names, rosters, or events may be missing.
+**Damage stats no longer overcount burst hits.** When several hits landed in the same GOTV frame —
+shotgun pellets, sprays at tournament tickrates — enemy damage could exceed the health the victim
+actually had. Same-frame hits are now capped at the victim's remaining health, so damage totals
+match the scoreboard.
 
-**Settings got findable.** A jump-chip strip takes you to any section in one click, sections are
-ordered by how often you need them (Updates is near the top now, not buried last), and
-developer-only knobs are folded into collapsed Advanced groups. Newly editable in Settings: the
-CS2 game-window size for Live Sync, the diagnostics log-buffer caps, and the tick-offset shim.
+**Analysis allocates about half the memory it did.** Rule evaluation now runs on chunked
+copy-on-write snapshots with a wrapper cache, cutting its allocations roughly in half versus 0.6.0
+— below where the app sat before rich highlights landed.
 
-**Reels tell you about ffmpeg up front.** If ffmpeg isn't installed, the Reels page now says so
-before CS2 ever launches, with instructions (winget one-liner, download link, or a no-PATH-edits
-drop-in folder) and a Re-check button — instead of a raw error minutes into a render. Also fixed:
-several messages incorrectly said reels need OBS; they need ffmpeg.
-
-**Every theme now reaches every surface.** Around eighty colors — message-type accents, log
-severity tints, the hex-view highlight ramp, command-palette glyphs, breakpoint dots, library map
-accents, and more — were hard-coded for the dark theme. They now follow your theme, so Light and
-High-Contrast look right in the Parser, Output, and Diagnostics surfaces too.
+**Entity data now rides the community SDK.** Entity schemas and game-event definitions come from
+the community-maintained [CS2OpenDev](https://github.com/CS2OpenDev) SDK packages instead of a
+private generated layer. Decoding behaviour is unchanged — verified field-by-field against the
+previous implementation on real demos — and definitions stay current as CS2 updates.
 
 **Quality of life**
 
-- Keyboard shortcuts: **Ctrl+O** open, **Ctrl+W** close demo, **Ctrl+,** settings, **Ctrl+B**
-  bookmark, **Ctrl+1–9** switch tabs.
-- Window size and position are remembered between launches.
-- Demo parsing shows a progress indicator instead of bare text.
-- Error messages are written for humans now ("Couldn't load the demo — the file's data is not in
-  the expected format") with the technical detail routed to the Diagnostics tab.
-- The library explains itself when a folder has no demos or your filters match nothing.
-- Highlight scans show "N of M scanned" with a real progress bar.
-- The rule-editor's autocomplete finally narrows to what fits where your cursor is, and opens as
-  you type.
-- Icon-only buttons are labelled for screen readers.
-- A failed click on a link or folder now says so in the status bar instead of doing nothing.
+- Graph breakpoint conditions now evaluate against the event that fired them, closing a gap where
+  `event.tick` could read from the wrong event.
+- Parser tab source links work again (paths broke in an internal project reshuffle).
+- The Entity Tracking inspector only offers entity links for fields that are actually entity
+  handles, instead of dressing every handle-shaped value as one.
 
 <details>
-<summary>What was new in 0.5.x</summary>
+<summary>What was new in 0.6.0 and earlier</summary>
 
-**0.5.2–0.5.4** brought the in-app updater (checks at launch, downloads only on your click), the
-Match Overview landing page with a bundled sample match, a first-run walkthrough, roughly 24×
-lower memory after closing a demo, rich play-based highlights with in-app reels, and a long list
-of scoring/roster correctness fixes (GOTV proxy exclusion, bot flags, assist counts, tournament
-round wins).
+**0.6.0** turned the update offer into a full release-notes window with a once-per-update "What's
+new" screen, added a damaged-demo banner, made Settings navigable with a jump-chip strip, checked
+for ffmpeg before reels start, extended every theme to all surfaces, and added keyboard shortcuts,
+window-state memory, and humane error messages.
+
+**0.5.2–0.5.4** brought the in-app updater, the Match Overview landing page with a bundled sample
+match, a first-run walkthrough, roughly 24× lower memory after closing a demo, rich play-based
+highlights with in-app reels, and a long list of scoring/roster correctness fixes.
 
 </details>
 
