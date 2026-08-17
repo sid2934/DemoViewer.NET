@@ -1,0 +1,734 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:DemoViewer.NET.ViewModels"
+             xmlns:shell="using:DemoViewer.NET.ViewModels.Shell"
+             xmlns:views="using:DemoViewer.NET.Views"
+             xmlns:viz="using:DemoViewer.NET.Visualization"
+             xmlns:dbg="using:DemoViewer.NET.Debugging"
+             mc:Ignorable="d" d:DesignWidth="1600" d:DesignHeight="900"
+             x:Class="DemoViewer.NET.Views.Analysis.AnalysisTabView"
+             x:DataType="shell:MainViewModel">
+
+    <UserControl.Styles>
+        <!-- Filter-chip selected/unselected appearance, driven by Classes.selected -->
+        <Style Selector="Button.filterchip > Border">
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="Background" Value="{DynamicResource ChainSummaryBadgeBg}" />
+        </Style>
+        <Style Selector="Button.filterchip.selected > Border">
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderAccent}" />
+        </Style>
+        <Style Selector="Button.filterchip TextBlock.chiplabel">
+            <Setter Property="Foreground" Value="{DynamicResource TextDimGray}" />
+        </Style>
+        <Style Selector="Button.filterchip.selected TextBlock.chiplabel">
+            <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         ANALYSIS ENGINE tab content.
+         Outer Grid rows (DataContext = MainViewModel):
+           0 — Seek controls (frame navigation)
+           1 — Analysis content (DataContext switched to AnalysisViewModel)
+         ══════════════════════════════════════════════════════════════ -->
+    <!-- Seek controls moved to the shell NavStrip (navigation-review Phase C).
+         AnalysisRoot is the shell-DataContext anchor: the breakpoint chrome below lives under AnalysisContent
+         (DataContext=Analysis), so it reaches the gate shim via ElementName=AnalysisRoot + a cast. -->
+    <Grid x:Name="AnalysisRoot" Background="{DynamicResource PanelBg}">
+
+        <!-- ── Analysis content (AnalysisViewModel DataContext) ─── -->
+        <Grid x:Name="AnalysisContent"
+              ColumnDefinitions="*,4,420"
+              DataContext="{Binding Analysis}">
+
+            <!-- ══════════════════════════════════════════════════
+                 LEFT PANEL — Graph view
+                 ══════════════════════════════════════════════════ -->
+            <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto">
+
+                <!-- Status bar -->
+                <Border Grid.Row="0"
+                        Background="{DynamicResource PanelHeaderBg}"
+                        BorderBrush="{DynamicResource BorderSubtle}"
+                        BorderThickness="0 0 0 1"
+                        Padding="14 5">
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <!-- Debugger toolbar — pinned to the LEFT edge so the variable-length status text
+                             to its right can never shove the controls sideways. Appears once a breakpoint
+                             is armed (right-click a node).
+                             The whole breakpoint cluster is gated by analysis.breakpoints
+                             (developer-only). The outer wrapper reaches the shell shim via the AnalysisRoot
+                             cast (this scope's DataContext is Analysis); the inner StackPanel keeps its
+                             HasGraphBreakpoints rule, so the two nest into (gate AND has-breakpoints). -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                    IsVisible="{Binding ((shell:MainViewModel)DataContext).IsAnalysisBreakpointsEnabled, ElementName=AnalysisRoot}">
+                            <StackPanel Orientation="Horizontal" Spacing="8"
+                                        VerticalAlignment="Center"
+                                        IsVisible="{Binding HasGraphBreakpoints}">
+                                <Button Content="⏴ Back"
+                                        Command="{Binding ContinueBackCommand}"
+                                        ToolTip.Tip="Continue to the previous breakpoint hit"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Padding="6 2"
+                                        FontFamily="Consolas,Menlo,monospace"
+                                        FontSize="11"
+                                        Foreground="{DynamicResource AccentInteractive}"
+                                        Cursor="Hand" />
+                                <Button Content="Continue ⏵"
+                                        Command="{Binding ContinueCommand}"
+                                        ToolTip.Tip="Run to the next breakpoint hit"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Padding="6 2"
+                                        FontFamily="Consolas,Menlo,monospace"
+                                        FontSize="11"
+                                        Foreground="{DynamicResource AccentInteractive}"
+                                        Cursor="Hand" />
+                                <ToggleButton IsChecked="{Binding IsBreakpointListOpen, Mode=TwoWay}"
+                                              ToolTip.Tip="Show every breakpoint set on this demo"
+                                              Content="{Binding GraphBreakpoints.Breakpoints.Count, StringFormat='☰ Breakpoints ({0})'}"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              Padding="6 2"
+                                              FontFamily="Consolas,Menlo,monospace"
+                                              FontSize="11"
+                                              Foreground="{DynamicResource AccentInteractive}"
+                                              Cursor="Hand" />
+                                <TextBlock Text="{Binding StoppedText}"
+                                           FontFamily="Consolas,Menlo,monospace"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource AccentAmber}"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- User rules folder — always visible so rule authoring is discoverable before a
+                             demo is even loaded. YAML dropped there overlays the shipped rules on next run. -->
+                        <Button Content="📁 Rules"
+                                Command="{Binding OpenUserRulesFolderCommand}"
+                                ToolTip.Tip="Open your user rules folder — YAML files here add to or override the shipped analysis rules on the next run"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="6 2"
+                                FontFamily="Consolas,Menlo,monospace"
+                                FontSize="11"
+                                Foreground="{DynamicResource AccentInteractive}"
+                                Cursor="Hand" />
+
+                        <!-- Re-run — reloads rule YAML from disk and re-evaluates the loaded demo without
+                             re-parsing it (the edit-a-rule → see-the-stat loop). Disabled until a demo
+                             has been evaluated, and while a run is in flight. -->
+                        <Button Content="↻ Re-run"
+                                Command="{Binding RerunAnalysisCommand}"
+                                ToolTip.Tip="Reload rule files and re-run the analysis on the loaded demo"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="6 2"
+                                FontFamily="Consolas,Menlo,monospace"
+                                FontSize="11"
+                                Foreground="{DynamicResource AccentInteractive}"
+                                Cursor="Hand" />
+
+                        <!-- Rule diagnostics toggle — appears when the last run produced load errors,
+                             semantic warnings, or fire-count badges (so the panel stays reachable on
+                             lint-free runs). Errors also pop the panel open unprompted. -->
+                        <ToggleButton IsChecked="{Binding IsDiagnosticsOpen, Mode=TwoWay}"
+                                      IsVisible="{Binding HasDiagnosticsPanelContent}"
+                                      Content="{Binding RuleDiagnosticsLabel}"
+                                      ToolTip.Tip="Rule-config errors and warnings from the last run"
+                                      Background="Transparent"
+                                      BorderThickness="0"
+                                      Padding="6 2"
+                                      FontFamily="Consolas,Menlo,monospace"
+                                      FontSize="11"
+                                      Foreground="{DynamicResource AccentAmber}"
+                                      Cursor="Hand" />
+
+                        <!-- Entity-cache compute indicator — sibling of the debugger panel so it shows during
+                             the one-time pre-warm at load too (before any breakpoint is armed). The replay is
+                             a known ~one-time cost; this makes the wait read as working, not broken. -->
+                        <TextBlock Text="⏳ computing entity state…"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource AccentAmber}"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding IsComputingEntityCache}" />
+
+                        <!-- Engine status — flows to the RIGHT of the pinned controls; its changing length
+                             pushes only the empty space beyond it, never the buttons. Determinate eval
+                             progress: a moving bar + live percentage instead of a static spinner. -->
+                        <StackPanel Orientation="Horizontal" Spacing="6"
+                                    VerticalAlignment="Center"
+                                    IsVisible="{Binding IsRunning}">
+                            <ProgressBar Minimum="0" Maximum="1"
+                                         Value="{Binding EvaluationProgress}"
+                                         Width="120" Height="6"
+                                         VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding EvaluationProgress, StringFormat='Evaluating… {0:P0}'}"
+                                       FontFamily="Consolas,Menlo,monospace"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource AccentInteractive}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding StatusText}"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextDimGray}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Graph canvas (DemoViewer.NET.Visualization) -->
+                <viz:GraphView Grid.Row="1"
+                               x:Name="GraphCanvas"
+                               ViewModel="{Binding GraphViewModel}"
+                               PickMode="{Binding IsPickingNode}"
+                               ClipToBounds="True"
+                               MinHeight="400" />
+
+                <!-- Conditional-breakpoint editor — overlays the top of the graph while editing.
+                     Reuses the rule-expression grammar; Apply is disabled while the text is invalid. -->
+                <Border Grid.Row="1"
+                        IsVisible="{Binding IsEditingCondition}"
+                        VerticalAlignment="Top"
+                        Background="{DynamicResource PanelHeaderBg}"
+                        BorderBrush="{DynamicResource BorderAccent}"
+                        BorderThickness="0 0 0 2"
+                        Padding="14 10">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding EditingConditionHeader}"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BorderAccent}" />
+                        <TextBlock Text="{Binding EditingValueHint}"
+                                   IsVisible="{Binding HasValueHint}"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="10"
+                                   Foreground="{DynamicResource TextDimGray}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="MATCH  (events / state)"
+                                   IsVisible="{Binding ShowEntityChecks}"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="9" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextDimGray}"
+                                   Margin="0 4 0 0" />
+                        <TextBox x:Name="ConditionTextBox"
+                                 Text="{Binding EditingConditionText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Watermark="{Binding EditingConditionWatermark}"
+                                 AcceptsReturn="False"
+                                 FontFamily="Consolas,Menlo,monospace"
+                                 FontSize="12" />
+                        <TextBlock Text="advanced expression — edit as text (structured rows unavailable here)"
+                                   IsVisible="{Binding ShowAdvancedNote}"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="9"
+                                   Foreground="{DynamicResource TextDimGray}"
+                                   TextWrapping="Wrap" />
+
+                        <!-- Inline autocomplete: filtered identifier suggestions for the token at the
+                             caret. Populated by the code-behind from AvailableConditionIdentifiers;
+                             clicking a row splices it in at the caret. -->
+                        <ListBox x:Name="ConditionSuggestionsList"
+                                 ItemsSource="{Binding ConditionSuggestions}"
+                                 IsVisible="{Binding HasConditionSuggestions}"
+                                 MaxHeight="220"
+                                 Background="{DynamicResource PanelBg}"
+                                 BorderBrush="{DynamicResource BorderSubtle}"
+                                 BorderThickness="1"
+                                 Padding="0">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Text="{Binding}"
+                                               FontFamily="Consolas,Menlo,monospace"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource AccentInteractive}" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <!-- Entity checks: structured subject·provider·op·value rows, scoped to the
+                             trigger event. Shown when the condition decomposes and rows apply to the target;
+                             the host composes these + the event match into the canonical condition string. -->
+                        <StackPanel IsVisible="{Binding ShowEntityChecks}" Spacing="3">
+                            <TextBlock Text="ENTITY CHECKS  (all must hold)"
+                                       FontFamily="Consolas,Menlo,monospace"
+                                       FontSize="9" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextDimGray}"
+                                       Margin="0 6 0 0" />
+                            <ItemsControl ItemsSource="{Binding EditingEntityRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:EntityCheckRowViewModel">
+                                        <StackPanel Margin="0 0 0 3">
+                                            <Grid ColumnDefinitions="120,150,60,*,Auto">
+                                                <ComboBox Grid.Column="0"
+                                                          ItemsSource="{Binding AvailableSubjects}"
+                                                          SelectedItem="{Binding Subject, Mode=TwoWay}"
+                                                          ToolTip.Tip="Whose entity to read"
+                                                          FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                          Margin="0 0 4 0" HorizontalAlignment="Stretch" />
+                                                <ComboBox Grid.Column="1"
+                                                          ItemsSource="{Binding AvailableProviders}"
+                                                          SelectedItem="{Binding Provider, Mode=TwoWay}"
+                                                          ToolTip.Tip="Which entity value"
+                                                          FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                          Margin="0 0 4 0" HorizontalAlignment="Stretch" />
+                                                <ComboBox Grid.Column="2"
+                                                          ItemsSource="{Binding AvailableOps}"
+                                                          SelectedItem="{Binding Op, Mode=TwoWay}"
+                                                          FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                          Margin="0 0 4 0" HorizontalAlignment="Stretch" />
+                                                <TextBox Grid.Column="3"
+                                                         Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                         Watermark="value"
+                                                         FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                         Margin="0 0 4 0" />
+                                                <Button Grid.Column="4" Content="✕"
+                                                        AutomationProperties.Name="Remove this check"
+                                                        Command="{Binding RemoveCommand}"
+                                                        ToolTip.Tip="Remove this check"
+                                                        Background="Transparent" BorderThickness="0" Padding="6 0"
+                                                        FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                        Foreground="{DynamicResource TextDimGray}" Cursor="Hand" />
+                                            </Grid>
+                                            <TextBlock Text="{Binding Warning}"
+                                                       IsVisible="{Binding HasWarning}"
+                                                       FontFamily="Consolas,Menlo,monospace" FontSize="9"
+                                                       Foreground="{DynamicResource AccentAmber}"
+                                                       Margin="2 0 0 0" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="+ add entity check"
+                                    Command="{Binding AddEntityRowCommand}"
+                                    HorizontalAlignment="Left"
+                                    Background="Transparent" BorderThickness="0" Padding="2 2"
+                                    FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                    Foreground="{DynamicResource AccentInteractive}" Cursor="Hand" />
+                            <TextBlock Text="{Binding EditingScopeLegend}"
+                                       FontFamily="Consolas,Menlo,monospace" FontSize="9"
+                                       Foreground="{DynamicResource TextDimGray}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding EditingConditionError}"
+                                   IsVisible="{Binding HasConditionError}"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="10"
+                                   Foreground="{DynamicResource AccentError}"
+                                   TextWrapping="Wrap"
+                                   MaxHeight="60" />
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <!-- Pick a node visually: arm crosshair pick mode on the graph; the next
+                                 node click appends that node's current-state snippet to the condition. -->
+                            <ToggleButton Grid.Column="0"
+                                          IsChecked="{Binding IsPickingNode, Mode=TwoWay}"
+                                          IsVisible="{Binding CanPickNode}"
+                                          ToolTip.Tip="Select a node to add to the breakpoint's condition"
+                                          FontFamily="Consolas,Menlo,monospace" FontSize="11" Padding="10 3">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="◎" VerticalAlignment="Center" />
+                                    <TextBlock Text="Pick node" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                                <Button Content="Cancel"
+                                        Command="{Binding CancelConditionCommand}"
+                                        FontFamily="Consolas,Menlo,monospace" FontSize="11" Padding="10 3" />
+                                <Button Content="Apply"
+                                        Classes="primary"
+                                        Command="{Binding ApplyConditionCommand}"
+                                        FontFamily="Consolas,Menlo,monospace" FontSize="11" Padding="10 3" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Rule diagnostics — overlays the top-LEFT of the graph (toolbar ⚠ toggle; opens
+                     itself on load errors). One row per error/warning with severity glyph, message,
+                     and file · chain/rule locator; rows with a file open it in the editor. -->
+                <Border Grid.Row="1"
+                        IsVisible="{Binding IsDiagnosticsOpen}"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Margin="12 0 0 0"
+                        MaxWidth="520"
+                        Background="{DynamicResource PanelHeaderBg}"
+                        BorderBrush="{DynamicResource AccentAmber}"
+                        BorderThickness="1"
+                        Padding="10 8">
+                    <StackPanel Spacing="6" MinWidth="320">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="RULE DIAGNOSTICS"
+                                       FontFamily="Consolas,Menlo,monospace"
+                                       FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource AccentAmber}"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="✕"
+                                    AutomationProperties.Name="Close diagnostics"
+                                    Command="{Binding CloseDiagnosticsCommand}"
+                                    ToolTip.Tip="Close"
+                                    Background="Transparent" BorderThickness="0" Padding="4 0"
+                                    FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                    Foreground="{DynamicResource TextDimGray}" Cursor="Hand" />
+                        </Grid>
+
+                        <ScrollViewer MaxHeight="320" HorizontalScrollBarVisibility="Disabled"
+                                      IsVisible="{Binding HasRuleDiagnostics}">
+                            <ItemsControl ItemsSource="{Binding RuleDiagnostics}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RuleDiagnostic">
+                                        <Button Background="Transparent" BorderThickness="0" Padding="2"
+                                                HorizontalAlignment="Stretch"
+                                                HorizontalContentAlignment="Left"
+                                                Command="{Binding $parent[ItemsControl].((vm:AnalysisViewModel)DataContext).OpenDiagnosticFileCommand}"
+                                                CommandParameter="{Binding}"
+                                                IsEnabled="{Binding CanOpen}"
+                                                ToolTip.Tip="Open the source file in the editor">
+                                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                                                <TextBlock Grid.Column="0" Text="{Binding Glyph}"
+                                                           FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                           Foreground="{DynamicResource AccentAmber}"
+                                                           VerticalAlignment="Top" />
+                                                <StackPanel Grid.Column="1" Spacing="1">
+                                                    <TextBlock Text="{Binding Message}"
+                                                               FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                               Foreground="{DynamicResource TextBright}"
+                                                               TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Location}"
+                                                               FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                                                               Foreground="{DynamicResource TextDimGray}"
+                                                               IsVisible="{Binding Location, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <!-- Fire-count badges (work item 0.2): one row per trigger-backed authored
+                             rule with its total edge applies from the last run. Never-fired rows
+                             render amber — the paired lint row above names them too. -->
+                        <TextBlock Text="RULE FIRES"
+                                   IsVisible="{Binding HasRuleFireStats}"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextDimGray}"
+                                   Margin="0 4 0 0" />
+                        <ScrollViewer MaxHeight="200" HorizontalScrollBarVisibility="Disabled"
+                                      IsVisible="{Binding HasRuleFireStats}">
+                            <ItemsControl ItemsSource="{Binding RuleFireStats}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RuleFireStat">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="2">
+                                            <TextBlock Grid.Column="0" Text="{Binding Label}"
+                                                       FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                       Foreground="{DynamicResource TextBright}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center" />
+                                            <Panel Grid.Column="1">
+                                                <Border Background="{DynamicResource ChainSummaryBadgeBg}"
+                                                        CornerRadius="9" Padding="6 0"
+                                                        IsVisible="{Binding !NeverFired}">
+                                                    <TextBlock Text="{Binding CountLabel}"
+                                                               FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                                                               Foreground="{DynamicResource TextDimAlt}"
+                                                               VerticalAlignment="Center" />
+                                                </Border>
+                                                <Border Background="Transparent"
+                                                        BorderBrush="{DynamicResource AccentAmber}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="9" Padding="6 0"
+                                                        IsVisible="{Binding NeverFired}"
+                                                        ToolTip.Tip="This rule never fired in this demo">
+                                                    <TextBlock Text="0×"
+                                                               FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                                                               Foreground="{DynamicResource AccentAmber}"
+                                                               VerticalAlignment="Center" />
+                                                </Border>
+                                            </Panel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+
+                <!-- Breakpoint list — overlays the top-right of the graph (toolbar ☰ toggle). Lists
+                     every breakpoint on this demo with its enable toggle, per-demo match count, a
+                     jump-to-first-hit button, and remove. Mutually exclusive with the condition editor
+                     (both anchor top); right-aligned + max-width so it stays a compact panel. -->
+                <Border Grid.Row="1"
+                        IsVisible="{Binding IsBreakpointListOpen}"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Margin="0 0 12 0"
+                        MaxWidth="400"
+                        Background="{DynamicResource PanelHeaderBg}"
+                        BorderBrush="{DynamicResource BorderAccent}"
+                        BorderThickness="1"
+                        Padding="10 8">
+                    <StackPanel Spacing="6" MinWidth="280">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="BREAKPOINTS"
+                                       FontFamily="Consolas,Menlo,monospace"
+                                       FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource BorderAccent}"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="✕"
+                                    AutomationProperties.Name="Close breakpoint list"
+                                    Command="{Binding CloseBreakpointListCommand}"
+                                    ToolTip.Tip="Close"
+                                    Background="Transparent" BorderThickness="0" Padding="4 0"
+                                    FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                    Foreground="{DynamicResource TextDimGray}" Cursor="Hand" />
+                        </Grid>
+
+                        <TextBlock Text="No breakpoints — right-click a node or edge to add one."
+                                   IsVisible="{Binding !HasGraphBreakpoints}"
+                                   FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                   Foreground="{DynamicResource TextDimGray}"
+                                   TextWrapping="Wrap" />
+
+                        <ScrollViewer MaxHeight="300" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding GraphBreakpoints.Breakpoints}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="dbg:GraphBreakpoint">
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0 2" ColumnSpacing="6">
+                                            <CheckBox Grid.Column="0"
+                                                      IsChecked="{Binding Enabled, Mode=TwoWay}"
+                                                      ToolTip.Tip="Enable / disable (disabled breakpoints keep their marker but never halt seek)"
+                                                      VerticalAlignment="Center"
+                                                      MinWidth="0" Padding="0" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding DisplayText}"
+                                                       ToolTip.Tip="{Binding DisplayText}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"
+                                                       FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                       Foreground="{DynamicResource AccentInteractive}" />
+                                            <Panel Grid.Column="2">
+                                                <TextBlock Text="{Binding MatchCount, StringFormat='{}{0}×'}"
+                                                           IsVisible="{Binding !Computing}"
+                                                           ToolTip.Tip="Messages this condition matches in this demo"
+                                                           VerticalAlignment="Center"
+                                                           FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                           Foreground="{DynamicResource TextDimGray}" />
+                                                <TextBlock Text="computing…"
+                                                           IsVisible="{Binding Computing}"
+                                                           ToolTip.Tip="Reading entity state at this condition's fires (one-time)"
+                                                           VerticalAlignment="Center"
+                                                           FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                           Foreground="{DynamicResource AccentAmber}" />
+                                            </Panel>
+                                            <Button Grid.Column="3" Content="→"
+                                                    Command="{Binding $parent[ItemsControl].((vm:AnalysisViewModel)DataContext).JumpToBreakpointCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip.Tip="Jump to this breakpoint's first hit"
+                                                    Background="Transparent" BorderThickness="0" Padding="4 0"
+                                                    FontFamily="Consolas,Menlo,monospace" FontSize="12"
+                                                    Foreground="{DynamicResource AccentInteractive}" Cursor="Hand" />
+                                            <Button Grid.Column="4" Content="✕"
+                                                    AutomationProperties.Name="Remove breakpoint"
+                                                    Command="{Binding $parent[ItemsControl].((vm:AnalysisViewModel)DataContext).RemoveBreakpointFromListCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip.Tip="Remove this breakpoint"
+                                                    Background="Transparent" BorderThickness="0" Padding="4 0"
+                                                    FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                    Foreground="{DynamicResource AccentError}" Cursor="Hand" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+
+                <!-- ══════════════════════════════════════════════════
+                     FILTER BAR (was the Chain Summaries strip)
+                     Row 0 — CHAINS: selectable chips + clear
+                     Row 1 — PLAYER: single-select picker + reset all
+                     Toggling a chip / picking a player mutates Filter state,
+                     which raises FiltersChanged → AnalysisViewModel re-applies
+                     the cheap dim/inert passes (no MSAGL relayout).
+                     ══════════════════════════════════════════════════ -->
+                <Border Grid.Row="2"
+                        Background="{DynamicResource PanelHeaderBg}"
+                        BorderBrush="{DynamicResource BorderSubtle}"
+                        BorderThickness="0 1 0 0"
+                        Padding="14 6">
+                    <StackPanel Orientation="Vertical" Spacing="6">
+
+                        <!-- CHAINS row -->
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <TextBlock Text="CHAINS"
+                                       FontFamily="Consolas,Menlo,monospace"
+                                       FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource BorderAccent}"
+                                       VerticalAlignment="Center"
+                                       Width="52" />
+                            <ItemsControl ItemsSource="{Binding Filter.Chains}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ChainFilterChipViewModel">
+                                        <!-- Chip: clicking toggles selection via the parent
+                                             Filter's command (reached by ElementName to cross
+                                             the chip-item DataContext scope). Classes.selected
+                                             drives the selected/unselected appearance (styles in
+                                             UserControl.Styles). -->
+                                        <Button Classes="filterchip"
+                                                Classes.selected="{Binding IsSelected}"
+                                                Command="{Binding DataContext.Filter.ToggleChainCommand, ElementName=AnalysisContent}"
+                                                CommandParameter="{Binding}"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Padding="0"
+                                                Margin="0 0 14 0"
+                                                Cursor="Hand">
+                                            <Border CornerRadius="9"
+                                                    Padding="8 2">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <TextBlock Text="{Binding Label}"
+                                                               Classes="chiplabel"
+                                                               FontFamily="Consolas,Menlo,monospace"
+                                                               FontSize="11"
+                                                               VerticalAlignment="Center" />
+                                                    <Border Background="{DynamicResource ChainSummaryBadgeBg}"
+                                                            CornerRadius="9"
+                                                            Padding="6 0">
+                                                        <TextBlock Text="{Binding Count}"
+                                                                   FontFamily="Consolas,Menlo,monospace"
+                                                                   FontSize="10"
+                                                                   Foreground="{DynamicResource TextDimAlt}"
+                                                                   HorizontalAlignment="Center" />
+                                                    </Border>
+                                                </StackPanel>
+                                            </Border>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="clear"
+                                    Command="{Binding Filter.ClearChainsCommand}"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="6 2"
+                                    FontFamily="Consolas,Menlo,monospace"
+                                    FontSize="10"
+                                    Foreground="{DynamicResource AccentInteractive}"
+                                    VerticalAlignment="Center"
+                                    Cursor="Hand"
+                                    IsVisible="{Binding Filter.HasActiveFilter}" />
+                        </StackPanel>
+
+                        <!-- PLAYER row -->
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <TextBlock Text="PLAYER"
+                                       FontFamily="Consolas,Menlo,monospace"
+                                       FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource BorderAccent}"
+                                       VerticalAlignment="Center"
+                                       Width="52" />
+                            <ComboBox ItemsSource="{Binding Filter.Players}"
+                                      SelectedItem="{Binding Filter.SelectedPlayer, Mode=TwoWay}"
+                                      MinWidth="200"
+                                      FontFamily="Consolas,Menlo,monospace"
+                                      FontSize="11">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PlayerFilterOption">
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontFamily="Consolas,Menlo,monospace"
+                                                   FontSize="11" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <Button Content="reset all"
+                                    Command="{Binding Filter.ResetAllCommand}"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="6 2"
+                                    FontFamily="Consolas,Menlo,monospace"
+                                    FontSize="10"
+                                    Foreground="{DynamicResource AccentInteractive}"
+                                    VerticalAlignment="Center"
+                                    Cursor="Hand"
+                                    IsVisible="{Binding Filter.HasActiveFilter}" />
+                        </StackPanel>
+
+                    </StackPanel>
+                </Border>
+
+            </Grid>
+
+            <!-- Column splitter -->
+            <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
+
+            <!-- ══════════════════════════════════════════════════
+                 RIGHT PANEL — Current message card
+                 ══════════════════════════════════════════════════ -->
+            <Grid Grid.Column="2" RowDefinitions="Auto,*">
+
+                <!-- Message navigation bar: ◀ msg X / N ▶ -->
+                <Border Grid.Row="0"
+                        Background="{DynamicResource PanelHeaderBg}"
+                        BorderBrush="{DynamicResource BorderSubtle}"
+                        BorderThickness="0 0 0 1"
+                        Padding="4 0">
+                    <Grid ColumnDefinitions="Auto,*,Auto" MinHeight="28">
+                        <Button Grid.Column="0"
+                                Content="◀"
+                                Command="{Binding PreviousMessageCommand}"
+                                ToolTip.Tip="Previous message"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="12 4"
+                                FontFamily="Consolas,Menlo,monospace"
+                                FontSize="11"
+                                Foreground="{DynamicResource AccentInteractive}"
+                                Cursor="Hand" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding MessagePositionText}"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="10"
+                                   Foreground="{DynamicResource TextDim}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                        <Button Grid.Column="2"
+                                Content="▶"
+                                Command="{Binding NextMessageCommand}"
+                                ToolTip.Tip="Next message"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="12 4"
+                                FontFamily="Consolas,Menlo,monospace"
+                                FontSize="11"
+                                Foreground="{DynamicResource AccentInteractive}"
+                                Cursor="Hand" />
+                    </Grid>
+                </Border>
+
+                <!-- Message card -->
+                <views:InspectorCardListView
+                    Grid.Row="1"
+                    Cards="{Binding CurrentCardList}"
+                    HasCards="{Binding HasCurrentCard}"
+                    PlaceholderText="No message selected" />
+
+            </Grid>
+
+        </Grid>
+
+    </Grid>
+
+</UserControl>

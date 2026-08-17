@@ -1,0 +1,198 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:shell="using:DemoViewer.NET.ViewModels.Shell"
+             xmlns:ent="using:DemoViewer.NET.Views.EntityTracking"
+             xmlns:controls="using:DemoViewer.NET.Controls"
+             xmlns:entvm="using:DemoViewer.NET.ViewModels.EntityTracking"
+             mc:Ignorable="d" d:DesignWidth="1600" d:DesignHeight="900"
+             x:Class="DemoViewer.NET.Views.EntityTracking.EntityTrackingTabView"
+             x:DataType="shell:MainViewModel">
+
+    <!-- ══════════════════════════════════════════════════════════════
+         ENTITY TRACKING tab. React-DevTools-
+         meets-IDA layout:
+           row 0  tracker status header
+           row 1  Classes | (Entities TreeDataGrid + Delta log) | Field tree
+           row 2  Serializer / ServerClass schema strip
+         All panes bind sub-view-models on EntityTab. The end-user replay
+         chrome (SeekControls, message-card column, stats, mini-map) is gone.
+         ══════════════════════════════════════════════════════════════ -->
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- ── Row 0: tracker status header ───────────────────────── -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource PanelHeaderBg}"
+                BorderBrush="{DynamicResource BorderStrong}"
+                BorderThickness="0 0 0 1"
+                Padding="14 0">
+            <Grid ColumnDefinitions="Auto,*,Auto" MinHeight="30">
+                <TextBlock Grid.Column="0"
+                           Text="ENTITY TRACKING"
+                           FontSize="10" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextLabel}"
+                           VerticalAlignment="Center"
+                           FontFamily="Consolas,Menlo,monospace" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding EntityTab.EntityStatusText}"
+                           FontSize="10"
+                           Foreground="{DynamicResource TextEntityStatus}"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Right"
+                           Margin="0 0 10 0"
+                           FontFamily="Consolas,Menlo,monospace" />
+                <ToggleButton Grid.Column="2"
+                              Content="Dormant"
+                              IsChecked="{Binding EntityTab.ShowDormantEntities}"
+                              ToolTip.Tip="Include entities outside the transmitted PVS"
+                              FontSize="9" Padding="6 2"
+                              VerticalAlignment="Center"
+                              FontFamily="Consolas,Menlo,monospace" />
+            </Grid>
+        </Border>
+
+        <!-- ── Row 1: classes | entities+delta | field tree ───────── -->
+        <Grid Grid.Row="1" ColumnDefinitions="240,4,*,4,360">
+
+            <!-- left rail: class browser -->
+            <ent:ClassBrowserView Grid.Column="0"
+                                  DataContext="{Binding EntityTab.ClassBrowser}" />
+
+            <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
+
+            <!-- middle: entity TreeDataGrid + delta log -->
+            <Grid Grid.Column="2" RowDefinitions="*,4,200">
+                <ent:EntityListView Grid.Row="0"
+                                    DataContext="{Binding EntityTab.EntityList}" />
+                <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
+                <ent:DeltaLogView Grid.Row="2"
+                                  DataContext="{Binding EntityTab.DeltaLog}" />
+            </Grid>
+
+            <GridSplitter Grid.Column="3" ResizeDirection="Columns" />
+
+            <!-- right: selected-entity field table (Fields) OR recursive relationship tree (Relations) -->
+            <Grid Grid.Column="4" RowDefinitions="Auto,*">
+                <Border Grid.Row="0"
+                        Background="{DynamicResource PanelHeaderBg}"
+                        BorderBrush="{DynamicResource BorderStrong}"
+                        BorderThickness="0 0 0 1"
+                        Padding="14 0">
+                    <Grid ColumnDefinitions="*,Auto,Auto" MinHeight="28">
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding EntityTab.EntityHeaderText}"
+                                   FontSize="10"
+                                   Foreground="{DynamicResource TextFrameInfo}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   FontFamily="Consolas,Menlo,monospace" />
+                        <ToggleButton Grid.Column="1"
+                                      Content="Relations"
+                                      IsChecked="{Binding EntityTab.ShowRelationshipTree}"
+                                      ToolTip.Tip="Walk this entity's handle references (m_h…) as an expandable debugger tree"
+                                      IsVisible="{Binding EntityTab.HasEntitySelection}"
+                                      Margin="0 0 6 0"
+                                      FontSize="9" Padding="6 2"
+                                      VerticalAlignment="Center"
+                                      FontFamily="Consolas,Menlo,monospace" />
+                        <ToggleButton Grid.Column="2"
+                                      Content="Δ only"
+                                      IsChecked="{Binding EntityTab.ShowDeltaFieldsOnly}"
+                                      ToolTip.Tip="Show only fields that changed this tick"
+                                      IsVisible="{Binding EntityTab.HasEntitySelection}"
+                                      FontSize="9" Padding="6 2"
+                                      VerticalAlignment="Center"
+                                      FontFamily="Consolas,Menlo,monospace" />
+                    </Grid>
+                </Border>
+
+                <!-- Row 1: flat field table (default) or recursive relationship tree, toggled by ShowRelationshipTree -->
+                <Panel Grid.Row="1" IsVisible="{Binding EntityTab.HasEntitySelection}">
+
+                    <controls:KeyValueTable Rows="{Binding EntityTab.EntityFieldRows}"
+                                            ShowDeltaOnly="{Binding EntityTab.ShowDeltaFieldsOnly}"
+                                            IsVisible="{Binding !EntityTab.ShowRelationshipTree}" />
+
+                    <Grid RowDefinitions="*,Auto"
+                          IsVisible="{Binding EntityTab.ShowRelationshipTree}">
+
+                        <!-- Recursive entity inspector tree. Each entity-reference row lazily
+                             expands into the referenced entity's own fields (cycle-guarded). -->
+                        <TreeView Grid.Row="0"
+                                  ItemsSource="{Binding EntityTab.EntityInspector.RootNodes}"
+                                  Background="Transparent"
+                                  BorderThickness="0">
+                            <TreeView.Styles>
+                                <!-- Per-node expansion drives lazy child loading (NOT a global
+                                     IsExpanded=True). -->
+                                <Style Selector="TreeViewItem">
+                                    <Setter Property="IsExpanded" Value="{ReflectionBinding IsExpanded, Mode=TwoWay}" />
+                                </Style>
+                                <Style Selector="TextBlock.ref">
+                                    <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
+                                </Style>
+                                <Style Selector="TextBlock.dead">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextDimGray}" />
+                                </Style>
+                            </TreeView.Styles>
+                            <TreeView.ItemTemplate>
+                                <TreeDataTemplate x:DataType="entvm:EntityInspectorNode"
+                                                  ItemsSource="{Binding Children}">
+                                    <Grid ColumnDefinitions="*,Auto,2*" Margin="0 2">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding Name}"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextFieldName}"
+                                                   FontFamily="Consolas,Menlo,monospace"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding TypeText}"
+                                                   FontSize="10"
+                                                   Foreground="{DynamicResource TextDimAlt}"
+                                                   FontFamily="Consolas,Menlo,monospace"
+                                                   Margin="10 0"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding ValueText}"
+                                                   Classes.ref="{Binding IsEntityRef}"
+                                                   Classes.dead="{Binding IsDeadRef}"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextValue}"
+                                                   FontFamily="Consolas,Menlo,monospace"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </Grid>
+                                </TreeDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+
+                        <Border Grid.Row="1"
+                                Background="{DynamicResource PanelHeaderBg}"
+                                BorderBrush="{DynamicResource BorderSubtle}"
+                                BorderThickness="0 1 0 0"
+                                Padding="14 5">
+                            <TextBlock Text="{Binding EntityTab.EntityInspector.StatusText}"
+                                       FontSize="10"
+                                       Foreground="{DynamicResource TextDimGray}"
+                                       TextWrapping="Wrap"
+                                       FontFamily="Consolas,Menlo,monospace" />
+                        </Border>
+                    </Grid>
+                </Panel>
+            </Grid>
+
+        </Grid>
+
+        <!-- ── Row 2: serializer / ServerClass schema strip (gated by entity.schema — developer default) ──
+             Wrapped so the gate binds in the shell DataContext scope; the inner view keeps its own
+             SerializerSchema DataContext. When gated off the Auto row collapses to zero. -->
+        <Panel Grid.Row="2" IsVisible="{Binding IsSerializerSchemaEnabled}">
+            <ent:SerializerSchemaView Height="180"
+                                      DataContext="{Binding EntityTab.SerializerSchema}" />
+        </Panel>
+
+    </Grid>
+
+</UserControl>

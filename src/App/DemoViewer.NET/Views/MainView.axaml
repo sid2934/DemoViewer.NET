@@ -1,0 +1,314 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:shell="using:DemoViewer.NET.ViewModels.Shell"
+             xmlns:views="using:DemoViewer.NET.Views"
+             xmlns:idle="using:DemoViewer.NET.Views.Idle"
+             xmlns:tutorial="using:DemoViewer.NET.Views.Tutorial"
+             xmlns:modules="using:DemoViewer.NET.Modules.Abstractions"
+             xmlns:controls="using:DemoViewer.NET.Controls"
+             mc:Ignorable="d" d:DesignWidth="1600" d:DesignHeight="900"
+             x:Class="DemoViewer.NET.Views.MainView"
+             x:DataType="shell:MainViewModel">
+
+    <Design.DataContext>
+        <shell:MainViewModel />
+    </Design.DataContext>
+
+    <!-- App-wide accelerators (F8.1 + v0.6.0 fit-and-finish). Ctrl+1..9 selects the Nth VISIBLE tab
+         (live positional over the gated Tabs set — nothing persisted, so the name-based tab-identity
+         rule is untouched). Commands with CanExecute (Close Demo) stay correctly inert when disabled. -->
+    <UserControl.KeyBindings>
+        <KeyBinding Gesture="Ctrl+P" Command="{Binding OpenCommandPaletteCommand}" />
+        <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenFileCommand}" />
+        <KeyBinding Gesture="Ctrl+W" Command="{Binding CloseDemoCommand}" />
+        <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding OpenSettingsCommand}" />
+        <KeyBinding Gesture="Ctrl+B" Command="{Binding BookmarkCurrentFrameCommand}" />
+        <KeyBinding Gesture="Ctrl+D1" Command="{Binding SelectTabByOrdinalCommand}" CommandParameter="1" />
+        <KeyBinding Gesture="Ctrl+D2" Command="{Binding SelectTabByOrdinalCommand}" CommandParameter="2" />
+        <KeyBinding Gesture="Ctrl+D3" Command="{Binding SelectTabByOrdinalCommand}" CommandParameter="3" />
+        <KeyBinding Gesture="Ctrl+D4" Command="{Binding SelectTabByOrdinalCommand}" CommandParameter="4" />
+        <KeyBinding Gesture="Ctrl+D5" Command="{Binding SelectTabByOrdinalCommand}" CommandParameter="5" />
+        <KeyBinding Gesture="Ctrl+D6" Command="{Binding SelectTabByOrdinalCommand}" CommandParameter="6" />
+        <KeyBinding Gesture="Ctrl+D7" Command="{Binding SelectTabByOrdinalCommand}" CommandParameter="7" />
+        <KeyBinding Gesture="Ctrl+D8" Command="{Binding SelectTabByOrdinalCommand}" CommandParameter="8" />
+        <KeyBinding Gesture="Ctrl+D9" Command="{Binding SelectTabByOrdinalCommand}" CommandParameter="9" />
+    </UserControl.KeyBindings>
+
+    <UserControl.Styles>
+        <!-- Real TabControl header strip, on-theme. -->
+        <Style Selector="TabControl#ShellTabs > TabItem">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="18 6" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- Root wraps the shell chrome + the WASM Settings overlay (a sibling that draws on top). -->
+    <Panel>
+
+        <!-- Shell chrome: toolbar (top) · status strip (bottom) · SplitView (center) -->
+        <DockPanel LastChildFill="True">
+
+            <!-- ── Toolbar (NON-nav chrome only; nav moved to the NavStrip row below) ── -->
+            <StackPanel DockPanel.Dock="Top"
+                        Orientation="Horizontal" Spacing="8" Margin="6,4">
+                <Button Content="Open Demo…" Command="{Binding OpenFileCommand}"
+                        controls:TutorialAnchor.Target="OpenDemo" />
+                <!-- Close Demo: releases the parsed demo + its byte buffer and compacts the heap. Only
+                     meaningful with a demo open, so it appears with HasFile (same pattern as Parse Chain). -->
+                <Button Content="Close Demo"
+                        Command="{Binding CloseDemoCommand}"
+                        IsVisible="{Binding HasFile}"
+                        ToolTip.Tip="Close the open demo and release the memory it is using"
+                        FontSize="11" Padding="8,3" />
+                <Button Content="⚙ Settings" Classes="chip"
+                        Command="{Binding OpenSettingsCommand}"
+                        ToolTip.Tip="Open Settings (category, library folders, theme)" />
+                <!-- Parse feedback (v0.6.0): an indeterminate bar, not bare text — the demo parse is
+                     the app's longest foreground operation and deserves at least the visual weight
+                     the update download gets. Indeterminate because the parser reports no progress. -->
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                            IsVisible="{Binding IsLoading}">
+                    <TextBlock Text="Parsing…" VerticalAlignment="Center" />
+                    <ProgressBar Width="120" Height="6" IsIndeterminate="True" VerticalAlignment="Center" />
+                </StackPanel>
+                <!-- Parse Chain: only once a demo is loaded (HasFile) AND the parse-chain chrome is gated on
+                 (chrome.parseChain — developer/deep-dive). MultiBinding = the AND so gating the chrome away
+                 never re-shows the button pre-load. -->
+                <Button Content="Parse Chain"
+                        Command="{Binding OpenParseChainInspectorCommand}"
+                        ToolTip.Tip="Open parse chain inspector"
+                        FontSize="11" Padding="8,3">
+                    <Button.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="HasFile" />
+                            <Binding Path="IsParseChainEnabled" />
+                        </MultiBinding>
+                    </Button.IsVisible>
+                </Button>
+                <ToggleButton Content="Debugger"
+                              IsChecked="{Binding IsDebuggerPanelVisible, Mode=TwoWay}"
+                              IsVisible="{Binding IsDebuggerChromeEnabled}"
+                              ToolTip.Tip="Toggle right-side debugger panel (breakpoints + step controls)"
+                              FontSize="11" Padding="8,3" />
+                <ToggleButton Content="Output"
+                              IsChecked="{Binding Output.IsVisible, Mode=TwoWay}"
+                              IsVisible="{Binding IsOutputChromeEnabled}"
+                              ToolTip.Tip="Toggle bottom Output panel (unknown messages, decode/tracker errors)"
+                              FontSize="11" Padding="8,3" />
+                <Button Content="★ Bookmark"
+                        Command="{Binding BookmarkCurrentFrameCommand}"
+                        IsVisible="{Binding HasFile}"
+                        ToolTip.Tip="Bookmark the current frame (F8.5)"
+                        FontSize="11" Padding="8,3" />
+                <Button Content="Bookmarks ▾"
+                        IsVisible="{Binding HasFile}"
+                        ToolTip.Tip="Jump to a saved bookmark"
+                        FontSize="11" Padding="8,3">
+                    <Button.Flyout>
+                        <Flyout>
+                            <Border Background="{DynamicResource CardBg}" Padding="4" MinWidth="280">
+                                <Grid RowDefinitions="Auto,*">
+                                    <TextBlock Grid.Row="0"
+                                               Text="No bookmarks yet"
+                                               IsVisible="{Binding !Bookmarks.HasBookmarks}"
+                                               Foreground="{DynamicResource TextDim}"
+                                               FontSize="11" Margin="6 4" />
+                                    <ListBox Grid.Row="1"
+                                             MaxHeight="320"
+                                             ItemsSource="{Binding Bookmarks.Bookmarks}"
+                                             SelectedItem="{Binding Bookmarks.Selected, Mode=TwoWay}"
+                                             Background="Transparent" BorderThickness="0">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid ColumnDefinitions="*,Auto" Margin="2">
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="{Binding Label}"
+                                                                   Foreground="{DynamicResource TextBright}"
+                                                                   FontSize="12" />
+                                                        <TextBlock
+                                                            Text="{Binding FrameIndex, StringFormat='frame {0}'}"
+                                                            Foreground="{DynamicResource TextDim}"
+                                                            FontFamily="Consolas,Menlo,monospace"
+                                                            FontSize="10" />
+                                                    </StackPanel>
+                                                    <Button Grid.Column="1" Content="✕"
+                                                            AutomationProperties.Name="Remove bookmark"
+                                                            Command="{Binding $parent[ListBox].((shell:MainViewModel)DataContext).Bookmarks.RemoveCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            Background="Transparent" BorderThickness="0"
+                                                            FontSize="11" Padding="6 0"
+                                                            Foreground="{DynamicResource TextDim}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Grid>
+                            </Border>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+            </StackPanel>
+
+            <!-- ── Nav strip (NEW shell chrome, navigation-review Phase C) ─────────
+             One complete navigation surface rendered ONCE in its own ~36px docked row under the
+             toolbar (the user's "own row" decision). Present on all five tabs by construction; binds
+             to Playback (clock) + the Nav* semantic commands + EventFilterFlyout, with the distinct
+             breakpoint sub-group. Replaces the per-tab SeekControls and the toolbar's nav buttons. -->
+            <controls:NavStrip DockPanel.Dock="Top" />
+
+            <!-- ── Update banner ───────────────────────────────────────────────────
+             Non-modal, docked below the nav strip so it displaces content rather than covering it —
+             an update is never urgent enough to interrupt what someone is doing. Two mutually
+             exclusive rows share the slot: the offer, and the download progress that replaces it.
+             Since v0.6.0 the PRIMARY notice is the UpdateNoticeWindow pop-up (version, release
+             notes, publish date), auto-opened by the startup check; this row is its persistent
+             re-entry point — "Details…" re-opens the pop-up after a "Later". Nothing downloads
+             until "Update & Restart" is pressed: the package is a ~110 MB full release (no deltas
+             yet), so consent is the whole point of this surface existing. -->
+            <Border DockPanel.Dock="Top"
+                    IsVisible="{Binding Update.IsUpdateAvailable}"
+                    Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource AccentInteractive}"
+                    BorderThickness="0,0,0,2"
+                    Padding="12,8">
+                <DockPanel LastChildFill="False">
+                    <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center"
+                               Text="{Binding Update.AvailableVersion, StringFormat='DemoViewer.NET {0} is available.'}" />
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                        <Button Content="Details…" Command="{Binding ShowUpdateDetailsCommand}" />
+                        <Button Content="Update &amp; Restart"
+                                Command="{Binding Update.UpdateAndRestartCommand}" />
+                        <Button Content="Later" Command="{Binding Update.DismissCommand}" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <Border DockPanel.Dock="Top"
+                    IsVisible="{Binding Update.IsDownloading}"
+                    Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource AccentInteractive}"
+                    BorderThickness="0,0,0,2"
+                    Padding="12,8">
+                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <TextBlock VerticalAlignment="Center" Text="Downloading update…" />
+                    <ProgressBar Width="220" Minimum="0" Maximum="100"
+                                 Value="{Binding Update.DownloadProgress}" />
+                    <TextBlock VerticalAlignment="Center"
+                               Text="{Binding Update.DownloadProgress, StringFormat='{}{0}%'}" />
+                </StackPanel>
+            </Border>
+
+            <!-- ── Status strip (bottom) ───────────────────────────────────────── -->
+            <!-- HiddenNote surfaces the "N features hidden" affordance; empty when nothing is
+             gated away (developer / no gate), which the strip binds to hide it. Clicking it opens Settings at
+             the USER CATEGORY section (v0.6.0). -->
+            <controls:StatusStrip DockPanel.Dock="Bottom"
+                                  StatusText="{Binding StatusText}"
+                                  Chips="{Binding Chips}"
+                                  HiddenNote="{Binding HiddenFeatureNote}"
+                                  HiddenNoteCommand="{Binding OpenSettingsAtCategoryCommand}" />
+
+            <!-- ── Output panel drawer (bottom, above status strip; F8.2) ──────── -->
+            <controls:OutputPanel DockPanel.Dock="Bottom"
+                                  Height="200"
+                                  DataContext="{Binding Output}"
+                                  IsVisible="{Binding IsVisible}" />
+
+            <!-- ── Center: debugger rail (SplitView) wrapping the tab content ──── -->
+            <SplitView PanePlacement="Right"
+                       DisplayMode="Inline"
+                       IsPaneOpen="{Binding IsDebuggerPanelVisible}"
+                       OpenPaneLength="320">
+
+                <SplitView.Pane>
+                    <Border BorderBrush="{DynamicResource BorderSubtle}"
+                            BorderThickness="1 0 0 0">
+                        <views:DebuggerPanel DataContext="{Binding DebuggerPanel}" />
+                    </Border>
+                </SplitView.Pane>
+
+                <!-- ItemsSource-driven TabControl. The built-in tabs are registered
+                 descriptors (BuiltInTabsModule) alongside any module tabs — one code path for all.
+                 Inactive tab content is unloaded for free: Avalonia's single content presenter keeps
+                 only the selected descriptor's realized View in the visual tree (F1.1, F2.2). The
+                 descriptor sets its View's DataContext (the shell for the 3 shell-routed built-ins;
+                 the per-tab VM for module tabs), so the existing bindings resolve unchanged. -->
+                <Grid>
+                    <TabControl x:Name="ShellTabs"
+                                ItemsSource="{Binding Tabs}"
+                                SelectedItem="{Binding SelectedTab, Mode=TwoWay}"
+                                controls:TutorialAnchor.Target="TabNav"
+                                Background="{DynamicResource ShellBg}">
+                        <TabControl.ItemTemplate>
+                            <DataTemplate x:DataType="modules:WorkspaceTabDescriptor">
+                                <TextBlock Text="{Binding Header}" />
+                            </DataTemplate>
+                        </TabControl.ItemTemplate>
+                        <TabControl.ContentTemplate>
+                            <DataTemplate x:DataType="modules:WorkspaceTabDescriptor">
+                                <ContentControl Content="{Binding ActiveContent}" />
+                            </DataTemplate>
+                        </TabControl.ContentTemplate>
+                    </TabControl>
+
+                    <!-- No global no-file placeholder here: it overlaid EVERY tab and collided with
+                     tab-local content (Library needs no demo; Stats has its own empty state).
+                     Each tab owns its empty state — the Parser tab carries the "Open a .dem
+                     file to begin" prompt; StatusText stays visible in the status strip. -->
+
+                    <!-- Command palette overlay (Ctrl+P, F8.1) — the popup self-centers on the window. -->
+                    <controls:CommandPalette DataContext="{Binding Palette}" />
+                </Grid>
+
+            </SplitView>
+
+        </DockPanel>
+
+        <!-- ── Settings overlay (WASM host: no OS windows) ──────────────────────
+         Shown when a SettingsViewModel is set on the shell (BrowserWindowService route). On desktop a real
+         SettingsWindow opens instead and SettingsOverlay stays null, so this collapses. Scrim dims the shell
+         (ShellBg @ 0.8 opacity — a separate layer so the card stays full-opacity); the ContentControl
+         resolves SettingsView via the ViewLocator. -->
+        <Panel IsVisible="{Binding SettingsOverlay, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <Border Background="{DynamicResource ShellBg}" Opacity="0.8" />
+            <Border Classes="card" MaxWidth="560" MaxHeight="720" Margin="32"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <ContentControl Content="{Binding SettingsOverlay}" />
+            </Border>
+        </Panel>
+
+        <!-- ── First-run wizard overlay (WASM host: no OS windows) ───────────────
+         WASM-only in practice: desktop opens a modal FirstRunWizardWindow and leaves FirstRunOverlay
+         null, so this collapses. Reached only via Settings' "Re-run first-time setup" (never auto-shown
+         on WASM). Drawn AFTER the Settings overlay so a re-run launched from Settings sits on top. -->
+        <Panel IsVisible="{Binding FirstRunOverlay, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <Border Background="{DynamicResource ShellBg}" Opacity="0.8" />
+            <Border Classes="card" MaxWidth="620" MaxHeight="640" Margin="32"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <ContentControl Content="{Binding FirstRunOverlay}" />
+            </Border>
+        </Panel>
+
+        <!-- ── Idle-mode overlay (desktop) ───────────────────────────────────────
+         Shown full-window when the app enters idle (MainViewModel.IsIdle). The scrim is near-opaque —
+         the app is deliberately parked to conserve resources — and the IdleView card offers Resume /
+         Settings + the live background-processing queue. Drawn last so it sits above every other overlay. -->
+        <Panel IsVisible="{Binding IsIdle}">
+            <Border Background="{DynamicResource ShellBg}" Opacity="0.94" />
+            <idle:IdleView DataContext="{Binding IdleView}" />
+        </Panel>
+
+        <!-- ── First-run Visual Walkthrough overlay ──────────────────────────────
+         The coach-mark tour: a full-window scrim with a spotlight over the current step's region + a
+         callout. Drawn last so it sits above every other overlay. The TutorialView is self-contained
+         (scrim + callout); it shows only while Tutorial.IsActive. -->
+        <tutorial:TutorialView DataContext="{Binding Tutorial}"
+                               IsVisible="{Binding IsActive}" />
+
+    </Panel>
+
+</UserControl>

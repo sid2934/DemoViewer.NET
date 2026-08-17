@@ -1,0 +1,94 @@
+# yaml-language-server: $schema=./dv-rules.schema.json
+#
+# Windowed multi-kills — the v0.5.4 centerpiece. Each stat is a `burst:` PULSE: it
+# goes true for one dispatch when min_streak enemy kills land within a rolling `window` (a true
+# sliding window — first-to-last span <= window, NOT consecutive-gap). The paired highlight fires on
+# that pulse's rising edge, at the completing kill's tick (the clip anchor). One sustained spray
+# fires each tier ONCE (the burst latch holds until the window breaks); a 4-kill spray fires
+# rapid_double + rapid_triple + rapid_quad, each at its own completing kill.
+ruleset: highlights_rapid
+title: Rapid Multi-Kills
+summary: Multi-kills in a short time window (spray-downs), per player.
+for: each_player
+
+stats:
+  # burst: <trigger> reuses window:/min_streak: (folded to ticks at the demo tick rate). Bool-valued.
+  double_burst:
+    burst: kill
+    match: { enemy: true }
+    window: "3s"
+    min_streak: 2
+
+  triple_burst:
+    burst: kill
+    match: { enemy: true }
+    window: "5s"
+    min_streak: 3
+
+  quad_burst:
+    burst: kill
+    match: { enemy: true }
+    window: "7s"
+    min_streak: 4
+
+  ace_burst:
+    burst: kill
+    match: { enemy: true }
+    window: "9s"
+    min_streak: 5
+
+  # Collateral (Tier C) — 2+ enemy kills within ~2 ticks (~30ms), i.e. effectively one
+  # instant: a single penetrating bullet or one grenade. The burst kind gives this for free with a
+  # tiny window (no shot-grouping enrichment needed); it's a near-simultaneity proxy, not a literal
+  # same-bullet trace.
+  collateral_burst:
+    burst: kill
+    match: { enemy: true }
+    window: 2
+    min_streak: 2
+
+highlights:
+  # The four kill-count tiers share group: rapid_multikill, so a single fast spray surfaces only its
+  # top rapid tier (a rapid quad no longer also surfaces rapid double + triple). collateral is a
+  # distinct achievement (near-simultaneous kills), NOT a tier, so it stays ungrouped and survives.
+  rapid_double:
+    when: double_burst
+    per: round
+    score: 62
+    group: rapid_multikill
+    title: "{player.name} — 2 kills in a blink (round {round.number})"
+
+  rapid_triple:
+    when: triple_burst
+    per: round
+    score: 82
+    group: rapid_multikill
+    title: "{player.name} — 3 kills in a heartbeat! (round {round.number})"
+
+  rapid_quad:
+    when: quad_burst
+    per: round
+    score: 92
+    group: rapid_multikill
+    title: "{player.name} — 4 kills in seconds!! (round {round.number})"
+
+  instant_ace:
+    when: ace_burst
+    per: round
+    score: 100
+    group: rapid_multikill
+    title: "{player.name} — INSTANT ACE!!! (round {round.number})"
+
+  collateral:
+    when: collateral_burst
+    per: round
+    score: 95
+    title: "{player.name} — collateral! (round {round.number})"
+
+show:
+  scoreboard:
+    - { stat: rapid_double.count, label: RapidDoubles, group: game }
+    - { stat: rapid_triple.count, label: RapidTriples, group: game }
+    - { stat: rapid_quad.count,   label: RapidQuads,   group: game }
+    - { stat: instant_ace.count,  label: InstantAces,  group: game }
+    - { stat: collateral.count,   label: Collaterals,  group: game }

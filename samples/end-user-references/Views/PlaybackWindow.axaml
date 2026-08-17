@@ -1,0 +1,187 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DemoViewer.NET.ViewModels"
+        xmlns:local="using:DemoViewer.NET.Views"
+        xmlns:models="using:DemoViewer.NET.Models"
+        x:Class="DemoViewer.NET.Views.PlaybackWindow"
+        x:DataType="vm:PlaybackViewModel"
+        Title="2D Playback"
+        Width="960" Height="640"
+        MinWidth="500" MinHeight="350"
+        ShowInTaskbar="False">
+
+    <Grid RowDefinitions="Auto,Auto,*">
+
+        <!-- ── Navigation bar ────────────────────────────────────────────────────── -->
+        <Border Grid.Row="0"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="6,4">
+            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+
+                <!-- Tick navigation -->
+                <Button Content="◀◀" ToolTip.Tip="Skip back N ticks"
+                        Command="{Binding SkipBackCommand}"
+                        Padding="8,3" FontSize="12" />
+
+                <NumericUpDown Value="{Binding TickSkipCount}"
+                               Minimum="1" Maximum="2147483647"
+                               Increment="1" FormatString="0"
+                               Width="110" Height="24" FontSize="11"
+                               VerticalAlignment="Center"
+                               ToolTip.Tip="Number of ticks to skip" />
+
+                <Button Content="▶▶" ToolTip.Tip="Skip forward N ticks"
+                        Command="{Binding SkipForwardCommand}"
+                        Padding="8,3" FontSize="12" />
+
+                <Border Width="1" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                        Margin="4,2" />
+
+                <!-- Frame navigation -->
+                <Button Content="◀" ToolTip.Tip="Previous frame"
+                        Command="{Binding PreviousFrameCommand}"
+                        Padding="8,3" FontSize="12" />
+                <Button Content="▶" ToolTip.Tip="Next frame"
+                        Command="{Binding NextFrameCommand}"
+                        Padding="8,3" FontSize="12" />
+
+            </StackPanel>
+        </Border>
+
+        <!-- ── Info bar: round / tick / score / debug ────────────────────────────── -->
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="10,5">
+            <Grid RowDefinitions="Auto,Auto">
+
+                <!-- Primary stats row -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
+
+                    <TextBlock Text="{Binding RoundNumber, StringFormat='Round {0}'}"
+                               FontFamily="Consolas,Menlo,monospace" FontSize="12"
+                               VerticalAlignment="Center" />
+
+                    <TextBlock Text="·" Opacity="0.35" VerticalAlignment="Center" />
+
+                    <TextBlock Text="{Binding CurrentTick, StringFormat='Tick {0}'}"
+                               FontFamily="Consolas,Menlo,monospace" FontSize="12"
+                               VerticalAlignment="Center" />
+
+                    <TextBlock Text="·" Opacity="0.35" VerticalAlignment="Center" />
+
+                    <!-- Score: CT — T -->
+                    <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                        <TextBlock Text="CT"
+                                   Foreground="#4FC3F7"
+                                   FontFamily="Consolas,Menlo,monospace" FontWeight="SemiBold" FontSize="12" />
+                        <TextBlock Text="{Binding CtScore}"
+                                   FontFamily="Consolas,Menlo,monospace" FontSize="12" />
+                        <TextBlock Text="–" Opacity="0.5" />
+                        <TextBlock Text="{Binding TScore}"
+                                   FontFamily="Consolas,Menlo,monospace" FontSize="12" />
+                        <TextBlock Text="T"
+                                   Foreground="#FFD54F"
+                                   FontFamily="Consolas,Menlo,monospace" FontWeight="SemiBold" FontSize="12" />
+                    </StackPanel>
+
+                    <TextBlock Text="·" Opacity="0.35" VerticalAlignment="Center" />
+
+                    <TextBlock Text="{Binding Players.Count, StringFormat='{}{0} players'}"
+                               FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                               Opacity="0.55" VerticalAlignment="Center" />
+
+                </StackPanel>
+
+                <!-- Debug diagnostic row -->
+                <TextBlock Grid.Row="1"
+                           Text="{Binding DebugInfo}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                           Opacity="0.45"
+                           TextTrimming="CharacterEllipsis"
+                           Margin="0,2,0,0" />
+
+            </Grid>
+        </Border>
+
+        <!-- ── Main area: map canvas + field sources panel ───────────────────────── -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,280">
+
+            <!-- Map canvas -->
+            <local:MapView Grid.Column="0"
+                           Players="{Binding Players}"
+                           SelectedPlayer="{Binding SelectedPlayer}" />
+
+            <!-- Field sources panel (right) -->
+            <Border Grid.Column="1"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    BorderThickness="1,0,0,0">
+                <DockPanel>
+
+                    <!-- Panel title -->
+                    <Border DockPanel.Dock="Top"
+                            BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="8,6">
+                        <TextBlock Text="Field Sources"
+                                   FontWeight="SemiBold" FontSize="12" />
+                    </Border>
+
+                    <!-- Placeholder: nothing selected -->
+                    <TextBlock IsVisible="{Binding SelectedPlayer, Converter={x:Static ObjectConverters.IsNull}}"
+                               Text="Click a player dot&#x0a;to inspect field sources"
+                               TextAlignment="Center"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               FontSize="11"
+                               Opacity="0.45"
+                               Padding="12" />
+
+                    <!-- Selected player info header -->
+                    <StackPanel DockPanel.Dock="Top"
+                                IsVisible="{Binding SelectedPlayer, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                Margin="8,6,8,4" Spacing="1">
+                        <TextBlock Text="{Binding SelectedPlayer.ClassName}"
+                                   FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding SelectedPlayer.Serial, StringFormat='serial {0}'}"
+                                   FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                                   Opacity="0.55" />
+                    </StackPanel>
+
+                    <!-- Separator -->
+                    <Border DockPanel.Dock="Top"
+                            IsVisible="{Binding SelectedPlayer, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                            BorderThickness="0,0,0,1" />
+
+                    <!-- Field rows -->
+                    <ScrollViewer IsVisible="{Binding SelectedPlayer, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                  VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding FieldSources}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:FieldSourceEntry">
+                                    <Grid ColumnDefinitions="Auto,*" Margin="8,3">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding FieldName}"
+                                                   FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                   Opacity="0.75"
+                                                   MinWidth="130" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding Value}"
+                                                   FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                   Foreground="{DynamicResource SystemAccentColor}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                </DockPanel>
+            </Border>
+
+        </Grid>
+    </Grid>
+</Window>

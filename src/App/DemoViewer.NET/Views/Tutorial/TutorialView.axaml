@@ -1,0 +1,158 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:DemoViewer.NET.Controls"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Tutorial"
+             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="680"
+             x:Class="DemoViewer.NET.Views.Tutorial.TutorialView"
+             x:DataType="vm:TutorialViewModel">
+
+    <!--
+        First-run Visual Walkthrough overlay. Mounts as one more sibling <Panel> in MainView's root Panel,
+        exactly like the Idle / Settings overlays, gated by the tutorial VM's IsActive (self-gated here so
+        the engine only has to null-check / toggle one binding). It NEVER reparents the real UI.
+
+        Two layers:
+          1. SpotlightScrim — a code-drawn dim with a rounded cut-out over CurrentStep's target rect. Fully
+             input-blocking (the tour is Next-driven; no click-through). All colour via {DynamicResource}.
+          2. A callout bubble (Border.card) on a Canvas, positioned in code-behind relative to the spotlight
+             and clamped on-screen for edge targets (see TutorialView.axaml.cs).
+
+        Design-time DataContext = the parameterless VM (welcome step) so the previewer + captures render.
+    -->
+
+    <Design.DataContext>
+        <vm:TutorialViewModel />
+    </Design.DataContext>
+
+    <UserControl.Styles>
+        <!--
+            Coach-mark spotlight breath. A soft ~1.6s sine-eased loop on the scrim's visual-only Pulse
+            property (0 dim ↔ 1 bright), which Render() uses to fade the highlight frame + its outward glow.
+            The '.pulsing' class is owned by the code-behind (applied while a step is spotlighted), so it is
+            NOT bound here — one owner only. Colour stays theme-driven: the breath scales the alpha of the
+            HoleBorderBrush token ({DynamicResource AccentInteractive}), it never sets a colour.
+        -->
+        <Style Selector="controls|SpotlightScrim.pulsing">
+            <Style.Animations>
+                <Animation Duration="0:0:1.6" IterationCount="INFINITE" Easing="SineEaseInOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="controls:SpotlightScrim.Pulse" Value="1.0" />
+                    </KeyFrame>
+                    <KeyFrame Cue="50%">
+                        <Setter Property="controls:SpotlightScrim.Pulse" Value="0.12" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="controls:SpotlightScrim.Pulse" Value="1.0" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+    </UserControl.Styles>
+
+    <!-- No Panel Background here on purpose: the SpotlightScrim is the sole input blocker (it fills the panel),
+         and it implements ICustomHitTest so that on a waiting gateway step clicks over the hole fall THROUGH to
+         the real highlighted control (the Open-Demo button). A hit-testable Panel background would swallow that
+         click before it reached the app, so it must stay unset. -->
+    <Panel IsVisible="{Binding IsActive}">
+
+        <controls:SpotlightScrim x:Name="Scrim"
+                                 ScrimBrush="{DynamicResource ShellBg}"
+                                 ScrimOpacity="0.86"
+                                 HoleBorderBrush="{DynamicResource AccentInteractive}"
+                                 HoleBorderThickness="2"
+                                 HoleCornerRadius="10"
+                                 HolePadding="8"
+                                 HasHole="{Binding HasSpotlight}"
+                                 Hole="{Binding SpotlightRect}"
+                                 InteractiveHole="{Binding IsWaiting}" />
+
+        <!-- Callout layer. Canvas.Left/Top on the bubble are set by code-behind (PositionCallout). -->
+        <Canvas x:Name="CalloutLayer">
+            <Border x:Name="Callout" Classes="card" Width="360" Padding="20 18">
+                <StackPanel Spacing="12">
+
+                    <!-- Step indicator + Skip -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0"
+                                   Classes="mono"
+                                   Text="{Binding StepIndicator}"
+                                   Foreground="{DynamicResource TextDim}"
+                                   FontSize="11"
+                                   VerticalAlignment="Center" />
+                        <Button Grid.Column="1"
+                                Classes="ghost"
+                                Content="Skip tour"
+                                Command="{Binding SkipCommand}"
+                                FontSize="11" Padding="8 3"
+                                ToolTip.Tip="Close the walkthrough. You can reopen it from Settings." />
+                    </Grid>
+
+                    <!-- Title -->
+                    <TextBlock Text="{Binding CurrentStep.Title}"
+                               Foreground="{DynamicResource TextCardHeader}"
+                               FontSize="17" FontWeight="SemiBold"
+                               TextWrapping="Wrap" />
+
+                    <!-- Body -->
+                    <TextBlock Text="{Binding CurrentStep.Body}"
+                               Foreground="{DynamicResource TextMid}"
+                               FontSize="13" LineHeight="19"
+                               TextWrapping="Wrap" />
+
+                    <!-- Waiting hint — shown on a WaitsForDemo gateway step while no demo is open. The Next
+                         button is hidden here (advance is automatic on demo load), so the user is guided to
+                         the spotlighted Open-Demo control rather than a dead button or a vanished overlay. A
+                         breathing "watching" dot (the shared Ellipse.dot.stateWorking.pulsing) sits beside
+                         the hint so the wait reads as live and intentional, echoing the spotlight's pulse
+                         (both AccentInteractive). -->
+                    <Border IsVisible="{Binding IsWaiting}"
+                            Background="{DynamicResource PanelHeaderHover}"
+                            BorderBrush="{DynamicResource BorderSubtle}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="11 8"
+                            Margin="0 2 0 0">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Ellipse Grid.Column="0"
+                                     Classes="dot stateWorking pulsing"
+                                     Width="8" Height="8"
+                                     VerticalAlignment="Top"
+                                     Margin="0 3 9 0" />
+                            <!-- Neutral TextMid (AA-safe in all 3 themes) per the StatusChip idiom: the
+                                 state is word-carried, the AccentInteractive dot is the redundant colour cue
+                                 (WCAG 1.4.1). Never tint the hint to signal state. -->
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding WaitingHint}"
+                                       Foreground="{DynamicResource TextMid}"
+                                       FontSize="12" FontStyle="Italic" LineHeight="17"
+                                       TextWrapping="Wrap" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Back / Next. On a waiting gateway there is no advance button at all: the user clicks the
+                         real, highlighted Open-Demo button through the spotlight (the scrim lets that click
+                         through — see InteractiveHole), and loading a demo auto-resumes the tour. -->
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0 4 0 0">
+                        <Button Grid.Column="0"
+                                Classes="ghost"
+                                Content="Back"
+                                Command="{Binding BackCommand}"
+                                IsVisible="{Binding CanGoBack}"
+                                FontSize="13" Padding="14 6" />
+                        <Button Grid.Column="2"
+                                Classes="primary"
+                                Content="{Binding NextLabel}"
+                                Command="{Binding NextCommand}"
+                                IsVisible="{Binding !IsWaiting}"
+                                FontSize="13" Padding="20 6" />
+                    </Grid>
+
+                </StackPanel>
+            </Border>
+        </Canvas>
+
+    </Panel>
+
+</UserControl>

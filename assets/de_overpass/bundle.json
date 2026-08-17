@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "mapName": "de_overpass",
+  "mapVersion": "ced68ef8",
+  "bakerVersion": "0.1\u002Bvrf19.2.6339",
+  "transform": {
+    "posX": -4831,
+    "posY": 1781,
+    "scale": 5.2,
+    "rotate": 0,
+    "zoom": 0,
+    "imageSize": 1024
+  },
+  "bounds": {
+    "minX": -4831,
+    "minY": -3543.8,
+    "maxX": 493.8000000000002,
+    "maxY": 1781
+  },
+  "floors": [
+    {
+      "minZ": -100000,
+      "maxZ": 100000
+    }
+  ],
+  "radarLayers": [
+    {
+      "minZ": -100000,
+      "maxZ": 100000,
+      "image": "de_overpass.png"
+    }
+  ],
+  "radarImages": [
+    "de_overpass.png"
+  ],
+  "collisionMesh": {
+    "file": "collision.tris",
+    "triangleCount": 713341,
+    "minX": -6400,
+    "minY": -4544,
+    "minZ": -44,
+    "maxX": 2912,
+    "maxY": 4096,
+    "maxZ": 2549.51904296875
+  }
+}

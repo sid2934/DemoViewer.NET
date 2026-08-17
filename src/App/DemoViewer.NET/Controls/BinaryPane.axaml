@@ -1,0 +1,222 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels"
+             x:Class="DemoViewer.NET.Controls.BinaryPane"
+             x:DataType="vm:HarvestHexViewModel">
+
+    <!--
+      Reusable hex viewer (F3.2). Adopts the windowed-virtualization implementation
+      formerly in HarvestHexControl: offset gutter, ASCII gutter, multi-range
+      highlights (innermost-brush algorithm via HexSpan levels), the byte-click →
+      node loop (F5.2), and the optional header / footer / status banners.
+
+      Data layer stays HarvestHexViewModel — consumers bind it as DataContext, e.g.
+      <controls:BinaryPane DataContext="{Binding HexViewRaw}"/>. The VM exposes
+      Load / SetSpans / Clear / ByteClicked; the code-behind drives scroll-window
+      paging and tunnels byte-cell clicks to the VM.
+  -->
+
+    <UserControl.Styles>
+
+        <!-- Suppress ListBoxItem selection/hover chrome — rows are read-only -->
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+
+        <!-- ── Row 0: optional header banner ─────────────────────────────────── -->
+        <Border Grid.Row="0"
+                IsVisible="{Binding HasHeader}"
+                Background="{DynamicResource HexBannerBg}"
+                BorderBrush="{DynamicResource HexBannerBorder}"
+                BorderThickness="0 0 0 1"
+                Padding="10 5">
+            <TextBlock Text="{Binding Header}"
+                       FontFamily="Consolas,Menlo,monospace"
+                       FontSize="11"
+                       Foreground="{DynamicResource TextHexBanner}"
+                       TextTrimming="CharacterEllipsis" />
+        </Border>
+
+        <!-- ── Row 1: window-range indicator (hidden when buffer fits in one window) -->
+        <Border Grid.Row="1"
+                IsVisible="{Binding WindowRangeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                Background="{DynamicResource PanelHeaderBg}"
+                BorderBrush="{DynamicResource HexRowSeparator}"
+                BorderThickness="0 0 0 1"
+                Padding="10 3">
+            <TextBlock Text="{Binding WindowRangeText}"
+                       FontFamily="Consolas,Menlo,monospace"
+                       FontSize="9"
+                       Foreground="{DynamicResource TextDimTeal}"
+                       Opacity="0.8" />
+        </Border>
+
+        <!-- ── Row 2: main hex content ────────────────────────────────────────── -->
+        <Grid Grid.Row="2">
+
+            <!-- No-data placeholder -->
+            <TextBlock IsVisible="{Binding !HasData}"
+                       Text="{Binding PlaceholderText}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       FontSize="12"
+                       Foreground="{DynamicResource TextDimTeal}" />
+
+            <!-- Virtualized hex rows -->
+            <ListBox x:Name="HexList"
+                     IsVisible="{Binding HasData}"
+                     ItemsSource="{Binding Rows}"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:HarvestHexRow">
+                        <StackPanel Orientation="Horizontal" Margin="8 1">
+
+                            <!-- Offset label -->
+                            <TextBlock Text="{Binding Offset}"
+                                       Width="58"
+                                       FontFamily="Consolas,Menlo,monospace"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextHexGutter}"
+                                       VerticalAlignment="Center" />
+
+                            <!-- Left 8 bytes (0–7) -->
+                            <ItemsControl ItemsSource="{Binding CellsLeft}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:HarvestHexCell">
+                                        <Border Background="{Binding HighlightBrush}"
+                                                CornerRadius="2"
+                                                Margin="1 0">
+                                            <TextBlock Text="{Binding HexText}"
+                                                       FontFamily="Consolas,Menlo,monospace"
+                                                       FontSize="11"
+                                                       Width="20"
+                                                       TextAlignment="Center"
+                                                       Foreground="{DynamicResource TextHexCell}"
+                                                       VerticalAlignment="Center" />
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- 8-byte group separator gap -->
+                            <Border Width="10" />
+
+                            <!-- Right 8 bytes (8–15) -->
+                            <ItemsControl ItemsSource="{Binding CellsRight}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:HarvestHexCell">
+                                        <Border Background="{Binding HighlightBrush}"
+                                                CornerRadius="2"
+                                                Margin="1 0">
+                                            <TextBlock Text="{Binding HexText}"
+                                                       FontFamily="Consolas,Menlo,monospace"
+                                                       FontSize="11"
+                                                       Width="20"
+                                                       TextAlignment="Center"
+                                                       Foreground="{DynamicResource TextHexCell}"
+                                                       VerticalAlignment="Center" />
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- ASCII preview -->
+                            <TextBlock Text="{Binding Ascii}"
+                                       FontFamily="Consolas,Menlo,monospace"
+                                       FontSize="11"
+                                       Margin="14 0 0 0"
+                                       Foreground="{DynamicResource TextHexGutter}"
+                                       VerticalAlignment="Center" />
+
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+
+        <!-- ── Row 3: optional footer strip ──────────────────────────────────── -->
+        <Border Grid.Row="3"
+                IsVisible="{Binding HasFooter}"
+                Background="{DynamicResource HexBannerBg}"
+                BorderBrush="{DynamicResource HexBannerBorder}"
+                BorderThickness="0 1 0 0"
+                Padding="10 4">
+            <TextBlock Text="{Binding Footer}"
+                       FontFamily="Consolas,Menlo,monospace"
+                       FontSize="10"
+                       Foreground="{DynamicResource TextChainBadge}"
+                       TextTrimming="CharacterEllipsis" />
+        </Border>
+
+        <!-- ── Row 4: status bar ──────────────────────────────────────────────── -->
+        <Border Grid.Row="4"
+                Background="{DynamicResource PanelBg}"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="0 1 0 0"
+                Padding="10 4">
+            <Grid ColumnDefinitions="*,Auto">
+
+                <!-- Active span info -->
+                <TextBlock Grid.Column="0"
+                           Text="{Binding StatusText}"
+                           FontFamily="Consolas,Menlo,monospace"
+                           FontSize="10"
+                           Foreground="{DynamicResource TextStatusBar}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+
+                <!-- Level legend -->
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="10"
+                            VerticalAlignment="Center"
+                            Margin="14 0 0 0">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Border Width="10" Height="10" CornerRadius="2"
+                                Background="{DynamicResource HexSwatchSelected}" />
+                        <TextBlock Text="selected" FontSize="9" Foreground="{DynamicResource TextLabel}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Border Width="10" Height="10" CornerRadius="2" Background="{DynamicResource HexSwatchParent}" />
+                        <TextBlock Text="parent" FontSize="9" Foreground="{DynamicResource TextLabel}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Border Width="10" Height="10" CornerRadius="2"
+                                Background="{DynamicResource HexSwatchAncestor}" />
+                        <TextBlock Text="ancestor" FontSize="9" Foreground="{DynamicResource TextLabel}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </StackPanel>
+
+            </Grid>
+        </Border>
+
+    </Grid>
+
+</UserControl>

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "mapName": "de_anubis",
+  "mapVersion": "5d92ea44",
+  "bakerVersion": "0.1\u002Bvrf19.2.6339",
+  "transform": {
+    "posX": -2796,
+    "posY": 3328,
+    "scale": 5.22,
+    "rotate": 0,
+    "zoom": 1,
+    "imageSize": 1024
+  },
+  "bounds": {
+    "minX": -2796,
+    "minY": -2017.2799999999997,
+    "maxX": 2549.2799999999997,
+    "maxY": 3328
+  },
+  "floors": [
+    {
+      "minZ": -100000,
+      "maxZ": 100000
+    }
+  ],
+  "radarLayers": [
+    {
+      "minZ": -100000,
+      "maxZ": 100000,
+      "image": "de_anubis.png"
+    }
+  ],
+  "radarImages": [
+    "de_anubis.png"
+  ]
+}

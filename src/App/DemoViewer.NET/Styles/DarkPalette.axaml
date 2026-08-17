@@ -1,0 +1,711 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        DemoViewer.NET colour palette — single source of truth for every markup colour token.
+
+        THEMING MODEL (L0b — Light theme capstone):
+        Tokens live in ResourceDictionary.ThemeDictionaries keyed by ThemeVariant (Dark / Light).
+        Markup references them via {DynamicResource TokenName}, so a change to the window / app
+        RequestedThemeVariant re-resolves every token live. {StaticResource} would resolve ONCE at
+        load and never react to a variant change, so all 98 palette-key references were migrated to
+        {DynamicResource} (see the L0b ref-migration commit). Non-palette resources (DataTemplates,
+        converters) keep {StaticResource}.
+
+        LIGHT IS A REAL DESIGNED PALETTE (L1). The Light dictionary below is a genuinely-designed light
+        variant, NOT a naive inversion: soft cool-neutral light surfaces (no harsh pure #FFFFFF for large
+        backgrounds), the text ramp value-axis flipped (dark blue-purple text on light, WCAG-AA body),
+        accents darkened where amber/error/caution/positive would wash out on white, and BorderTranslucent
+        flipped from a white to a dark hairline. Three token families are held IDENTICAL to Dark on
+        purpose (see the group comments in the Light block): the LibraryCard* overlay ramp + the hex
+        legend swatches (painted over theme-independent surfaces — a baked-dark radar thumbnail / saturated
+        hex highlights), and the 29 Pb2d* 2D-HUD tokens (L1-DEFERRED so the 2D tab stays a coherent dark
+        island beside its still-dark Skia viewport until L2 themes viewport + Pb2d* together). The code-held
+        hues (Playback2D Skia viewport, RuleWorkbench syntax highlighting, VM accent classifiers, the depth
+        ramp) are NOT palette keys and stay dark in L1 (that is L2). To be reviewed before L2 wires them.
+
+        NAMING POLICY (canonical: docs/ui/design-system.md, "Token catalog -> Naming policy"):
+        - Semantic names for role-bound brushes used more than once (surfaces, borders, text ramps,
+          accents, depth ramp). Prefer these.
+        - Hex-value names (e.g. ColorD0CCF8) only for a true one-off with no semantic role.
+        - Alpha is part of colour identity: #FFC107 (AccentAmber) and #FFFFC107 (AccentAmberOpaque)
+          are distinct tokens; the depth ramp's 0xC0 alpha is deliberate.
+
+        EDITING RULE: keep Dark and Light key sets IDENTICAL (same 215 keys). Do NOT rename/add/remove
+        keys. NOTE: XML comments cannot contain a double hyphen (it breaks the axaml parse) — use single
+        hyphens or the box-drawing dividers below.
+    -->
+
+    <ResourceDictionary.ThemeDictionaries>
+
+        <!-- ════════════════════════════════════════════════════════════════════════════════════════
+             DARK — the canonical dev-tool palette (a cool blue-purple ramp; shell near-black #080816
+             to text near-white #C0C0F0). These are the exact pre-L0b values; the L0b gate proves Dark
+             renders byte-identical to the old flat palette.
+             ════════════════════════════════════════════════════════════════════════════════════════ -->
+        <ResourceDictionary x:Key="Dark">
+
+            <!-- ── Surfaces / shell backgrounds ──────────────────────────────────────── -->
+            <SolidColorBrush x:Key="ShellBg" Color="#080816" />
+            <SolidColorBrush x:Key="DebuggerBg" Color="#0A0A18" />
+            <SolidColorBrush x:Key="FrameHeaderStripBg" Color="#0A0A1A" />
+            <SolidColorBrush x:Key="PanelBg" Color="#0C0C1A" />
+            <SolidColorBrush x:Key="PanelHeaderBg" Color="#0E0E1E" />
+            <SolidColorBrush x:Key="PanelHeaderHover" Color="#0E0E24" />
+            <SolidColorBrush x:Key="HexBannerBg" Color="#141428" />
+            <SolidColorBrush x:Key="PanelHeaderHoverDeep" Color="#14142E" />
+            <SolidColorBrush x:Key="HdrActionHoverBg" Color="#16163A" />
+            <SolidColorBrush x:Key="CardBg" Color="#171726" />
+            <SolidColorBrush x:Key="PrimaryButtonBg" Color="#1A1A38" />
+            <SolidColorBrush x:Key="ChainSummaryBadgeBg" Color="#1A1A3A" />
+            <!-- Parser frame-list (HarvestFrameListControl) row-state + badge surfaces. Each is a NEAR-
+                 (not exact) duplicate of a standard token, so it gets its own token to stay pixel-identical:
+                 FrameRowSelectedBg ~ PrimaryButtonBg #1A1A38; FrameRowHoverBg ~ PanelHeaderHover #0E0E24 /
+                 PanelHeaderHoverDeep #14142E; FrameMsgBadgeBg ~ PanelHeaderHoverDeep #14142E. Unify candidate:
+                 a later (pixel-CHANGING) pass could fold these onto the standard row-state/badge tokens. -->
+            <SolidColorBrush x:Key="FrameRowSelectedBg" Color="#1C1C38" />
+            <SolidColorBrush x:Key="FrameRowHoverBg" Color="#12122A" />
+            <SolidColorBrush x:Key="FrameMsgBadgeBg" Color="#16162E" />
+
+            <!-- ── Borders / dividers ────────────────────────────────────────────────── -->
+            <SolidColorBrush x:Key="BorderSubtle" Color="#1A1A32" />
+            <SolidColorBrush x:Key="BorderStrong" Color="#1E1E34" />
+            <SolidColorBrush x:Key="HexBannerBorder" Color="#252548" />
+            <SolidColorBrush x:Key="BorderAccent" Color="#252545" />
+            <SolidColorBrush x:Key="HexRowSeparator" Color="#1E1E38" />
+            <SolidColorBrush x:Key="PrimaryButtonBorder" Color="#2A2A54" />
+            <!-- Translucent white hairline (white @ 20%) — the RuleWorkbench pane outline (7×). A deliberate
+                 fork from the blue-purple BorderSubtle/Strong ramp; kept as its own token so the workbench keeps
+                 its lighter panel edges. Value coincides with Pb2dKillFeedBorder (a walled-off 2D-HUD domain
+                 token) — NOT reused across the domain boundary; see design-system.md 1. -->
+            <SolidColorBrush x:Key="BorderTranslucent" Color="#33FFFFFF" />
+
+            <!-- ── Text ramps (cool blue-purple) ─────────────────────────────────────── -->
+            <SolidColorBrush x:Key="TextHexGutter" Color="#44446A" />
+            <SolidColorBrush x:Key="TextLabel" Color="#30305A" />
+            <SolidColorBrush x:Key="TextLabelAlt" Color="#303060" />
+            <SolidColorBrush x:Key="TextDim" Color="#404068" />
+            <SolidColorBrush x:Key="TextDimAlt" Color="#404070" />
+            <SolidColorBrush x:Key="TextDimGray" Color="#404060" />
+            <SolidColorBrush x:Key="TextDimTeal" Color="#40407A" />
+            <SolidColorBrush x:Key="TextEntityStatus" Color="#4A4A72" />
+            <SolidColorBrush x:Key="TextStatusBar" Color="#44447A" />
+            <SolidColorBrush x:Key="TextHeaderField" Color="#505080" />
+            <SolidColorBrush x:Key="TextCardSize" Color="#50508A" />
+            <SolidColorBrush x:Key="TextChainSummary" Color="#606080" />
+            <SolidColorBrush x:Key="TextChainBadge" Color="#6060A8" />
+            <SolidColorBrush x:Key="TextMid" Color="#7878A8" />
+            <SolidColorBrush x:Key="TextHexBanner" Color="#8080B8" />
+            <SolidColorBrush x:Key="TextFrameInfo" Color="#6868A8" />
+            <SolidColorBrush x:Key="TextHeaderHex" Color="#9090C8" />
+            <!-- Frame-list full type-name text. Near-dup of TextHeaderHex #9090C8 (unify candidate);
+                 kept exact for a pixel-identical de-inline. -->
+            <SolidColorBrush x:Key="TextFrameType" Color="#9090C0" />
+            <SolidColorBrush x:Key="TextEntityFieldVal" Color="#9898C8" />
+            <SolidColorBrush x:Key="TextBright" Color="#A0A0D8" />
+            <SolidColorBrush x:Key="TextFieldName" Color="#A8A8D8" />
+            <SolidColorBrush x:Key="TextValue" Color="#C0C0F0" />
+            <SolidColorBrush x:Key="TextHexCell" Color="#C8C8E8" />
+            <SolidColorBrush x:Key="TextCardHeader" Color="#D0CCF8" />
+            <SolidColorBrush x:Key="TextOnAccent" Color="#12121E" />
+
+            <!-- ── Accents / highlights ──────────────────────────────────────────────── -->
+            <SolidColorBrush x:Key="AccentInteractive" Color="#5050A0" />
+            <SolidColorBrush x:Key="AccentHighlight" Color="#9C27B0" />
+            <SolidColorBrush x:Key="AccentAmber" Color="#FFC107" />
+            <SolidColorBrush x:Key="AccentAmberOpaque" Color="#FFFFC107" />
+            <SolidColorBrush x:Key="AccentError" Color="#E53935" />
+            <!-- Softer error red for secondary error text (RuleWorkbench diagnostic file:line location). -->
+            <SolidColorBrush x:Key="AccentErrorSoft" Color="#E57373" />
+            <!-- Muted caution gold — "shipped, read-only (use Save As)" indicator in the RuleWorkbench toolbar.
+                 Distinct from the brighter AccentAmber #FFC107. Value coincides with Pb2dTeamT (a 2D-HUD domain
+                 token) — NOT reused across the domain boundary; see design-system.md 1. -->
+            <SolidColorBrush x:Key="AccentCaution" Color="#E0A030" />
+            <!-- Semantic green for intrinsically-good stat accents (Stats tab pos cells).
+                 Matches the project's established depth-2 green so it stays in the same hue family. -->
+            <SolidColorBrush x:Key="StatPositive" Color="#4CAF50" />
+            <SolidColorBrush x:Key="PrimaryButtonHover" Color="#252548" />
+            <SolidColorBrush x:Key="DeltaRowBg" Color="#25FFC107" />
+
+            <!-- ── Hex legend swatches (semi-transparent) ────────────────────────────── -->
+            <SolidColorBrush x:Key="HexSwatchSelected" Color="#CC4C9EF5" />
+            <SolidColorBrush x:Key="HexSwatchParent" Color="#8855BB8A" />
+            <SolidColorBrush x:Key="HexSwatchAncestor" Color="#55C07C28" />
+            <!-- Deep-ancestor tier of the hex legend ramp (v0.6.0). Like its HexSwatch* siblings,
+                 held IDENTICAL Dark==Light on purpose (a theme-independent overlay over saturated
+                 hex highlights; see the HexSwatch group comment in the Light block). -->
+            <SolidColorBrush x:Key="HexSwatchAncestorDeep" Color="#33907890" />
+
+            <!-- ════════════════════════════════════════════════════════════════════════
+                 Classifier accents (v0.6.0 code-color promotion) — E1, additive only
+
+                 Palette homes for the code-held VM accent classifiers (see the palette header's
+                 "code-held hues" note). NOTHING consumes these keys yet — adding them is a
+                 zero-pixel change; later v0.6.0 commits repoint the code-held brushes here.
+                 Dark = the code-held values exactly; Light = deepened siblings per the L1
+                 accent policy (stay legible on white).
+                 ──────────────────────────────────────────────────────────────────────── -->
+
+            <!-- Opaque classifier bases -->
+            <SolidColorBrush x:Key="ClassifierBlue" Color="#2196F3" />
+            <SolidColorBrush x:Key="ClassifierGreen" Color="#4CAF50" />
+            <SolidColorBrush x:Key="ClassifierPurple" Color="#9C27B0" />
+            <SolidColorBrush x:Key="ClassifierOrange" Color="#FF9800" />
+            <SolidColorBrush x:Key="ClassifierTeal" Color="#009688" />
+            <SolidColorBrush x:Key="ClassifierRed" Color="#F44336" />
+            <SolidColorBrush x:Key="ClassifierRedBright" Color="#FF5252" />
+            <SolidColorBrush x:Key="ClassifierSlate" Color="#607D8B" />
+
+            <!-- Dim classifier family — the 0xC0 alpha is PART OF TOKEN IDENTITY (naming policy
+                 above): ClassifierRedDim is a distinct token, not ClassifierRed with a fade
+                 applied by the consumer. Keep the 8-digit #AARRGGBB form when overriding. -->
+            <SolidColorBrush x:Key="ClassifierRedDim" Color="#C0F44336" />
+            <SolidColorBrush x:Key="ClassifierOrangeDim" Color="#C0FF9800" />
+            <SolidColorBrush x:Key="ClassifierBlueDim" Color="#C02196F3" />
+            <SolidColorBrush x:Key="ClassifierPurpleDim" Color="#C09C27B0" />
+            <SolidColorBrush x:Key="ClassifierGreenDim" Color="#C04CAF50" />
+            <SolidColorBrush x:Key="ClassifierTealDim" Color="#C0009688" />
+            <SolidColorBrush x:Key="ClassifierSlateDim" Color="#C0607080" />
+            <SolidColorBrush x:Key="ClassifierSlateBlueDim" Color="#C06060A0" />
+
+            <!-- Singles promoted in the same v0.6.0 pass -->
+            <!-- Log-severity Info accent (Diagnostics log). -->
+            <SolidColorBrush x:Key="AccentInfo" Color="#26A69A" />
+            <!-- 9th completion-badge role (RuleWorkbench completion popup). -->
+            <SolidColorBrush x:Key="SyntaxPlain" Color="#9A9A9A" />
+            <SolidColorBrush x:Key="BreakpointDotDisabled" Color="#303056" />
+            <SolidColorBrush x:Key="GraphNodePerPlayerBorder" Color="#009688" />
+            <SolidColorBrush x:Key="MapAccentNeutral" Color="#404068" />
+            <!-- HUE-IGNORED reference token: consumers decode ONLY its saturation/value (S/V) to
+                 tune the map-name-hash accent generator — editing this token's hue does nothing. -->
+            <SolidColorBrush x:Key="MapAccentRef" Color="#B85353" />
+
+            <!-- ════════════════════════════════════════════════════════════════════════
+                 Library demo-card overlay palette — LibraryCard* prefix (de-inlined)
+
+                 The Library tab paints text / scrim / badges OVER a baked radar THUMBNAIL, so it needs a
+                 white-on-image legibility ramp + a darkening scrim + dark translucent badges — a distinct
+                 domain from the app's blue-purple chrome ramp (mirrors the Pb2d* precedent). None of these
+                 values coincide with an existing app token. The card TITLE stays literal `White` (the ramp's
+                 100% top). See docs/ui/design-system.md 1 "Library card overlay palette".
+
+                 Known team-colour fragmentation (follow-up to unify, NOT this pass — would shift pixels):
+                 LibraryCardScoreCt/T are a THIRD CT/T pair in the app (alongside Stats' AccentInteractive/
+                 AccentAmber team bullets and the Pb2dTeamCt/T HUD pair); each is a different hex, so unifying
+                 is a deliberate colour change, out of scope for a pixel-identical de-inline.
+                 ──────────────────────────────────────────────────────────────────────── -->
+
+            <!-- Darkening scrim over the radar thumbnail: one composed brush replaces four inline gradient
+                 stops (top+bottom darkened so metadata stays legible; lighter middle shows the map). This is
+                 the only non-SolidColorBrush token in the palette. Moved whole into the theme dict (L0b);
+                 stops kept exact. -->
+            <LinearGradientBrush x:Key="LibraryCardScrim" StartPoint="0%,0%" EndPoint="0%,100%">
+                <GradientStop Offset="0" Color="#C805050F" />
+                <GradientStop Offset="0.34" Color="#5805050F" />
+                <GradientStop Offset="0.62" Color="#7005050F" />
+                <GradientStop Offset="1" Color="#EE05050F" />
+            </LinearGradientBrush>
+
+            <!-- White-on-image text ramp (brightest → faintest; card title stays literal `White` above these) -->
+            <SolidColorBrush x:Key="LibraryCardTextBright" Color="#ECFFFFFF" />
+            <SolidColorBrush x:Key="LibraryCardTextMid" Color="#C6FFFFFF" />
+            <SolidColorBrush x:Key="LibraryCardTextDim" Color="#B4FFFFFF" />
+            <SolidColorBrush x:Key="LibraryCardTextFaint" Color="#A0FFFFFF" />
+
+            <!-- Overlay furniture: dark translucent score-badge pill, amber busy-track behind the parse bar -->
+            <SolidColorBrush x:Key="LibraryCardBadgeBg" Color="#B0000010" />
+            <SolidColorBrush x:Key="LibraryCardBusyTrack" Color="#33FFC107" />
+
+            <!-- Score-badge team colours (over the radar image): CT blue, T gold -->
+            <SolidColorBrush x:Key="LibraryCardScoreCt" Color="#5BA9F4" />
+            <SolidColorBrush x:Key="LibraryCardScoreT" Color="#F0B23C" />
+
+            <!-- ════════════════════════════════════════════════════════════════════════
+                 Playback2D (2D-viewport) palette — Pb2d* prefix (de-inlined)
+
+                 The 2D Playback tab reads like a game radar/HUD, NOT the parser dev-tool. It
+                 deliberately uses its own COOL-GREY text ramp + game-semantic status colours
+                 rather than the app's blue-purple chrome ramp above — so NONE of these values
+                 coincide (exact hex, alpha included) with an existing app token. That is why
+                 The de-inline reused 0 existing tokens and added 29: this is a distinct domain palette,
+                 not a duplication miss. See docs/ui/design-system.md 1 "Playback2D palette".
+
+                 Classification (chrome = HUD furniture; domain = game-semantic meaning):
+                 these tokens are the single home for the team/grid/label/viewport-bg values.
+                 The Skia renderer (Playback2DViewport.cs) RESOLVES them from these tokens
+                 (ThemeColors.Get; the inline hex is only a no-resources fallback), and the HUD
+                 team chip (PlayerAttributes.cs → Playback2DView teamChip classes) resolves
+                 Pb2dTeamT/Ct the same way — so there is one theme-aware source, no hardcoded copy.
+                 ──────────────────────────────────────────────────────────────────────── -->
+
+            <!-- Pb2d CHROME — HUD surfaces / overlays / dividers (furniture, not game data) -->
+            <SolidColorBrush x:Key="Pb2dPanelBg" Color="#1A1E24" />
+            <SolidColorBrush x:Key="Pb2dInfoBg" Color="#181C22" />
+            <SolidColorBrush x:Key="Pb2dCardBg" Color="#20262E" />
+            <SolidColorBrush x:Key="Pb2dGridSplitter" Color="#22272E" />
+            <SolidColorBrush x:Key="Pb2dHudDivider" Color="#33404A" />
+            <SolidColorBrush x:Key="Pb2dOverlayBg" Color="#CC15181C" />
+            <SolidColorBrush x:Key="Pb2dKillFeedBg" Color="#E6090B0E" />
+            <SolidColorBrush x:Key="Pb2dKillFeedBorder" Color="#33FFFFFF" />
+
+            <!-- Pb2d CHROME — cool-grey HUD text ramp (dim → brightest) -->
+            <SolidColorBrush x:Key="Pb2dTextDim" Color="#5C6670" />
+            <SolidColorBrush x:Key="Pb2dTextMid" Color="#9AA4AF" />
+            <SolidColorBrush x:Key="Pb2dTextBright" Color="#C0C8D0" />
+            <SolidColorBrush x:Key="Pb2dTextBrightest" Color="#DDE3EA" />
+            <SolidColorBrush x:Key="Pb2dTextOnTeam" Color="#101418" />
+            <SolidColorBrush x:Key="Pb2dGlyphBlind" Color="#E6E6E6" />
+
+            <!-- Pb2d 2D-DOMAIN — game-semantic status colours (team / stat / kill-feed badges) -->
+            <SolidColorBrush x:Key="Pb2dTeamCt" Color="#4A90D9" />
+            <SolidColorBrush x:Key="Pb2dTeamT" Color="#E0A030" />
+            <SolidColorBrush x:Key="Pb2dPositive" Color="#86C786" />
+            <SolidColorBrush x:Key="Pb2dHealth" Color="#7ED07E" />
+            <SolidColorBrush x:Key="Pb2dArmor" Color="#7FB6E6" />
+            <SolidColorBrush x:Key="Pb2dHeadshot" Color="#F44336" />
+            <SolidColorBrush x:Key="Pb2dWallbang" Color="#FF9800" />
+            <SolidColorBrush x:Key="Pb2dNoScope" Color="#00BCD4" />
+            <SolidColorBrush x:Key="Pb2dFlashAssist" Color="#B66CD8" />
+            <SolidColorBrush x:Key="Pb2dAssist" Color="#5BC0BE" />
+            <SolidColorBrush x:Key="Pb2dDefuser" Color="#E0C040" />
+            <SolidColorBrush x:Key="Pb2dBomb" Color="#E08040" />
+            <SolidColorBrush x:Key="Pb2dAdr" Color="#E0A878" />
+            <SolidColorBrush x:Key="Pb2dDefuseTime" Color="#5AB0E0" />
+            <SolidColorBrush x:Key="Pb2dMapApprox" Color="#C0A060" />
+
+            <!-- Message-card (InspectorCard) header background tints, per message-type category. The VIVID
+                 identity is carried by the accent strip + badge (code-held AccentBrush); these are the SUBTLE
+                 washes behind the card title. Promoted here from HarvestCardViewModel's code-held _headerBg*
+                 brushes so the header follows the theme (was dark-on-dark under the Light title). Dark values
+                 are EXACTLY the former code-held brushes → Dark stays pixel-identical. Selected = former #24243E. -->
+            <SolidColorBrush x:Key="MsgHeaderNet" Color="#1A2D3F" />
+            <SolidColorBrush x:Key="MsgHeaderSvc" Color="#1A2D1E" />
+            <SolidColorBrush x:Key="MsgHeaderDem" Color="#2D2010" />
+            <SolidColorBrush x:Key="MsgHeaderCs" Color="#221530" />
+            <SolidColorBrush x:Key="MsgHeaderClc" Color="#0E2220" />
+            <SolidColorBrush x:Key="MsgHeaderGameEvent" Color="#2D1414" />
+            <SolidColorBrush x:Key="MsgHeaderDefault" Color="#1A1E22" />
+            <SolidColorBrush x:Key="MsgHeaderUnknown" Color="#2D1414" />
+            <SolidColorBrush x:Key="MsgHeaderSelected" Color="#24243E" />
+
+            <!-- Expanded message-card property rows (InspectorCard): the wire-type badge (varint/fixed/bytes/
+                 string/bool/message) bg+fg per type, + the selected-row wash. Promoted from HarvestPropertyViewModel's
+                 code-held brushes so the badge follows the theme (was a dark badge on a light card). Dark values =
+                 the former brushes EXACTLY (Dark stays pixel-identical). -->
+            <SolidColorBrush x:Key="WtVarintBg" Color="#0E2040" />
+            <SolidColorBrush x:Key="WtVarintFg" Color="#4E90E0" />
+            <SolidColorBrush x:Key="WtFixedBg" Color="#0E2A12" />
+            <SolidColorBrush x:Key="WtFixedFg" Color="#4EB060" />
+            <SolidColorBrush x:Key="WtBytesBg" Color="#2A1800" />
+            <SolidColorBrush x:Key="WtBytesFg" Color="#C07830" />
+            <SolidColorBrush x:Key="WtStringBg" Color="#220030" />
+            <SolidColorBrush x:Key="WtStringFg" Color="#A060C0" />
+            <SolidColorBrush x:Key="WtBoolBg" Color="#001E28" />
+            <SolidColorBrush x:Key="WtBoolFg" Color="#30A8C0" />
+            <SolidColorBrush x:Key="WtMessageBg" Color="#181830" />
+            <SolidColorBrush x:Key="WtMessageFg" Color="#8080B0" />
+            <SolidColorBrush x:Key="WtDefaultBg" Color="#1A1A1A" />
+            <SolidColorBrush x:Key="WtDefaultFg" Color="#707070" />
+            <SolidColorBrush x:Key="PropRowSelectedBg" Color="#28285A" />
+
+            <!-- RuleWorkbench DSL syntax-highlight roles (T1 — the editor resolves these from the token
+                 namespace so any theme colours the editor with no code change). Dark = the VS "Dark+" values. -->
+            <SolidColorBrush x:Key="SyntaxComment" Color="#6A9955" />
+            <SolidColorBrush x:Key="SyntaxSection" Color="#C586C0" />
+            <SolidColorBrush x:Key="SyntaxKind" Color="#4FC1FF" />
+            <SolidColorBrush x:Key="SyntaxModifier" Color="#569CD6" />
+            <SolidColorBrush x:Key="SyntaxLiteral" Color="#4EC9B0" />
+            <SolidColorBrush x:Key="SyntaxEvent" Color="#DCDCAA" />
+            <SolidColorBrush x:Key="SyntaxFacet" Color="#9CDCFE" />
+            <SolidColorBrush x:Key="SyntaxPath" Color="#9CDCFE" />
+            <SolidColorBrush x:Key="SyntaxIdentifier" Color="#D7BA7D" />
+            <SolidColorBrush x:Key="SyntaxString" Color="#CE9178" />
+            <SolidColorBrush x:Key="SyntaxNumber" Color="#B5CEA8" />
+            <SolidColorBrush x:Key="SyntaxOperator" Color="#D4D4D4" />
+
+            <!-- 2D radar CANVAS renderer colours (T1a — Playback2DViewport resolves these from the token
+                 namespace so any theme colours the radar with no code change). Dark = the former DarkCanvas
+                 bundle EXACTLY. Team T/CT reuse Pb2dTeamT / Pb2dTeamCt (deduped). The baked radar bitmap stays
+                 dark by design (theme-independent asset). -->
+            <SolidColorBrush x:Key="Pb2dCanvasBg" Color="#15181C" />
+            <SolidColorBrush x:Key="Pb2dCanvasMinorGrid" Color="#22272E" />
+            <SolidColorBrush x:Key="Pb2dCanvasMajorGrid" Color="#2E3742" />
+            <SolidColorBrush x:Key="Pb2dCanvasLabel" Color="#9AA4AF" />
+            <SolidColorBrush x:Key="Pb2dCanvasNeutral" Color="#888888" />
+            <SolidColorBrush x:Key="Pb2dCanvasSightlineT" Color="#70E0A030" />
+            <SolidColorBrush x:Key="Pb2dCanvasSightlineCt" Color="#704A90D9" />
+            <SolidColorBrush x:Key="Pb2dCanvasConeT" Color="#3CE0A030" />
+            <SolidColorBrush x:Key="Pb2dCanvasConeCt" Color="#3C4A90D9" />
+            <SolidColorBrush x:Key="Pb2dCanvasConeNeutral" Color="#2C888888" />
+            <SolidColorBrush x:Key="Pb2dCanvasRingShooting" Color="#FFD400" />
+            <SolidColorBrush x:Key="Pb2dCanvasRingDamage" Color="#F44336" />
+            <SolidColorBrush x:Key="Pb2dCanvasRingBlinded" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="Pb2dCanvasRingDead" Color="#555B62" />
+            <SolidColorBrush x:Key="Pb2dCanvasBomb" Color="#F03A2E" />
+            <SolidColorBrush x:Key="Pb2dCanvasBombTrack" Color="#40FFFFFF" />
+            <SolidColorBrush x:Key="Pb2dCanvasBombDetonation" Color="#FF5040" />
+            <SolidColorBrush x:Key="Pb2dCanvasBombDefuse" Color="#40C4FF" />
+            <SolidColorBrush x:Key="Pb2dCanvasSmoke" Color="#66AEB6BD" />
+            <SolidColorBrush x:Key="Pb2dCanvasSmokeStroke" Color="#88C8CED4" />
+            <SolidColorBrush x:Key="Pb2dCanvasFire" Color="#78FF6A1A" />
+            <SolidColorBrush x:Key="Pb2dCanvasTrailHe" Color="#FF5252" />
+            <SolidColorBrush x:Key="Pb2dCanvasTrailFlash" Color="#FFE082" />
+            <SolidColorBrush x:Key="Pb2dCanvasTrailSmoke" Color="#B0BEC5" />
+            <SolidColorBrush x:Key="Pb2dCanvasTrailMolotov" Color="#FF7043" />
+            <SolidColorBrush x:Key="Pb2dCanvasTrailDecoy" Color="#81C784" />
+            <SolidColorBrush x:Key="Pb2dCanvasMarkerRingT" Color="#C8881F" />
+            <SolidColorBrush x:Key="Pb2dCanvasMarkerRingCt" Color="#357ABD" />
+            <SolidColorBrush x:Key="Pb2dCanvasMarkerRingNeutral" Color="#666666" />
+
+            <!-- Analysis rule-graph (MSAGL) colours (T1c — GraphView resolves these from the token namespace so
+                 any theme colours the graph with no code change). Dark = the former GraphStyle defaults EXACTLY. -->
+            <SolidColorBrush x:Key="GraphCanvasBg" Color="#0C0C1A" />
+            <SolidColorBrush x:Key="GraphGroupBg" Color="#0E0E22" />
+            <SolidColorBrush x:Key="GraphGroupBorder" Color="#1E1E42" />
+            <SolidColorBrush x:Key="GraphGroupLabel" Color="#505080" />
+            <SolidColorBrush x:Key="GraphLabelBg" Color="#F00C0C1A" />
+            <SolidColorBrush x:Key="GraphNodeActiveBg" Color="#0A2550" />
+            <SolidColorBrush x:Key="GraphNodeActiveBorder" Color="#3060A0" />
+            <SolidColorBrush x:Key="GraphNodeActiveFg" Color="#A0C8FF" />
+            <SolidColorBrush x:Key="GraphNodeActiveSubFg" Color="#4080C0" />
+            <SolidColorBrush x:Key="GraphNodeInactiveBg" Color="#14143A" />
+            <SolidColorBrush x:Key="GraphNodeInactiveBorder" Color="#252545" />
+            <SolidColorBrush x:Key="GraphNodeInactiveFg" Color="#606080" />
+            <SolidColorBrush x:Key="GraphNodeInactiveSubFg" Color="#30304A" />
+            <SolidColorBrush x:Key="GraphNodeRootBg" Color="#141428" />
+            <SolidColorBrush x:Key="GraphNodeRootBorder" Color="#303050" />
+            <SolidColorBrush x:Key="GraphNodeRootFg" Color="#505068" />
+            <SolidColorBrush x:Key="GraphEdgeActivate" Color="#2E7D32" />
+            <SolidColorBrush x:Key="GraphEdgeConjunction" Color="#7986CB" />
+            <SolidColorBrush x:Key="GraphEdgeDeactivate" Color="#E65100" />
+            <SolidColorBrush x:Key="GraphEdgeDisjunction" Color="#CE93D8" />
+            <SolidColorBrush x:Key="GraphEdgeLabel" Color="#9090B0" />
+            <SolidColorBrush x:Key="GraphEdgeSetValue" Color="#F9A825" />
+            <SolidColorBrush x:Key="GraphTableActiveCellBg" Color="#0A2550" />
+            <SolidColorBrush x:Key="GraphTableBg" Color="#0E0E22" />
+            <SolidColorBrush x:Key="GraphTableCellFg" Color="#8090B0" />
+            <SolidColorBrush x:Key="GraphTableDimFg" Color="#404060" />
+            <SolidColorBrush x:Key="GraphTableGridLine" Color="#1A1A3A" />
+            <SolidColorBrush x:Key="GraphTableHeaderBg" Color="#141438" />
+            <SolidColorBrush x:Key="GraphTableHeaderFg" Color="#A0C8FF" />
+
+        </ResourceDictionary>
+
+        <!-- ════════════════════════════════════════════════════════════════════════════════════════
+             LIGHT — the real designed light palette (L1). A genuinely-designed comfortable light variant,
+             NOT a naive inversion. DESIGN:
+               • Surfaces: a soft COOL-NEUTRAL light ramp (B only ~10 above R/G — a whisper of the
+                 blue-purple identity, kept near-neutral so large backgrounds don't read as a cheap tint).
+                 The DEPTH axis is preserved-by-inverting: ShellBg is the recessed backdrop (a soft gray,
+                 NOT harsh white → less glare); CardBg is the brightest/most-forward (near-white #FCFCFE,
+                 cards pop). Section-header bands read as slightly-DEEPER bands on light (conventional), and
+                 hover/selected states DARKEN their base (the opposite of Dark, where they lighten).
+               • Text: the Dark cool blue-purple ramp's VALUE axis is flipped — dim end (whisper labels) is a
+                 quiet light-slate, bright end (primary values / card headers) is a deep indigo. Body text
+                 (TextMid) is WCAG-AA (~7:1 on a card); the ctx-action/group-label ACTIONABLE dim tokens are
+                 held at >= ~4.5:1; whisper labels sit ~3-4:1 by intent (as quiet on light as they are on dark).
+               • Accents: hue/identity kept, but amber/error/soft-error/caution/positive are DARKENED so they
+                 stay legible on white (bright amber/green on white washes out); AccentInteractive/Highlight
+                 already read on light. BorderTranslucent flips from white@20% (invisible on light) to a dark
+                 cool hairline so the RuleWorkbench pane outlines still show.
+               • HELD IDENTICAL TO DARK (intentional, per group comments): LibraryCard* + hex swatches (over
+                 theme-independent surfaces) and all 29 Pb2d* (L1-deferred 2D-HUD island).
+             ════════════════════════════════════════════════════════════════════════════════════════ -->
+        <ResourceDictionary x:Key="Light">
+
+            <!-- ── Surfaces (recessed backdrop → forward content; hovers DARKEN on light) ──
+                 ShellBg = soft cool-gray backdrop (not #FFF). PanelBg forward/lighter. Section bands
+                 (PanelHeaderBg/HexBannerBg) slightly deeper than the panel body = a "band" on light.
+                 CardBg near-white = the brightest, most-forward surface. Selected/badge fills carry a
+                 soft periwinkle tint so selection reads. -->
+            <SolidColorBrush x:Key="ShellBg" Color="#E7E8F2" />
+            <SolidColorBrush x:Key="DebuggerBg" Color="#E3E4EF" />
+            <SolidColorBrush x:Key="FrameHeaderStripBg" Color="#E5E6F1" />
+            <SolidColorBrush x:Key="PanelBg" Color="#EFF0F7" />
+            <SolidColorBrush x:Key="PanelHeaderBg" Color="#E9EAF3" />
+            <SolidColorBrush x:Key="PanelHeaderHover" Color="#E1E2EE" />
+            <SolidColorBrush x:Key="HexBannerBg" Color="#E7E8F1" />
+            <SolidColorBrush x:Key="PanelHeaderHoverDeep" Color="#DADCEA" />
+            <SolidColorBrush x:Key="HdrActionHoverBg" Color="#D2D4E6" />
+            <SolidColorBrush x:Key="CardBg" Color="#FCFCFE" />
+            <SolidColorBrush x:Key="PrimaryButtonBg" Color="#DCDCF4" />
+            <SolidColorBrush x:Key="ChainSummaryBadgeBg" Color="#DEDFF2" />
+            <SolidColorBrush x:Key="FrameRowSelectedBg" Color="#D4D6EF" />
+            <SolidColorBrush x:Key="FrameRowHoverBg" Color="#E6E7F3" />
+            <SolidColorBrush x:Key="FrameMsgBadgeBg" Color="#E3E4F2" />
+
+            <!-- ── Borders / dividers (light cool-gray hairlines; BorderAccent a touch stronger so
+                 near-white cards get a defined edge on the light shell) ── -->
+            <SolidColorBrush x:Key="BorderSubtle" Color="#D3D4E2" />
+            <SolidColorBrush x:Key="BorderStrong" Color="#C6C7D8" />
+            <SolidColorBrush x:Key="HexBannerBorder" Color="#CBCCDD" />
+            <SolidColorBrush x:Key="BorderAccent" Color="#C9CADD" />
+            <SolidColorBrush x:Key="HexRowSeparator" Color="#D8D9E6" />
+            <SolidColorBrush x:Key="PrimaryButtonBorder" Color="#B0B2DE" />
+            <!-- FLIPPED: Dark is white@20% (a light hairline on dark panes); on light that is invisible,
+                 so this becomes a dark cool hairline @ ~16% alpha for the RuleWorkbench pane outlines. -->
+            <SolidColorBrush x:Key="BorderTranslucent" Color="#2A141430" />
+
+            <!-- ── Text ramp (VALUE-flipped: quiet-light labels → deep-indigo values; cool blue-purple).
+                 AA notes: TextMid (body/nav-btn) ~7:1; TextDim/DimAlt/DimGray/DimTeal (incl. actionable
+                 ctx-action/group-label) ~4.7-4.9:1; TextLabel/LabelAlt/HexGutter kept quiet ~3-4:1 by role. -->
+            <SolidColorBrush x:Key="TextHexGutter" Color="#7A7A98" />
+            <SolidColorBrush x:Key="TextLabel" Color="#8080A0" />
+            <SolidColorBrush x:Key="TextLabelAlt" Color="#747490" />
+            <SolidColorBrush x:Key="TextDim" Color="#6E6E90" />
+            <SolidColorBrush x:Key="TextDimAlt" Color="#6E6E92" />
+            <SolidColorBrush x:Key="TextDimGray" Color="#70708C" />
+            <SolidColorBrush x:Key="TextDimTeal" Color="#6C6C90" />
+            <SolidColorBrush x:Key="TextEntityStatus" Color="#64648A" />
+            <SolidColorBrush x:Key="TextStatusBar" Color="#66668E" />
+            <SolidColorBrush x:Key="TextHeaderField" Color="#5E5E86" />
+            <SolidColorBrush x:Key="TextCardSize" Color="#5C5C88" />
+            <SolidColorBrush x:Key="TextChainSummary" Color="#58587C" />
+            <SolidColorBrush x:Key="TextChainBadge" Color="#56569C" />
+            <SolidColorBrush x:Key="TextMid" Color="#50507C" />
+            <SolidColorBrush x:Key="TextHexBanner" Color="#4E4E80" />
+            <SolidColorBrush x:Key="TextFrameInfo" Color="#565688" />
+            <SolidColorBrush x:Key="TextHeaderHex" Color="#46467E" />
+            <SolidColorBrush x:Key="TextFrameType" Color="#46467C" />
+            <SolidColorBrush x:Key="TextEntityFieldVal" Color="#42427A" />
+            <SolidColorBrush x:Key="TextBright" Color="#3C3C70" />
+            <SolidColorBrush x:Key="TextFieldName" Color="#3A3A6C" />
+            <SolidColorBrush x:Key="TextValue" Color="#2E2E60" />
+            <SolidColorBrush x:Key="TextHexCell" Color="#30305C" />
+            <SolidColorBrush x:Key="TextCardHeader" Color="#28284E" />
+            <!-- KEPT near-black: sits on the code-held message-type AccentBrush (a saturated fill that stays
+                 dark-theme-coloured until L2) + amber badges — near-black reads on those on both themes. -->
+            <SolidColorBrush x:Key="TextOnAccent" Color="#12121E" />
+
+            <!-- ── Accents / highlights (identity kept; darkened for legibility on white) ── -->
+            <SolidColorBrush x:Key="AccentInteractive" Color="#4A4A9E" />
+            <!-- KEPT: the vivid purple already reads on light (~6:1) and still matches the code-held depth-4. -->
+            <SolidColorBrush x:Key="AccentHighlight" Color="#9C27B0" />
+            <!-- DARKENED from #FFC107: bright amber is ~1.5:1 on white. Deep amber ~4.6:1, still "gold/attention";
+                 also reads over the dark Library thumbnail scrim (busy-bar fg) and as small overridden-dot fills. -->
+            <SolidColorBrush x:Key="AccentAmber" Color="#A86200" />
+            <SolidColorBrush x:Key="AccentAmberOpaque" Color="#FFA86200" />
+            <SolidColorBrush x:Key="AccentError" Color="#C62828" />
+            <SolidColorBrush x:Key="AccentErrorSoft" Color="#C85454" />
+            <SolidColorBrush x:Key="AccentCaution" Color="#9A6A0F" />
+            <SolidColorBrush x:Key="StatPositive" Color="#2E7D32" />
+            <SolidColorBrush x:Key="PrimaryButtonHover" Color="#D0D0EE" />
+            <!-- KEPT (unused in live markup; an amber tint reads as a warm wash on both dark and light rows). -->
+            <SolidColorBrush x:Key="DeltaRowBg" Color="#25FFC107" />
+
+            <!-- ── Hex legend swatches — HELD IDENTICAL to Dark. Saturated semi-transparent highlight
+                 overlays over hex bytes; they remain distinguishable on light. NOTE: BinaryPane is not in
+                 the L1 headless capture set, so the selected-swatch-under-now-dark-hex-text contrast is
+                 flagged for in-app verification at L2/L3 (see design-system.md). -->
+            <SolidColorBrush x:Key="HexSwatchSelected" Color="#CC4C9EF5" />
+            <SolidColorBrush x:Key="HexSwatchParent" Color="#8855BB8A" />
+            <SolidColorBrush x:Key="HexSwatchAncestor" Color="#55C07C28" />
+            <!-- Deep-ancestor tier (v0.6.0) — HELD IDENTICAL to Dark, same policy as its
+                 HexSwatch* siblings above. -->
+            <SolidColorBrush x:Key="HexSwatchAncestorDeep" Color="#33907890" />
+
+            <!-- ── Classifier accents (v0.6.0 code-color promotion) — E1, additive only; see the
+                 Dark-block group comment. LIGHT: deepened Material siblings per the L1 accent
+                 policy. The Dim family keeps its 0xC0 alpha — alpha is part of token identity. ── -->
+
+            <!-- Opaque classifier bases -->
+            <SolidColorBrush x:Key="ClassifierBlue" Color="#1565C0" />
+            <SolidColorBrush x:Key="ClassifierGreen" Color="#2E7D32" />
+            <SolidColorBrush x:Key="ClassifierPurple" Color="#7B1FA2" />
+            <SolidColorBrush x:Key="ClassifierOrange" Color="#E65100" />
+            <SolidColorBrush x:Key="ClassifierTeal" Color="#00695C" />
+            <SolidColorBrush x:Key="ClassifierRed" Color="#C62828" />
+            <SolidColorBrush x:Key="ClassifierRedBright" Color="#B71C1C" />
+            <SolidColorBrush x:Key="ClassifierSlate" Color="#455A64" />
+
+            <!-- Dim classifier family (0xC0 alpha is part of the token identity) -->
+            <SolidColorBrush x:Key="ClassifierRedDim" Color="#C0C62828" />
+            <SolidColorBrush x:Key="ClassifierOrangeDim" Color="#C0E65100" />
+            <SolidColorBrush x:Key="ClassifierBlueDim" Color="#C01565C0" />
+            <SolidColorBrush x:Key="ClassifierPurpleDim" Color="#C07B1FA2" />
+            <SolidColorBrush x:Key="ClassifierGreenDim" Color="#C02E7D32" />
+            <SolidColorBrush x:Key="ClassifierTealDim" Color="#C000695C" />
+            <SolidColorBrush x:Key="ClassifierSlateDim" Color="#C0455A64" />
+            <SolidColorBrush x:Key="ClassifierSlateBlueDim" Color="#C04A4A9E" />
+
+            <!-- Singles promoted in the same v0.6.0 pass -->
+            <!-- Log-severity Info accent (Diagnostics log). -->
+            <SolidColorBrush x:Key="AccentInfo" Color="#00796B" />
+            <!-- 9th completion-badge role (RuleWorkbench completion popup). -->
+            <SolidColorBrush x:Key="SyntaxPlain" Color="#6A6A6A" />
+            <SolidColorBrush x:Key="BreakpointDotDisabled" Color="#9FA0C0" />
+            <SolidColorBrush x:Key="GraphNodePerPlayerBorder" Color="#00695C" />
+            <SolidColorBrush x:Key="MapAccentNeutral" Color="#B0B0C8" />
+            <!-- HUE-IGNORED reference token: consumers decode ONLY its saturation/value (S/V) to
+                 tune the map-name-hash accent generator — editing this token's hue does nothing. -->
+            <SolidColorBrush x:Key="MapAccentRef" Color="#853535" />
+
+            <!-- ── Library demo-card overlay palette (LibraryCard*) — HELD IDENTICAL to Dark.
+                 THEME-INDEPENDENT: these paint white text / a darkening scrim / dark badges OVER a baked
+                 radar THUMBNAIL that does not change with the app theme, so the Dark values keep the
+                 overlay legible on light-theme too. LibraryCardBusyTrack keeps its amber track (its fg is
+                 the now-darkened AccentAmber, which still reads as deep amber over the dark thumbnail). -->
+            <LinearGradientBrush x:Key="LibraryCardScrim" StartPoint="0%,0%" EndPoint="0%,100%">
+                <GradientStop Offset="0" Color="#C805050F" />
+                <GradientStop Offset="0.34" Color="#5805050F" />
+                <GradientStop Offset="0.62" Color="#7005050F" />
+                <GradientStop Offset="1" Color="#EE05050F" />
+            </LinearGradientBrush>
+            <SolidColorBrush x:Key="LibraryCardTextBright" Color="#ECFFFFFF" />
+            <SolidColorBrush x:Key="LibraryCardTextMid" Color="#C6FFFFFF" />
+            <SolidColorBrush x:Key="LibraryCardTextDim" Color="#B4FFFFFF" />
+            <SolidColorBrush x:Key="LibraryCardTextFaint" Color="#A0FFFFFF" />
+            <SolidColorBrush x:Key="LibraryCardBadgeBg" Color="#B0000010" />
+            <SolidColorBrush x:Key="LibraryCardBusyTrack" Color="#33FFC107" />
+            <SolidColorBrush x:Key="LibraryCardScoreCt" Color="#5BA9F4" />
+            <SolidColorBrush x:Key="LibraryCardScoreT" Color="#F0B23C" />
+
+            <!-- ── Playback2D (Pb2d*) HUD chrome — LIGHT values (L2a). The 2D tab chrome (panels / info / kill
+                 feed / HUD text) goes light together with the Skia canvas (Playback2DViewport LightCanvas).
+                 Surfaces = the app light-surface ramp; text darkens for light-bg contrast; team T/CT match the
+                 canvas (deepened for legibility on light). The DOMAIN HUD accents below (health/armor/headshot/…)
+                 are DARKENED for light-bg legibility: each clears WCAG AA (~4.5:1) against the DARKEST surface it
+                 lands on (info strip #F2F3F6 / kill feed #EDEFF3, or the #FBFBFD card), relaxed to 3:1 for the
+                 bold, redundant HS/WB/NS/glyph labels. -->
+            <SolidColorBrush x:Key="Pb2dPanelBg" Color="#EDEFF3" />
+            <SolidColorBrush x:Key="Pb2dInfoBg" Color="#F2F3F6" />
+            <SolidColorBrush x:Key="Pb2dCardBg" Color="#FBFBFD" />
+            <SolidColorBrush x:Key="Pb2dGridSplitter" Color="#D2D7DE" />
+            <SolidColorBrush x:Key="Pb2dHudDivider" Color="#C6CCD4" />
+            <SolidColorBrush x:Key="Pb2dOverlayBg" Color="#E6EDEFF3" />
+            <SolidColorBrush x:Key="Pb2dKillFeedBg" Color="#F0EDEFF3" />
+            <SolidColorBrush x:Key="Pb2dKillFeedBorder" Color="#22202020" />
+            <SolidColorBrush x:Key="Pb2dTextDim" Color="#6A727C" />
+            <SolidColorBrush x:Key="Pb2dTextMid" Color="#565E68" />
+            <SolidColorBrush x:Key="Pb2dTextBright" Color="#363D47" />
+            <SolidColorBrush x:Key="Pb2dTextBrightest" Color="#202429" />
+            <SolidColorBrush x:Key="Pb2dTextOnTeam" Color="#101418" />
+            <SolidColorBrush x:Key="Pb2dGlyphBlind" Color="#5C6BC0" />
+            <SolidColorBrush x:Key="Pb2dTeamCt" Color="#2F73BE" />
+            <SolidColorBrush x:Key="Pb2dTeamT" Color="#C9821C" />
+            <SolidColorBrush x:Key="Pb2dPositive" Color="#2A7530" />
+            <SolidColorBrush x:Key="Pb2dHealth" Color="#22853A" />
+            <SolidColorBrush x:Key="Pb2dArmor" Color="#1E6FB0" />
+            <SolidColorBrush x:Key="Pb2dHeadshot" Color="#D32F2F" />
+            <SolidColorBrush x:Key="Pb2dWallbang" Color="#E05A00" />
+            <SolidColorBrush x:Key="Pb2dNoScope" Color="#00757F" />
+            <SolidColorBrush x:Key="Pb2dFlashAssist" Color="#8E44AD" />
+            <SolidColorBrush x:Key="Pb2dAssist" Color="#00796B" />
+            <SolidColorBrush x:Key="Pb2dDefuser" Color="#A87A00" />
+            <SolidColorBrush x:Key="Pb2dBomb" Color="#B0470B" />
+            <SolidColorBrush x:Key="Pb2dAdr" Color="#9A5A2A" />
+            <SolidColorBrush x:Key="Pb2dDefuseTime" Color="#1E6FB0" />
+            <SolidColorBrush x:Key="Pb2dMapApprox" Color="#7C6318" />
+
+            <!-- Message-card header tints — LIGHT: pale per-type washes the dark card title (TextCardHeader)
+                 reads on (~10:1+). Same subtle per-type identity as Dark, inverted to light. -->
+            <SolidColorBrush x:Key="MsgHeaderNet" Color="#E3EDF8" />
+            <SolidColorBrush x:Key="MsgHeaderSvc" Color="#E4F1E7" />
+            <SolidColorBrush x:Key="MsgHeaderDem" Color="#F6EEDF" />
+            <SolidColorBrush x:Key="MsgHeaderCs" Color="#EEE8F5" />
+            <SolidColorBrush x:Key="MsgHeaderClc" Color="#E1F0EE" />
+            <SolidColorBrush x:Key="MsgHeaderGameEvent" Color="#F7E7E7" />
+            <SolidColorBrush x:Key="MsgHeaderDefault" Color="#EAECF3" />
+            <SolidColorBrush x:Key="MsgHeaderUnknown" Color="#F7E7E7" />
+            <SolidColorBrush x:Key="MsgHeaderSelected" Color="#D4D6EF" />
+
+            <!-- Wire-type badge + selected-row wash — LIGHT: pale per-type bg + a deepened fg that reads on it. -->
+            <SolidColorBrush x:Key="WtVarintBg" Color="#DCE6F5" />
+            <SolidColorBrush x:Key="WtVarintFg" Color="#2F73BE" />
+            <SolidColorBrush x:Key="WtFixedBg" Color="#DEEEE0" />
+            <SolidColorBrush x:Key="WtFixedFg" Color="#2E7D32" />
+            <SolidColorBrush x:Key="WtBytesBg" Color="#F4EBDF" />
+            <SolidColorBrush x:Key="WtBytesFg" Color="#A85E12" />
+            <SolidColorBrush x:Key="WtStringBg" Color="#EFE4F5" />
+            <SolidColorBrush x:Key="WtStringFg" Color="#8040A0" />
+            <SolidColorBrush x:Key="WtBoolBg" Color="#DEEEF2" />
+            <SolidColorBrush x:Key="WtBoolFg" Color="#14808F" />
+            <SolidColorBrush x:Key="WtMessageBg" Color="#E6E6F0" />
+            <SolidColorBrush x:Key="WtMessageFg" Color="#5252A0" />
+            <SolidColorBrush x:Key="WtDefaultBg" Color="#E8E8EC" />
+            <SolidColorBrush x:Key="WtDefaultFg" Color="#565656" />
+            <SolidColorBrush x:Key="PropRowSelectedBg" Color="#D0D2EC" />
+
+            <!-- Syntax-highlight roles — LIGHT: the canonical VS "Light+" values. -->
+            <SolidColorBrush x:Key="SyntaxComment" Color="#008000" />
+            <SolidColorBrush x:Key="SyntaxSection" Color="#AF00DB" />
+            <SolidColorBrush x:Key="SyntaxKind" Color="#0070C1" />
+            <SolidColorBrush x:Key="SyntaxModifier" Color="#0000FF" />
+            <SolidColorBrush x:Key="SyntaxLiteral" Color="#267F99" />
+            <SolidColorBrush x:Key="SyntaxEvent" Color="#795E26" />
+            <SolidColorBrush x:Key="SyntaxFacet" Color="#001080" />
+            <SolidColorBrush x:Key="SyntaxPath" Color="#001080" />
+            <SolidColorBrush x:Key="SyntaxIdentifier" Color="#9B6C1E" />
+            <SolidColorBrush x:Key="SyntaxString" Color="#A31515" />
+            <SolidColorBrush x:Key="SyntaxNumber" Color="#098658" />
+            <SolidColorBrush x:Key="SyntaxOperator" Color="#3B3B3B" />
+
+            <!-- 2D radar canvas — LIGHT: the former LightCanvas bundle (soft light surface, darker grid, dark
+                 labels, deepened entities so they read on light; smoke darkened so it stays visible on the light canvas). -->
+            <SolidColorBrush x:Key="Pb2dCanvasBg" Color="#E7E9ED" />
+            <SolidColorBrush x:Key="Pb2dCanvasMinorGrid" Color="#D2D7DE" />
+            <SolidColorBrush x:Key="Pb2dCanvasMajorGrid" Color="#BFC5CE" />
+            <SolidColorBrush x:Key="Pb2dCanvasLabel" Color="#5A626C" />
+            <SolidColorBrush x:Key="Pb2dCanvasNeutral" Color="#6E7178" />
+            <SolidColorBrush x:Key="Pb2dCanvasSightlineT" Color="#80C9821C" />
+            <SolidColorBrush x:Key="Pb2dCanvasSightlineCt" Color="#802F73BE" />
+            <SolidColorBrush x:Key="Pb2dCanvasConeT" Color="#42C9821C" />
+            <SolidColorBrush x:Key="Pb2dCanvasConeCt" Color="#422F73BE" />
+            <SolidColorBrush x:Key="Pb2dCanvasConeNeutral" Color="#386E7178" />
+            <SolidColorBrush x:Key="Pb2dCanvasRingShooting" Color="#E0A800" />
+            <SolidColorBrush x:Key="Pb2dCanvasRingDamage" Color="#D32F2F" />
+            <SolidColorBrush x:Key="Pb2dCanvasRingBlinded" Color="#5C6BC0" />
+            <SolidColorBrush x:Key="Pb2dCanvasRingDead" Color="#AAB0B7" />
+            <SolidColorBrush x:Key="Pb2dCanvasBomb" Color="#E0322A" />
+            <SolidColorBrush x:Key="Pb2dCanvasBombTrack" Color="#40202020" />
+            <SolidColorBrush x:Key="Pb2dCanvasBombDetonation" Color="#E0322A" />
+            <SolidColorBrush x:Key="Pb2dCanvasBombDefuse" Color="#2F73BE" />
+            <SolidColorBrush x:Key="Pb2dCanvasSmoke" Color="#6C6F757F" />
+            <SolidColorBrush x:Key="Pb2dCanvasSmokeStroke" Color="#8A565C66" />
+            <SolidColorBrush x:Key="Pb2dCanvasFire" Color="#82E85D18" />
+            <SolidColorBrush x:Key="Pb2dCanvasTrailHe" Color="#D32F2F" />
+            <SolidColorBrush x:Key="Pb2dCanvasTrailFlash" Color="#D69A00" />
+            <SolidColorBrush x:Key="Pb2dCanvasTrailSmoke" Color="#78909C" />
+            <SolidColorBrush x:Key="Pb2dCanvasTrailMolotov" Color="#E64A19" />
+            <SolidColorBrush x:Key="Pb2dCanvasTrailDecoy" Color="#43A047" />
+            <SolidColorBrush x:Key="Pb2dCanvasMarkerRingT" Color="#A66A15" />
+            <SolidColorBrush x:Key="Pb2dCanvasMarkerRingCt" Color="#285F9E" />
+            <SolidColorBrush x:Key="Pb2dCanvasMarkerRingNeutral" Color="#8A8F96" />
+
+            <!-- Analysis rule-graph — LIGHT: the former GraphStyle.Light values (light surfaces, dark text,
+                 deepened semantic edge colours; layout/sizing inherited). -->
+            <SolidColorBrush x:Key="GraphCanvasBg" Color="#F4F5F8" />
+            <SolidColorBrush x:Key="GraphGroupBg" Color="#ECEEF3" />
+            <SolidColorBrush x:Key="GraphGroupBorder" Color="#D0D4DE" />
+            <SolidColorBrush x:Key="GraphGroupLabel" Color="#6A6E8C" />
+            <SolidColorBrush x:Key="GraphLabelBg" Color="#F0F4F5F8" />
+            <SolidColorBrush x:Key="GraphNodeActiveBg" Color="#DCE8F8" />
+            <SolidColorBrush x:Key="GraphNodeActiveBorder" Color="#3F72B8" />
+            <SolidColorBrush x:Key="GraphNodeActiveFg" Color="#1A4A80" />
+            <SolidColorBrush x:Key="GraphNodeActiveSubFg" Color="#3068A0" />
+            <SolidColorBrush x:Key="GraphNodeInactiveBg" Color="#EAECF3" />
+            <SolidColorBrush x:Key="GraphNodeInactiveBorder" Color="#C8CCD8" />
+            <SolidColorBrush x:Key="GraphNodeInactiveFg" Color="#4A4E68" />
+            <SolidColorBrush x:Key="GraphNodeInactiveSubFg" Color="#8286A0" />
+            <SolidColorBrush x:Key="GraphNodeRootBg" Color="#E6E8F0" />
+            <SolidColorBrush x:Key="GraphNodeRootBorder" Color="#C0C4D2" />
+            <SolidColorBrush x:Key="GraphNodeRootFg" Color="#5A5E76" />
+            <SolidColorBrush x:Key="GraphEdgeActivate" Color="#2E7D32" />
+            <SolidColorBrush x:Key="GraphEdgeConjunction" Color="#4A56A0" />
+            <SolidColorBrush x:Key="GraphEdgeDeactivate" Color="#D2691E" />
+            <SolidColorBrush x:Key="GraphEdgeDisjunction" Color="#9A4FB0" />
+            <SolidColorBrush x:Key="GraphEdgeLabel" Color="#5A5E7C" />
+            <SolidColorBrush x:Key="GraphEdgeSetValue" Color="#C8860A" />
+            <SolidColorBrush x:Key="GraphTableActiveCellBg" Color="#DCE8F8" />
+            <SolidColorBrush x:Key="GraphTableBg" Color="#F0F1F5" />
+            <SolidColorBrush x:Key="GraphTableCellFg" Color="#4A5270" />
+            <SolidColorBrush x:Key="GraphTableDimFg" Color="#7A7E96" />
+            <SolidColorBrush x:Key="GraphTableGridLine" Color="#D6DAE2" />
+            <SolidColorBrush x:Key="GraphTableHeaderBg" Color="#E4E6EE" />
+            <SolidColorBrush x:Key="GraphTableHeaderFg" Color="#1A4A80" />
+
+        </ResourceDictionary>
+
+    </ResourceDictionary.ThemeDictionaries>
+
+</ResourceDictionary>

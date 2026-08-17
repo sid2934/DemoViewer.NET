@@ -1,0 +1,586 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:stats="using:DemoViewer.NET.ViewModels.Stats"
+             xmlns:local="using:DemoViewer.NET.Views.Stats"
+             xmlns:output="using:Cs2DemoKit.Analysis.Output"
+             xmlns:controls="using:DemoViewer.NET.Controls"
+             controls:TutorialAnchor.Target="StatsContent"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="700"
+             x:Class="DemoViewer.NET.Views.Stats.StatsTabView"
+             x:DataType="stats:StatsTabViewModel">
+
+    <UserControl.Resources>
+        <!-- Shared row template: team-colored bullet + player identity (UI font), then one cell per
+             stat column — width/alignment/emphasis all driven by the cell's ColumnCatalogue meta.
+             Serves scoreboard section rows, per-team totals rows, and the flat Rounds rows. -->
+        <DataTemplate x:Key="StatsRowTemplate" x:DataType="stats:StatsRow">
+            <!-- Double-tap / context-menu "Details" open the player-details overlay.
+                 Both go through code-behind — Avalonia exposes DoubleTapped as a routed event, not
+                 a bindable command, and pulling in Behaviors for it is a forbidden new dependency.
+                 Totals rows are guarded in the command (no slot). -->
+            <Border Classes="statsRow"
+                    Classes.alt="{Binding IsAlt}"
+                    Classes.totals="{Binding IsTotals}"
+                    DoubleTapped="OnRowDoubleTapped">
+                <Border.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Details"
+                                  IsEnabled="{Binding !IsTotals}"
+                                  Click="OnRowDetailsClick" />
+                    </ContextMenu>
+                </Border.ContextMenu>
+                <StackPanel Orientation="Horizontal">
+                    <StackPanel Orientation="Horizontal" Width="170">
+                        <TextBlock Text="{Binding Bullet}" Width="16" FontSize="9"
+                                   VerticalAlignment="Center"
+                                   Classes="statsBullet"
+                                   Classes.ct="{Binding IsCt}" />
+                        <TextBlock Text="{Binding PlayerName}" Classes="statsPlayer"
+                                   Classes.totals="{Binding IsTotals}" />
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding Cells}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="stats:StatCell">
+                                <TextBlock Text="{Binding Display}"
+                                           Width="{Binding Width}"
+                                           TextAlignment="{Binding Alignment}"
+                                           Padding="0 0 10 0"
+                                           Classes="statsCell"
+                                           Classes.pos="{Binding IsPositive}"
+                                           Classes.neg="{Binding IsNegative}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <!-- Stats tab (release plan P1-3.1/4.1): the USER-facing scoreboard over the same MetricTables
+         the export writes. Hand-rolled columnar list per the house pattern (EntityListView) — the
+         column set is dynamic (follows the loaded rules), so header and cells are ItemsControls
+         sharing one fixed column width instead of a fixed-AXAML Grid. -->
+    <Border Background="{DynamicResource PanelBg}">
+        <Grid RowDefinitions="Auto,Auto,Auto,*">
+
+            <!-- ── Primary rail: segmented view switch + power-user table picker ── -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource PanelHeaderBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="0 0 0 1"
+                    Padding="14 5">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <ToggleButton Content="Scoreboard"
+                                  IsChecked="{Binding IsMatchView, Mode=OneWay}"
+                                  Command="{Binding ShowMatchViewCommand}"
+                                  Classes="statsview"
+                                  ToolTip.Tip="End-of-match scoreboard (one row per player)" />
+                    <ToggleButton Content="Rounds"
+                                  IsChecked="{Binding IsRoundView, Mode=TwoWay}"
+                                  Classes="statsview"
+                                  ToolTip.Tip="Per-round breakdown" />
+                    <ToggleButton Content="Highlights"
+                                  IsChecked="{Binding IsHighlightsView, Mode=TwoWay}"
+                                  Classes="statsview"
+                                  ToolTip.Tip="Chain satisfactions — multi-kills, clutches, and any user-defined achievement chains" />
+                    <ToggleButton Content="Vision"
+                                  IsChecked="{Binding IsVisibilityView, Mode=TwoWay}"
+                                  IsVisible="{Binding HasVisibilityStats}"
+                                  Classes="statsview"
+                                  ToolTip.Tip="3D line-of-sight stats — time exposed to / could see enemies (recomputed LOS, not the spotted bit)" />
+
+                    <!-- Power-user overflow: any declared outputs:/keyed table this evaluation produced. -->
+                    <ComboBox ItemsSource="{Binding ExtraTables}"
+                              SelectedItem="{Binding SelectedExtraTable, Mode=TwoWay}"
+                              IsVisible="{Binding HasExtraTables}"
+                              PlaceholderText="More ⌄"
+                              MinWidth="110" Margin="10 0 0 0"
+                              FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                              ToolTip.Tip="Declared outputs and keyed breakdowns (e.g. per-weapon kills)">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="output:MetricTable">
+                                <TextBlock Text="{Binding Name}"
+                                           FontFamily="Consolas,Menlo,monospace" FontSize="11" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
+            </Border>
+
+            <!-- ── Context bar: only what the active view needs, export lives quietly right ── -->
+            <Border Grid.Row="1"
+                    Background="{DynamicResource PanelHeaderBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="0 0 0 1"
+                    Padding="14 3">
+                <DockPanel>
+                    <!-- right: export -->
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+                        <Button Content="⧉ CSV"
+                                Click="OnExportCsvClick"
+                                IsEnabled="{Binding HasStats}"
+                                Classes="statsexport"
+                                ToolTip.Tip="Export every stats table as CSV to a folder" />
+                        <Button Content="⧉ JSON"
+                                Click="OnExportJsonClick"
+                                IsEnabled="{Binding HasStats}"
+                                Classes="statsexport"
+                                ToolTip.Tip="Export every stats table as JSON to a folder" />
+                    </StackPanel>
+
+                    <!-- left: per-view context -->
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <!-- Rounds: ◄ N ► stepper -->
+                        <StackPanel Orientation="Horizontal" Spacing="2"
+                                    IsVisible="{Binding IsRoundView}">
+                            <Button Content="◄" Command="{Binding PrevRoundCommand}"
+                                    Classes="statsexport" ToolTip.Tip="Previous round" />
+                            <ComboBox ItemsSource="{Binding Rounds}"
+                                      SelectedItem="{Binding SelectedRound, Mode=TwoWay}"
+                                      MinWidth="70"
+                                      FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                      ToolTip.Tip="Round number" />
+                            <Button Content="►" Command="{Binding NextRoundCommand}"
+                                    Classes="statsexport" ToolTip.Tip="Next round" />
+                        </StackPanel>
+
+                        <!-- Vision: one-time compute action + busy -->
+                        <Button Content="Compute visibility…"
+                                Command="{Binding ComputeVisibilityCommand}"
+                                IsVisible="{Binding CanComputeVisibility}"
+                                IsEnabled="{Binding !IsComputingVisibility}"
+                                Classes="statsexport"
+                                ToolTip.Tip="One-time 3D line-of-sight replay over the whole demo (a few seconds); adds the visibility tables to the view and the export" />
+                        <ProgressBar IsIndeterminate="True"
+                                     IsVisible="{Binding IsComputingVisibility}"
+                                     Width="90" Height="10"
+                                     VerticalAlignment="Center" />
+
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                   Foreground="{DynamicResource TextDimGray}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- ── Category sub-rail: one chip per StatGroup in the active view;
+                     visible columns = Core anchor ∪ selected group. Table views only. ── -->
+            <Border Grid.Row="2"
+                    Background="{DynamicResource PanelHeaderBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="0 0 0 1"
+                    Padding="14 2"
+                    IsVisible="{Binding IsTableView}">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Categories}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="2" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="stats:CategoryChip">
+                                <Button Content="{Binding Label}"
+                                        Command="{Binding $parent[ItemsControl].((stats:StatsTabViewModel)DataContext).SelectCategoryCommand}"
+                                        CommandParameter="{Binding}"
+                                        Classes="statscat"
+                                        Classes.selected="{Binding IsSelected}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+
+            <!-- ── Extra table (F2/F3): generic renderer for any picked outputs:/keyed table —
+                     dimension columns then value columns, cells preformatted by the VM ── -->
+            <ScrollViewer Grid.Row="3"
+                          IsVisible="{Binding IsExtraTableView}"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Disabled">
+                <Grid RowDefinitions="Auto,*">
+                    <Border Grid.Row="0"
+                            Background="{DynamicResource PanelHeaderBg}"
+                            BorderBrush="{DynamicResource BorderStrong}"
+                            BorderThickness="0 0 0 1">
+                        <ItemsControl ItemsSource="{Binding ExtraColumns}" Margin="10 0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Text="{Binding}" Width="120"
+                                               Classes="statsHead" Padding="0 4"
+                                               ToolTip.Tip="{Binding}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                    <ScrollViewer Grid.Row="1"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding ExtraRows}" Margin="10 2">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <ItemsControl ItemsSource="{Binding}" Margin="0 1">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="x:String">
+                                                <TextBlock Text="{Binding}" Width="120"
+                                                           Classes="statsCell"
+                                                           Foreground="{DynamicResource TextEntityFieldVal}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </ScrollViewer>
+
+            <!-- ── Table (one horizontal scroll owns header + rows so they stay aligned;
+                     rows scroll vertically inside) ──────────────────────────── -->
+            <!-- ── Highlights: the chain-satisfaction log (achievements view) ── -->
+            <ScrollViewer Grid.Row="3"
+                          IsVisible="{Binding IsHighlightsView}"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Highlights}" Margin="14 6">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="stats:HighlightRow">
+                            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0 1">
+                                <TextBlock Text="{Binding RoundLabel}" Width="80"
+                                           Classes="statsCell"
+                                           Foreground="{DynamicResource TextMid}" />
+                                <TextBlock Text="{Binding Tick, StringFormat='tick {0}'}" Width="110"
+                                           Classes="statsCell"
+                                           Foreground="{DynamicResource TextDimGray}" />
+                                <TextBlock Text="{Binding Player}" Width="170"
+                                           Classes="statsCell"
+                                           Foreground="{DynamicResource TextBright}" />
+                                <TextBlock Text="{Binding Chain}"
+                                           Classes="statsCell"
+                                           Foreground="{DynamicResource TextBright}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- ══ 3D visibility view (F4): per-player LOS table; the directed pairs
+                     table ships in the export alongside it ══ -->
+            <Grid Grid.Row="3"
+                  RowDefinitions="Auto,*"
+                  IsVisible="{Binding IsVisibilityView}"
+                  Margin="14 6">
+                <Border Grid.Row="0"
+                        BorderBrush="{DynamicResource BorderStrong}"
+                        BorderThickness="0 0 0 1">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="player" Width="170" Classes="statsHead" />
+                        <TextBlock Text="team" Width="40" Classes="statsHead" />
+                        <TextBlock Text="exposed" Width="92" Classes="statsHead"
+                                   ToolTip.Tip="Time at least one enemy had a clear 3D line of sight to this player" />
+                        <TextBlock Text="seen enemy" Width="92" Classes="statsHead"
+                                   ToolTip.Tip="Time this player had at least one enemy on screen (clear LOS, in FOV, not smoked)" />
+                        <TextBlock Text="exposed %" Width="92" Classes="statsHead"
+                                   ToolTip.Tip="Exposed time as a share of the sampled match time" />
+                        <TextBlock Text="vision %" Width="92" Classes="statsHead"
+                                   ToolTip.Tip="Seen-enemy time as a share of the sampled match time" />
+                    </StackPanel>
+                </Border>
+                <ScrollViewer Grid.Row="1"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding VisibilityRows}" Margin="0 2">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="stats:VisibilityRow">
+                                <StackPanel Orientation="Horizontal" Margin="0 1">
+                                    <TextBlock Text="{Binding PlayerName}" Width="170"
+                                               Classes="statsCell"
+                                               Foreground="{DynamicResource TextBright}" />
+                                    <TextBlock Text="{Binding TeamLabel}" Width="40"
+                                               Classes="statsCell"
+                                               Foreground="{DynamicResource TextMid}" />
+                                    <TextBlock Text="{Binding ExposedDisplay}" Width="92"
+                                               Classes="statsCell"
+                                               Foreground="{DynamicResource TextEntityFieldVal}" />
+                                    <TextBlock Text="{Binding CouldSeeDisplay}" Width="92"
+                                               Classes="statsCell"
+                                               Foreground="{DynamicResource TextEntityFieldVal}" />
+                                    <TextBlock Text="{Binding ExposedShareDisplay}" Width="92"
+                                               Classes="statsCell"
+                                               Foreground="{DynamicResource TextEntityFieldVal}" />
+                                    <TextBlock Text="{Binding VisionShareDisplay}" Width="92"
+                                               Classes="statsCell"
+                                               Foreground="{DynamicResource TextEntityFieldVal}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+            <!-- ══ end 3D visibility view (F4) ══ -->
+
+            <!-- ── Scoreboard / Rounds: one horizontal scroll owns header + rows (alignment);
+                     Scoreboard renders CT/T team sections with totals, Rounds a flat round view ── -->
+            <ScrollViewer Grid.Row="3"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Disabled"
+                          IsVisible="{Binding IsTableVisible}">
+                <Grid RowDefinitions="Auto,*">
+
+                    <!-- header: sortable player column + per-column two-line header
+                         (group band label over friendly name + sort glyph) -->
+                    <Border Grid.Row="0"
+                            Background="{DynamicResource PanelHeaderBg}"
+                            BorderBrush="{DynamicResource BorderStrong}"
+                            BorderThickness="0 0 0 1">
+                        <StackPanel Orientation="Horizontal" Margin="10 0">
+                            <Button Width="170"
+                                    Command="{Binding SortByPlayerCommand}"
+                                    Classes="statsHeadBtn" VerticalAlignment="Bottom"
+                                    ToolTip.Tip="Sort by player name">
+                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                    <TextBlock Text="Player" Classes="statsHeadText" />
+                                    <TextBlock Text="{Binding PlayerSortGlyph}" Classes="statsHeadGlyph" />
+                                </StackPanel>
+                            </Button>
+                            <ItemsControl ItemsSource="{Binding CurrentColumns}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="stats:StatColumn">
+                                        <Button Width="{Binding Width}"
+                                                Command="{Binding $parent[ItemsControl].((stats:StatsTabViewModel)DataContext).SortByColumnCommand}"
+                                                CommandParameter="{Binding}"
+                                                Classes="statsHeadBtn"
+                                                Classes.sorted="{Binding IsSorted}"
+                                                ToolTip.Tip="{Binding Tooltip}">
+                                            <!-- Group-band label suppressed — the category chip
+                                                 already names the group. -->
+                                            <StackPanel Orientation="Horizontal" Spacing="1"
+                                                        HorizontalAlignment="Right" Margin="0 0 10 0">
+                                                <TextBlock Text="{Binding Display}" Classes="statsHeadText" />
+                                                <TextBlock Text="{Binding SortGlyph}" Classes="statsHeadGlyph" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- rows -->
+                    <ScrollViewer Grid.Row="1"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <Panel Margin="10 2">
+                            <!-- Scoreboard: CT/T sections, zebra rows, per-team totals -->
+                            <ItemsControl ItemsSource="{Binding TeamSections}"
+                                          IsVisible="{Binding IsMatchView}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="stats:TeamSection">
+                                        <StackPanel Margin="0 0 0 8">
+                                            <Border Classes="teamHeader" Classes.ct="{Binding IsCt}">
+                                                <TextBlock Text="{Binding Header}" Classes="teamHeaderText"
+                                                           Classes.ct="{Binding IsCt}" />
+                                            </Border>
+                                            <ItemsControl ItemsSource="{Binding Rows}"
+                                                          ItemTemplate="{StaticResource StatsRowTemplate}" />
+                                            <ContentControl Content="{Binding Totals}"
+                                                            ContentTemplate="{StaticResource StatsRowTemplate}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Rounds: flat team-ordered rows for the selected round -->
+                            <ItemsControl ItemsSource="{Binding RoundRows}"
+                                          ItemTemplate="{StaticResource StatsRowTemplate}"
+                                          IsVisible="{Binding IsRoundView}" />
+                        </Panel>
+                    </ScrollViewer>
+                </Grid>
+            </ScrollViewer>
+
+            <!-- empty state -->
+            <TextBlock Grid.Row="3"
+                       Text="{Binding StatusMessage}"
+                       IsVisible="{Binding !HasStats}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       FontFamily="Consolas,Menlo,monospace" FontSize="12"
+                       Foreground="{DynamicResource TextDimGray}" />
+
+            <!-- ── Player-details overlay (docs/ui/player-details-ux-design.md): spans the whole
+                     tab so the scoreboard underneath is fully occluded and non-interactive while
+                     its state (sort/category/scroll) stays frozen. Inline overlay, never a Window
+                     (WASM parity). Esc closes; opened from a row double-tap / context menu. ── -->
+            <Border Grid.Row="0" Grid.RowSpan="4"
+                    x:Name="PlayerDetailsHost"
+                    Background="{DynamicResource ShellBg}"
+                    IsVisible="{Binding IsPlayerDetailsOpen}"
+                    Focusable="True">
+                <Border.KeyBindings>
+                    <KeyBinding Gesture="Escape" Command="{Binding ClosePlayerDetailsCommand}" />
+                </Border.KeyBindings>
+                <local:PlayerDetailsView DataContext="{Binding PlayerDetails}" />
+            </Border>
+        </Grid>
+    </Border>
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.statsHead">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.statsHeadText">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="TextBlock.statsHeadGlyph">
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+        <!-- Thin group-band label over the first column of each group (Combat / Damage / …). -->
+        <Style Selector="TextBlock.statsGroupBand">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="8" />
+            <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
+            <Setter Property="Margin" Value="0 0 0 1" />
+        </Style>
+        <Style Selector="Button.statsHeadBtn">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0 3" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Bottom" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.statsHeadBtn.sorted TextBlock.statsHeadText">
+            <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+        <Style Selector="TextBlock.statsCell">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Foreground" Value="{DynamicResource TextEntityFieldVal}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.statsCell.pos">
+            <Setter Property="Foreground" Value="{DynamicResource StatPositive}" />
+        </Style>
+        <Style Selector="TextBlock.statsCell.neg">
+            <Setter Property="Foreground" Value="{DynamicResource AccentError}" />
+        </Style>
+        <!-- Team-side bullet: T amber, CT blue (foreground must come from styles, not a local
+             value, or the .ct class can never override it). -->
+        <Style Selector="TextBlock.statsBullet">
+            <Setter Property="Foreground" Value="{DynamicResource AccentAmber}" />
+        </Style>
+        <Style Selector="TextBlock.statsBullet.ct">
+            <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+        <!-- Player identity reads in the UI font, not monospace. -->
+        <Style Selector="TextBlock.statsPlayer">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBright}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style Selector="TextBlock.statsPlayer.totals">
+            <Setter Property="Foreground" Value="{DynamicResource TextDimGray}" />
+            <Setter Property="FontStyle" Value="Italic" />
+        </Style>
+        <!-- Row chrome: zebra stripes, hover highlight, totals separator. -->
+        <Style Selector="Border.statsRow">
+            <Setter Property="Padding" Value="0 2" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <!-- Zebra alt-row: value-identical to the PanelHeaderBg token, reused. -->
+        <Style Selector="Border.statsRow.alt">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderBg}" />
+        </Style>
+        <Style Selector="Border.statsRow:pointerover">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+        </Style>
+        <Style Selector="Border.statsRow.totals">
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="0 1 0 0" />
+            <Setter Property="Margin" Value="0 2 0 0" />
+        </Style>
+        <!-- Team section header: side badge strip, CT blue / T amber accent. -->
+        <Style Selector="Border.teamHeader">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderBg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentAmber}" />
+            <Setter Property="BorderThickness" Value="2 0 0 0" />
+            <Setter Property="Padding" Value="8 3" />
+            <Setter Property="Margin" Value="0 2" />
+        </Style>
+        <Style Selector="Border.teamHeader.ct">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+        <Style Selector="TextBlock.teamHeaderText">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentAmber}" />
+        </Style>
+        <Style Selector="TextBlock.teamHeaderText.ct">
+            <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+        <Style Selector="ToggleButton.statsview, Button.statsexport">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Padding" Value="8 2" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <!-- Category chips: visually distinct PILLS — bordered, rounded, hover
+             feedback; the selected chip fills with the interactive accent. One weight lighter than
+             the view rail so the sub-rail still reads as secondary navigation. -->
+        <Style Selector="Button.statscat">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Padding" Value="9 2" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.statscat:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource PrimaryButtonHover}" />
+        </Style>
+        <Style Selector="Button.statscat.selected">
+            <Setter Property="Background" Value="{DynamicResource AccentInteractive}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBright}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+    </UserControl.Styles>
+
+</UserControl>

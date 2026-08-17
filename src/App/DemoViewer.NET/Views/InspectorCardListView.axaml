@@ -1,0 +1,109 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels"
+             xmlns:controls="using:DemoViewer.NET.Controls"
+             x:Class="DemoViewer.NET.Views.InspectorCardListView"
+             x:Name="Root">
+
+    <UserControl.Styles>
+
+        <!-- Expand / Collapse action buttons in the header -->
+        <Style Selector="Button.hdr-action">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="8 2" />
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.hdr-action:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HdrActionHoverBg}" />
+        </Style>
+
+    </UserControl.Styles>
+
+    <Border Background="{DynamicResource PanelBg}"
+            BorderBrush="{DynamicResource BorderSubtle}"
+            BorderThickness="0 1 0 0">
+        <Grid RowDefinitions="Auto,*">
+
+            <!-- ── Header ──────────────────────────────────────────────────────── -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource PanelHeaderBg}"
+                    BorderBrush="{DynamicResource BorderStrong}"
+                    BorderThickness="0 0 0 1"
+                    Padding="14 0 6 0">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" MinHeight="28">
+
+                    <!-- Section label -->
+                    <TextBlock Grid.Column="0"
+                               Text="MESSAGES"
+                               FontSize="10" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextLabel}"
+                               FontFamily="Consolas,Menlo,monospace"
+                               VerticalAlignment="Center" />
+
+                    <!-- Frame info (hidden until a frame is selected) -->
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding HeaderText, ElementName=Root}"
+                               IsVisible="{Binding HasCards, ElementName=Root}"
+                               FontFamily="Consolas,Menlo,monospace"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextFrameInfo}"
+                               Padding="14 0 0 0"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+
+                    <!-- Expand all -->
+                    <Button Grid.Column="2"
+                            Classes="hdr-action"
+                            Content="▾ all"
+                            Command="{Binding ExpandAllCommand, ElementName=Root}"
+                            IsVisible="{Binding HasCards, ElementName=Root}"
+                            ToolTip.Tip="Expand all cards" />
+
+                    <!-- Collapse all -->
+                    <Button Grid.Column="3"
+                            Classes="hdr-action"
+                            Content="▸ all"
+                            Command="{Binding CollapseAllCommand, ElementName=Root}"
+                            IsVisible="{Binding HasCards, ElementName=Root}"
+                            ToolTip.Tip="Collapse all cards" />
+
+                </Grid>
+            </Border>
+
+            <!-- ── Card list / placeholder ─────────────────────────────────────── -->
+            <Grid Grid.Row="1">
+
+                <!-- Placeholder -->
+                <TextBlock IsVisible="{Binding !HasCards, ElementName=Root}"
+                           Text="{Binding PlaceholderText, ElementName=Root}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextLabel}"
+                           FontFamily="Consolas,Menlo,monospace" />
+
+                <!-- Cards scroll -->
+                <ScrollViewer IsVisible="{Binding HasCards, ElementName=Root}"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Cards, ElementName=Root}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:HarvestCardViewModel">
+                                <controls:InspectorCard />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+            </Grid>
+
+        </Grid>
+    </Border>
+
+</UserControl>

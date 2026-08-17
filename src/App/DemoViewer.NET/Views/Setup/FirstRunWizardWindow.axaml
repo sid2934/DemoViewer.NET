@@ -1,0 +1,17 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:setup="using:DemoViewer.NET.ViewModels.Setup"
+        x:Class="DemoViewer.NET.Views.Setup.FirstRunWizardWindow"
+        x:DataType="setup:FirstRunWizardViewModel"
+        Title="Welcome to DemoViewer.NET"
+        Width="640" Height="600"
+        MinWidth="520" MinHeight="480"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ShellBg}">
+
+    <!-- ViewLocator resolves Views.Setup.FirstRunWizardView for the FirstRunWizardViewModel DataContext,
+         so the same view renders here (desktop modal) and in the WASM shell overlay. -->
+    <ContentControl Content="{Binding}" />
+</Window>

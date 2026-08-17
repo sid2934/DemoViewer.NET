@@ -1,0 +1,90 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.EntityTracking"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="200"
+             x:Class="DemoViewer.NET.Views.EntityTracking.SerializerSchemaView"
+             x:DataType="vm:SerializerSchemaViewModel">
+
+    <Border Background="{DynamicResource PanelBg}"
+            BorderBrush="{DynamicResource BorderStrong}"
+            BorderThickness="0 1 0 0">
+        <Grid RowDefinitions="Auto,Auto,*">
+
+            <!-- header -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource PanelHeaderBg}"
+                    Padding="14 0">
+                <TextBlock Text="{Binding HeaderText}"
+                           FontSize="10" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextLabel}"
+                           VerticalAlignment="Center"
+                           MinHeight="28"
+                           FontFamily="Consolas,Menlo,monospace" />
+            </Border>
+
+            <!-- column headers -->
+            <Grid Grid.Row="1"
+                  ColumnDefinitions="*,220,140,72,90,120"
+                  Margin="14 0"
+                  IsVisible="{Binding HasSchema}">
+                <TextBlock Grid.Column="0" Text="field" Classes="schemaHead" />
+                <TextBlock Grid.Column="1" Text="type" Classes="schemaHead" />
+                <TextBlock Grid.Column="2" Text="encoder" Classes="schemaHead" />
+                <TextBlock Grid.Column="3" Text="bits" Classes="schemaHead" />
+                <TextBlock Grid.Column="4" Text="flags" Classes="schemaHead" />
+                <TextBlock Grid.Column="5" Text="shape" Classes="schemaHead" />
+            </Grid>
+
+            <!-- field rows -->
+            <ListBox Grid.Row="2"
+                     ItemsSource="{Binding Fields}"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SchemaFieldRow">
+                        <Grid ColumnDefinitions="*,220,140,72,90,120">
+                            <TextBlock Grid.Column="0" Text="{Binding Name}" Classes="schemaCell"
+                                       Foreground="{DynamicResource TextFieldName}" />
+                            <TextBlock Grid.Column="1" Text="{Binding TypeName}" Classes="schemaCell"
+                                       Foreground="{DynamicResource TextMid}" />
+                            <TextBlock Grid.Column="2" Text="{Binding Encoder}" Classes="schemaCell"
+                                       Foreground="{DynamicResource TextDim}" />
+                            <TextBlock Grid.Column="3" Text="{Binding BitCountText}" Classes="schemaCell"
+                                       Foreground="{DynamicResource TextDim}" />
+                            <TextBlock Grid.Column="4" Text="{Binding EncodeFlagsText}" Classes="schemaCell"
+                                       Foreground="{DynamicResource TextDim}" />
+                            <TextBlock Grid.Column="5" Text="{Binding Shape}" Classes="schemaCell"
+                                       Foreground="{DynamicResource TextDim}" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+                <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                        <Setter Property="Padding" Value="14 1" />
+                        <Setter Property="MinHeight" Value="0" />
+                    </Style>
+                </ListBox.Styles>
+            </ListBox>
+
+        </Grid>
+    </Border>
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.schemaHead">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
+            <Setter Property="Margin" Value="0 2" />
+        </Style>
+        <Style Selector="TextBlock.schemaCell">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+    </UserControl.Styles>
+
+</UserControl>

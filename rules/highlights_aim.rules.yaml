@@ -1,0 +1,144 @@
+# yaml-language-server: $schema=./dv-rules.schema.json
+#
+# Mechanical single-kill feats — the "aim" highlight family. Each entry is a per-round count of
+# qualifying kills paired with a highlight that fires the round it happens (>= 1). Weapon and raw
+# wire-field gates go through `where:` (the proven pattern, per kast.rules.yaml `wallbang_kills`);
+# typed kill-view facets go through `match:`. Higher `score:` surfaces first in the reel.
+ruleset: highlights_aim
+title: Aim Highlights
+summary: Mechanical single-kill feats — no-scopes, jumpshots, wallbangs, smoke and long-range kills.
+for: each_player
+
+params:
+  min_distance: { type: int, default: 2500 }   # distance units uncertain — tune here if firing seems off
+
+stats:
+  # ── No-scope AWP/scout kill ──
+  no_scope_kills:
+    count: kill
+    match: { no_scope: true, enemy: true }
+    where: 'event.Weapon == "awp" || event.Weapon == "ssg08"'
+    per: round
+    while: round.active
+    label: NoScope
+
+  # ── The flagship: no-scope + airborne + AWP/scout ──
+  jumping_no_scope_kills:
+    count: kill
+    match: { no_scope: true, enemy: true }
+    where: 'event.AttackerInAir == true && (event.Weapon == "awp" || event.Weapon == "ssg08")'
+    per: round
+    while: round.active
+    label: JumpNoScope
+
+  # ── Airborne kill, any weapon ──
+  jumpshot_kills:
+    count: kill
+    match: { enemy: true }
+    where: 'event.AttackerInAir == true'
+    per: round
+    while: round.active
+    label: Jumpshot
+
+  # ── Wallbang (>= 1 penetrated object) ──
+  wallbang_kills:
+    count: kill
+    match: { enemy: true }
+    where: 'event.Penetrated >= 1'
+    per: round
+    while: round.active
+    label: Wallbang
+
+  # ── Deep wallbang (>= 2 penetrated objects) ──
+  deep_wallbang_kills:
+    count: kill
+    match: { enemy: true }
+    where: 'event.Penetrated >= 2'
+    per: round
+    while: round.active
+    label: DeepWallbang
+
+  # ── Through-smoke kill ──
+  through_smoke_kills:
+    count: kill
+    match: { through_smoke: true, enemy: true }
+    per: round
+    while: round.active
+    label: SmokeKill
+
+  # ── Long-range kill (distance units uncertain — gate on params.min_distance) ──
+  long_range_kills:
+    count: kill
+    match: { enemy: true }
+    where: 'event.Distance > params.min_distance'
+    per: round
+    while: round.active
+    label: LongRange
+
+  # ── Killed a flash-assisted (blinded) target ──
+  blind_enemy_kills:
+    count: kill
+    match: { flash_assisted: true, enemy: true }
+    per: round
+    while: round.active
+    label: BlindKill
+
+highlights:
+  no_scope:
+    when: no_scope_kills >= 1
+    per: round
+    score: 80
+    title: "{player.name} — no-scope kill (round {round.number})"
+
+  jumping_no_scope:
+    when: jumping_no_scope_kills >= 1
+    per: round
+    score: 95
+    title: "{player.name} — jumping no-scope! (round {round.number})"
+
+  jumpshot_kill:
+    when: jumpshot_kills >= 1
+    per: round
+    score: 60
+    title: "{player.name} — jumpshot kill (round {round.number})"
+
+  wallbang_kill:
+    when: wallbang_kills >= 1
+    per: round
+    score: 75
+    title: "{player.name} — wallbang kill (round {round.number})"
+
+  deep_wallbang:
+    when: deep_wallbang_kills >= 1
+    per: round
+    score: 88
+    title: "{player.name} — deep wallbang! (round {round.number})"
+
+  through_smoke_kill:
+    when: through_smoke_kills >= 1
+    per: round
+    score: 60
+    title: "{player.name} — kill through smoke (round {round.number})"
+
+  long_range_kill:
+    when: long_range_kills >= 1
+    per: round
+    score: 60
+    title: "{player.name} — long-range kill (round {round.number})"
+
+  blind_enemy_kill:
+    when: blind_enemy_kills >= 1
+    per: round
+    score: 45
+    title: "{player.name} — killed a blinded enemy (round {round.number})"
+
+show:
+  scoreboard:
+    - { stat: no_scope.count,           label: NoScope,      group: game }
+    - { stat: jumping_no_scope.count,   label: JumpNoScope,  group: game }
+    - { stat: jumpshot_kill.count,      label: Jumpshot,     group: game }
+    - { stat: wallbang_kill.count,      label: Wallbang,     group: game }
+    - { stat: deep_wallbang.count,      label: DeepWallbang, group: game }
+    - { stat: through_smoke_kill.count, label: SmokeKill,    group: game }
+    - { stat: long_range_kill.count,    label: LongRange,    group: game }
+    - { stat: blind_enemy_kill.count,   label: BlindKill,    group: game }

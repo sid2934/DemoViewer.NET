@@ -1,0 +1,145 @@
+<Project>
+    <!-- https://learn.microsoft.com/en-us/nuget/consume-packages/central-package-management -->
+    <PropertyGroup>
+        <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    </PropertyGroup>
+    <ItemGroup>
+        <!-- Avalonia packages -->
+        <!-- Important: keep version in sync! -->
+        <PackageVersion Include="Avalonia" Version="11.3.12"/>
+        <PackageVersion Include="Avalonia.Controls.ColorPicker" Version="11.3.12"/>
+        <PackageVersion Include="Avalonia.Themes.Fluent" Version="11.3.12"/>
+        <PackageVersion Include="Avalonia.Fonts.Inter" Version="11.3.12"/>
+        <PackageVersion Include="Avalonia.Diagnostics" Version="11.3.12"/>
+        <PackageVersion Include="Avalonia.Desktop" Version="11.3.12"/>
+        <PackageVersion Include="Avalonia.iOS" Version="11.3.12"/>
+        <PackageVersion Include="Avalonia.Browser" Version="11.3.12"/>
+        <PackageVersion Include="Avalonia.Android" Version="11.3.12"/>
+        <!-- AvaloniaEdit — Rulesets v2 authoring Workbench editor (Phase 3). Tracks the Avalonia 11.3.x line. -->
+        <PackageVersion Include="Avalonia.AvaloniaEdit" Version="11.3.0"/>
+        <!-- Headless UI testing (TUnit + SkiaSharp frame capture). Keep in sync with Avalonia version. -->
+        <PackageVersion Include="Avalonia.Headless" Version="11.3.12"/>
+        <PackageVersion Include="Avalonia.Skia" Version="11.3.12"/>
+        <PackageVersion Include="Msagl" Version="1.2.1"/>
+        <PackageVersion Include="YamlDotNet" Version="16.3.0"/>
+        <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
+        <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15"/>
+        <!-- 3.29.5+ required by Cs2VideoGenerator.Core, and comfortably above the >= 3.27.0 floor
+             CS2OpenDev.Protos states as policy. Grpc.Tools is gone: the parser no longer runs
+             protoc — the Valve message types arrive prebuilt in CS2OpenDev.Protos below. -->
+        <PackageVersion Include="Google.Protobuf" Version="3.29.5"/>
+        <!-- CSVG live-CS2 integration (docs/csvg-integration/). Served from local-packages/
+             like CS2OpenDev.Sdk; refresh via `dotnet pack src/Cs2VideoGenerator.Core` in the
+             Cs2VideoGenerator repo, copy the .nupkg here, bump this version. -->
+        <PackageVersion Include="Cs2VideoGenerator.Core" Version="1.1.2"/>
+        <PackageVersion Include="Snappier" Version="1.3.1"/>
+        <!-- Fuzzy matcher for the command palette (F8.1). Pure-managed; WASM-safe. -->
+        <PackageVersion Include="FuzzySharp" Version="2.0.2"/>
+        <!-- Versioning -->
+        <PackageVersion Include="Nerdbank.GitVersioning" Version="3.7.115"/>
+        <!-- Install / auto-update packaging (docs/distribution/build-and-packaging-plan.md §5).
+             Keep in sync with the vpk CLI pin in .config/dotnet-tools.json. -->
+        <PackageVersion Include="Velopack" Version="1.2.0"/>
+        <!-- Test -->
+        <PackageVersion Include="TUnit" Version="0.25.21"/>
+        <!-- Micro-benchmark harness (tools/EntityMicroBench) -->
+        <PackageVersion Include="BenchmarkDotNet" Version="0.14.0"/>
+        <!-- CS2 schema SDK (SchemaNames.* constants). Served from the repo-local feed in
+             local-packages/ until published to nuget.org — see nuget.config.
+
+             Two upstream majors crossed in one step, both breaking, neither affecting us:
+
+             2.0 moved 297 types between namespaces and removed 40 when the schema's namespace key
+             changed from `module` to `projectName`. We consume SchemaNames only — a flat table of
+             nested static classes under the root CS2OpenSchema namespace — so a type moving
+             between CS2OpenSchema.Client and .Server does not move its SchemaNames entry.
+
+             3.0 folded generated identifiers to idiomatic .NET casing and split run-together
+             names: `Userid` -> `UserId`, `Thrusmoke` -> `ThruSmoke`, `SubclassID` -> `SubclassId`.
+             574 members and 207 type names changed. A names.lock.json upstream pins every resolved
+             run so a later vocabulary edit cannot retroactively re-split published API.
+
+             Verified against 3.0.3 by the compiler rather than by inspection: the solution builds
+             and SchemaKeysAssertionTests passes, so every SchemaNames reference we hold survives
+             both renames. -->
+        <!-- 5.0 is the TypeMapper templated-atomic repair (SDK#18): 1,923 generated schema-class
+             properties stop being mangled stubs, CHandle<T> becomes real on 403 of them. A
+             compile-surface non-event here, measured before we green-lit it upstream: we consume
+             SchemaNames.* only, and zero stub types were ever referenced. -->
+        <PackageVersion Include="CS2OpenDev.Sdk" Version="5.1.0"/>
+        <!-- Game-event decoder, registry and typed records — replaces our hand-rolled decoder and
+             272 generated record/factory types. The registry is what resolves the duplicate-name
+             hazard: gameevents declares 289 records under 273 names, and `player_death` exists as
+             both a 2-field core record and the 22-field mod record CS2 actually fires. Source
+             priority is mod > game > core. Refresh from the GitHub release like the others. -->
+        <PackageVersion Include="CS2OpenDev.Sdk.GameEvents" Version="5.1.0"/>
+        <!-- The frozen entity read contract from SDK#6 — IEntityFieldReader / IEntityWorld /
+             EntityWrapper / EntityClassBinding, plus DictionaryEntityReader (reference impl and
+             conformance kit) and BindingConformance (structural manifest validator). BCL-only,
+             trimmable, AOT-compatible; its version.json pathFilters isolate it from the schema
+             regen clock, so it moves only when a human changes the contract. 0.x until OUR
+             adapter (the contract's second implementation) lands and the upstream suite passes
+             against EntityState/EntityTracker — then upstream declares 1.0. 1.0.0 IS that
+             declaration (SDK PR#35), cut on our 268/268 re-verification word; tag-diff vs the
+             0.2.1 we verified is version.json only (0.3.0 was the versionHeightOffset renumber).
+             Contract breaks are now MAJOR — if SDK#30 moves the read seam off ordinal
+             addressing, it arrives as 2.0, not a minor. -->
+        <PackageVersion Include="CS2OpenDev.Sdk.Entities.Abstractions" Version="1.0.0"/>
+        <!-- The SDK-emitted typed wrappers + EntityClassBinding manifests + EntityWrapperRegistry
+             (SDK#25) — 58 wrappers over the contract above, generated from the SDK's
+             schema-lens/state.json. Referenced ONLY by the Parser test project: DVN consumes it
+             to run the stage-2/3 verification battery (composition over a real tracker; real-demo
+             A/B joined by canonical path). Production code keeps our local Generated/ wrappers
+             until the cutover decision. 0.3.0 is the SDK#30 prefix-layout emit: wrapper
+             inheritance mirroring the schema's real parent chains (7 unsealed bases, incl. the
+             MolotovGrenade promotion — CIncendiaryGrenade's true parent), 59 bindings / 674
+             canonical paths (zero empty — a marker's binding IS its base's layout), weapon
+             companions typed BasePlayerWeapon? again, base ordinals valid in every descendant
+             binding by construction. Our Q2 probe on SDK#30 measured the wire supports exactly
+             this before it was built; the stage-2/3 battery was the 1.0-deciding acceptance
+             and passed clean (4,434 A/B comparisons / 0 mismatches). 1.1.0 answers our SDK#41
+             curation asks additively (61 classes / 735 paths): seen-aware nullable position
+             cell leaves (OriginCellX.. int?, OriginVecX.. float? — cell 0 is a legal world
+             cell, a 0-default would fabricate −16384), CSTeam + Inferno wrappers, match-total
+             action-tracking stats (schema-true canonical under m_matchStats with our flat
+             spelling as alias), and the five minor leaves. Array elements stay on the
+             TryReadByEnginePath hatch by explicit decision. -->
+        <PackageVersion Include="CS2OpenDev.Sdk.Entities" Version="1.1.0"/>
+        <!-- Generated Valve protobuf message types (CS2OpenSchema.Protos), replacing the local
+             protoc pipeline the parser used to run. Built from CS2OpenDev-SchemaTracker at Steam
+             build 24701871; the package carries that id as the CS2BuildId assembly attribute.
+             4.1 is the derived-GC-closure prune (188 unreferenced Steam-traffic types removed;
+             audited 2026-08-13 — zero references here). It first shipped mis-versioned as
+             3.0.7; 4.1.1 is byte-identical content under the corrected number (SDK PR#12),
+             and upstream may delete the 3.0.7 tag from GitHub Packages.
+             Same repo-local feed as the SDK. Refresh with `gh release download` against the
+             CS2OpenDev.Protos/vX.Y.Z tag in the CS2OpenDev/CS2OpenDev-SDK repo, copy the .nupkg
+             here, and bump this version. Take it from the RELEASE, not a local `dotnet pack`: a
+             hand-packed binary diverges from the published one.
+
+             NOTE: this is a PUBLIC dependency of the published Cs2DemoKit.Parser package (seven
+             public members take these types), so Cs2DemoKit.* cannot ship to nuget.org until
+             CS2OpenDev.Protos does. Owner decision 2026-08-10: flip both together when ready. -->
+        <PackageVersion Include="CS2OpenDev.Protos" Version="5.1.1"/>
+        <!-- ^ 5.0.1 is the family renumber riding the Sdk 5.0 TypeMapper repair; protos/ is
+             byte-identical to 4.1.1 (empty tag diff, audited 2026-08-13). -->
+
+        <!-- Configuration + Options + DI (App settings foundation, P1.1). DI is consumed in a later
+             chunk (App bootstrap); the refs live here so SettingsService can use Configuration/Options
+             now. Microsoft.Extensions.Hosting is intentionally NOT added. Pinned to the net10.0 line. -->
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0"/>
+        <!-- Logging (unified diagnostics pillar). Abstractions carries ILogger + [LoggerMessage]
+             source generator and is WASM-safe (no providers); the App references the full Logging
+             package for LoggerFactory + a custom in-memory ILoggerProvider (also WASM-safe — Blazor
+             WASM uses it). OTLP/file exporters are NOT added here; they belong at the Desktop
+             boundary. Pinned to the net10.0 line. -->
+        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.0"/>
+    </ItemGroup>
+</Project>

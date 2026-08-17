@@ -1,0 +1,302 @@
+# Tri-OS Velopack packaging matrix (docs/distribution/build-and-packaging-plan.md §8 step 5).
+# Each OS builds its own self-contained bundle + installer (vpk cannot cross-build):
+#   windows-latest → win-x64 Setup.exe · macos-14 (arm64) → osx-arm64 .app/.pkg · ubuntu → linux-x64 AppImage
+#
+# Triggered by a v* tag (a real release) or manually. Signing/notarization is DEFERRED (§6):
+# the DV_SIGN_* / DV_NOTARY_PROFILE secrets are unset today → unsigned. Wire them as repo
+# secrets to flip signing on with no workflow change (empty = unsigned).
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Velopack channel (blank = per-OS default)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write   # upload release assets when cut from a tag
+  packages: read    # restore Cs2VideoGenerator.Core from the private GitHub Packages feed
+  actions: read     # verify-ci lists ci.yml runs; declaring this block makes every omitted
+                    # scope `none`, so without it that call 403s (it did, on the v0.5.2 tag)
+
+jobs:
+  # Gate: this tag's commit must already have a GREEN `ci` run. Publishing now feeds an in-app
+  # updater, so an untested tag reaches users on its own — process discipline ("only tag commits
+  # that went green on main") is no longer enough on its own.
+  #
+  # Deliberately a CHECK, not a re-run: `ci` builds the Desktop head and runs the parser suite on
+  # every push to main, and re-running it here would double the work for the same answer. Note it
+  # does NOT produce the release artifacts — the package matrix below builds those itself — so this
+  # gate proves the commit is tested, not that it is already built.
+  #
+  # `ci` triggers on push-to-main and pull_request, NOT on tags, so a tag whose commit never landed
+  # on main has no run and fails here. That is the case worth catching.
+  verify-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a successful ci run for ${{ github.sha }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          sha="${{ github.sha }}"
+          # Distinguish "the API call failed" from "ci was not green". Both must block the
+          # release, but conflating them is actively misleading: a 403 here once reported
+          # "'ci' did not succeed" for a commit whose ci was green, sending the diagnosis
+          # at the test suite instead of at a missing `actions: read` scope.
+          if ! runs=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$sha&status=completed" \
+                        --jq '[.workflow_runs[].conclusion] | join(" ")' 2>&1); then
+            echo "::error::Could not query ci runs for $sha — this is an API/permissions failure," >&2
+            echo "         NOT a verdict on the tests. Response: $runs" >&2
+            exit 1
+          fi
+          echo "ci conclusions for $sha: ${runs:-<none>}"
+          if [ -z "$runs" ]; then
+            echo "::error::No completed 'ci' run for $sha. Tag a commit that has landed on main and gone green." >&2
+            exit 1
+          fi
+          case " $runs " in
+            *" success "*) echo "ci is green for $sha — proceeding to package." ;;
+            *) echo "::error::'ci' did not succeed for $sha (conclusions: $runs). Refusing to publish." >&2; exit 1 ;;
+          esac
+
+      # Pre-flight the public-mirror PAT here, before the tri-OS matrix spends ~20 minutes
+      # building. Every tagged release mirrors publicly, so an expired, revoked or wrongly-scoped
+      # token fails the run either way — the only question is whether you find out in 10 seconds
+      # or after the whole matrix has built and uploaded. Tag-only: workflow_dispatch never
+      # reaches the publish job, so it has no reason to require the token.
+      - name: Pre-flight the public-mirror token
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.DV_PUBLIC_RELEASES_TOKEN }}
+          PUBLIC_REPO: ${{ vars.DV_PUBLIC_REPO_URL || 'https://github.com/sid2934/DemoViewer.NET-releases' }}
+        run: |
+          set -euo pipefail
+          slug="${PUBLIC_REPO#https://github.com/}"
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::DV_PUBLIC_RELEASES_TOKEN is unset — every tagged release mirrors to $slug." >&2
+            exit 1
+          fi
+          # Hard-fail on the high-confidence signal: the token cannot even see the repo, which
+          # means missing, expired, revoked, or scoped to the wrong repository.
+          if ! perms=$(gh api "repos/$slug" --jq '.permissions.push' 2>&1); then
+            echo "::error::DV_PUBLIC_RELEASES_TOKEN cannot read $slug — expired, revoked, or not scoped to it." >&2
+            echo "         Response: $perms" >&2
+            exit 1
+          fi
+          # Warn (don't block) on the lower-confidence one: permission introspection for
+          # fine-grained PATs is less predictable than reachability, and a false negative here
+          # would block a perfectly good release. The mirror step is the real enforcement.
+          if [ "$perms" != "true" ]; then
+            echo "::warning::Token reaches $slug but reports push=$perms. If the mirror step fails," \
+                 "grant the PAT 'Contents: Read and write' on that repo."
+          else
+            echo "public-mirror token OK — can write to $slug."
+          fi
+
+  package:
+    needs: verify-ci
+    strategy:
+      fail-fast: false
+      # `dotnet publish -r <rid>` flattens whatever CSVG natives the referenced Cs2VideoGenerator.Core
+      # version carries for that RID; publish.sh only verifies they landed and WARNS on a miss (never
+      # fatal on its own). Set DV_PUBLISH_STRICT_NATIVES=1 here to hard-fail the matrix on a genuine
+      # missing native, once a green run's per-RID native list is trusted.
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: macos-14
+            rid: osx-arm64
+          - os: ubuntu-latest
+            rid: linux-x64
+    runs-on: ${{ matrix.os }}
+    env:
+      # Private-feed restore via the built-in token (nuget.config reads these). The Core package
+      # lives in sid2934/Cs2VideoGenerator — it must grant this repo read access for the built-in
+      # token to see it (package → Manage Actions access), else restore 401s.
+      GITHUB_PACKAGE_USER: ${{ github.actor }}
+      GITHUB_PACKAGE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Signing secrets (unset = unsigned, §6). Set these in repo secrets to enable.
+      DV_SIGN_APP_IDENTITY: ${{ secrets.DV_SIGN_APP_IDENTITY }}
+      DV_SIGN_INSTALL_IDENTITY: ${{ secrets.DV_SIGN_INSTALL_IDENTITY }}
+      DV_NOTARY_PROFILE: ${{ secrets.DV_NOTARY_PROFILE }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # Nerdbank.GitVersioning needs full history
+          # Submodules deliberately NOT fetched — see scripts/fetch-protobufs.sh. `recursive`
+          # would clone GameTracking-CS2's full 3.2 GB history for 420 KB of .proto files, on
+          # each of the three matrix legs.
+
+      - name: Fetch protobuf definitions
+        shell: bash   # git-bash on the Windows runner; the script is bash
+        run: ./scripts/fetch-protobufs.sh
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore CLI tools (vpk, nbgv)
+        run: dotnet tool restore
+
+      - name: Pack (${{ matrix.rid }})
+        shell: bash   # git-bash on the Windows runner; the pack script is bash
+        env:
+          # Seed the output dir with the currently-published release so vpk emits a delta alongside
+          # the full package. Opt-in so local `pack-velopack.sh` runs stay offline and deterministic.
+          # A missing/failed download is non-fatal — full-only is a correct release.
+          # Seeded from the PUBLIC releases repo, not this one: a delta is only useful if it diffs
+          # against the package the user actually has, and users install from the public mirror.
+          # It is public, so no token is needed to read it. Before that repo has its first release
+          # this 404s, the seeding step swallows it, and the release ships full-only — correct.
+          DV_DELTA_SEED: '1'
+          DV_REPO_URL: ${{ vars.DV_PUBLIC_REPO_URL || 'https://github.com/sid2934/DemoViewer.NET-releases' }}
+        run: ./scripts/pack-velopack.sh ${{ matrix.rid }}
+
+      # No build-path scan here by design — it was tried and removed. scripts/scan-release-artifacts.py
+      # still exists and is run manually against a pack before a release goes public.
+      #
+      # Why it is not wired in: on Windows it flagged DemoViewer.NET.Desktop_ExecutionStub.exe, which
+      # is not ours. vpk copies its own prebuilt vendor/stub.exe and renames it after the app, so a
+      # first-party name pattern claims a Velopack binary. Its 85 C:\Users\ hits are
+      # C:\Users\runneradmin\.rustup\... — Velopack's runner building their Rust stub, verified byte
+      # for byte against vpk 1.2.0's vendor/stub.exe. Zero of ours.
+      #
+      # The real protection is upstream of packaging anyway: ContinuousIntegrationBuild in
+      # Directory.Build.props normalizes first-party paths to /_/ on every Release build, and the
+      # two leaking dependencies were fixed at source (CS2OpenDev.Sdk 1.0.5,
+      # Cs2VideoGenerator.Core 1.0.2). A per-release gate on top of that bought a false positive.
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: velopack-${{ matrix.rid }}
+          path: artifacts/velopack/${{ matrix.rid }}/
+
+  # Publish one GitHub Release (per tag) with all three OSes' Velopack installers + auto-update
+  # feeds attached. Tag-only: workflow_dispatch runs just build+upload artifacts (no Release), so
+  # the matrix stays usable for CI validation without publishing. `vpk upload github --merge` lets
+  # each OS channel (win/osx/linux) land in the same release; the first creates it, the rest merge.
+  publish:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the GitHub Release + upload assets
+    steps:
+      - uses: actions/checkout@v4   # for .config/dotnet-tools.json (vpk). No submodules needed here.
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore CLI tools (vpk)
+        run: dotnet tool restore
+
+      - name: Download all Velopack packages
+        uses: actions/download-artifact@v4
+        with:
+          path: dist   # -> dist/velopack-<rid>/<packages + releases.<channel>.json>
+
+      - name: Publish GitHub Release (Velopack, all channels)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          repo="${{ github.server_url }}/${{ github.repository }}"
+          tag="${{ github.ref_name }}"
+          for rid in win-x64 osx-arm64 linux-x64; do
+            dir="dist/velopack-$rid"
+            # Derive the channel from the feed file vpk produced (win/osx/linux) — don't hardcode.
+            feed=$(ls "$dir"/releases.*.json 2>/dev/null | head -1 || true)
+            if [ -z "$feed" ]; then
+              echo "::warning::no Velopack feed in $dir — skipping $rid"; continue
+            fi
+            ch=$(basename "$feed" | sed 's/^releases\.//; s/\.json$//')
+            echo "Uploading $rid (channel=$ch) to release $tag"
+            dotnet vpk upload github \
+              --outputDir "$dir" \
+              --channel "$ch" \
+              --repoUrl "$repo" \
+              --token "$GH_TOKEN" \
+              --tag "$tag" \
+              --releaseName "DemoViewer.NET $tag" \
+              --publish true \
+              --pre true \
+              --merge true
+          done
+
+      # ── Public mirror ────────────────────────────────────────────────────────────────────
+      # The source repo is PRIVATE, and GitHub answers unauthenticated API calls for a private
+      # repo with 404 — for /releases AND for asset URLs (both verified directly). So the feed
+      # published above is unreachable by an installed app, which is why the in-app updater points
+      # at the PUBLIC releases repo instead. This step mirrors the same artifacts there.
+      #
+      # Runs on exactly the same condition as the private publish above: this whole job is
+      # tag-gated (`if: startsWith(github.ref, 'refs/tags/v')`), so a tagged release goes to both
+      # repos and nothing else goes to either. There is deliberately no separate opt-in variable.
+      # There used to be one (DV_PUBLISH_PUBLIC), holding artifacts inside the private boundary
+      # until the sensitive-data audit cleared them; that audit is done, so the flag
+      # now only adds a way to ship a release
+      # that silently never reaches users.
+      #
+      # Needs a PAT (DV_PUBLIC_RELEASES_TOKEN) with `contents: write` on the PUBLIC repo — the
+      # built-in GITHUB_TOKEN is scoped to THIS repo and cannot write to another one. A missing
+      # token fails the release loudly: the public repo is where the in-app updater looks, so a
+      # private-only publish is a broken release, not a partial success.
+      - name: Mirror release to the public releases repo
+        env:
+          GH_TOKEN: ${{ secrets.DV_PUBLIC_RELEASES_TOKEN }}
+          PUBLIC_REPO: ${{ vars.DV_PUBLIC_REPO_URL || 'https://github.com/sid2934/DemoViewer.NET-releases' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::DV_PUBLIC_RELEASES_TOKEN is unset — cannot mirror to $PUBLIC_REPO." >&2
+            echo "         Every tagged release publishes there; it is the feed the in-app updater" >&2
+            echo "         reads, so shipping without it would strand users on the old version." >&2
+            echo "         Add a fine-grained PAT with Contents: Read and write on that repo." >&2
+            exit 1
+          fi
+          tag="${{ github.ref_name }}"
+          echo "Mirroring $tag to $PUBLIC_REPO"
+          for rid in win-x64 osx-arm64 linux-x64; do
+            dir="dist/velopack-$rid"
+            feed=$(ls "$dir"/releases.*.json 2>/dev/null | head -1 || true)
+            if [ -z "$feed" ]; then
+              echo "::warning::no Velopack feed in $dir — skipping $rid"; continue
+            fi
+            ch=$(basename "$feed" | sed 's/^releases\.//; s/\.json$//')
+            echo "Mirroring $rid (channel=$ch)"
+            dotnet vpk upload github \
+              --outputDir "$dir" \
+              --channel "$ch" \
+              --repoUrl "$PUBLIC_REPO" \
+              --token "$GH_TOKEN" \
+              --tag "$tag" \
+              --releaseName "DemoViewer.NET $tag" \
+              --publish true \
+              --pre true \
+              --merge true
+          done
+
+      - name: Set public release notes
+        env:
+          GH_TOKEN: ${{ secrets.DV_PUBLIC_RELEASES_TOKEN }}
+          PUBLIC_REPO: ${{ vars.DV_PUBLIC_REPO_URL || 'https://github.com/sid2934/DemoViewer.NET-releases' }}
+        run: |
+          set -euo pipefail
+          slug="${PUBLIC_REPO#https://github.com/}"
+          gh release edit "${{ github.ref_name }}" --repo "$slug" --notes-file .github/release-body.md
+
+      - name: Set release notes (guide users to the right installer)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --notes-file .github/release-body.md

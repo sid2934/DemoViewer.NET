@@ -1,0 +1,75 @@
+# yaml-language-server: $schema=./dv-rules.schema.json
+#
+# Funny / meme moment highlights — every highlight here is kind: funny (demoted out of the
+# serious reel, surfaced in the "funny moments" lane). Each is the same idiom: a per-round
+# count: kill stat gated on a raw-field/weapon `where:`, then a per-round highlight that fires
+# when that count is >= 1.
+ruleset: highlights_funny
+title: Funny Moments
+summary: Funny / meme kills — blind luck, nade frags, fire kills, and jumping knife kills.
+for: each_player
+
+stats:
+  blind_kills:
+    count: kill
+    match: { enemy: true }
+    where: "event.AttackerBlind == true"   # you were blind when you got the kill
+    per: round
+    label: BlindKills
+
+  nade_kills:
+    count: kill
+    match: { enemy: true }
+    where: 'event.Weapon == "hegrenade"'
+    per: round
+    label: NadeKills
+
+  fire_kills:
+    count: kill
+    match: { enemy: true }
+    where: 'event.Weapon == "inferno" || event.Weapon == "molotov"'
+    per: round
+    label: FireKills
+
+  jumping_knife_kills:
+    count: kill
+    match: { enemy: true }
+    where: 'event.AttackerInAir == true && (event.Weapon == "knife" || event.Weapon == "knife_t" || event.Weapon == "knife_kukri")'
+    per: round
+    label: JumpKnifeKills
+
+highlights:
+  blind_kill_lucky:
+    when: blind_kills >= 1
+    per: round
+    score: 60
+    kind: funny
+    title: "{player.name} got a kill while blind (round {round.number})"
+
+  nade_kill:
+    when: nade_kills >= 1
+    per: round
+    score: 72
+    kind: funny
+    title: "{player.name} landed an HE grenade kill (round {round.number})"
+
+  fire_kill:
+    when: fire_kills >= 1
+    per: round
+    score: 55
+    kind: funny
+    title: "{player.name} burned an enemy down (round {round.number})"
+
+  jumping_knife_kill:
+    when: jumping_knife_kills >= 1
+    per: round
+    score: 95
+    kind: funny
+    title: "{player.name} — jumping knife kill! (round {round.number})"
+
+show:
+  scoreboard:
+    - { stat: blind_kill_lucky.count,    label: BlindKills,     group: game }
+    - { stat: nade_kill.count,           label: NadeKills,      group: game }
+    - { stat: fire_kill.count,           label: FireKills,      group: game }
+    - { stat: jumping_knife_kill.count,  label: JumpKnifeKills, group: game }

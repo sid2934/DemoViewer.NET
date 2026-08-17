@@ -1,0 +1,356 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Highlights"
+             xmlns:libvm="using:DemoViewer.NET.ViewModels.Library"
+             xmlns:theming="using:DemoViewer.NET.Theming"
+             x:Class="DemoViewer.NET.Views.Highlights.AddClipsPickerView"
+             x:DataType="vm:AddClipsPickerViewModel">
+
+    <!--
+      THE CROSS-DEMO ADD-CLIPS PICKER (docs/ui/highlights-matchoverview-redesign.md).
+
+      A flat, VIRTUALIZED highlight-ROW list spanning every cached demo — the unit of work is a clip, not a
+      demo, which is also why the card grid's chunked CardRow machinery is gone (it only ever existed because
+      WrapPanel has no virtualizing counterpart).
+
+      Filter bar = the card grid's four orphaned filters, verbatim item types and flyout markup re-pointed at highlight
+      rows. Footer = the honest coverage line + the mirrored ⟳ Rescan all + the bulk add.
+      Empty state = the filtered-out case, same copy, same Clear filters action.
+
+      Colour: every value is a {DynamicResource} token. Row metadata is TextMid, never TextDim — TextDim is
+      1.81:1 on CardBg and is for disabled/placeholder text only (three recorded instances of that defect).
+    -->
+
+    <UserControl.Styles>
+        <!-- One highlight row. A Border (not a ListBoxItem) because selection here is a bound VM flag, not
+             container state: the list virtualizes, and recycled containers would drop the user's picks. -->
+        <Style Selector="Border.pickRow">
+            <Setter Property="Background" Value="Transparent" />
+            <!-- A hairline rule rather than zebra striping: at this density the eye needs a row boundary to
+                 track eight columns across, and striping would fight the map accent dot for attention. -->
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="0 0 0 1" />
+            <Setter Property="Padding" Value="8 3" />
+        </Style>
+        <Style Selector="Border.pickRow:pointerover">
+            <Setter Property="Background" Value="{DynamicResource FrameRowHoverBg}" />
+        </Style>
+
+        <!-- Note: `sectionLabel`'s TextLabel measures 1.54:1 on the header band under Dark. That is a defensible
+             choice for a decorative band caption ("REELS", "OUTPUT") and an illegible one for an overlay's
+             TITLE, which is the only thing telling the user what just covered their screen. Same metrics,
+             readable token — the identical fix `.trayHeader` already carries on the dashboard. -->
+        <Style Selector="TextBlock.pickTitle">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+
+        <!-- Row metadata: readable, not decorative. -->
+        <Style Selector="TextBlock.pickMeta">
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <!-- The [ + ] / [ ✓ ] toggle. Deliberately NOT a `ghost` button and NOT disabled when staged: a
+             disabled ghost reads as SELECTED (a defect already fixed once in Primitives.axaml), and a bare
+             glyph in a row of eight columns does not read as pressable at all. Staged is an ENABLED,
+             accent-outlined button — clicking it removes the clip, which is the only sensible next action. -->
+        <Style Selector="Button.pickBtn">
+            <Setter Property="MinWidth" Value="28" />
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.pickBtn.staged /template/ ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource StatPositive}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource StatPositive}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- Sized to CONTENT up to a cap, not stretched: a three-row result in a full-height frame reads as a
+         broken list. It grows with the result set and stops at 720, where the list scrolls instead. -->
+    <!-- CardBg, not PanelBg: this floats OVER a scrimmed dashboard, and on Light PanelBg (#EFF0F7) is within
+         a few points of the dimmed shell behind it — the card lost its edge entirely. CardBg is the
+         brightest/most-forward surface in both directions, and BorderAccent is documented as the token that
+         gives a near-white card a defined edge on Light. -->
+    <Border Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderAccent}"
+            BorderThickness="1" CornerRadius="8" MaxWidth="1080" MaxHeight="720" MinHeight="260"
+            Margin="24" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+        <DockPanel>
+
+            <!-- ══ Title ═══════════════════════════════════════════════════════════════ -->
+            <Border DockPanel.Dock="Top" Classes="sectionHeader">
+                <DockPanel VerticalAlignment="Center">
+                    <TextBlock DockPanel.Dock="Left" Text="ADD CLIPS" Classes="pickTitle"
+                               VerticalAlignment="Center" />
+                    <Button DockPanel.Dock="Right" Classes="ghost pickBtn" Content="✕"
+                            AutomationProperties.Name="Close clip picker"
+                            Command="{Binding CloseCommand}" ToolTip.Tip="Close (Esc)" />
+                    <Panel />
+                </DockPanel>
+            </Border>
+
+            <!-- ══ Filter bar — the four orphaned filters (WrapPanel reflows at narrow width) ══ -->
+            <Border DockPanel.Dock="Top" Padding="10 8" Background="{DynamicResource PanelHeaderBg}">
+                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox Text="{Binding SearchText}" Watermark="Search map, player, file…"
+                             FontSize="12" Margin="0 3 8 3" MinWidth="200" MaxWidth="300"
+                             VerticalAlignment="Center" />
+
+                    <!-- Players multi-select (keyed steamId64, with library-wide counts). -->
+                    <Button Content="{Binding PlayerFilterSummary}" FontSize="12" MinWidth="92"
+                            VerticalAlignment="Center" Margin="0 3 8 3" ToolTip.Tip="Filter by player">
+                        <Button.Flyout>
+                            <Flyout Placement="Bottom">
+                                <Border Classes="card-flyout" MinWidth="180" MaxWidth="300">
+                                    <ScrollViewer MaxHeight="360" HorizontalScrollBarVisibility="Disabled">
+                                        <ItemsControl ItemsSource="{Binding PlayerFilters}" Margin="2">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:PlayerFilterItem">
+                                                    <CheckBox IsChecked="{Binding IsSelected}" FontSize="12"
+                                                              Padding="6 2" Margin="0 1">
+                                                        <TextBlock Text="{Binding Label}"
+                                                                   Foreground="{DynamicResource TextMid}" />
+                                                    </CheckBox>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <!-- Highlight-type multi-select (qualified TypeKey incl. historical ids). -->
+                    <Button Content="{Binding TypeFilterSummary}" FontSize="12" MinWidth="80"
+                            VerticalAlignment="Center" Margin="0 3 8 3" ToolTip.Tip="Filter by highlight type">
+                        <Button.Flyout>
+                            <Flyout Placement="Bottom">
+                                <Border Classes="card-flyout" MinWidth="180" MaxWidth="300">
+                                    <ScrollViewer MaxHeight="360" HorizontalScrollBarVisibility="Disabled">
+                                        <ItemsControl ItemsSource="{Binding TypeFilters}" Margin="2">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:HighlightTypeFilterItem">
+                                                    <CheckBox IsChecked="{Binding IsSelected}" FontSize="12"
+                                                              Padding="6 2" Margin="0 1">
+                                                        <TextBlock Text="{Binding Label}"
+                                                                   Foreground="{DynamicResource TextMid}" />
+                                                    </CheckBox>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <!-- Highlight-kind multi-select (editorial track: skill / funny / lowlight). -->
+                    <Button Content="{Binding KindFilterSummary}" FontSize="12" MinWidth="76"
+                            VerticalAlignment="Center" Margin="0 3 8 3" ToolTip.Tip="Filter by kind (skill / funny / lowlight)">
+                        <Button.Flyout>
+                            <Flyout Placement="Bottom">
+                                <Border Classes="card-flyout" MinWidth="150" MaxWidth="260">
+                                    <ScrollViewer MaxHeight="340" HorizontalScrollBarVisibility="Disabled">
+                                        <ItemsControl ItemsSource="{Binding KindFilters}" Margin="2">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:HighlightKindFilterItem">
+                                                    <CheckBox IsChecked="{Binding IsSelected}" FontSize="12"
+                                                              Padding="6 2" Margin="0 1">
+                                                        <TextBlock Text="{Binding Label}"
+                                                                   Foreground="{DynamicResource TextMid}" />
+                                                    </CheckBox>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <!-- Maps multi-select (the Library's MapFilterItem + its accent dot). -->
+                    <Button Content="{Binding MapFilterSummary}" FontSize="12" MinWidth="76"
+                            VerticalAlignment="Center" Margin="0 3 8 3" ToolTip.Tip="Filter by map">
+                        <Button.Flyout>
+                            <Flyout Placement="Bottom">
+                                <Border Classes="card-flyout" MinWidth="150" MaxWidth="260">
+                                    <ScrollViewer MaxHeight="340" HorizontalScrollBarVisibility="Disabled">
+                                        <ItemsControl ItemsSource="{Binding MapFilters}" Margin="2">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="libvm:MapFilterItem">
+                                                    <CheckBox IsChecked="{Binding IsSelected}" FontSize="12"
+                                                              Padding="6 2" Margin="0 1">
+                                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                                            <Border Width="9" Height="9" CornerRadius="2"
+                                                                    VerticalAlignment="Center"
+                                                                    theming:MapAccent.Key="{Binding MapKey}" />
+                                                            <TextBlock Text="{Binding Display}"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{DynamicResource TextMid}" />
+                                                        </StackPanel>
+                                                    </CheckBox>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <Button Content="Clear" Command="{Binding ClearFiltersCommand}"
+                            IsVisible="{Binding HasActiveFilters}" FontSize="11" Padding="8 3"
+                            VerticalAlignment="Center" Margin="0 3 0 3" ToolTip.Tip="Clear all filters" />
+                </WrapPanel>
+            </Border>
+
+            <!-- ══ Footer: coverage · rescan · bulk add ════════════════════════════════ -->
+            <Border DockPanel.Dock="Bottom" Padding="12 10" Background="{DynamicResource PanelHeaderBg}">
+                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" ColumnSpacing="12" RowSpacing="6">
+
+                    <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding CoverageLine}" FontSize="12"
+                                   Foreground="{DynamicResource TextValue}" TextWrapping="Wrap" />
+                        <!-- Deliberately honest about coverage: with today's indexing this list is a handful
+                             of demos out of hundreds, and a user who doesn't know why concludes it's broken. -->
+                        <TextBlock Text="{Binding CoverageNote}" FontSize="11"
+                                   Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="6"
+                                    IsVisible="{Binding ShowScanPendingNote}">
+                            <TextBlock Text="◐" Foreground="{DynamicResource AccentInteractive}" FontSize="11"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding ScanPendingNote}" FontSize="11"
+                                       Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="10"
+                                VerticalAlignment="Center">
+                        <Button Content="⟳ Rescan all" Classes="ghost" FontSize="11" Padding="10 5"
+                                IsVisible="{Binding CanRescan}" Command="{Binding RescanAllCommand}"
+                                ToolTip.Tip="Re-scan the whole library for highlights" />
+                        <Button Content="{Binding AddSelectedLabel}" Classes="primary" Padding="16 6"
+                                Command="{Binding AddSelectedCommand}"
+                                ToolTip.Tip="Add every ticked clip to the tray" />
+                    </StackPanel>
+
+                    <!-- Transient note (bulk add landed / a rescan just invalidated this snapshot). -->
+                    <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                               Text="{Binding StatusNote}" IsVisible="{Binding HasStatusNote}"
+                               FontSize="11" Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+                </Grid>
+            </Border>
+
+            <!-- ══ The rows ════════════════════════════════════════════════════════════ -->
+            <Panel>
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding HasRows}">
+                    <ItemsControl ItemsSource="{Binding Rows}" Margin="4 4 4 4">
+                        <!-- Virtualized: a library-wide clip list is unbounded, and this is the shape the
+                             redesign chose precisely because a flat row list virtualizes trivially. -->
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AddClipsRowViewModel">
+                                <Border Classes="pickRow" ToolTip.Tip="{Binding FilePath}">
+                                    <!-- STAR-SIZED, not fixed-px, for the two text columns. With fixed
+                                         110/150 columns the row overflowed its own bounds below ~700px and
+                                         the title painted straight through the round, duration and [ + ] —
+                                         caught in the narrow capture, invisible at desktop width. Stars
+                                         shrink; the fixed columns could not. -->
+                                    <Grid ColumnDefinitions="Auto,Auto,Auto,1.2*,2*,Auto,Auto,Auto"
+                                          ColumnSpacing="10">
+
+                                        <!-- Bulk-pick tick. Bound to the ROW VM: container state would
+                                             evaporate the moment the list recycled on scroll. -->
+                                        <CheckBox Grid.Column="0" IsChecked="{Binding IsPicked}"
+                                                  IsEnabled="{Binding CanPick}" MinWidth="0" Padding="0"
+                                                  VerticalAlignment="Center"
+                                                  ToolTip.Tip="Tick to add with the button below" />
+
+                                        <Border Grid.Column="1" Width="9" Height="9" CornerRadius="2"
+                                                VerticalAlignment="Center"
+                                                theming:MapAccent.Key="{Binding MapKey}" />
+
+                                        <TextBlock Grid.Column="2" Text="{Binding MapDisplay}"
+                                                   Foreground="{DynamicResource TextValue}" FontSize="12"
+                                                   VerticalAlignment="Center" MaxWidth="96"
+                                                   TextTrimming="CharacterEllipsis" />
+
+                                        <TextBlock Grid.Column="3" Text="{Binding FileName}"
+                                                   Classes="pickMeta" />
+
+                                        <!-- A Grid, NOT a horizontal StackPanel: a StackPanel measures its
+                                             children with infinite width in the stacking direction, so
+                                             TextTrimming on the title never engaged and the text ran over
+                                             the columns to its right. -->
+                                        <Grid Grid.Column="4" ColumnDefinitions="Auto,*" ColumnSpacing="8"
+                                              VerticalAlignment="Center">
+                                            <TextBlock Grid.Column="0" Text="{Binding PlayerName}"
+                                                       Foreground="{DynamicResource TextBright}" FontSize="12"
+                                                       FontWeight="SemiBold" VerticalAlignment="Center"
+                                                       MaxWidth="120" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Title}"
+                                                       Classes="pickMeta" />
+                                        </Grid>
+
+                                        <TextBlock Grid.Column="5" Text="{Binding RoundDisplay}"
+                                                   Classes="pickMeta mono" MinWidth="28" />
+
+                                        <TextBlock Grid.Column="6" Text="{Binding DurationText}"
+                                                   Classes="pickMeta mono" MinWidth="42"
+                                                   TextAlignment="Right" />
+
+                                        <Button Grid.Column="7" Classes="pickBtn"
+                                                Classes.staged="{Binding IsStaged}"
+                                                Content="{Binding StageGlyph}"
+                                                Command="{Binding ToggleStageCommand}"
+                                                ToolTip.Tip="{Binding StageHint}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <!-- Rows exist, the filters exclude every one. Same copy, same action. -->
+                <StackPanel IsVisible="{Binding ShowNoFilterMatch}" Spacing="10"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="No highlights match these filters."
+                               Foreground="{DynamicResource TextMid}" FontSize="13"
+                               HorizontalAlignment="Center" />
+                    <Button Classes="ghost" Content="Clear filters" HorizontalAlignment="Center"
+                            Command="{Binding ClearFiltersCommand}" />
+                </StackPanel>
+
+                <!-- A DIFFERENT emptiness from the one above, with a different answer: nothing has been
+                     analysed, so clearing filters would change nothing. -->
+                <Border IsVisible="{Binding ShowNothingIndexed}" Classes="card" MaxWidth="420"
+                        Padding="24 20" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="No highlights indexed yet." FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextValue}" HorizontalAlignment="Center"
+                                   TextAlignment="Center" TextWrapping="Wrap" />
+                        <TextBlock TextWrapping="Wrap" FontSize="12" TextAlignment="Center"
+                                   Foreground="{DynamicResource TextMid}"
+                                   Text="Highlights come from an analysis pass over a demo. Scan your library, or open a match and use Compute full stats on Match Overview." />
+                        <Button Classes="primary" Content="⟳ Rescan all" HorizontalAlignment="Center"
+                                Padding="18 7" IsVisible="{Binding CanRescan}"
+                                Command="{Binding RescanAllCommand}" />
+                    </StackPanel>
+                </Border>
+            </Panel>
+        </DockPanel>
+    </Border>
+</UserControl>

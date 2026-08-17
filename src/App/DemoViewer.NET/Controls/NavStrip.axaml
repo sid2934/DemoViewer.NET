@@ -1,0 +1,250 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shell="using:DemoViewer.NET.ViewModels.Shell"
+             xmlns:vm="using:DemoViewer.NET.ViewModels"
+             xmlns:controls="using:DemoViewer.NET.Controls"
+             x:Class="DemoViewer.NET.Controls.NavStrip"
+             x:DataType="shell:MainViewModel"
+             x:Name="Root">
+
+    <!--
+        navigation-review Phase C — the single shell nav strip (Option 1), rendered ONCE as shell
+        chrome in MainView's DockPanel as its own row. Three groups: CLOCK (frame step + editable
+        frame readout + tick label + play/speed), SEMANTIC/JUMP (◀event ◀round ◀tick … tick▶ round▶
+        event▶ + the demo-derived event-filter flyout), and the distinct labeled BREAKPOINT sub-group
+        (Continue / Step Tick / Step Round — to breakpoint), which keeps its own commands and gates.
+        Movement is frame-index based; tick is a read-only label (the locked decision).
+
+        RESPONSIVE LAYOUT (the design system's "responsive strip"): the outer layout is a
+        DockPanel, NOT a single non-wrapping StackPanel. The amber TO-BREAKPOINT cluster is DOCKED RIGHT
+        so it can never clip off the right edge (the old clipping defect, verified 880/1050/1300). CLOCK is pinned
+        LEFT (playback controls always reachable); the JUMP group fills the middle inside a horizontal
+        ScrollViewer that scrolls — rather than clips — only when the strip is genuinely too narrow to
+        show every semantic-nav button. Commands/readouts/gates are byte-identical to the pre-redesign strip;
+        only the container reflows. See docs/ui/design-system.md (NavStrip).
+    -->
+
+    <UserControl.Styles>
+        <!-- Button.nav-btn / .bp-btn / .ctx-action and TextBlock.group-label are shared in
+             Styles/Primitives.axaml + Styles/Chrome.axaml (design-system foundation). Only the
+             NavStrip-specific event-filter CheckBox styling stays local. -->
+        <Style Selector="CheckBox.event-filter">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="Padding" Value="6 0" />
+            <Setter Property="Margin" Value="0 1" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Background="{DynamicResource PanelHeaderBg}"
+            BorderBrush="{DynamicResource BorderSubtle}"
+            BorderThickness="0 0 0 1"
+            Padding="8 3"
+            IsVisible="{Binding HasFile}">
+        <DockPanel LastChildFill="True">
+
+            <!-- ════ BREAKPOINT sub-group (distinct, labeled — commands/gates unchanged) ══
+                 DOCKED RIGHT so it is always fully visible and never clips. Gated as a unit
+                 by chrome.breakpointNav: the leading divider is inside the wrapper so
+                 hiding the cluster leaves no dangling divider — and an invisible Dock="Right" child
+                 reserves no space, so the JUMP fill reflows to the full width for consumer/power. This
+                 wrapper already sits under the Border's HasFile gate, so IsBreakpointNavEnabled ANDs with
+                 HasFile by nesting. -->
+            <StackPanel DockPanel.Dock="Right"
+                        Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
+                        IsVisible="{Binding IsBreakpointNavEnabled}">
+                <Rectangle Width="1" Height="18" Fill="{DynamicResource BorderStrong}" Margin="8 0"
+                           VerticalAlignment="Center" />
+                <TextBlock Classes="group-label" Text="TO BREAKPOINT" />
+                <Button Classes="nav-btn bp-btn" Content="▶▶"
+                        ToolTip.Tip="Continue — run forward until a breakpoint trips (or end of demo)"
+                        Command="{Binding ContinueToBreakpointCommand}" />
+                <Button Classes="nav-btn bp-btn" Content="▶|"
+                        ToolTip.Tip="Step Tick — advance to the next tick or breakpoint (whichever first)"
+                        Command="{Binding StepTickToBreakpointCommand}" />
+                <Button Classes="nav-btn bp-btn" Content="▶||"
+                        ToolTip.Tip="Step Round — advance to the next round boundary or breakpoint"
+                        Command="{Binding StepRoundToBreakpointCommand}" />
+            </StackPanel>
+
+            <!-- ════ CLOCK group — pinned LEFT (playback controls always reachable) ══════════ -->
+            <StackPanel DockPanel.Dock="Left"
+                        Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
+                        controls:TutorialAnchor.Target="PlaybackTransport">
+                <Button Classes="nav-btn" Content="◀"
+                        ToolTip.Tip="Previous frame"
+                        Command="{Binding PreviousFrameCommand}" />
+
+                <!-- Editable frame readout: frame N / MAX  ·  tick T (read-only) -->
+                <Border Background="{DynamicResource CardBg}" CornerRadius="4"
+                        Padding="8 0" Height="26" Margin="3 0" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="frame " FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                   Foreground="{DynamicResource TextDim}" VerticalAlignment="Center" />
+                        <TextBox x:Name="FrameInput"
+                                 Text="{Binding NavFrameText, Mode=TwoWay}"
+                                 Background="Transparent" BorderBrush="Transparent" BorderThickness="0"
+                                 Padding="0" MinWidth="48" TextAlignment="Right"
+                                 VerticalContentAlignment="Center" VerticalAlignment="Center"
+                                 FontFamily="Consolas,Menlo,monospace" FontSize="12"
+                                 Foreground="{DynamicResource TextBright}" />
+                        <TextBlock Text=" / " FontFamily="Consolas,Menlo,monospace" FontSize="12"
+                                   Foreground="{DynamicResource TextDim}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Playback.TotalFrames, StringFormat='{}{0}'}"
+                                   FontFamily="Consolas,Menlo,monospace" FontSize="12"
+                                   Foreground="{DynamicResource TextDim}" VerticalAlignment="Center" />
+                        <Rectangle Width="1" Height="14" Fill="{DynamicResource BorderSubtle}" Margin="8 0" />
+                        <TextBlock Text="{Binding Playback.CurrentTick, StringFormat='tick {0}'}"
+                                   FontFamily="Consolas,Menlo,monospace" FontSize="12"
+                                   Foreground="{DynamicResource TextMid}" VerticalAlignment="Center"
+                                   ToolTip.Tip="Current server tick (read-only — movement is frame-index based)" />
+                    </StackPanel>
+                </Border>
+
+                <Button Classes="nav-btn" Content="▶"
+                        ToolTip.Tip="Next frame"
+                        Command="{Binding NextFrameCommand}" />
+
+                <Rectangle Width="1" Height="18" Fill="{DynamicResource BorderSubtle}" Margin="6 0"
+                           VerticalAlignment="Center" />
+
+                <ToggleButton ToolTip.Tip="Play / Pause — real-time forward playback at the demo tick rate"
+                              IsChecked="{Binding Playback.IsPlaying, Mode=OneWay}"
+                              Command="{Binding Playback.TogglePlayCommand}"
+                              Content="⏯" FontSize="13" Padding="9 2" Height="28" MinHeight="0" />
+                <!-- Speed selector. While a Live Sync session is Synced, DV's speed is locked to 1× (CS2 has
+                     no speed command yet): the ComboBox disables (inverse of IsPlaybackSpeedLocked) and
+                     a lock glyph overlays its leading edge, carrying the "why" in its tooltip. -->
+                <Panel>
+                    <ComboBox ToolTip.Tip="Playback speed"
+                              SelectedItem="{Binding Playback.Speed, Mode=TwoWay}"
+                              IsEnabled="{Binding !IsPlaybackSpeedLocked}"
+                              MinWidth="58" FontSize="11" Height="28" MinHeight="0"
+                              VerticalContentAlignment="Center">
+                        <ComboBox.Items>
+                            <x:Double>0.25</x:Double>
+                            <x:Double>0.5</x:Double>
+                            <x:Double>1</x:Double>
+                            <x:Double>2</x:Double>
+                            <x:Double>4</x:Double>
+                            <x:Double>8</x:Double>
+                        </ComboBox.Items>
+                    </ComboBox>
+                    <TextBlock Text="🔒" FontSize="10" IsHitTestVisible="True"
+                               IsVisible="{Binding IsPlaybackSpeedLocked}"
+                               Foreground="{DynamicResource TextMid}"
+                               VerticalAlignment="Center" HorizontalAlignment="Left" Margin="6 0 0 0"
+                               ToolTip.Tip="Speed is locked to 1× while synced with CS2. CS2 has no speed command yet — a future CSVG release will mirror speed both ways." />
+                </Panel>
+            </StackPanel>
+
+            <!-- Strong divider between the pinned CLOCK group and the JUMP fill. -->
+            <Rectangle DockPanel.Dock="Left" Width="1" Height="18" Fill="{DynamicResource BorderStrong}"
+                       Margin="8 0" VerticalAlignment="Center" />
+
+            <!-- ════ SEEK / EVENT group — FILLS the middle; scrolls (never clips) when narrow ═════
+                 SEEK CONSOLIDATION: the six JUMP buttons (◀ev ◀rnd ◀tk tk▶ rnd▶ ev▶) and the
+                 hidden ⚙▾ event-filter flyout are replaced by ONE segmented event stepper —
+                 ◀ (prev event) · [target chip ▾] · ▶ (next event). Tick/frame nav lives on the CLOCK
+                 frame-stepper (◀ ▶) at the far left; the removed round buttons are subsumed by the
+                 "Round" preset in the chip's dropdown. The target chip IS the merged event-filter
+                 (presets + the demo-derived per-event checklist). Commands are unchanged
+                 (NavPrev/NextEventCommand); NavPrev/NextTickCommand + NavPrev/NextRoundCommand remain
+                 on the VM (no longer bound to strip buttons). The fill still lives in a horizontal
+                 ScrollViewer so the pill scrolls rather than clips at genuinely narrow widths
+; CLOCK + TO-BREAKPOINT are docked and never clip. -->
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                          VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Classes="group-label" Text="EVENT" />
+
+                    <!-- Concept-B segmented stepper pill: prev event · target chip · next event -->
+                    <Border Background="{DynamicResource CardBg}"
+                            BorderBrush="{DynamicResource BorderAccent}" BorderThickness="1"
+                            CornerRadius="6" Padding="1" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Classes="nav-btn" Content="◀"
+                                    ToolTip.Tip="Previous event of the selected target"
+                                    Command="{Binding NavPrevEventCommand}" />
+                            <Rectangle Width="1" Height="16" Fill="{DynamicResource BorderSubtle}"
+                                       VerticalAlignment="Center" />
+
+                            <!-- Target chip = the merged event-filter. Text = live TargetSummary; the
+                                 dropdown holds the presets + the demo-derived per-event checklist. -->
+                            <Button Classes="ghost" Padding="8 2" Height="26" MinHeight="0"
+                                    VerticalAlignment="Center" VerticalContentAlignment="Center"
+                                    ToolTip.Tip="{Binding EventFilterFlyout.FilterTooltip}">
+                                <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding EventFilterFlyout.TargetSummary}"
+                                               FontFamily="Consolas,Menlo,monospace" FontSize="12"
+                                               Foreground="{DynamicResource TextBright}"
+                                               VerticalAlignment="Center" MaxWidth="128"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="▾" FontSize="10" Foreground="{DynamicResource TextDim}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                                <Button.Flyout>
+                                    <Flyout Placement="Bottom">
+                                        <Border Classes="card-flyout" Padding="4" MinWidth="220">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Classes="col-label" Text="PRESETS" Margin="4 2 4 0" />
+                                                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
+                                                    <Button Grid.Row="0" Grid.Column="0" Classes="ctx-action"
+                                                            Content="Any event"
+                                                            Command="{Binding EventFilterFlyout.PresetAnyEventCommand}" />
+                                                    <Button Grid.Row="0" Grid.Column="1" Classes="ctx-action"
+                                                            Content="Round"
+                                                            ToolTip.Tip="All round_* events (round_freeze_end / round_officially_ended …)"
+                                                            Command="{Binding EventFilterFlyout.PresetRoundCommand}" />
+                                                    <Button Grid.Row="1" Grid.Column="0" Classes="ctx-action"
+                                                            Content="Kills"
+                                                            ToolTip.Tip="player_death"
+                                                            Command="{Binding EventFilterFlyout.PresetKillsCommand}" />
+                                                    <Button Grid.Row="1" Grid.Column="1" Classes="ctx-action"
+                                                            Content="Bomb"
+                                                            ToolTip.Tip="bomb_* events (planted / defused / begindefuse …)"
+                                                            Command="{Binding EventFilterFlyout.PresetBombCommand}" />
+                                                </Grid>
+                                                <Rectangle Height="1" Fill="{DynamicResource BorderSubtle}"
+                                                           Margin="0 4" />
+                                                <TextBlock Classes="col-label" Text="EVENT TYPES" Margin="4 0" />
+                                                <Grid ColumnDefinitions="*,*">
+                                                    <Button Grid.Column="0" Classes="ctx-action" Content="Select all"
+                                                            Command="{Binding EventFilterFlyout.SelectAllCommand}" />
+                                                    <Button Grid.Column="1" Classes="ctx-action" Content="Deselect all"
+                                                            Command="{Binding EventFilterFlyout.DeselectAllCommand}" />
+                                                </Grid>
+                                                <Rectangle Height="1" Fill="{DynamicResource BorderSubtle}"
+                                                           Margin="0 0 0 4" />
+                                                <ScrollViewer MaxHeight="320">
+                                                    <ItemsControl ItemsSource="{Binding EventFilterFlyout.Filters}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:GameEventFilterItem">
+                                                                <CheckBox Classes="event-filter"
+                                                                          Content="{Binding EventName}"
+                                                                          IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </ScrollViewer>
+                                            </StackPanel>
+                                        </Border>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+
+                            <Rectangle Width="1" Height="16" Fill="{DynamicResource BorderSubtle}"
+                                       VerticalAlignment="Center" />
+                            <Button Classes="nav-btn" Content="▶"
+                                    ToolTip.Tip="Next event of the selected target"
+                                    Command="{Binding NavNextEventCommand}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+        </DockPanel>
+    </Border>
+
+</UserControl>

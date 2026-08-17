@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <LangVersion>latest</LangVersion>
+    </PropertyGroup>
+
+    <!-- Published to NuGet. Shared metadata (authors, license, readme/notices, symbols, exact
+         intra-family pins) comes from Directory.Build.targets; only the per-package identity
+         lives here. -->
+    <PropertyGroup>
+        <IsPackable>true</IsPackable>
+        <PackageId>Cs2DemoKit.Analysis</PackageId>
+        <Description>Rule-driven analysis engine for parsed Counter-Strike 2 demos: a state-graph evaluator, the shipped rulesets embedded in the assembly, per-player stats, rich highlights, and a 3D line-of-sight engine.</Description>
+        <PackageTags>cs2;counter-strike;demo;demo-parser;source2;analysis;stats;highlights</PackageTags>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Parser\Cs2DemoKit.Parser\Cs2DemoKit.Parser.csproj"/>
+        <!-- Rulesets v2 semantic core (leaf, BCL-only — no cycle). The RulesetsV2
+             document model reuses its lexer for unary-test parsing, plus its
+             normalizer/checker/hasher. -->
+        <ProjectReference Include="..\Cs2DemoKit.Analysis.Rules\Cs2DemoKit.Analysis.Rules.csproj"/>
+        <!-- CS2OpenDev.Sdk supplies SchemaNames.X.Y constants used by entity-value providers
+             (FreezePeriodProvider reads SchemaNames.CCSGameRules.FreezePeriod). Kept
+             at the Analysis-project leaf so the parser and abstractions stay SDK-agnostic.
+             PackageReference (repo-local feed, see nuget.config) — not a sibling-checkout
+             ProjectReference — so a bare clone builds. -->
+        <PackageReference Include="CS2OpenDev.Sdk"/>
+        <!-- The SDK-emitted typed entity wrappers (1.0.0, the SDK#30 inheritance emit) — the
+             production read surface for pawn/controller fields since the SDK cutover. Wrappers
+             bind over our runtime through the Parser's SdkAbstractions seam (LensBoundReader /
+             TrackerEntityWorld); SdkEntityWorlds owns the per-tracker wiring. -->
+        <PackageReference Include="CS2OpenDev.Sdk.Entities"/>
+        <!-- Unified diagnostics logging pillar (docs). Abstractions only — carries ILogger + the
+             [LoggerMessage] source generator; no logging provider, so it stays WASM-safe and adds
+             no runtime cost when the ambient DiagnosticsLog.LoggerFactory is left as NullLogger. -->
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+        <!-- YAML is the primary rule format; the loader merged in from the former
+             Cs2DemoKit.Analysis.Yaml project lives in the Yaml/ sub-folder. -->
+        <PackageReference Include="YamlDotNet"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The generated rules catalog (tools/DemoViewer.NET.RulesCatalog; committed at
+             rules/catalog.json, CI drift-gated). Embedded so runtime consumers - the data
+             browser, load-time enum validation, `rules check` - read the exact catalog the
+             build shipped with, not whatever file happens to sit next to the binary. -->
+        <EmbeddedResource Include="..\..\..\rules\catalog.json" Link="Catalog\catalog.json" LogicalName="Cs2DemoKit.Analysis.Catalog.catalog.json"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The 14 shipped rulesets + the editor schema, embedded alongside catalog.json so a
+             NuGet consumer with no rules/ directory on disk still gets the full shipped rule
+             set via YamlConfigLoader.LoadShippedEmbedded() / ExtractShippedTo(dir).
+             rules/ stays the single source of truth - these are Link items
+             back to the repo root, never a copy. LogicalName is deliberately
+             "Cs2DemoKit.Analysis.ShippedRules.*", NOT "...Analysis.Rules.*", so it can't be
+             mistaken for the Cs2DemoKit.Analysis.Rules package id. -->
+        <EmbeddedResource Include="..\..\..\rules\*.rules.yaml" Link="ShippedRules\%(Filename)%(Extension)" LogicalName="Cs2DemoKit.Analysis.ShippedRules.%(Filename)%(Extension)"/>
+        <EmbeddedResource Include="..\..\..\rules\dv-rules.schema.json" Link="ShippedRules\dv-rules.schema.json" LogicalName="Cs2DemoKit.Analysis.ShippedRules.dv-rules.schema.json"/>
+    </ItemGroup>
+
+</Project>

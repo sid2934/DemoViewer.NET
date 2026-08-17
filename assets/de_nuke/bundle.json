@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "mapName": "de_nuke",
+  "mapVersion": "075a27b3",
+  "bakerVersion": "0.1\u002Bvrf19.2.6339",
+  "transform": {
+    "posX": -3453,
+    "posY": 2887,
+    "scale": 7,
+    "rotate": 0,
+    "zoom": 1,
+    "imageSize": 1024
+  },
+  "bounds": {
+    "minX": -3453,
+    "minY": -4281,
+    "maxX": 3715,
+    "maxY": 2887
+  },
+  "floors": [
+    {
+      "minZ": -100000,
+      "maxZ": -528
+    },
+    {
+      "minZ": -528,
+      "maxZ": 100000
+    }
+  ],
+  "radarLayers": [
+    {
+      "minZ": -495,
+      "maxZ": 10000,
+      "image": "de_nuke.png"
+    },
+    {
+      "minZ": -10000,
+      "maxZ": -495,
+      "image": "de_nuke_lower.png"
+    }
+  ],
+  "radarImages": [
+    "de_nuke.png",
+    "de_nuke_lower.png"
+  ],
+  "collisionMesh": {
+    "file": "collision.tris",
+    "triangleCount": 191628,
+    "minX": -6112,
+    "minY": -5658.267578125,
+    "minZ": -1216,
+    "maxX": 6528,
+    "maxY": 2156,
+    "maxZ": 808.000244140625
+  }
+}

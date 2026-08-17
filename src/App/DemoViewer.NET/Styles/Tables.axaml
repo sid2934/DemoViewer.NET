@@ -1,0 +1,62 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Tables.axaml — shared list / tabular primitives (design-system foundation).
+
+        The generic "transparent borderless data list" chrome + the tiny uppercase column-header label
+        repeated across the breakpoint list, bookmark list, KeyValueTable, and InspectorCard's column
+        row. KeyValueTable keeps its own coupled `.kvp` classes; these are the reusable building blocks
+        the P2/P3 per-tab streams compose new lists from. All colour via DarkPalette tokens.
+    -->
+
+    <!-- ── ListBox.data-list — transparent, borderless, tight virtualized rows ──────────────────────
+         The Background=Transparent / BorderThickness=0 list chrome duplicated ~19× (breakpoint list,
+         bookmark list, filter lists). Virtualization is inherited from the default VirtualizingStackPanel. -->
+    <Style Selector="ListBox.data-list">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="ListBox.data-list ListBoxItem">
+        <Setter Property="Padding" Value="8 2" />
+        <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="ListBox.data-list ListBoxItem:selected /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+    </Style>
+
+    <!-- ── ListBox.card-grid — transparent virtualized card-grid list ────────────────────────────────
+         The neutral container for the radar-card browsers (Library + Highlights master lists): the cards
+         carry their own hover + selection visuals, so the ListBox chrome (item padding/margin, selection
+         AND hover fill) must add none of its own. Promoted from the duplicated libraryVirtual / hlVirtual
+         style trios. Distinct from .data-list, which keeps tight row padding
+         + a selection-highlight fill; .card-grid is fully transparent + zero-padding. -->
+    <Style Selector="ListBox.card-grid">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="ListBox.card-grid ListBoxItem">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="CornerRadius" Value="0" />
+    </Style>
+    <Style Selector="ListBox.card-grid ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.card-grid ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!-- ── TextBlock.col-label — the tiny uppercase column header ────────────────────────────────────
+         Slightly brighter than .sectionLabel (TextLabelAlt vs TextLabel) — a data-column header
+         ("# FIELD TYPE VALUE BYTES", "MAP PLAYERS LENGTH …"), not a section band label. -->
+    <Style Selector="TextBlock.col-label">
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextLabelAlt}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+</Styles>

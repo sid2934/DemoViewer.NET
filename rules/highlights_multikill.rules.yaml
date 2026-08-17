@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=./dv-rules.schema.json
+#
+# Multi-kill reel highlights: ace / quad / triple. One shared per-round stat counts this
+# player's enemy kills in live rounds; three highlights fire on the rising edge of the
+# qualifying kill. The >= thresholds overlap (a 5-kill round satisfies all three), but all
+# three share `group: multikill`, so the surfacing layer keeps only the top tier per round
+# (a 4K no longer also surfaces a 3K). `score:` picks the survivor (ACE 100 > 4K 88 > 3K 55).
+ruleset: highlights_multikill
+title: Multi-Kill Highlights
+summary: Ace, quad-kill, and triple-kill reel moments, per player, per round.
+for: each_player
+
+stats:
+  enemy_kills_round:
+    count: kill                         # kill view: actor = killer (this player)
+    match: { enemy: true }              # facet enemy — bake killer != victim
+    per: round
+    while: round.active                 # live rounds only
+
+highlights:
+  ace:
+    when: enemy_kills_round >= 5
+    per: round
+    score: 100
+    group: multikill
+    title: "{player.name} — ACE! (round {round.number})"
+
+  quad_kill:
+    when: enemy_kills_round >= 4
+    per: round
+    score: 88
+    group: multikill
+    title: "{player.name} — 4K (round {round.number})"
+
+  triple_kill:
+    when: enemy_kills_round >= 3
+    per: round
+    score: 55
+    group: multikill
+    title: "{player.name} — 3K (round {round.number})"
+
+show:
+  scoreboard:
+    - { stat: ace.count,         label: Aces,    group: game }
+    - { stat: quad_kill.count,   label: Quads,   group: game }
+    - { stat: triple_kill.count, label: Triples, group: game }

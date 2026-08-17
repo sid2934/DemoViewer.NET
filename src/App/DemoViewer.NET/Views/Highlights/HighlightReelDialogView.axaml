@@ -1,0 +1,169 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Highlights"
+             x:Class="DemoViewer.NET.Views.Highlights.HighlightReelDialogView"
+             x:DataType="vm:HighlightReelDialogViewModel">
+
+    <!--
+        THE REEL CONFIGURATION PANE (docs/csvg-integration/ux-design.md, promoted out of the modal
+        by docs/ui/highlights-matchoverview-redesign.md). Embedded as the Reels dashboard's right-hand
+        column; the tab owns the clip TRAY, the pre-flight banner, the interlock strip and the primary
+        action, so none of those live here any more.
+
+        The file name is unchanged on purpose: a test guards the ViewLocator name mapping
+        (HighlightReelDialogViewModel -> HighlightReelDialogView). The rename to ReelConfig* is recorded as
+        owed debt in docs/ui/design-system.md rather than churned mid-promotion.
+
+        LAYOUT: label ABOVE content, every control row a WrapPanel. The modal was 640px wide and could afford
+        a 90px label gutter with fixed-width horizontal rows; this pane is a resizable splitter column that a
+        user will drag to ~380px, and the first render at 530px already clipped "Don't cross round start" and
+        the FPS box off the right edge. Stacked + wrapping reflows instead of truncating.
+
+        Scrolling belongs to the HOST (the dashboard wraps this pane and the enrichment slot in one
+        ScrollViewer) - two nested scroll regions in one column is what makes a settings pane feel broken.
+        All colour is {DynamicResource}.
+    -->
+
+    <UserControl.Styles>
+        <!-- Uniform row rhythm for the wrapping control rows. -->
+        <Style Selector="WrapPanel.fieldRow > :is(Control)">
+            <Setter Property="Margin" Value="0 2 14 2" />
+        </Style>
+        <Style Selector="TextBlock.fieldLabel">
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <!-- TextMid, not TextDim: the padding hint explains WHY lead-in is 15s and is 1.99:1 on the panel
+             surface under Dark as TextDim. -->
+        <Style Selector="TextBlock.fieldHint">
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Margin="16 12" Spacing="16" Background="Transparent">
+
+        <TextBlock Text="REEL SETTINGS" Classes="sectionLabel" />
+
+        <!-- ── PADDING ─────────────────────────────────────────────────── -->
+        <StackPanel Spacing="6">
+            <TextBlock Text="PADDING" Classes="col-label" />
+            <WrapPanel Classes="fieldRow">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="Lead-in" Classes="fieldLabel" />
+                    <TextBox Classes="field mono" Width="56" Text="{Binding LeadInSeconds}" />
+                    <TextBlock Text="s" Classes="fieldLabel" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="Lead-out" Classes="fieldLabel" />
+                    <TextBox Classes="field mono" Width="56" Text="{Binding LeadOutSeconds}" />
+                    <TextBlock Text="s" Classes="fieldLabel" />
+                </StackPanel>
+                <CheckBox Content="Don't cross round start" IsChecked="{Binding DontCrossRoundStart}"
+                          Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+            </WrapPanel>
+            <TextBlock Classes="fieldHint"
+                       Text="Highlights fire at the end of the action, so lead-in covers the build-up." />
+        </StackPanel>
+
+        <!-- ── DISPLAY preset ──────────────────────────────────────────── -->
+        <StackPanel Spacing="6">
+            <TextBlock Text="DISPLAY" Classes="col-label" />
+            <WrapPanel Classes="fieldRow">
+                <RadioButton GroupName="reelPreset" Content="Default" IsChecked="{Binding !NoHudPreset}"
+                             Foreground="{DynamicResource TextMid}" />
+                <RadioButton GroupName="reelPreset" Content="No-HUD" IsChecked="{Binding NoHudPreset}"
+                             Foreground="{DynamicResource TextMid}" />
+            </WrapPanel>
+        </StackPanel>
+
+        <!-- ── RESOLUTION ──────────────────────────────────────────────────
+             Capture geometry: this is BOTH the size CS2 launches at AND the size ffmpeg is told each raw
+             present-hook frame measures, so it is a concrete pixel count. Standard 16:9 + 4:3 presets plus a
+             Custom entry whose width/height fields unlock (bound IsEnabled to IsCustomResolution). -->
+        <StackPanel Spacing="6">
+            <TextBlock Text="RESOLUTION" Classes="col-label" />
+            <WrapPanel Classes="fieldRow">
+                <ComboBox Classes="field" Width="196" ItemsSource="{Binding ResolutionOptions}"
+                          SelectedItem="{Binding SelectedResolution}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ReelResolutionOption">
+                            <TextBlock Text="{Binding Display}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                            IsVisible="{Binding IsCustomResolution}">
+                    <TextBox Classes="field mono" Width="64" Text="{Binding CustomWidth}"
+                             IsEnabled="{Binding IsCustomResolution}" />
+                    <TextBlock Text="×" Classes="fieldLabel" />
+                    <TextBox Classes="field mono" Width="64" Text="{Binding CustomHeight}"
+                             IsEnabled="{Binding IsCustomResolution}" />
+                    <TextBlock Text="px" Classes="fieldLabel" />
+                </StackPanel>
+            </WrapPanel>
+            <TextBlock Classes="fieldHint"
+                       Text="CS2 records at this size. Custom width and height must be even numbers." />
+        </StackPanel>
+
+        <!-- ── OUTPUT ──────────────────────────────────────────────────── -->
+        <StackPanel Spacing="6">
+            <TextBlock Text="OUTPUT" Classes="col-label" />
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBox Grid.Column="0" Classes="field mono" Watermark="Output folder…"
+                         Text="{Binding OutputFolder}" />
+                <Button Grid.Column="1" Content="Browse" Classes="ghost" Padding="12 5"
+                        Command="{Binding BrowseOutputCommand}" />
+            </Grid>
+            <WrapPanel Classes="fieldRow">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="Name" Classes="fieldLabel" />
+                    <TextBox Classes="field mono" Width="150" Text="{Binding BaseFileName}" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="Format" Classes="fieldLabel" />
+                    <ComboBox Classes="field" ItemsSource="{Binding ContainerOptions}"
+                              SelectedItem="{Binding ContainerFormat}" Width="86" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="FPS" Classes="fieldLabel" />
+                    <ComboBox Classes="field" ItemsSource="{Binding FpsOptions}"
+                              SelectedItem="{Binding Fps}" Width="76" />
+                </StackPanel>
+            </WrapPanel>
+            <WrapPanel Classes="fieldRow">
+                <CheckBox Content="Concatenate into one video" IsChecked="{Binding Concatenate}"
+                          Foreground="{DynamicResource TextMid}" />
+                <CheckBox Content="Capture audio" IsChecked="{Binding CaptureAudio}"
+                          Foreground="{DynamicResource TextMid}" />
+            </WrapPanel>
+        </StackPanel>
+
+        <!-- ── ENCODING — CRF ⊕ Bitrate ────────────────────────────────────
+             Gated by the `highlights.encoding` SubFeature (Defaults(false, true, true)) — CRF
+             and bitrate are OBS encoder knobs a consumer cannot reason about. IsEncodingVisible is a
+             FEATURE-GATE binding, not a load-state one: user-initiated and stable for the whole session,
+             which is the axis skeleton-first permits. -->
+        <StackPanel Spacing="6" IsVisible="{Binding IsEncodingVisible}">
+            <TextBlock Text="ENCODING" Classes="col-label" />
+            <WrapPanel Classes="fieldRow">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <RadioButton GroupName="reelEncoding" Content="CRF" IsChecked="{Binding UseCrf}"
+                                 Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                    <TextBox Classes="field mono" Width="56" Text="{Binding Crf}"
+                             IsEnabled="{Binding CrfEnabled}" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <RadioButton GroupName="reelEncoding" Content="Bitrate" IsChecked="{Binding !UseCrf}"
+                                 Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                    <TextBox Classes="field mono" Width="72" Text="{Binding BitrateKbps}"
+                             IsEnabled="{Binding BitrateEnabled}" />
+                    <TextBlock Text="kbps" Classes="fieldLabel" />
+                </StackPanel>
+            </WrapPanel>
+        </StackPanel>
+    </StackPanel>
+
+</UserControl>

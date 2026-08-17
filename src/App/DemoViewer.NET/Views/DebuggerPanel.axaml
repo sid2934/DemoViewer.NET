@@ -1,0 +1,204 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels"
+             xmlns:dbg="using:DemoViewer.NET.Debugging"
+             x:Class="DemoViewer.NET.Views.DebuggerPanel"
+             x:DataType="vm:DebuggerViewModel">
+
+    <UserControl.Styles>
+        <!-- Border.sectionHeader lives in Styles/Chrome.axaml, and Button.primary / Button.icon-btn in
+             Styles/Primitives.axaml (design-system foundation). The label/status/bp-text text
+             styles below stay local — they are DebuggerPanel-specific. -->
+        <Style Selector="TextBlock.label">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
+        </Style>
+        <Style Selector="TextBlock.status">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="TextBlock.status.broken">
+            <Setter Property="Foreground" Value="{DynamicResource AccentAmber}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.bp-text">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBright}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <!-- Breakpoint enable dot (v0.6.0 — replaces BoolToBrushConverter.RedDim): both states are
+             theme tokens now, so the disabled dot no longer vanishes into a light background. -->
+        <Style Selector="Ellipse.bp-dot">
+            <Setter Property="Fill" Value="{DynamicResource BreakpointDotDisabled}" />
+        </Style>
+        <Style Selector="Ellipse.bp-dot.bp-set">
+            <Setter Property="Fill" Value="{DynamicResource AccentError}" />
+        </Style>
+
+        <Style Selector="TextBlock.bp-text.disabled">
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Background="{DynamicResource DebuggerBg}">
+
+        <!-- Section header -->
+        <Border Grid.Row="0" Classes="sectionHeader">
+            <Grid ColumnDefinitions="Auto,*">
+                <TextBlock Grid.Column="0" Text="DEBUGGER" Classes="label" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Breakpoints.Count, StringFormat='{}{0} bp'}"
+                           Classes="label"
+                           HorizontalAlignment="Right" />
+            </Grid>
+        </Border>
+
+        <!-- Status line (running / stopped at …) + tracker stats -->
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="0 0 0 1"
+                Padding="14 6">
+            <StackPanel Spacing="4">
+                <TextBlock Text="{Binding StatusText}"
+                           Classes="status"
+                           Classes.broken="{Binding IsBroken}" />
+                <!-- "Jump to" row: visible only when the hit captured a frame index. Clicking takes
+             the user to that frame; suppression keeps the same breakpoint from re-firing. -->
+                <StackPanel Orientation="Horizontal" Spacing="6"
+                            IsVisible="{Binding HasHitFrame}">
+                    <TextBlock Text="{Binding HitFrameText}"
+                               Classes="status"
+                               Foreground="{DynamicResource AccentAmber}"
+                               VerticalAlignment="Center" />
+                    <Button Content="Jump"
+                            FontFamily="Consolas,Menlo,monospace"
+                            FontSize="10"
+                            Padding="6 1"
+                            Click="OnJumpToHitFrameClick"
+                            ToolTip.Tip="Select the frame containing the hit packet (suppresses re-fire)" />
+                </StackPanel>
+                <TextBlock Classes="status"
+                           FontSize="10"
+                           Foreground="{DynamicResource TextHeaderField}">
+                    <Run Text="Tracker:" />
+                    <Run Text="{Binding TrackerPacketCount}" />
+                    <Run Text="packets," />
+                    <Run Text="{Binding TrackerDeltaUnknownCount}" />
+                    <Run Text="delta-on-unknown" />
+                </TextBlock>
+                <TextBlock Text="{Binding TrackerErrorText}"
+                           FontFamily="Consolas,Menlo,monospace"
+                           FontSize="10"
+                           Foreground="{DynamicResource AccentError}"
+                           TextWrapping="Wrap"
+                           MaxHeight="60"
+                           IsVisible="{Binding HasTrackerError}" />
+            </StackPanel>
+        </Border>
+
+        <!-- Add-breakpoint form -->
+        <Border Grid.Row="2"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="0 0 0 1"
+                Padding="10 8">
+            <StackPanel Spacing="6">
+                <TextBlock Text="ADD BREAKPOINT" Classes="label" />
+                <ComboBox ItemsSource="{Binding BreakpointKinds}"
+                          SelectedItem="{Binding NewKind, Mode=TwoWay}"
+                          FontFamily="Consolas,Menlo,monospace"
+                          FontSize="11"
+                          HorizontalAlignment="Stretch" />
+                <TextBox Text="{Binding NewIntValueText, Mode=TwoWay}"
+                         Watermark="value (e.g. 37)"
+                         FontFamily="Consolas,Menlo,monospace"
+                         FontSize="11"
+                         IsVisible="{Binding NewKindUsesInt}" />
+                <TextBox Text="{Binding NewStringValue, Mode=TwoWay}"
+                         Watermark="event name (e.g. player_death)"
+                         FontFamily="Consolas,Menlo,monospace"
+                         FontSize="11"
+                         IsVisible="{Binding NewKindUsesString}" />
+                <Button Content="Add"
+                        Classes="primary"
+                        Command="{Binding AddBreakpointCommand}"
+                        HorizontalAlignment="Stretch" />
+            </StackPanel>
+        </Border>
+
+        <!-- Breakpoint list -->
+        <ListBox Grid.Row="3"
+                 ItemsSource="{Binding Breakpoints}"
+                 Background="Transparent"
+                 BorderThickness="0"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="dbg:Breakpoint">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0">
+                        <!-- Enable/disable dot -->
+                        <Button Grid.Column="0"
+                                Classes="icon-btn"
+                                Command="{Binding $parent[ListBox].((vm:DebuggerViewModel)DataContext).ToggleEnabledCommand}"
+                                CommandParameter="{Binding}"
+                                ToolTip.Tip="Toggle enabled">
+                            <Ellipse Width="9" Height="9"
+                                     Classes="bp-dot"
+                                     Classes.bp-set="{Binding Enabled}" />
+                        </Button>
+                        <!-- Display text -->
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding DisplayText}"
+                                   Classes="bp-text"
+                                   Classes.disabled="{Binding !Enabled}" />
+                        <!-- Hit count -->
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding HitCount, StringFormat='×{0}'}"
+                                   Classes="bp-text"
+                                   Foreground="{DynamicResource TextHeaderField}"
+                                   Margin="6 0 4 0"
+                                   IsVisible="{Binding HitCount}" />
+                        <!-- Delete -->
+                        <Button Grid.Column="3"
+                                Classes="icon-btn"
+                                Content="✕"
+                                AutomationProperties.Name="Remove breakpoint"
+                                Command="{Binding $parent[ListBox].((vm:DebuggerViewModel)DataContext).RemoveBreakpointCommand}"
+                                CommandParameter="{Binding}"
+                                ToolTip.Tip="Delete breakpoint" />
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+            <ListBox.Styles>
+                <Style Selector="ListBoxItem">
+                    <Setter Property="Padding" Value="8 2" />
+                    <Setter Property="MinHeight" Value="0" />
+                </Style>
+                <Style Selector="ListBoxItem[IsSelected=True]">
+                    <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+                </Style>
+            </ListBox.Styles>
+        </ListBox>
+
+        <!-- Footer actions -->
+        <Border Grid.Row="4"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="0 1 0 0"
+                Padding="10 6">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <Button Content="Continue"
+                        Classes="primary"
+                        Command="{Binding ContinueCommand}"
+                        IsEnabled="{Binding IsBroken}"
+                        ToolTip.Tip="Resume — clears the 'stopped at' state" />
+                <Button Content="Clear all"
+                        Classes="primary"
+                        Command="{Binding ClearAllCommand}"
+                        ToolTip.Tip="Remove every breakpoint" />
+            </StackPanel>
+        </Border>
+
+    </Grid>
+</UserControl>

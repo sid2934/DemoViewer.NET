@@ -1,0 +1,61 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <!--If you are willing to use platform-specific APIs, use conditional compilation.
+        See https://docs.avaloniaui.net/docs/guides/platforms/platform-specific-code/dotnet for more details.-->
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <NoWarn>NU1903</NoWarn>
+        <!-- Workstation GC (reverses an earlier Server GC choice): 24x less resident after close — 112 MB vs
+             2745 MB — for ~32% slower parse. Matrix + rejected alternatives: `AnalysisBench gc-sweep`. -->
+        <ServerGarbageCollection>false</ServerGarbageCollection>
+        <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia.Desktop"/>
+        <!-- Install + delta auto-update runtime (docs/distribution). VelopackApp.Build().Run()
+             is the FIRST line of Main; the vpk CLI (.config/dotnet-tools.json) packs the installers. -->
+        <PackageReference Include="Velopack"/>
+        <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
+        <PackageReference Include="Avalonia.Diagnostics">
+            <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+            <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\DemoViewer.NET\DemoViewer.NET.csproj"/>
+        <!-- Desktop-only live CS2 sync engine (CSVG + ASP.NET Core). Only this head may
+             reference it — Browser/App must stay free of it. -->
+        <ProjectReference Include="..\DemoViewer.NET.LiveSync\DemoViewer.NET.LiveSync.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Shipped analysis rules (+ editor schema): packaged next to the binary so installed
+             builds resolve them via RuleSetLocator without a repo checkout (release plan P0-1.1). -->
+        <Content Include="..\..\..\rules\**"
+                 LinkBase="rules"
+                 CopyToOutputDirectory="PreserveNewest"
+                 CopyToPublishDirectory="PreserveNewest"/>
+        <!-- Bundled sample demo (~11 MB), resolved by TourDemoLocator for the Library's "Try a
+             sample match" CTA and the first-run walkthrough. scripts/publish.sh already copies the
+             whole assets/ tree into the bundle, but ONLY the script does — so a publish that does
+             not route through it (the ReleaseGateTests smoke, any future packaging path) would
+             ship an installer whose first-run experience is silently dead. Declaring it here makes
+             the guarantee MSBuild-level and gate-able. publish.sh runs AFTER dotnet publish and
+             replaces $OUT/assets wholesale with the full tree, so the end state is unchanged; when
+             assets/ is missing entirely the script skips the replace and this copy survives.
+             Publish-only on purpose: a dev run resolves the repo's own assets/tour by walking up
+             from AppContext.BaseDirectory, so copying 11 MB into every build output buys nothing.
+             The 143 MB of baked map bundles stay script-only — they degrade gracefully. -->
+        <Content Include="..\..\..\assets\tour\**"
+                 LinkBase="assets\tour"
+                 CopyToOutputDirectory="Never"
+                 CopyToPublishDirectory="PreserveNewest"/>
+    </ItemGroup>
+</Project>

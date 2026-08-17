@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.EntityTracking"
+             mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="200"
+             x:Class="DemoViewer.NET.Views.EntityTracking.DeltaLogView"
+             x:DataType="vm:DeltaLogViewModel">
+
+    <Border Background="{DynamicResource PanelBg}">
+        <Grid RowDefinitions="Auto,*">
+
+            <!-- header -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource PanelHeaderBg}"
+                    BorderBrush="{DynamicResource BorderStrong}"
+                    BorderThickness="0 1 0 1"
+                    Padding="14 0">
+                <TextBlock Text="{Binding HeaderText}"
+                           FontSize="10" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextLabel}"
+                           VerticalAlignment="Center"
+                           MinHeight="28"
+                           FontFamily="Consolas,Menlo,monospace" />
+            </Border>
+
+            <!-- delta rows -->
+            <ListBox Grid.Row="1"
+                     ItemsSource="{Binding Entries}"
+                     Background="Transparent"
+                     BorderThickness="0">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DeltaLogEntry">
+                        <TextBlock Text="{Binding Summary}"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextEntityFieldVal}"
+                                   ToolTip.Tip="{Binding Field}" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+                <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                        <Setter Property="Padding" Value="10 2" />
+                        <Setter Property="MinHeight" Value="0" />
+                    </Style>
+                </ListBox.Styles>
+            </ListBox>
+
+        </Grid>
+    </Border>
+
+</UserControl>

@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels"
+             x:Class="DemoViewer.NET.Controls.StatusChip"
+             x:DataType="vm:StatusChipViewModel">
+
+    <!--
+        StatusChip (docs/csvg-integration/ux-design.md; contract in docs/ui/design-system.md).
+        A dot + neutral label in the bottom StatusStrip that opens a card-flyout for detail + actions.
+
+        THEME MANDATE: the dot colour is NOT a code-held brush — the shared `Ellipse.dot.*` styles in
+        Styles/Primitives.axaml resolve it from a DarkPalette token via the bound state→class selector
+        (the Border.teamChip pattern), so it re-themes live. The LABEL is always the neutral TextMid
+        token — the only universally-AA-safe label across the four built-in themes; state is
+        word-carried, the dot a redundant colour cue.
+    -->
+
+    <!-- Chip body: a ghost button [dot][label]; click / Enter opens the flyout (Button auto-opens its Flyout). -->
+    <Button Classes="ghost" Padding="8 2" MinHeight="0" VerticalAlignment="Center"
+            ToolTip.Tip="{Binding Tooltip}">
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <Ellipse Classes="dot" Width="9" Height="9"
+                     Classes.stateOff="{Binding IsStateOff}"
+                     Classes.stateWorking="{Binding IsStateWorking}"
+                     Classes.stateGood="{Binding IsStateGood}"
+                     Classes.stateDegraded="{Binding IsStateDegraded}"
+                     Classes.stateError="{Binding IsStateError}"
+                     Classes.hollow="{Binding IsHollow}"
+                     Classes.pulsing="{Binding IsPulsing}" />
+            <TextBlock Text="{Binding Label}" Classes="mono"
+                       Foreground="{DynamicResource TextMid}" FontSize="11"
+                       VerticalAlignment="Center" />
+        </StackPanel>
+
+        <Button.Flyout>
+            <Flyout Placement="Top">
+                <Border Classes="card-flyout" Padding="0" MaxWidth="360">
+                    <ContentControl Content="{Binding FlyoutContent}" />
+                </Border>
+            </Flyout>
+        </Button.Flyout>
+    </Button>
+
+</UserControl>

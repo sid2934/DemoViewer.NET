@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>DemoViewer.NET.DemoTrimmer</RootNamespace>
+        <!-- Trimming a 170-450 MB demo holds the raw bytes + a full ParsedDemo + (during verify) an
+             EntityTracker replay. Workstation GC keeps the footprint low on a 16 GB machine; this tool
+             is deliberately single-demo-at-a-time and never fans out parallel parses. -->
+        <ServerGarbageCollection>false</ServerGarbageCollection>
+        <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Google.Protobuf"/>
+        <PackageReference Include="Snappier"/>
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../src/Parser/Cs2DemoKit.Parser/Cs2DemoKit.Parser.csproj"/>
+    </ItemGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="DemoViewer.NET.DemoTrimmer.Tests"/>
+    </ItemGroup>
+</Project>

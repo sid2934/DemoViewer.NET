@@ -1,0 +1,51 @@
+<Project>
+    <!-- See https://aka.ms/dotnet/msbuild/customize for more details on customizing your build -->
+    <ItemGroup>
+        <PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all"/>
+    </ItemGroup>
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+
+        <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
+        <EnableNETAnalyzers>true</EnableNETAnalyzers>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+        <AnalysisMode>Recommended</AnalysisMode>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>CS1591</NoWarn>
+
+        <!--
+            Nothing in this repo is published to NuGet unless it opts in. Only the three
+            Cs2DemoKit library projects set IsPackable=true (see Directory.Build.targets for the
+            metadata they then inherit); the app, tools, tests and sample heads stay unpackable so
+            a solution-wide `dotnet pack` can never produce a surprise artifact.
+
+            IsPackable is read only by the pack targets, so this affects build/publish in no way.
+        -->
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <!--
+        Build-path privacy for RELEASE builds (docs/upstream/build-path-leak-report.md).
+
+        Every assembly records the absolute path of its .pdb in the CodeView debug directory, and
+        that string ships inside the .dll even though the .pdb itself does not (vpk excludes *.pdb).
+        Without this, all 13 first-party assemblies in a publish carried e.g.
+        /Users/<name>/Development/DemoViewer.NET/artifacts/obj/.../X.pdb — the same defect this
+        project reported to two upstream packages, so shipping it ourselves would be inconsistent.
+
+        ContinuousIntegrationBuild normalizes those to /_/... A CI build already produced anonymous
+        /Users/runner/... paths, so the practical exposure was a hand-uploaded local build; this
+        closes that rather than relying on remembering never to do it.
+
+        Release-only on purpose: it implies deterministic source paths, which is exactly what you do
+        NOT want while debugging locally — a Debug build keeps real paths so the debugger resolves
+        sources without SourceLink.
+    -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    </PropertyGroup>
+</Project>

@@ -1,0 +1,227 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.LiveSync"
+             x:Class="DemoViewer.NET.Views.LiveSync.LiveSyncStatusView"
+             x:DataType="vm:LiveSyncStatusViewModel"
+             MinWidth="300" MaxWidth="340">
+
+    <!--
+        Live Sync flyout body (docs/csvg-integration/ux-design.md). Hosted inside the StatusChip's
+        Border.card-flyout (which supplies the surface + rounding), so this view provides only inner
+        padding + content. Sections are mutually-exclusive per engine state, driven by bound IsVisible
+        flags (reactive, not code-behind). All colour is {DynamicResource}; the header dot reuses the
+        shared Ellipse.dot.* state→token styles from Styles/Primitives.axaml.
+    -->
+
+    <StackPanel Margin="14" Spacing="10">
+
+        <!-- Header: title + state dot + honest headline -->
+        <TextBlock Text="Live Sync (CS2)"
+                   Classes="col-label"
+                   Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+            <Ellipse Grid.Column="0" Classes="dot" Width="10" Height="10" VerticalAlignment="Top" Margin="0 3 0 0"
+                     Classes.stateOff="{Binding Chip.IsStateOff}"
+                     Classes.stateWorking="{Binding Chip.IsStateWorking}"
+                     Classes.stateGood="{Binding Chip.IsStateGood}"
+                     Classes.stateDegraded="{Binding Chip.IsStateDegraded}"
+                     Classes.stateError="{Binding Chip.IsStateError}"
+                     Classes.hollow="{Binding Chip.IsHollow}"
+                     Classes.pulsing="{Binding Chip.IsPulsing}" />
+            <TextBlock Grid.Column="1" Text="{Binding StateHeadline}"
+                       Foreground="{DynamicResource TextValue}" FontSize="12"
+                       TextWrapping="Wrap" />
+        </Grid>
+
+        <Rectangle Classes="divider" Height="1" />
+
+        <!-- ══ OFF (Disconnected) ══════════════════════════════════════════════════════ -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsOff}">
+            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextMid}"
+                       Text="Enabling Live Sync launches a full CS2 game (up to ~2 min to connect) and temporarily modifies your CS2 install. It is restored when you disable sync or quit." />
+
+            <StackPanel Spacing="2">
+                <TextBlock Text="Demo" Classes="col-label" />
+                <TextBlock Text="{Binding DemoBindingText}" Classes="mono" FontSize="11"
+                           Foreground="{DynamicResource TextValue}" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+
+            <!-- Path guard: only when a demo is loaded but its path is not rooted/on-disk. -->
+            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowNoPathWarning}">
+                <TextBlock Text="⚠" Foreground="{DynamicResource AccentCaution}" FontSize="12"
+                           VerticalAlignment="Center" />
+                <TextBlock Text="Requires a demo with a local file path." FontSize="11"
+                           Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <!-- Crash recovery: a crashed prior session left the CS2 install modified.
+                 Grid (not horizontal StackPanel) so the long copy wraps instead of truncating. -->
+            <StackPanel Spacing="6" IsVisible="{Binding ShowLeftoverRestoreOffer}">
+                <Grid ColumnDefinitions="Auto,*">
+                    <TextBlock Grid.Column="0" Text="⚠" Foreground="{DynamicResource AccentCaution}"
+                               FontSize="12" VerticalAlignment="Top" Margin="0 0 6 0" />
+                    <TextBlock Grid.Column="1" FontSize="11" Foreground="{DynamicResource TextMid}"
+                               TextWrapping="Wrap"
+                               Text="A previous session left your CS2 install modified (DemoViewer may have closed unexpectedly). Restore it now — no CS2 launch needed." />
+                </Grid>
+                <Button Content="Restore CS2 install" Classes="ghost" Padding="12 5"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Command="{Binding RestoreInstallCommand}"
+                        IsEnabled="{Binding !IsRestoringInstall}"
+                        ToolTip.Tip="Un-patches gameinfo.gi from CSVG's backup and removes the plugin files." />
+                <TextBlock Text="{Binding RestoreFailureText}" FontSize="11"
+                           Foreground="{DynamicResource AccentError}" TextWrapping="Wrap"
+                           IsVisible="{Binding RestoreFailureText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+                <Button Content="Enable Live Sync…" Classes="primary" Padding="12 5"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Command="{Binding EnableCommand}"
+                        IsEnabled="{Binding CanEnable}"
+                        ToolTip.Tip="{Binding EnableDisabledReason}" />
+                <Button Content="Live Sync settings" Classes="ghost" Padding="12 5"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Command="{Binding OpenLiveSyncSettingsCommand}" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- ══ WORKING (HostStarting → Connecting → LoadingDemo) ════════════════════════ -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsWorking}">
+            <TextBlock Text="{Binding StepText}" FontSize="11" Foreground="{DynamicResource TextMid}"
+                       TextWrapping="Wrap" />
+            <ProgressBar IsIndeterminate="True" Height="4" Foreground="{DynamicResource AccentInteractive}" />
+            <Button Content="Cancel" Classes="ghost" Padding="12 5"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Command="{Binding DisableCommand}"
+                    ToolTip.Tip="Stops CS2 and restores your install." />
+        </StackPanel>
+
+        <!-- ══ CONNECTED IDLE (session up, no demo in CS2) ═════════════════════════════ -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsConnectedIdle}">
+            <TextBlock Text="Load a demo to start syncing it into CS2." FontSize="11"
+                       Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+            <Button Content="Disable Live Sync" Classes="ghost" Padding="12 5"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Command="{Binding DisableCommand}" />
+        </StackPanel>
+
+        <!-- ══ SYNCED (Holding / Following / SeekPending / inferred) ═══════════════════ -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsSynced}">
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="4">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Demo" Classes="col-label" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DemoBindingText}" Classes="mono"
+                           FontSize="11" Foreground="{DynamicResource TextValue}"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Position" Classes="col-label" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding PositionText}" Classes="mono"
+                           FontSize="11" Foreground="{DynamicResource TextValue}" />
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Speed" Classes="col-label" VerticalAlignment="Center" />
+                <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                    <!-- Capability-aware: locked to 1× only when the plugin can't mirror speed;
+                         a v1.1 TimescaleSet plugin keeps Speed user-controlled + mirrored to CS2. Driven by
+                         the VM's IsSpeedLocked (same predicate as MainViewModel.IsPlaybackSpeedLocked). -->
+                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsSpeedLocked}">
+                        <TextBlock Text="locked to 1× while synced" FontSize="11"
+                                   Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                        <TextBlock Text="ⓘ why?" FontSize="11" Foreground="{DynamicResource TextDim}"
+                                   VerticalAlignment="Center"
+                                   ToolTip.Tip="Speed is locked to 1× because the connected CS2 plugin can't mirror playback speed. Update CSVG for two-way speed control." />
+                    </StackPanel>
+                    <TextBlock Text="mirrored to CS2" FontSize="11" Foreground="{DynamicResource TextMid}"
+                               VerticalAlignment="Center" IsVisible="{Binding !IsSpeedLocked}" />
+                </StackPanel>
+            </Grid>
+
+            <Rectangle Classes="divider" Height="1" />
+
+            <TextBlock Text="{Binding VersionsText}" Classes="mono" FontSize="11"
+                       Foreground="{DynamicResource TextDim}" />
+            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowUntestedVersionsNote}">
+                <TextBlock Text="⚠" Foreground="{DynamicResource AccentCaution}" FontSize="11"
+                           VerticalAlignment="Center" />
+                <TextBlock Text="untested plugin/game pair" FontSize="11"
+                           Foreground="{DynamicResource TextMid}" />
+            </StackPanel>
+
+            <!-- A v1.0-era plugin advertised no capabilities → the caution note.
+                 Sibling treatment (⚠ AccentCaution icon + neutral TextMid text) — AA-safe on the CardBg
+                 flyout in every theme; the icon carries the caution tone. -->
+            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ShowV10BaselineNote}">
+                <TextBlock Grid.Column="0" Text="⚠" Foreground="{DynamicResource AccentCaution}" FontSize="11"
+                           VerticalAlignment="Top" Margin="0 0 6 0" />
+                <TextBlock Grid.Column="1" Text="plugin 1.0 — update CSVG for exact pause sync" FontSize="11"
+                           Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+            </Grid>
+
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Content="Re-sync" Classes="ghost" Padding="12 5"
+                        Command="{Binding ResyncCommand}"
+                        ToolTip.Tip="Re-push this demo and position to CS2." />
+                <Button Content="Disable Live Sync" Classes="ghost" Padding="12 5"
+                        Command="{Binding DisableCommand}" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- ══ DEGRADED ════════════════════════════════════════════════════════════════ -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsDegraded}">
+            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextMid}"
+                       IsVisible="{Binding !CanOpenRemoteDemo}"
+                       Text="What this means: your seek may not have landed exactly where DemoViewer is. Re-sync to realign." />
+
+            <!-- CS2-side demo change — explicit adoption, never a silent auto-load. -->
+            <Button Content="Open in DemoViewer" Classes="primary" Padding="12 5"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    IsVisible="{Binding CanOpenRemoteDemo}"
+                    Command="{Binding OpenRemoteDemoCommand}"
+                    ToolTip.Tip="{Binding RemoteDemoPath}" />
+
+            <!-- Open-remote-demo failure — the sibling error treatment (⚠ AccentError icon + neutral
+                 TextMid): the message never tints the label. Grid Auto,* so it wraps. -->
+            <Grid ColumnDefinitions="Auto,*"
+                  IsVisible="{Binding ReasonText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Grid.Column="0" Text="⚠" Foreground="{DynamicResource AccentError}" FontSize="11"
+                           VerticalAlignment="Top" Margin="0 0 6 0" />
+                <TextBlock Grid.Column="1" Text="{Binding ReasonText}" FontSize="11"
+                           Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+            </Grid>
+
+            <!-- Same v1.0-plugin caution note as the Synced section (sibling ⚠ + TextMid). -->
+            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ShowV10BaselineNote}">
+                <TextBlock Grid.Column="0" Text="⚠" Foreground="{DynamicResource AccentCaution}" FontSize="11"
+                           VerticalAlignment="Top" Margin="0 0 6 0" />
+                <TextBlock Grid.Column="1" Text="plugin 1.0 — update CSVG for exact pause sync" FontSize="11"
+                           Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+            </Grid>
+
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Content="Re-sync" Classes="primary" Padding="12 5"
+                        Command="{Binding ResyncCommand}" />
+                <Button Content="Disable" Classes="ghost" Padding="12 5"
+                        Command="{Binding DisableCommand}" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- ══ FAULTED ═════════════════════════════════════════════════════════════════ -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsFaulted}">
+            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextMid}"
+                       Text="Reconnecting relaunches CS2 from scratch (up to ~2 min)." />
+            <StackPanel Spacing="6">
+                <Button Content="Reconnect (relaunch CS2)" Classes="primary" Padding="12 5"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Command="{Binding ReconnectCommand}" />
+                <Button Content="Disable Live Sync" Classes="ghost" Padding="12 5"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Command="{Binding DisableCommand}" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- ══ SUSPENDED (reel render owns CS2) ════════════════════════════════════════ -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsSuspended}">
+            <TextBlock Text="Live Sync is paused while a reel renders." FontSize="11"
+                       Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+        </StackPanel>
+
+    </StackPanel>
+
+</UserControl>

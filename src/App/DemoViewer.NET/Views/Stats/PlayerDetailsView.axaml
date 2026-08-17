@@ -1,0 +1,661 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:stats="using:DemoViewer.NET.ViewModels.Stats"
+             xmlns:statsViews="using:DemoViewer.NET.Views.Stats"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="700"
+             x:Class="DemoViewer.NET.Views.Stats.PlayerDetailsView"
+             x:DataType="stats:PlayerDetailsViewModel">
+
+    <UserControl.Resources>
+        <!-- BarRow: label | fixed 150px track with a pre-scaled fill | monospace value.
+             Serves weapons, the duel gauge, and the vision summary (single source of chrome). -->
+        <DataTemplate x:Key="BarRowTemplate" x:DataType="stats:BarRowItem">
+            <Grid ColumnDefinitions="86,150,Auto" Margin="0 2" ToolTip.Tip="{Binding Tooltip}">
+                <TextBlock Grid.Column="0" Text="{Binding Label}" Classes="pdKvLabel"
+                           TextTrimming="CharacterEllipsis" Margin="0 0 8 0" />
+                <Border Grid.Column="1" Background="{DynamicResource PanelHeaderBg}"
+                        Height="12" CornerRadius="2" VerticalAlignment="Center">
+                    <Rectangle Width="{Binding BarWidth}" Fill="{DynamicResource AccentInteractive}"
+                               HorizontalAlignment="Left" RadiusX="2" RadiusY="2" />
+                </Border>
+                <TextBlock Grid.Column="2" Text="{Binding ValueText}" Classes="pdKvValue"
+                           Margin="8 0 0 0" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- KeyValueTable row: label left, monospace value right, good/bad accent. -->
+        <DataTemplate x:Key="KvRowTemplate" x:DataType="stats:KeyValueItem">
+            <Grid ColumnDefinitions="*,Auto" Margin="0 1" ToolTip.Tip="{Binding Tooltip}">
+                <TextBlock Grid.Column="0" Text="{Binding Label}" Classes="pdKvLabel" />
+                <TextBlock Grid.Column="1" Text="{Binding Value}" Classes="pdKvValue"
+                           Classes.pos="{Binding IsPositive}"
+                           Classes.neg="{Binding IsNegative}" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <!-- Player-details dashboard (docs/ui/player-details-ux-design.md): identity header + core strip,
+         Overview/Rounds/Vision sub-rail, and the panel grid. Hosted as an inline overlay inside
+         StatsTabView (WASM-safe — never a Window); reuses its statscat/statsexport pill styles. -->
+    <Grid RowDefinitions="Auto,Auto,Auto,*">
+
+        <!-- ── P-1 identity header ── -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource PanelHeaderBg}"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="0 0 0 1"
+                Padding="14 7">
+            <DockPanel>
+                <!-- right: player switcher -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="3">
+                    <Button Content="◄" Command="{Binding PrevPlayerCommand}"
+                            Classes="statsexport" ToolTip.Tip="Previous player" />
+                    <ComboBox ItemsSource="{Binding Players}"
+                              SelectedItem="{Binding SelectedPlayer, Mode=TwoWay}"
+                              MinWidth="180" FontSize="11"
+                              ToolTip.Tip="Jump to another player (keeps the current sub-section)">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="stats:PlayerRef">
+                                <TextBlock Text="{Binding Display}" FontSize="11" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Content="►" Command="{Binding NextPlayerCommand}"
+                            Classes="statsexport" ToolTip.Tip="Next player" />
+                </StackPanel>
+
+                <!-- left: back + identity -->
+                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <Button Content="‹ Back"
+                            Command="{Binding Parent.ClosePlayerDetailsCommand}"
+                            Classes="statsexport"
+                            ToolTip.Tip="Back to the scoreboard (Esc)" />
+                    <TextBlock Text="●" FontSize="10" VerticalAlignment="Center"
+                               Classes="pdBullet" Classes.ct="{Binding IsCt}" />
+                    <TextBlock Text="{Binding PlayerName}" FontSize="16"
+                               Foreground="{DynamicResource TextBright}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding SubtitleText}"
+                               FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                               Foreground="{DynamicResource TextMid}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ── P-2 core stat strip ── -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource PanelHeaderBg}"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="0 0 0 1"
+                Padding="14 6">
+            <Panel>
+                <ItemsControl ItemsSource="{Binding CoreTiles}" IsVisible="{Binding HasGameRow}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="6" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="stats:StatTileItem">
+                            <Border Classes="pdTile" Classes.hero="{Binding IsHero}"
+                                    ToolTip.Tip="{Binding Tooltip}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Value}" Classes="pdTileValue"
+                                               Classes.hero="{Binding IsHero}" />
+                                    <TextBlock Text="{Binding Label}" Classes="pdTileLabel" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="No match stats for this player"
+                           IsVisible="{Binding !HasGameRow}"
+                           Classes="pdEmpty" Margin="0 6" />
+            </Panel>
+        </Border>
+
+        <!-- ── sub-rail: Overview / Rounds / Vision (statscat pills) ── -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource PanelHeaderBg}"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="0 0 0 1"
+                Padding="14 3">
+            <StackPanel Orientation="Horizontal" Spacing="2">
+                <Button Content="Overview" Classes="statscat"
+                        Classes.selected="{Binding IsOverview}"
+                        Command="{Binding ShowOverviewCommand}" />
+                <Button Content="Rounds" Classes="statscat"
+                        Classes.selected="{Binding IsRounds}"
+                        Command="{Binding ShowRoundsCommand}" />
+                <Button Content="Vision" Classes="statscat"
+                        Classes.selected="{Binding IsVision}"
+                        Command="{Binding ShowVisionCommand}" />
+            </StackPanel>
+        </Border>
+
+        <!-- ── section content ── -->
+        <ScrollViewer Grid.Row="3"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <Panel>
+
+                <!-- ═══ Overview: 2-column card grid, Form spans both ═══ -->
+                <Grid IsVisible="{Binding IsOverview}"
+                      ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto"
+                      Margin="14 10">
+
+                    <!-- P-3 Form (full width) -->
+                    <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Classes="pdCard">
+                        <StackPanel>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Form.RangeLabel}"
+                                           Classes="pdDim" VerticalAlignment="Center" />
+                                <TextBlock Text="Form (per-round)" Classes="pdCardHeader" />
+                            </DockPanel>
+                            <TextBlock Text="No live rounds recorded."
+                                       IsVisible="{Binding !Form.HasRounds}" Classes="pdEmpty" />
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Disabled"
+                                          IsVisible="{Binding Form.HasRounds}">
+                                <Grid ColumnDefinitions="56,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+                                    <!-- kills sparkline -->
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Kills"
+                                               Classes="pdStripLabel" />
+                                    <Canvas Grid.Row="0" Grid.Column="1"
+                                            Width="{Binding Form.PixelWidth}" Height="36"
+                                            ToolTip.Tip="Kills per round">
+                                        <Polyline
+                                            Points="{Binding Form.KillPoints, TargetNullValue={x:Static statsViews:PlayerDetailsView.EmptyPoints}}"
+                                            Stroke="{DynamicResource AccentInteractive}"
+                                            StrokeThickness="1.5"
+                                            StrokeJoin="Round" StrokeLineCap="Round" />
+                                    </Canvas>
+                                    <!-- damage bar strip (click a bar → Rounds deep-link) -->
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Damage"
+                                               Classes="pdStripLabel" />
+                                    <ItemsControl Grid.Row="1" Grid.Column="1"
+                                                  ItemsSource="{Binding Form.DamageBars}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="stats:FormBar">
+                                                <Border Width="14" Height="36"
+                                                        Background="Transparent"
+                                                        Cursor="Hand"
+                                                        Tapped="OnFormBarTapped"
+                                                        ToolTip.Tip="{Binding Tooltip}">
+                                                    <Rectangle Width="10" Height="{Binding Height}"
+                                                               Fill="{DynamicResource AccentInteractive}"
+                                                               VerticalAlignment="Bottom"
+                                                               HorizontalAlignment="Center" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <!-- KAST dot strip -->
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="KAST"
+                                               Classes="pdStripLabel"
+                                               IsVisible="{Binding Form.HasKast}" />
+                                    <ItemsControl Grid.Row="2" Grid.Column="1"
+                                                  ItemsSource="{Binding Form.KastDots}"
+                                                  IsVisible="{Binding Form.HasKast}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="stats:FormDot">
+                                                <Border Width="14" Height="14"
+                                                        Background="Transparent"
+                                                        ToolTip.Tip="{Binding Tooltip}">
+                                                    <Ellipse Width="7" Height="7"
+                                                             HorizontalAlignment="Center"
+                                                             VerticalAlignment="Center"
+                                                             Classes="pdKastDot"
+                                                             Classes.filled="{Binding Filled}" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <!-- opening-duel tick strip -->
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Duel"
+                                               Classes="pdStripLabel"
+                                               IsVisible="{Binding Form.HasDuels}" />
+                                    <ItemsControl Grid.Row="3" Grid.Column="1"
+                                                  ItemsSource="{Binding Form.DuelTicks}"
+                                                  IsVisible="{Binding Form.HasDuels}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="stats:FormTick">
+                                                <TextBlock Width="14" Text="{Binding Glyph}"
+                                                           TextAlignment="Center" FontSize="9"
+                                                           Classes="pdTick"
+                                                           Classes.pos="{Binding Up}"
+                                                           Classes.neg="{Binding Down}"
+                                                           ToolTip.Tip="{Binding Tooltip}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Grid>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- P-4 Weapon breakdown -->
+                    <Border Grid.Row="1" Grid.Column="0" Classes="pdCard">
+                        <StackPanel>
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
+                                    <Button Content="kills" Classes="statscat"
+                                            Classes.selected="{Binding Weapons.ShowKills}"
+                                            Command="{Binding Weapons.SelectKillsCommand}" />
+                                    <Button Content="damage" Classes="statscat"
+                                            Classes.selected="{Binding Weapons.ShowDamage}"
+                                            Command="{Binding Weapons.SelectDamageCommand}" />
+                                </StackPanel>
+                                <TextBlock Text="Weapon Breakdown" Classes="pdCardHeader" />
+                            </DockPanel>
+                            <ItemsControl ItemsSource="{Binding Weapons.Bars}"
+                                          ItemTemplate="{StaticResource BarRowTemplate}" />
+                            <TextBlock Text="{Binding Weapons.EmptyMessage}"
+                                       IsVisible="{Binding Weapons.ShowEmpty}" Classes="pdEmpty" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- P-6 Opening duels -->
+                    <Border Grid.Row="1" Grid.Column="1" Classes="pdCard">
+                        <StackPanel>
+                            <TextBlock Text="Opening Duels" Classes="pdCardHeader" />
+                            <Grid ColumnDefinitions="86,150,Auto" Margin="0 2"
+                                  ToolTip.Tip="Share of opening duels won (%)">
+                                <TextBlock Grid.Column="0" Text="Duel Win %" Classes="pdKvLabel" />
+                                <Border Grid.Column="1" Background="{DynamicResource PanelHeaderBg}"
+                                        Height="12" CornerRadius="2" VerticalAlignment="Center">
+                                    <Rectangle Width="{Binding DuelGaugeWidth}"
+                                               Fill="{DynamicResource AccentInteractive}"
+                                               HorizontalAlignment="Left" RadiusX="2" RadiusY="2" />
+                                </Border>
+                                <TextBlock Grid.Column="2" Text="{Binding DuelPercentText}"
+                                           Classes="pdKvValue" Margin="8 0 0 0" />
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding DuelItems}"
+                                          ItemTemplate="{StaticResource KvRowTemplate}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- P-7 Clutch & multi-kills -->
+                    <Border Grid.Row="2" Grid.Column="0" Classes="pdCard">
+                        <StackPanel>
+                            <TextBlock Text="Clutch &amp; Multi-kills" Classes="pdCardHeader" />
+                            <ItemsControl ItemsSource="{Binding ClutchItems}"
+                                          ItemTemplate="{StaticResource KvRowTemplate}" />
+                            <ItemsControl ItemsSource="{Binding MultiKillBars}" Margin="0 6 0 0">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="14" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="stats:HistBarItem">
+                                        <Grid RowDefinitions="Auto,30,Auto" Width="26">
+                                            <TextBlock Grid.Row="0" Text="{Binding CountText}"
+                                                       Classes="pdKvValue" TextAlignment="Center"
+                                                       HorizontalAlignment="Center" FontSize="10" />
+                                            <Rectangle Grid.Row="1" Width="16"
+                                                       Height="{Binding Height}"
+                                                       VerticalAlignment="Bottom"
+                                                       HorizontalAlignment="Center"
+                                                       Classes="pdHistBar"
+                                                       Classes.pos="{Binding Positive}" />
+                                            <TextBlock Grid.Row="2" Text="{Binding Label}"
+                                                       Classes="pdTileLabel" TextAlignment="Center"
+                                                       HorizontalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- P-8 Utility -->
+                    <Border Grid.Row="2" Grid.Column="1" Classes="pdCard">
+                        <StackPanel>
+                            <TextBlock Text="Utility" Classes="pdCardHeader" />
+                            <ItemsControl ItemsSource="{Binding UtilityItems}"
+                                          ItemTemplate="{StaticResource KvRowTemplate}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- P-9 Damage & accuracy -->
+                    <Border Grid.Row="3" Grid.Column="0" Classes="pdCard">
+                        <StackPanel>
+                            <TextBlock Text="Damage &amp; Accuracy" Classes="pdCardHeader" />
+                            <ItemsControl ItemsSource="{Binding DamageItems}"
+                                          ItemTemplate="{StaticResource KvRowTemplate}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- P-5 Achievements -->
+                    <Border Grid.Row="3" Grid.Column="1" Classes="pdCard">
+                        <StackPanel>
+                            <TextBlock Text="{Binding AchievementsHeader}" Classes="pdCardHeader" />
+                            <ItemsControl ItemsSource="{Binding Achievements}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="stats:AchievementItem">
+                                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0 2">
+                                            <Border Classes="pdChip"
+                                                    Classes.multi="{Binding IsMultiKill}"
+                                                    Classes.clutch="{Binding IsClutch}"
+                                                    Classes.opening="{Binding IsOpening}">
+                                                <TextBlock Text="{Binding Chain}"
+                                                           FontFamily="Consolas,Menlo,monospace"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextBright}" />
+                                            </Border>
+                                            <TextBlock Text="{Binding RoundLabel}" Width="70"
+                                                       Classes="pdKvLabel" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Tick, StringFormat='tick {0}'}"
+                                                       Classes="pdDim" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="No achievements recorded for this player."
+                                       IsVisible="{Binding !HasAchievements}" Classes="pdEmpty" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- ═══ Rounds sub-section: P-10 round-by-round table ═══ -->
+                <StackPanel IsVisible="{Binding IsRounds}" Margin="14 10">
+                    <Border BorderBrush="{DynamicResource BorderStrong}"
+                            BorderThickness="0 0 0 1"
+                            IsVisible="{Binding HasRoundRows}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="round" Width="48" Classes="pdHeadCell"
+                                       ToolTip.Tip="Round number" />
+                            <ItemsControl ItemsSource="{Binding RoundTableColumns}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="stats:DetailRoundColumn">
+                                        <TextBlock Text="{Binding Display}"
+                                                   Width="{Binding Width}"
+                                                   TextAlignment="Right" Padding="0 0 10 0"
+                                                   Classes="pdHeadCell"
+                                                   ToolTip.Tip="{Binding Tooltip}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding RoundTableRows}" Margin="0 2">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="stats:DetailRoundRow">
+                                <Border Classes="pdRoundRow" Classes.sel="{Binding IsSelected}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding RoundLabel}" Width="48"
+                                                   Classes="pdKvValue" TextAlignment="Left" />
+                                        <ItemsControl ItemsSource="{Binding Cells}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="stats:StatCell">
+                                                    <TextBlock Text="{Binding Display}"
+                                                               Width="{Binding Width}"
+                                                               TextAlignment="{Binding Alignment}"
+                                                               Padding="0 0 10 0"
+                                                               Classes="pdKvValue"
+                                                               Classes.pos="{Binding IsPositive}"
+                                                               Classes.neg="{Binding IsNegative}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="No live rounds recorded."
+                               IsVisible="{Binding !HasRoundRows}" Classes="pdEmpty" />
+                </StackPanel>
+
+                <!-- ═══ Vision sub-section: P-11 summary + P-12 per-opponent matrix ═══ -->
+                <StackPanel IsVisible="{Binding IsVision}" Margin="14 10" Spacing="0" MaxWidth="620"
+                            HorizontalAlignment="Left">
+                    <Border Classes="pdCard" IsVisible="{Binding Vision.HasData}">
+                        <StackPanel>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Vision.SecondsSummary}"
+                                           Classes="pdDim" VerticalAlignment="Center" />
+                                <TextBlock Text="Vision" Classes="pdCardHeader" />
+                            </DockPanel>
+                            <ItemsControl ItemsSource="{Binding Vision.SummaryBars}"
+                                          ItemTemplate="{StaticResource BarRowTemplate}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="pdCard" IsVisible="{Binding Vision.HasOpponents}">
+                        <StackPanel>
+                            <TextBlock Text="Per-opponent vision" Classes="pdCardHeader" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="opponent" Width="150" Classes="pdHeadCell" />
+                                <TextBlock Text="I saw them" Width="110" Classes="pdHeadCell"
+                                           ToolTip.Tip="Time this player had that opponent in view (clear LOS, in FOV)" />
+                                <TextBlock Text="exposed to them" Width="130" Classes="pdHeadCell"
+                                           ToolTip.Tip="Time that opponent had a clear line of sight to this player" />
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding Vision.Opponents}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="stats:OpponentVisionRow">
+                                        <StackPanel Orientation="Horizontal" Margin="0 1">
+                                            <TextBlock Text="{Binding Name}" Width="150"
+                                                       Classes="pdKvLabel"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding SawText}" Width="110"
+                                                       Classes="pdKvValue" TextAlignment="Left" />
+                                            <TextBlock Text="{Binding ExposedText}" Width="130"
+                                                       Classes="pdKvValue" TextAlignment="Left" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                    <!-- empty state A: bake exists, not computed → CTA cross-calls the parent -->
+                    <StackPanel IsVisible="{Binding Vision.ShowCta}" Spacing="8" Margin="0 6">
+                        <TextBlock Text="3-D line-of-sight hasn't been computed for this demo yet."
+                                   Classes="pdEmpty" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Compute 3-D line-of-sight →"
+                                    Command="{Binding Parent.ComputeVisibilityCommand}"
+                                    IsEnabled="{Binding !Parent.IsComputingVisibility}"
+                                    Classes="statsexport" />
+                            <ProgressBar IsIndeterminate="True"
+                                         IsVisible="{Binding Parent.IsComputingVisibility}"
+                                         Width="90" Height="10" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </StackPanel>
+                    <!-- empty state B: no collision bake for this map -->
+                    <TextBlock Text="{Binding Vision.UnavailableMessage}"
+                               IsVisible="{Binding Vision.ShowUnavailable}"
+                               Classes="pdEmpty" Margin="0 6" />
+                </StackPanel>
+            </Panel>
+        </ScrollViewer>
+    </Grid>
+
+    <UserControl.Styles>
+        <!-- InspectorCard chrome (style-class variant — one source for all panels). -->
+        <Style Selector="Border.pdCard">
+            <Setter Property="Background" Value="{DynamicResource CardBg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="12 8" />
+            <Setter Property="Margin" Value="0 0 8 8" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+        <Style Selector="TextBlock.pdCardHeader">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="Margin" Value="0 0 0 6" />
+        </Style>
+        <Style Selector="TextBlock.pdDim">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource TextDimGray}" />
+        </Style>
+        <Style Selector="TextBlock.pdEmpty">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource TextDimGray}" />
+            <Setter Property="Margin" Value="0 4" />
+        </Style>
+        <!-- identity bullet (T amber / CT blue — mirrors the scoreboard bullet). -->
+        <Style Selector="TextBlock.pdBullet">
+            <Setter Property="Foreground" Value="{DynamicResource AccentAmber}" />
+        </Style>
+        <Style Selector="TextBlock.pdBullet.ct">
+            <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+        <!-- StatTile -->
+        <Style Selector="Border.pdTile">
+            <Setter Property="Background" Value="{DynamicResource CardBg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="10 4" />
+            <Setter Property="MinWidth" Value="58" />
+        </Style>
+        <Style Selector="Border.pdTile.hero">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+        <Style Selector="TextBlock.pdTileValue">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+            <Setter Property="TextAlignment" Value="Right" />
+        </Style>
+        <Style Selector="TextBlock.pdTileValue.hero">
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextCardHeader}" />
+        </Style>
+        <Style Selector="TextBlock.pdTileLabel">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="TextAlignment" Value="Right" />
+        </Style>
+        <!-- key/value rows -->
+        <Style Selector="TextBlock.pdKvLabel">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.pdKvValue">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource TextEntityFieldVal}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextAlignment" Value="Right" />
+        </Style>
+        <Style Selector="TextBlock.pdKvValue.pos">
+            <Setter Property="Foreground" Value="{DynamicResource StatPositive}" />
+        </Style>
+        <Style Selector="TextBlock.pdKvValue.neg">
+            <Setter Property="Foreground" Value="{DynamicResource AccentError}" />
+        </Style>
+        <!-- rounds-table header cell -->
+        <Style Selector="TextBlock.pdHeadCell">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="Padding" Value="0 3" />
+        </Style>
+        <!-- rounds-table row (selected = form deep-link highlight) -->
+        <Style Selector="Border.pdRoundRow">
+            <Setter Property="Padding" Value="0 2" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.pdRoundRow:pointerover">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+        </Style>
+        <Style Selector="Border.pdRoundRow.sel">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
+            <Setter Property="BorderThickness" Value="2 0 0 0" />
+        </Style>
+        <!-- form strip labels + marks -->
+        <Style Selector="TextBlock.pdStripLabel">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Ellipse.pdKastDot">
+            <Setter Property="Fill" Value="Transparent" />
+            <Setter Property="Stroke" Value="{DynamicResource TextDim}" />
+            <Setter Property="StrokeThickness" Value="1" />
+        </Style>
+        <Style Selector="Ellipse.pdKastDot.filled">
+            <Setter Property="Fill" Value="{DynamicResource StatPositive}" />
+            <Setter Property="Stroke" Value="{DynamicResource StatPositive}" />
+        </Style>
+        <Style Selector="TextBlock.pdTick">
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.pdTick.pos">
+            <Setter Property="Foreground" Value="{DynamicResource StatPositive}" />
+        </Style>
+        <Style Selector="TextBlock.pdTick.neg">
+            <Setter Property="Foreground" Value="{DynamicResource AccentError}" />
+        </Style>
+        <!-- multi-kill histogram bars -->
+        <Style Selector="Rectangle.pdHistBar">
+            <Setter Property="Fill" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+        <Style Selector="Rectangle.pdHistBar.pos">
+            <Setter Property="Fill" Value="{DynamicResource StatPositive}" />
+        </Style>
+        <!-- Achievement chip (accent by chain family) -->
+        <Style Selector="Border.pdChip">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="9 2" />
+        </Style>
+        <Style Selector="Border.pdChip.multi">
+            <Setter Property="BorderBrush" Value="{DynamicResource StatPositive}" />
+        </Style>
+        <Style Selector="Border.pdChip.clutch">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentAmber}" />
+        </Style>
+        <Style Selector="Border.pdChip.opening">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+    </UserControl.Styles>
+
+</UserControl>

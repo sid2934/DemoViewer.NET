@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <!-- CA1707: test method names conventionally use underscores (e.g. Method_Condition_Expected) -->
+        <NoWarn>$(NoWarn);CA1707</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="TUnit"/>
+    </ItemGroup>
+
+    <!-- DV↔CSVG live-sync tests: engine unit tests (FakeCsvgClient) plus
+         real DV-host ↔ mock_server integration tests. The mock binary ships inside the
+         Cs2VideoGenerator.Core package (runtimes/osx-arm64/native/mock_server), so mock-mode
+         integration runs need no external checkout. Port 50051 is machine-exclusive: every test
+         that starts the web host is [NotInParallel] on the shared port key and skips when the
+         port is already owned by another process. -->
+    <ItemGroup>
+        <ProjectReference Include="..\..\App\DemoViewer.NET.LiveSync\DemoViewer.NET.LiveSync.csproj"/>
+    </ItemGroup>
+
+</Project>

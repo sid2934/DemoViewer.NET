@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "vpk": {
+      "version": "1.2.0",
+      "commands": [
+        "vpk"
+      ],
+      "rollForward": false
+    },
+    "nbgv": {
+      "version": "3.7.115",
+      "commands": [
+        "nbgv"
+      ],
+      "rollForward": false
+    }
+  }
+}

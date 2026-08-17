@@ -1,0 +1,74 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.EntityTracking"
+             mc:Ignorable="d" d:DesignWidth="240" d:DesignHeight="600"
+             x:Class="DemoViewer.NET.Views.EntityTracking.ClassBrowserView"
+             x:DataType="vm:ClassBrowserViewModel">
+
+    <Border Background="{DynamicResource PanelBg}">
+        <Grid RowDefinitions="Auto,Auto,*">
+
+            <!-- header -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource PanelHeaderBg}"
+                    BorderBrush="{DynamicResource BorderStrong}"
+                    BorderThickness="0 0 0 1"
+                    Padding="14 0">
+                <Grid ColumnDefinitions="*,Auto" MinHeight="28">
+                    <TextBlock Grid.Column="0"
+                               Text="CLASSES"
+                               FontSize="10" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextLabel}"
+                               VerticalAlignment="Center"
+                               FontFamily="Consolas,Menlo,monospace" />
+                    <Button Grid.Column="1"
+                            Content="All"
+                            Command="{Binding ClearSelectionCommand}"
+                            ToolTip.Tip="Show entities of every class"
+                            FontSize="9" Padding="6 2"
+                            VerticalAlignment="Center"
+                            FontFamily="Consolas,Menlo,monospace" />
+                </Grid>
+            </Border>
+
+            <!-- filter -->
+            <TextBox Grid.Row="1"
+                     Text="{Binding Filter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Watermark="filter classes…"
+                     FontFamily="Consolas,Menlo,monospace"
+                     FontSize="11"
+                     Margin="6 4"
+                     Background="{DynamicResource PanelHeaderBg}" />
+
+            <!-- class list -->
+            <ListBox Grid.Row="2"
+                     ItemsSource="{Binding Classes}"
+                     SelectedItem="{Binding SelectedClass, Mode=TwoWay}"
+                     Background="Transparent"
+                     BorderThickness="0">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ClassBrowserItem">
+                        <TextBlock Text="{Binding Display}"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextMid}"
+                                   ToolTip.Tip="{Binding ClassName}" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+                <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                        <Setter Property="Padding" Value="10 2" />
+                        <Setter Property="MinHeight" Value="0" />
+                    </Style>
+                    <Style Selector="ListBoxItem[IsSelected=True]">
+                        <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+                    </Style>
+                </ListBox.Styles>
+            </ListBox>
+
+        </Grid>
+    </Border>
+
+</UserControl>

@@ -1,0 +1,121 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Diagnostics"
+             x:Class="DemoViewer.NET.Controls.OutputPanel"
+             x:DataType="vm:OutputPanelViewModel">
+
+    <UserControl.Styles>
+        <!-- v0.6.0 code-color promotion: the severity ramp resolves theme tokens (the old code-held
+             #E53935/#FFC107/#5050A0 were exact dark-value duplicates of AccentError/AccentAmber/
+             AccentInteractive; the Live Sync channel's teal is AccentInfo). Inactive tab = transparent
+             underline + TextMid title; the ACTIVE tab underlines and tints in its severity accent. -->
+        <Style Selector="Button.out-tab">
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.out-tab.active.sev-err">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentError}" />
+        </Style>
+        <Style Selector="Button.out-tab.active.sev-warn">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentAmber}" />
+        </Style>
+        <Style Selector="Button.out-tab.active.sev-info">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+        <Style Selector="Button.out-tab.active.sev-live">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentInfo}" />
+        </Style>
+        <Style Selector="Button.out-tab TextBlock.out-title">
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="Button.out-tab.active.sev-err TextBlock.out-title">
+            <Setter Property="Foreground" Value="{DynamicResource AccentError}" />
+        </Style>
+        <Style Selector="Button.out-tab.active.sev-warn TextBlock.out-title">
+            <Setter Property="Foreground" Value="{DynamicResource AccentAmber}" />
+        </Style>
+        <Style Selector="Button.out-tab.active.sev-info TextBlock.out-title">
+            <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+        <Style Selector="Button.out-tab.active.sev-live TextBlock.out-title">
+            <Setter Property="Foreground" Value="{DynamicResource AccentInfo}" />
+        </Style>
+
+        <!-- Row severity column: default info tint, ERR/WARN override. -->
+        <Style Selector="TextBlock.lvl">
+            <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+        <Style Selector="TextBlock.lvl.lvl-err">
+            <Setter Property="Foreground" Value="{DynamicResource AccentError}" />
+        </Style>
+        <Style Selector="TextBlock.lvl.lvl-warn">
+            <Setter Property="Foreground" Value="{DynamicResource AccentAmber}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Background="{DynamicResource PanelBg}"
+            BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 1 0 0">
+        <Grid RowDefinitions="Auto,*">
+            <!-- Channel tabstrip -->
+            <ItemsControl Grid.Row="0" ItemsSource="{Binding Channels}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="0" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:OutputChannelViewModel">
+                        <Button Command="{Binding SelectCommand}"
+                                Classes="out-tab"
+                                Classes.active="{Binding IsActive}"
+                                Classes.sev-err="{Binding IsSevError}"
+                                Classes.sev-warn="{Binding IsSevWarn}"
+                                Classes.sev-info="{Binding IsSevInfo}"
+                                Classes.sev-live="{Binding IsSevLive}"
+                                Background="Transparent" BorderThickness="0 0 0 2"
+                                Padding="12 6">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="{Binding Title}" Classes="out-title"
+                                           FontFamily="Consolas,Menlo,monospace" FontSize="11" />
+                                <Border Background="{DynamicResource BorderAccent}" CornerRadius="9"
+                                        Padding="6 1" IsVisible="{Binding HasCount}">
+                                    <TextBlock Text="{Binding Count}" FontSize="10"
+                                               Foreground="{DynamicResource TextDim}" />
+                                </Border>
+                            </StackPanel>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Active channel rows -->
+            <ListBox Grid.Row="1" ItemsSource="{Binding Active.Rows}"
+                     SelectedItem="{Binding Active.Selected, Mode=TwoWay}"
+                     Background="Transparent" BorderThickness="0">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="vm:OutputRow">
+                        <Grid ColumnDefinitions="80,Auto,*">
+                            <TextBlock Grid.Column="0" Text="{Binding Tick}"
+                                       FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                                       Foreground="{DynamicResource TextDim}" />
+                            <TextBlock Grid.Column="1" Text="{Binding Level}"
+                                       Classes="lvl"
+                                       Classes.lvl-err="{Binding IsErr}"
+                                       Classes.lvl-warn="{Binding IsWarn}"
+                                       FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                                       Margin="6 0" />
+                            <TextBlock Grid.Column="2" Text="{Binding Message}"
+                                       FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                       Foreground="{DynamicResource TextValue}"
+                                       TextWrapping="Wrap" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+    </Border>
+</UserControl>

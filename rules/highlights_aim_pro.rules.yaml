@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=./dv-rules.schema.json
+#
+# Tier C aim highlights — stateful per-player derivations over the bullet_damage wire event
+# (the shot_landed view), via the enrich.shot.* / enrich.kill.spray_* enrichments
+# (ShotEnrichmentEdge + SprayKillEnrichmentEdge).
+#
+# flick — a damaging shot whose absolute aim angle (ShootAng) moved >= flick_min_degrees
+#   since the SAME player's previous damaging shot, within flick_max_gap_ticks (frame clock).
+#   Honesty note: bullet_damage does not fire for misses, so the anchor is the previous LANDED
+#   shot — this captures fast re-aims between landed shots (spray transfers, rifle/pistol
+#   target switches), not slow-refire AWP flicks (the AWP's previous shot is always outside
+#   any meaningful gap window).
+#
+# spray_transfer — a kill counted while the killer's single uninterrupted spray run
+#   (consecutive bullet_damage <= 24 ticks apart with non-dropping RecoilIndex) is ongoing,
+#   when it is the run's >= 2nd kill and the run has landed >= min_spray_shots bullets.
+#   "Kill during the run" is proximity-based (killing bullet lands at the death tick); the
+#   wire has no bullet<->death identity, so this is the documented approximation.
+#
+# quickscope — NOT authorable today: the only scope signal is entity state
+#   (CSPlayerPawn m_bIsScoped); per-player entity providers are pull-only (no per-player
+#   change/transition events), so latching the scope-in tick needs new per-player
+#   transition scanning in EntityChangeScanner. Deferred.
+ruleset: highlights_aim_pro
+title: Aim Highlights (Pro)
+summary: Stateful aim feats — flick shots and spray transfers, per player.
+for: each_player
+
+params:
+  flick_min_degrees: { type: int, default: 60 }   # min aim-angle delta between landed shots
+  flick_max_gap_ticks: { type: int, default: 24 }   # max frame-clock gap (24 ticks = 375 ms @64)
+  min_spray_shots: { type: int, default: 4 }    # landed bullets the spray run must have at the transfer kill
+
+stats:
+  # ── Bullets that damaged a player (also the slot-space canary: nonzero per-player counts
+  #    prove bullet_damage's Attacker is the same slot space the actor_slot binding compares) ──
+  shots_landed:
+    count: shot_landed
+    per: match
+    label: ShotsLanded
+
+  # ── Flick: large fast re-aim between two landed shots ──
+  flick_shots:
+    count: shot_landed
+    where: "enrich.shot.turn_degrees >= params.flick_min_degrees && enrich.shot.ticks_since_last_shot <= params.flick_max_gap_ticks"
+    per: round
+    while: round.active
+    label: FlickShots
+
+  # ── Spray transfer: >= 2nd distinct kill inside one sustained spray run ──
+  spray_transfer_kills:
+    count: kill
+    match: { enemy: true }
+    where: "enrich.kill.spray_kills >= 2 && enrich.kill.spray_shots_at_kill >= params.min_spray_shots"
+    per: round
+    while: round.active
+    label: SprayTransfers
+
+highlights:
+  flick:
+    when: flick_shots >= 1
+    per: round
+    score: 85
+    title: "{player.name} — flick shot (round {round.number})"
+
+  spray_transfer:
+    when: spray_transfer_kills >= 1
+    per: round
+    score: 88
+    title: "{player.name} — spray transfer! (round {round.number})"
+
+show:
+  scoreboard:
+    - { stat: shots_landed,          label: ShotsLanded, group: round }
+    - { stat: flick.count,           label: Flick,       group: game }
+    - { stat: spray_transfer.count,  label: SprayXfer,   group: game }

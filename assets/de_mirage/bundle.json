@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "mapName": "de_mirage",
+  "mapVersion": "1efb9403",
+  "bakerVersion": "0.1\u002Bvrf19.2.6339",
+  "transform": {
+    "posX": -3230,
+    "posY": 1713,
+    "scale": 5,
+    "rotate": 0,
+    "zoom": 0,
+    "imageSize": 1024
+  },
+  "bounds": {
+    "minX": -3230,
+    "minY": -3407,
+    "maxX": 1890,
+    "maxY": 1713
+  },
+  "floors": [
+    {
+      "minZ": -100000,
+      "maxZ": 100000
+    }
+  ],
+  "radarLayers": [
+    {
+      "minZ": -100000,
+      "maxZ": 100000,
+      "image": "de_mirage.png"
+    }
+  ],
+  "radarImages": [
+    "de_mirage.png"
+  ]
+}

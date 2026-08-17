@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <NoWarn>NU1903;CS1591</NoWarn>
+        <RootNamespace>DemoViewer.NET.Visualization.Sample</RootNamespace>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Avalonia.Desktop"/>
+        <PackageReference Include="Avalonia.Themes.Fluent"/>
+        <PackageReference Include="Avalonia.Fonts.Inter"/>
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\DemoViewer.NET.Visualization\DemoViewer.NET.Visualization.csproj"/>
+    </ItemGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="DemoViewer.NET.Visualization.Tests"/>
+    </ItemGroup>
+</Project>

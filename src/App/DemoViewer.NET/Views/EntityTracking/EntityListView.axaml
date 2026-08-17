@@ -1,0 +1,87 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.EntityTracking"
+             mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="400"
+             x:Class="DemoViewer.NET.Views.EntityTracking.EntityListView"
+             x:DataType="vm:EntityListViewModel">
+
+    <!-- Virtualized columnar list (F6.1). TreeDataGrid would be ideal but is
+         commercially licensed under Avalonia 11.3 (AVLIC0001) — this ListBox is
+         the doc's named fallback shape and virtualizes the ~2k entity rows. -->
+    <Border Background="{DynamicResource PanelBg}">
+        <Grid RowDefinitions="Auto,*">
+
+            <!-- column headers -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource PanelHeaderBg}"
+                    BorderBrush="{DynamicResource BorderStrong}"
+                    BorderThickness="0 0 0 1">
+                <Grid ColumnDefinitions="52,*,72,64,72" Margin="10 0" MinHeight="24">
+                    <TextBlock Grid.Column="0" Text="#" Classes="entHead" />
+                    <TextBlock Grid.Column="1" Text="class" Classes="entHead" />
+                    <TextBlock Grid.Column="2" Text="serial" Classes="entHead" />
+                    <TextBlock Grid.Column="3" Text="dormant" Classes="entHead" />
+                    <TextBlock Grid.Column="4" Text="Δ fields" Classes="entHead" />
+                </Grid>
+            </Border>
+
+            <!-- entity rows -->
+            <ListBox Grid.Row="1"
+                     ItemsSource="{Binding Entities}"
+                     SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:EntityNode">
+                        <Grid ColumnDefinitions="52,*,72,64,72">
+                            <TextBlock Grid.Column="0" Text="{Binding Index}" Classes="entCell"
+                                       Foreground="{DynamicResource TextDim}" />
+                            <TextBlock Grid.Column="1" Text="{Binding ClassName}" Classes="entCell"
+                                       Foreground="{DynamicResource TextMid}" />
+                            <TextBlock Grid.Column="2" Text="{Binding Serial}" Classes="entCell"
+                                       Foreground="{DynamicResource TextDim}" />
+                            <TextBlock Grid.Column="3" Text="{Binding DormantText}" Classes="entCell"
+                                       Foreground="{DynamicResource TextDim}" />
+                            <TextBlock Grid.Column="4" Text="{Binding DeltaText}" Classes="entCell"
+                                       Foreground="{DynamicResource AccentHighlight}" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+                <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                        <Setter Property="Padding" Value="10 2" />
+                        <Setter Property="MinHeight" Value="0" />
+                    </Style>
+                    <Style Selector="ListBoxItem[IsSelected=True]">
+                        <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+                    </Style>
+                </ListBox.Styles>
+            </ListBox>
+
+        </Grid>
+    </Border>
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.entHead">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.entCell">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+    </UserControl.Styles>
+
+</UserControl>

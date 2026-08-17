@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>DemoViewer.NET.UiCapture</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Headless Skia render capture (mirrors the App.Tests package set, minus the test runner).
+             HeadlessUnitTestSession lives in Avalonia.Headless core, so this needs no test framework. -->
+        <PackageReference Include="Avalonia"/>
+        <PackageReference Include="Avalonia.Headless"/>
+        <PackageReference Include="Avalonia.Skia"/>
+        <PackageReference Include="Avalonia.Fonts.Inter"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The real app, so its styles / DarkPalette tokens / DataTemplates load into every capture. -->
+        <ProjectReference Include="..\DemoViewer.NET\DemoViewer.NET.csproj"/>
+    </ItemGroup>
+
+</Project>

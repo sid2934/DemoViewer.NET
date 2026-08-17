@@ -1,0 +1,377 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels"
+             x:Class="DemoViewer.NET.Controls.InspectorCard"
+             x:DataType="vm:HarvestCardViewModel">
+
+    <!--
+      Reusable inspector card (F3.1) — the single, adopted message-card surface.
+      Adopts the richer card template formerly in HarvestCardControl: accent strip,
+      category badge, click-to-select header with byte-size, column header row, and
+      the collapsible payload TreeView with per-row select (drives the node -> hex
+      highlight loop) and the flat selected-row background.
+
+      Data layer stays HarvestCardViewModel + HarvestPropertyViewModel; consumers
+      bind a card VM as DataContext (see InspectorCardListView). Replaces the former
+      HarvestCardControl; the VMs are unchanged.
+  -->
+
+    <UserControl.Styles>
+
+        <!-- ── Outer card shell ──────────────────────────────────────────────── -->
+        <Style Selector="Border.msg-card">
+            <Setter Property="Background" Value="{DynamicResource CardBg}" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Margin" Value="16 0 16 10" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderAccent}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="ClipToBounds" Value="True" />
+        </Style>
+
+        <!-- ── Header background — per message-type category, THEME-AWARE (DynamicResource) ──────────
+             The header wash is chosen by a bound category class (k-net / k-svc / …) so it resolves the
+             right MsgHeader* token per theme (dark tint in Dark, pale tint in Light — the dark card title
+             reads on it). The .selected style is declared LAST so it wins over the per-type wash. This
+             replaces the former code-held HarvestCardViewModel.SelectedHeaderBg brush (was dark-on-dark
+             under the Light title). Identity is still carried by the vivid accent strip + badge. -->
+        <Style Selector="Border.msg-hdr.k-net">
+            <Setter Property="Background" Value="{DynamicResource MsgHeaderNet}" />
+        </Style>
+        <Style Selector="Border.msg-hdr.k-svc">
+            <Setter Property="Background" Value="{DynamicResource MsgHeaderSvc}" />
+        </Style>
+        <Style Selector="Border.msg-hdr.k-dem">
+            <Setter Property="Background" Value="{DynamicResource MsgHeaderDem}" />
+        </Style>
+        <Style Selector="Border.msg-hdr.k-cs">
+            <Setter Property="Background" Value="{DynamicResource MsgHeaderCs}" />
+        </Style>
+        <Style Selector="Border.msg-hdr.k-clc">
+            <Setter Property="Background" Value="{DynamicResource MsgHeaderClc}" />
+        </Style>
+        <Style Selector="Border.msg-hdr.k-event">
+            <Setter Property="Background" Value="{DynamicResource MsgHeaderGameEvent}" />
+        </Style>
+        <Style Selector="Border.msg-hdr.k-default">
+            <Setter Property="Background" Value="{DynamicResource MsgHeaderDefault}" />
+        </Style>
+        <Style Selector="Border.msg-hdr.k-unknown">
+            <Setter Property="Background" Value="{DynamicResource MsgHeaderUnknown}" />
+        </Style>
+        <Style Selector="Border.msg-hdr.selected">
+            <Setter Property="Background" Value="{DynamicResource MsgHeaderSelected}" />
+        </Style>
+
+        <!-- ── Accent strip + cat badge — theme-aware (v0.6.0 code-color promotion) ──
+             The SAME IsKind* flags that drive the header wash above drive the saturated identity
+             surfaces, through the Classifier* tokens (was HarvestCardViewModel's code-held
+             AccentBrush, which stayed dark-tuned on a light card). Badge text stays TextOnAccent. -->
+        <Style Selector="Border.msg-accent.k-net, Border.cat-badge.k-net">
+            <Setter Property="Background" Value="{DynamicResource ClassifierBlue}" />
+        </Style>
+        <Style Selector="Border.msg-accent.k-svc, Border.cat-badge.k-svc">
+            <Setter Property="Background" Value="{DynamicResource ClassifierGreen}" />
+        </Style>
+        <Style Selector="Border.msg-accent.k-dem, Border.cat-badge.k-dem">
+            <Setter Property="Background" Value="{DynamicResource ClassifierOrange}" />
+        </Style>
+        <Style Selector="Border.msg-accent.k-cs, Border.cat-badge.k-cs">
+            <Setter Property="Background" Value="{DynamicResource ClassifierPurple}" />
+        </Style>
+        <Style Selector="Border.msg-accent.k-clc, Border.cat-badge.k-clc">
+            <Setter Property="Background" Value="{DynamicResource ClassifierTeal}" />
+        </Style>
+        <Style Selector="Border.msg-accent.k-event, Border.cat-badge.k-event">
+            <Setter Property="Background" Value="{DynamicResource ClassifierRed}" />
+        </Style>
+        <Style Selector="Border.msg-accent.k-default, Border.cat-badge.k-default">
+            <Setter Property="Background" Value="{DynamicResource ClassifierSlate}" />
+        </Style>
+        <Style Selector="Border.msg-accent.k-unknown, Border.cat-badge.k-unknown">
+            <Setter Property="Background" Value="{DynamicResource ClassifierRedBright}" />
+        </Style>
+
+        <!-- ── Expanded property rows — THEME-AWARE selected-row wash + per-wire-type badge (DynamicResource) ──
+             Replaces HarvestPropertyViewModel's code-held RowBackground / WireTypeBg / WireTypeFg (which stayed
+             dark on a light card). The row binds .selected; the badge binds one wt-* class → the badge bg + its
+             child text fg resolve the Wt<Kind>Bg/Fg tokens per theme. -->
+        <Style Selector="Button.prop-row.selected">
+            <Setter Property="Background" Value="{DynamicResource PropRowSelectedBg}" />
+        </Style>
+        <Style Selector="Border.wire-badge.wt-varint">
+            <Setter Property="Background" Value="{DynamicResource WtVarintBg}" />
+        </Style>
+        <Style Selector="Border.wire-badge.wt-varint > TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource WtVarintFg}" />
+        </Style>
+        <Style Selector="Border.wire-badge.wt-fixed">
+            <Setter Property="Background" Value="{DynamicResource WtFixedBg}" />
+        </Style>
+        <Style Selector="Border.wire-badge.wt-fixed > TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource WtFixedFg}" />
+        </Style>
+        <Style Selector="Border.wire-badge.wt-bytes">
+            <Setter Property="Background" Value="{DynamicResource WtBytesBg}" />
+        </Style>
+        <Style Selector="Border.wire-badge.wt-bytes > TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource WtBytesFg}" />
+        </Style>
+        <Style Selector="Border.wire-badge.wt-string">
+            <Setter Property="Background" Value="{DynamicResource WtStringBg}" />
+        </Style>
+        <Style Selector="Border.wire-badge.wt-string > TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource WtStringFg}" />
+        </Style>
+        <Style Selector="Border.wire-badge.wt-bool">
+            <Setter Property="Background" Value="{DynamicResource WtBoolBg}" />
+        </Style>
+        <Style Selector="Border.wire-badge.wt-bool > TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource WtBoolFg}" />
+        </Style>
+        <Style Selector="Border.wire-badge.wt-message">
+            <Setter Property="Background" Value="{DynamicResource WtMessageBg}" />
+        </Style>
+        <Style Selector="Border.wire-badge.wt-message > TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource WtMessageFg}" />
+        </Style>
+        <Style Selector="Border.wire-badge.wt-default">
+            <Setter Property="Background" Value="{DynamicResource WtDefaultBg}" />
+        </Style>
+        <Style Selector="Border.wire-badge.wt-default > TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource WtDefaultFg}" />
+        </Style>
+
+        <!-- ── Property row button ───────────────────────────────────────────── -->
+        <Style Selector="Button.prop-row">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.prop-row:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HexRowSeparator}" />
+        </Style>
+
+        <!-- ── Wire-type badge ───────────────────────────────────────────────── -->
+        <Style Selector="Border.wire-badge">
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="5 1" />
+            <Setter Property="Margin" Value="0 0 8 0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- ── Category badge in card header ─────────────────────────────────── -->
+        <Style Selector="Border.cat-badge">
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="6 2" />
+            <Setter Property="Margin" Value="0 0 10 0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- ── Property TreeView ─────────────────────────────────────────────── -->
+        <Style Selector="TreeView.card-tree">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <!-- Only safe because card trees are small (<50 rows). Do NOT apply this
+         IsExpanded=True default to the entity field tree. -->
+        <Style Selector="TreeView.card-tree TreeViewItem">
+            <Setter Property="IsExpanded" Value="True" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+
+    </UserControl.Styles>
+
+    <!-- ── Card shell ────────────────────────────────────────────────────────── -->
+    <Border Classes="msg-card">
+        <Grid>
+
+            <!-- Left accent strip — kind classes → Classifier* tokens (see styles above). -->
+            <Border Width="4"
+                    HorizontalAlignment="Left"
+                    Classes="msg-accent"
+                    Classes.k-net="{Binding IsKindNet}"
+                    Classes.k-svc="{Binding IsKindSvc}"
+                    Classes.k-dem="{Binding IsKindDem}"
+                    Classes.k-cs="{Binding IsKindCs}"
+                    Classes.k-clc="{Binding IsKindClc}"
+                    Classes.k-event="{Binding IsKindGameEvent}"
+                    Classes.k-default="{Binding IsKindDefault}"
+                    Classes.k-unknown="{Binding IsKindUnknown}"
+                    CornerRadius="8 0 0 8" />
+
+            <StackPanel Margin="4 0 0 0">
+
+                <!-- ── Header — clicking selects the card AND toggles expand/collapse ── -->
+                <Button Command="{Binding ToggleExpandCommand}"
+                        Click="OnHeaderClick"
+                        Padding="0" BorderThickness="0" Background="Transparent"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                        Cursor="Hand">
+                    <Border Classes="msg-hdr"
+                            Classes.k-net="{Binding IsKindNet}"
+                            Classes.k-svc="{Binding IsKindSvc}"
+                            Classes.k-dem="{Binding IsKindDem}"
+                            Classes.k-cs="{Binding IsKindCs}"
+                            Classes.k-clc="{Binding IsKindClc}"
+                            Classes.k-event="{Binding IsKindGameEvent}"
+                            Classes.k-default="{Binding IsKindDefault}"
+                            Classes.k-unknown="{Binding IsKindUnknown}"
+                            Classes.selected="{Binding IsSelected}"
+                            Padding="12 8 10 8">
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+
+                            <!-- Category badge — same kind classes → Classifier* tokens. -->
+                            <Border Grid.Column="0"
+                                    Classes="cat-badge"
+                                    Classes.k-net="{Binding IsKindNet}"
+                                    Classes.k-svc="{Binding IsKindSvc}"
+                                    Classes.k-dem="{Binding IsKindDem}"
+                                    Classes.k-cs="{Binding IsKindCs}"
+                                    Classes.k-clc="{Binding IsKindClc}"
+                                    Classes.k-event="{Binding IsKindGameEvent}"
+                                    Classes.k-default="{Binding IsKindDefault}"
+                                    Classes.k-unknown="{Binding IsKindUnknown}">
+                                <TextBlock Text="{Binding CategoryLabel}"
+                                           FontSize="10" FontWeight="Bold"
+                                           Foreground="{DynamicResource TextOnAccent}"
+                                           VerticalAlignment="Center" />
+                            </Border>
+
+                            <!-- Message type name (includes event sub-label when present) -->
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding DisplayTypeName}"
+                                       FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextCardHeader}"
+                                       VerticalAlignment="Center" />
+
+                            <!-- Byte size -->
+                            <TextBlock Grid.Column="3"
+                                       Text="{Binding ByteSizeLabel}"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextCardSize}"
+                                       VerticalAlignment="Center"
+                                       Margin="0 0 4 0" />
+
+                        </Grid>
+                    </Border>
+                </Button>
+
+                <!-- ── Body ────────────────────────────────────────────────────────── -->
+                <Border IsVisible="{Binding IsExpanded}"
+                        Padding="0 4 0 4">
+                    <StackPanel>
+
+                        <!-- Column header row -->
+                        <Grid ColumnDefinitions="20,24,160,90,*,80"
+                              Margin="14 2 10 4">
+                            <TextBlock Grid.Column="0" Text="#"
+                                       FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextLabelAlt}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="FIELD"
+                                       FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextLabelAlt}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="3" Text="TYPE"
+                                       FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextLabelAlt}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="4" Text="VALUE"
+                                       FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextLabelAlt}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="5" Text="BYTES"
+                                       FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextLabelAlt}"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+
+                        <Rectangle Height="1" Fill="{DynamicResource HexRowSeparator}" Margin="10 0" />
+
+                        <!-- Property tree -->
+                        <TreeView Classes="card-tree"
+                                  ItemsSource="{Binding Properties}"
+                                  HorizontalAlignment="Stretch"
+                                  Margin="0 2 0 0">
+                            <TreeView.ItemTemplate>
+                                <TreeDataTemplate x:DataType="vm:HarvestPropertyViewModel"
+                                                  ItemsSource="{Binding Children}">
+                                    <Button Classes="prop-row"
+                                            Classes.selected="{Binding IsSelected}"
+                                            Command="{Binding SelectCommand}">
+                                        <Grid ColumnDefinitions="20,24,160,90,*,80"
+                                              Margin="10 3">
+
+                                            <!-- Field number -->
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding FieldNumber}"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextLabelAlt}"
+                                                       FontFamily="Consolas,Menlo,monospace"
+                                                       VerticalAlignment="Center" />
+
+                                            <!-- Expand indicator (message types) -->
+                                            <TextBlock Grid.Column="1"
+                                                       Text="▸"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextHeaderField}"
+                                                       IsVisible="{Binding HasChildren}"
+                                                       VerticalAlignment="Center" />
+
+                                            <!-- Field name -->
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding FieldName}"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource TextFieldName}"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" />
+
+                                            <!-- Wire-type badge — theme-aware via a bound wt-* class -->
+                                            <Border Grid.Column="3"
+                                                    Classes="wire-badge"
+                                                    Classes.wt-varint="{Binding IsWtVarint}"
+                                                    Classes.wt-fixed="{Binding IsWtFixed}"
+                                                    Classes.wt-bytes="{Binding IsWtBytes}"
+                                                    Classes.wt-string="{Binding IsWtString}"
+                                                    Classes.wt-bool="{Binding IsWtBool}"
+                                                    Classes.wt-message="{Binding IsWtMessage}"
+                                                    Classes.wt-default="{Binding IsWtDefault}">
+                                                <TextBlock Text="{Binding WireType}"
+                                                           FontSize="10" FontWeight="Medium"
+                                                           FontFamily="Consolas,Menlo,monospace" />
+                                            </Border>
+
+                                            <!-- Display value + enrichment -->
+                                            <TextBlock Grid.Column="4"
+                                                       Text="{Binding DisplayValue}"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource TextValue}"
+                                                       FontFamily="Consolas,Menlo,monospace"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" />
+
+                                            <!-- Byte range -->
+                                            <TextBlock Grid.Column="5"
+                                                       Text="{Binding ByteRangeLabel}"
+                                                       FontSize="10"
+                                                       Foreground="{DynamicResource TextDimAlt}"
+                                                       FontFamily="Consolas,Menlo,monospace"
+                                                       HorizontalAlignment="Right"
+                                                       VerticalAlignment="Center" />
+
+                                        </Grid>
+                                    </Button>
+                                </TreeDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </Grid>
+    </Border>
+
+</UserControl>

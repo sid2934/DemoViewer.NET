@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DemoViewer.NET.Controls.ParseLinkChip"
+             x:Name="Root">
+
+    <!--
+      Clickable code-link chip / parse-chain row. Renders an
+      indented monospace label, an optional parenthetical Detail, and an optional
+      clickable SourceBadge. Opening uses a bound Command (parse-chain rows) or the
+      chip's own LocalPath / WebFallback handler (generic link surfaces). When no
+      opening affordance is set the label renders as plain text.
+  -->
+
+    <StackPanel Orientation="Horizontal"
+                Margin="{Binding Indent, ElementName=Root}">
+
+        <!-- Clickable label (opens source) -->
+        <Button IsVisible="{Binding IsClickable, ElementName=Root}"
+                Click="OnClick"
+                Padding="0" Background="Transparent" BorderThickness="0"
+                Cursor="Hand"
+                ToolTip.Tip="{Binding Tooltip, ElementName=Root}">
+            <TextBlock Text="{Binding Label, ElementName=Root}"
+                       FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                       Foreground="{DynamicResource AccentInteractive}"
+                       TextDecorations="Underline" />
+        </Button>
+
+        <!-- Non-clickable label -->
+        <TextBlock IsVisible="{Binding !IsClickable, ElementName=Root}"
+                   Text="{Binding Label, ElementName=Root}"
+                   FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                   Foreground="{DynamicResource TextValue}" />
+
+        <!-- Parenthetical detail -->
+        <TextBlock Text="{Binding Detail, ElementName=Root}"
+                   IsVisible="{Binding Detail, ElementName=Root, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                   Foreground="{DynamicResource TextMid}"
+                   Margin="6 0 0 0" />
+
+        <!-- Source badge (clickable when an opening affordance is set) -->
+        <Button IsVisible="{Binding IsClickable, ElementName=Root}"
+                Click="OnClick"
+                Padding="0" Background="Transparent" BorderThickness="0"
+                Cursor="Hand" Margin="10 0 0 0">
+            <TextBlock Text="{Binding SourceBadge, ElementName=Root}"
+                       IsVisible="{Binding SourceBadge, ElementName=Root, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                       FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                       Foreground="{DynamicResource TextDim}"
+                       TextDecorations="Underline" />
+        </Button>
+        <TextBlock IsVisible="{Binding !IsClickable, ElementName=Root}"
+                   Text="{Binding SourceBadge, ElementName=Root}"
+                   Margin="10 0 0 0"
+                   FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                   Foreground="{DynamicResource TextDim}" />
+
+    </StackPanel>
+
+</UserControl>

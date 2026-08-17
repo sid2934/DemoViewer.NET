@@ -1,0 +1,170 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="using:System"
+             xmlns:settings="using:DemoViewer.NET.ViewModels.Settings"
+             xmlns:setup="using:DemoViewer.NET.ViewModels.Setup"
+             x:Class="DemoViewer.NET.Views.Setup.FirstRunWizardView"
+             x:DataType="setup:FirstRunWizardViewModel"
+             MinWidth="480">
+
+    <DockPanel LastChildFill="True" Background="{DynamicResource PanelBg}">
+
+        <!-- ── Header: step indicator + progress ──────────────────────────────── -->
+        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="24,20,24,10">
+            <TextBlock Classes="col-label" Text="{Binding StepIndicatorText}" />
+            <ProgressBar Minimum="0" Maximum="1" Value="{Binding StepProgress}"
+                         Height="4" Foreground="{DynamicResource AccentInteractive}" />
+        </StackPanel>
+
+        <!-- ── Footer: Skip (ghost, left) · Back · Next / Get started (primary) ── -->
+        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*,Auto,Auto" Margin="24,12,24,20">
+            <Button Grid.Column="0" Classes="ghost" Padding="10,6" Content="Skip setup"
+                    IsVisible="{Binding ShowSkip}" Command="{Binding SkipCommand}"
+                    ToolTip.Tip="Use the defaults for now — you can adjust everything later in Settings." />
+            <Button Grid.Column="2" Classes="ghost" Padding="16,6" Content="Back" Margin="0,0,8,0"
+                    IsVisible="{Binding CanGoBack}" Command="{Binding BackCommand}" />
+            <Button Grid.Column="3" Classes="primary" Padding="22,6" Content="Next"
+                    IsVisible="{Binding ShowNext}" Command="{Binding NextCommand}" />
+            <Button Grid.Column="3" Classes="primary" Padding="22,6" Content="Get started"
+                    IsVisible="{Binding ShowFinish}" Command="{Binding FinishCommand}" />
+        </Grid>
+
+        <!-- ── Body: one panel per step, only the active one visible ──────────── -->
+        <Panel Margin="24,10">
+
+            <!-- Step 0 — Welcome -->
+            <StackPanel IsVisible="{Binding IsWelcomeStep}" Spacing="16" MaxWidth="440"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="Welcome to DemoViewer.NET" FontSize="24" FontWeight="SemiBold"
+                           TextAlignment="Center" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource TextValue}" />
+                <TextBlock TextWrapping="Wrap" TextAlignment="Center" FontSize="13"
+                           Foreground="{DynamicResource TextMid}"
+                           Text="Let's get you set up. A couple of quick choices tailor the app to how you work — you can change any of them later in Settings." />
+            </StackPanel>
+
+            <!-- Step 1 — Pick your category -->
+            <StackPanel IsVisible="{Binding IsCategoryStep}" Spacing="12">
+                <TextBlock Text="Pick your category" FontSize="19" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextValue}" />
+                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextMid}"
+                           Text="This sets how much of the app is shown by default. You can fine-tune individual features anytime in Settings." />
+                <ListBox Classes="data-list"
+                         ItemsSource="{Binding Categories}"
+                         SelectedItem="{Binding SelectedCategoryOption, Mode=TwoWay}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="settings:CategoryOption">
+                            <StackPanel Spacing="3" Margin="6,6">
+                                <TextBlock Text="{Binding Title}"
+                                           Foreground="{DynamicResource TextValue}" FontSize="14" />
+                                <TextBlock Text="{Binding Description}"
+                                           Foreground="{DynamicResource TextDim}" FontSize="12"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+
+            <!-- Step 2 — Add your demo folders -->
+            <StackPanel IsVisible="{Binding IsFoldersStep}" Spacing="12">
+                <TextBlock Text="Add your demo folders" FontSize="19" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextValue}" />
+                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextMid}"
+                           Text="Folders the demo library scans for .dem files. This step is optional — add or change folders anytime in Settings." />
+
+                <!-- Auto-detected CS2 demos folder — where the game saves downloaded match/GOTV demos.
+                     Shown only when a CS2 install was found; one click adds it to the list. -->
+                <Border Classes="card" Padding="12,10" IsVisible="{Binding HasDetectedDemosFolder}">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="Found your CS2 demos folder" FontSize="12"
+                                       Foreground="{DynamicResource TextValue}" />
+                            <TextBlock Text="{Binding DetectedDemosFolder}" Classes="mono" FontSize="11"
+                                       Foreground="{DynamicResource TextDim}" TextWrapping="Wrap"
+                                       ToolTip.Tip="{Binding DetectedDemosFolder}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Add" Classes="primary" Padding="14,5"
+                                VerticalAlignment="Center"
+                                IsVisible="{Binding CanAddDetectedFolder}"
+                                Command="{Binding AddDetectedFolderCommand}"
+                                ToolTip.Tip="Add the CS2 downloaded-demos folder to your library." />
+                        <TextBlock Grid.Column="1" Text="✓ Added" FontSize="12"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource AccentPositive}"
+                                   IsVisible="{Binding IsDetectedFolderAdded}" />
+                    </Grid>
+                </Border>
+
+                <!-- Not-found notice — when auto-detection turned up nothing, be transparent about where we
+                     looked (or that no Steam install was found), then let the user add a folder manually. -->
+                <Border Classes="card" Padding="12,10" IsVisible="{Binding ShowNotFoundNotice}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding NotFoundMessage}" FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextMid}" />
+                        <ItemsControl ItemsSource="{Binding SearchedDirectories}"
+                                      IsVisible="{Binding HasSearchedDirectories}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="sys:String">
+                                    <TextBlock Text="{Binding}" Classes="mono" FontSize="11"
+                                               Foreground="{DynamicResource TextDim}" TextWrapping="Wrap"
+                                               Margin="0,1" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <ListBox Classes="data-list" MaxHeight="200"
+                         ItemsSource="{Binding Folders}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="sys:String">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="{Binding}" Classes="mono"
+                                           Foreground="{DynamicResource TextMid}"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" />
+                                <Button Grid.Column="1" Classes="icon-btn" Content="✕"
+                                        AutomationProperties.Name="Remove folder"
+                                        ToolTip.Tip="Remove folder"
+                                        Command="{Binding $parent[ListBox].((setup:FirstRunWizardViewModel)DataContext).RemoveFolderCommand}"
+                                        CommandParameter="{Binding}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <Button Content="Add Folder…" Classes="primary" Padding="14,5"
+                        HorizontalAlignment="Left"
+                        Command="{Binding AddFolderCommand}"
+                        IsEnabled="{Binding CanAddFolder}"
+                        ToolTip.Tip="Pick a folder to scan for demos (unavailable in the browser)." />
+            </StackPanel>
+
+            <!-- Step 3 — Done -->
+            <StackPanel IsVisible="{Binding IsDoneStep}" Spacing="16" MaxWidth="440"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="You're all set" FontSize="24" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" Foreground="{DynamicResource TextValue}" />
+                <TextBlock TextWrapping="Wrap" TextAlignment="Center" FontSize="13"
+                           Foreground="{DynamicResource TextMid}"
+                           Text="DemoViewer.NET is ready. Open a demo to get started — and revisit Settings anytime to adjust your category, folders, or individual features." />
+                <Border Classes="card" Padding="16,12" HorizontalAlignment="Center" MinWidth="220">
+                    <StackPanel Spacing="4">
+                        <TextBlock Classes="col-label" Text="YOUR CATEGORY" />
+                        <TextBlock FontSize="15" Foreground="{DynamicResource TextValue}"
+                                   Text="{Binding SelectedCategoryOption.Title}" />
+                        <TextBlock FontSize="11" Foreground="{DynamicResource TextDim}" TextWrapping="Wrap"
+                                   Text="{Binding SelectedCategoryOption.Description}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Walkthrough opt-in — honoured on Finish; the host starts the tour after the wizard closes. -->
+                <CheckBox IsChecked="{Binding StartWalkthrough, Mode=TwoWay}"
+                          HorizontalAlignment="Center"
+                          Content="Take a quick tour of the app when I finish" />
+            </StackPanel>
+
+        </Panel>
+
+    </DockPanel>
+</UserControl>

@@ -1,0 +1,74 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <AvaloniaResource Include="Assets\**"/>
+    </ItemGroup>
+
+    <!-- Built-in theme definitions (central theme system, docs/ui/theme-system-plan.md, T4). Embedded so the
+         ThemeRegistry loads them from the assembly at startup, via the same JSON parser as user drop-ins — the
+         proof that a theme is pure data with no per-file changes. -->
+    <ItemGroup>
+        <EmbeddedResource Include="Themes\*.json"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia"/>
+        <PackageReference Include="Avalonia.Controls.ColorPicker"/>
+        <PackageReference Include="Avalonia.Themes.Fluent"/>
+        <PackageReference Include="Avalonia.Fonts.Inter"/>
+        <PackageReference Include="Avalonia.AvaloniaEdit"/>
+        <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
+        <PackageReference Include="Avalonia.Diagnostics">
+            <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+            <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="CommunityToolkit.Mvvm"/>
+        <PackageReference Include="FuzzySharp"/>
+        <!-- App settings foundation. Configuration + Options power SettingsService now;
+             DependencyInjection is wired into the App bootstrap in a later chunk. -->
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
+        <PackageReference Include="Microsoft.Extensions.Configuration"/>
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json"/>
+        <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables"/>
+        <PackageReference Include="Microsoft.Extensions.Configuration.Binder"/>
+        <PackageReference Include="Microsoft.Extensions.Options"/>
+        <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions"/>
+        <!-- Unified diagnostics logging pillar. The full Logging package (not just Abstractions)
+             for LoggerFactory + a custom in-memory ILoggerProvider that feeds the Diagnostics tab
+             and the rolling file sink. WASM-safe (Blazor WebAssembly uses this package); only
+             out-of-proc/OTLP exporters would be poison and those live at the Desktop boundary. -->
+        <PackageReference Include="Microsoft.Extensions.Logging"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\DemoViewer.NET.Modules.Abstractions\DemoViewer.NET.Modules.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\Parser\Cs2DemoKit.Parser\Cs2DemoKit.Parser.csproj"/>
+        <ProjectReference Include="..\..\Analysis\Cs2DemoKit.Analysis\Cs2DemoKit.Analysis.csproj"/>
+        <ProjectReference Include="..\..\Visualization\DemoViewer.NET.Visualization\DemoViewer.NET.Visualization.csproj"/>
+        <!-- Repo-local feed package (see nuget.config), not a sibling-checkout ProjectReference. -->
+        <PackageReference Include="CS2OpenDev.Sdk"/>
+    </ItemGroup>
+    <!--
+        Avalonia's XAML compiler rewrites this assembly AFTER Roslyn and re-embeds the .pdb's
+        on-disk path into the CodeView debug directory, which undoes the ContinuousIntegrationBuild
+        normalization set in Directory.Build.props. Proof: ref/ and refint/ (pure Roslyn output) are
+        clean while the rewritten assembly is not, and this is the ONLY project of the thirteen that
+        still leaked after the root fix — it is also the only one with .axaml to compile.
+
+        Dropping the debug directory for Release leaves nothing for the rewrite to re-embed. It costs
+        nothing that ships: vpk excludes *.pdb from the package, so installed builds never had line
+        numbers in a stack trace anyway. Release-only, so local Debug work is unaffected, and scoped
+        to this project so the parser/analysis assemblies keep symbols for Release-mode profiling
+        (AnalysisBench runs Release).
+    -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugType>none</DebugType>
+    </PropertyGroup>
+
+</Project>

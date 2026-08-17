@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Commands"
+             x:Class="DemoViewer.NET.Controls.CommandPalette"
+             x:DataType="vm:CommandPaletteViewModel"
+             x:Name="Root">
+    <Popup IsOpen="{Binding IsOpen, Mode=TwoWay}"
+           IsLightDismissEnabled="True"
+           Placement="Center"
+           PlacementTarget="{Binding $parent[Window]}">
+        <Border Background="{DynamicResource CardBg}"
+                BorderBrush="{DynamicResource BorderAccent}" BorderThickness="1"
+                CornerRadius="8" Padding="12" Width="560">
+            <StackPanel Spacing="8">
+                <TextBox x:Name="QueryBox"
+                         Text="{Binding Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         Watermark="Go to frame, tick, class, .proto…"
+                         FontFamily="Consolas,Menlo,monospace"
+                         Background="{DynamicResource PanelBg}" />
+                <ItemsControl ItemsSource="{Binding Results}" MaxHeight="360">
+                    <ItemsControl.Styles>
+                        <!-- Result-kind glyph accents via Classifier* tokens (v0.6.0 — was a
+                             code-held brush allocated per property get). -->
+                        <Style Selector="TextBlock.ck-frame">
+                            <Setter Property="Foreground" Value="{DynamicResource ClassifierBlue}" />
+                        </Style>
+                        <Style Selector="TextBlock.ck-tick">
+                            <Setter Property="Foreground" Value="{DynamicResource ClassifierGreen}" />
+                        </Style>
+                        <Style Selector="TextBlock.ck-class">
+                            <Setter Property="Foreground" Value="{DynamicResource ClassifierPurple}" />
+                        </Style>
+                        <Style Selector="TextBlock.ck-proto">
+                            <Setter Property="Foreground" Value="{DynamicResource ClassifierOrange}" />
+                        </Style>
+                    </ItemsControl.Styles>
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:CommandPaletteItem">
+                            <Button Command="{Binding PickCommand}"
+                                    Background="Transparent" BorderThickness="0"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="4 4">
+                                    <TextBlock Grid.Column="0" Text="{Binding Icon}"
+                                               Classes.ck-frame="{Binding IsKindFrame}"
+                                               Classes.ck-tick="{Binding IsKindTick}"
+                                               Classes.ck-class="{Binding IsKindClass}"
+                                               Classes.ck-proto="{Binding IsKindProto}"
+                                               Margin="0 0 8 0" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Label}"
+                                               Foreground="{DynamicResource TextBright}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Detail}"
+                                               Foreground="{DynamicResource TextDim}" FontSize="10" />
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+    </Popup>
+</UserControl>

@@ -1,0 +1,885 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.MatchOverview"
+             mc:Ignorable="d" d:DesignWidth="1180" d:DesignHeight="760"
+             x:Class="DemoViewer.NET.Views.MatchOverview.MatchOverviewTabView"
+             x:DataType="vm:MatchOverviewTabViewModel">
+
+    <!--
+        Match Overview — THE PER-DEMO PAGE. It does two jobs with one layout:
+          • LIVE   — a demo is opening; the shell pushes pipeline state in and the slots fill.
+          • CACHED — any indexed demo is rendered from its DemoCacheRecord. Nothing runs, nothing arrives.
+        Because both modes paint the same sections from the same slots, opening a demo you were previewing
+        has NO visual discontinuity: the cached render IS the skeleton the live fill lands into.
+
+        SKELETON-FIRST (still the load-bearing rule): every section is in the tree from the FIRST rendered
+        frame and only ever swaps its VALUES. Nothing is IsVisible-toggled on LOAD STATE, and the roster /
+        scoreboard / highlight cards carry MinHeight so arriving rows fill reserved space instead of growing
+        the page. If you add a section, give it a reserved slot and a placeholder.
+
+        The one axis that IS allowed to toggle visibility is the FEATURE GATE (user-initiated, reconciled
+        live, stable for a whole load) — a different thing entirely from load state. Nothing on this page
+        does that yet; the highlight section will when it binds tab.highlights.
+
+        PARTIAL FILL is the normal state, and the completeness chip is the honest answer to it: the page
+        names the tier it has (LIVE / FULL / INDEXED / NOT INDEXED / FAILED) and every empty slot carries ONE
+        sentence plus the single action that fills it — never a wall of "—", which in a cached render would
+        read as "still loading" about a page where nothing is running.
+
+        DESIGN NOTES (docs/ui/design-system.md, docs/ui/highlights-matchoverview-redesign.md):
+          • Merged HERO BAND: identity + score plate + completeness chip + progress rail in ONE
+            fixed-height slot, so both headline facts are above the fold and the band never changes height.
+          • Two-column BODY at >= 1000px: "the match" (rosters + scoreboard) at 1.3*, "the moments"
+            (highlights + enrichments) at *. Below the breakpoint they stack — one Grid, bound Column/Row/
+            ColumnSpan, no duplicated subtree.
+          • Team identity rides coloured LEFT strips + dots, NEVER header text: CT AccentInteractive fails AA
+            as text on CardBg, so colour is the redundant cue and the word is the carrier (the StatusChip
+            rule). CT = AccentInteractive, T = AccentAmber — the app-wide scoreboard convention.
+          • Every colour is a {DynamicResource} palette token, so the page re-themes live.
+    -->
+
+    <Design.DataContext>
+        <vm:MatchOverviewTabViewModel />
+    </Design.DataContext>
+
+    <UserControl.Styles>
+
+        <!-- Hero brand bar — a short accent rule under the map name. -->
+        <Style Selector="Rectangle.heroAccent">
+            <Setter Property="Fill" Value="{DynamicResource AccentInteractive}" />
+            <Setter Property="Height" Value="3" />
+            <Setter Property="Width" Value="52" />
+            <Setter Property="RadiusX" Value="1.5" />
+            <Setter Property="RadiusY" Value="1.5" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+
+        <!-- Eyebrow — the small uppercase page label above the map name. TextMid (not the dimmer TextDim)
+             so it clears ~AA on the shell background in dark/light; comfortably passes in High Contrast. -->
+        <Style Selector="TextBlock.eyebrow">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+
+        <!-- Section label — names a card without competing with its content. -->
+        <Style Selector="TextBlock.sectionLabel">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="Margin" Value="2 0 0 6" />
+        </Style>
+
+        <!-- Quick-fact tile — tiny label over a prominent value. Informational (labels the number below),
+             so TextMid rather than the whisper-dim TextDim: ~4.3:1 dark / 7.4:1 light / 15.6:1 HC. -->
+        <Style Selector="TextBlock.factLabel">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="TextBlock.factValue">
+            <Setter Property="FontSize" Value="21" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextCardHeader}" />
+        </Style>
+
+        <!-- Stage strip — one step per open phase. Pending is dim; active brightens; done stays readable so
+             the strip reads as a completed trail rather than emptying out. In a CACHED render every step is
+             pending: nothing ran, and marking them done would claim a pipeline that never executed. -->
+        <Style Selector="TextBlock.stageLabel">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.stageLabel.done">
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="TextBlock.stageLabel.active">
+            <Setter Property="Foreground" Value="{DynamicResource TextCardHeader}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <!-- Completeness chip label — the state, in WORDS. Never tinted by state: the dot is the redundant
+             colour cue and TextMid is the only token that clears AA on every theme (the StatusChip rule). -->
+        <Style Selector="TextBlock.completenessLabel">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <!-- Score plate — the two big team numbers. -->
+        <Style Selector="TextBlock.scoreValue">
+            <Setter Property="FontSize" Value="38" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextCardHeader}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.scoreSide">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+
+        <!-- Roster header band — neutral text, team colour on the left strip. Mirrors Stats' teamHeader. -->
+        <Style Selector="Border.rosterHeader">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderBg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentAmber}" />
+            <Setter Property="BorderThickness" Value="3 0 0 0" />
+            <Setter Property="Padding" Value="12 9" />
+        </Style>
+        <Style Selector="Border.rosterHeader.ct">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+
+        <!-- Team dot — the redundant colour cue beside the neutral team name. -->
+        <Style Selector="Ellipse.teamDot">
+            <Setter Property="Width" Value="9" />
+            <Setter Property="Height" Value="9" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Fill" Value="{DynamicResource AccentAmber}" />
+        </Style>
+        <Style Selector="Ellipse.teamDot.ct">
+            <Setter Property="Fill" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+
+        <Style Selector="TextBlock.rosterName">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <!-- BOT tag — an outlined chip; TextMid clears AA on the card surface in every theme. -->
+        <Style Selector="Border.botTag">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="4 0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="6 0 0 0" />
+        </Style>
+        <Style Selector="TextBlock.botTagText">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+
+        <!-- Scoreboard — a compact fixed-column table (the Stats tab owns the sortable, full one). -->
+        <Style Selector="TextBlock.sbHead">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="TextAlignment" Value="Right" />
+        </Style>
+        <Style Selector="TextBlock.sbCell">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Rectangle.sideBar">
+            <Setter Property="Width" Value="3" />
+            <Setter Property="Height" Value="14" />
+            <Setter Property="RadiusX" Value="1.5" />
+            <Setter Property="RadiusY" Value="1.5" />
+            <Setter Property="Fill" Value="{DynamicResource AccentAmber}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Rectangle.sideBar.ct">
+            <Setter Property="Fill" Value="{DynamicResource AccentInteractive}" />
+        </Style>
+
+        <!-- Empty-slot message: one sentence naming the missing tier, beside the action that fills it.
+             TextBRIGHT, not the whisper-dim TextDim it started as: in an empty card this sentence IS the
+             primary content, and TextDim on CardBg measures 1.81:1 in Dark — far under AA, and the same
+             defect that already moved this page's fact micro-labels off TextDim. TextBright is 7.17:1 dark /
+             9.89:1 light, so the one thing the user must read to understand the empty card is readable. -->
+        <Style Selector="TextBlock.slotMessage">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBright}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <!-- Highlight row metadata (round / tick). Secondary to the title, but still text a user reads, so
+             TextMid (4.26:1 dark / 7.37:1 light) rather than TextFrameInfo's 3.48:1 dark. The title above
+             stays TextBright, so the hierarchy is intact without pushing the metadata under the floor. -->
+        <Style Selector="TextBlock.hlMeta">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- Not-known-yet value. The placeholder keeps the slot at full size (no reflow) but drops to the
+             dim token so an unfilled "—" reads as waiting rather than as a redacted block — which is exactly
+             how a bold 40px em-dash reads at full contrast. Value-driven, never layout-driven.
+             MUST stay LAST in this block: Avalonia resolves competing setters by declaration order, not
+             selector specificity, so an earlier .pending would silently lose to .factValue/.scoreValue. -->
+        <Style Selector="TextBlock.pending">
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+            <Setter Property="FontWeight" Value="Normal" />
+        </Style>
+
+    </UserControl.Styles>
+
+    <Panel>
+
+        <!-- ── Empty state — no demo open or previewed. ─────────────────────────────────────────────── -->
+        <StackPanel IsVisible="{Binding !HasContent}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" MaxWidth="380">
+            <Rectangle Classes="heroAccent" HorizontalAlignment="Center" />
+            <TextBlock Text="No demo selected"
+                       Foreground="{DynamicResource TextCardHeader}"
+                       FontSize="19" FontWeight="SemiBold" HorizontalAlignment="Center" />
+            <TextBlock Text="Pick a demo in your Library to see its overview here — instantly, from the index. Open it to go deeper."
+                       Foreground="{DynamicResource TextDim}" TextAlignment="Center"
+                       FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <!-- ── Content — the full skeleton, present from the first frame in EVERY mode. ─────────────── -->
+        <ScrollViewer IsVisible="{Binding HasContent}" Padding="28 24"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="14" MaxWidth="1180" HorizontalAlignment="Stretch">
+
+                <!--
+                    ══ HERO BAND ══════════════════════════════════════════════════════════════════════
+                    Identity + score + completeness + progress in ONE fixed-height slot. The two
+                    things a user opens a demo to see are the map and the score, so they share the top row;
+                    the state line and the progress rail sit under a divider inside the same card. MinHeight
+                    is what keeps the band identical across modes and load states.
+                -->
+                <Border Classes="card" Padding="22 18" MinHeight="168">
+                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
+
+                        <!-- Identity (left) | score plate (right). -->
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="20">
+
+                            <!-- MinHeight reserves the identity block so a demo whose map name has not been
+                                 read yet (the cheap header read can miss) does not shrink the band and then
+                                 grow it when the name arrives. -->
+                            <StackPanel Grid.Column="0" Spacing="5" MinHeight="92" VerticalAlignment="Top">
+                                <TextBlock Text="MATCH OVERVIEW" Classes="eyebrow" />
+                                <TextBlock Text="{Binding MapDisplay}"
+                                           IsVisible="{Binding MapDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                           Foreground="{DynamicResource TextCardHeader}"
+                                           FontSize="30" FontWeight="Bold" TextWrapping="Wrap" LineHeight="34" />
+                                <Rectangle Classes="heroAccent" Margin="0 1 0 3" />
+                                <TextBlock Text="{Binding ServerName}"
+                                           IsVisible="{Binding ServerName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                           Foreground="{DynamicResource TextMid}"
+                                           FontSize="12.5" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding FileName}"
+                                           Foreground="{DynamicResource TextDim}"
+                                           Classes="mono" FontSize="11.5" TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <!--
+                                Score plate. WORDING IS LOAD-BEARING: each number is a TEAM's total for the
+                                whole match, and a team is identified by its clan name or by the side it
+                                FINISHED on ("ENDED CT"), because sides swap at the half. They are NOT the
+                                rounds won by that side — the earlier wording said exactly that and was false
+                                (on the reference demo the team ending CT totalled 3 while the CT side won 15
+                                of 16). The honest per-side split is its own row in the left column below.
+                                Do not shorten these labels back to bare side names.
+                            -->
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14"
+                                        VerticalAlignment="Center" MinWidth="270"
+                                        HorizontalAlignment="Right">
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                        <Ellipse Classes="teamDot ct" />
+                                        <TextBlock Text="{Binding CtTeamLabel}" Classes="scoreSide"
+                                                   VerticalAlignment="Center" MaxWidth="112"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding CtTeamScoreDisplay}" Classes="scoreValue"
+                                               Classes.pending="{Binding !HasScore}" />
+                                </StackPanel>
+                                <TextBlock Text="–" Foreground="{DynamicResource TextDim}"
+                                           FontSize="24" VerticalAlignment="Center" />
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding TTeamScoreDisplay}" Classes="scoreValue"
+                                               Classes.pending="{Binding !HasScore}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                        <Ellipse Classes="teamDot" />
+                                        <TextBlock Text="{Binding TTeamLabel}" Classes="scoreSide"
+                                                   VerticalAlignment="Center" MaxWidth="112"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+
+                        <Rectangle Grid.Row="1" Classes="divider" Height="1" HorizontalAlignment="Stretch" />
+
+                        <!-- Completeness row + progress rail. -->
+                        <Grid Grid.Row="2" RowDefinitions="Auto,Auto" RowSpacing="9">
+
+                            <!--
+                                THE COMPLETENESS CHIP. Dot + word + the single action that advances the state.
+                                The dot reuses the shared Ellipse.dot.* classes (bound class → palette token,
+                                never a brush on the view-model), so it re-themes for free; INDEXED is the
+                                HOLLOW good ring — the established "partial, not the whole story" treatment.
+                                The label is NEVER tinted by state: WCAG 1.4.1, and TextMid is the only token
+                                that clears AA on this surface in all four built-in themes.
+                            -->
+                            <!-- MinHeight RESERVES the action row. The buttons only exist in the cached and
+                                 failed states, so without it the band grew ~16px the moment a preview was
+                                 rendered — a mode switch that moved the page, which is the same defect as a
+                                 load that moves it. Measured by MatchOverviewLandingTests. -->
+                            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10"
+                                  MinHeight="32">
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8"
+                                            VerticalAlignment="Center">
+                                    <!-- ONE element carries every state class. `.stateGood` + `.hollow`
+                                         together ARE the partial ring: the solid selectors are declared
+                                         `:not(.hollow)`, so the pair resolves to the Stroke rule and cannot
+                                         collide. (This was briefly two overlapping ellipses pulled together
+                                         by a negative margin that silently depended on the parent's
+                                         Spacing — the selectors already make that unnecessary.) -->
+                                    <Ellipse Width="10" Height="10"
+                                             Classes="dot"
+                                             Classes.stateWorking="{Binding IsCompletenessWorking}"
+                                             Classes.pulsing="{Binding IsCompletenessWorking}"
+                                             Classes.stateGood="{Binding IsCompletenessGood}"
+                                             Classes.hollow="{Binding IsCompletenessPartial}"
+                                             Classes.stateError="{Binding IsCompletenessError}"
+                                             Classes.stateOff="{Binding IsCompletenessOff}" />
+                                    <TextBlock Text="{Binding CompletenessLabel}" Classes="completenessLabel"
+                                               MaxWidth="360" />
+                                </StackPanel>
+
+                                <!-- Actions. A WrapPanel so a narrow band reflows rather than clipping the
+                                     primary CTA — the responsive-strip rule. -->
+                                <WrapPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right"
+                                           VerticalAlignment="Center">
+                                    <Button Classes="chip" Content="◀ Back"
+                                            IsVisible="{Binding CanReturnToLive}"
+                                            Command="{Binding ReturnToLiveCommand}"
+                                            FontSize="11" Padding="10 4" Margin="0 2 8 2"
+                                            ToolTip.Tip="{Binding LiveDemoName, StringFormat='Back to {0}'}" />
+                                    <Button Classes="chip" Content="{Binding CompletenessActionLabel}"
+                                            IsVisible="{Binding HasCompletenessAction}"
+                                            Command="{Binding ComputeFullStatsCommand}"
+                                            FontSize="11" Padding="12 4" Margin="0 2 8 2"
+                                            ToolTip.Tip="Queue this demo for a full analysis pass — it runs in the background and never opens the demo" />
+                                    <Button Classes="primary" Content="Open this demo"
+                                            IsVisible="{Binding IsCached}"
+                                            IsEnabled="{Binding CanOpenDemo}"
+                                            Command="{Binding OpenDemoCommand}"
+                                            FontSize="12" Padding="14 5" Margin="0 2 0 2" />
+                                </WrapPanel>
+                            </Grid>
+
+                            <!--
+                                Progress rail. A thin bar + the three stage words on one line — one sixth the
+                                height of the old stage card, and the completeness chip above now carries the
+                                state word the card used to. The eased transition is half of what makes it
+                                feel smooth: the VM creeps the value in ~90 ms steps toward the active stage's
+                                ceiling, and a 300 ms ease turns those steps into continuous motion AND
+                                softens the real stage-boundary jumps, which are large.
+                            -->
+                            <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                <ProgressBar Grid.Column="0" Minimum="0" Maximum="1" Value="{Binding Progress}"
+                                             Height="3" CornerRadius="1.5" VerticalAlignment="Center"
+                                             Foreground="{DynamicResource AccentInteractive}"
+                                             Background="{DynamicResource PanelHeaderBg}">
+                                    <ProgressBar.Transitions>
+                                        <Transitions>
+                                            <DoubleTransition Property="Value" Duration="0:0:0.3"
+                                                              Easing="CubicEaseOut" />
+                                        </Transitions>
+                                    </ProgressBar.Transitions>
+                                </ProgressBar>
+
+                                <!-- Fixed-length list built once in the ctor — rows are never added or
+                                     removed, only their flags flip. -->
+                                <ItemsControl Grid.Column="1" ItemsSource="{Binding Stages}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="14" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:LoadStageViewModel">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Ellipse Width="6" Height="6" VerticalAlignment="Center"
+                                                         Fill="{DynamicResource BorderStrong}"
+                                                         IsVisible="{Binding !IsDone}" />
+                                                <Ellipse Width="6" Height="6" VerticalAlignment="Center"
+                                                         Fill="{DynamicResource AccentInteractive}"
+                                                         IsVisible="{Binding IsDone}" />
+                                                <TextBlock Text="{Binding Label}" Classes="stageLabel"
+                                                           Classes.active="{Binding IsActive}"
+                                                           Classes.done="{Binding IsDone}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- Bundled-sample banner: the tour demo is a deliberate few-round trim, so its score is
+                     partial BY DESIGN — say so up front or the truncated score reads as a scoring bug. Only
+                     ever true for the shipped assets/tour sample. Additive, never a replacement. -->
+                <Border IsVisible="{Binding IsSampleClip}"
+                        Background="{DynamicResource ChainSummaryBadgeBg}"
+                        BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1"
+                        CornerRadius="4" Padding="10 6" HorizontalAlignment="Left">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="SAMPLE CLIP" FontSize="11" FontWeight="Bold"
+                                   Foreground="{DynamicResource AccentAmber}" VerticalAlignment="Center" />
+                        <TextBlock Text="the first few rounds of a real match, bundled to explore with — scores show a partial result"
+                                   Foreground="{DynamicResource TextMid}" FontSize="12"
+                                   TextWrapping="Wrap" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Damaged-demo banner (S11 diagnostics channel, v0.6.0): the parse recovered but
+                     reported structured warnings — rejected string tables, dropped player blobs — so a
+                     page full of "—" placeholders now explains itself instead of reading as a scoring
+                     bug. Same additive-banner grammar as the sample-clip banner above. -->
+                <Border IsVisible="{Binding IsDamaged}"
+                        Background="{DynamicResource ChainSummaryBadgeBg}"
+                        BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1"
+                        CornerRadius="4" Padding="10 6" HorizontalAlignment="Left">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="⚠ THIS DEMO MAY BE DAMAGED" FontSize="11" FontWeight="Bold"
+                                   Foreground="{DynamicResource AccentAmber}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding DamageSummary}"
+                                   Foreground="{DynamicResource TextMid}" FontSize="12"
+                                   TextWrapping="Wrap" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Failure detail — the ONE conditional block on the page. It is additive (an error line
+                     appended below a stable layout), never a replacement for a section. -->
+                <Border Classes="card" Padding="20 14" IsVisible="{Binding Failed}">
+                    <TextBlock Text="{Binding ErrorText}"
+                               Foreground="{DynamicResource TextMid}"
+                               FontSize="12.5" TextWrapping="Wrap" />
+                </Border>
+
+                <!-- ══ FACTS STRIP ═══════════════════════════════════════════════════════════════════
+                     Values swap placeholder → real; the card never changes size. SPECTATORS sits in Auto
+                     columns rather than a star column, and it and its divider gate on HasSpectators: most
+                     demos have none, and an Auto column whose only child is collapsed takes zero width, so
+                     the row stays a clean four-tile layout instead of carrying a permanently-empty cell. -->
+                <Border Classes="card" Padding="20 14">
+                    <Grid ColumnDefinitions="*,Auto,*,Auto,*,Auto,Auto,Auto,*">
+                        <StackPanel Grid.Column="0" Spacing="3">
+                            <TextBlock Text="DURATION" Classes="factLabel" />
+                            <TextBlock Text="{Binding DurationDisplay}" Classes="factValue"
+                                       Classes.pending="{Binding !HasSummary}" />
+                        </StackPanel>
+                        <Rectangle Grid.Column="1" Classes="divider" Width="1" Margin="18 2"
+                                   VerticalAlignment="Stretch" />
+                        <StackPanel Grid.Column="2" Spacing="3">
+                            <TextBlock Text="ROUNDS" Classes="factLabel" />
+                            <TextBlock Text="{Binding RoundCountDisplay}" Classes="factValue"
+                                       Classes.pending="{Binding !HasSummary}" />
+                        </StackPanel>
+                        <Rectangle Grid.Column="3" Classes="divider" Width="1" Margin="18 2"
+                                   VerticalAlignment="Stretch" />
+                        <StackPanel Grid.Column="4" Spacing="3">
+                            <TextBlock Text="PLAYERS" Classes="factLabel" />
+                            <TextBlock Text="{Binding PlayerCountDisplay}" Classes="factValue"
+                                       Classes.pending="{Binding !HasSummary}" />
+                        </StackPanel>
+                        <Rectangle Grid.Column="5" Classes="divider" Width="1" Margin="18 2"
+                                   VerticalAlignment="Stretch"
+                                   IsVisible="{Binding HasSpectators}" />
+                        <StackPanel Grid.Column="6" Spacing="3"
+                                    IsVisible="{Binding HasSpectators}"
+                                    ToolTip.Tip="Named accounts in the demo with no team — observers, coaches, admins. Excluded from PLAYERS so that number matches the rosters below.">
+                            <TextBlock Text="SPECTATORS" Classes="factLabel" />
+                            <TextBlock Text="{Binding SpectatorCountDisplay}" Classes="factValue"
+                                       Classes.pending="{Binding !HasSummary}" />
+                        </StackPanel>
+                        <Rectangle Grid.Column="7" Classes="divider" Width="1" Margin="18 2"
+                                   VerticalAlignment="Stretch" />
+                        <StackPanel Grid.Column="8" Spacing="3">
+                            <TextBlock Text="TICK RATE" Classes="factLabel" />
+                            <TextBlock Text="{Binding TickRateDisplay}" Classes="factValue"
+                                       Classes.pending="{Binding !HasSummary}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!--
+                    ══ BODY — two columns at >= 1000px, stacked below ════════════════════════
+                    ONE Grid, never two stacked layouts: the two groups bind Grid.Column / Grid.Row /
+                    Grid.ColumnSpan to view-model ints, so exactly one arrangement is realised and there is no
+                    duplicated subtree to drift. The column ratio is 1.3* : * — "the match" is the denser
+                    column (two rosters + a ten-row scoreboard).
+                -->
+                <Grid ColumnDefinitions="1.3*,20,*" RowDefinitions="Auto,Auto" RowSpacing="14">
+
+                    <!-- ── THE MATCH — rosters, scoreboard, side split, explore CTAs ──────────────── -->
+                    <StackPanel Grid.Row="0" Grid.Column="0"
+                                Grid.ColumnSpan="{Binding MatchColumnSpan}" Spacing="14">
+
+                        <!-- Rosters — CT / T side by side. MinHeight reserves a 5-a-side roster so arriving
+                             names FILL the card instead of growing it (the jump this page exists to remove).
+                             A side with more than five players still grows; that is the honest limit of a
+                             fixed slot. Measured against real rendered layout by MatchOverviewLandingTests. -->
+                        <Grid ColumnDefinitions="*,14,*">
+                            <Border Grid.Column="0" Classes="card" ClipToBounds="True" MinHeight="188">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Top" Classes="rosterHeader ct">
+                                        <Grid ColumnDefinitions="Auto,8,*,Auto">
+                                            <Ellipse Grid.Column="0" Classes="teamDot ct" />
+                                            <TextBlock Grid.Column="2" Text="Counter-Terrorists"
+                                                       Foreground="{DynamicResource TextCardHeader}"
+                                                       FontSize="13" FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <Border Grid.Column="3" Classes="badge" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding CtRosterCountDisplay}"
+                                                           Classes="mono" FontSize="11"
+                                                           Foreground="{DynamicResource TextChainBadge}" />
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                    <!-- The missing-tier message shares the reserved slot with the rows, so
+                                         a roster that cannot be split says why instead of drawing an empty
+                                         team. Same treatment as the scoreboard's third state. -->
+                                    <TextBlock DockPanel.Dock="Top" Text="{Binding RosterMessage}"
+                                               IsVisible="{Binding RosterMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                               Classes="slotMessage" Margin="14 12" />
+                                    <ItemsControl ItemsSource="{Binding CounterTerrorists}" Margin="14 10 14 12">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:OverviewPlayer">
+                                                <StackPanel Orientation="Horizontal" Margin="0 3">
+                                                    <TextBlock Text="{Binding Name}" Classes="rosterName" />
+                                                    <Border Classes="botTag" IsVisible="{Binding IsBot}">
+                                                        <TextBlock Text="BOT" Classes="botTagText" />
+                                                    </Border>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </DockPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Classes="card" ClipToBounds="True" MinHeight="188">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Top" Classes="rosterHeader">
+                                        <Grid ColumnDefinitions="Auto,8,*,Auto">
+                                            <Ellipse Grid.Column="0" Classes="teamDot" />
+                                            <TextBlock Grid.Column="2" Text="Terrorists"
+                                                       Foreground="{DynamicResource TextCardHeader}"
+                                                       FontSize="13" FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <Border Grid.Column="3" Classes="badge" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding TRosterCountDisplay}"
+                                                           Classes="mono" FontSize="11"
+                                                           Foreground="{DynamicResource TextChainBadge}" />
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                    <TextBlock DockPanel.Dock="Top" Text="{Binding RosterMessage}"
+                                               IsVisible="{Binding RosterMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                               Classes="slotMessage" Margin="14 12" />
+                                    <ItemsControl ItemsSource="{Binding Terrorists}" Margin="14 10 14 12">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:OverviewPlayer">
+                                                <StackPanel Orientation="Horizontal" Margin="0 3">
+                                                    <TextBlock Text="{Binding Name}" Classes="rosterName" />
+                                                    <Border Classes="botTag" IsVisible="{Binding IsBot}">
+                                                        <TextBlock Text="BOT" Classes="botTagText" />
+                                                    </Border>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </DockPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- Scoreboard. Reserved height for a FULL 10-player lobby; the "needs a full
+                             analysis pass" / "ran but produced nothing" message occupies the same slot, so a
+                             skeleton never hangs forever and a cached page says what would fill it. -->
+                        <StackPanel Spacing="0">
+                            <TextBlock Text="PLAYER STATS" Classes="sectionLabel" />
+                            <Border Classes="card" ClipToBounds="True" MinHeight="268">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Top" Background="{DynamicResource PanelHeaderBg}"
+                                            Padding="14 8">
+                                        <Grid ColumnDefinitions="3,9,*,50,50,50,60,60">
+                                            <TextBlock Grid.Column="2" Text="PLAYER" Classes="sbHead"
+                                                       TextAlignment="Left" />
+                                            <TextBlock Grid.Column="3" Text="K" Classes="sbHead" />
+                                            <TextBlock Grid.Column="4" Text="D" Classes="sbHead" />
+                                            <TextBlock Grid.Column="5" Text="A" Classes="sbHead" />
+                                            <TextBlock Grid.Column="6" Text="ADR" Classes="sbHead" />
+                                            <TextBlock Grid.Column="7" Text="RATING" Classes="sbHead" />
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- The missing-tier message + its action, inside the reserved slot. -->
+                                    <StackPanel DockPanel.Dock="Top" Margin="14 12" Spacing="9"
+                                                IsVisible="{Binding PlayerStatsMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                        <TextBlock Text="{Binding PlayerStatsMessage}" Classes="slotMessage" />
+                                        <Button Classes="chip" Content="{Binding CompletenessActionLabel}"
+                                                IsVisible="{Binding HasCompletenessAction}"
+                                                Command="{Binding ComputeFullStatsCommand}"
+                                                FontSize="11" Padding="12 4" HorizontalAlignment="Left" />
+                                    </StackPanel>
+
+                                    <ItemsControl ItemsSource="{Binding PlayerStats}" Margin="14 8 14 10">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:OverviewStatRow">
+                                                <Grid ColumnDefinitions="3,9,*,50,50,50,60,60" Margin="0 3">
+                                                    <Rectangle Grid.Column="0" Classes="sideBar"
+                                                               Classes.ct="{Binding IsCt}" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding Name}"
+                                                               Classes="rosterName" />
+                                                    <TextBlock Grid.Column="3" Text="{Binding Kills}" Classes="sbCell" />
+                                                    <TextBlock Grid.Column="4" Text="{Binding Deaths}" Classes="sbCell" />
+                                                    <TextBlock Grid.Column="5" Text="{Binding Assists}" Classes="sbCell" />
+                                                    <TextBlock Grid.Column="6" Text="{Binding Adr}" Classes="sbCell" />
+                                                    <TextBlock Grid.Column="7" Text="{Binding Rating}" Classes="sbCell"
+                                                               Foreground="{DynamicResource TextCardHeader}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </DockPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- The genuinely per-side split. Analysis-derived, so it shows ONLY when it
+                             reconciles against the authoritative score (HasSideSplit) — on HLTV demos the
+                             CTW/TW columns collapse and would otherwise print a 0/1 "split" of a 14-round
+                             match. The row keeps its slot either way: the no-jump rule applies to a
+                             suppressed value exactly as it does to a pending one. -->
+                        <Panel Height="18">
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        IsVisible="{Binding HasSideSplit}">
+                                <TextBlock Text="ROUNDS BY SIDE" Classes="factLabel" VerticalAlignment="Center" />
+                                <Ellipse Classes="teamDot ct" Width="7" Height="7" />
+                                <TextBlock Text="CT" Classes="scoreSide" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding CtSideWinsDisplay}" Classes="mono"
+                                           FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextCardHeader}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Text="·" Foreground="{DynamicResource TextDim}"
+                                           Margin="4 0" VerticalAlignment="Center" />
+                                <Ellipse Classes="teamDot" Width="7" Height="7" />
+                                <TextBlock Text="T" Classes="scoreSide" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding TSideWinsDisplay}" Classes="mono"
+                                           FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextCardHeader}"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="Per-side split unavailable for this demo"
+                                       IsVisible="{Binding !HasSideSplit}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextDim}" FontSize="11" />
+                        </Panel>
+
+                        <!-- Explore CTAs — always present; ENABLED (not shown) once the demo is explorable,
+                             so the row never appears from nowhere. Both are mode-gated too: in a cached
+                             render the Stats and 2D tabs hold a different demo, so the honest offer is
+                             "Open this demo" in the hero band, not a jump to another match's scoreboard. -->
+                        <WrapPanel Orientation="Horizontal">
+                            <Button Classes="primary" Content="View full stats"
+                                    Command="{Binding ViewStatsCommand}"
+                                    IsEnabled="{Binding CanExploreStats}"
+                                    Margin="0 0 10 0" Padding="16 7" />
+                            <Button Classes="chip" Content="Watch in 2D"
+                                    Command="{Binding ViewPlaybackCommand}"
+                                    IsEnabled="{Binding CanExplorePlayback}"
+                                    Padding="16 7" />
+                        </WrapPanel>
+                    </StackPanel>
+
+                    <!-- ── THE MOMENTS — highlights + the enrichment slot ─────────────────────────── -->
+                    <StackPanel Grid.Row="{Binding MomentsRow}" Grid.Column="{Binding MomentsColumn}"
+                                Grid.ColumnSpan="{Binding MomentsColumnSpan}" Spacing="14">
+
+                        <StackPanel Spacing="0">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <TextBlock Grid.Column="0" Text="HIGHLIGHTS" Classes="sectionLabel" />
+                                <TextBlock Grid.Column="2" Text="{Binding HighlightCountDisplay}"
+                                           Classes="sectionLabel"
+                                           IsVisible="{Binding HasHighlights}" />
+                            </Grid>
+
+                            <!--
+                                Reserved so the section does not grow the page when moments arrive, and
+                                BOUNDED above so it cannot run away.
+                                  <= 300px of content -> the reserve (an empty or small set still holds its
+                                     slot, same as the roster and scoreboard cards);
+                                  300-620            -> grows, filling space beside the taller match column;
+                                  > 620              -> the inner ScrollViewer takes over.
+                                The upper bound matters more here than on the other cards: a roster is capped
+                                at ~5 and a scoreboard at ~10, so their overflow is rare, but a demo can fire
+                                thirty highlights and an unbounded card would dwarf the whole page. Growth
+                                inside the band is CONTENT-driven (same demo -> same height), never
+                                load-driven, so it cannot produce the mid-load jump the page forbids.
+                            -->
+                            <Border Classes="card" ClipToBounds="True" MinHeight="300" MaxHeight="620">
+                                <DockPanel>
+                                    <!-- Missing-tier message + its action, in the reserved slot. -->
+                                    <StackPanel DockPanel.Dock="Top" Margin="14 14" Spacing="9"
+                                                IsVisible="{Binding HighlightsMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                        <TextBlock Text="{Binding HighlightsMessage}" Classes="slotMessage" />
+                                        <!-- The highlight card owns its OWN action, not the chip's. They
+                                             diverge in a common state: a finished live open has a real
+                                             scoreboard (chip has nothing to advance) while highlights are
+                                             still un-indexed, because they come from a different pass. -->
+                                        <Button Classes="chip" Content="{Binding HighlightsActionLabel}"
+                                                IsVisible="{Binding HasHighlightsAction}"
+                                                Command="{Binding ComputeFullStatsCommand}"
+                                                FontSize="11" Padding="12 4" HorizontalAlignment="Left" />
+                                    </StackPanel>
+
+                                    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                        <ItemsControl ItemsSource="{Binding HighlightGroups}" Margin="8 8">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:OverviewHighlightGroup">
+                                                    <!-- Stretch both the Expander and its header content:
+                                                         Fluent sizes an Expander to its content by default,
+                                                         which left the per-player groups at ragged widths
+                                                         inside the card. -->
+                                                    <Expander IsExpanded="{Binding IsExpanded}" Padding="0"
+                                                              Margin="0 0 0 4" Background="Transparent"
+                                                              HorizontalAlignment="Stretch"
+                                                              HorizontalContentAlignment="Stretch">
+                                                        <Expander.Header>
+                                                            <!-- Grid, not a StackPanel: the "Select all" button
+                                                                 is pinned to the RIGHT of the header while the
+                                                                 dot + name + count stay left. The button carries
+                                                                 its OWN Click, so pressing it stages the section
+                                                                 without also toggling the expander. -->
+                                                            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto"
+                                                                  VerticalAlignment="Center">
+                                                                <!-- Team colour is the dot, never the name:
+                                                                     the page-wide contrast rule. -->
+                                                                <Ellipse Grid.Column="0" Classes="teamDot"
+                                                                         Classes.ct="{Binding IsCt}"
+                                                                         Margin="0 0 8 0" />
+                                                                <TextBlock Grid.Column="1" Text="{Binding PlayerName}"
+                                                                           Foreground="{DynamicResource TextValue}"
+                                                                           FontSize="13" FontWeight="SemiBold"
+                                                                           VerticalAlignment="Center"
+                                                                           TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock Grid.Column="2" Text="{Binding CountDisplay}"
+                                                                           Classes="hlMeta" Margin="8 0 0 0" />
+                                                                <Button Grid.Column="4" Classes="chip"
+                                                                        Content="Select all"
+                                                                        Command="{Binding SelectAllCommand}"
+                                                                        FontSize="11" Padding="8 2" Margin="8 0"
+                                                                        VerticalAlignment="Center"
+                                                                        ToolTip.Tip="Stage every highlight in this player's section for a reel" />
+                                                            </Grid>
+                                                        </Expander.Header>
+                                                        <ItemsControl ItemsSource="{Binding Highlights}"
+                                                                      Margin="6 2 0 6">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="vm:OverviewHighlightRow">
+                                                                    <Border BorderBrush="{DynamicResource HexRowSeparator}"
+                                                                            BorderThickness="0 0 0 1" Padding="4 6">
+                                                                        <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto"
+                                                                              ColumnSpacing="8">
+                                                                            <TextBlock Grid.Column="0"
+                                                                                       Text="{Binding Title}"
+                                                                                       Foreground="{DynamicResource TextBright}"
+                                                                                       FontSize="12"
+                                                                                       VerticalAlignment="Center"
+                                                                                       TextTrimming="CharacterEllipsis" />
+                                                                            <TextBlock Grid.Column="1"
+                                                                                       Text="{Binding RoundDisplay}"
+                                                                                       Classes="hlMeta" />
+                                                                            <TextBlock Grid.Column="2"
+                                                                                       Text="{Binding TickDisplay}"
+                                                                                       Classes="hlMeta mono" />
+                                                                            <!-- Staging: the clip tray that
+                                                                                 owns the other end lands with
+                                                                                 the Reels dashboard, so this
+                                                                                 is a local toggle for now. -->
+                                                                            <Button Grid.Column="3"
+                                                                                    Classes="chip"
+                                                                                    Command="{Binding StageCommand}"
+                                                                                    FontSize="11" Padding="8 2"
+                                                                                    MinWidth="30"
+                                                                                    VerticalAlignment="Center"
+                                                                                    ToolTip.Tip="Stage this clip for a reel">
+                                                                                <Panel>
+                                                                                    <TextBlock Text="+"
+                                                                                               IsVisible="{Binding !IsStaged}" />
+                                                                                    <TextBlock Text="✓"
+                                                                                               IsVisible="{Binding IsStaged}"
+                                                                                               Foreground="{DynamicResource StatPositive}" />
+                                                                                </Panel>
+                                                                            </Button>
+                                                                            <Button Grid.Column="4" Classes="ghost"
+                                                                                    IsVisible="{Binding VerifyPresent}"
+                                                                                    IsEnabled="{Binding CanVerify}"
+                                                                                    Command="{Binding VerifyCommand}"
+                                                                                    FontSize="11" Padding="8 2"
+                                                                                    VerticalAlignment="Center"
+                                                                                    ToolTip.Tip="Play this moment live in CS2 (spectating the player)">
+                                                                                <Panel>
+                                                                                    <TextBlock Text="Verify live"
+                                                                                               IsVisible="{Binding !IsVerifying}" />
+                                                                                    <StackPanel Orientation="Horizontal"
+                                                                                                Spacing="5"
+                                                                                                IsVisible="{Binding IsVerifying}">
+                                                                                        <Ellipse Width="8" Height="8"
+                                                                                                 Classes="dot stateGood pulsing"
+                                                                                                 VerticalAlignment="Center" />
+                                                                                        <TextBlock Text="Verifying…" />
+                                                                                    </StackPanel>
+                                                                                </Panel>
+                                                                            </Button>
+                                                                        </Grid>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </Expander>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </DockPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!--
+                            ENRICHMENTS — the extension slot. An enrichment is a ViewModelBase + a matching
+                            View appended to EnrichmentSections; the app ViewLocator resolves it, so adding
+                            one costs ZERO edits to this file. The slot is in the tree from frame one and
+                            renders zero height when empty, and enrichments register at COMPOSITION rather
+                            than streaming in mid-load — an enrichment that appeared while a load was running
+                            would reintroduce exactly the layout jump this page exists to prevent.
+                            (Collection lands with the Reels dashboard; the slot is reserved here.)
+                        -->
+                    </StackPanel>
+                </Grid>
+
+            </StackPanel>
+        </ScrollViewer>
+
+    </Panel>
+</UserControl>

@@ -1,0 +1,90 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Highlights"
+             x:Class="DemoViewer.NET.Views.Highlights.HighlightScanStatusView"
+             x:DataType="vm:HighlightScanStatusViewModel"
+             MinWidth="280" MaxWidth="340">
+
+    <!--
+      Highlight-scan chip flyout body (docs/ui/highlights-matchoverview-redesign.md row 2) — the FOURTH
+      StatusChip consumer. Hosted inside the chip's Border.card-flyout, so this view provides inner padding
+      and content only, exactly like ReelJobStatusView.
+
+      This flyout is where the card grid's per-demo affordances went: the aggregate staleness count,
+      the aggregate failed-retry, and the ⟳ Rescan all. The one accepted loss — the
+      per-card animation that showed WHICH demo was scanning — is bought back as the "◐ scanning <name>" line.
+
+      Colour: the header dot resolves its token through the shared Ellipse.dot state classes (never a
+      code-held brush); every other value is a {DynamicResource}.
+    -->
+
+    <StackPanel Margin="14" Spacing="10">
+
+        <TextBlock Text="Highlight scan" Classes="col-label"
+                   Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+            <Ellipse Grid.Column="0" Classes="dot" Width="10" Height="10" VerticalAlignment="Top"
+                     Margin="0 3 0 0"
+                     Classes.stateOff="{Binding Chip.IsStateOff}"
+                     Classes.stateWorking="{Binding Chip.IsStateWorking}"
+                     Classes.stateGood="{Binding Chip.IsStateGood}"
+                     Classes.stateDegraded="{Binding Chip.IsStateDegraded}"
+                     Classes.stateError="{Binding Chip.IsStateError}"
+                     Classes.pulsing="{Binding Chip.IsPulsing}" />
+            <TextBlock Grid.Column="1" Text="{Binding StatusLine}"
+                       Foreground="{DynamicResource TextValue}" FontSize="12" TextWrapping="Wrap" />
+        </Grid>
+
+        <!-- WHICH demo — the one thing the retired per-card animation carried that a chip cannot. -->
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" IsVisible="{Binding HasScanningName}">
+            <TextBlock Grid.Column="0" Text="◐" Foreground="{DynamicResource AccentInteractive}"
+                       FontSize="12" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding ScanningName}" Classes="mono" FontSize="11"
+                       Foreground="{DynamicResource TextMid}" TextTrimming="CharacterEllipsis"
+                       ToolTip.Tip="{Binding ScanningName}" VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- Determinate batch progress (v0.6.0): a 200-demo rescan is ~30 min of churn — counts alone
+             gave no sense of remaining work. Batch size = peak backlog since last idle (VM-tracked). -->
+        <StackPanel Spacing="4" IsVisible="{Binding HasBatchProgress}">
+            <ProgressBar Minimum="0" Maximum="{Binding BatchTotal}" Value="{Binding BatchDone}"
+                         Height="6" />
+            <TextBlock Text="{Binding BatchProgressText}" Classes="mono" FontSize="10"
+                       Foreground="{DynamicResource TextMid}" />
+        </StackPanel>
+
+        <Rectangle Classes="divider" Height="1" />
+
+        <!-- Counts. Neutral labels + neutral values: state is carried by the words, and a tinted count would
+             fail AA on the flyout card under Light (the StatusChip contrast contract). -->
+        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="3">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Queued" FontSize="11"
+                       Foreground="{DynamicResource TextMid}" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding QueueDepth}" Classes="mono" FontSize="11"
+                       Foreground="{DynamicResource TextValue}" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Outdated" FontSize="11"
+                       Foreground="{DynamicResource TextMid}"
+                       ToolTip.Tip="Re-queued demos still showing their previous highlights" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding StaleCount}" Classes="mono" FontSize="11"
+                       Foreground="{DynamicResource TextValue}" />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Failed" FontSize="11"
+                       Foreground="{DynamicResource TextMid}" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding FailedCount}" Classes="mono" FontSize="11"
+                       Foreground="{DynamicResource TextValue}" />
+        </Grid>
+
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <!-- Retries the FAILED rows only. A user with three broken demos has not asked to re-harvest the
+                 seven hundred that worked — which is the whole difference from Rescan all. -->
+            <Button Content="Retry all failed" Classes="ghost" FontSize="11" Padding="10 5"
+                    IsVisible="{Binding HasFailed}" Command="{Binding RetryAllFailedCommand}" />
+            <Button Content="⟳ Rescan all" Classes="ghost" FontSize="11" Padding="10 5"
+                    Command="{Binding RescanAllCommand}"
+                    ToolTip.Tip="Re-scan every demo in the library for highlights" />
+        </StackPanel>
+    </StackPanel>
+
+</UserControl>

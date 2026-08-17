@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=./dv-rules.schema.json
+#
+# Lowlights — embarrassing moments, one highlight per round per player. Every highlight here uses
+# kind: lowlight, so these surface as "lowlight" reel moments rather than plays to
+# celebrate. Each highlight reads a per-round count stat and fires when it happened at least once.
+# Stats and highlights share one id namespace, so the count stats carry a distinct *_count id.
+ruleset: highlights_lowlights
+title: Lowlights
+summary: Embarrassing moments — teamkills, getting knifed, wallbanged, and no-scoped on.
+for: each_player
+
+stats:
+  # Killed a teammate — kill view, actor = killer = this player; the teamkill facet marks it.
+  teamkill_count:
+    count: kill
+    match: { teamkill: true }
+    per: round
+    while: round.active
+    label: TeamKills
+
+  # Died to an enemy knife — death view, actor = victim = this player. enemy excludes suicide/
+  # teamkill; the weapon field pins it to a knife (all three knife model strings).
+  knifed_count:
+    count: death
+    match: { enemy: true }
+    where: 'event.Weapon == "knife" || event.Weapon == "knife_t" || event.Weapon == "knife_kukri"'
+    per: round
+    while: round.active
+    label: Knifed
+
+  # Died to a penetration (wallbang) kill — death view; the raw wire field carries the count.
+  died_to_wallbang_count:
+    count: death
+    match: { enemy: true }
+    where: 'event.Penetrated >= 1'
+    per: round
+    while: round.active
+    label: WallbangedDeaths
+
+  # Died to an enemy no-scope — death view; no_scope facet on the victim's death.
+  no_scoped_on_count:
+    count: death
+    match: { no_scope: true, enemy: true }
+    per: round
+    while: round.active
+    label: NoScopedOn
+
+highlights:
+  teamkill:
+    when: teamkill_count >= 1
+    per: round
+    score: 40
+    kind: lowlight
+    title: "{player.name} killed a teammate (round {round.number})"
+
+  knifed:
+    when: knifed_count >= 1
+    per: round
+    score: 65
+    kind: lowlight
+    title: "{player.name} got knifed (round {round.number})"
+
+  died_to_wallbang:
+    when: died_to_wallbang_count >= 1
+    per: round
+    score: 40
+    kind: lowlight
+    title: "{player.name} died to a wallbang (round {round.number})"
+
+  no_scoped_on:
+    when: no_scoped_on_count >= 1
+    per: round
+    score: 55
+    kind: lowlight
+    title: "{player.name} got no-scoped (round {round.number})"
+
+show:
+  scoreboard:
+    - { stat: teamkill.count,         label: TeamKills,        group: game }
+    - { stat: knifed.count,           label: Knifed,           group: game }
+    - { stat: died_to_wallbang.count, label: WallbangedDeaths, group: game }
+    - { stat: no_scoped_on.count,     label: NoScopedOn,       group: game }

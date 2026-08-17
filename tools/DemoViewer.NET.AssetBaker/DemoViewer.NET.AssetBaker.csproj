@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The CS2 map-asset BAKER (docs/asset-pipeline/design.md §0.5).
+      A SEPARATE, independently-versioned tool: it owns VRF + ValvePak + SkiaSharp 3.x. The app NEVER
+      references this project (no ProjectReference), so the app stays on Avalonia's SkiaSharp 2.88.x and
+      the whole-app SkiaSharp-3 gate never applies. Interop is over a FILE boundary (baked PNG + JSON).
+  
+      Build/run standalone (NOT part of the main .slnx) via "dotnet run" against this project;
+      pass map names as args and an optional diag flag. See Program.cs for the exact CLI.
+    -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RuntimeIdentifier>osx-arm64</RuntimeIdentifier>
+
+        <!-- Independently versioned: opt OUT of the app's Central Package Management so VRF's SkiaSharp 3.x
+             cannot collide with the app-wide pinned SkiaSharp 2.88.x. -->
+        <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+
+        <!-- Standalone dev tool: relax the repo's warnings-as-errors so VRF-interop nullability etc. don't block. -->
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+        <CodeAnalysisTreatWarningsAsErrors>false</CodeAnalysisTreatWarningsAsErrors>
+        <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Drop the repo-wide Nerdbank.GitVersioning (injected by Directory.Build.props, versioned via CPM
+             which this project opts out of). A standalone dev tool needs no git versioning. -->
+        <PackageReference Remove="Nerdbank.GitVersioning"/>
+        <PackageReference Include="ValveResourceFormat" Version="19.2.6339"/>
+        <PackageReference Include="ValvePak" Version="4.0.0.142"/>
+        <PackageReference Include="SkiaSharp" Version="3.119.2"/>
+        <PackageReference Include="SkiaSharp.NativeAssets.macOS" Version="3.119.2"/>
+    </ItemGroup>
+
+</Project>

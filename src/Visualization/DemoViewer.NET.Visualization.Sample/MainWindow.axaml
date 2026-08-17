@@ -1,0 +1,31 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:viz="using:DemoViewer.NET.Visualization"
+        x:Class="DemoViewer.NET.Visualization.Sample.MainWindow"
+        Title="Graph Visualization Sample"
+        Width="1400" Height="900"
+        Background="#0C0C1A">
+
+    <Grid RowDefinitions="Auto,*">
+        <Border Grid.Row="0" Background="#0E0E1E" Padding="10,6">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <TextBlock Text="Sample:"
+                           Foreground="#606080"
+                           VerticalAlignment="Center"
+                           FontFamily="Consolas,Menlo,monospace"
+                           FontSize="12" />
+                <ComboBox x:Name="SampleSelector"
+                          Width="250"
+                          SelectionChanged="OnSampleChanged">
+                    <ComboBoxItem Content="DemoStateGraph" IsSelected="True" />
+                    <ComboBoxItem Content="Fan-Out (1→10)" />
+                    <ComboBoxItem Content="Convergence (10→1)" />
+                    <ComboBoxItem Content="Long Chain (A→J)" />
+                    <ComboBoxItem Content="Diamond Pattern" />
+                </ComboBox>
+            </StackPanel>
+        </Border>
+
+        <viz:GraphView x:Name="GraphViewControl" Grid.Row="1" />
+    </Grid>
+</Window>

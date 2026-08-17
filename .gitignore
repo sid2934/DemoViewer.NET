@@ -1,0 +1,29 @@
+bin/
+obj/
+/artifacts/
+/packages/
+riderModule.iml
+/_ReSharper.Caches/
+.idea/
+*.sln.DotSettings
+*.sln.DotSettings.user
+.DS_Store
+
+# Demo files (too large for git)
+demos/**/*.dem
+demos/**/*.dem.bz2
+demos/references/
+
+# Generated benchmark reports
+bench-reports/
+
+# Local-only investigation tools that ProjectReference sibling repos
+# (e.g. demofile-net for parser parity diffing). Per the
+# "demofile-net is comparison-only" convention, these stay out of the repo.
+tools/DemoViewer.NET.EntityFieldDiff/
+
+# BenchmarkDotNet output (tools/EntityMicroBench writes here at repo root).
+BenchmarkDotNet.Artifacts/
+
+# CS2 game assets extracted at dev-time from the user's own install — never commit (Valve-origin, SSA §2.G)
+/cs2-assets/

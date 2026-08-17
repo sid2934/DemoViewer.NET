@@ -1,0 +1,300 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Diagnostics"
+             xmlns:controls="using:DemoViewer.NET.Controls"
+             x:Class="DemoViewer.NET.Views.Diagnostics.DiagnosticsTabView"
+             x:DataType="vm:DiagnosticsTabViewModel">
+
+    <!--
+      Diagnostics tab. DockPanel chrome; a two-column Grid body. Left column = always-on
+      system/session info (renders in any build). Right column = the per-layer profiling panels, each
+      self-gating via IsVisible on its own snapshot signal: parse/entity panels are absent in a
+      normal build; the evaluator-runtime panel always renders but is idle until the user toggles
+      capture. Single layout for both states: the right column always shows the
+      idle B3 toggle, so B1/B2 self-hide with no column-collapse special case.
+  -->
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.diagHint">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="Expander.diagPanel">
+            <Setter Property="Margin" Value="0 0 0 8" />
+            <Setter Property="Background" Value="{DynamicResource CardBg}" />
+        </Style>
+    </UserControl.Styles>
+
+    <DockPanel Background="{DynamicResource ShellBg}">
+
+        <!-- ── Top action bar (Copy diagnostics) ──────────────────────────────── -->
+        <Border DockPanel.Dock="Top" Classes="sectionHeader">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock Grid.Column="0" Text="DIAGNOSTICS" Classes="sectionLabel"
+                           VerticalAlignment="Center" />
+                <Button Grid.Column="2"
+                        x:Name="CopyButton"
+                        Content="Copy diagnostics"
+                        Click="OnCopyClick"
+                        FontSize="11"
+                        Padding="10 3" />
+            </Grid>
+        </Border>
+
+        <!-- ── Body: info | splitter | profiling ──────────────────────────────── -->
+        <Grid ColumnDefinitions="*,Auto,1.4*" Margin="0">
+
+            <!-- LEFT: always-on info column -->
+            <ScrollViewer Grid.Column="0"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="0 8 0 8">
+                <StackPanel Spacing="10">
+
+                    <!-- Manual-copy fallback (clipboard rejected / WASM) -->
+                    <Border IsVisible="{Binding ShowCopyFallback}"
+                            Background="{DynamicResource CardBg}"
+                            BorderBrush="{DynamicResource BorderSubtle}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Margin="14 0"
+                            Padding="10">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Clipboard unavailable — select all and copy manually:"
+                                       Classes="diagHint" />
+                            <TextBox Text="{Binding CopyFallbackText}"
+                                     IsReadOnly="True"
+                                     AcceptsReturn="True"
+                                     FontFamily="Consolas,Menlo,monospace"
+                                     FontSize="11"
+                                     Height="120" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- A1 System info -->
+                    <StackPanel>
+                        <Border Classes="sectionHeader">
+                            <TextBlock Text="SYSTEM" Classes="sectionLabel" />
+                        </Border>
+                        <controls:KeyValueTable Rows="{Binding SystemRows}" Margin="0 4 0 0" />
+                    </StackPanel>
+
+                    <!-- A2 Environment -->
+                    <StackPanel>
+                        <Border Classes="sectionHeader">
+                            <TextBlock Text="ENVIRONMENT" Classes="sectionLabel" />
+                        </Border>
+                        <controls:KeyValueTable Rows="{Binding EnvironmentRows}" Margin="0 4 0 0" />
+                    </StackPanel>
+
+                    <!-- A3 Session -->
+                    <StackPanel>
+                        <Border Classes="sectionHeader">
+                            <TextBlock Text="SESSION" Classes="sectionLabel" />
+                        </Border>
+                        <controls:KeyValueTable Rows="{Binding SessionRows}" Margin="0 4 0 0" />
+                    </StackPanel>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <GridSplitter Grid.Column="1" Width="4"
+                          Background="{DynamicResource BorderSubtle}"
+                          ResizeDirection="Columns" />
+
+            <!-- RIGHT: per-layer profiling column -->
+            <ScrollViewer Grid.Column="2"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="14 8">
+                <StackPanel Spacing="0">
+
+                    <!-- Unified diagnostics logs — the internal ILogger pillar (analysis / app
+                         lifecycle) AND the CSVG host logs, in one filterable list. Internal verbosity
+                         is set in Settings → Diagnostics; CSVG verbosity in Settings → Live Sync. -->
+                    <Expander Classes="diagPanel"
+                              Header="Diagnostics logs"
+                              IsExpanded="True">
+                        <StackPanel Spacing="8" Margin="0 4 0 0">
+                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+                                <TextBlock Grid.Column="0" Text="Min level" VerticalAlignment="Center"
+                                           FontSize="11" Foreground="{DynamicResource TextValue}"
+                                           Margin="0 0 6 0" />
+                                <ComboBox Grid.Column="1" MinWidth="112"
+                                          ItemsSource="{Binding LogFilterOptions}"
+                                          SelectedItem="{Binding LogFilter, Mode=TwoWay}"
+                                          FontSize="11" />
+                                <TextBlock Grid.Column="2" Text="Source" VerticalAlignment="Center"
+                                           FontSize="11" Foreground="{DynamicResource TextValue}"
+                                           Margin="12 0 6 0" />
+                                <ComboBox Grid.Column="3" MinWidth="92"
+                                          ItemsSource="{Binding SourceOptions}"
+                                          SelectedItem="{Binding SourceFilter, Mode=TwoWay}"
+                                          FontSize="11" />
+                                <TextBlock Grid.Column="4" Text="{Binding LogSummary}"
+                                           Classes="diagHint" VerticalAlignment="Center"
+                                           Margin="10 0 0 0" />
+                                <Button Grid.Column="5" Content="Clear"
+                                        Command="{Binding ClearLogsCommand}"
+                                        FontSize="11" Padding="10 3" />
+                            </Grid>
+
+                            <TextBlock Classes="diagHint"
+                                       Text="Internal logs appear on demo load / analysis; CSVG logs when Live Sync or a reel runs. Verbosity: Settings → Diagnostics (internal) / Live Sync (CSVG), both live." />
+
+                            <Border Background="{DynamicResource PanelBg}" CornerRadius="4"
+                                    BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1">
+                                <Panel MinHeight="80" MaxHeight="360">
+                                    <TextBlock Classes="diagHint" Margin="10"
+                                               IsVisible="{Binding !HasLogs}"
+                                               Text="No logs captured yet — load a demo or run analysis to populate." />
+                                    <ListBox ItemsSource="{Binding LogRows}"
+                                             IsVisible="{Binding HasLogs}"
+                                             Background="Transparent" BorderThickness="0"
+                                             FontFamily="Consolas,Menlo,monospace" FontSize="11">
+                                        <ListBox.Styles>
+                                            <!-- Severity chip tint via theme tokens (v0.6.0 — was the third
+                                                 code-held copy of the severity ramp). Default = Info. -->
+                                            <Style Selector="TextBlock.tlvl">
+                                                <Setter Property="Foreground" Value="{DynamicResource AccentInfo}" />
+                                            </Style>
+                                            <Style Selector="TextBlock.tlvl.tlvl-err">
+                                                <Setter Property="Foreground" Value="{DynamicResource AccentError}" />
+                                            </Style>
+                                            <Style Selector="TextBlock.tlvl.tlvl-warn">
+                                                <Setter Property="Foreground" Value="{DynamicResource AccentAmber}" />
+                                            </Style>
+                                            <Style Selector="TextBlock.tlvl.tlvl-debug">
+                                                <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+                                            </Style>
+                                        </ListBox.Styles>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:TelemetryLogRow">
+                                                <Grid ColumnDefinitions="Auto,42,54,Auto,*" ColumnSpacing="8">
+                                                    <TextBlock Grid.Column="0" Text="{Binding Time}"
+                                                               Foreground="{DynamicResource TextDim}" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding LevelLabel}"
+                                                               Classes="tlvl"
+                                                               Classes.tlvl-err="{Binding IsSevError}"
+                                                               Classes.tlvl-warn="{Binding IsSevWarn}"
+                                                               Classes.tlvl-debug="{Binding IsSevDebug}"
+                                                               FontWeight="SemiBold" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding Source}"
+                                                               Foreground="{DynamicResource TextDim}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Grid.Column="3" Text="{Binding Category}"
+                                                               Foreground="{DynamicResource TextDim}"
+                                                               TextTrimming="CharacterEllipsis" MaxWidth="200" />
+                                                    <TextBlock Grid.Column="4" Text="{Binding Message}"
+                                                               Foreground="{DynamicResource TextValue}"
+                                                               TextWrapping="Wrap" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Panel>
+                            </Border>
+                        </StackPanel>
+                    </Expander>
+
+                    <!-- CSVG traces + metrics (telemetry P3) — BCL Activity/Meter capture, default off. -->
+                    <Expander Classes="diagPanel"
+                              Header="Live Sync / CSVG traces &amp; metrics"
+                              IsExpanded="False">
+                        <StackPanel Spacing="8" Margin="0 4 0 0">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <ToggleSwitch Grid.Column="0"
+                                              IsChecked="{Binding CsvgTelemetryCapturing}"
+                                              OnContent="Capture" OffContent="Capture" />
+                                <Button Grid.Column="2"
+                                        Content="Refresh"
+                                        Command="{Binding RefreshCsvgTelemetryCommand}"
+                                        FontSize="11" Padding="10 3" />
+                            </Grid>
+
+                            <TextBlock Text="{Binding CsvgTelemetryStatus}" Classes="diagHint" />
+
+                            <Border Background="{DynamicResource PanelBg}" CornerRadius="4" Padding="0 4">
+                                <StackPanel>
+                                    <Border Classes="sectionHeader">
+                                        <TextBlock Text="METRICS (CSVG + ASP.NET)" Classes="sectionLabel" />
+                                    </Border>
+                                    <controls:KeyValueTable Rows="{Binding CsvgMetricRows}" Margin="0 4 0 0" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Background="{DynamicResource PanelBg}" CornerRadius="4" Padding="0 4">
+                                <StackPanel>
+                                    <Border Classes="sectionHeader">
+                                        <TextBlock Text="RECENT SPANS (newest first)" Classes="sectionLabel" />
+                                    </Border>
+                                    <controls:KeyValueTable Rows="{Binding CsvgTraceRows}" Margin="0 4 0 0" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Expander>
+
+                    <!-- B1 Parse profiling (compile-gated: PROFILE_PARSE) -->
+                    <Expander Classes="diagPanel"
+                              Header="Parse pipeline"
+                              IsExpanded="True"
+                              IsVisible="{Binding ParseProfilingVisible}">
+                        <controls:KeyValueTable Rows="{Binding ParseProfilingRows}" />
+                    </Expander>
+
+                    <!-- B2 Entity profiling (compile-gated: PROFILE_ENTITY) -->
+                    <Expander Classes="diagPanel"
+                              Header="Entity decode"
+                              IsExpanded="True"
+                              IsVisible="{Binding EntityProfilingVisible}">
+                        <controls:KeyValueTable Rows="{Binding EntityProfilingRows}" />
+                    </Expander>
+
+                    <!-- B3 Evaluator runtime (always rendered; idle until toggled) -->
+                    <Expander Classes="diagPanel"
+                              Header="Analysis evaluator (runtime)"
+                              IsExpanded="True">
+                        <StackPanel Spacing="8" Margin="0 4 0 0">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <ToggleSwitch Grid.Column="0"
+                                              IsChecked="{Binding LiveCaptureAttached}"
+                                              OnContent="Live capture"
+                                              OffContent="Live capture" />
+                                <Button Grid.Column="2"
+                                        Content="Re-run analysis (captured)"
+                                        Command="{Binding ReRunCapturedCommand}"
+                                        FontSize="11"
+                                        Padding="10 3" />
+                            </Grid>
+
+                            <TextBlock Text="{Binding EvaluatorStatus}" Classes="diagHint" />
+
+                            <controls:KeyValueTable Rows="{Binding EvaluatorCounterRows}" />
+
+                            <Border Background="{DynamicResource PanelBg}"
+                                    CornerRadius="4" Padding="0 4">
+                                <StackPanel>
+                                    <Border Classes="sectionHeader">
+                                        <TextBlock Text="PHASE TIMELINE" Classes="sectionLabel" />
+                                    </Border>
+                                    <controls:KeyValueTable Rows="{Binding EvaluatorTimelineRows}" Margin="0 4 0 0" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Desktop-only out-of-app capture hint -->
+                            <TextBlock Classes="diagHint"
+                                       IsVisible="{x:Static vm:DiagnosticsTabViewModel.IsDesktopHost}"
+                                       Text="Out-of-app: launch with DEMOVIEWER_PROFILE=1 for an on-exit report, or attach dotnet-counters / dotnet-trace to this process." />
+                        </StackPanel>
+                    </Expander>
+
+                </StackPanel>
+            </ScrollViewer>
+
+        </Grid>
+
+    </DockPanel>
+
+</UserControl>

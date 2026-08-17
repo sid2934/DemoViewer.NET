@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "mapName": "de_dust2",
+  "mapVersion": "85d8da96",
+  "bakerVersion": "0.1\u002Bvrf19.2.6339",
+  "transform": {
+    "posX": -2476,
+    "posY": 3239,
+    "scale": 4.4,
+    "rotate": 1,
+    "zoom": 1.1,
+    "imageSize": 1024
+  },
+  "bounds": {
+    "minX": -2476,
+    "minY": -1266.6000000000004,
+    "maxX": 2029.6000000000004,
+    "maxY": 3239
+  },
+  "floors": [
+    {
+      "minZ": -100000,
+      "maxZ": 100000
+    }
+  ],
+  "radarLayers": [
+    {
+      "minZ": -100000,
+      "maxZ": 100000,
+      "image": "de_dust2.png"
+    }
+  ],
+  "radarImages": [
+    "de_dust2.png"
+  ],
+  "collisionMesh": {
+    "file": "collision.tris",
+    "triangleCount": 435649,
+    "minX": -4736,
+    "minY": -2496,
+    "minZ": -320,
+    "maxX": 3584,
+    "maxY": 4608,
+    "maxZ": 1174
+  }
+}

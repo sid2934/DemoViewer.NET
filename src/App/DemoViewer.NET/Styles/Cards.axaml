@@ -1,0 +1,34 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Cards.axaml — reusable card / flyout surface classes (design-system foundation).
+
+        These are the GENERIC card surfaces (the CardBg + BorderAccent shell repeated by every flyout
+        and pop surface). They do NOT touch InspectorCard's internal template classes (.msg-card,
+        .prop-row, .wire-badge, .cat-badge, .card-tree) — those stay private to InspectorCard.axaml
+        because they are coupled to its structure. Promote InspectorCard internals only if a second
+        adopter appears (see docs/ui/design-system.md).
+
+        All colour via DarkPalette tokens.
+    -->
+
+    <!-- ── Border.card — a raised content surface (radius 8, accent border) ─────────────────────────
+         The general card look (matches InspectorCard's outer shell) for standalone panels/tiles. -->
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{DynamicResource CardBg}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderAccent}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+    </Style>
+
+    <!-- ── Border.card-flyout — the pop/flyout content surface ──────────────────────────────────────
+         The `Background=CardBg Padding=4` shell hand-rolled by the bookmark, event-filter, and
+         Bookmarks flyouts. Borderless + softer radius so it reads as a transient popup, not a panel. -->
+    <Style Selector="Border.card-flyout">
+        <Setter Property="Background" Value="{DynamicResource CardBg}" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="4" />
+    </Style>
+
+</Styles>

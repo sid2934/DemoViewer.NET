@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=./dv-rules.schema.json
+#
+# Situational / objective highlights: watchable moments that hinge on economy, weapon
+# class, or the bomb objective rather than raw frag count. Each highlight is backed by a
+# per-round count stat of qualifying events; the highlight fires when that count clears a
+# threshold, and its match-scoped .count (rounds it fired) is what the scoreboard shows.
+ruleset: highlights_objective
+title: Objective & Situational Highlights
+summary: Eco frags, pistol multis, knife kills, and ninja defuses — per player, per round.
+for: each_player
+
+stats:
+  # 2+ enemy kills while carrying a cheap loadout (a genuine eco/anti-eco frag).
+  eco_frag_kills:
+    count: kill
+    match: { enemy: true }
+    where: "player.equipment_value < 2000"
+    per: round
+    while: round.active
+    label: EcoFrags
+
+  # Kills scored with any pistol (full pistol list per the catalog vocabulary).
+  pistol_multi_kills:
+    count: kill
+    match: { enemy: true }
+    where: 'event.Weapon == "glock" || event.Weapon == "hkp2000" || event.Weapon == "usp_silencer" || event.Weapon == "p250" || event.Weapon == "deagle" || event.Weapon == "fiveseven" || event.Weapon == "tec9" || event.Weapon == "cz75a" || event.Weapon == "elite" || event.Weapon == "revolver"'
+    per: round
+    while: round.active
+    label: PistolKills
+
+  # Knife kills — any knife variant.
+  knife_kill_count:
+    count: kill
+    match: { enemy: true }
+    where: 'event.Weapon == "knife" || event.Weapon == "knife_t" || event.Weapon == "knife_kukri"'
+    per: round
+    while: round.active
+    label: KnifeKills
+
+  # Bomb defuses completed with at least one enemy still alive (the ninja). The bomb_defused view
+  # binds `none` (every player's template sees the event), so — like player_stats' bomb_defuses — an
+  # explicit `event.UserId == player.slot` filter is REQUIRED to credit only the actual defuser.
+  # Without it every teammate (including dead ones, who still see enemies alive) got a ninja defuse.
+  ninja_defuse_count:
+    count: bomb_defused
+    where: "event.UserId == player.slot && round.enemies.alive > 0"
+    per: round
+    label: NinjaDefuses
+
+highlights:
+  eco_frag:
+    when: eco_frag_kills >= 2
+    per: round
+    score: 78
+    title: "{player.name} — {eco_frag_kills} kills on a low buy (round {round.number})"
+
+  pistol_multi:
+    when: pistol_multi_kills >= 3
+    per: round
+    score: 70
+    title: "{player.name} — {pistol_multi_kills} pistol kills (round {round.number})"
+
+  knife_kill:
+    when: knife_kill_count >= 1
+    per: round
+    score: 90
+    title: "{player.name} — knife kill! (round {round.number})"
+
+  ninja_defuse:
+    when: ninja_defuse_count >= 1
+    per: round
+    score: 88
+    title: "{player.name} — ninja defuse! (round {round.number})"
+
+show:
+  scoreboard:
+    - { stat: eco_frag.count,     label: EcoFrags,     group: game }
+    - { stat: pistol_multi.count, label: PistolMultis, group: game }
+    - { stat: knife_kill.count,   label: KnifeKills,   group: game }
+    - { stat: ninja_defuse.count, label: NinjaDefuses, group: game }

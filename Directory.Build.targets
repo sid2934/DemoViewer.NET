@@ -1,0 +1,73 @@
+<Project>
+    <!--
+        Shared NuGet pack metadata for the published Cs2DemoKit libraries
+        (docs/distribution/nuget-packaging-plan.md).
+
+        This file is imported into every project in the repo, but every element below is gated on
+        IsPackable=true — which Directory.Build.props defaults to false and only Cs2DemoKit.Parser,
+        Cs2DemoKit.Analysis and Cs2DemoKit.Analysis.Rules turn back on. A .targets file (not .props)
+        is required: IsPackable is set in the csproj body, which .props files are evaluated before.
+
+        Per-package metadata — PackageId, Description, PackageTags — stays in the csproj, because
+        that is the part a reader needs to see next to the code it describes.
+
+        Deliberately absent: RepositoryUrl / PublishRepositoryUrl / SourceLink. The repo is private,
+        so a repository URL in the nuspec would advertise a 404 and SourceLink would emit unusable
+        source keys. Both land when the repo (or a mirror) goes public.
+    -->
+
+    <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+        <Authors>sid2934</Authors>
+        <Copyright>Copyright (c) 2026 sid2934</Copyright>
+
+        <!-- MIT for the whole family; the demofile-net-adapted files (BitBuffer, FieldDecoder,
+             FieldPath*, EntityTracker, …) carry their own MIT obligation, discharged by the
+             THIRD-PARTY-NOTICES.md packed alongside — see the None item below. -->
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <!-- .snupkg symbols from the first publish. Note that Release builds
+             set ContinuousIntegrationBuild=true, which normalizes source paths to /_/ — the PDBs
+             are deterministic but not navigable until SourceLink lands with the public repo. -->
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(IsPackable)' == 'true'">
+        <!-- Update, not Include: the SDK's default None glob already owns the project's README.md,
+             and a second item would pack the file twice (NU5118, an error here because
+             TreatWarningsAsErrors is on). If the Update ever fails to attach, pack fails loudly
+             with NU5039 rather than shipping a package whose declared readme is missing. -->
+        <None Update="README.md" Pack="true" PackagePath="\"/>
+        <!-- Repo-root file, outside every project directory, so there is no default item to
+             update. Travels in all three packages; it is load-bearing for Parser, which is where
+             the demofile-net-adapted code actually lives. -->
+        <None Include="$(MSBuildThisFileDirectory)THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\"
+              Visible="false"/>
+    </ItemGroup>
+
+    <!--
+        Exact intra-family version pins.
+
+        A ProjectReference becomes a package dependency with a min-floor range ("0.7.0", i.e.
+        0.7.0 and up). The family is versioned in lockstep and shares no compatibility contract
+        across versions, so the floor range is a lie that surfaces as a runtime
+        MissingMethodException. NuGet has no property for this; the supported seam is the item the
+        pack targets build for the nuspec.
+
+        _GetProjectReferenceVersions populates _ProjectReferencesWithVersions (each with
+        ProjectVersion metadata) and is a DependsOnTarget of GenerateNuspec, so an AfterTargets
+        hook here runs after the versions are resolved and before the nuspec is written. Verified
+        present in the .NET 10.0.100 SDK: NuGet.Build.Tasks.Pack.targets lines 215, 313-341.
+    -->
+    <Target Name="UseExactProjectReferenceVersions"
+            AfterTargets="_GetProjectReferenceVersions"
+            Condition="'$(IsPackable)' == 'true'">
+        <ItemGroup>
+            <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)">
+                <ProjectVersion>[%(_ProjectReferencesWithVersions.ProjectVersion)]</ProjectVersion>
+            </_ProjectReferencesWithVersions>
+        </ItemGroup>
+    </Target>
+
+</Project>

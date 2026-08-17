@@ -1,0 +1,408 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:DemoViewer.NET.Modules.Playback2D"
+             xmlns:p2d="using:DemoViewer.NET.Modules.Playback2D"
+             xmlns:controls="using:DemoViewer.NET.Controls"
+             controls:TutorialAnchor.Target="PlaybackTab"
+             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="650"
+             x:Class="DemoViewer.NET.Views.Playback2D.Playback2DView"
+             x:DataType="vm:Playback2DTabViewModel">
+
+    <UserControl.Styles>
+        <!-- Team chip in the roster panel: the background is the theme-aware Pb2dTeam* token (the ONE team-colour
+             source, shared with the canvas markers), selected by the player's team class — T (Team 2) / CT
+             (Team 3) / neutral (spectator/unassigned, the default). Replaces PlayerAttributes' old hardcoded dark
+             hex, so the HUD swatch tracks the theme like everything else. -->
+        <Style Selector="Border.teamChip">
+            <Setter Property="Background" Value="{DynamicResource Pb2dCanvasNeutral}" />
+        </Style>
+        <Style Selector="Border.teamChip.teamT">
+            <Setter Property="Background" Value="{DynamicResource Pb2dTeamT}" />
+        </Style>
+        <Style Selector="Border.teamChip.teamCt">
+            <Setter Property="Background" Value="{DynamicResource Pb2dTeamCt}" />
+        </Style>
+
+        <!-- CS2 live-sync HUD indicator dot. The walled-off Pb2d sibling of the
+             app-chrome Ellipse.dot.* (design-system D21 — HUD palette, NOT the chrome ramp): the colour is
+             a bound state→class selector resolving a Pb2d token (Good=Pb2dPositive, Working=Pb2dTextBright
+             neutral, Degraded=Pb2dTeamT caution-equivalent, Error=Pb2dHeadshot), so it re-themes live. Solid
+             states set Fill (:not(.hollow)); the inferred pause sets Stroke (.hollow, transparent Fill). -->
+        <Style Selector="Ellipse.pb2dDot">
+            <Setter Property="Fill" Value="Transparent" />
+            <Setter Property="Stroke" Value="Transparent" />
+            <Setter Property="StrokeThickness" Value="1.5" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Ellipse.pb2dDot.good:not(.hollow)">
+            <Setter Property="Fill" Value="{DynamicResource Pb2dPositive}" />
+        </Style>
+        <Style Selector="Ellipse.pb2dDot.working:not(.hollow)">
+            <Setter Property="Fill" Value="{DynamicResource Pb2dTextBright}" />
+        </Style>
+        <Style Selector="Ellipse.pb2dDot.degraded:not(.hollow)">
+            <Setter Property="Fill" Value="{DynamicResource Pb2dTeamT}" />
+        </Style>
+        <Style Selector="Ellipse.pb2dDot.error:not(.hollow)">
+            <Setter Property="Fill" Value="{DynamicResource Pb2dHeadshot}" />
+        </Style>
+        <!-- Hollow ring = inferred pause (the only hollow state); defined per-bucket so a future pairing
+             renders, but only Good is ever set today. -->
+        <Style Selector="Ellipse.pb2dDot.hollow.good">
+            <Setter Property="Stroke" Value="{DynamicResource Pb2dPositive}" />
+        </Style>
+        <Style Selector="Ellipse.pb2dDot.hollow.working">
+            <Setter Property="Stroke" Value="{DynamicResource Pb2dTextBright}" />
+        </Style>
+        <Style Selector="Ellipse.pb2dDot.hollow.degraded">
+            <Setter Property="Stroke" Value="{DynamicResource Pb2dTeamT}" />
+        </Style>
+        <Style Selector="Ellipse.pb2dDot.hollow.error">
+            <Setter Property="Stroke" Value="{DynamicResource Pb2dHeadshot}" />
+        </Style>
+        <!-- Subtle opacity pulse (Following = CS2 is the clock master). Not a colour change → renders
+             headlessly + re-themes correctly. Mirrors the app Ellipse.dot.pulsing timing. -->
+        <Style Selector="Ellipse.pb2dDot.pulsing">
+            <Style.Animations>
+                <Animation Duration="0:0:1.3" IterationCount="INFINITE">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="1.0" />
+                    </KeyFrame>
+                    <KeyFrame Cue="50%">
+                        <Setter Property="Opacity" Value="0.35" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="1.0" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid ColumnDefinitions="*,4,320">
+        <!-- Left: custom-drawn viewport (grid + markers + floor sections). -->
+        <Grid Grid.Column="0">
+            <p2d:Playback2DViewport x:Name="Viewport" />
+
+            <!-- Transport / status overlay (bottom-left). -->
+            <Border HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                    Margin="10" Padding="8,4"
+                    Background="{DynamicResource Pb2dOverlayBg}" CornerRadius="4">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <!-- Camera-mode selector (#2): left-click the main button = apply-once Fit; the dropdown
+                         caret (or a right-click on the button) opens the MODE menu. The active mode shows
+                         next to it; Follow Player expands to a per-player submenu. -->
+                    <SplitButton x:Name="ModeButton" Content="Fit" Padding="10,2" Click="OnFitClick">
+                        <SplitButton.Flyout>
+                            <MenuFlyout Placement="Top">
+                                <MenuItem Header="Fit (apply once)" Click="OnModeFit" />
+                                <MenuItem Header="Alive (keep alive players framed)" Click="OnModeAlive" />
+                                <MenuItem x:Name="MapModeItem" Click="OnModeMap">
+                                    <MenuItem.Header>
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="Map (approx. — observed extent)" />
+                                            <TextBlock Text="ⓘ" Foreground="{DynamicResource Pb2dTextDim}"
+                                                       ToolTip.Tip="Approximation: there is no real radar X/Y metadata yet, so Map fits the all-demo observed player extent. Improves as more of the map is seen." />
+                                        </StackPanel>
+                                    </MenuItem.Header>
+                                </MenuItem>
+                                <Separator />
+                                <MenuItem x:Name="FollowMenuItem" Header="Follow Player" />
+                            </MenuFlyout>
+                        </SplitButton.Flyout>
+                    </SplitButton>
+
+                    <TextBlock x:Name="ModeLabel" Text="mode: Fit" VerticalAlignment="Center"
+                               Foreground="{DynamicResource Pb2dPositive}" FontFamily="Consolas,Menlo,monospace"
+                               FontSize="11" />
+                    <TextBlock x:Name="MapApproxNote" Text="(map = approx. extent)" VerticalAlignment="Center"
+                               IsVisible="False" Foreground="{DynamicResource Pb2dMapApprox}"
+                               FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                               ToolTip.Tip="Map mode fits the all-demo observed player positions — there is no real radar X/Y metadata yet." />
+                    <TextBlock Text="{Binding Status}" VerticalAlignment="Center"
+                               Foreground="{DynamicResource Pb2dTextMid}"
+                               FontFamily="Consolas,Menlo,monospace" FontSize="11" />
+
+                    <!-- Module forward-nav (Phase E): jump between kills on the shared clock. Shown only when
+                         the demo carries player_death events (HasKillEvents). -->
+                    <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1"
+                            IsVisible="{Binding HasKillEvents}" />
+                    <Button Content="⏮ Kill" Padding="8,2" VerticalAlignment="Center"
+                            Command="{Binding PrevKillCommand}"
+                            IsVisible="{Binding HasKillEvents}"
+                            ToolTip.Tip="Jump to the previous kill (player_death)" />
+                    <Button Content="Kill ⏭" Padding="8,2" VerticalAlignment="Center"
+                            Command="{Binding NextKillCommand}"
+                            IsVisible="{Binding HasKillEvents}"
+                            ToolTip.Tip="Jump to the next kill (player_death)" />
+                </StackPanel>
+            </Border>
+
+            <!-- Top-right HUD stack: the CS2 live-sync indicator sits above the kill feed (A4).
+                 The whole stack is display-only (IsHitTestVisible=False) so it never eats viewport
+                 pan/zoom gestures — the shell status chip is the live-sync control centre. -->
+            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10" Spacing="6"
+                        IsHitTestVisible="False">
+
+                <!-- Live Sync (CS2) in-context indicator. Display-only
+                     compact state in the Pb2d HUD palette; present only while chrome.livesync is on AND the
+                     session is non-Disconnected (ShowLiveSyncHud). Following pulses (CS2 is the clock master);
+                     inferred pause is a hollow ring. Colour resolves from a Pb2d token via the pb2dDot class. -->
+                <Border Background="{DynamicResource Pb2dOverlayBg}" CornerRadius="4" Padding="8,3"
+                        HorizontalAlignment="Right" IsVisible="{Binding ShowLiveSyncHud}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Ellipse Classes="pb2dDot" Width="9" Height="9"
+                                 Classes.good="{Binding IsLiveSyncHudGood}"
+                                 Classes.working="{Binding IsLiveSyncHudWorking}"
+                                 Classes.degraded="{Binding IsLiveSyncHudDegraded}"
+                                 Classes.error="{Binding IsLiveSyncHudError}"
+                                 Classes.hollow="{Binding LiveSyncHudHollow}"
+                                 Classes.pulsing="{Binding LiveSyncHudPulsing}" />
+                        <TextBlock Text="{Binding LiveSyncHudLabel}" Foreground="{DynamicResource Pb2dTextBright}"
+                                   FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Kill feed (A4): recent kills. -->
+                <ItemsControl ItemsSource="{Binding KillFeed}"
+                              HorizontalAlignment="Right"
+                              IsVisible="{Binding ShowKillFeed}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:KillFeedEntry">
+                            <!-- Distinctly DARKER than the viewport background (Pb2dKillFeedBg, an opaque
+                             near-black) so the strip reads as a HUD overlay over grid/markers, not
+                             blended-in floating text. -->
+                            <Border Background="{DynamicResource Pb2dKillFeedBg}" CornerRadius="3" Padding="7,3"
+                                    Margin="0,0,0,4"
+                                    BorderBrush="{DynamicResource Pb2dKillFeedBorder}" BorderThickness="1">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <TextBlock Text="{Binding KillerName}"
+                                               Foreground="{DynamicResource Pb2dTextBrightest}"
+                                               FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Foreground="{DynamicResource Pb2dAssist}"
+                                               FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                               VerticalAlignment="Center" IsVisible="{Binding HasAssist}"
+                                               ToolTip.Tip="assist">
+                                        <Run Text="+" Foreground="{DynamicResource Pb2dTextDim}" />
+                                        <Run Text="{Binding AssisterName}" />
+                                    </TextBlock>
+                                    <TextBlock Text="⚡" Foreground="{DynamicResource Pb2dFlashAssist}" FontSize="10"
+                                               VerticalAlignment="Center"
+                                               IsVisible="{Binding IsFlashAssist}" ToolTip.Tip="flash assist" />
+                                    <TextBlock Text="{Binding Weapon}" Foreground="{DynamicResource Pb2dPositive}"
+                                               FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Text="HS" Foreground="{DynamicResource Pb2dHeadshot}" FontSize="10"
+                                               FontWeight="Bold"
+                                               VerticalAlignment="Center" IsVisible="{Binding IsHeadshot}"
+                                               ToolTip.Tip="headshot" />
+                                    <TextBlock Text="WB" Foreground="{DynamicResource Pb2dWallbang}" FontSize="10"
+                                               FontWeight="Bold"
+                                               VerticalAlignment="Center" IsVisible="{Binding IsWallbang}"
+                                               ToolTip.Tip="wallbang (penetration)" />
+                                    <TextBlock Text="NS" Foreground="{DynamicResource Pb2dNoScope}" FontSize="10"
+                                               FontWeight="Bold"
+                                               VerticalAlignment="Center" IsVisible="{Binding IsNoScope}"
+                                               ToolTip.Tip="no-scope" />
+                                    <TextBlock Text="≈" Foreground="{DynamicResource Pb2dTextMid}" FontSize="12"
+                                               VerticalAlignment="Center"
+                                               IsVisible="{Binding IsThroughSmoke}" ToolTip.Tip="through smoke" />
+                                    <TextBlock Text="✱" Foreground="{DynamicResource Pb2dGlyphBlind}" FontSize="11"
+                                               VerticalAlignment="Center"
+                                               IsVisible="{Binding AttackerBlind}" ToolTip.Tip="killer was blind" />
+                                    <TextBlock Text="↑" Foreground="{DynamicResource Pb2dTextBright}" FontSize="11"
+                                               VerticalAlignment="Center"
+                                               IsVisible="{Binding AttackerInAir}" ToolTip.Tip="killer airborne" />
+                                    <TextBlock Text="→" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding VictimName}"
+                                               Foreground="{DynamicResource Pb2dTextBright}"
+                                               FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <!-- Overlay-visibility toggles (A4): each viewport sub-overlay can be turned off independently.
+                 Top-left (the conventional layer-toggle corner), clear of the kill feed (top-right) and the
+                 transport/status bar (bottom-left). Interactive, so NOT IsHitTestVisible=False. -->
+            <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10" Padding="8,4"
+                    Background="{DynamicResource Pb2dOverlayBg}" CornerRadius="4">
+                <StackPanel Orientation="Horizontal" Spacing="9">
+                    <TextBlock Text="overlays" Foreground="{DynamicResource Pb2dTextDim}" VerticalAlignment="Center"
+                               FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+                    <CheckBox Content="Radar" FontSize="11" IsChecked="{Binding ShowRadar}"
+                              ToolTip.Tip="Baked map radar background (falls back to grid when unavailable)" />
+                    <CheckBox Content="Trails" FontSize="11" IsChecked="{Binding ShowTrails}"
+                              ToolTip.Tip="Grenade flight trails" />
+                    <CheckBox Content="Smoke/Fire" FontSize="11" IsChecked="{Binding ShowAreaEffects}"
+                              ToolTip.Tip="Smoke clouds + molotov/incendiary fire" />
+                    <CheckBox Content="Bomb" FontSize="11" IsChecked="{Binding ShowBombRing}"
+                              ToolTip.Tip="Planted-C4 timer ring" />
+                    <CheckBox Content="Kills" FontSize="11" IsChecked="{Binding ShowKillFeed}"
+                              ToolTip.Tip="Kill feed" />
+                    <CheckBox Content="Vision" FontSize="11" IsChecked="{Binding ShowVision}"
+                              ToolTip.Tip="3D line-of-sight: draws a sightline from each player to every enemy they can currently see (recomputed from map collision)" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <GridSplitter Grid.Column="1" Background="{DynamicResource Pb2dGridSplitter}" Width="4" />
+
+        <!-- Right: game-info panel over the attributes panel. -->
+        <Grid Grid.Column="2" RowDefinitions="Auto,*" Background="{DynamicResource Pb2dPanelBg}">
+            <!-- Game-info: score / round / phase / bomb / time. -->
+            <Border Grid.Row="0" Background="{DynamicResource Pb2dInfoBg}" Padding="10,8" Margin="0,0,0,2">
+                <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto,*">
+                        <TextBlock Grid.Column="0" HorizontalAlignment="Left">
+                            <Run Text="CT " Foreground="{DynamicResource Pb2dTeamCt}" FontWeight="Bold" />
+                            <Run Text="{Binding GameInfo.CtScore}" Foreground="{DynamicResource Pb2dTextBrightest}"
+                                 FontWeight="Bold" FontSize="18" />
+                        </TextBlock>
+                        <TextBlock Grid.Column="1" Text="Round" Foreground="{DynamicResource Pb2dTextDim}"
+                                   VerticalAlignment="Center" FontSize="11" Margin="8,0" />
+                        <TextBlock Grid.Column="2" HorizontalAlignment="Right">
+                            <Run Text="{Binding GameInfo.TScore}" Foreground="{DynamicResource Pb2dTextBrightest}"
+                                 FontWeight="Bold" FontSize="18" />
+                            <Run Text=" T" Foreground="{DynamicResource Pb2dTeamT}" FontWeight="Bold" />
+                        </TextBlock>
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="14" HorizontalAlignment="Center">
+                        <TextBlock FontFamily="Consolas,Menlo,monospace" FontSize="11">
+                            <Run Text="#" Foreground="{DynamicResource Pb2dTextDim}" />
+                            <Run Text="{Binding GameInfo.RoundNumber}" Foreground="{DynamicResource Pb2dTextBright}" />
+                        </TextBlock>
+                        <TextBlock Text="{Binding GameInfo.Phase}" Foreground="{DynamicResource Pb2dPositive}"
+                                   FontFamily="Consolas,Menlo,monospace" FontSize="11" />
+                        <TextBlock FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                   ToolTip.Tip="{Binding GameInfo.RoundTimeNote}">
+                            <Run Text="⏱" Foreground="{DynamicResource Pb2dTextDim}" />
+                            <Run Text="{Binding GameInfo.RoundTime}" Foreground="{DynamicResource Pb2dTextBright}" />
+                        </TextBlock>
+                        <TextBlock Text="{Binding GameInfo.BombState}" Foreground="{DynamicResource Pb2dBomb}"
+                                   FontFamily="Consolas,Menlo,monospace" FontSize="11" />
+                        <!-- Second timer (#5): defuse-completion countdown during a defuse-in-progress,
+                             next to the main C4 detonation countdown (the defuse-vs-detonation race). -->
+                        <TextBlock FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                   IsVisible="{Binding GameInfo.DefuseInProgress}"
+                                   ToolTip.Tip="{Binding GameInfo.DefuseKitNote}">
+                            <Run Text="✂" Foreground="{DynamicResource Pb2dTextDim}" />
+                            <Run Text="{Binding GameInfo.DefuseTime}" Foreground="{DynamicResource Pb2dDefuseTime}" />
+                        </TextBlock>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Attributes panel. -->
+            <ScrollViewer Grid.Row="1" Padding="6">
+                <ItemsControl ItemsSource="{Binding Attributes}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PlayerAttributes">
+                            <Border Margin="0,0,0,6" Padding="8,6" CornerRadius="4"
+                                    Background="{DynamicResource Pb2dCardBg}"
+                                    IsVisible="{Binding InMatch}"
+                                    Opacity="{Binding RowOpacity}">
+                                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto">
+                                    <!-- Header: team chip + name. -->
+                                    <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                                        <Border CornerRadius="3" Padding="5,1"
+                                                Classes="teamChip" Classes.teamT="{Binding IsT}"
+                                                Classes.teamCt="{Binding IsCt}">
+                                            <TextBlock Text="{Binding TeamLabel}" FontSize="10"
+                                                       FontWeight="Bold" Foreground="{DynamicResource Pb2dTextOnTeam}" />
+                                        </Border>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource Pb2dTextBrightest}"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+
+                                    <!-- HP / Armor row. -->
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                                Orientation="Horizontal" Spacing="12" Margin="0,4,0,0">
+                                        <TextBlock Foreground="{DynamicResource Pb2dTextMid}"
+                                                   FontFamily="Consolas,Menlo,monospace"
+                                                   FontSize="11">
+                                            <Run Text="HP" Foreground="{DynamicResource Pb2dTextDim}" />
+                                            <Run Text="{Binding Health}" Foreground="{DynamicResource Pb2dHealth}" />
+                                        </TextBlock>
+                                        <TextBlock Foreground="{DynamicResource Pb2dTextMid}"
+                                                   FontFamily="Consolas,Menlo,monospace"
+                                                   FontSize="11">
+                                            <Run Text="AR" Foreground="{DynamicResource Pb2dTextDim}" />
+                                            <Run Text="{Binding Armor}" Foreground="{DynamicResource Pb2dArmor}" />
+                                        </TextBlock>
+                                        <TextBlock Text="◈" Foreground="{DynamicResource Pb2dArmor}" FontSize="11"
+                                                   IsVisible="{Binding HasHelmet}" ToolTip.Tip="Helmet" />
+                                        <TextBlock Text="⛨" Foreground="{DynamicResource Pb2dDefuser}" FontSize="11"
+                                                   IsVisible="{Binding HasDefuser}" ToolTip.Tip="Defuser" />
+                                    </StackPanel>
+
+                                    <!-- Weapon + grenades. -->
+                                    <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                                                Margin="0,3,0,0">
+                                        <TextBlock Text="{Binding ActiveWeapon}"
+                                                   Foreground="{DynamicResource Pb2dTextBrightest}"
+                                                   FontFamily="Consolas,Menlo,monospace" FontSize="11" />
+                                        <TextBlock Text="{Binding Grenades}" Foreground="{DynamicResource Pb2dTextMid}"
+                                                   FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                                                   Margin="0,1,0,0" />
+                                    </StackPanel>
+
+                                    <!-- Economy row: cash / equip / match K/D/A totals. -->
+                                    <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
+                                                Orientation="Horizontal" Spacing="12" Margin="0,4,0,0">
+                                        <TextBlock Foreground="{DynamicResource Pb2dTextMid}"
+                                                   FontFamily="Consolas,Menlo,monospace"
+                                                   FontSize="11">
+                                            <Run Text="$" Foreground="{DynamicResource Pb2dTextDim}" />
+                                            <Run Text="{Binding Cash}" Foreground="{DynamicResource Pb2dPositive}" />
+                                        </TextBlock>
+                                        <TextBlock Foreground="{DynamicResource Pb2dTextMid}"
+                                                   FontFamily="Consolas,Menlo,monospace"
+                                                   FontSize="11">
+                                            <Run Text="eq" Foreground="{DynamicResource Pb2dTextDim}" />
+                                            <Run Text="{Binding EquipmentValue}"
+                                                 Foreground="{DynamicResource Pb2dTextBright}" />
+                                        </TextBlock>
+                                        <TextBlock Foreground="{DynamicResource Pb2dTextMid}"
+                                                   FontFamily="Consolas,Menlo,monospace"
+                                                   FontSize="11" ToolTip.Tip="Match-total kills / deaths / assists">
+                                            <Run Text="K/D/A" Foreground="{DynamicResource Pb2dTextDim}" />
+                                            <Run Text="{Binding Kda}" Foreground="{DynamicResource Pb2dTextBright}" />
+                                        </TextBlock>
+                                    </StackPanel>
+
+                                    <!-- Impact row: ADR (average damage per round) + match-total damage. -->
+                                    <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
+                                                Orientation="Horizontal" Spacing="12" Margin="0,4,0,0">
+                                        <TextBlock Foreground="{DynamicResource Pb2dTextMid}"
+                                                   FontFamily="Consolas,Menlo,monospace"
+                                                   FontSize="11"
+                                                   ToolTip.Tip="Average damage per round (total damage ÷ rounds played)">
+                                            <Run Text="ADR" Foreground="{DynamicResource Pb2dTextDim}" />
+                                            <Run Text="{Binding Adr}" Foreground="{DynamicResource Pb2dAdr}" />
+                                        </TextBlock>
+                                        <TextBlock Foreground="{DynamicResource Pb2dTextMid}"
+                                                   FontFamily="Consolas,Menlo,monospace"
+                                                   FontSize="11" ToolTip.Tip="Match-total damage dealt">
+                                            <Run Text="dmg" Foreground="{DynamicResource Pb2dTextDim}" />
+                                            <Run Text="{Binding Damage}" Foreground="{DynamicResource Pb2dTextBright}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+
+</UserControl>

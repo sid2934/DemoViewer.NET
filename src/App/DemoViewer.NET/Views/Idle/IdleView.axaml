@@ -1,0 +1,73 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Idle"
+             mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="640"
+             x:Class="DemoViewer.NET.Views.Idle.IdleView"
+             x:DataType="vm:IdleViewModel">
+
+    <!--
+        Full-window idle surface (Idle Mode). Drawn on top of the shell chrome (see MainView's root Panel),
+        gated by MainViewModel.IsIdle. Explains why the app parked, offers Resume / Settings, shows the
+        captured resume state, and embeds the live demo-processing queue (the same VM the status strip uses)
+        so background work stays visible + pausable. Theme-driven ({DynamicResource}); no code-held brushes.
+    -->
+
+    <Border Classes="card" MaxWidth="560" MaxHeight="760" Margin="32"
+            HorizontalAlignment="Center" VerticalAlignment="Center">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="28" Spacing="16">
+
+                <!-- Header -->
+                <TextBlock Text="{Binding HeaderText}"
+                           Foreground="{DynamicResource TextBright}"
+                           FontSize="22" FontWeight="SemiBold" />
+
+                <!-- Primary message (configured timeout) -->
+                <TextBlock Text="{Binding MessageText}"
+                           Foreground="{DynamicResource TextMid}"
+                           FontSize="14" TextWrapping="Wrap" LineHeight="20" />
+
+                <!-- Sub-line pointing at Idle Settings -->
+                <TextBlock Text="{Binding SubText}"
+                           Foreground="{DynamicResource TextDim}"
+                           FontSize="12" TextWrapping="Wrap" />
+
+                <!-- Buttons: Resume (primary) + Settings -->
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button Content="Resume"
+                            Classes="primary"
+                            Command="{Binding ResumeCommand}"
+                            Padding="20 8" FontSize="14"
+                            ToolTip.Tip="Reopen the closed demo and return to where you left off." />
+                    <Button Content="Settings"
+                            Classes="ghost"
+                            Command="{Binding OpenSettingsCommand}"
+                            Padding="20 8" FontSize="14"
+                            ToolTip.Tip="Open Settings to configure the idle timeout and behaviour." />
+                </StackPanel>
+
+                <Rectangle Classes="divider" Height="1" />
+
+                <!-- Captured resume state -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="IDLE SESSION" Classes="col-label"
+                               Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+                    <TextBlock Text="{Binding SessionStateText}"
+                               Foreground="{DynamicResource TextMid}"
+                               FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <!-- Live background-processing queue (shared VM) — visible + pausable while idle -->
+                <Border IsVisible="{Binding HasQueue}"
+                        BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1"
+                        CornerRadius="6" Padding="4">
+                    <ContentControl Content="{Binding Queue}" />
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Border>
+
+</UserControl>

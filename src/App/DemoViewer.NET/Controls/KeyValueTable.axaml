@@ -1,0 +1,70 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:DemoViewer.NET.Controls"
+             x:Class="DemoViewer.NET.Controls.KeyValueTable"
+             x:Name="Root">
+
+    <!--
+      Generic two-column key/value grid. Rows = IReadOnlyList<KvpRow>;
+      ShowDeltaOnly filters to changed rows. Delta rows show "prev -> curr" and a
+      tinted key. Virtualized via the default ListBox VirtualizingStackPanel.
+  -->
+
+    <UserControl.Styles>
+        <Style Selector="ListBox.kvp">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="ListBox.kvp ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
+        <Style Selector="ListBox.kvp ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+    </UserControl.Styles>
+
+    <ListBox Classes="kvp"
+             ItemsSource="{Binding VisibleRows, ElementName=Root}"
+             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+             ScrollViewer.VerticalScrollBarVisibility="Auto">
+        <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="controls:KvpRow">
+                <Grid ColumnDefinitions="*,Auto" Margin="10 2">
+
+                    <!-- Key -->
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding Key}"
+                               FontFamily="Consolas,Menlo,monospace"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextFrameInfo}"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center" />
+
+                    <!-- Value (delta rows show prev -> curr) -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5"
+                                Margin="12 0 0 0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding PreviousValue}"
+                                   IsVisible="{Binding IsDelta}"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextDim}"
+                                   TextDecorations="Strikethrough" />
+                        <TextBlock Text="→"
+                                   IsVisible="{Binding IsDelta}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextDim}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Value}"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextEntityFieldVal}" />
+                    </StackPanel>
+
+                </Grid>
+            </DataTemplate>
+        </ListBox.ItemTemplate>
+    </ListBox>
+
+</UserControl>

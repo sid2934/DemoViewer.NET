@@ -1,0 +1,224 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Primitives.axaml — shared interactive-control style classes (design-system foundation).
+
+        These are ADDITIVE style classes layered on the dark FluentTheme, NOT template-replacing
+        ControlThemes. Fluent stays the conservative base look; a class only overrides the setters that
+        give a control its role (primary CTA, ghost/nav affordance, compact chip, icon button, mono
+        input). This is deliberate — a full `ControlTheme TargetType="Button"` would replace the Fluent
+        template globally and risk regressing every un-classed button in the app. See
+        docs/ui/design-system.md for the contract of each class and the adoption guide.
+
+        ALL colour comes from DarkPalette.axaml tokens — never inline hex. No new tokens were needed:
+        the palette already carried PrimaryButton* / TextMid / AccentAmber / PanelHeaderHover* etc.
+
+        Promotions folded in here (were duplicated locally before):
+          .primary, .icon-btn   ← Views/DebuggerPanel.axaml (.icon renamed → .icon-btn)
+          .nav-btn, .bp-btn, .ctx-action ← Controls/NavStrip.axaml
+    -->
+
+    <!-- ── Button.primary — the filled interactive CTA (Add / Continue / Apply / Clear all) ─────────
+         Binds the PrimaryButton* token family. Closes the design-system open question ("no shared
+         interactive-primary button"): the tokens existed, only the class was re-declared per view. -->
+    <Style Selector="Button.primary">
+        <Setter Property="Background" Value="{DynamicResource PrimaryButtonBg}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBright}" />
+        <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Padding" Value="10 4" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource PrimaryButtonHover}" />
+    </Style>
+
+    <!-- ── Button.ghost — minimal transparent affordance (colour + hover only, NO geometry) ─────────
+         Composable primitive: consumers layer their own padding/height. Distinct from .nav-btn
+         (fixed 28px, centred) and .ctx-action (stretch, left-aligned), which keep their own geometry. -->
+    <Style Selector="Button.ghost">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
+    </Style>
+    <Style Selector="Button.ghost:disabled">
+        <Setter Property="Opacity" Value="0.35" />
+    </Style>
+    <!-- Careful: the disabled BACKGROUND has to be re-flattened on the ContentPresenter. `Button.ghost` sets
+         Background on the Button, which Fluent's own `:disabled` ContentPresenter setter then overrides with
+         ButtonBackgroundDisabled — so a disabled ghost button grew a filled box that read as SELECTED, the
+         exact inverse of its meaning. Caught in a Reels-tray capture where the disabled ▲ looked like the
+         active one. Opacity alone does not fix it; it only dims the wrong box. -->
+    <Style Selector="Button.ghost:disabled /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+
+    <!-- ── .chip — compact toolbar button size (keeps Fluent chrome; size only) ─────────────────────
+         Standardises the FontSize=11 / Padding=8,3 the toolbar buttons + toggles hand-set inline. -->
+    <Style Selector="Button.chip, ToggleButton.chip">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Padding" Value="8 3" />
+    </Style>
+
+    <!-- ── Button.nav-btn / .bp-btn — the shell NavStrip ghost buttons (promoted verbatim) ──────────
+         Fixed-height (28px) centred ghost button used across the CLOCK / JUMP nav groups. .bp-btn
+         tints it amber for the distinct dev-only TO-BREAKPOINT cluster. -->
+    <Style Selector="Button.nav-btn">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="6 2" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="CornerRadius" Value="4" />
+    </Style>
+    <Style Selector="Button.nav-btn:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
+    </Style>
+    <Style Selector="Button.nav-btn:disabled">
+        <Setter Property="Opacity" Value="0.35" />
+    </Style>
+    <Style Selector="Button.bp-btn">
+        <Setter Property="Foreground" Value="{DynamicResource AccentAmber}" />
+    </Style>
+
+    <!-- ── Button.icon-btn — small square icon/glyph button (promoted from DebuggerPanel .icon) ──────
+         Deeper hover than .ghost so the affordance reads on dense list rows (toggle dot, delete ✕). -->
+    <Style Selector="Button.icon-btn">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="4 2" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFrameInfo}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="MinWidth" Value="22" />
+    </Style>
+    <Style Selector="Button.icon-btn:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+    </Style>
+
+    <!-- ── Button.ctx-action — left-aligned, stretched flyout/menu action row (from NavStrip) ────────
+         For rows inside a .card-flyout ("Select all", "Deselect all", jump targets). -->
+    <Style Selector="Button.ctx-action">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="6 4" />
+        <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Button.ctx-action:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
+    </Style>
+
+    <!-- ── TabItem.shell-tab — the on-theme monospace tab header ────────────────────────────────────
+         The reusable class for HAND-DECLARED tab headers (module sub-tab bars): apply Classes="shell-tab".
+         MainView's shell TabControl (#ShellTabs) is DATA-GENERATED (ItemsSource="{Binding Tabs}"), so it keeps
+         its `TabControl#ShellTabs > TabItem` container selector — the idiomatic way to style generated
+         containers. Attaching this class to generated containers would require a template-replacing
+         ItemContainerTheme (against the additive-only rule, D6) or duplicating the setters, for ZERO visual
+         change — so that migration is deliberately NOT done. The four setters below are
+         kept value-identical to that selector. -->
+    <Style Selector="TabItem.shell-tab">
+        <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Padding" Value="18 6" />
+        <Setter Property="MinHeight" Value="0" />
+    </Style>
+
+    <!-- ── .mono / .field — text-input + label monospace conventions ────────────────────────────────
+         `.mono` = the Consolas/Menlo monospace family (the single most-repeated inline attribute in the
+         app — ~200 sites). `.field` = a compact form input (mono + FontSize 11), the DebuggerPanel
+         add-breakpoint input look. Both keep the Fluent input chrome (border/focus). -->
+    <!-- Split by base type: TextBlock derives from Control, the rest from TemplatedControl — a mixed
+         comma-selector would resolve to Control, which has no FontFamily. -->
+    <Style Selector="TextBox.mono, ComboBox.mono, Button.mono">
+        <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+    </Style>
+    <Style Selector="TextBlock.mono">
+        <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+    </Style>
+    <Style Selector="TextBox.field, ComboBox.field">
+        <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+        <Setter Property="FontSize" Value="11" />
+    </Style>
+
+    <!-- ── Ellipse.dot — the StatusChip status dot ───────────────────────────
+         Shared so the StatusStrip chip AND the sync flyout header render the SAME dot. THEME MANDATE:
+         the colour is NOT a code-held brush — it resolves from a DarkPalette token via a bound
+         state→class selector (the Border.teamChip pattern), so it re-themes live. Solid states use
+         `:not(.hollow)` (Fill); the inferred state uses `.hollow` (Stroke + transparent Fill). The two
+         are mutually exclusive so we never rely on Avalonia's declaration-order tie-break (no CSS
+         specificity). The consumer sets the size (9px on the strip, larger in the flyout header). -->
+    <Style Selector="Ellipse.dot">
+        <Setter Property="Fill" Value="Transparent" />
+        <Setter Property="Stroke" Value="Transparent" />
+        <Setter Property="StrokeThickness" Value="1.5" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Ellipse.dot.stateOff:not(.hollow)">
+        <Setter Property="Fill" Value="{DynamicResource TextDim}" />
+    </Style>
+    <Style Selector="Ellipse.dot.stateWorking:not(.hollow)">
+        <Setter Property="Fill" Value="{DynamicResource AccentInteractive}" />
+    </Style>
+    <Style Selector="Ellipse.dot.stateGood:not(.hollow)">
+        <Setter Property="Fill" Value="{DynamicResource StatPositive}" />
+    </Style>
+    <Style Selector="Ellipse.dot.stateDegraded:not(.hollow)">
+        <Setter Property="Fill" Value="{DynamicResource AccentCaution}" />
+    </Style>
+    <Style Selector="Ellipse.dot.stateError:not(.hollow)">
+        <Setter Property="Fill" Value="{DynamicResource AccentError}" />
+    </Style>
+    <!-- Hollow ring (inferred): transparent Fill + state-token Stroke. Defined for every state so
+         a future inferred+other pairing renders; today it is only ever set on Good (believed-good). -->
+    <Style Selector="Ellipse.dot.hollow.stateOff">
+        <Setter Property="Stroke" Value="{DynamicResource TextDim}" />
+    </Style>
+    <Style Selector="Ellipse.dot.hollow.stateWorking">
+        <Setter Property="Stroke" Value="{DynamicResource AccentInteractive}" />
+    </Style>
+    <Style Selector="Ellipse.dot.hollow.stateGood">
+        <Setter Property="Stroke" Value="{DynamicResource StatPositive}" />
+    </Style>
+    <Style Selector="Ellipse.dot.hollow.stateDegraded">
+        <Setter Property="Stroke" Value="{DynamicResource AccentCaution}" />
+    </Style>
+    <Style Selector="Ellipse.dot.hollow.stateError">
+        <Setter Property="Stroke" Value="{DynamicResource AccentError}" />
+    </Style>
+    <!-- Pulse (opacity animation — re-themes correctly + renders headlessly; not a colour change). -->
+    <Style Selector="Ellipse.dot.pulsing">
+        <Style.Animations>
+            <Animation Duration="0:0:1.3" IterationCount="INFINITE">
+                <KeyFrame Cue="0%">
+                    <Setter Property="Opacity" Value="1.0" />
+                </KeyFrame>
+                <KeyFrame Cue="50%">
+                    <Setter Property="Opacity" Value="0.35" />
+                </KeyFrame>
+                <KeyFrame Cue="100%">
+                    <Setter Property="Opacity" Value="1.0" />
+                </KeyFrame>
+            </Animation>
+        </Style.Animations>
+    </Style>
+
+</Styles>

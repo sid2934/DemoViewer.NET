@@ -1,0 +1,184 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:DemoViewer.NET.ViewModels"
+             xmlns:shell="using:DemoViewer.NET.ViewModels.Shell"
+             xmlns:views="using:DemoViewer.NET.Views"
+             xmlns:controls="using:DemoViewer.NET.Controls"
+             mc:Ignorable="d" d:DesignWidth="1600" d:DesignHeight="900"
+             x:Class="DemoViewer.NET.Views.Parser.ParserTabView"
+             x:DataType="shell:MainViewModel">
+
+    <UserControl.Styles>
+        <!-- ── Hex section header ─────────────────────────────────────────── -->
+        <Style Selector="Border.hexSectionHeader">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderBg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}" />
+            <Setter Property="BorderThickness" Value="0 0 0 1" />
+            <Setter Property="Padding" Value="14 5" />
+        </Style>
+
+        <!-- ── Frame header field (cmd/tick/size strip) ───────────────────── -->
+        <Style Selector="Button.headerField">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="CornerRadius" Value="2" />
+        </Style>
+        <Style Selector="Button.headerField:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListLowBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         PARSER tab content — three resizable columns:
+           0 — Frame list + seek controls
+           2 — Message / event cards
+           4 — Stacked hex viewers (RAW top, Frame Details bottom)
+         The tab owns its no-file empty state (the shell overlay it replaced sat on top of
+         ALL tabs and collided with their content): an OPAQUE cover over the three-column
+         skeleton until a demo loads.
+         ══════════════════════════════════════════════════════════════ -->
+    <Panel>
+        <!-- Col 4 (RAW/hex) is Auto so it collapses to zero when the hex pane is gated off (IsHexPaneEnabled) —
+         a fixed 300px column would leave a gap. The pane Grid carries the 300px width; when its IsVisible is
+         false the Auto column measures 0 and the layout reflows. The col-3 splitter is gated with it. -->
+        <Grid ColumnDefinitions="380,4,*,4,Auto">
+
+            <!-- ── Col 0: Frame list (seek controls moved to the shell NavStrip — review Phase C) ─ -->
+            <views:HarvestFrameListControl
+                Grid.Column="0"
+                Frames="{Binding FrameRows}"
+                SelectedItem="{Binding SelectedFrameRow}" />
+
+            <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
+
+            <!-- ── Col 2: Message / event cards ──────────────────────── -->
+            <views:InspectorCardListView
+                Grid.Column="2"
+                Cards="{Binding MessageCards}"
+                HasCards="{Binding HasMessageCards}"
+                HeaderText="{Binding FrameHeaderText}"
+                PlaceholderText="Select a frame to inspect its messages"
+                ExpandAllCommand="{Binding ExpandAllCardsCommand}"
+                CollapseAllCommand="{Binding CollapseAllCardsCommand}" />
+
+            <GridSplitter Grid.Column="3" ResizeDirection="Columns"
+                          IsVisible="{Binding IsHexPaneEnabled}" />
+
+            <!-- ── Col 4: Stacked hex viewers (gated by parser.hex — developer/power-user deep-dive) ── -->
+            <Grid Grid.Column="4"
+                  Width="300"
+                  IsVisible="{Binding IsHexPaneEnabled}"
+                  Background="{DynamicResource PanelBg}"
+                  RowDefinitions="*,4,*">
+
+                <!-- Top: RAW hex -->
+                <Grid Grid.Row="0" RowDefinitions="Auto,*">
+                    <Border Grid.Row="0" Classes="hexSectionHeader">
+                        <TextBlock Text="RAW"
+                                   FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextLabel}"
+                                   FontFamily="Consolas,Menlo,monospace" />
+                    </Border>
+                    <controls:BinaryPane Grid.Row="1"
+                                         DataContext="{Binding HexViewRaw}" />
+                </Grid>
+
+                <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
+
+                <!-- Bottom: Frame Details hex -->
+                <Grid Grid.Row="2" RowDefinitions="Auto,Auto,*">
+
+                    <!-- Section header -->
+                    <Border Grid.Row="0" Classes="hexSectionHeader">
+                        <TextBlock Text="FRAME DETAILS"
+                                   FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextLabel}"
+                                   FontFamily="Consolas,Menlo,monospace" />
+                    </Border>
+
+                    <!-- cmd / tick / size strip -->
+                    <Border Grid.Row="1"
+                            IsVisible="{Binding IsDecompressedTabAvailable}"
+                            Background="{DynamicResource FrameHeaderStripBg}"
+                            BorderBrush="{DynamicResource BorderSubtle}"
+                            BorderThickness="0 0 0 1"
+                            Padding="10 5">
+                        <ItemsControl ItemsSource="{Binding FrameHeaderFields}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="20" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:FrameHeaderFieldViewModel">
+                                    <Button Classes="headerField"
+                                            Command="{Binding HighlightInRawCommand}"
+                                            Padding="4,2"
+                                            ToolTip.Tip="{Binding Tooltip}">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="{Binding Label}"
+                                                           FontFamily="Consolas,Menlo,monospace"
+                                                           FontSize="9"
+                                                           Foreground="{DynamicResource TextHeaderField}"
+                                                           Opacity="0.65" />
+                                                <TextBlock Text="{Binding OffsetText}"
+                                                           FontFamily="Consolas,Menlo,monospace"
+                                                           FontSize="9"
+                                                           Foreground="{DynamicResource TextHeaderField}"
+                                                           Opacity="0.4" />
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                <TextBlock Text="{Binding Hex}"
+                                                           FontFamily="Consolas,Menlo,monospace"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextFrameInfo}" />
+                                                <TextBlock Text="→"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextDim}"
+                                                           Opacity="0.6"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding Decoded}"
+                                                           FontFamily="Consolas,Menlo,monospace"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextHeaderHex}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+
+                    <controls:BinaryPane Grid.Row="2"
+                                         DataContext="{Binding HexViewDecompressed}" />
+                </Grid>
+
+            </Grid>
+
+        </Grid>
+
+        <!-- No-file empty state: opaque (covers the empty column skeleton). Hidden the moment a demo loads.
+         The Library tab owns the primary landing (its hero: Open Demo + recents + drag-drop),
+         so the Parser prompt is a lightweight pointer — it keeps the shared Open-Demo button (OpenFileCommand
+         → LoadDemoFromBytesAsync, the one open funnel) but directs users to the Library / toolbar for recents
+         and drag-drop. -->
+        <Border IsVisible="{Binding !HasFile}" Background="{DynamicResource ShellBg}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+                <TextBlock Text="No demo loaded"
+                           Foreground="{DynamicResource TextBright}"
+                           FontSize="16" HorizontalAlignment="Center" />
+                <TextBlock Text="Open one from the Library tab (recents &amp; drag-drop) or the toolbar."
+                           Foreground="{DynamicResource TextMid}"
+                           FontSize="12" HorizontalAlignment="Center" />
+                <Button Classes="primary" Content="Open Demo…" Command="{Binding OpenFileCommand}"
+                        HorizontalAlignment="Center" Padding="16 7" FontSize="13" Margin="0 6 0 0" />
+            </StackPanel>
+        </Border>
+    </Panel>
+
+</UserControl>

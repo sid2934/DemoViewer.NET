@@ -1,0 +1,291 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ae="using:AvaloniaEdit"
+             xmlns:vm="using:DemoViewer.NET.Modules.RuleWorkbench"
+             xmlns:viz="using:DemoViewer.NET.Visualization"
+             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="650"
+             x:Class="DemoViewer.NET.Views.RuleWorkbench.RuleWorkbenchView"
+             x:DataType="vm:RuleWorkbenchTabViewModel">
+
+    <DockPanel Margin="12">
+
+        <!-- Toolbar -->
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" Margin="0,0,0,8">
+            <ComboBox Grid.Column="0" Width="260" MinHeight="30"
+                      PlaceholderText="(open a ruleset)"
+                      ItemsSource="{Binding OpenableFiles}"
+                      SelectedItem="{Binding SelectedFile}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RulesetFileRef">
+                        <TextBlock Text="{Binding Display}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <Button Grid.Column="1" Content="New" Margin="8,0,0,0"
+                    Command="{Binding NewFileCommand}" />
+            <Button Grid.Column="2" Content="Save" Margin="6,0,0,0"
+                    ToolTip.Tip="Save in place (user rulesets, or shipped in DeveloperMode)"
+                    Command="{Binding SaveCommand}" IsEnabled="{Binding CanSave}" />
+            <Button Grid.Column="3" Content="Save As…" Margin="6,0,0,0" IsEnabled="{Binding CanSaveAs}"
+                    ToolTip.Tip="Save the buffer as a new user ruleset (required to fork a shipped, read-only ruleset)">
+                <Button.Flyout>
+                    <Flyout>
+                        <StackPanel Spacing="6" MinWidth="240">
+                            <TextBlock Text="Save as a new user ruleset" FontWeight="SemiBold" />
+                            <TextBox Text="{Binding SaveAsName}" Watermark="new-name (.rules.yaml)" />
+                            <Button Content="Save" HorizontalAlignment="Right"
+                                    Command="{Binding SaveAsCommand}" />
+                        </StackPanel>
+                    </Flyout>
+                </Button.Flyout>
+            </Button>
+            <Button Grid.Column="4" Content="Re-check" Margin="6,0,0,0"
+                    Command="{Binding RunCheckCommand}" />
+            <Button Grid.Column="5" Content="Evaluate" Margin="6,0,0,0"
+                    ToolTip.Tip="Evaluate the open ruleset (+ its use: deps). Right-click for Advanced."
+                    Command="{Binding EvaluateCommand}">
+                <Button.ContextFlyout>
+                    <Flyout>
+                        <StackPanel Spacing="6" MinWidth="240">
+                            <TextBlock Text="Advanced Evaluate — choose rulesets" FontWeight="SemiBold" />
+                            <ItemsControl ItemsSource="{Binding EvaluableFiles}" MaxHeight="260">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:EvaluableFile">
+                                        <CheckBox Content="{Binding Display}" IsChecked="{Binding IsSelected}"
+                                                  Margin="0,1" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="Evaluate selected" HorizontalAlignment="Right"
+                                    Command="{Binding EvaluateAdvancedCommand}" />
+                        </StackPanel>
+                    </Flyout>
+                </Button.ContextFlyout>
+            </Button>
+            <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                <TextBlock Text="🔒 shipped (read-only — use Save As)" Foreground="{DynamicResource AccentCaution}"
+                           IsVisible="{Binding IsReadOnlyFile}" Margin="0,0,10,0" />
+                <TextBlock Text="{Binding Summary}"
+                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Opacity="0.75" />
+            </StackPanel>
+            <!-- State-graph toggle (desktop-only; hidden on WASM via GraphSupported) -->
+            <ToggleButton Grid.Column="7" Content="Graph" Margin="8,0,0,0"
+                          IsChecked="{Binding ShowGraph}"
+                          IsVisible="{Binding GraphSupported}"
+                          ToolTip.Tip="Show the open ruleset's state graph (no demo needed; per-player nodes are outlined in teal)." />
+        </Grid>
+
+        <!-- Bottom: diagnostics (click a row to jump the caret) + results + trace (M6 applied fires) -->
+        <Grid DockPanel.Dock="Bottom" Height="190" Margin="0,8,0,0" ColumnDefinitions="*,8,*,8,*">
+
+            <Border Grid.Column="0" BorderBrush="{DynamicResource BorderTranslucent}" BorderThickness="1"
+                    CornerRadius="4">
+                <DockPanel Margin="4">
+                    <TextBlock DockPanel.Dock="Top" Text="Problems — rules check diagnostics"
+                               FontWeight="SemiBold" Opacity="0.7" Margin="2,2,2,4" />
+                    <ListBox x:Name="DiagnosticsList"
+                             ItemsSource="{Binding Diagnostics}"
+                             Background="Transparent"
+                             ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:WorkbenchDiagnostic">
+                                <StackPanel Spacing="1" Margin="2,3">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Location}"
+                                                   FontFamily="Cascadia Code,Consolas,Menlo,monospace"
+                                                   FontWeight="SemiBold" Foreground="{DynamicResource AccentErrorSoft}" />
+                                        <TextBlock Text="{Binding Code}" Opacity="0.5"
+                                                   FontFamily="Cascadia Code,Consolas,Menlo,monospace"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Opacity="0.9" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <Border Grid.Column="2" BorderBrush="{DynamicResource BorderTranslucent}" BorderThickness="1"
+                    CornerRadius="4">
+                <DockPanel Margin="4">
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding EvalSummary}"
+                               TextWrapping="Wrap" Opacity="0.75" Margin="2,2,2,4" />
+                    <!-- Real scoreboard + tables: titled grids, aligned fixed-width columns. -->
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Boards}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:WorkbenchScoreboard">
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Margin="2,2,2,3" />
+                                        <!-- header row: label spacer + column names -->
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="120" />
+                                            <ItemsControl ItemsSource="{Binding Columns}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="x:String">
+                                                        <TextBlock Text="{Binding}" Width="66" Margin="2,0"
+                                                                   FontWeight="SemiBold"
+                                                                   Opacity="0.7" TextAlignment="Right"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   FontFamily="Cascadia Code,Consolas,Menlo,monospace" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                        <!-- data rows: label + aligned cells -->
+                                        <ItemsControl ItemsSource="{Binding Rows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:WorkbenchScoreRow">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Label}" Width="120"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                        <ItemsControl ItemsSource="{Binding Cells}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <StackPanel Orientation="Horizontal" />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="x:String">
+                                                                    <TextBlock Text="{Binding}" Width="66" Margin="2,0"
+                                                                               TextAlignment="Right" Opacity="0.9"
+                                                                               FontFamily="Cascadia Code,Consolas,Menlo,monospace" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- Trace: pick a stat/highlight → the ticks/rounds/players where it fired -->
+            <Border Grid.Column="4" BorderBrush="{DynamicResource BorderTranslucent}" BorderThickness="1"
+                    CornerRadius="4">
+                <DockPanel Margin="4">
+                    <ComboBox DockPanel.Dock="Top" HorizontalAlignment="Stretch" MinHeight="28"
+                              PlaceholderText="(evaluate, then pick a stat / highlight)"
+                              ItemsSource="{Binding TraceTargets}"
+                              SelectedItem="{Binding SelectedTraceTarget}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:WorkbenchTraceTarget">
+                                <TextBlock Text="{Binding Display}" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding TraceSummary}"
+                               TextWrapping="Wrap" Opacity="0.75" Margin="2,4,2,4" />
+                    <ListBox ItemsSource="{Binding TraceFires}" Background="Transparent"
+                             ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:WorkbenchTraceFire">
+                                <StackPanel Orientation="Horizontal" Spacing="10" Margin="2,2">
+                                    <TextBlock Text="{Binding Tick, StringFormat='t{0}'}" Width="72"
+                                               FontFamily="Cascadia Code,Consolas,Menlo,monospace" />
+                                    <TextBlock Text="{Binding RoundLabel, StringFormat='r{0}'}" Width="40"
+                                               Opacity="0.7" />
+                                    <TextBlock Text="{Binding PlayerLabel}"
+                                               TextTrimming="CharacterEllipsis" Opacity="0.9" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+        </Grid>
+
+        <!-- Editor (center) + data browser (right) -->
+        <Grid ColumnDefinitions="*,4,300">
+
+            <Border Grid.Column="0" BorderBrush="{DynamicResource BorderTranslucent}" BorderThickness="1"
+                    CornerRadius="4">
+                <ae:TextEditor x:Name="Editor"
+                               FontFamily="Cascadia Code,Consolas,Menlo,monospace"
+                               FontSize="13"
+                               ShowLineNumbers="True"
+                               HorizontalScrollBarVisibility="Auto"
+                               VerticalScrollBarVisibility="Auto" />
+            </Border>
+
+            <GridSplitter Grid.Column="1" Background="Transparent" />
+
+            <!-- Data browser: a vocabulary TREE (expand match → match.* → …) + live values, clearly split -->
+            <Border Grid.Column="2" BorderBrush="{DynamicResource BorderTranslucent}" BorderThickness="1"
+                    CornerRadius="4">
+                <DockPanel Margin="6">
+
+                    <!-- ── Live player values at the current frame (bottom section, clearly separated) ── -->
+                    <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource BorderTranslucent}"
+                            BorderThickness="0,1,0,0"
+                            Margin="0,6,0,0" Padding="0,6,0,0">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="Current frame — player values"
+                                       FontWeight="SemiBold" Opacity="0.7" Margin="2,0,2,4" />
+                            <ListBox Height="130" ItemsSource="{Binding LivePlayers}" Background="Transparent">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:LivePlayerRow">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding Name}" Width="110"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Team, StringFormat='T{0}'}" Opacity="0.6" />
+                                            <TextBlock Text="{Binding Position}" Opacity="0.6"
+                                                       FontFamily="Cascadia Code,Consolas,Menlo,monospace" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- ── Vocabulary tree (top/fill section) ── -->
+                    <TextBlock DockPanel.Dock="Top" Text="Vocabulary — double-click a path to insert"
+                               FontWeight="SemiBold" Opacity="0.7" Margin="2,0,2,4" TextWrapping="Wrap" />
+                    <TreeView x:Name="PathsTree" ItemsSource="{Binding PathTree}" Background="Transparent">
+                        <TreeView.ItemTemplate>
+                            <TreeDataTemplate ItemsSource="{Binding Children}" x:DataType="vm:WorkbenchPathNode">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{Binding Segment}"
+                                               FontFamily="Cascadia Code,Consolas,Menlo,monospace" />
+                                    <TextBlock Text="{Binding Category}" Opacity="0.35" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </TreeDataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
+
+                </DockPanel>
+            </Border>
+
+            <!-- Ruleset state-graph overlay — spans the center row (editor + splitter + browser),
+                 shown when the Graph toggle is on. Additive: reuses no existing column index. -->
+            <Border Grid.Column="0" Grid.ColumnSpan="3"
+                    IsVisible="{Binding ShowGraph}"
+                    Background="{DynamicResource PanelBg}"
+                    BorderBrush="{DynamicResource BorderTranslucent}" BorderThickness="1" CornerRadius="4">
+                <DockPanel Margin="4">
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding GraphSummary}"
+                               FontWeight="SemiBold" Opacity="0.7" Margin="2,2,2,6" />
+                    <viz:GraphView ViewModel="{Binding GraphViewModel}"
+                                   ClipToBounds="True" MinHeight="300" />
+                </DockPanel>
+            </Border>
+
+        </Grid>
+
+    </DockPanel>
+
+</UserControl>

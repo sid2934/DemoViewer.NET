@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>DemoViewer.NET.Visualization</RootNamespace>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Avalonia"/>
+        <PackageReference Include="Msagl"/>
+    </ItemGroup>
+    <ItemGroup>
+        <!-- Lets the Sample's headless LayoutMetrics analyzer read the internal
+             LayoutResult/LayoutPipeline geometry to compute v1/v2 baseline numbers. -->
+        <InternalsVisibleTo Include="DemoViewer.NET.Visualization.Sample"/>
+        <!-- Lets the test project unit-test internal pure helpers (e.g. EdgeGeometry). -->
+        <InternalsVisibleTo Include="DemoViewer.NET.Visualization.Tests"/>
+    </ItemGroup>
+</Project>

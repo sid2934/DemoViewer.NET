@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=./dv-rules.schema.json
+#
+# Ammo-management feats — the "last bullet" highlight family. Reads the Tier C per-player
+# entity provider `player.active_weapon_clip` (entity.pawn.active_weapon_clip): the pawn's
+# active-weapon handle followed to the weapon entity's m_iClip1 (rounds in the magazine).
+#
+# ── Why `== 1`, not `== 0` ───────────────────────────────────────────────────────────────────
+# Event-gated entity reads are PRE-FRAME: the scanner snapshots provider values at the START of
+# each frame, before that frame's PacketEntities lands, so a read at the kill event sees the
+# clip as of the PREVIOUS frame (EntityChangeScanner pre-frame snapshot; same semantics
+# HurtTeamEnrichmentEdge relies on for pre-hit HP). A hitscan kill's weapon_fire and
+# player_death share one server tick — one frame — so the read is the clip BEFORE the killing
+# shot left the barrel:
+#   * `== 1`  → the shot that killed was fired with the last round in the mag. Correct.
+#   * `== 0`  → the mag was empty BEFORE the shot — impossible for a bullet kill. Worse, a
+#               null read (no active weapon) coalesces to the provider default 0, so `== 0`
+#               would actually match no-weapon edge cases, not last-bullet ones.
+#   * `<= 1`  → adds exactly those false positives (null→0 collapse; delayed non-bullet kills
+#               made while holding an emptied gun). Rejected.
+#
+# ── Weapon exclusions ────────────────────────────────────────────────────────────────────────
+# The read targets the killer's CURRENT active weapon at the death tick, so delayed-damage
+# utility kills (HE, molotov burn) can report whatever is now in hand — and a held grenade
+# reads m_iClip1 == 1, a guaranteed false positive. The zeus (taser) is a one-round mag by
+# design and would fire on every zeus kill. Both families are excluded on the kill event's
+# weapon field. Knives read m_iClip1 == -1 (no magazine) and self-exclude.
+ruleset: highlights_ammo
+title: Ammo Highlights
+summary: Kills made with the last round in the magazine.
+for: each_player
+
+stats:
+  last_bullet_kills:
+    count: kill
+    match: { enemy: true }
+    # Pre-frame clip == 1 → the killing shot was the mag's last round (see header).
+    where: 'player.active_weapon_clip == 1 && event.Weapon != "hegrenade" && event.Weapon != "molotov" && event.Weapon != "incgrenade" && event.Weapon != "inferno" && event.Weapon != "taser"'
+    per: round
+    while: round.active
+    label: LastBullet
+
+highlights:
+  last_bullet_kill:
+    when: last_bullet_kills >= 1
+    per: round
+    score: 88
+    title: "{player.name} — last-bullet kill! (round {round.number})"
+
+show:
+  scoreboard:
+    - { stat: last_bullet_kill.count, label: LastBullet, group: game }

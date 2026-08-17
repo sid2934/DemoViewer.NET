@@ -1,0 +1,208 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels"
+             xmlns:shell="using:DemoViewer.NET.ViewModels.Shell"
+             x:DataType="shell:MainViewModel"
+             x:Class="DemoViewer.NET.Views.HarvestFrameListControl"
+             x:Name="Root">
+
+    <Border Background="{DynamicResource PanelBg}"
+            BorderBrush="{DynamicResource BorderSubtle}"
+            BorderThickness="0 1 0 0">
+        <Grid RowDefinitions="Auto,Auto,*">
+
+            <!-- ── Section header ──────────────────────────────────────────────── -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource PanelHeaderBg}"
+                    BorderBrush="{DynamicResource BorderStrong}"
+                    BorderThickness="0 0 0 1"
+                    Padding="14 6">
+                <TextBlock Text="FRAMES"
+                           FontSize="10"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextLabel}"
+                           FontFamily="Consolas,Menlo,monospace" />
+            </Border>
+
+            <!-- ── Column header ───────────────────────────────────────────────── -->
+            <Grid Grid.Row="1"
+                  ColumnDefinitions="16,70,60,*,70,90"
+                  Background="{DynamicResource ShellBg}">
+                <!-- gutter (breakpoint indicator) — no header text -->
+                <TextBlock Grid.Column="1" Text="#" FontSize="10" Foreground="{DynamicResource TextLabel}"
+                           Padding="0 5 0 5"
+                           FontFamily="Consolas,Menlo,monospace" />
+                <TextBlock Grid.Column="2" Text="TYPE" FontSize="10" Foreground="{DynamicResource TextLabel}"
+                           Padding="0 5"
+                           FontFamily="Consolas,Menlo,monospace" />
+                <TextBlock Grid.Column="3" Text="NAME" FontSize="10" Foreground="{DynamicResource TextLabel}"
+                           Padding="8 5"
+                           FontFamily="Consolas,Menlo,monospace" />
+                <TextBlock Grid.Column="4" Text="MSGS" FontSize="10" Foreground="{DynamicResource TextLabel}"
+                           Padding="0 5"
+                           FontFamily="Consolas,Menlo,monospace" />
+                <TextBlock Grid.Column="5" Text="SIZE" FontSize="10" Foreground="{DynamicResource TextLabel}"
+                           Padding="0 5 14 5"
+                           FontFamily="Consolas,Menlo,monospace" HorizontalAlignment="Right" />
+            </Grid>
+
+            <!-- ── Frame rows ──────────────────────────────────────────────────── -->
+            <ListBox Grid.Row="2"
+                     ItemsSource="{Binding Frames, ElementName=Root}"
+                     SelectedItem="{Binding SelectedItem, ElementName=Root, Mode=TwoWay}"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="0" />
+                    </Style>
+                    <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                        <Setter Property="Background" Value="{DynamicResource FrameRowSelectedBg}" />
+                    </Style>
+                    <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+                        <Setter Property="Background" Value="{DynamicResource FrameRowHoverBg}" />
+                    </Style>
+
+                    <!-- Frame-type pill accents (v0.6.0 code-color promotion): fk-* classes from the
+                         row's kind flags → Classifier*Dim tokens (the 0xC0 strips, theme-resolved).
+                         Replaces HarvestFrameRowViewModel's code-held brush palette. -->
+                    <Style Selector="Border.frame-pill.fk-stop">
+                        <Setter Property="Background" Value="{DynamicResource ClassifierRedDim}" />
+                    </Style>
+                    <Style Selector="Border.frame-pill.fk-dem">
+                        <Setter Property="Background" Value="{DynamicResource ClassifierOrangeDim}" />
+                    </Style>
+                    <Style Selector="Border.frame-pill.fk-net">
+                        <Setter Property="Background" Value="{DynamicResource ClassifierBlueDim}" />
+                    </Style>
+                    <Style Selector="Border.frame-pill.fk-full">
+                        <Setter Property="Background" Value="{DynamicResource ClassifierPurpleDim}" />
+                    </Style>
+                    <Style Selector="Border.frame-pill.fk-svc">
+                        <Setter Property="Background" Value="{DynamicResource ClassifierGreenDim}" />
+                    </Style>
+                    <Style Selector="Border.frame-pill.fk-tick">
+                        <Setter Property="Background" Value="{DynamicResource ClassifierTealDim}" />
+                    </Style>
+                    <Style Selector="Border.frame-pill.fk-sync">
+                        <Setter Property="Background" Value="{DynamicResource ClassifierSlateDim}" />
+                    </Style>
+                    <Style Selector="Border.frame-pill.fk-default">
+                        <Setter Property="Background" Value="{DynamicResource ClassifierSlateBlueDim}" />
+                    </Style>
+
+                    <!-- Breakpoint gutter dot (replaces BoolToBrushConverter.RedDim): hollow by
+                         default, filled when set — both ends theme tokens now. -->
+                    <Style Selector="Ellipse.bp-dot">
+                        <Setter Property="Fill" Value="{DynamicResource BreakpointDotDisabled}" />
+                    </Style>
+                    <Style Selector="Ellipse.bp-dot.bp-set">
+                        <Setter Property="Fill" Value="{DynamicResource AccentError}" />
+                    </Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:HarvestFrameRowViewModel">
+                        <Grid ColumnDefinitions="16,70,60,*,70,90" Margin="0 1">
+
+                            <!-- Gutter: click to toggle frame# breakpoint. The hollow circle becomes
+                   filled red when a breakpoint exists for this frame (driven by the
+                   IsBreakpointSet binding refreshed by MainViewModel.RefreshFrameBreakpointMarkers). -->
+                            <Button Grid.Column="0"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="0"
+                                    Cursor="Hand"
+                                    ToolTip.Tip="Toggle breakpoint at this frame"
+                                    Command="{Binding $parent[UserControl].((shell:MainViewModel)DataContext).ToggleFrameBreakpointCommand}"
+                                    CommandParameter="{Binding FrameNumber}">
+                                <Ellipse Width="8" Height="8"
+                                         Classes="bp-dot"
+                                         Classes.bp-set="{Binding IsBreakpointSet}"
+                                         Stroke="{DynamicResource TextMid}"
+                                         StrokeThickness="1" />
+                            </Button>
+
+                            <!-- Frame number -->
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding FrameNumberLabel}"
+                                       FontFamily="Consolas,Menlo,monospace"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextDim}"
+                                       Padding="0 0 0 0"
+                                       VerticalAlignment="Center" />
+
+                            <!-- Type pill — fk-* classes → Classifier*Dim tokens (styles above). -->
+                            <Border Grid.Column="2"
+                                    Classes="frame-pill"
+                                    Classes.fk-full="{Binding IsKindFullPacket}"
+                                    Classes.fk-tick="{Binding IsKindTick}"
+                                    Classes.fk-sync="{Binding IsKindSyncTick}"
+                                    Classes.fk-stop="{Binding IsKindStop}"
+                                    Classes.fk-dem="{Binding IsKindDem}"
+                                    Classes.fk-svc="{Binding IsKindSvc}"
+                                    Classes.fk-net="{Binding IsKindNet}"
+                                    Classes.fk-default="{Binding IsKindDefault}"
+                                    CornerRadius="3"
+                                    Padding="6 2"
+                                    Margin="0 2 8 2"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="{Binding TypePillLabel}"
+                                           FontFamily="Consolas,Menlo,monospace"
+                                           FontSize="9"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource PanelBg}" />
+                            </Border>
+
+                            <!-- Full type name -->
+                            <TextBlock Grid.Column="3"
+                                       Text="{Binding TypeFullLabel}"
+                                       FontFamily="Consolas,Menlo,monospace"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextFrameType}"
+                                       Padding="8 0"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+
+                            <!-- Message count badge -->
+                            <Border Grid.Column="4"
+                                    IsVisible="{Binding HasMessages}"
+                                    Background="{DynamicResource FrameMsgBadgeBg}"
+                                    CornerRadius="10"
+                                    Padding="8 2"
+                                    Margin="0 3"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding MsgCountLabel}"
+                                           FontFamily="Consolas,Menlo,monospace"
+                                           FontSize="10"
+                                           Foreground="{DynamicResource TextFrameInfo}" />
+                            </Border>
+                            <TextBlock Grid.Column="4"
+                                       IsVisible="{Binding !HasMessages}"
+                                       Text="—"
+                                       FontFamily="Consolas,Menlo,monospace"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource BorderAccent}"
+                                       VerticalAlignment="Center" />
+
+                            <!-- Byte size -->
+                            <TextBlock Grid.Column="5"
+                                       Text="{Binding ByteSizeLabel}"
+                                       FontFamily="Consolas,Menlo,monospace"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextDim}"
+                                       Padding="0 0 14 0"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Center" />
+
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+        </Grid>
+    </Border>
+
+</UserControl>

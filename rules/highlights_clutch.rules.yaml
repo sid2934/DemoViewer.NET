@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=./dv-rules.schema.json
+#
+# Clutch + retake highlights (v0.5.4). The 1vN clutch win reads the new `round.clutch.size`
+# context (N enemies alive when the subject ENTERED the clutch, captured by the clutch enrichment and
+# held to round end) — so each 1v2..1v5 is a distinct, correctly-discriminated highlight. `retake_multi`
+# is a CT (team 3) getting 2+ enemy kills after the bomb was planted.
+ruleset: highlights_clutch
+title: Clutch & Retake Highlights
+summary: 1vN clutch wins and multi-kill retakes, per player, per round.
+for: each_player
+
+define:
+  # A CT killing an enemy after the plant — the retake frag. (2 = T, 3 = CT.)
+  ct_retake_kill:
+    on: kill
+    match: { enemy: true }
+    while: round.bomb.was_planted
+    where: "player.team == 3"
+
+stats:
+  retake_kills:
+    count: ct_retake_kill
+    per: round
+
+  # Per-round clutch-win flags, one per size. `on: round_won` fires for the winning team at round end,
+  # exactly when the clutch-resolution enrichment raises was_clutch_won; round.clutch.size discriminates N.
+  clutch_1v2_round:
+    flag: true
+    on: round_won
+    where: "enrich.clutch.was_clutch_won && enrich.clutch.winner_slot == player.slot && round.clutch.size == 2"
+    per: round
+
+  clutch_1v3_round:
+    flag: true
+    on: round_won
+    where: "enrich.clutch.was_clutch_won && enrich.clutch.winner_slot == player.slot && round.clutch.size == 3"
+    per: round
+
+  clutch_1v4_round:
+    flag: true
+    on: round_won
+    where: "enrich.clutch.was_clutch_won && enrich.clutch.winner_slot == player.slot && round.clutch.size == 4"
+    per: round
+
+  clutch_1v5_round:
+    flag: true
+    on: round_won
+    where: "enrich.clutch.was_clutch_won && enrich.clutch.winner_slot == player.slot && round.clutch.size == 5"
+    per: round
+
+highlights:
+  retake_multi:
+    when: retake_kills >= 2
+    per: round
+    score: 80
+    title: "{player.name} — {retake_kills}-kill retake (round {round.number})"
+
+  clutch_1v2:
+    when: clutch_1v2_round
+    per: round
+    score: 78
+    title: "{player.name} — 1v2 clutch (round {round.number})"
+
+  clutch_1v3:
+    when: clutch_1v3_round
+    per: round
+    score: 90
+    title: "{player.name} — 1v3 CLUTCH (round {round.number})"
+
+  clutch_1v4:
+    when: clutch_1v4_round
+    per: round
+    score: 97
+    title: "{player.name} — 1v4 CLUTCH!! (round {round.number})"
+
+  clutch_1v5:
+    when: clutch_1v5_round
+    per: round
+    score: 100
+    title: "{player.name} — 1v5 ACE CLUTCH!!! (round {round.number})"
+
+show:
+  scoreboard:
+    - { stat: retake_multi.count, label: Retakes,   group: game }
+    - { stat: clutch_1v2.count,   label: Clutch1v2, group: game }
+    - { stat: clutch_1v3.count,   label: Clutch1v3, group: game }
+    - { stat: clutch_1v4.count,   label: Clutch1v4, group: game }
+    - { stat: clutch_1v5.count,   label: Clutch1v5, group: game }

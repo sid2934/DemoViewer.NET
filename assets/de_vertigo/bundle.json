@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "mapName": "de_vertigo",
+  "mapVersion": "5a570e4a",
+  "bakerVersion": "0.1\u002Bvrf19.2.6339",
+  "transform": {
+    "posX": -3168,
+    "posY": 1762,
+    "scale": 4,
+    "rotate": 0,
+    "zoom": 1,
+    "imageSize": 1024
+  },
+  "bounds": {
+    "minX": -3168,
+    "minY": -2334,
+    "maxX": 928,
+    "maxY": 1762
+  },
+  "floors": [
+    {
+      "minZ": -100000,
+      "maxZ": 11728
+    },
+    {
+      "minZ": 11728,
+      "maxZ": 100000
+    }
+  ],
+  "radarLayers": [
+    {
+      "minZ": 11700,
+      "maxZ": 20000,
+      "image": "de_vertigo.png"
+    },
+    {
+      "minZ": -10000,
+      "maxZ": 11700,
+      "image": "de_vertigo_lower.png"
+    }
+  ],
+  "radarImages": [
+    "de_vertigo.png",
+    "de_vertigo_lower.png"
+  ],
+  "collisionMesh": {
+    "file": "collision.tris",
+    "triangleCount": 210596,
+    "minX": -4096,
+    "minY": -3040,
+    "minZ": -992,
+    "maxX": 3392,
+    "maxY": 2560,
+    "maxZ": 15368
+  }
+}

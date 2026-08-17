@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+    </PropertyGroup>
+
+    <!-- Desktop-only live CS2 sync engine (docs/csvg-integration/implementation-plan.md).
+         Referenced ONLY by DemoViewer.NET.Desktop; the App/Browser projects must never depend on
+         this project — CSVG + the ASP.NET Core framework reference are WASM poison. The App sees
+         the engine solely through ILiveSyncService via the AppHostHooks static seam. -->
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Brings Grpc.AspNetCore transitively (AddGrpc/MapGrpcService). -->
+        <PackageReference Include="Cs2VideoGenerator.Core"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\DemoViewer.NET\DemoViewer.NET.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="DemoViewer.NET.LiveSync.Tests"/>
+    </ItemGroup>
+
+</Project>

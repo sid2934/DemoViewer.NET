@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "mapName": "de_inferno",
+  "mapVersion": "3cff1c4e",
+  "bakerVersion": "0.1\u002Bvrf19.2.6339",
+  "transform": {
+    "posX": -2087,
+    "posY": 3870,
+    "scale": 4.9,
+    "rotate": 0,
+    "zoom": 1,
+    "imageSize": 1024
+  },
+  "bounds": {
+    "minX": -2087,
+    "minY": -1147.6000000000004,
+    "maxX": 2930.6000000000004,
+    "maxY": 3870
+  },
+  "floors": [
+    {
+      "minZ": -100000,
+      "maxZ": 100000
+    }
+  ],
+  "radarLayers": [
+    {
+      "minZ": -100000,
+      "maxZ": 100000,
+      "image": "de_inferno.png"
+    }
+  ],
+  "radarImages": [
+    "de_inferno.png"
+  ]
+}

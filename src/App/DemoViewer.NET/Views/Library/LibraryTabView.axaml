@@ -1,0 +1,619 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Library"
+             xmlns:theming="using:DemoViewer.NET.Theming"
+             xmlns:model="using:DemoViewer.NET.Modules.Library"
+             xmlns:controls="using:DemoViewer.NET.Controls"
+             controls:TutorialAnchor.Target="LibraryTab"
+             x:Class="DemoViewer.NET.Views.Library.LibraryTabView"
+             x:DataType="vm:LibraryTabViewModel">
+
+    <!--
+      Demo-library landing tab. Top toolbar (add folder, search, map filter, sort, view toggle, refresh),
+      a folder-chip strip, then the body: an empty-state prompt when no folders are configured, else the
+      card grid (default) or the dense list. Metadata fills in live as the two-tier indexer enriches each
+      demo (map instantly, players/duration in the background), so cards show "…" until tier 2 completes.
+      Double-click (or the Open button) loads the demo; the shared load funnel owns the landing tab.
+    -->
+
+    <UserControl.Styles>
+        <Style Selector="Border.demoCard">
+            <Setter Property="Background" Value="{DynamicResource CardBg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Width" Value="196" />
+            <Setter Property="Height" Value="150" />
+            <Setter Property="Margin" Value="0 0 10 10" />
+        </Style>
+        <Style Selector="Border.demoCard:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderAccent}" />
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
+        </Style>
+        <Style Selector="Border.folderChip">
+            <Setter Property="Background" Value="{DynamicResource ChainSummaryBadgeBg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="8 2" />
+            <Setter Property="Margin" Value="0 0 6 0" />
+        </Style>
+        <Style Selector="TextBlock.metaLabel">
+            <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
+            <Setter Property="FontSize" Value="10" />
+        </Style>
+        <Style Selector="TextBlock.listCell">
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style Selector="Border.listRow:pointerover">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
+        </Style>
+        <!-- "Being analyzed right now" indicators: the indexer runs ONE
+             demo at a time, so motion itself is the unique signal — the active card gets an animated
+             amber top bar, the active list row a pulsing leading dot. Queued stays as-is ("…"
+             placeholders); Failed gets STATIC red (no motion). -->
+        <Style Selector="ProgressBar.cardBusy">
+            <Setter Property="MinHeight" Value="6" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="Border.failedDot">
+            <Setter Property="Background" Value="{DynamicResource AccentError}" />
+        </Style>
+        <Style Selector="Border.busyDot">
+            <Style.Animations>
+                <Animation Duration="0:0:1" IterationCount="Infinite" PlaybackDirection="Alternate">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0.35" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="1.0" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <!-- The neutral virtualized card-grid container (rows/cards carry their own hover + selection
+             visuals) is the shared ListBox.card-grid class (Styles/Tables.axaml) — see docs/ui/design-system.md. -->
+    </UserControl.Styles>
+
+    <!-- Root is a Panel so a full-surface drag-over affordance can overlay the whole tab. Drag-drop of a
+         .dem to open is wired in code-behind (DragOver/DragLeave/Drop → OpenPathCommand); AllowDrop opts the
+         surface in. WASM has no local-path file drop → the handlers no-op there (guarded) and the overlay/
+         drop-hint are suppressed via CanDropFiles. -->
+    <Panel DragDrop.AllowDrop="True">
+
+        <DockPanel Background="{DynamicResource ShellBg}">
+
+            <!-- ── Toolbar ─────────────────────────────────────────────────────────────
+             RESPONSIVE (R2): the LIBRARY identity label is pinned Dock="Left"; every interactive control
+             lives in a fill WrapPanel so the filter/view groups REFLOW to a second row instead of clipping
+             at narrow widths (~700px), rather than crowding a fixed-column Grid. sectionHeader has no fixed
+             height, so the band grows to fit the wrapped row. See docs/ui/design-system.md (responsive-strip). The
+             map/player/sort/clear and view/refresh clusters are each grouped in a StackPanel so they wrap as
+             units (never split mid-group). Per-item vertical margins give the wrapped row breathing space. -->
+            <Border DockPanel.Dock="Top" Classes="sectionHeader">
+                <DockPanel VerticalAlignment="Center">
+                    <TextBlock DockPanel.Dock="Left" Text="LIBRARY" Classes="sectionLabel"
+                               VerticalAlignment="Center" Margin="0 0 12 0" />
+
+                    <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+
+                        <Button Content="+ Add folder" Command="{Binding AddFolderCommand}"
+                                FontSize="11" Padding="10 3" Margin="0 3 8 3" VerticalAlignment="Center" />
+
+                        <!-- The filter cluster (search / map / player / sort / view / refresh) is only meaningful
+                         with demos, so it's hidden in the empty/hero state — the landing then reads as
+                         LIBRARY + Add folder + the hero, not a wall of inert dropdowns. Collapsed WrapPanel
+                         children reserve no space, so the empty state stays clean. -->
+                        <TextBox Text="{Binding SearchText}" Watermark="Search map, player, file…"
+                                 IsVisible="{Binding !HasNoFolders}"
+                                 FontSize="12" Margin="0 3 8 3" MinWidth="220" MaxWidth="360"
+                                 VerticalAlignment="Center" />
+
+                        <!-- Filter group — map / player / sort / clear, kept together so they wrap as a unit. -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0 3 8 3">
+                            <!-- Multi-select map filter: a flyout button (scales to many maps) whose label shows the count. -->
+                            <Button Content="{Binding MapFilterSummary}" FontSize="12" MinWidth="86"
+                                    IsVisible="{Binding !HasNoFolders}"
+                                    VerticalAlignment="Center" Margin="0 0 8 0"
+                                    ToolTip.Tip="Filter by map (multi-select)">
+                                <Button.Flyout>
+                                    <Flyout Placement="Bottom">
+                                        <ScrollViewer MaxHeight="340" HorizontalScrollBarVisibility="Disabled">
+                                            <ItemsControl ItemsSource="{Binding MapFilters}" MinWidth="150" Margin="2">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:MapFilterItem">
+                                                        <CheckBox IsChecked="{Binding IsSelected}" FontSize="12"
+                                                                  Padding="6 2" Margin="0 1">
+                                                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                                                <Border Width="9" Height="9" CornerRadius="2"
+                                                                        VerticalAlignment="Center"
+                                                                        theming:MapAccent.Key="{Binding MapKey}" />
+                                                                <TextBlock Text="{Binding Display}"
+                                                                           VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource TextMid}" />
+                                                            </StackPanel>
+                                                        </CheckBox>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+
+                            <!-- Single-select player filter: keep only demos the chosen player appears in. -->
+                            <ComboBox ItemsSource="{Binding AvailablePlayers}"
+                                      SelectedItem="{Binding SelectedPlayer}" FontSize="12" MinWidth="120"
+                                      MaxWidth="180"
+                                      IsVisible="{Binding !HasNoFolders}"
+                                      VerticalAlignment="Center" Margin="0 0 8 0" ToolTip.Tip="Filter by player" />
+
+                            <ComboBox SelectedIndex="{Binding SortIndex}" FontSize="12"
+                                      IsVisible="{Binding !HasNoFolders}"
+                                      MinWidth="110" VerticalAlignment="Center" Margin="0 0 8 0">
+                                <ComboBoxItem>Newest</ComboBoxItem>
+                                <ComboBoxItem>Oldest</ComboBoxItem>
+                                <ComboBoxItem>Map A–Z</ComboBoxItem>
+                                <ComboBoxItem>Name A–Z</ComboBoxItem>
+                                <ComboBoxItem>Largest</ComboBoxItem>
+                            </ComboBox>
+
+                            <Button Content="Clear" Command="{Binding ClearFiltersCommand}"
+                                    IsVisible="{Binding HasActiveFilters}" FontSize="11" Padding="8 3"
+                                    VerticalAlignment="Center" ToolTip.Tip="Clear all filters" />
+                        </StackPanel>
+
+                        <!-- View + refresh group — the layout controls, kept together so they wrap as a unit. -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0 3 0 3">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                        IsVisible="{Binding !HasNoFolders}">
+                                <ToggleButton IsChecked="{Binding IsCardView}" Content="▦ Cards" FontSize="11"
+                                              Padding="8 3" />
+                                <ToggleButton IsChecked="{Binding IsListView}" Content="☰ List" FontSize="11"
+                                              Padding="8 3"
+                                              Margin="4 0 0 0" />
+                            </StackPanel>
+
+                            <Button Content="⟳" Command="{Binding RefreshCommand}"
+                                    AutomationProperties.Name="Rescan folders"
+                                    IsVisible="{Binding !HasNoFolders}"
+                                    FontSize="13" Padding="8 3" Margin="8 0 0 0" VerticalAlignment="Center"
+                                    ToolTip.Tip="Rescan folders" />
+
+                            <!-- Half-score repair. Absent at zero — which is the normal
+                                 state — so it costs the toolbar nothing until there is real work to offer.
+                                 Deliberately a button: it enlists a full re-parse per demo and on a migrated
+                                 library that is hours of background work, which is exactly what must not
+                                 happen silently at launch. -->
+                            <Button Content="{Binding ScoreRepairLabel}"
+                                    Command="{Binding RepairScoresCommand}"
+                                    IsVisible="{Binding HasScoreRepairPending}"
+                                    FontSize="11" Padding="8 3" Margin="8 0 0 0" VerticalAlignment="Center"
+                                    ToolTip.Tip="These demos' cached scores were stored in a format that no longer loads. Re-deriving needs a full parse of each — it runs in the background, one demo at a time, and you can keep using the app." />
+                        </StackPanel>
+                    </WrapPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- ── Folder chips + count + persistent library actions ───────────────────
+             Only shown once the browser is populated (folders configured); the empty state's hero owns the
+             open surface instead. A persistent compact "Open Demo…" (single-file open) + a "Recent ▾" flyout
+             dock RIGHT so the single-file open + recents stay reachable while browsing folders (R1). -->
+            <Border DockPanel.Dock="Top" IsVisible="{Binding !HasNoFolders}"
+                    Background="{DynamicResource FrameHeaderStripBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 0 0 1" Padding="12 5">
+                <DockPanel LastChildFill="True" VerticalAlignment="Center">
+
+                    <!-- Right: persistent open + recents (always reachable while the folder browser is showing) -->
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <Button Classes="primary" Content="Open Demo…" Command="{Binding OpenDemoCommand}"
+                                VerticalAlignment="Center" ToolTip.Tip="Open a single .dem file" />
+                        <Button Content="Recent ▾" Classes="chip" IsVisible="{Binding ShowHeaderRecents}"
+                                VerticalAlignment="Center" ToolTip.Tip="Recently opened demos">
+                            <Button.Flyout>
+                                <Flyout Placement="Bottom">
+                                    <Border Classes="card-flyout" MinWidth="260" MaxWidth="360">
+                                        <ScrollViewer MaxHeight="320" HorizontalScrollBarVisibility="Disabled">
+                                            <ItemsControl ItemsSource="{Binding RecentFiles}" Margin="2">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:RecentFileItem">
+                                                        <Button Classes="ctx-action" Opacity="{Binding RowOpacity}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:LibraryTabViewModel)DataContext).OpenRecentCommand}"
+                                                                CommandParameter="{Binding}"
+                                                                ToolTip.Tip="{Binding Path}">
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                                                <StackPanel Grid.Column="0" Spacing="0">
+                                                                    <TextBlock Text="{Binding FileName}" Classes="mono"
+                                                                               Foreground="{DynamicResource TextBright}"
+                                                                               FontSize="12"
+                                                                               TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Text="{Binding MapDisplay}"
+                                                                               Foreground="{DynamicResource TextDim}"
+                                                                               FontSize="10" />
+                                                                </StackPanel>
+                                                                <TextBlock Grid.Column="1" Text="{Binding DateDisplay}"
+                                                                           VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource TextDim}"
+                                                                           FontSize="10" />
+                                                            </Grid>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Left (fill): count + folder chips -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding CountSummary}" Foreground="{DynamicResource TextMid}"
+                                   FontSize="11" VerticalAlignment="Center" Margin="0 0 14 0" />
+                        <ItemsControl ItemsSource="{Binding Folders}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Classes="folderChip">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="{Binding}" Foreground="{DynamicResource TextBright}"
+                                                       FontSize="11" VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" MaxWidth="260" />
+                                            <Button Content="✕" FontSize="10" Padding="3 0" Background="Transparent"
+                                                    AutomationProperties.Name="Remove folder"
+                                                    BorderThickness="0" Foreground="{DynamicResource TextDim}"
+                                                    Command="{Binding $parent[ItemsControl].((vm:LibraryTabViewModel)DataContext).RemoveFolderCommand}"
+                                                    CommandParameter="{Binding}" ToolTip.Tip="Remove folder" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- ── Body ────────────────────────────────────────────────────────────── -->
+            <Panel>
+
+                <!-- The landing hero is declared LAST in this Panel (see below) so it renders AND hit-tests ON
+                 TOP of the card/list bodies: those stay realized (IsCardView defaults true) even in the empty
+                 state, and the card ListBox's transparent background is hit-testable in Avalonia, so a hero
+                 declared first would have its CTA/recents clicks swallowed. Document order (not ZIndex — which
+                 didn't reorder hit-testing here) puts it on top; verified by a GetVisualAt assertion in
+                 ZLibraryRenderTests. -->
+
+                <!-- Card grid — a VIRTUALIZED vertical list of row-chunks (CardRows = FilteredEntries in
+                 groups of CardColumns; the code-behind recomputes the column count from this control's
+                 width). WrapPanel has no virtualizing counterpart, and a large library must not
+                 realize a card control per demo. -->
+                <ListBox IsVisible="{Binding IsCardView}" ItemsSource="{Binding CardRows}"
+                         Classes="card-grid" Padding="12 12 12 0"
+                         SizeChanged="OnCardViewportSizeChanged"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:CardRow">
+                            <ItemsControl ItemsSource="{Binding Items}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="model:DemoEntry">
+                                        <Border Classes="demoCard" DoubleTapped="OnDemoActivated" Tag="{Binding}"
+                                                ClipToBounds="True">
+                                            <Panel>
+                                                <!-- Dark base so the radar's transparent surround reads neutral (not accent-
+                                         tinted), and so a map with no baked radar falls back to the clean dark card. -->
+                                                <Border Background="{DynamicResource CardBg}" />
+
+                                                <!-- Baked radar thumbnail as the card background; null → dark base shows. -->
+                                                <Image
+                                                    Source="{Binding MapName, Converter={x:Static vm:MapRadarConverter.Instance}}"
+                                                    Stretch="UniformToFill" HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center" />
+
+                                                <!-- Scrim: darken top + bottom (where the text sits) so the metadata stays
+                                         legible over the radar, while the map shows through the lighter middle. -->
+                                                <Border Background="{DynamicResource LibraryCardScrim}" />
+
+                                                <!-- Metadata overlaid on top of the map picture. -->
+                                                <Grid RowDefinitions="Auto,*,Auto" Margin="10 8">
+                                                    <StackPanel Grid.Row="0" Spacing="0" Margin="0 0 44 0">
+                                                        <TextBlock Text="{Binding MapDisplay}" Foreground="White"
+                                                                   FontSize="15" FontWeight="Bold"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding SubtitleDisplay}"
+                                                                   Foreground="{DynamicResource LibraryCardTextMid}"
+                                                                   FontSize="10" TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+
+                                                    <TextBlock Grid.Row="1" Text="{Binding PlayersDisplay}"
+                                                               VerticalAlignment="Bottom"
+                                                               Foreground="{DynamicResource LibraryCardTextBright}"
+                                                               FontSize="11" Margin="0 6 0 4"
+                                                               TextWrapping="Wrap" MaxLines="2"
+                                                               TextTrimming="CharacterEllipsis" />
+
+                                                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal"
+                                                                    Spacing="8">
+                                                            <TextBlock Text="{Binding ModifiedDisplay}"
+                                                                       Foreground="{DynamicResource LibraryCardTextDim}"
+                                                                       FontSize="10" />
+                                                            <TextBlock Text="{Binding DurationDisplay}"
+                                                                       Foreground="{DynamicResource LibraryCardTextDim}"
+                                                                       FontSize="10" />
+                                                            <!-- Byte-identical copies in other folders collapse into this one
+                                                     card; the hint + tooltip surface where the copies live. -->
+                                                            <TextBlock Text="{Binding DuplicateHint}"
+                                                                       Foreground="{DynamicResource LibraryCardTextDim}"
+                                                                       FontSize="10"
+                                                                       IsVisible="{Binding HasDuplicates}"
+                                                                       ToolTip.Tip="{Binding DuplicateTooltip}" />
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="1" Text="{Binding SizeDisplay}"
+                                                                   Foreground="{DynamicResource LibraryCardTextDim}"
+                                                                   FontSize="10" />
+                                                    </Grid>
+                                                </Grid>
+
+                                                <!-- Map accent strip on top — colour-codes the card over the radar, and is the
+                                         primary identity when a map has no baked radar (matches the prior card look). -->
+                                                <Border Height="4" VerticalAlignment="Top" CornerRadius="6 6 0 0"
+                                                        theming:MapAccent.Key="{Binding MapName}" />
+
+                                                <!-- THE demo being analyzed right now: animated amber bar over the accent strip
+                                         (one demo parses at a time → at most one card animates). Not hit-testable —
+                                         the card Border owns DoubleTapped. -->
+                                                <ProgressBar Classes="cardBusy" Height="6" VerticalAlignment="Top"
+                                                             CornerRadius="6 6 0 0" IsHitTestVisible="False"
+                                                             Foreground="{DynamicResource AccentAmber}"
+                                                             Background="{DynamicResource LibraryCardBusyTrack}"
+                                                             IsIndeterminate="{Binding IsIndexing}"
+                                                             IsVisible="{Binding IsIndexing}" />
+
+                                                <!-- Parse failed: static red strip (no motion). -->
+                                                <Border Height="6" VerticalAlignment="Top" CornerRadius="6 6 0 0"
+                                                        IsHitTestVisible="False"
+                                                        Background="{DynamicResource AccentError}"
+                                                        IsVisible="{Binding IsFailed}" />
+
+                                                <!-- Final scoreboard badge (top-right): CT (blue) : T (gold), preserving which
+                                         side won. Hidden until the entity-replayed score is known / for warmup demos. -->
+                                                <Border VerticalAlignment="Top" HorizontalAlignment="Right"
+                                                        Margin="0 8 8 0"
+                                                        IsVisible="{Binding HasScore}"
+                                                        Background="{DynamicResource LibraryCardBadgeBg}"
+                                                        CornerRadius="4" Padding="6 1">
+                                                    <StackPanel Orientation="Horizontal" Spacing="3">
+                                                        <TextBlock Text="{Binding CtScore}"
+                                                                   Foreground="{DynamicResource LibraryCardScoreCt}"
+                                                                   FontWeight="Bold" FontSize="13" />
+                                                        <TextBlock Text=":"
+                                                                   Foreground="{DynamicResource LibraryCardTextFaint}"
+                                                                   FontSize="13" />
+                                                        <TextBlock Text="{Binding TScore}"
+                                                                   Foreground="{DynamicResource LibraryCardScoreT}"
+                                                                   FontWeight="Bold" FontSize="13" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <!-- "Score needs re-deriving". Occupies the SAME slot as the
+                                         score badge and is mutually exclusive with it (NeedsScoreRepair ANDs !HasScore).
+                                         Load-bearing, not decoration: this row's score was cleared because it was a stale
+                                         half-result, and since the re-derivation is on-demand now, without this the card is
+                                         indistinguishable from a demo whose score genuinely cannot be resolved — hundreds of
+                                         demos silently missing a badge with nothing saying why. Text-carried, not colour-only. -->
+                                                <Border VerticalAlignment="Top" HorizontalAlignment="Right"
+                                                        Margin="0 8 8 0"
+                                                        IsVisible="{Binding NeedsScoreRepair}"
+                                                        Background="{DynamicResource LibraryCardBadgeBg}"
+                                                        CornerRadius="4" Padding="6 1"
+                                                        ToolTip.Tip="This demo's cached score was stored in a format that no longer loads. Use “Re-derive scores” in the toolbar to rebuild it.">
+                                                    <TextBlock Text="score ?"
+                                                               Foreground="{DynamicResource LibraryCardTextFaint}"
+                                                               FontSize="11" />
+                                                </Border>
+                                            </Panel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- List — header docked outside the scroll region; the rows are a VIRTUALIZED ListBox
+                 (house pattern, see EntityListView) so only the viewport's rows are realized. -->
+                <DockPanel IsVisible="{Binding IsListView}">
+                    <Border DockPanel.Dock="Top" Background="{DynamicResource PanelHeaderBg}"
+                            BorderBrush="{DynamicResource BorderSubtle}"
+                            BorderThickness="0 0 0 1" Padding="12 6">
+                        <Grid ColumnDefinitions="120,*,90,90,90">
+                            <TextBlock Grid.Column="0" Text="MAP" Classes="sectionLabel" />
+                            <TextBlock Grid.Column="1" Text="PLAYERS" Classes="sectionLabel" />
+                            <TextBlock Grid.Column="2" Text="LENGTH" Classes="sectionLabel" />
+                            <TextBlock Grid.Column="3" Text="DATE" Classes="sectionLabel" />
+                            <TextBlock Grid.Column="4" Text="SIZE" Classes="sectionLabel" />
+                        </Grid>
+                    </Border>
+                    <ListBox ItemsSource="{Binding FilteredEntries}" SelectedItem="{Binding SelectedEntry}"
+                             Classes="card-grid"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="model:DemoEntry">
+                                <Border Classes="listRow" BorderBrush="{DynamicResource HexRowSeparator}"
+                                        BorderThickness="0 0 0 1" Padding="12 6"
+                                        DoubleTapped="OnDemoActivated" Tag="{Binding}">
+                                    <Grid ColumnDefinitions="120,*,90,90,90">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                                            <!-- Leading dot doubles as the busy indicator: pulses while THIS row's
+                                             demo is being analyzed; recolors red (static) on a failed parse. -->
+                                            <Border Width="8" Height="8" CornerRadius="2" VerticalAlignment="Center"
+                                                    Classes.busyDot="{Binding IsIndexing}"
+                                                    Classes.failedDot="{Binding IsFailed}"
+                                                    theming:MapAccent.Key="{Binding MapName}" />
+                                            <TextBlock Text="{Binding MapDisplay}" Classes="listCell"
+                                                       Foreground="{DynamicResource TextValue}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="{Binding PlayersDisplay}" Classes="listCell" />
+                                        <TextBlock Grid.Column="2" Text="{Binding DurationDisplay}" Classes="listCell" />
+                                        <TextBlock Grid.Column="3" Text="{Binding ModifiedDisplay}" Classes="listCell" />
+                                        <TextBlock Grid.Column="4" Text="{Binding SizeDisplay}" Classes="listCell" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+
+                <!-- ── Secondary empty states (v0.6.0) ─────────────────────────────────────────────
+                 The hero only covers "no folders". These cover the two blank-grid gaps: folders
+                 registered but zero demos found, and demos present but every one filtered out.
+                 Declared after the card/list bodies (drawn on top of their empty grids), before the
+                 hero (which wins when there are no folders at all — the states are mutually
+                 exclusive by construction in the VM). -->
+                <Border Classes="card" IsVisible="{Binding HasFoldersButNoDemos}"
+                        Width="420" Padding="24 20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="No demos found in your folders yet" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextValue}" HorizontalAlignment="Center" />
+                        <TextBlock FontSize="12" Foreground="{DynamicResource TextMid}" TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   Text="The watched folders contain no .dem files. Drop demos into one of them and hit ⟳, add another folder, or open a demo directly." />
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                            <Button Content="Open Demo…" Command="{Binding OpenDemoCommand}" Padding="14 6" />
+                            <Button Content="⟳ Rescan" Command="{Binding RefreshCommand}" Padding="14 6" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card" IsVisible="{Binding HasRowsButAllFiltered}"
+                        Width="420" Padding="24 20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="No demos match your filters" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextValue}" HorizontalAlignment="Center" />
+                        <TextBlock FontSize="12" Foreground="{DynamicResource TextMid}" TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   Text="Every indexed demo is hidden by the current search, map, or player filter." />
+                        <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}"
+                                Padding="14 6" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ── Landing hero (no-demos state) — declared LAST so it's topmost (see note above) ──────
+                 The primary open surface (R1): app title + tagline, a big primary "Open Demo…", a recent-files
+                 list (when any), a secondary "+ Add a folder", and the drag-drop hint. Scrolls if short. -->
+                <ScrollViewer IsVisible="{Binding HasNoFolders}"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <Border Classes="card" Width="440" Padding="30 26"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16 28">
+                        <StackPanel Spacing="16">
+
+                            <StackPanel Spacing="5" HorizontalAlignment="Center">
+                                <TextBlock Text="DemoViewer.NET" FontSize="22" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextValue}" HorizontalAlignment="Center" />
+                                <TextBlock Text="Open a CS2 demo to explore it." FontSize="13"
+                                           Foreground="{DynamicResource TextMid}" HorizontalAlignment="Center" />
+                            </StackPanel>
+
+                            <Button Classes="primary" Content="Open Demo…" Command="{Binding OpenDemoCommand}"
+                                    HorizontalAlignment="Center" Padding="26 11" FontSize="14" Margin="0 2 0 0" />
+
+                            <!-- Bundled sample (assets/tour, resolved by TourDemoLocator → shell → ctor):
+                             one click opens a real trimmed match with nothing to download — the no-demos
+                             on-ramp, and the walkthrough gateway's spotlight when the library is empty.
+                             Hidden when no sample ships (Browser/WASM, designer, older tests). -->
+                            <StackPanel IsVisible="{Binding HasSampleDemo}" Spacing="2"
+                                        HorizontalAlignment="Center" Margin="0 -6 0 0">
+                                <Button Classes="ghost" Content="Try a sample match"
+                                        Command="{Binding OpenSampleCommand}"
+                                        controls:TutorialAnchor.Target="SampleDemo"
+                                        HorizontalAlignment="Center" Padding="14 6"
+                                        ToolTip.Tip="Open the bundled three-round sample demo — no files needed" />
+                                <TextBlock Text="a bundled 3-round clip, nothing to download"
+                                           FontSize="10" Foreground="{DynamicResource TextDim}"
+                                           HorizontalAlignment="Center" />
+                            </StackPanel>
+
+                            <!-- Recents (most-recent-first). Rows for missing files render dimmed; clicking one
+                             prunes it (OpenRecentCommand handles the stale case). -->
+                            <StackPanel IsVisible="{Binding HasRecentFiles}" Spacing="6">
+                                <TextBlock Text="RECENT" Classes="col-label" Margin="2 4 0 0" />
+                                <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <ItemsControl ItemsSource="{Binding RecentFiles}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:RecentFileItem">
+                                                <Button Classes="ctx-action" Opacity="{Binding RowOpacity}"
+                                                        Padding="10 7" CornerRadius="6" Margin="0 0 0 4"
+                                                        Background="{DynamicResource PanelHeaderBg}"
+                                                        Command="{Binding $parent[ItemsControl].((vm:LibraryTabViewModel)DataContext).OpenRecentCommand}"
+                                                        CommandParameter="{Binding}" ToolTip.Tip="{Binding Path}">
+                                                    <StackPanel Spacing="1">
+                                                        <TextBlock Text="{Binding FileName}" Classes="mono"
+                                                                   Foreground="{DynamicResource TextBright}"
+                                                                   FontSize="12"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding Meta}"
+                                                                   Foreground="{DynamicResource TextDim}" FontSize="10"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </StackPanel>
+
+                            <Button Classes="ghost" Content="+ Add a folder of demos"
+                                    Command="{Binding AddFolderCommand}"
+                                    HorizontalAlignment="Center" Padding="10 5" />
+
+                            <TextBlock Text="…or drop a .dem file here" IsVisible="{Binding CanDropFiles}"
+                                       FontSize="11" Foreground="{DynamicResource TextDim}"
+                                       HorizontalAlignment="Center" Margin="0 -4 0 0" />
+                        </StackPanel>
+                    </Border>
+                </ScrollViewer>
+            </Panel>
+        </DockPanel>
+
+        <!-- Drag-over affordance: a highlighted scrim + framed "drop here" prompt shown ONLY while a valid
+             .dem drag hovers (IsDragOver, toggled by the drag handlers). Not hit-testable, so it never eats
+             the drop. Suppressed on WASM (no local-path drop). -->
+        <Panel IsVisible="{Binding IsDragOver}" IsHitTestVisible="False">
+            <Border Background="{DynamicResource ShellBg}" Opacity="0.82" />
+            <Border Margin="12" CornerRadius="10" BorderThickness="2"
+                    BorderBrush="{DynamicResource AccentInteractive}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+                    <TextBlock Text="⤓" FontSize="40" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource AccentInteractive}" />
+                    <TextBlock Text="Drop a .dem file to open" FontSize="16" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource TextValue}" />
+                </StackPanel>
+            </Border>
+        </Panel>
+    </Panel>
+</UserControl>

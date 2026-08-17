@@ -1,0 +1,84 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:DemoViewer.NET.Controls"
+             xmlns:vm="using:DemoViewer.NET.ViewModels"
+             x:Class="DemoViewer.NET.Controls.StatusStrip"
+             x:Name="Root">
+
+    <!--
+        Three-region bottom status bar. Left = status text (optional
+        click-command), Middle = perf ticker, Right = info text.
+        Inputs are StyledProperty<T> so consumers can use the control without
+        a shell-level ShellStatusViewModel.
+    -->
+
+    <Border Background="{DynamicResource PanelHeaderBg}"
+            BorderBrush="{DynamicResource BorderSubtle}"
+            BorderThickness="0 1 0 0"
+            Padding="14 4">
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+
+            <!-- Left: status text (clickable when a command is bound) -->
+            <Button Grid.Column="0"
+                    Background="Transparent" BorderThickness="0"
+                    HorizontalAlignment="Left" Padding="0"
+                    Cursor="Hand"
+                    Command="{Binding StatusCommand, ElementName=Root}">
+                <TextBlock Text="{Binding StatusText, ElementName=Root}"
+                           Foreground="{Binding StatusBrush, ElementName=Root}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="11" />
+            </Button>
+
+            <!-- Middle: perf ticker -->
+            <TextBlock Grid.Column="1"
+                       Text="{Binding PerfText, ElementName=Root}"
+                       Foreground="{DynamicResource TextDim}"
+                       FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                       Margin="24 0"
+                       VerticalAlignment="Center" />
+
+            <!-- Chip region: right-aligned StatusChips between the perf ticker and RightText, spacing
+                 12. Empty/null Chips ⇒ nothing rendered, so the strip reads exactly as before. -->
+            <ItemsControl Grid.Column="2"
+                          ItemsSource="{Binding Chips, ElementName=Root}"
+                          VerticalAlignment="Center" Margin="0 0 4 0">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="12" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:StatusChipViewModel">
+                        <controls:StatusChip />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Right: info text -->
+            <TextBlock Grid.Column="3"
+                       Text="{Binding RightText, ElementName=Root}"
+                       Foreground="{DynamicResource TextMid}"
+                       FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                       Margin="18 0 0 0"
+                       VerticalAlignment="Center" />
+
+            <!-- Far right: "N features hidden" affordance (actionable since v0.6.0).
+                 Shown only when HiddenNote is non-empty (i.e. the current user category hides gated
+                 features); clicking runs HiddenNoteCommand — the shell opens Settings at USER CATEGORY. -->
+            <Button Grid.Column="4"
+                    Background="Transparent" BorderThickness="0" Padding="0"
+                    Cursor="Hand"
+                    Margin="18 0 0 0"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding HiddenNote, ElementName=Root, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                    Command="{Binding HiddenNoteCommand, ElementName=Root}"
+                    ToolTip.Tip="Some features are hidden for your current user category. Click to review it in Settings.">
+                <TextBlock Text="{Binding HiddenNote, ElementName=Root}"
+                           Foreground="{DynamicResource TextDim}"
+                           TextDecorations="Underline"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="11" />
+            </Button>
+        </Grid>
+    </Border>
+
+</UserControl>

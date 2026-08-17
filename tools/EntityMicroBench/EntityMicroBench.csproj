@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <!-- BenchmarkDotNet refuses to run a non-optimized build; always invoke with -c Release. -->
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="BenchmarkDotNet"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../src/Parser/Cs2DemoKit.Parser/Cs2DemoKit.Parser.csproj"/>
+        <!-- For the hot-path targets: PawnLookup.ForEachLivePawn + PawnHealthProvider.CaptureAllSlots
+             (the per-frame entity-set walk that profiling identified as the dominant cost). -->
+        <ProjectReference Include="../../src/Analysis/Cs2DemoKit.Analysis/Cs2DemoKit.Analysis.csproj"/>
+    </ItemGroup>
+
+</Project>

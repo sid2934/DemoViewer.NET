@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=./dv-rules.schema.json
+#
+# Position highlights — the first consumers of the Tier C `player.place` provider
+# (entity.pawn.place): the subject pawn's `m_szLastPlaceName`, the human-readable nav-mesh
+# place the player was last located in ("BombsiteA", "TSpawn", "Ramp", ...). Names are
+# emitted by the map's nav mesh; Valve defusal maps consistently use "BombsiteA",
+# "BombsiteB", "CTSpawn" and "TSpawn", which is what makes the two rules below map-portable.
+# On a map whose nav mesh lacks these names the stats simply never match — no false fires.
+#
+# ── Read semantics ──────────────────────────────────────────────────────────────────────────
+# Event-gated entity reads are PRE-FRAME (EntityChangeScanner pre-frame snapshot — same
+# contract highlights_ammo.rules.yaml documents for the clip read): `player.place` at a kill
+# event is the KILLER's nav place as of the frame BEFORE the kill landed. Nav place changes
+# on the order of seconds of movement, so the one-frame skew is immaterial here.
+#
+# ── spawn_raid ──────────────────────────────────────────────────────────────────────────────
+# A kill scored while the killer is standing inside the ENEMY team's spawn zone — the deep
+# flank / spawn lurk payoff. Team-gated so a defender fragging inside their OWN spawn never
+# matches (2 = T, 3 = CT): a CT in "TSpawn" is always deep behind enemy lines, and vice versa.
+#
+# ── site_lockdown ───────────────────────────────────────────────────────────────────────────
+# 3+ kills in one round, all made from INSIDE the same bombsite — the site anchor holding
+# ground (CT anchoring the site) or the post-plant hold (T defending the plant from on-site).
+# Counted per site: three kills split across A and B are rotations, not a lockdown, so each
+# site keeps its own counter and the highlight fires when either one clears 3.
+ruleset: highlights_position
+title: Position Highlights
+summary: Spawn-raid kills and single-site lockdowns, read from the pawn's nav-mesh place.
+for: each_player
+
+stats:
+  # Kills made from inside the enemy spawn (killer's team decides which spawn is "enemy").
+  spawn_raid_kills:
+    count: kill
+    match: { enemy: true }
+    where: '(player.team == 3 && player.place == "TSpawn") || (player.team == 2 && player.place == "CTSpawn")'
+    per: round
+    while: round.active
+    label: SpawnRaid
+
+  # Kills made from inside Bombsite A / Bombsite B (killer's own position, not the victim's).
+  kills_from_site_a:
+    count: kill
+    match: { enemy: true }
+    where: 'player.place == "BombsiteA"'
+    per: round
+    while: round.active
+    label: SiteAKills
+
+  kills_from_site_b:
+    count: kill
+    match: { enemy: true }
+    where: 'player.place == "BombsiteB"'
+    per: round
+    while: round.active
+    label: SiteBKills
+
+highlights:
+  spawn_raid:
+    when: spawn_raid_kills >= 1
+    per: round
+    score: 82
+    title: "{player.name} — kill inside the enemy spawn (round {round.number})"
+
+  site_lockdown:
+    when: kills_from_site_a >= 3 || kills_from_site_b >= 3
+    per: round
+    score: 84
+    title: "{player.name} — 3+ kills holding one site (round {round.number})"
+
+show:
+  scoreboard:
+    - { stat: spawn_raid.count,    label: SpawnRaids, group: game }
+    - { stat: site_lockdown.count, label: SiteHolds,  group: game }

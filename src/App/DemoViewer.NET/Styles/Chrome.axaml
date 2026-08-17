@@ -1,0 +1,61 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Chrome.axaml — shell/section chrome classes (design-system foundation).
+
+        Section headers, group labels, count badges, and dividers — the small structural furniture that
+        frames content. Migrated here from the old Styles/Components.axaml (section header/label) plus
+        the NavStrip group label. All colour via DarkPalette tokens.
+
+        NAMING NOTE: `sectionHeader` / `sectionLabel` keep their original camelCase — they have three
+        live consumer views (DebuggerPanel, LibraryTabView, DiagnosticsTabView) and the UiCapture
+        `Section()` helper. New chrome classes use kebab-case (`group-label`, `divider`). See
+        docs/ui/design-system.md
+    -->
+
+    <!-- ── Border.sectionHeader — tiny uppercase label on a dark divider band (migrated from Components.axaml) -->
+    <Style Selector="Border.sectionHeader">
+        <Setter Property="Background" Value="{DynamicResource PanelHeaderBg}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}" />
+        <Setter Property="BorderThickness" Value="0 0 0 1" />
+        <Setter Property="Padding" Value="14 6" />
+    </Style>
+    <Style Selector="TextBlock.sectionLabel">
+        <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
+    </Style>
+
+    <!-- ── TextBlock.group-label — inline group heading inside a horizontal strip (from NavStrip) ─────
+         The 9px dim mono label that names a control cluster ("JUMP", "TO BREAKPOINT"). -->
+    <Style Selector="TextBlock.group-label">
+        <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+        <Setter Property="FontSize" Value="9" />
+        <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="2 0 4 0" />
+    </Style>
+
+    <!-- ── Border.badge — a small rounded count/status pill ─────────────────────────────────────────
+         The parse-chain summary badge shape, generalised (e.g. "3 bp", "12 events"). Pair with a
+         .mono child TextBlock in TextChainBadge for the count text. -->
+    <Style Selector="Border.badge">
+        <Setter Property="Background" Value="{DynamicResource ChainSummaryBadgeBg}" />
+        <Setter Property="CornerRadius" Value="3" />
+        <Setter Property="Padding" Value="6 2" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- ── Rectangle.divider — a hairline rule (colour only; consumer sets Width/Height + orientation) -
+         Replaces the ad-hoc `Rectangle Fill=BorderSubtle/BorderStrong` separators. `.strong` variant
+         uses the heavier divider token for group boundaries. -->
+    <Style Selector="Rectangle.divider">
+        <Setter Property="Fill" Value="{DynamicResource BorderSubtle}" />
+    </Style>
+    <Style Selector="Rectangle.divider.strong">
+        <Setter Property="Fill" Value="{DynamicResource BorderStrong}" />
+    </Style>
+
+</Styles>

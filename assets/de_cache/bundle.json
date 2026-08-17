@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "mapName": "de_cache",
+  "mapVersion": "76c6059c",
+  "bakerVersion": "0.1\u002Bvrf19.2.6339",
+  "transform": {
+    "posX": -2000,
+    "posY": 3250,
+    "scale": 5.5,
+    "rotate": 0,
+    "zoom": 1,
+    "imageSize": 1024
+  },
+  "bounds": {
+    "minX": -2000,
+    "minY": -2382,
+    "maxX": 3632,
+    "maxY": 3250
+  },
+  "floors": [
+    {
+      "minZ": -100000,
+      "maxZ": 100000
+    }
+  ],
+  "radarLayers": [
+    {
+      "minZ": -100000,
+      "maxZ": 100000,
+      "image": "de_cache.png"
+    }
+  ],
+  "radarImages": [
+    "de_cache.png"
+  ],
+  "collisionMesh": {
+    "file": "collision.tris",
+    "triangleCount": 1622923,
+    "minX": -2398,
+    "minY": -2624,
+    "minZ": 1524,
+    "maxX": 3840.0009765625,
+    "maxY": 3797,
+    "maxZ": 3330.922607421875
+  }
+}

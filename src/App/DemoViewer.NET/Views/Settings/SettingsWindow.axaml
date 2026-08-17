@@ -1,0 +1,15 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:settings="using:DemoViewer.NET.ViewModels.Settings"
+        x:Class="DemoViewer.NET.Views.Settings.SettingsWindow"
+        x:DataType="settings:SettingsViewModel"
+        Title="Settings"
+        Width="520" Height="640"
+        MinWidth="380" MinHeight="360"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ShellBg}">
+
+    <!-- ViewLocator resolves Views.Settings.SettingsView for the SettingsViewModel DataContext, so the
+         same view renders here (desktop window) and in the WASM shell overlay. -->
+    <ContentControl Content="{Binding}" />
+</Window>

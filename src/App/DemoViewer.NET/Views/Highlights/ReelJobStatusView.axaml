@@ -1,0 +1,139 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Highlights"
+             x:Class="DemoViewer.NET.Views.Highlights.ReelJobStatusView"
+             x:DataType="vm:ReelJobStatusViewModel"
+             MinWidth="300" MaxWidth="360">
+
+    <!--
+        Reel job flyout body (docs/csvg-integration/ux-design.md). Hosted inside the StatusChip's
+        Border.card-flyout (surface + rounding), so this view provides only inner padding + content.
+        Sections are mutually-exclusive per job phase, driven by bound IsVisible flags (reactive, not
+        code-behind). All colour is {DynamicResource}; the per-clip status glyph resolves its token via a
+        bound state→class selector (the theme mandate — no code-held brush).
+    -->
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.clipGlyph.clipDone">
+            <Setter Property="Foreground" Value="{DynamicResource StatPositive}" />
+        </Style>
+        <Style Selector="TextBlock.clipGlyph.clipCurrent">
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="TextBlock.clipGlyph.clipFailed">
+            <Setter Property="Foreground" Value="{DynamicResource AccentError}" />
+        </Style>
+        <Style Selector="TextBlock.clipGlyph.clipQueued">
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Margin="14" Spacing="10">
+
+        <!-- Header: title + state dot + headline -->
+        <TextBlock Text="Highlight reel" Classes="col-label"
+                   Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+            <Ellipse Grid.Column="0" Classes="dot" Width="10" Height="10" VerticalAlignment="Top" Margin="0 3 0 0"
+                     Classes.stateOff="{Binding Chip.IsStateOff}"
+                     Classes.stateWorking="{Binding Chip.IsStateWorking}"
+                     Classes.stateGood="{Binding Chip.IsStateGood}"
+                     Classes.stateDegraded="{Binding Chip.IsStateDegraded}"
+                     Classes.stateError="{Binding Chip.IsStateError}"
+                     Classes.pulsing="{Binding Chip.IsPulsing}" />
+            <TextBlock Grid.Column="1" Text="{Binding Headline}"
+                       Foreground="{DynamicResource TextValue}" FontSize="12" TextWrapping="Wrap" />
+        </Grid>
+
+        <Rectangle Classes="divider" Height="1" />
+
+        <!-- Per-clip status list (shared by Running + Failed sections). -->
+        <ItemsControl ItemsSource="{Binding Clips}" IsVisible="{Binding !IsCancelled}"
+                      MaxHeight="180">
+            <ItemsControl.Template>
+                <ControlTemplate>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsPresenter />
+                    </ScrollViewer>
+                </ControlTemplate>
+            </ItemsControl.Template>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ReelClipStatusRow">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="0 1">
+                        <TextBlock Grid.Column="0" Classes="clipGlyph" Text="{Binding Glyph}"
+                                   FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                   Classes.clipDone="{Binding IsDone}"
+                                   Classes.clipCurrent="{Binding IsCurrent}"
+                                   Classes.clipFailed="{Binding IsFailed}"
+                                   Classes.clipQueued="{Binding IsQueued}"
+                                   VerticalAlignment="Center" Width="12" />
+                        <TextBlock Grid.Column="1" Text="{Binding Label}" FontSize="11"
+                                   Foreground="{DynamicResource TextMid}"
+                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- ══ RUNNING (StartingSession / Capturing) ═══════════════════════════════════ -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsRunning}">
+            <!-- Indeterminate: the App ReelJobStatus contract carries no intra-clip percent. -->
+            <ProgressBar IsIndeterminate="True" Height="4" Foreground="{DynamicResource AccentInteractive}" />
+            <Button Content="Cancel reel" Classes="ghost" Padding="12 5"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Command="{Binding CancelCommand}"
+                    ToolTip.Tip="Stops the render and, if a session was started for it, restores your CS2 install." />
+        </StackPanel>
+
+        <!-- ══ COMPLETED ═══════════════════════════════════════════════════════════════ -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsCompleted}">
+            <StackPanel Spacing="2" IsVisible="{Binding OutputPath, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock Text="Output" Classes="col-label" />
+                <TextBlock Text="{Binding OutputPath}" Classes="mono" FontSize="11"
+                           Foreground="{DynamicResource TextValue}" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Content="Open folder" Classes="ghost" Padding="12 5"
+                        IsVisible="{Binding CanOpenFolder}" Command="{Binding OpenFolderCommand}" />
+                <Button Content="Dismiss" Classes="ghost" Padding="12 5" Command="{Binding DismissCommand}" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- ══ FAILED (fail-fast on the first bad clip) ════════════════════════════════ -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsFailed}">
+            <!-- Error is an AccentError icon + neutral message (AccentError body text fails AA on the card). -->
+            <Grid ColumnDefinitions="Auto,*"
+                  IsVisible="{Binding ErrorText, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock Grid.Column="0" Text="⚠" Foreground="{DynamicResource AccentError}" FontSize="12"
+                           VerticalAlignment="Top" Margin="0 0 6 0" />
+                <!-- Selectable so the user can drag-select + Ctrl+C even without the Copy button (a hostile
+                     clipboard host, keyboard-only). MaxHeight + scroll: engine errors can run many lines. -->
+                <ScrollViewer Grid.Column="1" MaxHeight="140" VerticalScrollBarVisibility="Auto">
+                    <SelectableTextBlock Text="{Binding ErrorText}" FontSize="11"
+                                         Foreground="{DynamicResource TextValue}" TextWrapping="Wrap" />
+                </ScrollViewer>
+            </Grid>
+            <TextBlock FontSize="11" Foreground="{DynamicResource TextDim}" TextWrapping="Wrap"
+                       IsVisible="{Binding CanRetry}"
+                       Text="Retried clips render to their own files — DemoViewer does not re-concatenate across runs yet." />
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <!-- Copy the FULL diagnostic block (not just ErrorText) so a paste is a self-contained report. -->
+                <Button Content="Copy error" Classes="ghost" Padding="12 5"
+                        IsVisible="{Binding HasError}" Click="OnCopyErrorClick"
+                        ToolTip.Tip="Copy the full reel diagnostic (phase, clips, error) to the clipboard." />
+                <Button Content="Retry remaining" Classes="primary" Padding="12 5"
+                        IsVisible="{Binding CanRetry}" Command="{Binding RetryCommand}" />
+                <Button Content="Dismiss" Classes="ghost" Padding="12 5" Command="{Binding DismissCommand}" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- ══ CANCELLED ═══════════════════════════════════════════════════════════════ -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsCancelled}">
+            <TextBlock Text="Reel cancelled." FontSize="11" Foreground="{DynamicResource TextMid}" />
+            <Button Content="Dismiss" Classes="ghost" Padding="12 5" HorizontalAlignment="Right"
+                    Command="{Binding DismissCommand}" />
+        </StackPanel>
+
+    </StackPanel>
+
+</UserControl>
