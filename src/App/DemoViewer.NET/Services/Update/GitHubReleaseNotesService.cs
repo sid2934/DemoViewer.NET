@@ -11,18 +11,17 @@ using System.Text.RegularExpressions;
 namespace DemoViewer.NET.Services.Update;
 
 /// <summary>
-///     <see cref="IReleaseNotesService" /> over the GitHub Releases API of the public releases
-///     mirror — the same repository <c>VelopackUpdateService</c> updates from, so the notes shown
-///     always describe the exact packages the updater installs. Unauthenticated on purpose (the
-///     mirror is public; the source repo is private and would 404), one small JSON request per
-///     version, cached for the process lifetime.
+///     <see cref="IReleaseNotesService" /> over the GitHub Releases API — the same repository
+///     <c>VelopackUpdateService</c> updates from, so the notes shown always describe the exact
+///     packages the updater installs. Unauthenticated on purpose (the repo is public), one small
+///     JSON request per version, cached for the process lifetime.
 /// </summary>
 public sealed partial class GitHubReleaseNotesService : IReleaseNotesService
 {
-    // The PUBLIC releases mirror (must match VelopackUpdateService.RepoUrl's repo). Hardcoded for
-    // the same reason the updater's URL is: notes are rendered into trusted UI surfaces, and a
-    // settable endpoint would let ambient config point them somewhere attacker-controlled.
-    private const string Repo = "sid2934/DemoViewer.NET-releases";
+    // Must match VelopackUpdateService.RepoUrl's repo. Hardcoded for the same reason the
+    // updater's URL is: notes are rendered into trusted UI surfaces, and a settable endpoint
+    // would let ambient config point them somewhere attacker-controlled.
+    private const string Repo = "sid2934/DemoViewer.NET";
 
     private static readonly HttpClient _http = CreateClient();
 

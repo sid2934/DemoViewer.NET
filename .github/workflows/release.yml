@@ -64,40 +64,6 @@ jobs:
             *) echo "::error::'ci' did not succeed for $sha (conclusions: $runs). Refusing to publish." >&2; exit 1 ;;
           esac
 
-      # Pre-flight the public-mirror PAT here, before the tri-OS matrix spends ~20 minutes
-      # building. Every tagged release mirrors publicly, so an expired, revoked or wrongly-scoped
-      # token fails the run either way — the only question is whether you find out in 10 seconds
-      # or after the whole matrix has built and uploaded. Tag-only: workflow_dispatch never
-      # reaches the publish job, so it has no reason to require the token.
-      - name: Pre-flight the public-mirror token
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ secrets.DV_PUBLIC_RELEASES_TOKEN }}
-          PUBLIC_REPO: ${{ vars.DV_PUBLIC_REPO_URL || 'https://github.com/sid2934/DemoViewer.NET-releases' }}
-        run: |
-          set -euo pipefail
-          slug="${PUBLIC_REPO#https://github.com/}"
-          if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::DV_PUBLIC_RELEASES_TOKEN is unset — every tagged release mirrors to $slug." >&2
-            exit 1
-          fi
-          # Hard-fail on the high-confidence signal: the token cannot even see the repo, which
-          # means missing, expired, revoked, or scoped to the wrong repository.
-          if ! perms=$(gh api "repos/$slug" --jq '.permissions.push' 2>&1); then
-            echo "::error::DV_PUBLIC_RELEASES_TOKEN cannot read $slug — expired, revoked, or not scoped to it." >&2
-            echo "         Response: $perms" >&2
-            exit 1
-          fi
-          # Warn (don't block) on the lower-confidence one: permission introspection for
-          # fine-grained PATs is less predictable than reachability, and a false negative here
-          # would block a perfectly good release. The mirror step is the real enforcement.
-          if [ "$perms" != "true" ]; then
-            echo "::warning::Token reaches $slug but reports push=$perms. If the mirror step fails," \
-                 "grant the PAT 'Contents: Read and write' on that repo."
-          else
-            echo "public-mirror token OK — can write to $slug."
-          fi
-
   package:
     needs: verify-ci
     strategy:
@@ -149,13 +115,11 @@ jobs:
         env:
           # Seed the output dir with the currently-published release so vpk emits a delta alongside
           # the full package. Opt-in so local `pack-velopack.sh` runs stay offline and deterministic.
-          # A missing/failed download is non-fatal — full-only is a correct release.
-          # Seeded from the PUBLIC releases repo, not this one: a delta is only useful if it diffs
-          # against the package the user actually has, and users install from the public mirror.
-          # It is public, so no token is needed to read it. Before that repo has its first release
-          # this 404s, the seeding step swallows it, and the release ships full-only — correct.
+          # A missing/failed download is non-fatal — full-only is a correct release. The repo is
+          # public, so no token is needed to read the feed. Before the first release exists this
+          # 404s, the seeding step swallows it, and the release ships full-only — correct.
           DV_DELTA_SEED: '1'
-          DV_REPO_URL: ${{ vars.DV_PUBLIC_REPO_URL || 'https://github.com/sid2934/DemoViewer.NET-releases' }}
+          DV_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
         run: ./scripts/pack-velopack.sh ${{ matrix.rid }}
 
       # No build-path scan here by design — it was tried and removed. scripts/scan-release-artifacts.py
@@ -230,68 +194,6 @@ jobs:
               --pre true \
               --merge true
           done
-
-      # ── Public mirror ────────────────────────────────────────────────────────────────────
-      # The source repo is PRIVATE, and GitHub answers unauthenticated API calls for a private
-      # repo with 404 — for /releases AND for asset URLs (both verified directly). So the feed
-      # published above is unreachable by an installed app, which is why the in-app updater points
-      # at the PUBLIC releases repo instead. This step mirrors the same artifacts there.
-      #
-      # Runs on exactly the same condition as the private publish above: this whole job is
-      # tag-gated (`if: startsWith(github.ref, 'refs/tags/v')`), so a tagged release goes to both
-      # repos and nothing else goes to either. There is deliberately no separate opt-in variable.
-      # There used to be one (DV_PUBLISH_PUBLIC), holding artifacts inside the private boundary
-      # until the sensitive-data audit cleared them; that audit is done, so the flag
-      # now only adds a way to ship a release
-      # that silently never reaches users.
-      #
-      # Needs a PAT (DV_PUBLIC_RELEASES_TOKEN) with `contents: write` on the PUBLIC repo — the
-      # built-in GITHUB_TOKEN is scoped to THIS repo and cannot write to another one. A missing
-      # token fails the release loudly: the public repo is where the in-app updater looks, so a
-      # private-only publish is a broken release, not a partial success.
-      - name: Mirror release to the public releases repo
-        env:
-          GH_TOKEN: ${{ secrets.DV_PUBLIC_RELEASES_TOKEN }}
-          PUBLIC_REPO: ${{ vars.DV_PUBLIC_REPO_URL || 'https://github.com/sid2934/DemoViewer.NET-releases' }}
-        run: |
-          set -euo pipefail
-          if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::DV_PUBLIC_RELEASES_TOKEN is unset — cannot mirror to $PUBLIC_REPO." >&2
-            echo "         Every tagged release publishes there; it is the feed the in-app updater" >&2
-            echo "         reads, so shipping without it would strand users on the old version." >&2
-            echo "         Add a fine-grained PAT with Contents: Read and write on that repo." >&2
-            exit 1
-          fi
-          tag="${{ github.ref_name }}"
-          echo "Mirroring $tag to $PUBLIC_REPO"
-          for rid in win-x64 osx-arm64 linux-x64; do
-            dir="dist/velopack-$rid"
-            feed=$(ls "$dir"/releases.*.json 2>/dev/null | head -1 || true)
-            if [ -z "$feed" ]; then
-              echo "::warning::no Velopack feed in $dir — skipping $rid"; continue
-            fi
-            ch=$(basename "$feed" | sed 's/^releases\.//; s/\.json$//')
-            echo "Mirroring $rid (channel=$ch)"
-            dotnet vpk upload github \
-              --outputDir "$dir" \
-              --channel "$ch" \
-              --repoUrl "$PUBLIC_REPO" \
-              --token "$GH_TOKEN" \
-              --tag "$tag" \
-              --releaseName "DemoViewer.NET $tag" \
-              --publish true \
-              --pre true \
-              --merge true
-          done
-
-      - name: Set public release notes
-        env:
-          GH_TOKEN: ${{ secrets.DV_PUBLIC_RELEASES_TOKEN }}
-          PUBLIC_REPO: ${{ vars.DV_PUBLIC_REPO_URL || 'https://github.com/sid2934/DemoViewer.NET-releases' }}
-        run: |
-          set -euo pipefail
-          slug="${PUBLIC_REPO#https://github.com/}"
-          gh release edit "${{ github.ref_name }}" --repo "$slug" --notes-file .github/release-body.md
 
       - name: Set release notes (guide users to the right installer)
         env:

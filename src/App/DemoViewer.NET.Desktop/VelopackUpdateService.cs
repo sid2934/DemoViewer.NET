@@ -26,15 +26,13 @@ internal sealed class VelopackUpdateService : IUpdateService
     ///     app's own update channel, not user configuration, and a settable endpoint would be a way
     ///     to point an installed app at attacker-controlled packages.
     ///     <para>
-    ///         <b>This MUST be the public releases repo, not the source repo.</b> The source repo is
-    ///         private, and GitHub answers unauthenticated API calls for a private repo with
-    ///         <c>404</c> — verified directly against both <c>/releases</c> and an asset URL. Since
-    ///         no token is sent (embedding one in a shipped desktop binary would be extractable, and
-    ///         would hand every user read access to private source), pointing here at the source repo
-    ///         makes every update check fail with a 404 that looks like "no updates".
+    ///         Must be a repo GitHub serves unauthenticated: no token is sent (embedding one in a
+    ///         shipped desktop binary would be extractable), so a private repo here would answer
+    ///         every update check with a 404 that looks like "no updates". Releases publish
+    ///         directly on the public source repo.
     ///     </para>
     /// </summary>
-    private const string RepoUrl = "https://github.com/sid2934/DemoViewer.NET-releases";
+    private const string RepoUrl = "https://github.com/sid2934/DemoViewer.NET";
 
     /// <summary>
     ///     Resolved by the last successful <see cref="CheckAsync" />; consumed by
