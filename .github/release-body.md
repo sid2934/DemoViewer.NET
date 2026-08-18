@@ -1,34 +1,24 @@
-## What's new in 0.7.0
+## What's new in 0.7.1
 
-**DemoViewer.NET is now open source.** The full source lives at
-[github.com/sid2934/DemoViewer.NET](https://github.com/sid2934/DemoViewer.NET) under MIT, and
-releases and auto-updates now come straight from this repository. The parser and analysis engine
-also ship as NuGet packages (`Cs2DemoKit.*`) for anyone building their own demo tools.
+A maintenance release. Nothing in the app looks or behaves differently; the change is underneath.
 
-**Damage stats no longer overcount burst hits.** When several hits landed in the same GOTV frame —
-shotgun pellets, sprays at tournament tickrates — enemy damage could exceed the health the victim
-actually had. Same-frame hits are now capped at the victim's remaining health, so damage totals
-match the scoreboard.
+**The parser and analysis engine are now packages.** They moved out to
+[CS2DemoKit](https://github.com/CS2OpenDev/CS2DemoKit) and this app consumes them from nuget.org
+like any other dependency, which is why the source tree here shrank by roughly a hundred thousand
+lines. Anyone building their own CS2 demo tooling can now install the same parser and analysis
+engine this app runs on, without taking the app with it.
 
-**Analysis allocates about half the memory it did.** Rule evaluation now runs on chunked
-copy-on-write snapshots with a wrapper cache, cutting its allocations roughly in half versus 0.6.0
-— below where the app sat before rich highlights landed.
-
-**Entity data now rides the community SDK.** Entity schemas and game-event definitions come from
-the community-maintained [CS2OpenDev](https://github.com/CS2OpenDev) SDK packages instead of a
-private generated layer. Decoding behaviour is unchanged — verified field-by-field against the
-previous implementation on real demos — and definitions stay current as CS2 updates.
-
-**Quality of life**
-
-- Graph breakpoint conditions now evaluate against the event that fired them, closing a gap where
-  `event.tick` could read from the wrong event.
-- Parser tab source links work again (paths broke in an internal project reshuffle).
-- The Entity Tracking inspector only offers entity links for fields that are actually entity
-  handles, instead of dressing every handle-shaped value as one.
+**For rule authors:** the editor schema file is now called `cs2demokit-rules.schema.json`. New rule
+files get the new name in their `# yaml-language-server:` line automatically. Existing files in
+your rules folder still point at `dv-rules.schema.json`, which stays where it is and keeps working
+— update the line when convenient to validate against the current schema.
 
 <details>
-<summary>What was new in 0.6.0 and earlier</summary>
+<summary>What was new in 0.7.0 and earlier</summary>
+
+**0.7.0** was the open-source debut: the source moved to a public repository under MIT, releases
+and auto-updates began coming from it, damage stats stopped overcounting same-frame burst hits, and
+analysis allocation dropped by roughly half.
 
 **0.6.0** turned the update offer into a full release-notes window with a once-per-update "What's
 new" screen, added a damaged-demo banner, made Settings navigable with a jump-chip strip, checked
@@ -37,7 +27,7 @@ window-state memory, and humane error messages.
 
 **0.5.2–0.5.4** brought the in-app updater, the Match Overview landing page with a bundled sample
 match, a first-run walkthrough, roughly 24× lower memory after closing a demo, rich play-based
-highlights with in-app reels, and a long list of scoring/roster correctness fixes.
+highlights with in-app reels, and a long list of scoring and roster correctness fixes.
 
 </details>
 
