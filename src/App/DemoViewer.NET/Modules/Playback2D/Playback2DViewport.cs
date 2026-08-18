@@ -334,7 +334,7 @@ public sealed class Playback2DViewport : Control
         // The map's real networked Z-floor boundaries, when the VM has read them. Idempotent.
         _floors.SetSectionHeights(_vm.SectionHeights);
 
-        // Baked-bundle nav floors (docs/asset-pipeline/design.md) — when present these OVERRIDE the histogram + section
+        // Baked-bundle nav floors — when present these OVERRIDE the histogram + section
         // heights entirely (validated map-intrinsic bands); null → histogram fallback. Pulled each push so a
         // late-arriving bundle (MapName after activation) takes effect without a re-activation.
         _floors.SetAuthoritativeFloors(_vm.AuthoritativeFloors);
@@ -1397,7 +1397,7 @@ public sealed class Playback2DViewport : Control
     // ── 2D canvas colour palette (theme-aware, T1a) ─────────────────────────────────────────────────
     //   The renderer's colours are TOKENS (Pb2dCanvas* + Pb2dTeamT/Ct) resolved from the app's theme
     //   dictionaries for this control's variant, so ANY theme — built-in or a user drop-in — colours the radar
-    //   with no code change here (central theme system, docs/ui/theme-system-plan.md). BuildPalette resolves
+    //   with no code change here (central theme system, design notes in git history). BuildPalette resolves
     //   them ONCE per theme-change into _palette; the render hot path reads _palette through the delegating
     //   properties below, so there is NO per-frame resource lookup. The baked radar BITMAP (TryDrawRadar) is a
     //   theme-independent dark asset and is NOT recoloured — only the synthetic grid + overlays adapt. The hex

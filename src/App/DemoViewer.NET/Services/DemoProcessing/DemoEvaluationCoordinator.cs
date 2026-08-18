@@ -139,7 +139,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     /// <summary>
     ///     Fans an ALREADY-parsed demo out to every registered evaluator's
     ///     <see cref="IDemoEvaluator.OnParsedOpportunistically" /> (except any in <paramref name="skip" />)
-    ///     — the "one processing event" generalization (docs/demo-processing-queue.md). Two callers: the
+    ///     — the "one processing event" generalization. Two callers: the
     ///     Library tier-2 slot hands its held parse to the OTHER evaluators (skip=<c>{library}</c>,
     ///     replacing the old <c>Tier2DemoParsed</c> piggyback), and an interactive open hands its parse in
     ///     so an un-indexed library demo fills its card from THAT parse instead of a second background one.

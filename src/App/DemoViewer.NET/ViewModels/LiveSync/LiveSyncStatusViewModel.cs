@@ -18,7 +18,7 @@ namespace DemoViewer.NET.ViewModels.LiveSync;
 
 /// <summary>
 ///     Maps the engine-side <see cref="ILiveSyncService" /> state onto the status-strip chip and its flyout
-///     (docs/csvg-integration/ux-design.md). It owns a single reusable
+///. It owns a single reusable
 ///     <see cref="StatusChipViewModel" /> (the chip the shell shows) whose <c>FlyoutContent</c> is this VM
 ///     itself — the app <c>ViewLocator</c> resolves <c>Views/LiveSync/LiveSyncStatusView</c> for the flyout
 ///     body, so there is no VM→View reference here.

@@ -13,7 +13,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <b>Phase-G coordinate-frame gate</b> for 3D visibility (docs/3d-visibility/3d-visibility-plan.md). The blocking
+///     <b>Phase-G coordinate-frame gate</b> for 3D visibility. The blocking
 ///     question before any raycast means anything: are the baker's collision triangles (from VRF
 ///     <c>PhysAggregateData</c>) in the SAME world frame as reconstructed player positions
 ///     (<see cref="PositionUtil.CellToWorld" />)? A silent origin/scale/Z-datum mismatch yields

@@ -8,7 +8,7 @@ namespace DemoViewer.NET.LiveSync;
 
 /// <summary>
 ///     Bridges the CSVG host's <see cref="ILogger" /> output into a simple sink delegate
-///     (docs/csvg-integration/implementation-plan.md — surfaced in DV's Output panel +
+///     (— surfaced in DV's Output panel +
 ///     Diagnostics tab). The sink receives <c>(level, category, message)</c> and owns its own
 ///     thread marshaling; loggers may call it from any thread the host logs on.
 ///     <para>

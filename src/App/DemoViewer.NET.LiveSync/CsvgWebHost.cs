@@ -22,7 +22,7 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.LiveSync;
 
 /// <summary>
-///     The private, in-process CSVG gRPC host (docs/csvg-integration/implementation-plan.md):
+///     The private, in-process CSVG gRPC host:
 ///     a slim <see cref="WebApplication" /> whose only jobs are hosting CSVG's
 ///     <see cref="Cs2GameService" /> on localhost:50051/HTTP2 (the port the CS2 plugin and mock
 ///     server dial back to — fixed by the plugin, not configurable) and owning the CSVG service

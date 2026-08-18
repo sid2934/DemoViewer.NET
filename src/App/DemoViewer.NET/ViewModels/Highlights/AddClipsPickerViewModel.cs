@@ -15,7 +15,7 @@ using DemoViewer.NET.ViewModels.Library;
 namespace DemoViewer.NET.ViewModels.Highlights;
 
 /// <summary>
-///     The cross-demo <b>Add clips</b> picker (docs/ui/highlights-matchoverview-redesign.md) — the
+///     The cross-demo <b>Add clips</b> picker — the
 ///     reason multi-demo reels still work with the card grid gone. A <b>flat, virtualized highlight-ROW
 ///     list</b> spanning every cached demo, because the unit of work here is a clip, not a demo; that also
 ///     retires the chunked <c>CardRow</c> machinery, which only ever existed because <c>WrapPanel</c> has no

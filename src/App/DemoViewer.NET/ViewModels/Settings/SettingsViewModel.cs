@@ -63,7 +63,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // persist it straight back (which would be a redundant write, and could echo).
     private bool _applyingExternal;
 
-    // ── Background processing (docs/demo-processing-queue.md) — desktop only; suppressed on WASM like Highlights. ──
+    // ── Background processing — desktop only; suppressed on WASM like Highlights. ──
 
     /// <summary>
     ///     Master enable for background processing (the persisted "disable" switch, default ON) →
@@ -378,7 +378,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     public ObservableCollection<string> LibraryFolders { get; } = [];
 
     /// <summary>
-    ///     Offered themes from the central <see cref="ThemeRegistry" /> (docs/ui/theme-system-plan.md): the
+    ///     Offered themes from the central <see cref="ThemeRegistry" />: the
     ///     built-in Dark / Light / System plus any custom built-ins (High-Contrast, E-Girl) and user drop-ins.
     ///     The ComboBox shows each theme's <see cref="Theme.DisplayName" />; selecting one persists its
     ///     <see cref="Theme.Id" />, which <c>App.WireTheme</c> resolves onto <c>RequestedThemeVariant</c>.

@@ -16,7 +16,7 @@ using DemoViewer.NET.ViewModels.Highlights;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Reels dashboard VM battery (docs/ui/highlights-matchoverview-redesign.md): the clip tray —
+///     The Reels dashboard VM battery: the clip tray —
 ///     staging, ordering, removal, the guarded clear — the tray→plan→output ordering contract, the
 ///     staging-time pre-flight, tray persistence, and the responsive collapse. All headless over a seeded
 ///     cache store (no demos, no parse, no UI thread).

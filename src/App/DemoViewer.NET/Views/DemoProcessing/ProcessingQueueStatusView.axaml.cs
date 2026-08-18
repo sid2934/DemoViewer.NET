@@ -7,7 +7,7 @@ using Avalonia.Controls;
 namespace DemoViewer.NET.Views.DemoProcessing;
 
 /// <summary>
-///     The demo-processing-queue flyout body (docs/demo-processing-queue.md), resolved by the app
+///     The demo-processing-queue flyout body, resolved by the app
 ///     <c>ViewLocator</c> for a <see cref="ViewModels.DemoProcessing.ProcessingQueueStatusViewModel" /> and
 ///     hosted inside the <see cref="Controls.StatusChip" />'s <c>card-flyout</c>. Purely declarative — no
 ///     code-behind.

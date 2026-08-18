@@ -158,7 +158,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private bool _liveSyncHudPulsing;
 
     // The baked map-asset bundle for the current map (nav floors + radar + transform), loaded VRF-free from
-    // the dev cs2-assets/baked cache when available (docs/asset-pipeline/design.md). Null when no bundle exists → the
+    // the dev cs2-assets/baked cache when available. Null when no bundle exists → the
     // viewport falls back to its grid + Z-histogram floors. Reloaded when IModuleContext.MapName changes.
 
     // The map's REAL networked world-space X/Y bounds (the radar bounding box), read ONCE from the game-rules

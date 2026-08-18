@@ -9,7 +9,7 @@ using DemoViewer.NET.Services.DemoCache;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The one-shot legacy migration (docs/ui/highlights-matchoverview-redesign.md). The cases here are
+///     The one-shot legacy migration. The cases here are
 ///     the ones that would silently damage a real user's library rather than throw: a migration that never
 ///     runs, one that runs twice, one that clobbers fresher data, and one that blanks the Library grid.
 /// </summary>

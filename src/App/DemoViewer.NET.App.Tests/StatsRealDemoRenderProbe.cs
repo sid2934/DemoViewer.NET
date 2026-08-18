@@ -85,7 +85,7 @@ public class StatsRealDemoRenderProbe
             // Header and rows must agree on the column count in every category (the misalignment regression).
             await Assert.That(vm.RoundRows[0].Cells.Count).IsEqualTo(vm.RoundColumns.Count);
 
-            // Player-details overlay (docs/ui/player-details-ux-design.md): open the top scoreboard
+            // Player-details overlay: open the top scoreboard
             // player and capture the Overview dashboard + Rounds sub-section with real columns.
             vm.ShowMatchViewCommand.Execute(null);
             vm.OpenPlayerDetailsCommand.Execute(vm.GameRows[0]);

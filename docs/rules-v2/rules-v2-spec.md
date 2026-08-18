@@ -1,7 +1,7 @@
 # Rulesets v2 — Language Specification
 
 Shape-locked 2026-07-14, provisionally. This document is the first of the three freeze
-artifacts named by the authoring-UX plan (`docs/rules-v2/rule-authoring-ux-review.md` §3.2): the
+artifacts named by the authoring-UX plan (`the design notes in git history` §3.2): the
 published expression EBNF, the reference namespace tree, and the `RuleHasher` resolved-identity
 preimage field list. The shapes here appear in all three artifacts (this spec, the shipped
 `rules/cs2demokit-rules.schema.json`, and the preimage-snapshot golden test), so the surface is

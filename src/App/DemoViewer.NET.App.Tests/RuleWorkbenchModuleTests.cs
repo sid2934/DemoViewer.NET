@@ -27,7 +27,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Phase 3 gates for the Rulesets v2 authoring Workbench
-///     (docs/rules-v2/rules-v2-phase3-workbench-plan.md): M0 the module registers a Main-strip
+///: M0 the module registers a Main-strip
 ///     "Authoring" tab and its View renders; M1 the in-process demo-less checker reports the shipped
 ///     rulesets clean; M2 the editor's file lifecycle (New/Save), buffer-aware inline diagnostics, and
 ///     caret-jump. Filesystem tests pin the rules dirs via the RuleSetLocator env overrides and dispose

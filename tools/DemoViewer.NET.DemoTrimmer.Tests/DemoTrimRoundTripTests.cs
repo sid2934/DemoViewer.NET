@@ -20,7 +20,7 @@ namespace DemoViewer.NET.DemoTrimmer.Tests;
 ///     </para>
 ///     <para>
 ///         These tests <b>cannot</b> assert CS2 playability — that is only answerable by loading a
-///         candidate in the game. See <c>docs/research/demo-trimmer-poc.md</c> for the manual protocol.
+///         candidate in the game. See <c>the design notes in git history</c> for the manual protocol.
 ///     </para>
 /// </summary>
 [NotInParallel]

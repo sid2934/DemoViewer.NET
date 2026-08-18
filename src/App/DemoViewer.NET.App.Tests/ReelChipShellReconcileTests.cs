@@ -9,7 +9,7 @@ using DemoViewer.NET.ViewModels.Shell;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Covers the shell-side Reel-chip lifecycle (docs/csvg-integration/ux-design.md): the chip is present while
+///     Covers the shell-side Reel-chip lifecycle: the chip is present while
 ///     a job runs OR a finished result is not yet dismissed, Dismiss removes it, and a NEW run un-dismisses
 ///     and re-shows it. This is <see cref="MainViewModel.AttachReelJob" /> + the private reconcile — logic the
 ///     pure <c>ReelJobStatusViewModel</c> mapping tests do not exercise. Needs the shell, so it runs on the UI

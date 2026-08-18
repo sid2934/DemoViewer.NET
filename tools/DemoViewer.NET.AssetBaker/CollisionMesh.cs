@@ -16,7 +16,7 @@ namespace DemoViewer.NET.AssetBaker;
 ///     Extracts the map's <b>world collision</b> triangle soup from <c>maps/&lt;map&gt;/world_physics.vmdl_c</c>
 ///     (the Rubikon <see cref="PhysAggregateData" /> embedded in the physics model) via VRF — the geometry the
 ///     app raycasts for 3D line-of-sight ("time enemy was visible"). The baker owns VRF; the app consumes the
-///     baked <c>collision.tris</c> blob VRF-free. See <c>docs/3d-visibility/3d-visibility-plan.md</c>.
+///     baked <c>collision.tris</c> blob VRF-free. See <c>the design notes in git history</c>.
 ///     <para>
 ///         <b>Coordinate frame (empirically verified, dust2):</b> the physics part carries an EMPTY
 ///         <see cref="PhysAggregateData.BindPose" />, so vertices are already in <b>world space</b> — no

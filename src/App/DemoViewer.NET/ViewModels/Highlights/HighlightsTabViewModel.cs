@@ -19,7 +19,7 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.ViewModels.Highlights;
 
 /// <summary>
-///     The <b>Reels dashboard</b> (docs/ui/highlights-matchoverview-redesign.md) — what the Highlights tab
+///     The <b>Reels dashboard</b> — what the Highlights tab
 ///     became. Left: the ordered, provenance-bearing <b>clip tray</b>. Right: the promoted reel
 ///     <b>configuration pane</b> (<see cref="ReelConfig" />). Below: the inline job strip and the enrichment
 ///     slot. The tab is an <em>authoring</em> surface now, not a browser.

@@ -14,7 +14,7 @@ using DemoViewer.NET.Theming;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Proves the theme drop-in machinery (docs/ui/theme-system-plan.md): the safe JSON parse, the
+///     Proves the theme drop-in machinery: the safe JSON parse, the
 ///     <see cref="AppPaths.ThemesDirectory" /> scan, and — the load-bearing bit — that
 ///     re-registering a custom variant's tokens + bouncing <c>RequestedThemeVariant</c> re-resolves a LIVE
 ///     <c>{DynamicResource}</c>. That bounce is the repaint mechanism an edit-and-reload relies on (a same-variant

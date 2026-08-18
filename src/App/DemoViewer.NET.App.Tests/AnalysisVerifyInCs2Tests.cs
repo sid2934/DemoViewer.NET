@@ -9,7 +9,7 @@ using DemoViewer.NET.ViewModels;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     "Verify in CS2" (the UI half; docs/csvg-integration/ux-design.md). Pins the
+///     "Verify in CS2" (the UI half; design notes in git history). Pins the
 ///     testable core of the Analysis-tab affordance — two-level gating, the trigger's firing-tick
 ///     resolution (an edge's own fire / a node's incoming-trigger fire / playhead fallback, always
 ///     frame clock AS-IS, no <c>−ServerStartTick</c>), raw spectate-name resolution, busy/re-entry,

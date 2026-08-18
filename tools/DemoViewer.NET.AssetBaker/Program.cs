@@ -115,7 +115,7 @@ void BakeMap(string map)
     List<RadarLayer> layers = BuildRadarLayers(map, ov, radarImages);
 
     // 5b. world collision → triangle soup (collision.tris) for 3D line-of-sight. Optional: a map without
-    //     extractable physics still bakes its 2D assets. See docs/3d-visibility/3d-visibility-plan.md.
+    //     extractable physics still bakes its 2D assets. See the design notes in git history.
     CollisionMeshRef? collision = null;
     try
     {

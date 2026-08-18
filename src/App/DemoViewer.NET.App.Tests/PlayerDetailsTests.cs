@@ -20,7 +20,7 @@ using DemoViewer.NET.Views.Stats;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Player-details dashboard tests (docs/ui/player-details-ux-design.md) — synthetic fixture per the
+///     Player-details dashboard tests — synthetic fixture per the
 ///     StatsTabTests pattern. Covers: PlayerSlot threading on StatsRow (the P0 linchpin), overlay
 ///     open/guard/close life-cycle (including force-close on Update), player switching with section
 ///     retention, panel projections (core strip, form geometry, achievements, weapon breakdown with

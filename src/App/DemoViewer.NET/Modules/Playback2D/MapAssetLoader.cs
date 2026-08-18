@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Modules.Playback2D;
 // the MapAssetBundle DTOs, live in CS2DemoKit.Analysis.Visibility (MapAssetBundleReader) — that half
 // is BCL-only and ships in the package. What stays here is the part that cannot: decoding the radar
 // images into Avalonia Bitmaps. The APP is VRF-free either way — it consumes baked, ready-to-use
-// artifacts (PNG + JSON), never the CS2 assets directly (docs/asset-pipeline/design.md).
+// artifacts (PNG + JSON), never the CS2 assets directly.
 
 /// <summary>
 ///     A loaded map-asset bundle: the parsed <see cref="MapAssetBundle" /> plus the decoded radar

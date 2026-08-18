@@ -130,7 +130,7 @@ public static class AppPaths
     /// <summary>
     ///     The unified demo-information cache directory — <c>&lt;config&gt;/cache/</c>, holding
     ///     <c>index.json</c> plus one sidecar per demo under <c>demos/</c>
-    ///     (docs/ui/highlights-matchoverview-redesign.md). Supersedes <see cref="LibraryCacheFile" /> and
+    ///. Supersedes <see cref="LibraryCacheFile" /> and
     ///     <see cref="HighlightsCacheFile" />, which remain here only so the one-shot migration can read them.
     ///     A PURE path — the store creates directories when it first writes. <c>null</c> on WASM.
     /// </summary>
@@ -145,7 +145,7 @@ public static class AppPaths
 
     /// <summary>
     ///     The user theme drop-in directory — <c>&lt;config&gt;/themes/</c> (central theme system,
-    ///     docs/ui/theme-system-plan.md, T3). Each <c>*.json</c> here is loaded as a custom theme. A PURE path
+    ///     the design notes in git history, T3). Each <c>*.json</c> here is loaded as a custom theme. A PURE path
     ///     (no directory creation — a side-effect-free getter keeps VM construction hermetic in tests);
     ///     <see cref="EnsureThemesDirectory" /> creates it once at app startup. <c>null</c> on WASM (no filesystem).
     /// </summary>

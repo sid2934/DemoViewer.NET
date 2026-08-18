@@ -472,7 +472,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   before populating and clear buffers on disable (plan P1.2), not just `IsVisible`.
 
 <a id="statuschip"></a>
-### StatusChip + StatusStrip chip region (CSVG integration — `docs/csvg-integration/ux-design.md` §4.1)
+### StatusChip + StatusStrip chip region (CSVG integration — `the design notes in git history` §4.1)
 - **Files (as-built):** `Controls/StatusChip.axaml(.cs)` (DataContext = `ViewModels/StatusChipViewModel`);
   `Controls/StatusStrip.axaml(.cs)` gained a right-aligned `ItemsControl` chip region (spacing 12) bound to a
   new `IEnumerable? Chips` styled property (between the perf ticker and `RightText`); the shared status-dot
@@ -804,7 +804,7 @@ static mockup or `SvgExporter`, never a promised headless before/after.
 - **Resizable panes = `Grid` + `GridSplitter`** with `*`/`Auto`/`px`. Avoid deep nested grids with
   hardcoded pixel widths that don't scale.
 - <a id="master-detail-split"></a>**Master-detail split = `Grid ColumnDefinitions="*,Auto,1.4*"` + a
-  `GridSplitter` in the `Auto` column** (CSVG integration, `docs/csvg-integration/ux-design.md`
+  `GridSplitter` in the `Auto` column** (CSVG integration, `the design notes in git history`
   §4.2/§7.2; **first + only app consumer is the Highlights tab**, `Views/Highlights/HighlightsTabView.axaml`,
   the Library having no details-pane precedent). List left (`*`), detail right (`1.4*`, content-denser).
   **Responsive rule (mandatory):** below a width breakpoint (~760px) it **collapses to a single column**

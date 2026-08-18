@@ -10,7 +10,7 @@ using DemoViewer.NET.ViewModels.Stats;
 namespace DemoViewer.NET.Views.Stats;
 
 /// <summary>
-///     Player-details dashboard view (docs/ui/player-details-ux-design.md). Hosted as an inline
+///     Player-details dashboard view. Hosted as an inline
 ///     overlay inside <see cref="StatsTabView" /> — never a separate Window (WASM parity).
 ///     Code-behind exists only for the form-card round deep-link (design P-3 interaction):
 ///     tapping a damage bar jumps to the Rounds sub-section with that round highlighted.

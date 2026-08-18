@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Theming;
 
 /// <summary>
 ///     A parsed theme definition — the neutral shape a <see cref="ThemeRegistry" /> registers as a custom
-///     variant (docs/ui/theme-system-plan.md). Produced by <see cref="ThemeJson" /> from either a user drop-in
+///     variant. Produced by <see cref="ThemeJson" /> from either a user drop-in
 ///     file under <c>&lt;config&gt;/themes/</c> or an embedded built-in JSON (High-Contrast / E-Girl).
 /// </summary>
 /// <param name="Id">Stable id, persisted in <c>settings.json</c> and used as the <see cref="ThemeVariant" /> key.</param>
@@ -25,7 +25,7 @@ public sealed record ThemeDefinition(
     IReadOnlyDictionary<string, Color> Tokens);
 
 /// <summary>
-///     Safe JSON reader for theme definitions (docs/ui/theme-system-plan.md, T3). A theme file is pure DATA —
+///     Safe JSON reader for theme definitions (T3). A theme file is pure DATA —
 ///     <c>{ id, name, base, tokens{ key: "#RRGGBB" } }</c> — parsed into a <see cref="ThemeDefinition" /> with no
 ///     object instantiation or code execution, so loading an untrusted drop-in is never code-exec (unlike runtime
 ///     AXAML). Malformed input degrades gracefully: an unparseable file yields <c>null</c>; individual bad token

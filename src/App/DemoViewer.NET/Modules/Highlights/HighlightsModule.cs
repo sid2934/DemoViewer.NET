@@ -9,7 +9,7 @@ using DemoViewer.NET.Views.Highlights;
 namespace DemoViewer.NET.Modules.Highlights;
 
 /// <summary>
-///     The Reels tab module (docs/ui/highlights-matchoverview-redesign.md).
+///     The Reels tab module.
 ///     Contributes one Main-strip tab (<c>"highlights.browser"</c>, Order 3 — after Stats) whose VM is the
 ///     reel-authoring dashboard: an ordered clip tray plus the promoted reel configuration pane.
 ///     <para>

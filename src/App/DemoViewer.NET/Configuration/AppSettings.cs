@@ -54,7 +54,7 @@ public sealed class AppSettings
     /// <summary>Highlights pipeline configuration — desktop-only, binder-safe.</summary>
     public HighlightsSettings Highlights { get; set; } = new();
 
-    /// <summary>Global demo-processing queue configuration (docs/demo-processing-queue.md), binder-safe.</summary>
+    /// <summary>Global demo-processing queue configuration, binder-safe.</summary>
     public ProcessingQueueSettings ProcessingQueue { get; set; } = new();
 
     /// <summary>Unified diagnostics-logging configuration (in-app log window caps + rolling file sink).</summary>
@@ -159,7 +159,7 @@ public sealed class DiagnosticsSettings
 }
 
 /// <summary>
-///     Settings for the global demo-processing queue (docs/demo-processing-queue.md) — the single source
+///     Settings for the global demo-processing queue — the single source
 ///     all background demo parse/analyse work is pulled from.
 ///     <para>
 ///         <b>Pause is NOT here</b> — it is a transient runtime toggle (a Pause/Resume button); the app
@@ -188,7 +188,7 @@ public sealed class ProcessingQueueSettings
     ///         preference.
     ///     </b>
     ///     Two concurrent multi-GB parses exhaust RAM; &gt; 1 is advanced/opt-in and
-    ///     clamped to <see cref="Services.HeavyJobGate.HardCapConcurrency" />. See docs/demo-processing-queue.md.
+    ///     clamped to <see cref="Services.HeavyJobGate.HardCapConcurrency" />. See the design notes in git history.
     /// </summary>
     public int MaxConcurrency { get; set; } = 1;
 }
@@ -252,9 +252,9 @@ public sealed class HighlightsSettings
 }
 
 /// <summary>
-///     Live CS2 sync (CSVG) settings (docs/csvg-integration/implementation-plan.md). Whether the
+///     Live CS2 sync (CSVG) settings. Whether the
 ///     feature is AVAILABLE is the <c>chrome.livesync</c> override in <see cref="FeatureFlags.Overrides" />
-///     (docs/csvg-integration/ux-design.md); whether a session is RUNNING is never persisted — the engine always starts Off.
+///; whether a session is RUNNING is never persisted — the engine always starts Off.
 /// </summary>
 public sealed class LiveSyncSettings
 {

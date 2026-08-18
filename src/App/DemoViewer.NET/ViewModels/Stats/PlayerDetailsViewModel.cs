@@ -11,7 +11,7 @@ using CS2DemoKit.Analysis.Output;
 
 namespace DemoViewer.NET.ViewModels.Stats;
 
-/// <summary>The player-details sub-sections (docs/ui/player-details-ux-design.md).</summary>
+/// <summary>The player-details sub-sections.</summary>
 public enum DetailSection
 {
     Overview,
@@ -20,7 +20,7 @@ public enum DetailSection
 }
 
 /// <summary>
-///     The player-details dashboard VM (docs/ui/player-details-ux-design.md): every panel is a pure
+///     The player-details dashboard VM: every panel is a pure
 ///     projection of the tables the parent <see cref="StatsTabViewModel" /> already holds, filtered
 ///     to one <c>player_slot</c>. All visual geometry (sparkline points, bar heights/widths) is
 ///     computed HERE and bound as data — the view draws, it never measures. Per-player
