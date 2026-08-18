@@ -64,6 +64,15 @@ from `CS2DemoKit.Analysis` and are kept byte-identical to the package's copies; 
 `highlights_*` rulesets are this app's own content. The rules language is documented in
 [`docs/rules-v2/rules-v2-spec.md`](docs/rules-v2/rules-v2-spec.md).
 
+## Contributing
+
+Bugs and feature requests live in [GitHub
+issues](https://github.com/sid2934/DemoViewer.NET/issues). Note that the parser and analysis engine
+are a separate project — anything about demo parsing, entity decoding, stat correctness or the
+rules engine belongs in [CS2DemoKit's
+issues](https://github.com/CS2OpenDev/CS2DemoKit/issues) instead, since that is where the fix would
+land.
+
 ## Building from source
 
 ```sh
