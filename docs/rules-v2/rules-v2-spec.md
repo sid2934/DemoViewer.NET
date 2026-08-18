@@ -4,7 +4,7 @@ Shape-locked 2026-07-14, provisionally. This document is the first of the three 
 artifacts named by the authoring-UX plan (`docs/rules-v2/rule-authoring-ux-review.md` §3.2): the
 published expression EBNF, the reference namespace tree, and the `RuleHasher` resolved-identity
 preimage field list. The shapes here appear in all three artifacts (this spec, the shipped
-`rules/cs2demokit-rules.schema.json`, and the preimage-snapshot golden test), so the surface is
+`rules/dv-rules.schema.json`, and the preimage-snapshot golden test), so the surface is
 **locked as the working baseline** — no shape change without a recorded decision.
 
 **Provisional, not discharged.** The plan's pre-freeze de-risk step — the live paper-test
@@ -25,7 +25,7 @@ This is the working contract for `src/Analysis/DemoViewer.NET.Analysis.Rules` (t
 (`when:`, `where:`, `compute:`, trigger `condition:` forms, bucket `key:` parts, capture
 value selectors), the identifier namespaces those expressions resolve against, and the
 structural-hash preimage that drives node dedup. The full document-level YAML schema
-(`ruleset:` files) is specified by the generated `cs2demokit-rules.schema.json` (the v2
+(`ruleset:` files) is specified by the generated `dv-rules.schema.json` (the v2
 loader + compiler) and is out of scope here except where a shape is listed as reserved.
 
 **Design charter (from the plan's §1.5):** an owned language with CEL's discipline —
@@ -498,7 +498,7 @@ nodes).
 
 ## 7. Reserved / freeze-relevant shapes (schema freeze list)
 
-This section is the freeze record of the shapes the shipped `cs2demokit-rules.schema.json` must carry
+This section is the freeze record of the shapes the shipped `dv-rules.schema.json` must carry
 (freeze artifact 2). Nearly all of them are **now live in v2.0** — the vocabulary/composition
 wave un-reserved them, and each is called out inline below. The **only** shape still reserved
 (present in the schema but loader-rejected as "not yet implemented") is the **extra bucket

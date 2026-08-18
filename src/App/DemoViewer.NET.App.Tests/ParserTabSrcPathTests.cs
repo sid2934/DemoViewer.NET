@@ -1,26 +1,23 @@
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Regression pin for the four <c>ParserTabViewModel.SrcPath(...)</c> call sites that back the
+///     Regression pin for the <c>ParserTabViewModel.SrcPath(...)</c> call sites that back the
 ///     Parser tab's clickable parse-chain source links (opened via <c>code --goto file:line</c>).
-///     Each site was found pointing at a nonexistent path — either missing the "src/..." root
-///     segment(s), or (for the two entity-tracking sites) still saying "Entities" from before the
-///     entity-tracking code merged into "EntityTracking". A dead link fails silently (the click does
-///     nothing), so this test independently resolves the repo root the same way
-///     <c>MainViewModel.FindRepoRoot</c> does and asserts each composed target still exists — a
-///     future file move turns the dead link into a red test instead of a silent nothing-happens click.
+///     Each site was once found pointing at a nonexistent path, and a dead link fails silently —
+///     the click just does nothing. This test resolves the repo root the same way
+///     <c>MainViewModel.FindRepoRoot</c> does and asserts each composed target still exists, so a
+///     file move turns the dead link into a red test.
+///     <para>
+///         Only App-owned files are pinned here. The parse pipeline and entity decoder ship as the
+///         CS2DemoKit packages, so their sources are not in this checkout; those chain entries link
+///         out to the upstream repository on GitHub and cannot be checked against the filesystem.
+///     </para>
 /// </summary>
 public class ParserTabSrcPathTests
 {
     [Test]
     [Arguments("AddPayloadNodeSteps → PayloadNodeBuilder.Build()/BuildFields()",
         "src/App/DemoViewer.NET/Models/PayloadNodeBuilder.cs")]
-    [Arguments("AddPayloadNodeSteps → EntityTracker.PeekEntityUpdates() (entity_data step)",
-        "src/Parser/CS2DemoKit.Parser/EntityTracking/EntityTracker.cs")]
-    [Arguments("BuildChainForEntity → EntityTracker.ProcessFrame()/.../ReadEntityFields()",
-        "src/Parser/CS2DemoKit.Parser/EntityTracking/EntityTracker.cs")]
-    [Arguments("BuildChainForFrame → DemoParser.Parse()/ParseInnerMessages()/TryParseNetMessage()",
-        "src/Parser/CS2DemoKit.Parser/DemoParser.cs")]
     public async Task SrcPathSite_ResolvesToExistingFile(string site, string repoRelativePath)
     {
         string repoRoot = FindRepoRoot();

@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=./cs2demokit-rules.schema.json
+# yaml-language-server: $schema=./dv-rules.schema.json
 #
 # Windowed multi-kills — the v0.5.4 centerpiece. Each stat is a `burst:` PULSE: it
 # goes true for one dispatch when min_streak enemy kills land within a rolling `window` (a true

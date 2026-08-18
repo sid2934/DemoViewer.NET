@@ -16,7 +16,7 @@ the Analysis tab opens it, and the Rule Workbench edits it directly). Name files
 file with this line to get editor validation and autocompletion:
 
 ```yaml
-# yaml-language-server: $schema=./cs2demokit-rules.schema.json
+# yaml-language-server: $schema=./dv-rules.schema.json
 ```
 
 **Check your work as you go.** After writing a file, run:

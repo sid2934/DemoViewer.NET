@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=./cs2demokit-rules.schema.json
+# yaml-language-server: $schema=./dv-rules.schema.json
 #
 # Clutch + retake highlights (v0.5.4). The 1vN clutch win reads the new `round.clutch.size`
 # context (N enemies alive when the subject ENTERED the clutch, captured by the clutch enrichment and

@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=./cs2demokit-rules.schema.json
+# yaml-language-server: $schema=./dv-rules.schema.json
 #
 # Position highlights — the first consumers of the Tier C `player.place` provider
 # (entity.pawn.place): the subject pawn's `m_szLastPlaceName`, the human-readable nav-mesh

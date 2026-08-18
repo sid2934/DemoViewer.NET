@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=./cs2demokit-rules.schema.json
+# yaml-language-server: $schema=./dv-rules.schema.json
 #
 # Ammo-management feats — the "last bullet" highlight family. Reads the Tier C per-player
 # entity provider `player.active_weapon_clip` (entity.pawn.active_weapon_clip): the pawn's

@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=./cs2demokit-rules.schema.json
+# yaml-language-server: $schema=./dv-rules.schema.json
 #
 # Situational / objective highlights: watchable moments that hinge on economy, weapon
 # class, or the bomb objective rather than raw frag count. Each highlight is backed by a

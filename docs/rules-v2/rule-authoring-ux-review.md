@@ -257,7 +257,7 @@ bool with a comment explaining why `bomb_status` doesn't work, and a double decl
 `columns:` + `outputs:`. In v2:
 
 ```yaml
-# yaml-language-server: $schema=./cs2demokit-rules.schema.json
+# yaml-language-server: $schema=./dv-rules.schema.json
 ruleset: post_plant_double
 title: Post-Plant Double
 summary: 2+ enemy kills after the bomb plant in one round, with clip-ready tick context.
@@ -400,7 +400,7 @@ Cost-ordered; the schema was shaped so the cheap tier is already transformative.
 
 | Layer | What | Effort |
 |---|---|---|
-| **Catalog + schema generator** | new `tools/` generator (same pattern as the existing Codegen project) reflecting EventRegistry, enrichment declarations, BuiltinContexts, plus the curated view/facet/`providers:` data files → `catalog.json` + `cs2demokit-rules.schema.json` (enums, hover docs, `if/then` per kind, whole-stat `defaultSnippets`). Modeline-injected into provisioned files. VS Code + stock yaml-language-server then completes views, per-view `match:` keys, kinds, destinations — zero custom editor code. | **M** |
+| **Catalog + schema generator** | new `tools/` generator (same pattern as the existing Codegen project) reflecting EventRegistry, enrichment declarations, BuiltinContexts, plus the curated view/facet/`providers:` data files → `catalog.json` + `dv-rules.schema.json` (enums, hover docs, `if/then` per kind, whole-stat `defaultSnippets`). Modeline-injected into provisioned files. VS Code + stock yaml-language-server then completes views, per-view `match:` keys, kinds, destinations — zero custom editor code. | **M** |
 | **`rules check` CLI** | a verb on AnalysisBench (which already accepts a rules dir): full static validation without a demo; `--demo x.dem` adds coverage lints (never-fires, source gaps); `--test` runs paired `.test.yaml` fixtures (Semgrep/Falco convention: rule + recorded capture + expected matches), backed by the existing golden accuracy machinery. | **S–M** |
 | **In-app workbench** | AvaloniaEdit (+TextMate injection grammar for expression slots — a **new dependency**, pure-managed, no WebView/Monaco per house constraints); completion popup fed **in-process** by the shared semantic core (no LSP hop); FileSystemWatcher → auto re-run; fire-count badges; diagnostics rows regain line/col and click-to-open passes `code --goto file:line` (both currently dropped). The breakpoint condition editor already prototypes registry-driven autocomplete, and `Building/StructuredCondition.cs` already proves lossless structured↔text round-tripping in-repo. | **M–L** |
 | **Trace panel** | HA-trace model: candidate-event lists with per-clause verdicts, near-miss view, path-highlighted graph, message scrubbing. Round-2 correction: the opt-in per-edge applied recorder **is on main** (`StateGraphEvaluator.cs:762, 814-822` — null and byte-identical on normal runs), so this is cheaper than first budgeted. Clause-level verdicts are recorded **only** during a targeted re-run of the selected ruleset on a cloned instrumented subgraph (never always-on — always-on verdict capture was measured as the snapshot-alloc disaster at 1.1–1.7M-evaluation cardinality and is rejected, §3.1 round-2). Cheap always-on fire *counters* (a first-wave quick win) power the badges and never-fired lint on every ordinary run. | **M** |
@@ -781,7 +781,7 @@ Exit: bench suite unchanged (± noise); all new tests green.
 - **v1 schema retrofit**: the same generator injects event/enrich-name enums into
   `rules/analysis-rules.schema.json` and fixes the audit's schema/loader drift (e.g.
   `requires:` is missing — files following the docs currently validate as *invalid*). The full
-  v2 schema (`rules/cs2demokit-rules.schema.json`, where the §1.4 modeline resolves) is a core-wave
+  v2 schema (`rules/dv-rules.schema.json`, where the §1.4 modeline resolves) is a core-wave
   deliverable of the same tool.
 - **`rules check` CLI**: a verb on AnalysisBench
   (`dotnet run --project tools/AnalysisBench -- rules check <dir>`). Scope for this wave: v1
@@ -831,7 +831,7 @@ on the shipped corpus; the digest-parity battery green.
   truth** (the oracle-only rule stands: demofile-net is never a project dependency).
 - **Shape freezes.** A freeze is discharged when the shape appears in all three artifacts,
   all landing in this wave: (1) `docs/rules-v2/rules-v2-spec.md` — the published EBNF, the namespace
-  tree, and the `RuleHasher` preimage field list; (2) the shipped `cs2demokit-rules.schema.json`,
+  tree, and the `RuleHasher` preimage field list; (2) the shipped `dv-rules.schema.json`,
   which must already contain the reserved shapes even where the loader rejects them as
   "reserved, not yet implemented" — multi-source condition lists, bucket `key:`-as-list
   + reducer + `per:` axes, duration literal forms, the team-aggregate namespace
