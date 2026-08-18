@@ -25,7 +25,7 @@ namespace DemoViewer.NET.AppTests;
 /// </summary>
 public class ShippedSchemaDriftTests
 {
-    private const string SchemaFileName = "dv-rules.schema.json";
+    private const string SchemaFileName = "cs2demokit-rules.schema.json";
 
     /// <summary>The repo copy matches the package's byte for byte.</summary>
     [Test]

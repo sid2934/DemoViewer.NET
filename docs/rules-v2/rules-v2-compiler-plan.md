@@ -95,7 +95,7 @@ golden.
 | resolver | resolver (defines/params-bind/for_each-expanded/views/exports) + canonicalize + checker → CheckedRuleset IR | demo-free battery |
 | planner | CheckedRuleset → graph on the engine-track contracts; `RuleNodeKind` Tally/Streak + preimage extension; env lowering behind a flag; cycle pre-pass; coverage skips | hand-built graphs + golden pilot |
 | surfacing | `show:` surfacing (scoreboard/tables, highlight-column semantics) + list flatteners in CSV/JSON serializers | fixture serialization tests |
-| schema | `rules/dv-rules.schema.json` generation (+ split reserved/live shape lists) + drift gate | drift test |
+| schema | `rules/cs2demokit-rules.schema.json` generation (+ split reserved/live shape lists) + drift gate | drift test |
 | `rules check` | v2 integration (demo-less checker dispatch + `--demo` compiling composed configs + fixture disposition) | CLI battery |
 | pilot | `rules/examples/post_plant_double.rules.yaml` running end-to-end with a golden diff vs the v1 file | golden parity test |
 
@@ -496,7 +496,7 @@ Obligations, in order:
 
 ## 9. Schema generation
 
-`dv-rules.schema.json` emission in the RulesCatalog generator: kind discriminators with
+`cs2demokit-rules.schema.json` emission in the RulesCatalog generator: kind discriminators with
 `if/then` per kind, per-view `match:` facet enums with `markdownDescription` + per-source
 availability, destination enums, whole-stat `defaultSnippets`. **Two explicit shape lists
 (decision, resolves the §9-conflation findings):**
@@ -565,7 +565,7 @@ follows the resolver; surfacing overlaps the planner. Everything lands on
 
 These are the pre-freeze corrections to `docs/rules-v2/rules-v2-spec.md` (still a draft at the
 time) that this contract's decisions require; each must appear in all three freeze artifacts
-(spec, `dv-rules.schema.json`, preimage-snapshot golden):
+(spec, `cs2demokit-rules.schema.json`, preimage-snapshot golden):
 
 1. §6 row 1: add `tally`, `streak` to the kind list (decision 4).
 2. §6 row 3: widen the scope axis to the compound `(For × Per)` product —

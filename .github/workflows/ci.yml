@@ -11,20 +11,14 @@ on:
     branches: [main]
   pull_request:
 
-# Restore of Cs2VideoGenerator.Core from the private GitHub Packages feed uses the built-in
-# GITHUB_TOKEN (nuget.config reads GITHUB_PACKAGE_USER/TOKEN). NOTE: the package lives in a
-# different repo (sid2934/Cs2VideoGenerator), so the built-in token can only read it once that
-# package grants this repo read access (package → Manage Actions access) or is org/internal.
+# No credentials needed to restore: everything comes from nuget.org except Cs2VideoGenerator.Core,
+# which is a committed .nupkg in local-packages/.
 permissions:
   contents: read
-  packages: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_PACKAGE_USER: ${{ github.actor }}
-      GITHUB_PACKAGE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:

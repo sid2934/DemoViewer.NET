@@ -19,7 +19,6 @@ on:
 
 permissions:
   contents: write   # upload release assets when cut from a tag
-  packages: read    # restore Cs2VideoGenerator.Core from the private GitHub Packages feed
   actions: read     # verify-ci lists ci.yml runs; declaring this block makes every omitted
                     # scope `none`, so without it that call 403s (it did, on the v0.5.2 tag)
 
@@ -82,11 +81,6 @@ jobs:
             rid: linux-x64
     runs-on: ${{ matrix.os }}
     env:
-      # Private-feed restore via the built-in token (nuget.config reads these). The Core package
-      # lives in sid2934/Cs2VideoGenerator — it must grant this repo read access for the built-in
-      # token to see it (package → Manage Actions access), else restore 401s.
-      GITHUB_PACKAGE_USER: ${{ github.actor }}
-      GITHUB_PACKAGE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Signing secrets (unset = unsigned, §6). Set these in repo secrets to enable.
       DV_SIGN_APP_IDENTITY: ${{ secrets.DV_SIGN_APP_IDENTITY }}
       DV_SIGN_INSTALL_IDENTITY: ${{ secrets.DV_SIGN_INSTALL_IDENTITY }}

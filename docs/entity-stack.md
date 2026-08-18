@@ -33,7 +33,7 @@ The result is four layers with sharp boundaries:
 
 ```mermaid
 flowchart TD
-    subgraph UP["Upstream: CS2OpenDev-SDK packages (GitHub Packages, vendored in local-packages/)"]
+    subgraph UP["Upstream: CS2OpenDev-SDK packages (nuget.org)"]
         PROTOS["CS2OpenDev.Protos<br/>Valve protobuf types"]
         SDK["CS2OpenDev.Sdk<br/>SchemaNames.* constants"]
         GE["CS2OpenDev.Sdk.GameEvents<br/>event decoder + typed records"]
@@ -120,9 +120,10 @@ Notes on the hand-offs:
 
 ## 3. Layer 1 — the upstream packages
 
-All five are consumed from GitHub releases, vendored as `.nupkg` files in `local-packages/`
-(the repo-local feed in `nuget.config`), versions pinned centrally in
-`Directory.Packages.props`. Refresh from the **release**, never a local `dotnet pack`.
+All five come from nuget.org, versions pinned centrally in `Directory.Packages.props`. They were
+vendored as committed `.nupkg` files until the family reached nuget.org in 2026-08. Four of the
+five now arrive transitively through the CS2DemoKit packages; only `CS2OpenDev.Sdk` is referenced
+directly here, for its `SchemaNames.*` constants.
 
 | Package | Provides | Consumed by | Version clock |
 |---|---|---|---|

@@ -1136,7 +1136,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     }
 
     private static string StarterTemplate(string id) =>
-        "# yaml-language-server: $schema=./dv-rules.schema.json\n"
+        "# yaml-language-server: $schema=./cs2demokit-rules.schema.json\n"
         + "ruleset: " + id + "\n"
         + "for: each_player\n"
         + "stats:\n"

@@ -73,7 +73,7 @@ public class ReleaseGateTests
             await Assert.That(File.Exists(Path.Combine(rulesDir, "kast.rules.yaml"))).IsTrue();
             // The v2 schema is what EnsureUserRulesDirectory copies into new user dirs —
             // if it stopped shipping, new users would silently lose editor validation.
-            await Assert.That(File.Exists(Path.Combine(rulesDir, "dv-rules.schema.json"))).IsTrue();
+            await Assert.That(File.Exists(Path.Combine(rulesDir, "cs2demokit-rules.schema.json"))).IsTrue();
 
             // Strict-load from the PUBLISHED location — the exact failure mode of the original
             // finding (DirectoryNotFoundException → dead Analysis tab) can never silently return.

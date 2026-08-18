@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=./dv-rules.schema.json
+# yaml-language-server: $schema=./cs2demokit-rules.schema.json
 #
 # Tier C aim highlights — stateful per-player derivations over the bullet_damage wire event
 # (the shot_landed view), via the enrich.shot.* / enrich.kill.spray_* enrichments

@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=./dv-rules.schema.json
+# yaml-language-server: $schema=./cs2demokit-rules.schema.json
 #
 # Multi-kill reel highlights: ace / quad / triple. One shared per-round stat counts this
 # player's enemy kills in live rounds; three highlights fire on the rising edge of the

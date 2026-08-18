@@ -613,7 +613,7 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     // <id>.leetify.json caches under demos/benchmarks/.
     if (!noGolden && playerReports.Count > 0)
     {
-        WriteGoldenStatsFiles(demoPath, sha256, demo, playerReports, leetifyJsonPath);
+        WriteGoldenStatsFiles(demoPath, sha256, demo, playerReports);
     }
 
     // ── Per-round MetricTable export (--export=csv|json [--out=<path>]) ──────
@@ -796,16 +796,17 @@ static void CompareWithLeetify(string leetifyPath, List<PlayerReport> players)
 // tests/fixtures/<demo-id>/. One file per provider:
 //
 //   tests/fixtures/<demo-id>/ours.golden.json     — produced from this run.
-//   tests/fixtures/<demo-id>/leetify.golden.json  — converted from the
-//                                                   existing cached Leetify
-//                                                   JSON when present.
+//
+// leetify.golden.json is no longer written: CS2DemoKit.Analysis 0.9.1 retired the converter that
+// produced it. The live Leetify comparison above is unaffected — it parses the raw cached JSON
+// itself and never used the package.
 //
 // The directory pattern (rather than a flat layout) anticipates additional
 // providers — `hltv.golden.json`, `expected.golden.json` — without renaming
 // existing files.
 static void WriteGoldenStatsFiles(
     string demoPath, string demoSha256, ParsedDemo demo,
-    List<PlayerReport> playerReports, string? leetifyJsonPath)
+    List<PlayerReport> playerReports)
 {
     string demoId = Path.GetFileNameWithoutExtension(demoPath);
     string fixturesRoot = Path.Combine(FindRepoRoot(), "tests", "fixtures", demoId);
@@ -830,20 +831,6 @@ static void WriteGoldenStatsFiles(
     string oursPath = Path.Combine(fixturesRoot, "ours.golden.json");
     GoldenStatsSerializer.WriteToFile(ours, oursPath);
     Console.WriteLine($"Golden: {Path.GetRelativePath(FindRepoRoot(), oursPath)}");
-
-    // ── leetify.golden.json (only if raw cache is present) ─────────────────
-    if (leetifyJsonPath is not null && File.Exists(leetifyJsonPath))
-    {
-        string leetifyRaw = File.ReadAllText(leetifyJsonPath);
-        GoldenStatsDocument leetify = LeetifyGoldenStatsConverter.Convert(
-            leetifyRaw,
-            Path.GetFileName(demoPath),
-            demoSha256);
-
-        string leetifyPath = Path.Combine(fixturesRoot, "leetify.golden.json");
-        GoldenStatsSerializer.WriteToFile(leetify, leetifyPath);
-        Console.WriteLine($"Golden: {Path.GetRelativePath(FindRepoRoot(), leetifyPath)}");
-    }
 }
 
 // Runs the PlayerRoundStatsProjector over the evaluation result and writes one file per emitted
