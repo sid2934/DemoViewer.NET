@@ -87,7 +87,7 @@ have a pre-written gate in an example ruleset — see the `TODO()` hooks.
     list, add a `ProviderDigestParity` / `CatalogDrift` entry, and regen `rules/catalog.json`.
     Depends on the weapon-entity read gap above.
   - Pre-wired hook: `grep -rn 'TODO(entity-clip)' rules/` — the qualifying-kill gate in
-    `rules/examples/deagle_lastbullet_postplant_doubles.rules.yaml` already has the intended
+    the `deagle_lastbullet_postplant_doubles` example (now in the CS2DemoKit repo) already has the intended
     `and killer.entity.pawn.active_weapon_clip == 0` clause commented in place.
   - _Status: Open._
 

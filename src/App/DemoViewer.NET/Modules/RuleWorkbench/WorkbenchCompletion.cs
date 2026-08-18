@@ -75,7 +75,8 @@ public static class WorkbenchCompletionSource
     /// <summary>Block sentinel: the caret is at column 0 — a TOP-LEVEL section key position.</summary>
     public const string TopLevelBlock = "<top>";
 
-    // The document's top-level section keys (RULES_AUTHORING.md) — offered at a column-0 key position.
+    // The document's top-level section keys (the rules authoring guide in the CS2DemoKit repo) —
+    // offered at a column-0 key position.
     private static readonly string[] _sections = ["ruleset", "for", "use", "stats", "highlights", "show"];
 
     // show-block container keys. The ENTRY keys (stat/label/group/format/columns…) already live in

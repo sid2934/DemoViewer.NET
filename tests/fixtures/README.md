@@ -8,7 +8,6 @@ that one or more tests assert against.
 
 ```
 tests/fixtures/
-├── cs2-opendocs.expected-sha          submodule pin
 ├── <demo-id>/
 │   ├── ours.golden.json               Stat snapshot produced by AnalysisBench
 │   ├── leetify.golden.json            Stat snapshot converted from Leetify API JSON
@@ -55,7 +54,6 @@ and the oracle-sunset clock starts.
 | `leetify.golden.json` | Same — bench writes both as a side-effect. |
 | `expected.golden.json` | **Not auto-refreshable.** Manual edit when hand-verifying. |
 | `entity-fields.ours.golden.json` | `dotnet run --project tools/DemoViewer.NET.EntityFieldDiff -- <demo> --write-snapshot` (requires the gitignored EntityFieldDiff tool + sibling demofile-net repo). |
-| `cs2-opendocs.expected-sha` | Manual edit when intentionally bumping the schema submodule (see `SchemaSnapshotTests` for the procedure). |
 
 ## Schema versioning
 

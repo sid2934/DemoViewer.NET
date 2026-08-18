@@ -1,7 +1,7 @@
 # DemoViewer.NET — Analysis Engine Design
 
 **Status:** As-built (refreshed 2026-07-08, branch `feature/analysis-release-p0`).
-For the user-facing authoring guide see [`RULES_AUTHORING.md`](../RULES_AUTHORING.md) (Rulesets v2); for the entity-state
+For the user-facing authoring guide see [`RULES_AUTHORING.md`](https://github.com/CS2OpenDev/CS2DemoKit/blob/main/docs/RULES_AUTHORING.md) (Rulesets v2); for the entity-state
 surface see [`analysis-entity-providers.md`](./analysis-entity-providers.md); for source profiles
 see [`Demo-Profiles.md`](../Demo-Profiles.md).
 
@@ -167,7 +167,7 @@ rule edges read within the same dispatch slot.
 The full `enrich.*` node inventory (24 nodes: kill/trade/flash, hurt/damage-capping,
 blind, clutch, round-winner, bullet-classification) is defined in
 `Building/BuiltinContexts.cs::CreateEnrichment` and surfaced through the generated
-authoring catalog (`rules/catalog.json`; see [`RULES_AUTHORING.md`](../RULES_AUTHORING.md)).
+authoring catalog (`rules/catalog.json`; see [`RULES_AUTHORING.md`](https://github.com/CS2OpenDev/CS2DemoKit/blob/main/docs/RULES_AUTHORING.md)).
 Design details:
 [`Analysis-Engine-Graph-Context-Design.md`](./Analysis-Engine-Graph-Context-Design.md).
 
@@ -343,7 +343,7 @@ chains:
 ```
 
 The authoritative schema is `rules/analysis-rules.schema.json`; the full key reference is in
-[`RULES_AUTHORING.md`](../RULES_AUTHORING.md).
+[`RULES_AUTHORING.md`](https://github.com/CS2OpenDev/CS2DemoKit/blob/main/docs/RULES_AUTHORING.md).
 
 ### Columns (Visualization Metadata)
 
