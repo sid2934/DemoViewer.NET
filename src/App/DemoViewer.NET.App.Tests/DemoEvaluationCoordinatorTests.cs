@@ -1,6 +1,6 @@
 #region
 
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 
@@ -21,7 +21,7 @@ public class DemoEvaluationCoordinatorTests
     private static readonly Action<Action> _inline = a => a();
     private static readonly string[] _oneDemo = ["/x/demo.dem"];
 
-    private static ParsedDemo Synthetic() => new(
+    private static ParsedDemo Synthetic() => SyntheticParsedDemo.Create(
         [], [], new Dictionary<int, PlayerInfo>(), null,
         "de_test", 0, 1f / 64, "s", "c",
         "csgo", 0, 0, 0,

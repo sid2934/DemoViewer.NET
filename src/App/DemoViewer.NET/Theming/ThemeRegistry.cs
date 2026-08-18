@@ -12,7 +12,7 @@ using DemoViewer.NET.Services;
 namespace DemoViewer.NET.Theming;
 
 /// <summary>
-///     The single source of truth for available themes (central theme system, docs/ui/theme-system-plan.md).
+///     The single source of truth for available themes (central theme system, design notes in git history).
 ///     Holds the built-in <c>dark</c> / <c>light</c> / <c>system</c> (native <see cref="ThemeVariant" />s whose
 ///     tokens live in <c>DarkPalette.axaml</c>) plus any registered CUSTOM themes (High-Contrast, E-Girl, user
 ///     drop-ins). A custom theme is registered as a <c>ThemeVariant(id, base)</c> and a token-override

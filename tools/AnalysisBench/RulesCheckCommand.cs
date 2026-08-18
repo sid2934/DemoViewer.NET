@@ -1,16 +1,16 @@
 #region
 
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.Abstractions;
-using Cs2DemoKit.Analysis.Building;
-using Cs2DemoKit.Analysis.Catalog;
-using Cs2DemoKit.Analysis.Graphs;
-using Cs2DemoKit.Analysis.Plugins;
-using Cs2DemoKit.Analysis.Registry;
-using Cs2DemoKit.Analysis.RulesetsV2.Model;
-using Cs2DemoKit.Analysis.RulesetsV2.Resolve;
-using Cs2DemoKit.Analysis.Yaml;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Abstractions;
+using CS2DemoKit.Analysis.Building;
+using CS2DemoKit.Analysis.Catalog;
+using CS2DemoKit.Analysis.Graphs;
+using CS2DemoKit.Analysis.Plugins;
+using CS2DemoKit.Analysis.Registry;
+using CS2DemoKit.Analysis.RulesetsV2.Model;
+using CS2DemoKit.Analysis.RulesetsV2.Resolve;
+using CS2DemoKit.Analysis.Yaml;
+using CS2DemoKit.Parser;
 
 #endregion
 

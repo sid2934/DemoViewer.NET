@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Services;
 
 /// <summary>
 ///     Static injection seam for host-specific services whose implementations live in projects
-///     the App project cannot reference (docs/csvg-integration/implementation-plan.md).
+///     the App project cannot reference.
 ///     The Desktop entry point assigns the hooks in <c>Program.Main</c> BEFORE the Avalonia
 ///     lifetime starts; <c>App.OnFrameworkInitializationCompleted</c> consumes them once the
 ///     shell view-model exists. Unset hooks (Browser, tests, designer) mean the feature is

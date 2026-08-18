@@ -2,8 +2,8 @@
 
 using System.Text.Json;
 using DemoViewer.NET.Modules.Library;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.GameEvents;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using TimeoutException = System.TimeoutException;
@@ -48,7 +48,7 @@ public class DemoLibraryCacheRepairTests
             events.Add(TestGameEvents.RoundFreezeEnd(frameNumber: i, serverTick: i * 100, gameTick: i * 100, eventId: 0));
         }
 
-        return new ParsedDemo(
+        return SyntheticParsedDemo.Create(
             [], events, new Dictionary<int, PlayerInfo>(), null,
             "de_test", 6400, 1f / 64, "test",
             "test", "csgo", 0, 0, 0,

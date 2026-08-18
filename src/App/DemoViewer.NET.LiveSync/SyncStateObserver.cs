@@ -3,7 +3,7 @@
 using System.ComponentModel;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.Shell;
 using ModuleContextImpl = DemoViewer.NET.Modules.ModuleContext;

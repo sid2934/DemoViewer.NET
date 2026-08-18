@@ -3,8 +3,8 @@
 using System.Runtime.CompilerServices;
 using DemoViewer.NET.Models;
 using DemoViewer.NET.Modules;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Shell;
 

@@ -1,6 +1,8 @@
 #region
 
-using Cs2DemoKit.Analysis.Yaml;
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+using CS2DemoKit.Analysis.Yaml;
 
 #endregion
 
@@ -31,6 +33,33 @@ namespace DemoViewer.NET.Services;
 public static class AppPaths
 {
     private const string AppConfigDirName = "DemoViewer.NET";
+
+    /// <summary>
+    ///     Claims the config-directory name for this application, before anything can resolve a
+    ///     path through it.
+    ///     <para>
+    ///         <see cref="RuleSetLocator" /> lives in CS2DemoKit.Analysis, which is a general
+    ///         library with its own default name. Leaving that default in place would silently
+    ///         move every existing install's settings, session state, recents, bookmarks, library
+    ///         cache and user rules to a directory that has never had anything in it — the data is
+    ///         not lost, but the app comes up looking factory-fresh, which is worse than an error.
+    ///     </para>
+    ///     <para>
+    ///         A module initializer rather than a call from a startup path, because the library's
+    ///         rules loading resolves the user-rules directory on its own and does not necessarily
+    ///         touch <see cref="AppPaths" /> first. This runs when the assembly is first used,
+    ///         which precedes both.
+    ///     </para>
+    /// </summary>
+    [ModuleInitializer]
+    [SuppressMessage("Usage", "CA2255",
+        Justification = "This assembly is application code; it is a class library only because the "
+                        + "Desktop, Browser and capture heads each reference it. The rule targets "
+                        + "general-purpose libraries, where a module initializer surprises the "
+                        + "consumer. Here the consumer is our own entry point, and running before "
+                        + "it is the entire point — the library's rules loading can resolve the "
+                        + "user-rules directory without going through AppPaths first.")]
+    public static void ClaimConfigDirectoryName() => RuleSetLocator.AppConfigDirName = AppConfigDirName;
 
     /// <summary>
     ///     Environment override that replaces <see cref="ConfigRoot" /> wholesale — a test seam that keeps
@@ -101,7 +130,7 @@ public static class AppPaths
     /// <summary>
     ///     The unified demo-information cache directory — <c>&lt;config&gt;/cache/</c>, holding
     ///     <c>index.json</c> plus one sidecar per demo under <c>demos/</c>
-    ///     (docs/ui/highlights-matchoverview-redesign.md). Supersedes <see cref="LibraryCacheFile" /> and
+    ///. Supersedes <see cref="LibraryCacheFile" /> and
     ///     <see cref="HighlightsCacheFile" />, which remain here only so the one-shot migration can read them.
     ///     A PURE path — the store creates directories when it first writes. <c>null</c> on WASM.
     /// </summary>
@@ -116,7 +145,7 @@ public static class AppPaths
 
     /// <summary>
     ///     The user theme drop-in directory — <c>&lt;config&gt;/themes/</c> (central theme system,
-    ///     docs/ui/theme-system-plan.md, T3). Each <c>*.json</c> here is loaded as a custom theme. A PURE path
+    ///     the design notes in git history, T3). Each <c>*.json</c> here is loaded as a custom theme. A PURE path
     ///     (no directory creation — a side-effect-free getter keeps VM construction hermetic in tests);
     ///     <see cref="EnsureThemesDirectory" /> creates it once at app startup. <c>null</c> on WASM (no filesystem).
     /// </summary>

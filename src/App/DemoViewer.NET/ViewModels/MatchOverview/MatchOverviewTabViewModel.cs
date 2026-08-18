@@ -5,10 +5,10 @@ using System.Globalization;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Cs2DemoKit.Analysis.Output;
+using CS2DemoKit.Analysis.Output;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion

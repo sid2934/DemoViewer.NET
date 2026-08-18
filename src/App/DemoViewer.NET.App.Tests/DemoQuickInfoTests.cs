@@ -1,6 +1,6 @@
 #region
 
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 

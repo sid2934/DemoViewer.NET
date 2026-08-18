@@ -1,6 +1,6 @@
 #region
 
-using Cs2DemoKit.Analysis.Clips;
+using CS2DemoKit.Analysis.Clips;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -13,7 +13,7 @@ namespace DemoViewer.NET.AppTests;
 ///     offset applies once) and a mid-match demo (<c>ServerStartTick ≠ 0</c> — highlight ticks
 ///     are already frame clock, so NOTHING may subtract it; the math never sees it at all).
 ///     <para>
-///         The math itself moved into <c>Cs2DemoKit.Analysis.Clips</c> for packaging; this
+///         The math itself moved into <c>CS2DemoKit.Analysis.Clips</c> for packaging; this
 ///         battery stayed behind deliberately, unchanged apart from the <c>using</c> and the
 ///         cache-row → <see cref="ClipRound" /> projection, as the App-side proof that the extraction
 ///         is behaviour-identical.

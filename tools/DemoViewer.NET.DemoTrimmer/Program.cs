@@ -2,7 +2,7 @@
 
 using System.Globalization;
 using DemoViewer.NET.DemoTrimmer;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 
 #endregion
 

@@ -6,7 +6,7 @@ namespace DemoViewer.NET.Services;
 
 /// <summary>
 ///     The machine-wide heavy-parse invariant, made explicit
-///     (docs/demo-processing-queue.md): a 16 GB machine holds at most <see cref="MaxConcurrency" />
+///: a 16 GB machine holds at most <see cref="MaxConcurrency" />
 ///     multi-GB demo parses at a time — DEFAULT 1. Consumers: the global demo-processing queue's
 ///     background workers, and the shell's interactive demo load.
 ///     <list type="bullet">
@@ -28,7 +28,7 @@ namespace DemoViewer.NET.Services;
 ///             so concurrency is a plain integer compared under this gate's one lock. There is NO
 ///             semaphore and NO permit accounting to get subtly wrong; at <c>MaxConcurrency == 1</c>
 ///             every path is behaviourally identical to the historical <c>SemaphoreSlim(1,1)</c> gate.
-///             Values &gt; 1 are advanced/opt-in and can exhaust RAM (see docs/demo-processing-queue.md).
+///             Values &gt; 1 are advanced/opt-in and can exhaust RAM (see the design notes in git history).
 ///         </item>
 ///     </list>
 ///     <para>

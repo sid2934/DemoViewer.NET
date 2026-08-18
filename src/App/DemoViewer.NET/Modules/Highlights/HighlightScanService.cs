@@ -1,11 +1,11 @@
 #region
 
 using System.Globalization;
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.Abstractions;
-using Cs2DemoKit.Analysis.Clips;
-using Cs2DemoKit.Analysis.Output;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Abstractions;
+using CS2DemoKit.Analysis.Clips;
+using CS2DemoKit.Analysis.Output;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 
@@ -15,7 +15,7 @@ namespace DemoViewer.NET.Modules.Highlights;
 
 /// <summary>
 ///     The highlights scanner (migrated onto the global queue —
-///     docs/demo-processing-queue.md). The unified <see cref="DemoCacheStore" /> IS the work list, and the
+///     the design notes in git history). The unified <see cref="DemoCacheStore" /> IS the work list, and the
 ///     backlog is DERIVED from it rather than stored (see <see cref="BacklogNewestFirst" />); the scanner
 ///     FEEDS that backlog into the shared <see cref="IDemoProcessingQueue" /> (which owns the workers, the
 ///     newest-first drain, the gate yielding, and the one-at-a-time invariant). A demo the Library already

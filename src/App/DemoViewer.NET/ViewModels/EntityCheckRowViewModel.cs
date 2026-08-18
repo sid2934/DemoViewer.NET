@@ -2,7 +2,7 @@
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Cs2DemoKit.Analysis.Building;
+using CS2DemoKit.Analysis.Building;
 
 #endregion
 

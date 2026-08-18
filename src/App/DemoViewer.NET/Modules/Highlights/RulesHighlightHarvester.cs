@@ -1,9 +1,9 @@
 #region
 
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.RulesetsV2.Compile;
-using Cs2DemoKit.Analysis.Yaml;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.RulesetsV2.Compile;
+using CS2DemoKit.Analysis.Yaml;
+using CS2DemoKit.Parser;
 
 #endregion
 

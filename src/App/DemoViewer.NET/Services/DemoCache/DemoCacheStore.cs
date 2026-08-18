@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Services.DemoCache;
 
 /// <summary>
 ///     The unified demo-information cache — one tiered record per demo, replacing the overlapping
-///     <c>library.json</c> and <c>highlights.json</c> stores (docs/ui/highlights-matchoverview-redesign.md).
+///     <c>library.json</c> and <c>highlights.json</c> stores.
 ///     <para>
 ///         <b>Storage shape.</b> A thin always-loaded <c>index.json</c> plus one lazily-read sidecar
 ///         per demo under <c>demos/</c>. The surfaces that want the fat payload — Match Overview, the reel

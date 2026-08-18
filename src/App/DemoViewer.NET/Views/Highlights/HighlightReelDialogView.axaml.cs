@@ -9,7 +9,7 @@ using DemoViewer.NET.ViewModels.Highlights;
 namespace DemoViewer.NET.Views.Highlights;
 
 /// <summary>
-///     The reel configuration pane (docs/csvg-integration/ux-design.md; promoted out of the modal by the
+///     The reel configuration pane (the design notes in git history; promoted out of the modal by the
 ///     Reels-dashboard redesign and now embedded as the Reels tab's right-hand splitter column). The only
 ///     code-behind is the storage-provider handoff for the Browse folder picker, which needs the visual tree
 ///     (TopLevel) and so cannot live in the VM — mirrors <c>SettingsView</c>.

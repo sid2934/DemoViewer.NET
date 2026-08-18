@@ -19,7 +19,7 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.LiveSync;
 
 /// <summary>
-///     The desktop live CS2 sync engine (docs/csvg-integration/implementation-plan.md) — the
+///     The desktop live CS2 sync engine — the
 ///     <see cref="ILiveSyncService" /> the Desktop host injects through
 ///     <c>AppHostHooks.LiveSyncFactory</c>. This class owns the session lifecycle: the private
 ///     CSVG gRPC host (<see cref="CsvgWebHost" />), CS2/mock launch, state surface, and teardown.

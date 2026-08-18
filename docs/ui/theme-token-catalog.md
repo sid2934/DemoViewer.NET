@@ -1,6 +1,6 @@
 # Theme Token Catalogue — Authoring Reference
 
-The contract for authoring a theme in the central theme system (see `docs/ui/theme-system-plan.md`).
+The contract for authoring a theme in the central theme system (see `the design notes in git history`).
 A theme is **pure data**: a base palette it inherits plus a set of token overrides. Every colour the app
 draws — markup panels via `{DynamicResource}`, the code-drawn 2D Skia canvas, the analysis graph, and the
 syntax highlighter — resolves from the **one token namespace** below, so a new theme needs **zero per-file

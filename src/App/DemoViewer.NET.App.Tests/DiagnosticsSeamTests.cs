@@ -5,7 +5,7 @@
 
 #region
 
-using Cs2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;

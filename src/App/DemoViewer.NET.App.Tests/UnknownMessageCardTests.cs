@@ -6,7 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Threading;
 using DemoViewer.NET.Controls;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Common;

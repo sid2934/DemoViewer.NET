@@ -2,12 +2,12 @@
 
 using System.Text.Json;
 using Avalonia.Controls;
-using Cs2DemoKit.Analysis;
+using CS2DemoKit.Analysis;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.ViewModels.Highlights;
 
@@ -16,7 +16,7 @@ using DemoViewer.NET.ViewModels.Highlights;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Reels dashboard VM battery (docs/ui/highlights-matchoverview-redesign.md): the clip tray —
+///     The Reels dashboard VM battery: the clip tray —
 ///     staging, ordering, removal, the guarded clear — the tray→plan→output ordering contract, the
 ///     staging-time pre-flight, tray persistence, and the responsive collapse. All headless over a seeded
 ///     cache store (no demos, no parse, no UI thread).

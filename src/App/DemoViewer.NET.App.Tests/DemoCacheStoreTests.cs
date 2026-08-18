@@ -7,7 +7,7 @@ using DemoViewer.NET.Services.DemoCache;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The unified demo cache (docs/ui/highlights-matchoverview-redesign.md). Covers the properties the
+///     The unified demo cache. Covers the properties the
 ///     rest of the redesign leans on: index/sidecar split, lazy record reads, per-tier independence,
 ///     identity-drift invalidation, atomic overwrite, corruption tolerance, batching, and the WASM
 ///     (null-root) degrade.

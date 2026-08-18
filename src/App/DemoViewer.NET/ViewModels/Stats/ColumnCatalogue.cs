@@ -1,6 +1,6 @@
 namespace DemoViewer.NET.ViewModels.Stats;
 
-/// <summary>Analyst-facing column group (docs/ui/stats-tab-ux-review.md) — canonical board order.</summary>
+/// <summary>Analyst-facing column group — canonical board order.</summary>
 public enum StatGroup
 {
     Core,
@@ -53,8 +53,8 @@ public sealed record ColumnMeta(
 
 /// <summary>
 ///     The app-side single source of truth for how shipped stat columns present (display name,
-///     group, canonical order, alignment, totals aggregation, tooltip) — docs/ui/stats-tab-ux-review.md
-///     docs/ui/stats-tab-ux-review.md explains why this cannot come from the YAML <c>group:</c> field (dropped in projection;
+///     group, canonical order, alignment, totals aggregation, tooltip) — the design notes in git history
+///     the design notes in git history explain why this cannot come from the YAML <c>group:</c> field (dropped in projection;
 ///     shipped taxonomy is only game/round). Unknown labels (user-authored columns) fall through to
 ///     <see cref="StatGroup.Other" /> with numeric defaults.
 /// </summary>

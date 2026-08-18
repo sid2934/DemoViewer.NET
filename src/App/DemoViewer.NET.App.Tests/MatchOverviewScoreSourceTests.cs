@@ -4,7 +4,7 @@ using System.Globalization;
 using Avalonia.Threading;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Library;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.MatchOverview;
 using DemoViewer.NET.ViewModels.Shell;

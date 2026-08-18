@@ -2,7 +2,7 @@
 
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 
 #endregion
 

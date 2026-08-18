@@ -14,7 +14,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Covers the <see cref="LiveSyncStatusViewModel" /> state→chip + state→flyout mapping
-///     (docs/csvg-integration/ux-design.md) over a fake <see cref="ILiveSyncService" />. Pure VM —
+/// over a fake <see cref="ILiveSyncService" />. Pure VM —
 ///     no headless UI session — so it runs in parallel. Asserts the dot vocabulary (token state + solid
 ///     vs hollow + pulse), the neutral "CS2 · …" labels, the mutually-exclusive flyout sections, and the
 ///     speed-lock (entering Synced forces DV playback to 1×).

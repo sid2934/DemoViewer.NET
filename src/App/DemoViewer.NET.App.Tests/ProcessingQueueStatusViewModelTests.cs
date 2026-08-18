@@ -1,7 +1,7 @@
 #region
 
 using System.Collections.ObjectModel;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.DemoProcessing;

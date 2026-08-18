@@ -11,7 +11,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Covers the <see cref="ReelJobStatusViewModel" /> status→chip + status→flyout mapping
-///     (docs/csvg-integration/ux-design.md) over a fake <see cref="IReelJobService" />. Pure VM. Asserts the
+/// over a fake <see cref="IReelJobService" />. Pure VM. Asserts the
 ///     dot vocabulary (working pulse / positive done / error), the neutral "Reel · …" labels, the
 ///     mutually-exclusive flyout sections, the per-clip status list (done/current/queued/failed), and the
 ///     retry / cancel / dismiss gating.

@@ -10,7 +10,7 @@ namespace DemoViewer.NET.ViewModels;
 /// <summary>
 ///     The dot's semantic state — maps 1:1 onto a DarkPalette token via a bound state→class selector in
 ///     <c>Controls/StatusChip.axaml</c> (the <c>Border.teamChip</c> pattern), NOT a code-held brush, so the
-///     dot re-themes live (docs/csvg-integration/ux-design.md). Off and Suspended share
+///     dot re-themes live. Off and Suspended share
 ///     <see cref="Off" /> (both render <c>TextDim</c>); the <em>word</em> in <see cref="StatusChipViewModel.Label" />
 ///     is the accessible carrier of state, the dot a redundant colour cue (WCAG 1.4.1).
 /// </summary>

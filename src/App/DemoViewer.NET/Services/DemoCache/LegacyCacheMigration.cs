@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Services.DemoCache;
 
 /// <summary>
 ///     The one-shot migration of <c>library.json</c> + <c>highlights.json</c> into the unified cache
-///     (docs/ui/highlights-matchoverview-redesign.md).
+///.
 ///     <para>
 ///         <b>This does not delete or rename anything.</b> <see cref="DemoLibraryService" /> still reads
 ///         <c>library.json</c> on construction, so moving it aside here would make every user re-index their

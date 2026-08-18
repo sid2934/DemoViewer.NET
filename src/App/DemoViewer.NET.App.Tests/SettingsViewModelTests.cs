@@ -176,7 +176,7 @@ public class SettingsViewModelTests
         }
     }
 
-    // (c) Setting the theme persists its id (the central theme system — docs/ui/theme-system-plan.md — stores
+    // (c) Setting the theme persists its id (the central theme system — stores
     // the lowercase Theme.Id, not the old capitalized display value; App.WireTheme resolves it case-insensitively).
     [Test]
     public async Task SelectingTheme_WritesTheme()

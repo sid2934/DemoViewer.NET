@@ -9,16 +9,16 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AnalysisBench;
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.Abstractions;
-using Cs2DemoKit.Analysis.Diagnostics;
-using Cs2DemoKit.Analysis.GoldenStats;
-using Cs2DemoKit.Analysis.Graphs;
-using Cs2DemoKit.Analysis.Output;
-using Cs2DemoKit.Analysis.Yaml;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.EntityTracking;
-using Cs2DemoKit.Parser.GameEvents;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Abstractions;
+using CS2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis.GoldenStats;
+using CS2DemoKit.Analysis.Graphs;
+using CS2DemoKit.Analysis.Output;
+using CS2DemoKit.Analysis.Yaml;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser.GameEvents;
 
 #endregion
 
@@ -613,7 +613,7 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     // <id>.leetify.json caches under demos/benchmarks/.
     if (!noGolden && playerReports.Count > 0)
     {
-        WriteGoldenStatsFiles(demoPath, sha256, demo, playerReports, leetifyJsonPath);
+        WriteGoldenStatsFiles(demoPath, sha256, demo, playerReports);
     }
 
     // ── Per-round MetricTable export (--export=csv|json [--out=<path>]) ──────
@@ -796,16 +796,17 @@ static void CompareWithLeetify(string leetifyPath, List<PlayerReport> players)
 // tests/fixtures/<demo-id>/. One file per provider:
 //
 //   tests/fixtures/<demo-id>/ours.golden.json     — produced from this run.
-//   tests/fixtures/<demo-id>/leetify.golden.json  — converted from the
-//                                                   existing cached Leetify
-//                                                   JSON when present.
+//
+// leetify.golden.json is no longer written: CS2DemoKit.Analysis 0.9.1 retired the converter that
+// produced it. The live Leetify comparison above is unaffected — it parses the raw cached JSON
+// itself and never used the package.
 //
 // The directory pattern (rather than a flat layout) anticipates additional
 // providers — `hltv.golden.json`, `expected.golden.json` — without renaming
 // existing files.
 static void WriteGoldenStatsFiles(
     string demoPath, string demoSha256, ParsedDemo demo,
-    List<PlayerReport> playerReports, string? leetifyJsonPath)
+    List<PlayerReport> playerReports)
 {
     string demoId = Path.GetFileNameWithoutExtension(demoPath);
     string fixturesRoot = Path.Combine(FindRepoRoot(), "tests", "fixtures", demoId);
@@ -830,20 +831,6 @@ static void WriteGoldenStatsFiles(
     string oursPath = Path.Combine(fixturesRoot, "ours.golden.json");
     GoldenStatsSerializer.WriteToFile(ours, oursPath);
     Console.WriteLine($"Golden: {Path.GetRelativePath(FindRepoRoot(), oursPath)}");
-
-    // ── leetify.golden.json (only if raw cache is present) ─────────────────
-    if (leetifyJsonPath is not null && File.Exists(leetifyJsonPath))
-    {
-        string leetifyRaw = File.ReadAllText(leetifyJsonPath);
-        GoldenStatsDocument leetify = LeetifyGoldenStatsConverter.Convert(
-            leetifyRaw,
-            Path.GetFileName(demoPath),
-            demoSha256);
-
-        string leetifyPath = Path.Combine(fixturesRoot, "leetify.golden.json");
-        GoldenStatsSerializer.WriteToFile(leetify, leetifyPath);
-        Console.WriteLine($"Golden: {Path.GetRelativePath(FindRepoRoot(), leetifyPath)}");
-    }
 }
 
 // Runs the PlayerRoundStatsProjector over the evaluation result and writes one file per emitted
@@ -1526,7 +1513,7 @@ internal sealed record GcReport(int Gen0, int Gen1, int Gen2, int EvalGen0, int 
 
 /// <summary>
 ///     Entity-decode sub-phase timings (all milliseconds) captured when a profiled run ran
-///     (<see cref="Cs2DemoKit.Parser.Profiling.Enabled" />). Null in the report when no profiled run captured data.
+///     (<see cref="CS2DemoKit.Parser.Profiling.Enabled" />). Null in the report when no profiled run captured data.
 ///     Intervals nest:
 ///     <c>
 ///         ScannerSeekMs ⊇ PacketEntitiesMs ⊇ (FieldPathMs + FieldValueMs +
@@ -1603,7 +1590,7 @@ internal sealed class StatValueConverter : JsonConverter<object?>
 
 internal sealed class MeterCollector : IDisposable
 {
-    private const string MeterName = "Cs2DemoKit.Analysis.Evaluator";
+    private const string MeterName = "CS2DemoKit.Analysis.Evaluator";
     private readonly Dictionary<string, long> _counters = new(StringComparer.Ordinal);
     private readonly MeterListener _listener = new();
     private long _histCount;
@@ -1767,7 +1754,7 @@ internal sealed class EvaluatorListener : EventListener
     /// <inheritdoc />
     protected override void OnEventSourceCreated(EventSource eventSource)
     {
-        if (eventSource.Name == "Cs2DemoKit.Analysis.Evaluator")
+        if (eventSource.Name == "CS2DemoKit.Analysis.Evaluator")
         {
             EnableEvents(eventSource, EventLevel.Informational);
         }

@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=./dv-rules.schema.json
+# yaml-language-server: $schema=./cs2demokit-rules.schema.json
 #
 # Lowlights — embarrassing moments, one highlight per round per player. Every highlight here uses
 # kind: lowlight, so these surface as "lowlight" reel moments rather than plays to

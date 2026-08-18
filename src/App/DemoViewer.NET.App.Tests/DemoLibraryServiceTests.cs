@@ -5,7 +5,7 @@ using System.Collections.Specialized;
 using System.Text.Json;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Library;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.TestSupport;
@@ -38,7 +38,7 @@ public class DemoLibraryServiceTests
         return (dir, dataPath);
     }
 
-    private static ParsedDemo SyntheticDemo(int tickRate = 64) => new(
+    private static ParsedDemo SyntheticDemo(int tickRate = 64) => SyntheticParsedDemo.Create(
         [], [], new Dictionary<int, PlayerInfo>(), null,
         "de_test", 0, 1f / tickRate, "test",
         "test", "csgo", 0, 0, 0,

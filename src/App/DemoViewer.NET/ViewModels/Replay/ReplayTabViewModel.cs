@@ -3,9 +3,9 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.GameEvents;
-using Cs2DemoKit.Parser.Models;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.GameEvents;
+using CS2DemoKit.Parser.Models;
 using DemoViewer.NET.ViewModels.Common;
 using DemoViewer.NET.ViewModels.Parser;
 

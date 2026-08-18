@@ -1,7 +1,7 @@
 #region
 
 using DemoViewer.NET.Modules.Library;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
@@ -11,7 +11,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The tier-2 extension (docs/ui/highlights-matchoverview-redesign.md): the cheap pass now captures
+///     The tier-2 extension: the cheap pass now captures
 ///     the roster WITH teams, bot flags, steam ids and round boundaries, so a cached Match Overview can render
 ///     everything except the scoreboard without an analysis run.
 ///     <para>

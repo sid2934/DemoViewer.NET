@@ -5,7 +5,7 @@ using System.Globalization;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Cs2DemoKit.Analysis.Clips;
+using CS2DemoKit.Analysis.Clips;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Modules.Library;

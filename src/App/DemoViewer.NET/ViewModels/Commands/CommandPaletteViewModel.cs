@@ -6,7 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.Models;
-using Cs2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.ViewModels.Common;
 using FuzzySharp;
 

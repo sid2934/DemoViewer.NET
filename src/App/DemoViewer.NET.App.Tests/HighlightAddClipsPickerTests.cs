@@ -9,7 +9,7 @@ using DemoViewer.NET.ViewModels.Highlights;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The cross-demo <b>Add clips</b> picker (docs/ui/highlights-matchoverview-redesign.md) — the
+///     The cross-demo <b>Add clips</b> picker — the
 ///     surface that keeps multi-demo reels possible with the card grid gone. Covers what the picker newly
 ///     owns: the four re-homed filters over highlight ROWS, the no-filter-match empty state,
 ///     the honest coverage footer, and the snapshot semantics.

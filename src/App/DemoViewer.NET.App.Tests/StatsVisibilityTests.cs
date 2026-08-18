@@ -1,10 +1,10 @@
 #region
 
 using System.Globalization;
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.Abstractions;
-using Cs2DemoKit.Analysis.Visibility;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Abstractions;
+using CS2DemoKit.Analysis.Visibility;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Stats;
@@ -39,7 +39,7 @@ public class StatsVisibilityTests
         return new EvaluationResult(new RuleChainTimeline([]), snapshots, [], tracked, [alice], []);
     }
 
-    private static ParsedDemo BuildDemo(string mapName) => new(
+    private static ParsedDemo BuildDemo(string mapName) => SyntheticParsedDemo.Create(
         [], [],
         new Dictionary<int, PlayerInfo>
         {

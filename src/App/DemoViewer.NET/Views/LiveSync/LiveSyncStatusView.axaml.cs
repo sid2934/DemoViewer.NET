@@ -7,7 +7,7 @@ using Avalonia.Controls;
 namespace DemoViewer.NET.Views.LiveSync;
 
 /// <summary>
-///     The Live Sync flyout body (docs/csvg-integration/ux-design.md), resolved by the app
+///     The Live Sync flyout body, resolved by the app
 ///     <c>ViewLocator</c> for a <see cref="ViewModels.LiveSync.LiveSyncStatusViewModel" /> and hosted inside
 ///     the <see cref="Controls.StatusChip" />'s <c>card-flyout</c>. Purely declarative — no code-behind.
 /// </summary>

@@ -10,8 +10,8 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using CommunityToolkit.Mvvm.Input;
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.Output;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Output;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.Features;
@@ -20,7 +20,7 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RuleWorkbench;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -40,7 +40,7 @@ using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.MatchOverview;
 using DemoViewer.NET.ViewModels.Tutorial;
-using Cs2DemoKit.Analysis.Visibility;
+using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Views;
 using DemoViewer.NET.Views.Analysis;
 using DemoViewer.NET.Views.MatchOverview;
@@ -255,7 +255,7 @@ public static class Variants
     ///     CLI, e.g. --size 560x680). Empty shows the hero.
     /// </summary>
     /// <summary>
-    ///     The Reels dashboard (docs/ui/highlights-matchoverview-redesign.md): the ordered clip tray plus
+    ///     The Reels dashboard: the ordered clip tray plus
     ///     the promoted reel config pane. Variants exercise the three states that actually differ — a populated
     ///     cross-demo tray, the empty tray, and the narrow (single-column) collapse — plus a "moved demo"
     ///     variant, because the staging-time pre-flight is the one thing that reads only from disk state.
@@ -3150,7 +3150,7 @@ public static class Variants
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════════════════
-    //  Live Sync (CS2) — StatusChip states + flyout bodies (docs/csvg-integration/ux-design.md).
+    //  Live Sync (CS2) — StatusChip states + flyout bodies.
     //  `livesync-chips`  renders the dot vocabulary as real StatusStrips (correct PanelHeaderBg
     //                    surface) — one per engine state, incl. the SYNTHETIC hollow "Paused (inferred)"
     //                    so the ring path is verified even though nothing sets IsInferred yet.
@@ -3394,7 +3394,7 @@ public static class Variants
         };
     }
 
-    // ── Create-Reel dialog + Reel chip (docs/csvg-integration/ux-design.md) ────
+    // ── Create-Reel dialog + Reel chip ────
 
     /// <summary>
     ///     The real <see cref="HighlightReelDialogView" /> over a real <see cref="HighlightReelDialogViewModel" />

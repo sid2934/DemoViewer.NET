@@ -13,7 +13,7 @@ namespace DemoViewer.NET.ViewModels.DemoProcessing;
 
 /// <summary>
 ///     Maps the global <see cref="IDemoProcessingQueue" /> onto a status-strip <see cref="StatusChipViewModel" />
-///     and its flyout (docs/demo-processing-queue.md) — the THIRD consumer of the shared <c>StatusChip</c>
+///     and its flyout — the THIRD consumer of the shared <c>StatusChip</c>
 ///     idiom (alongside Live Sync and the Reel job): a persistent, stateful, background-activity indicator that
 ///     opens a <c>card-flyout</c> for detail + actions. Its <c>FlyoutContent</c> is this VM, so the app
 ///     <c>ViewLocator</c> resolves <c>Views/DemoProcessing/ProcessingQueueStatusView</c> for the body.

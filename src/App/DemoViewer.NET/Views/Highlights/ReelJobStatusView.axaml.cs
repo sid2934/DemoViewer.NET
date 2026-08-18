@@ -10,7 +10,7 @@ using DemoViewer.NET.ViewModels.Highlights;
 namespace DemoViewer.NET.Views.Highlights;
 
 /// <summary>
-///     The Reel job flyout body (docs/csvg-integration/ux-design.md), resolved by the app
+///     The Reel job flyout body, resolved by the app
 ///     <c>ViewLocator</c> for a <see cref="ViewModels.Highlights.ReelJobStatusViewModel" /> and hosted inside
 ///     the <see cref="Controls.StatusChip" />'s <c>card-flyout</c>. The only code-behind is the failed-state
 ///     "Copy error" handler: clipboard access needs the visual tree (<c>TopLevel.Clipboard</c>), which a VM

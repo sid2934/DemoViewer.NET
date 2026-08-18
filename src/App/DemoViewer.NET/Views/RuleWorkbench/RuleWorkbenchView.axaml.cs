@@ -8,7 +8,7 @@ using Avalonia.Markup.Xaml;
 using AvaloniaEdit;
 using AvaloniaEdit.CodeCompletion;
 using AvaloniaEdit.Document;
-using Cs2DemoKit.Analysis.Catalog;
+using CS2DemoKit.Analysis.Catalog;
 using DemoViewer.NET.Modules.RuleWorkbench;
 
 #endregion

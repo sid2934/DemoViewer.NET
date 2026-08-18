@@ -9,7 +9,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 namespace DemoViewer.NET.ViewModels.DemoProcessing;
 
 /// <summary>
-///     One row of the demo-processing-queue flyout (docs/demo-processing-queue.md). A thin, presentation-only
+///     One row of the demo-processing-queue flyout. A thin, presentation-only
 ///     wrapper over the service-owned <see cref="DemoQueueItem" /> — it holds no queue logic and adds nothing
 ///     to the DemoProcessing layer; it just projects the item's fields into display strings + the
 ///     class-driving flags the flyout binds, and forwards the per-row remove to the queue.

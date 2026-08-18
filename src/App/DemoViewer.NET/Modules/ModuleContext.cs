@@ -1,10 +1,10 @@
 #region
 
-using Cs2DemoKit.Analysis.Plugins;
+using CS2DemoKit.Analysis.Plugins;
 using DemoViewer.NET.Modules.Abstractions;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.EntityTracking;
-using Cs2DemoKit.Parser.GameEvents;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Playback;
 

@@ -7,13 +7,13 @@ using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
-using Cs2DemoKit.Analysis.Visibility;
+using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.EntityTracking;
-using Cs2DemoKit.Parser.GameEvents;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Playback;
 using TUnit.Core.Exceptions;
@@ -23,7 +23,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Second increment of the map-asset consumption (docs/asset-pipeline/design.md): the 2D viewport draws the baked radar bitmap under the markers, per
+///     Second increment of the map-asset consumption: the 2D viewport draws the baked radar bitmap under the markers, per
 ///     floor band, placed via the bundle transform. Renders a REAL demo + baked bundle to a Skia frame,
 ///     asserts the radar fills the viewport, and saves the capture so world→radar alignment (players over the
 ///     map) is eyeball-verifiable — Nuke (two floors) and dust2 (single floor, carries rotate/zoom). Skips

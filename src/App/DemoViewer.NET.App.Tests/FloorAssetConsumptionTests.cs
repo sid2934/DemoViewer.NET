@@ -8,7 +8,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     First increment of the app-side map-asset consumption (docs/asset-pipeline/design.md): the viewport's
+///     First increment of the app-side map-asset consumption: the viewport's
 ///     <see cref="FloorSplitter" /> adopts nav-derived floor bands from a baked bundle, overriding its
 ///     Z-histogram heuristic; the <see cref="MapAssetLoader" /> loads those bundles VRF-free and degrades
 ///     gracefully when absent. The real-bundle integration checks skip when the AssetBaker hasn't run.

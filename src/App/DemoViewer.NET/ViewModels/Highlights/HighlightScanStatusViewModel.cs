@@ -11,7 +11,7 @@ namespace DemoViewer.NET.ViewModels.Highlights;
 
 /// <summary>
 ///     Library-wide highlight-scan progress as the <b>fourth</b> <c>StatusChip</c> consumer
-///     (docs/ui/highlights-matchoverview-redesign.md row 2) — the home the card grid's
+///     (row 2) — the home the card grid's
 ///     <c>ScanQueueSummary</c> badge and its per-card scanning animation were re-assigned to. The design
 ///     system says verbatim that three consumers now share the control and <em>"a fourth should extend it,
 ///     not fork"</em>, so this owns a <see cref="StatusChipViewModel" /> whose <c>FlyoutContent</c> is this

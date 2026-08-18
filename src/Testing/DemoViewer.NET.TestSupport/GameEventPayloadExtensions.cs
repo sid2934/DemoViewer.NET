@@ -1,6 +1,6 @@
 #region
 
-using Cs2DemoKit.Parser.GameEvents;
+using CS2DemoKit.Parser.GameEvents;
 
 #endregion
 

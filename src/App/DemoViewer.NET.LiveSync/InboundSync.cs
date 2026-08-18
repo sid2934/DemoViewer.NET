@@ -1,7 +1,7 @@
 #region
 
 using Avalonia.Threading;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using Cs2VideoGenerator.Core.Models;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.ViewModels.Shell;

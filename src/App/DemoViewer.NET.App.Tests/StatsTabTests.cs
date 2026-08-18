@@ -8,9 +8,9 @@ using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.Abstractions;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Abstractions;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.ViewModels.Stats;
 using DemoViewer.NET.Views.Stats;
 
@@ -95,7 +95,7 @@ public class StatsTabTests
             [1] = new PlayerInfo(1, "Bob", 0UL, 1, 3, false) // CT
         };
 
-        ParsedDemo demo = new(
+        ParsedDemo demo = SyntheticParsedDemo.Create(
             [], [], infos, null,
             "de_test", 0, 1f / 64f,
             "t", "t", "csgo", 0,

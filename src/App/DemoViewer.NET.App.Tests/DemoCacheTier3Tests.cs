@@ -1,11 +1,11 @@
 #region
 
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.Abstractions;
-using Cs2DemoKit.Analysis.Output;
-using Cs2DemoKit.Analysis.Profiles;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Abstractions;
+using CS2DemoKit.Analysis.Output;
+using CS2DemoKit.Analysis.Profiles;
 using DemoViewer.NET.Modules.Highlights;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -34,7 +34,7 @@ public class DemoCacheTier3Tests
     private static string TempRoot() =>
         Path.Combine(Path.GetTempPath(), $"dv-tier3-{Guid.NewGuid():N}");
 
-    private static ParsedDemo SyntheticDemo() => new(
+    private static ParsedDemo SyntheticDemo() => SyntheticParsedDemo.Create(
         [], [], new Dictionary<int, PlayerInfo>(), null, "de_test",
         0, 1f / 64, "test", "test", "csgo", 0, 0, 0, "valve_demo_2", "", "", DemoProfile.Unknown);
 

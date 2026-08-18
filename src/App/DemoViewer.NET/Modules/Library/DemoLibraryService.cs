@@ -5,12 +5,12 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia.Threading;
-using Cs2DemoKit.Analysis.Clips;
-using Cs2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis.Clips;
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.EntityTracking;
-using Cs2DemoKit.Parser.GameEvents;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -123,7 +123,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     ///     <see cref="SettingsService.Write" />. Null → the legacy path where library.json owns the folders.
     /// </param>
     /// <param name="demoCache">
-    ///     The unified demo cache (docs/ui/highlights-matchoverview-redesign.md). When supplied, tier-2
+    ///     The unified demo cache. When supplied, tier-2
     ///     results are written HERE AS WELL AS to <c>library.json</c> — a deliberate dual write for the
     ///     transition, so the cache the app runs on today is never at risk while the new one fills. Null in
     ///     tests and on the legacy path.
@@ -160,7 +160,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     /// </summary>
     internal SettingsService? SettingsBacking { get; }
 
-    // The "one parse, many evaluators" coordinator (docs/demo-processing-queue.md). When set, this service
+    // The "one parse, many evaluators" coordinator. When set, this service
     // is registered as an IDemoEvaluator and the coordinator owns submission + the CapacityAvailable
     // re-feed — this service NEVER touches the queue directly. Null (tests) → the inline one-at-a-time
     // path, behaviourally identical to the pre-queue null-gate path.
@@ -1280,7 +1280,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         }
     }
 
-    // The TIER-2 EXTENSION (docs/ui/highlights-matchoverview-redesign.md). Everything written here is
+    // The TIER-2 EXTENSION. Everything written here is
     // already in hand at this point in the pass — PlayerInfo is (Slot, Name, SteamId64, UserId, Team, IsBot)
     // plus IsHltv, and ParsedDemo exposes TickCount/TickRate/Duration — so the library cache storing NAMES
     // ONLY was a choice, not a cost. Capturing the rest (~+0.5 KB/demo) is what lets Match Overview render
@@ -1378,7 +1378,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         ];
 
         // Round boundaries are a PARSE product, not an analysis one — and there is ONE deriver for them
-        // now: Cs2DemoKit.Analysis.Clips.ClipRounds, in the FRAME clock.
+        // now: CS2DemoKit.Analysis.Clips.ClipRounds, in the FRAME clock.
         //
         // Careful: CS2 DOES NOT EMIT round_start. It opens a round with round_freeze_end and closes it with
         // round_officially_ended. Matching the string "round_start" (as the highlights scanner did)

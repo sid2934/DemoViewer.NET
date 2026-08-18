@@ -1,8 +1,8 @@
 #region
 
-using Cs2DemoKit.Analysis.Plugins;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Analysis.Plugins;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 

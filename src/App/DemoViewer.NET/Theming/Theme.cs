@@ -17,7 +17,7 @@ public enum ThemeSource
 }
 
 /// <summary>
-///     One selectable theme in the central theme system (docs/ui/theme-system-plan.md). The built-ins
+///     One selectable theme in the central theme system. The built-ins
 ///     <c>dark</c> / <c>light</c> / <c>system</c> map to Avalonia's native <see cref="ThemeVariant" />s (their
 ///     tokens live in <c>DarkPalette.axaml</c>'s ThemeDictionaries). A custom theme (High-Contrast, E-Girl, or a
 ///     user drop-in) declares a <b>base</b> variant it inherits (Light or Dark) plus a set of token overrides;

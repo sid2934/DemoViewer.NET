@@ -5,12 +5,12 @@ using System.Numerics;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.Diagnostics;
-using Cs2DemoKit.Analysis.Output;
-using Cs2DemoKit.Analysis.Visibility;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis.Output;
+using CS2DemoKit.Analysis.Visibility;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.ViewModels.Diagnostics;
@@ -78,7 +78,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _isHighlightsView;
 
-    // ── Player-details overlay (docs/ui/player-details-ux-design.md) ─────────────
+    // ── Player-details overlay ─────────────
     // Inline overlay over this tab (WASM-safe — no OS Window), built from the tables this VM
     // already holds. Opened from a scoreboard/round row (double-tap or context menu), closed by
     // Esc / Back, and force-closed by Update (lifecycle coupling).

@@ -13,7 +13,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Proves the central theme system's load-bearing Avalonia behaviour: a CUSTOM <see cref="ThemeVariant" />
 ///     registered by <see cref="ThemeRegistry" /> resolves its own token overrides, and inherits every OMITTED
 ///     token from its base (Dark/Light) palette in <c>DarkPalette.axaml</c>. If this holds, a theme is pure data
-///     — a base + a set of overrides — and needs no per-file changes anywhere (docs/ui/theme-system-plan.md).
+///     — a base + a set of overrides — and needs no per-file changes anywhere.
 /// </summary>
 [NotInParallel]
 [Category("Integration")]

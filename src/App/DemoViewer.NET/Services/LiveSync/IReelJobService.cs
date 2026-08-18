@@ -37,7 +37,7 @@ public interface IReelJobService
 
 /// <summary>
 ///     One clip of a reel plan (already coalesced — see
-///     <c>Cs2DemoKit.Analysis.Clips.ClipPlanner</c>).
+///     <c>CS2DemoKit.Analysis.Clips.ClipPlanner</c>).
 ///     <para>
 ///         Ticks are the DV <b>frame clock</b>, not CS2 demo ticks. The <c>TickOffset</c> shim
 ///         is applied exactly once, at emission into CS2 (the LiveSync reel job's <c>Cs2Range</c>) —

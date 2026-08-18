@@ -1,7 +1,7 @@
 #region
 
 using Avalonia.Media;
-using Cs2DemoKit.Parser.Models;
+using CS2DemoKit.Parser.Models;
 
 #endregion
 

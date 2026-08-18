@@ -3,8 +3,8 @@
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Playback;
 

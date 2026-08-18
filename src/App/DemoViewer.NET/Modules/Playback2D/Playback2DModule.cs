@@ -8,7 +8,7 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.Modules.Playback2D;
 
 /// <summary>
-///     The 2D Playback pilot module (docs/2d-playback/2d-playback-module-requirements.md). Contributes
+///     The 2D Playback pilot module. Contributes
 ///     one Main-strip tab ("2D Playback") whose VM animates every player's reconstructed world position as
 ///     the framework playback clock advances, with event-driven ring colours, an attributes panel, and a
 ///     game-info panel.

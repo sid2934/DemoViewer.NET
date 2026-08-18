@@ -12,7 +12,7 @@ using DemoViewer.NET.ViewModels.Shell;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     2D Playback module lifecycle gate (docs/2d-playback/2d-playback-module-requirements.md). Proves
+///     2D Playback module lifecycle gate. Proves
 ///     the pilot registers as a Main-strip tab, that the <c>ViewModelFactory</c> path actually builds and
 ///     drives the VM's <c>OnActivated</c>/<c>OnDeactivated</c> lifecycle (the subscribe/unsubscribe that
 ///     makes inactive-tab work zero-cost), and that pushes accrue ONLY while the tab is the active tab.

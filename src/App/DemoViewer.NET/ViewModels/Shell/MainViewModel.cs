@@ -12,11 +12,11 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Cs2DemoKit.Analysis;
+using CS2DemoKit.Analysis;
 using System.Text.Json;
-using Cs2DemoKit.Analysis.Diagnostics;
-using Cs2DemoKit.Analysis.Output;
-using Cs2DemoKit.Analysis.PlayerStats;
+using CS2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis.Output;
+using CS2DemoKit.Analysis.PlayerStats;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Debugging;
 using DemoViewer.NET.Features;
@@ -25,10 +25,10 @@ using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.EntityTracking;
-using Cs2DemoKit.Parser.GameEvents;
-using Cs2DemoKit.Parser.Models;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser.GameEvents;
+using CS2DemoKit.Parser.Models;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -105,7 +105,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // never re-running CreateTabs, which would tear down that state).
     private readonly List<WorkspaceTabDescriptor> _allTabDescriptors = [];
 
-    // The "one parse, many evaluators" coordinator (docs/demo-processing-queue.md). Used on an interactive
+    // The "one parse, many evaluators" coordinator. Used on an interactive
     // open to fan the just-parsed demo out to the background evaluators — so an un-indexed library demo
     // fills its card from THAT parse rather than a second background one. Null (designer / tests) → no fan-out.
     private readonly DemoEvaluationCoordinator? _evaluationCoordinator;
@@ -452,7 +452,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     highlight harvesting (designer / tests / WASM).
     /// </param>
     /// <param name="processingQueue">
-    ///     The global demo-processing queue (docs/demo-processing-queue.md). When supplied, an interactive
+    ///     The global demo-processing queue. When supplied, an interactive
     ///     open is submitted as the highest-priority awaitable foreground request (preempts background,
     ///     coalesces onto an in-flight parse, refuses during a reel). Null → the direct
     ///     <paramref name="heavyJobGate" /> path (designer / tests).
@@ -845,7 +845,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // tab's own evaluation refreshes the open demo's row for free) and the staleness triggers — app
         // start now, and after every library scan phase (the start-time library is empty until its folder
         // scan lands). The former Library tier-2 → Highlights piggyback is gone: the coordinator now fans
-        // a held parse to the OTHER evaluators (docs/demo-processing-queue.md), covering both the
+        // a held parse to the OTHER evaluators, covering both the
         // Library tier-2 slot and an interactive open.
         if (_highlightScanner is { } scanner)
         {

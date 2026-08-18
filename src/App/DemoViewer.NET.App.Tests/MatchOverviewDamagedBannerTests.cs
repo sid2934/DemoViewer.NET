@@ -1,6 +1,6 @@
 #region
 
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.ViewModels.MatchOverview;
 
 #endregion
@@ -11,7 +11,7 @@ namespace DemoViewer.NET.AppTests;
 ///     The Match Overview damaged-demo banner — the App-tier consumer of the S11 parse-diagnostics
 ///     channel (v0.6.0): <see cref="ParsedDemo.Warnings" /> pushed onto <see cref="MatchOverviewTabViewModel" />
 ///     via <c>SetParseWarnings</c>. The channel's Parser-tier behavior (accumulate-then-drain,
-///     per-thread reset) is covered separately in <c>Cs2DemoKit.Parser.Tests.ParseDiagnosticsTests</c>.
+///     per-thread reset) is covered separately in <c>CS2DemoKit.Parser.Tests.ParseDiagnosticsTests</c>.
 /// </summary>
 public class MatchOverviewDamagedBannerTests
 {

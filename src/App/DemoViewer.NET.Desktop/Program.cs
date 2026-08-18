@@ -2,7 +2,7 @@
 
 using Avalonia;
 using Avalonia.Threading;
-using Cs2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.LiveSync;
 using DemoViewer.NET.Services;

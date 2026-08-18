@@ -7,12 +7,12 @@ using System.Globalization;
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.Diagnostics;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.ViewModels.Analysis;
@@ -26,7 +26,7 @@ namespace DemoViewer.NET.ViewModels.Diagnostics;
 ///     The Diagnostics tab VM. Surfaces always-on session/system troubleshooting
 ///     info plus per-layer profiling panels that self-gate on their own signal:
 ///     the parse + entity panels populate only when a run was profiled at RUNTIME
-///     (<see cref="Cs2DemoKit.Parser.Profiling.Enabled" />). The <b>Re-run with capture</b> button
+///     (<see cref="CS2DemoKit.Parser.Profiling.Enabled" />). The <b>Re-run with capture</b> button
 ///     turns the switch on and re-runs the analysis, populating the entity panel; the parse panel
 ///     (B1) needs a re-parse, so after a Re-run the user reloads the demo (or starts with
 ///     <c>DEMOVIEWER_PROFILE=1</c>). The evaluator-runtime panel ships in every build and is idle until
@@ -40,7 +40,7 @@ namespace DemoViewer.NET.ViewModels.Diagnostics;
 /// </summary>
 public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposable
 {
-    private const string EvaluatorMeterName = "Cs2DemoKit.Analysis.Evaluator";
+    private const string EvaluatorMeterName = "CS2DemoKit.Analysis.Evaluator";
 
     // Opt-in capture buffers are bounded too: frame-duration samples (per-frame) and phase spans
     // are capped so an armed capture over a long run can't grow without limit.

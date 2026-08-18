@@ -1,6 +1,6 @@
 // EntityDecodeProbe — replays a single .dem through EntityTracker and dumps
 // LastEntityError if any. Used to confirm whether the entity-state decoder
-// bit misalignment (/KNOWN-AND-SUSPECTED-ISSUES.md)
+// bit misalignment (cured by the 2026-06-08 decode fix)
 // affects a given demo.
 //
 // Usage:
@@ -10,15 +10,15 @@
 // --schema dumps the demo's CSVCMsg_FlattenedSerializer fields for the named
 // classes (defaults to CBodyComponent, CCSPlayerPawn, CCSPlayer_WeaponServices,
 // CCSPlayer_MovementServices — the classes implicated in the bit-misalignment
-// investigation, KNOWN-AND-SUSPECTED-ISSUES.md) and exits
+// investigation) and exits
 // without replaying. Used to diff bench vs Furia schemas in the hunt for
 // element-type mis-detection.
 //
 // Exit code: 0 if no decode error, 1 if any.
 
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.Entities;
-using Cs2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.Entities;
+using CS2DemoKit.Parser.EntityTracking;
 using Google.Protobuf;
 
 if (args.Length == 0)

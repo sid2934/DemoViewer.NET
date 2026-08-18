@@ -1,6 +1,6 @@
 #region
 
-using Cs2DemoKit.Analysis.RulesetsV2.Model;
+using CS2DemoKit.Analysis.RulesetsV2.Model;
 
 #endregion
 

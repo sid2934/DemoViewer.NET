@@ -1,6 +1,6 @@
 #region
 
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 
 #endregion
 

@@ -41,7 +41,7 @@ public sealed record CollisionMeshRef(
     double MaxZ);
 
 /// <summary>
-///     A baked, ship-ready map-asset bundle (docs/asset-pipeline/design.md §0.5). Serialized as bundle.json next to
+///     A baked, ship-ready map-asset bundle (§0.5). Serialized as bundle.json next to
 ///     the radar PNG(s). The app loads this VRF-free and selects it by (MapName × MapVersion). The nav-derived
 ///     <see cref="Floors" /> are the headline: real walkable Z bands, computed once, no runtime nav parse.
 /// </summary>

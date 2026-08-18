@@ -7,9 +7,9 @@ using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Models;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.EntityTracking;
-using Cs2DemoKit.Parser.GameEvents;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.ViewModels.Common;
 using DemoViewer.NET.ViewModels.Shell;
 using Google.Protobuf;
@@ -566,7 +566,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
 
     private void Add(ParseChainEntry entry) => ParseChain.Add(entry);
 
-    private void AddPayloadNodeSteps(string? parentMsgName, PayloadNode node, string demoParserPath, string ghBase, int indent)
+    private void AddPayloadNodeSteps(string? parentMsgName, PayloadNode node, string ghBase, int indent)
     {
         string? pbBuilderPath = SrcPath("src", "App", "DemoViewer.NET", "Models", "PayloadNodeBuilder.cs");
         ProtoIndex protoIndex = ProtoIndexSource?.Invoke() ?? new ProtoIndex();
@@ -603,9 +603,8 @@ public sealed partial class ParserTabViewModel : ObservableObject
 
             if (ancestor is { Name: "entity_data", HasChildren: true } && ancestor == node)
             {
-                string? etPath = SrcPath("src", "Parser", "Cs2DemoKit.Parser", "EntityTracking", "EntityTracker.cs");
                 Add(ParseChainEntry.Linked("EntityTracker.PeekEntityUpdates()",
-                    localPath: etPath, indent: indent + 3 + ancestor.Depth));
+                    webUrl: KitUrl(EntityTrackerSourcePath), indent: indent + 3 + ancestor.Depth));
             }
         }
     }
@@ -821,19 +820,18 @@ public sealed partial class ParserTabViewModel : ObservableObject
 
     private void BuildChainForEntity(EntityState entity)
     {
-        string? etPath = SrcPath("src", "Parser", "Cs2DemoKit.Parser", "EntityTracking", "EntityTracker.cs");
         const string Cs2Schema = "https://sid2934.github.io/CS2-OpenDevDocs/schemas/server";
 
         Add(ParseChainEntry.Linked("EntityTracker.ProcessFrame()",
-            localPath: etPath, localLine: 95, indent: 0));
+            webUrl: KitUrl(EntityTrackerSourcePath, 95), indent: 0));
         Add(ParseChainEntry.Linked("ProcessNetMessage(CSVCMsg_PacketEntities)",
-            localPath: etPath, localLine: 119, indent: 1));
+            webUrl: KitUrl(EntityTrackerSourcePath, 119), indent: 1));
         Add(ParseChainEntry.Linked("ProcessPacketEntities()",
-            localPath: etPath, localLine: 273, indent: 2));
+            webUrl: KitUrl(EntityTrackerSourcePath, 273), indent: 2));
         Add(ParseChainEntry.Linked("ProcessPacketEntitiesCore()",
-            localPath: etPath, localLine: 292, indent: 3));
+            webUrl: KitUrl(EntityTrackerSourcePath, 292), indent: 3));
         Add(ParseChainEntry.Linked("ReadEntityFields()",
-            localPath: etPath, localLine: 367, indent: 4));
+            webUrl: KitUrl(EntityTrackerSourcePath, 367), indent: 4));
         Add(ParseChainEntry.Linked(entity.ClassName,
             $"(serial {entity.Serial})",
             webUrl: Cs2Schema, indent: 5));
@@ -862,12 +860,11 @@ public sealed partial class ParserTabViewModel : ObservableObject
 
     private void BuildChainForFrame(DemoFrame frame, NetMessage? message, PayloadNode? node)
     {
-        string? demoParserPath = SrcPath("src", "Parser", "Cs2DemoKit.Parser", "DemoParser.cs");
         const string GhBase = "https://github.com/SteamDatabase/GameTracking-CS2/blob/master/Protobufs/";
         ProtoIndex protoIndex = ProtoIndexSource?.Invoke() ?? new ProtoIndex();
 
         Add(ParseChainEntry.Linked("DemoParser.Parse()",
-            localPath: demoParserPath, localLine: 20, indent: 0));
+            webUrl: KitUrl(DemoParserSourcePath, 20), indent: 0));
 
         string frameCmd = frame.Command;
         protoIndex.TryGetField("EDemoCommands", frameCmd, out SourceLocation cmdLoc);
@@ -898,17 +895,17 @@ public sealed partial class ParserTabViewModel : ObservableObject
                     indent: 3));
             }
 
-            if (node is null || demoParserPath is null)
+            if (node is null)
             {
                 return;
             }
 
-            AddPayloadNodeSteps(directTypeName, node, demoParserPath, GhBase, 4);
+            AddPayloadNodeSteps(directTypeName, node, GhBase, 4);
         }
 
         Add(ParseChainEntry.Linked("ParseInnerMessages()",
             $"({frame.InnerMessages.Count} messages)",
-            demoParserPath, 126, indent: 4));
+            webUrl: KitUrl(DemoParserSourcePath, 126), indent: 4));
 
         if (message is null)
         {
@@ -923,7 +920,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
         Add(ParseChainEntry.Linked(
             $"TryParseNetMessage(type={typeId})",
             $"→ {message.MessageTypeName}",
-            demoParserPath, 166, indent: 5));
+            webUrl: KitUrl(DemoParserSourcePath, 166), indent: 5));
 
         Add(ParseChainEntry.Linked(
             $"{msgTypeName}.Parser.ParseFrom(data)",
@@ -933,9 +930,9 @@ public sealed partial class ParserTabViewModel : ObservableObject
             msgLoc.Line > 0 ? $"{GhBase}{msgLoc.RelativeFile}#L{msgLoc.Line}" : null,
             6));
 
-        if (node is not null && demoParserPath is not null)
+        if (node is not null)
         {
-            AddPayloadNodeSteps(msgTypeName, node, demoParserPath, GhBase, 7);
+            AddPayloadNodeSteps(msgTypeName, node, GhBase, 7);
         }
     }
 
@@ -1663,6 +1660,19 @@ public sealed partial class ParserTabViewModel : ObservableObject
 
         RebuildDecompressedByteIndex();
     }
+
+    /// <summary>
+    ///     A link into the parser's source on GitHub. The parse pipeline and entity decoder ship as
+    ///     the CS2DemoKit packages, so their files are not in this checkout and there is nothing for
+    ///     <c>code --goto</c> to open — the chain links out to the upstream repository instead.
+    /// </summary>
+    private const string EntityTrackerSourcePath = "src/CS2DemoKit.Parser/EntityTracking/EntityTracker.cs";
+
+    private const string DemoParserSourcePath = "src/CS2DemoKit.Parser/DemoParser.cs";
+
+    private static string KitUrl(string repoRelativePath, int? line = null) =>
+        $"https://github.com/CS2OpenDev/CS2DemoKit/blob/main/{repoRelativePath}"
+        + (line.HasValue ? $"#L{line}" : "");
 
     private string? SrcPath(params string[] segments)
     {

@@ -7,7 +7,7 @@ using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using Cs2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
@@ -45,7 +45,7 @@ public class App : Application
     ///     during framework init. A deliberate service-locator seam so later Settings / first-run-wizard
     ///     commands can resolve the long-lived <see cref="SettingsService" /> /
     ///     <c>IOptionsMonitor&lt;AppSettings&gt;</c> without threading them through every view-model.
-    ///     <c>null</c> only before init (e.g. the XAML designer). See docs/ui/modular-ui-design.md
+    ///     <c>null</c> only before init (e.g. the XAML designer). See the design notes in git history
     ///     (SUPERSEDED — the app now uses a bare Microsoft.Extensions DI container as the single
     ///     composition root).
     /// </summary>
@@ -54,6 +54,12 @@ public class App : Application
     /// <inheritdoc />
     public override void Initialize()
     {
+        // Before anything can resolve an app-data path. AppPaths also claims this from a module
+        // initializer, but that fires on first use of a type in this assembly, and the rules
+        // loader in CS2DemoKit.Analysis can resolve the user-rules directory without touching one.
+        // Claiming it here too makes the order explicit instead of incidental.
+        AppPaths.ClaimConfigDirectoryName();
+
         AvaloniaXamlLoader.Load(this);
     }
 
@@ -367,7 +373,7 @@ public class App : Application
     };
 
     /// <summary>
-    ///     Central theme system (docs/ui/theme-system-plan.md) — installs the theme registry and applies the
+    ///     Central theme system — installs the theme registry and applies the
     ///     persisted theme at startup, keeping it live. Order matters: the registry's custom-variant override
     ///     dictionaries (built-in High-Contrast / E-Girl + any user drop-in) are merged into
     ///     <c>Application.Resources</c> by <c>Install</c> BEFORE <c>ApplyTheme</c> sets the variant, so a
@@ -467,7 +473,7 @@ public class App : Application
         // resolution then fails loudly here rather than at first use in the UI enforcement.
         services.AddSingleton<IFeatureGate, FeatureGate>();
 
-        // The central theme registry (docs/ui/theme-system-plan.md) — the single source of truth for the
+        // The central theme registry — the single source of truth for the
         // available themes: native dark / light / system plus the built-in custom variants (High-Contrast,
         // E-Girl) and any user drop-in from <config>/themes/. SINGLETON because it OWNS the one merged
         // custom-variant override dictionary installed into Application.Resources (App.WireTheme), and both
@@ -536,7 +542,7 @@ public class App : Application
         // it now reads its folders from AppSettings.Library.Folders and writes them back via SettingsService.
         // Its tier-2 full parses run through the DemoEvaluationCoordinator (registered below), not the queue
         // directly ("one parse, many evaluators").
-        // The unified demo-information cache (docs/ui/highlights-matchoverview-redesign.md). Registered
+        // The unified demo-information cache. Registered
         // ahead of the indexer because the indexer dual-writes tier 2 into it.
         services.AddSingleton(_ =>
         {
@@ -611,7 +617,7 @@ public class App : Application
                 action => Dispatcher.UIThread.Post(action));
         });
 
-        // The "one parse, many evaluators" coordinator (docs/demo-processing-queue.md): the single submitter
+        // The "one parse, many evaluators" coordinator: the single submitter
         // that polls the registered IDemoEvaluators (Library + Highlights) for a demo and coalesces their
         // queue submissions onto ONE parse. The candidate universe re-polled on CapacityAvailable is the
         // UNION of each evaluator's worker-readable pending snapshot (never the UI-bound Entries collection).
@@ -754,10 +760,10 @@ public class App : Application
     {
         IOptionsMonitor<AppSettings>? settings = sp.GetService<IOptionsMonitor<AppSettings>>();
         ModuleRegistry registry = new();
-        // The 2D Playback pilot (docs/2d-playback/2d-playback-module-requirements.md). First-party,
+        // The 2D Playback pilot. First-party,
         // granted Playback.Control. Both desktop and browser hosts use this path.
         registry.Register(new Playback2DModule());
-        // The Rulesets v2 authoring Workbench (docs/rules-v2/rules-v2-phase3-workbench-plan.md).
+        // The Rulesets v2 authoring Workbench.
         // Registered on both hosts; desktop-only features (editor save, FileSystemWatcher, code --goto)
         // gate at runtime via OperatingSystem.IsBrowser() as they land, so the WASM build compiles
         // and gets the read-only surface. The live-settings monitor threads through so the

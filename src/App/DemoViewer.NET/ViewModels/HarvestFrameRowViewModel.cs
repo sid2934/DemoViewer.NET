@@ -1,7 +1,7 @@
 #region
 
 using CommunityToolkit.Mvvm.ComponentModel;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 
 #endregion
 

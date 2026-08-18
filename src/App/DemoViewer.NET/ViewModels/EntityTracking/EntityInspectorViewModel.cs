@@ -2,9 +2,9 @@
 
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Cs2DemoKit.Analysis.Plugins;
-using Cs2DemoKit.Parser.Entities;
-using Cs2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Analysis.Plugins;
+using CS2DemoKit.Parser.Entities;
+using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.ViewModels.Shell;
 
 #endregion

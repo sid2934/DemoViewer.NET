@@ -1,7 +1,7 @@
 #region
 
 using System.Globalization;
-using Cs2DemoKit.Analysis.Output;
+using CS2DemoKit.Analysis.Output;
 
 #endregion
 

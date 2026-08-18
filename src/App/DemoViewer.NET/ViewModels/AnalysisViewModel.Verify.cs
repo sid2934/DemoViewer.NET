@@ -3,7 +3,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Debugging;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 
 #endregion
 
@@ -11,7 +11,7 @@ namespace DemoViewer.NET.ViewModels;
 
 /// <summary>
 ///     "Verify in CS2" — the UI half of the CSVG integration
-///     (docs/csvg-integration/ux-design.md). Seeks a live CS2 game to the rule-trigger moment the user is
+///. Seeks a live CS2 game to the rule-trigger moment the user is
 ///     inspecting so they can eyeball whether the rule caught the right instant.
 ///     <para>
 ///         The primary Analysis-tab surface is the graph node / edge <b>context menu on pointer-release</b>

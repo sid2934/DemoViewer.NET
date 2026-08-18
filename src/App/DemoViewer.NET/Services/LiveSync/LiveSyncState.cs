@@ -1,8 +1,8 @@
 namespace DemoViewer.NET.Services.LiveSync;
 
 /// <summary>
-///     The live-sync engine's lifecycle position (docs/csvg-integration/implementation-plan.md).
-///     Kinds map 1:1 onto the status-chip rows in docs/csvg-integration/ux-design.md — the UI
+///     The live-sync engine's lifecycle position.
+///     Kinds map 1:1 onto the status-chip rows in the design notes in git history — the UI
 ///     derives dot colour/shape and label from this plus <see cref="LiveSyncState.IsInferred" />.
 /// </summary>
 public enum LiveSyncStateKind

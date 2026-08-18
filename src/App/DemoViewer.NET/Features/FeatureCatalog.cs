@@ -51,7 +51,7 @@ public static class FeatureCatalog
             "tab.stats", FeatureScope.Tab, "Stats",
             "Player-facing scoreboard and per-round stats. Core viewing surface.",
             null, null, false, Defaults(true, true, true)),
-        // The Reels dashboard (docs/ui/highlights-matchoverview-redesign.md). Was a library-wide highlights
+        // The Reels dashboard. Was a library-wide highlights
         // BROWSER; it is an authoring surface now — per-game exploration moved to Match Overview. Still
         // default-visible to every category: gating reel generation to power-users would hide the feature's
         // headline payoff from the audience most excited by it.
@@ -156,7 +156,7 @@ public static class FeatureCatalog
             "NavStrip TO-BREAKPOINT continue/step cluster. Developer chrome.",
             null, GroupGraphDebug, false, Defaults(false, false, true)),
         // chrome.livesync governs the Live Sync (CS2) status chip + flyout and the NavStrip speed-lock
-        // affordance (docs/csvg-integration/ux-design.md). No GroupId → appended last so it does not
+        // affordance. No GroupId → appended last so it does not
         // disturb the parserDeepDive / graphDebug leader-lock ordering. Developer default; the shell shim
         // also ANDs !OperatingSystem.IsBrowser() so a WASM build never surfaces it. Only the
         // ID is a persisted key; the description is display-only help text.
@@ -166,7 +166,7 @@ public static class FeatureCatalog
             "temporarily modifies your CS2 install. Developer default; enable in Settings to use it.",
             null, null, false, Defaults(false, false, true)),
         // chrome.processingQueue governs the status-strip demo-processing chip + flyout
-        // (docs/demo-processing-queue.md): the live surface for the global background parse/analyse queue (pause/resume, per-item remove,
+        //: the live surface for the global background parse/analyse queue (pause/resume, per-item remove,
         // status). EVERY category sees it (consumer:true / power:true / dev:true) so all users stay aware of
         // background work happening on their behalf — the chip only appears WHEN the queue is active, so an idle
         // queue still adds no clutter for anyone. No GroupId → appended last so it does not disturb the

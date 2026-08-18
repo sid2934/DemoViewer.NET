@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Theming;
 ///     Resolves a colour TOKEN (a <see cref="ISolidColorBrush" /> key in the app's <c>ThemeDictionaries</c>)
 ///     for a given theme variant, so <b>code-drawn</b> surfaces (the 2D radar renderer, the syntax highlighter)
 ///     read the SAME token namespace that XAML <c>{DynamicResource}</c> uses. This is the "no per-file changes"
-///     contract of the central theme system (docs/ui/theme-system-plan.md): a colour lives in the palette once,
+///     contract of the central theme system: a colour lives in the palette once,
 ///     every theme (built-in or a user drop-in) supplies it, and both markup and code pick it up — so a new
 ///     theme needs no edits to any consuming surface.
 ///     <para>

@@ -19,7 +19,6 @@ on:
 
 permissions:
   contents: write   # upload release assets when cut from a tag
-  packages: read    # restore Cs2VideoGenerator.Core from the private GitHub Packages feed
   actions: read     # verify-ci lists ci.yml runs; declaring this block makes every omitted
                     # scope `none`, so without it that call 403s (it did, on the v0.5.2 tag)
 
@@ -82,11 +81,6 @@ jobs:
             rid: linux-x64
     runs-on: ${{ matrix.os }}
     env:
-      # Private-feed restore via the built-in token (nuget.config reads these). The Core package
-      # lives in sid2934/Cs2VideoGenerator — it must grant this repo read access for the built-in
-      # token to see it (package → Manage Actions access), else restore 401s.
-      GITHUB_PACKAGE_USER: ${{ github.actor }}
-      GITHUB_PACKAGE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Signing secrets (unset = unsigned, §6). Set these in repo secrets to enable.
       DV_SIGN_APP_IDENTITY: ${{ secrets.DV_SIGN_APP_IDENTITY }}
       DV_SIGN_INSTALL_IDENTITY: ${{ secrets.DV_SIGN_INSTALL_IDENTITY }}
@@ -95,13 +89,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
-          # Submodules deliberately NOT fetched — see scripts/fetch-protobufs.sh. `recursive`
-          # would clone GameTracking-CS2's full 3.2 GB history for 420 KB of .proto files, on
-          # each of the three matrix legs.
-
-      - name: Fetch protobuf definitions
-        shell: bash   # git-bash on the Windows runner; the script is bash
-        run: ./scripts/fetch-protobufs.sh
+          # Submodules deliberately NOT fetched. Nothing in the build reads them: the parser is a
+          # package now and its Valve message types arrive prebuilt from CS2OpenDev.Protos. The
+          # Parser tab's source links read the submodule at runtime in a dev checkout only.
 
       - uses: actions/setup-dotnet@v4
         with:

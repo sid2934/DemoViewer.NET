@@ -14,10 +14,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="../../src/Parser/Cs2DemoKit.Parser/Cs2DemoKit.Parser.csproj"/>
+        <PackageReference Include="CS2DemoKit.Parser"/>
         <!-- For the hot-path targets: PawnLookup.ForEachLivePawn + PawnHealthProvider.CaptureAllSlots
              (the per-frame entity-set walk that profiling identified as the dominant cost). -->
-        <ProjectReference Include="../../src/Analysis/Cs2DemoKit.Analysis/Cs2DemoKit.Analysis.csproj"/>
+        <PackageReference Include="CS2DemoKit.Analysis"/>
     </ItemGroup>
 
 </Project>
