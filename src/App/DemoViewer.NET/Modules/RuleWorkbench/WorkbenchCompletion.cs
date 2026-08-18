@@ -1,7 +1,7 @@
 #region
 
 using System.Text.RegularExpressions;
-using Cs2DemoKit.Analysis.Catalog;
+using CS2DemoKit.Analysis.Catalog;
 
 #endregion
 

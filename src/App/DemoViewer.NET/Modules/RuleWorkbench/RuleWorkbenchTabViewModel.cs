@@ -6,21 +6,21 @@ using System.Text.RegularExpressions;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.Building;
-using Cs2DemoKit.Analysis.Catalog;
-using Cs2DemoKit.Analysis.Config;
-using Cs2DemoKit.Analysis.Graphs;
-using Cs2DemoKit.Analysis.Output;
-using Cs2DemoKit.Analysis.Plugins;
-using Cs2DemoKit.Analysis.Registry;
-using Cs2DemoKit.Analysis.Diagnostics;
-using Cs2DemoKit.Analysis.RulesetsV2.Model;
-using Cs2DemoKit.Analysis.RulesetsV2.Resolve;
-using Cs2DemoKit.Analysis.Yaml;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Building;
+using CS2DemoKit.Analysis.Catalog;
+using CS2DemoKit.Analysis.Config;
+using CS2DemoKit.Analysis.Graphs;
+using CS2DemoKit.Analysis.Output;
+using CS2DemoKit.Analysis.Plugins;
+using CS2DemoKit.Analysis.Registry;
+using CS2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis.RulesetsV2.Model;
+using CS2DemoKit.Analysis.RulesetsV2.Resolve;
+using CS2DemoKit.Analysis.Yaml;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Abstractions;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Diagnostics;
@@ -1136,7 +1136,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     }
 
     private static string StarterTemplate(string id) =>
-        "# yaml-language-server: $schema=./dv-rules.schema.json\n"
+        "# yaml-language-server: $schema=./cs2demokit-rules.schema.json\n"
         + "ruleset: " + id + "\n"
         + "for: each_player\n"
         + "stats:\n"

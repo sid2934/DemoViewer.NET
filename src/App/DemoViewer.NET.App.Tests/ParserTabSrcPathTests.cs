@@ -16,11 +16,11 @@ public class ParserTabSrcPathTests
     [Arguments("AddPayloadNodeSteps → PayloadNodeBuilder.Build()/BuildFields()",
         "src/App/DemoViewer.NET/Models/PayloadNodeBuilder.cs")]
     [Arguments("AddPayloadNodeSteps → EntityTracker.PeekEntityUpdates() (entity_data step)",
-        "src/Parser/Cs2DemoKit.Parser/EntityTracking/EntityTracker.cs")]
+        "src/Parser/CS2DemoKit.Parser/EntityTracking/EntityTracker.cs")]
     [Arguments("BuildChainForEntity → EntityTracker.ProcessFrame()/.../ReadEntityFields()",
-        "src/Parser/Cs2DemoKit.Parser/EntityTracking/EntityTracker.cs")]
+        "src/Parser/CS2DemoKit.Parser/EntityTracking/EntityTracker.cs")]
     [Arguments("BuildChainForFrame → DemoParser.Parse()/ParseInnerMessages()/TryParseNetMessage()",
-        "src/Parser/Cs2DemoKit.Parser/DemoParser.cs")]
+        "src/Parser/CS2DemoKit.Parser/DemoParser.cs")]
     public async Task SrcPathSite_ResolvesToExistingFile(string site, string repoRelativePath)
     {
         string repoRoot = FindRepoRoot();

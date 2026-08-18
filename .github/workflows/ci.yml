@@ -1,9 +1,9 @@
 # Build verification (docs/distribution/build-and-packaging-plan.md §8 — "CI is DIY").
-# Scoped deliberately: builds the Desktop head (pulls in the parser/entity/analysis/LiveSync
-# libraries) and runs the parser tests, which skip gracefully without a .dem file. It does NOT
-# build the Browser/WASM head (needs the wasm-tools workload) nor run the full App UI suite
-# (single-process, OOM-prone — must be batched via scripts/test-app-suite.sh; wiring that into
-# CI is a follow-up).
+# Scoped deliberately: builds the Desktop head, which pulls in the CS2DemoKit packages and the
+# LiveSync engine. It does NOT build the Browser/WASM head (needs the wasm-tools workload) nor run
+# the App UI suite (single-process, OOM-prone — must be batched via scripts/test-app-suite.sh;
+# wiring that into CI is a follow-up). The parser and analysis suites moved out with the libraries
+# and now run in the CS2DemoKit repo's own CI.
 name: ci
 
 on:
@@ -29,14 +29,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
-          # Submodules deliberately NOT fetched here. The build needs exactly one directory —
-          # cs2-opendocs/data/Protobufs, 42 files, ~420 KB — but it sits in a sub-submodule
-          # pointing at SteamDatabase/GameTracking-CS2, so `submodules: recursive` clones that
-          # repo's entire history: 3.2 GB, measured at 13m18s on a runner. The next step fetches
-          # the same content at the same pinned commits in ~3s.
-
-      - name: Fetch protobuf definitions
-        run: ./scripts/fetch-protobufs.sh
+          # Submodules deliberately NOT fetched. Nothing in the build reads them any more: the
+          # parser moved to the CS2DemoKit package and gets its Valve message types prebuilt from
+          # CS2OpenDev.Protos. cs2-opendocs stays as reference material for humans.
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -44,6 +39,3 @@ jobs:
 
       - name: Build Desktop head (Release)
         run: dotnet build src/App/DemoViewer.NET.Desktop -c Release
-
-      - name: Parser tests (skip without a demo)
-        run: dotnet test src/Parser/Cs2DemoKit.Parser.Tests -c Release

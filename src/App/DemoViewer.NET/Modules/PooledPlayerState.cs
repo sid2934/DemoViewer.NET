@@ -1,7 +1,7 @@
 #region
 
 using DemoViewer.NET.Modules.Abstractions;
-using Cs2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser.EntityTracking;
 
 #endregion
 

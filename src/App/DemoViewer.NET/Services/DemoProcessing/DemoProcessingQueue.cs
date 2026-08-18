@@ -3,8 +3,8 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using Avalonia.Threading;
-using Cs2DemoKit.Analysis.Diagnostics;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
 

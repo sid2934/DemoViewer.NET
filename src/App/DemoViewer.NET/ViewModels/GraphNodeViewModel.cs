@@ -47,7 +47,7 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
     /// <summary>
     ///     The set of <c>_chain_{id}</c> join-keys this node belongs to (game-scoped chains).
     ///     Empty when the node is not attributed to any chain (context / enrichment / counter
-    ///     targets). Stamped from <see cref="Cs2DemoKit.Analysis.Graphs.BuildResult.NodeChains" />.
+    ///     targets). Stamped from <see cref="CS2DemoKit.Analysis.Graphs.BuildResult.NodeChains" />.
     ///     Drives sub-graph selection (which nodes a chain pulls into its rendered view).
     /// </summary>
     public IReadOnlySet<string> ChainIds { get; init; } = _emptyChainIds;

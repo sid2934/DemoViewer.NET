@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=./dv-rules.schema.json
+# yaml-language-server: $schema=./cs2demokit-rules.schema.json
 #
 # Mechanical single-kill feats — the "aim" highlight family. Each entry is a per-round count of
 # qualifying kills paired with a highlight that fires the round it happens (>= 1). Weapon and raw

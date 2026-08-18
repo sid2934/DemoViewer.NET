@@ -1,8 +1,8 @@
 #region
 
 using System.Text.Json.Serialization;
-using Cs2DemoKit.Analysis.Abstractions;
-using Cs2DemoKit.Analysis.Clips;
+using CS2DemoKit.Analysis.Abstractions;
+using CS2DemoKit.Analysis.Clips;
 
 #endregion
 
@@ -89,7 +89,7 @@ public sealed class CachedRound
 
 /// <summary>
 ///     Adapters between the cache's mutable JSON rows and the packaged clip pipeline's neutral
-///     inputs (<c>Cs2DemoKit.Analysis.Clips</c>). Both sides are FRAME CLOCK — the conversion is a
+///     inputs (<c>CS2DemoKit.Analysis.Clips</c>). Both sides are FRAME CLOCK — the conversion is a
 ///     shape change only, never a clock change.
 /// </summary>
 public static class CachedRoundExtensions

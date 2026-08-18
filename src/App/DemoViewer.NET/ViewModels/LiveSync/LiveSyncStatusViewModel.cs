@@ -4,7 +4,7 @@ using System.Globalization;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Cs2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;

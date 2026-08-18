@@ -1,7 +1,7 @@
 #region
 
 using System.Globalization;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using Snappier;
 
 #endregion

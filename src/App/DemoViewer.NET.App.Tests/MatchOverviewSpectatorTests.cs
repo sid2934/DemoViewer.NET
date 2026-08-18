@@ -1,7 +1,7 @@
 #region
 
 using System.Globalization;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.ViewModels.MatchOverview;
 
 #endregion
@@ -84,6 +84,6 @@ public class MatchOverviewSpectatorTests
     }
 
     private static ParsedDemo Synthetic(IReadOnlyDictionary<int, PlayerInfo> players) =>
-        new([], [], players, null, "de_nuke", 0, 1f / 64f, "test", "test", "csgo", 0, 0, 0,
+        SyntheticParsedDemo.Create([], [], players, null, "de_nuke", 0, 1f / 64f, "test", "test", "csgo", 0, 0, 0,
             "valve_demo_2", "", "", DemoProfile.Unknown);
 }

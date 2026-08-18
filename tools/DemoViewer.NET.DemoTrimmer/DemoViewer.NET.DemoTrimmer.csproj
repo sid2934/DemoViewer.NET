@@ -14,7 +14,7 @@
         <PackageReference Include="Snappier"/>
     </ItemGroup>
     <ItemGroup>
-        <ProjectReference Include="../../src/Parser/Cs2DemoKit.Parser/Cs2DemoKit.Parser.csproj"/>
+        <PackageReference Include="CS2DemoKit.Parser"/>
     </ItemGroup>
     <ItemGroup>
         <InternalsVisibleTo Include="DemoViewer.NET.DemoTrimmer.Tests"/>

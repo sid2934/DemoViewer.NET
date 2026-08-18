@@ -9,16 +9,16 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AnalysisBench;
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.Abstractions;
-using Cs2DemoKit.Analysis.Diagnostics;
-using Cs2DemoKit.Analysis.GoldenStats;
-using Cs2DemoKit.Analysis.Graphs;
-using Cs2DemoKit.Analysis.Output;
-using Cs2DemoKit.Analysis.Yaml;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.EntityTracking;
-using Cs2DemoKit.Parser.GameEvents;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Abstractions;
+using CS2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis.GoldenStats;
+using CS2DemoKit.Analysis.Graphs;
+using CS2DemoKit.Analysis.Output;
+using CS2DemoKit.Analysis.Yaml;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser.GameEvents;
 
 #endregion
 
@@ -1526,7 +1526,7 @@ internal sealed record GcReport(int Gen0, int Gen1, int Gen2, int EvalGen0, int 
 
 /// <summary>
 ///     Entity-decode sub-phase timings (all milliseconds) captured when a profiled run ran
-///     (<see cref="Cs2DemoKit.Parser.Profiling.Enabled" />). Null in the report when no profiled run captured data.
+///     (<see cref="CS2DemoKit.Parser.Profiling.Enabled" />). Null in the report when no profiled run captured data.
 ///     Intervals nest:
 ///     <c>
 ///         ScannerSeekMs ⊇ PacketEntitiesMs ⊇ (FieldPathMs + FieldValueMs +
@@ -1603,7 +1603,7 @@ internal sealed class StatValueConverter : JsonConverter<object?>
 
 internal sealed class MeterCollector : IDisposable
 {
-    private const string MeterName = "Cs2DemoKit.Analysis.Evaluator";
+    private const string MeterName = "CS2DemoKit.Analysis.Evaluator";
     private readonly Dictionary<string, long> _counters = new(StringComparer.Ordinal);
     private readonly MeterListener _listener = new();
     private long _histCount;
@@ -1767,7 +1767,7 @@ internal sealed class EvaluatorListener : EventListener
     /// <inheritdoc />
     protected override void OnEventSourceCreated(EventSource eventSource)
     {
-        if (eventSource.Name == "Cs2DemoKit.Analysis.Evaluator")
+        if (eventSource.Name == "CS2DemoKit.Analysis.Evaluator")
         {
             EnableEvents(eventSource, EventLevel.Informational);
         }

@@ -13,7 +13,7 @@
 
     <ItemGroup>
         <!-- For the shared ParsedDemo fixture cache (DemoTestHelper.GetOrParse). -->
-        <ProjectReference Include="..\..\Parser\Cs2DemoKit.Parser\Cs2DemoKit.Parser.csproj"/>
+        <PackageReference Include="CS2DemoKit.Parser"/>
     </ItemGroup>
 
 </Project>

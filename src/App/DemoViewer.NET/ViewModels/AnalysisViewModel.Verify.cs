@@ -3,7 +3,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Debugging;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 
 #endregion
 

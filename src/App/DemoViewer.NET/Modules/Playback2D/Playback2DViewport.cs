@@ -9,7 +9,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Styling;
-using Cs2DemoKit.Analysis.Visibility;
+using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Theming;
 
 #endregion

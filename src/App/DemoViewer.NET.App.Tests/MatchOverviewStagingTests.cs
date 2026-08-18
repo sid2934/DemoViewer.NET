@@ -1,8 +1,8 @@
 #region
 
-using Cs2DemoKit.Analysis;
+using CS2DemoKit.Analysis;
 using DemoViewer.NET.Modules.Highlights;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.Highlights;
 using DemoViewer.NET.ViewModels.MatchOverview;

@@ -2,7 +2,7 @@
 
 using System.Globalization;
 using DemoViewer.NET.Modules.Abstractions;
-using Cs2DemoKit.Parser.GameEvents;
+using CS2DemoKit.Parser.GameEvents;
 
 #endregion
 
@@ -15,7 +15,7 @@ namespace DemoViewer.NET.Modules;
 ///     values keyed by field name — so an event-driven module (e.g. the 2D kill feed) can read
 ///     <c>Attacker</c> / <c>UserId</c> / <c>Weapon</c> / <c>Headshot</c> without taking a dependency on the
 ///     SDK's typed event records (the abstractions assembly stays Parser-free). Field names are the
-///     SDK payload record's property names; <c>rules/catalog.json</c> is the authoritative spelling.
+///     SDK payload record's property names; the catalog embedded in CS2DemoKit.Analysis (<c>CatalogResource.Load()</c>) is the authoritative spelling.
 /// </summary>
 internal static class GameEventViewFactory
 {

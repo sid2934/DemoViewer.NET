@@ -7,7 +7,7 @@
 global using CS2OpenSchema.Protos;
 
 // Typed game-event payload records (PlayerDeathEvent, PlayerTeamEvent, ...) from
-// CS2OpenDev.Sdk.GameEvents, reached transitively through Cs2DemoKit.Parser. These replaced the 272
+// CS2OpenDev.Sdk.GameEvents, reached transitively through CS2DemoKit.Parser. These replaced the 272
 // records our own generator used to emit; importing them globally keeps unqualified references
 // reading the way the generated ones did.
 global using CS2OpenSchema.Events;

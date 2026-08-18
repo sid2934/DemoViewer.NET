@@ -4,7 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:stats="using:DemoViewer.NET.ViewModels.Stats"
              xmlns:local="using:DemoViewer.NET.Views.Stats"
-             xmlns:output="using:Cs2DemoKit.Analysis.Output"
+             xmlns:output="using:CS2DemoKit.Analysis.Output"
              xmlns:controls="using:DemoViewer.NET.Controls"
              controls:TutorialAnchor.Target="StatsContent"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="700"

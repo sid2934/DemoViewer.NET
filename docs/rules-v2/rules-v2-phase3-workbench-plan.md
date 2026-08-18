@@ -106,7 +106,7 @@ that path — so no fold/duplication to reconcile.
    only `rules.Config` and passes the composed v2 `rules.Rulesets` through step 1's entry. Keep the
    `OperatingSystem.IsBrowser()` overlay guard.
 3. **Promote the rulesets.** Move the four `rules/examples/*.rules.yaml` (+ their shared deps)
-   into `rules/` as the shipped production content; keep `catalog.json` + `dv-rules.schema.json`.
+   into `rules/` as the shipped production content; keep `catalog.json` + `cs2demokit-rules.schema.json`.
 4. **Remove the v1 surface.** Delete the four shipped v1 `chains:` files and the v1-only
    `analysis-rules.schema.json`. Port or retire `kast.test.yaml` (v1 `.test.yaml`; the v2 `.test`
    runner was deferred at the CLI stage — retire for now, tracked). §8 cross-version collision

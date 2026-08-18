@@ -5,7 +5,7 @@ using System.Globalization;
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Cs2DemoKit.Analysis.Output;
+using CS2DemoKit.Analysis.Output;
 
 #endregion
 

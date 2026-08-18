@@ -48,8 +48,8 @@
 
     <ItemGroup>
         <ProjectReference Include="..\DemoViewer.NET.Modules.Abstractions\DemoViewer.NET.Modules.Abstractions.csproj"/>
-        <ProjectReference Include="..\..\Parser\Cs2DemoKit.Parser\Cs2DemoKit.Parser.csproj"/>
-        <ProjectReference Include="..\..\Analysis\Cs2DemoKit.Analysis\Cs2DemoKit.Analysis.csproj"/>
+        <PackageReference Include="CS2DemoKit.Parser"/>
+        <PackageReference Include="CS2DemoKit.Analysis"/>
         <ProjectReference Include="..\..\Visualization\DemoViewer.NET.Visualization\DemoViewer.NET.Visualization.csproj"/>
         <!-- Repo-local feed package (see nuget.config), not a sibling-checkout ProjectReference. -->
         <PackageReference Include="CS2OpenDev.Sdk"/>

@@ -1,10 +1,10 @@
 #region
 
 using System.Globalization;
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.Abstractions;
-using Cs2DemoKit.Analysis.RulesetsV2.Model;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Abstractions;
+using CS2DemoKit.Analysis.RulesetsV2.Model;
+using CS2DemoKit.Parser;
 
 #endregion
 

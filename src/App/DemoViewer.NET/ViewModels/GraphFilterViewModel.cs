@@ -3,7 +3,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Cs2DemoKit.Analysis.Config;
+using CS2DemoKit.Analysis.Config;
 
 #endregion
 

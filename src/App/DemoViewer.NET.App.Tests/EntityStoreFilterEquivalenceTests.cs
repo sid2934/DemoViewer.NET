@@ -1,8 +1,8 @@
 #region
 
 using System.Globalization;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 

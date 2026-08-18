@@ -1,6 +1,6 @@
 #region
 
-using Cs2DemoKit.Analysis.Clips;
+using CS2DemoKit.Analysis.Clips;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;

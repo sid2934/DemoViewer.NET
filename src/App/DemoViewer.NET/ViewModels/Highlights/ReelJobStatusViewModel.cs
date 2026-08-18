@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Cs2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.ViewModels.Diagnostics;

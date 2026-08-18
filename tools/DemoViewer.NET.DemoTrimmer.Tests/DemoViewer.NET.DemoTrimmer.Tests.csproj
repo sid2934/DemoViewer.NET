@@ -17,7 +17,7 @@
 
     <ItemGroup>
         <ProjectReference Include="../DemoViewer.NET.DemoTrimmer/DemoViewer.NET.DemoTrimmer.csproj"/>
-        <ProjectReference Include="../../src/Parser/Cs2DemoKit.Parser/Cs2DemoKit.Parser.csproj"/>
+        <PackageReference Include="CS2DemoKit.Parser"/>
         <ProjectReference Include="../../src/Testing/DemoViewer.NET.TestSupport/DemoViewer.NET.TestSupport.csproj"/>
     </ItemGroup>
 

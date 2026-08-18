@@ -1,11 +1,11 @@
 #region
 
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.Abstractions;
-using Cs2DemoKit.Analysis.Clips;
-using Cs2DemoKit.Analysis.Profiles;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Abstractions;
+using CS2DemoKit.Analysis.Clips;
+using CS2DemoKit.Analysis.Profiles;
 using DemoViewer.NET.Modules.Highlights;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -29,7 +29,7 @@ public class HighlightScanServiceTests
     ///     A minimal synthetic <see cref="ParsedDemo" /> (internal ctor via InternalsVisibleTo) —
     ///     the fake queue parser hands one to the scanner's per-row processing.
     /// </summary>
-    private static ParsedDemo SyntheticDemo(int tickRate = 64) => new(
+    private static ParsedDemo SyntheticDemo(int tickRate = 64) => SyntheticParsedDemo.Create(
         [],
         [],
         new Dictionary<int, PlayerInfo>(),

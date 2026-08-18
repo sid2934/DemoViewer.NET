@@ -7,7 +7,7 @@ using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using Cs2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
@@ -54,6 +54,12 @@ public class App : Application
     /// <inheritdoc />
     public override void Initialize()
     {
+        // Before anything can resolve an app-data path. AppPaths also claims this from a module
+        // initializer, but that fires on first use of a type in this assembly, and the rules
+        // loader in CS2DemoKit.Analysis can resolve the user-rules directory without touching one.
+        // Claiming it here too makes the order explicit instead of incidental.
+        AppPaths.ClaimConfigDirectoryName();
+
         AvaloniaXamlLoader.Load(this);
     }
 

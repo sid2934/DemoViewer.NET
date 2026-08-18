@@ -1,6 +1,6 @@
 #region
 
-using Cs2DemoKit.Analysis.Abstractions;
+using CS2DemoKit.Analysis.Abstractions;
 using DemoViewer.NET.Visualization;
 
 #endregion

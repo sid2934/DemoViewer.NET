@@ -3,8 +3,8 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Cs2DemoKit.Parser.Entities;
-using Cs2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser.Entities;
+using CS2DemoKit.Parser.EntityTracking;
 
 #endregion
 

@@ -1,10 +1,10 @@
 #region
 
 using System.Diagnostics;
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.Graphs;
-using Cs2DemoKit.Analysis.Yaml;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Graphs;
+using CS2DemoKit.Analysis.Yaml;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Stats;
 using TUnit.Core.Exceptions;
@@ -73,7 +73,7 @@ public class ReleaseGateTests
             await Assert.That(File.Exists(Path.Combine(rulesDir, "kast.rules.yaml"))).IsTrue();
             // The v2 schema is what EnsureUserRulesDirectory copies into new user dirs —
             // if it stopped shipping, new users would silently lose editor validation.
-            await Assert.That(File.Exists(Path.Combine(rulesDir, "dv-rules.schema.json"))).IsTrue();
+            await Assert.That(File.Exists(Path.Combine(rulesDir, "cs2demokit-rules.schema.json"))).IsTrue();
 
             // Strict-load from the PUBLISHED location — the exact failure mode of the original
             // finding (DirectoryNotFoundException → dead Analysis tab) can never silently return.

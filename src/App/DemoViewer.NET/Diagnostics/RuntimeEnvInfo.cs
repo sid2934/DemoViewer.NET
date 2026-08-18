@@ -5,7 +5,7 @@ using System.Reflection;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using DemoViewer.NET.Controls;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 
 #endregion
 

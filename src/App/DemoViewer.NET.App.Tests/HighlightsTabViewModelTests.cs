@@ -2,12 +2,12 @@
 
 using System.Text.Json;
 using Avalonia.Controls;
-using Cs2DemoKit.Analysis;
+using CS2DemoKit.Analysis;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.ViewModels.Highlights;
 

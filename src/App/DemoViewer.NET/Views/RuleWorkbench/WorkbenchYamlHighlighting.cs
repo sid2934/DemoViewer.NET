@@ -8,7 +8,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using AvaloniaEdit.Highlighting;
 using AvaloniaEdit.Highlighting.Xshd;
-using Cs2DemoKit.Analysis.Catalog;
+using CS2DemoKit.Analysis.Catalog;
 
 #endregion
 
@@ -72,7 +72,7 @@ internal static class WorkbenchYamlHighlighting
     private static readonly Dictionary<ThemeVariant, IHighlightingDefinition> _byVariant = new();
     private static readonly object _cacheGate = new();
 
-    // ── role vocabularies (schema-derived; see rules/dv-rules.schema.json) ────────────────────────
+    // ── role vocabularies (schema-derived; see rules/cs2demokit-rules.schema.json) ────────────────────────
     private static readonly string[] _sections =
         ["ruleset", "for", "use", "params", "stats", "highlights", "show", "define", "summary", "catalog_version"];
 

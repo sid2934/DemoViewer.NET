@@ -5,12 +5,12 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia.Threading;
-using Cs2DemoKit.Analysis.Clips;
-using Cs2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis.Clips;
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.EntityTracking;
-using Cs2DemoKit.Parser.GameEvents;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -1378,7 +1378,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         ];
 
         // Round boundaries are a PARSE product, not an analysis one — and there is ONE deriver for them
-        // now: Cs2DemoKit.Analysis.Clips.ClipRounds, in the FRAME clock.
+        // now: CS2DemoKit.Analysis.Clips.ClipRounds, in the FRAME clock.
         //
         // Careful: CS2 DOES NOT EMIT round_start. It opens a round with round_freeze_end and closes it with
         // round_officially_ended. Matching the string "round_start" (as the highlights scanner did)

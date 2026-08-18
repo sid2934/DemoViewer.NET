@@ -7,9 +7,9 @@ using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Models;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.EntityTracking;
-using Cs2DemoKit.Parser.GameEvents;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.ViewModels.Common;
 using DemoViewer.NET.ViewModels.Shell;
 using Google.Protobuf;
@@ -603,7 +603,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
 
             if (ancestor is { Name: "entity_data", HasChildren: true } && ancestor == node)
             {
-                string? etPath = SrcPath("src", "Parser", "Cs2DemoKit.Parser", "EntityTracking", "EntityTracker.cs");
+                string? etPath = SrcPath("src", "Parser", "CS2DemoKit.Parser", "EntityTracking", "EntityTracker.cs");
                 Add(ParseChainEntry.Linked("EntityTracker.PeekEntityUpdates()",
                     localPath: etPath, indent: indent + 3 + ancestor.Depth));
             }
@@ -821,7 +821,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
 
     private void BuildChainForEntity(EntityState entity)
     {
-        string? etPath = SrcPath("src", "Parser", "Cs2DemoKit.Parser", "EntityTracking", "EntityTracker.cs");
+        string? etPath = SrcPath("src", "Parser", "CS2DemoKit.Parser", "EntityTracking", "EntityTracker.cs");
         const string Cs2Schema = "https://sid2934.github.io/CS2-OpenDevDocs/schemas/server";
 
         Add(ParseChainEntry.Linked("EntityTracker.ProcessFrame()",
@@ -862,7 +862,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
 
     private void BuildChainForFrame(DemoFrame frame, NetMessage? message, PayloadNode? node)
     {
-        string? demoParserPath = SrcPath("src", "Parser", "Cs2DemoKit.Parser", "DemoParser.cs");
+        string? demoParserPath = SrcPath("src", "Parser", "CS2DemoKit.Parser", "DemoParser.cs");
         const string GhBase = "https://github.com/SteamDatabase/GameTracking-CS2/blob/master/Protobufs/";
         ProtoIndex protoIndex = ProtoIndexSource?.Invoke() ?? new ProtoIndex();
 

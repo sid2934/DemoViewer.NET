@@ -3,7 +3,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Cs2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser.EntityTracking;
 
 #endregion
 

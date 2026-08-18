@@ -3,12 +3,12 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using Cs2DemoKit.Analysis;
-using Cs2DemoKit.Analysis.Abstractions;
-using Cs2DemoKit.Analysis.Config;
-using Cs2DemoKit.Analysis.Graphs;
-using Cs2DemoKit.Analysis.Yaml;
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Abstractions;
+using CS2DemoKit.Analysis.Config;
+using CS2DemoKit.Analysis.Graphs;
+using CS2DemoKit.Analysis.Yaml;
+using CS2DemoKit.Parser;
 
 #endregion
 

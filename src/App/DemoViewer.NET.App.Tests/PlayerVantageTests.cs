@@ -1,7 +1,7 @@
 #region
 
 using System.Numerics;
-using Cs2DemoKit.Analysis.Visibility;
+using CS2DemoKit.Analysis.Visibility;
 
 #endregion
 

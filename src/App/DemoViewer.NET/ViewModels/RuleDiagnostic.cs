@@ -1,6 +1,6 @@
 #region
 
-using Cs2DemoKit.Analysis.Yaml;
+using CS2DemoKit.Analysis.Yaml;
 
 #endregion
 

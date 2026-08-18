@@ -16,9 +16,9 @@
 //
 // Exit code: 0 if no decode error, 1 if any.
 
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.Entities;
-using Cs2DemoKit.Parser.EntityTracking;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.Entities;
+using CS2DemoKit.Parser.EntityTracking;
 using Google.Protobuf;
 
 if (args.Length == 0)

@@ -5,8 +5,8 @@ using System.Collections;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
-using Cs2DemoKit.Parser;
-using Cs2DemoKit.Parser.GameEvents;
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.GameEvents;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 

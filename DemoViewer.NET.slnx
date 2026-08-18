@@ -11,16 +11,7 @@
         <File Path="version.json"/>
         <File Path=".editorconfig"/>
     </Folder>
-    <Folder Name="/src/Parser/">
-        <Project Path="src/Parser/Cs2DemoKit.Parser/Cs2DemoKit.Parser.csproj"/>
-        <Project Path="src/Parser/Cs2DemoKit.Parser.Tests/Cs2DemoKit.Parser.Tests.csproj"/>
-    </Folder>
     <Folder Name="/src/"/>
-    <Folder Name="/src/Analysis/">
-        <Project Path="src/Analysis/Cs2DemoKit.Analysis/Cs2DemoKit.Analysis.csproj"/>
-        <Project Path="src/Analysis/Cs2DemoKit.Analysis.Rules/Cs2DemoKit.Analysis.Rules.csproj"/>
-        <Project Path="src/Analysis/Cs2DemoKit.Analysis.Tests/Cs2DemoKit.Analysis.Tests.csproj"/>
-    </Folder>
     <Folder Name="/src/App/">
         <Project Path="src/App/DemoViewer.NET.UiCapture/DemoViewer.NET.UiCapture.csproj"/>
         <Project Path="src/App/DemoViewer.NET/DemoViewer.NET.csproj"/>
@@ -46,8 +37,6 @@
         <Project Path="tools/DemoViewer.NET.DemoTrimmer/DemoViewer.NET.DemoTrimmer.csproj"/>
         <Project Path="tools/DemoViewer.NET.DemoTrimmer.Tests/DemoViewer.NET.DemoTrimmer.Tests.csproj"/>
         <Project Path="tools/DemoViewer.NET.AssetBaker/DemoViewer.NET.AssetBaker.csproj"/>
-        <Project Path="tools/DemoViewer.NET.Codegen/DemoViewer.NET.Codegen.csproj"/>
-        <Project Path="tools/DemoViewer.NET.RulesCatalog/DemoViewer.NET.RulesCatalog.csproj"/>
         <Project Path="tools/EntityMicroBench/EntityMicroBench.csproj"/>
     </Folder>
 </Solution>

@@ -1,6 +1,6 @@
 #region
 
-using Cs2DemoKit.Parser;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 
@@ -18,7 +18,7 @@ public class DemoProcessingQueueTests
 {
     // ── Fakes ─────────────────────────────────────────────────────────────────
 
-    private static ParsedDemo SyntheticDemo(int tickRate = 64) => new(
+    private static ParsedDemo SyntheticDemo(int tickRate = 64) => SyntheticParsedDemo.Create(
         [], [], new Dictionary<int, PlayerInfo>(), null,
         "de_test", 0, 1f / tickRate, "test",
         "test", "csgo", 0, 0, 0,
