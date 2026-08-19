@@ -80,8 +80,7 @@ dotnet build                                          # whole solution
 dotnet run --project src/App/DemoViewer.NET.Desktop   # run the app
 ```
 
-Needs the .NET 10 SDK. Restore pulls everything from nuget.org except `Cs2VideoGenerator.Core`,
-which is a committed package in `local-packages/`.
+Needs the .NET 10 SDK. Restore pulls everything from nuget.org — no extra feeds, no credentials.
 
 Tests use [TUnit](https://tunit.dev), not xUnit or NUnit:
 

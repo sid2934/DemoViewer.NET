@@ -123,8 +123,8 @@ jobs:
       #
       # The real protection is upstream of packaging anyway: ContinuousIntegrationBuild in
       # Directory.Build.props normalizes first-party paths to /_/ on every Release build, and the
-      # two leaking dependencies were fixed at source (CS2OpenDev.Sdk 1.0.5,
-      # Cs2VideoGenerator.Core 1.0.2). A per-release gate on top of that bought a false positive.
+      # two leaking dependencies (CS2OpenDev.Sdk and Cs2VideoGenerator.Core) were fixed at source.
+      # A per-release gate on top of that bought a false positive.
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
