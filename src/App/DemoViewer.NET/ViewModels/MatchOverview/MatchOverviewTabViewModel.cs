@@ -207,18 +207,26 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     private string _damageSummary = string.Empty;
 
     /// <summary>
-    ///     Pushes the parse's structured warnings onto the banner. Empty list = healthy demo
-    ///     (banner hidden). Kept subject-keyed like the other post-parse pushes so a stale load
-    ///     cannot stamp a newer page.
+    ///     Pushes the parse's health verdict onto the banner. Kept subject-keyed like the other
+    ///     post-parse pushes so a stale load cannot stamp a newer page.
+    ///     <para>
+    ///         The banner gates on <see cref="ParseHealth.Damaged" />, NOT on having warnings at all.
+    ///         Those are different questions: a demo recorded by a game build newer than the parser
+    ///         drops net messages it has no case for and grades <see cref="ParseHealth.Degraded" />
+    ///         while being a perfectly good recording. Gating on <c>Warnings.Count > 0</c> would fire
+    ///         this banner on every such demo — which is to say, on every demo, every time CS2 ships
+    ///         a build ahead of our parser. Only <c>Damaged</c> means the demo's OWN data failed to
+    ///         decode, which is the case worth interrupting someone over.
+    ///     </para>
     /// </summary>
-    public void SetParseWarnings(string? subjectKey, IReadOnlyList<ParseWarning> warnings)
+    public void SetParseHealth(string? subjectKey, ParseHealth health, IReadOnlyList<ParseWarning> warnings)
     {
         if (!Accepts(subjectKey))
         {
             return;
         }
 
-        if (warnings.Count == 0)
+        if (health != ParseHealth.Damaged)
         {
             IsDamaged = false;
             DamageSummary = string.Empty;

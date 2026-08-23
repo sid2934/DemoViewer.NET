@@ -69,7 +69,17 @@ internal sealed class ReadOnlyEntityView : IReadOnlyEntityView
     {
         // Mask low 14 bits → entity index (PawnLookup.EntityIndexMask). Coerce via the shared
         // unboxing helper's mask so handle semantics match the rest of the codebase.
-        if (handle == 0 || handle == 0xFFFF_FFFF)
+        //
+        // BOTH invalid encodings are folded to null, the full-width 0xFFFFFFFF and the narrower
+        // 0x00FFFFFF, matching EntityTracker.ResolveHandle's contract. The networked form is 14
+        // index bits then 10 serial bits with no gap, so the 24-bit all-ones sentinel is what a
+        // dead entity's handle actually looks like on the wire — and it masks to a perfectly
+        // plausible index (16383) rather than to anything obviously wrong. Missing it therefore
+        // does not throw or return garbage; it silently resolves a DEAD reference to whatever
+        // occupies that slot. This view reimplements the mask rather than delegating, so it did
+        // not inherit the fix when the parser folded these upstream in 0.9.2 — keep the two in
+        // step, or a module reading a dead pawn's weapon handle gets a live answer.
+        if (handle is 0 or 0xFFFF_FFFF or 0x00FF_FFFF)
         {
             return null;
         }

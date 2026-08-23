@@ -1,9 +1,13 @@
 #region
 
 using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.RulesetsV2.Compile;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.ViewModels.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -62,8 +66,14 @@ public sealed class RulesHighlightHarvester : IHighlightHarvester
     /// </summary>
     public const string GotvProfileId = "Cs2GotvProfile";
 
+    private static ILogger? _diagLog;
+
     private readonly object _gate = new();
     private RuleConfigLoadResult? _rules;
+
+    // Static, like the queue's: the harvester is constructed per scan and the seam it reads is
+    // ambient and process-wide, so an instance field would just re-resolve the same logger.
+    private static ILogger HarvestLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.Highlights");
 
     private RuleConfigLoadResult Rules
     {
@@ -97,9 +107,11 @@ public sealed class RulesHighlightHarvester : IHighlightHarvester
     public AnalysisRun RunBareAnalysis(ParsedDemo demo)
     {
         RuleConfigLoadResult rules = Rules;
+        BuildResult build = DemoAnalysis.Build(demo, rules.Rulesets);
+        RulesetExclusionReport.Report(HarvestLog, build);
         return DemoAnalysis.Evaluate(
             demo,
-            DemoAnalysis.Build(demo, rules.Rulesets),
+            build,
             new AnalysisOptions
             {
                 CaptureSnapshots = false
@@ -110,9 +122,11 @@ public sealed class RulesHighlightHarvester : IHighlightHarvester
     public AnalysisRun RunFullAnalysis(ParsedDemo demo)
     {
         RuleConfigLoadResult rules = Rules;
+        BuildResult build = DemoAnalysis.Build(demo, rules.Rulesets);
+        RulesetExclusionReport.Report(HarvestLog, build);
         return DemoAnalysis.Evaluate(
             demo,
-            DemoAnalysis.Build(demo, rules.Rulesets),
+            build,
             new AnalysisOptions
             {
                 CaptureSnapshots = true

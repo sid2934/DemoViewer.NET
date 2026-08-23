@@ -1433,7 +1433,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         MatchOverviewTab.BeginOpening(Path.GetFileName(path), null, null, path);
         MatchOverviewTab.IsSampleClip = IsTourSample(path);
         MatchOverviewTab.SetSummary(path, parsed);
-        MatchOverviewTab.SetParseWarnings(path, parsed.Warnings); // S11 damaged-demo banner
+        MatchOverviewTab.SetParseHealth(path, parsed.Health, parsed.Warnings); // S11 damaged-demo banner
         TryPushTeamNames(path);
 
         if (StatsTab.GameTable is not null)
@@ -2463,7 +2463,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
 
             MatchOverviewTab.SetSummary(path, parsed);
-            MatchOverviewTab.SetParseWarnings(path, parsed.Warnings); // S11 damaged-demo banner
+            MatchOverviewTab.SetParseHealth(path, parsed.Health, parsed.Warnings); // S11 damaged-demo banner
             FrameRows.Clear();
             int frameNum = 0;
             foreach (DemoFrame frame in parsed.Frames)
@@ -3539,7 +3539,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // to "Enriching". The page does NOT leave its loading state here — the score and scoreboard are
             // still placeholders until the analysis run below lands.
             MatchOverviewTab.SetSummary(subjectKey, parsed);
-            MatchOverviewTab.SetParseWarnings(subjectKey, parsed.Warnings); // S11 damaged-demo banner
+            MatchOverviewTab.SetParseHealth(subjectKey, parsed.Health, parsed.Warnings); // S11 damaged-demo banner
 
             FrameRows.Clear();
             int frameNum = 0;
