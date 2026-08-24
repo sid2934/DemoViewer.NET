@@ -717,6 +717,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         try
         {
             (BuildResult build, RuleConfigLoadResult loadedRules) = BuildFromConfig(demo);
+            RulesetExclusionReport.Report(DiagLog, build);
             // Diagnostics tab retention. The scanner is otherwise a discarded local
             // here; keep it (and the demo) so the Diagnostics profiling/re-run panels can read it for the session.
             EntityScanner = build.EntityScanner;

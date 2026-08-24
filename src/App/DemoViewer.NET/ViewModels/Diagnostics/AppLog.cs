@@ -77,4 +77,21 @@ internal static partial class AppLog
     /// </summary>
     [LoggerMessage(EventId = 11, Level = LogLevel.Error, Message = "{operation} failed")]
     public static partial void OperationFailed(ILogger logger, string operation, Exception exception);
+
+    /// <summary>
+    ///     A ruleset was dropped whole by v2 composition (CS2DemoKit 0.9.2) — an unresolvable
+    ///     <c>show:</c> reference or an unsupported <c>per:</c> dimension is now rejected at
+    ///     composition instead of failing later at build.
+    ///     <para>
+    ///         Logged at Warning because the failure is otherwise INVISIBLE and total: an excluded
+    ///         ruleset contributes no nodes, so its stats and highlights simply never fire and the
+    ///         surfaces that would have shown them render as though the rules had scored zero. One
+    ///         mistyped column name costs the entire file, and without this row the only symptom is
+    ///         a stat that quietly stopped existing.
+    ///     </para>
+    /// </summary>
+    [LoggerMessage(EventId = 12, Level = LogLevel.Warning,
+        Message = "Ruleset '{rulesetId}' was excluded from the analysis graph and none of its stats "
+                  + "or highlights can fire: {diagnostics}")]
+    public static partial void RulesetExcluded(ILogger logger, string rulesetId, string diagnostics);
 }

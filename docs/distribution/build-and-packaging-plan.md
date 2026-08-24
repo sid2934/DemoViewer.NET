@@ -16,9 +16,9 @@ is the intended end state but deferred.
 > native it carries for the RID to appear in the output. Self-maintaining — a platform whose pack gains
 > natives (e.g. linux `server.so`) starts requiring them automatically; a repack that drops one fails;
 > a RID with no natives ships without live-sync (no failure). `DV_PUBLISH_ALLOW_NO_CSVG_NATIVES=1` still
-> forces a parser-only bundle. Since 2026-07-21 `Cs2VideoGenerator.Core` comes from a **private GitHub
-> NuGet feed** (`nuget.config` `private-github`, needs `GITHUB_PACKAGE_USER`/`GITHUB_PACKAGE_TOKEN`), not
-> `local-packages/`. `scripts/pack-velopack.sh` wraps the publish into Velopack installers (`Velopack`
+> forces a parser-only bundle. `Cs2VideoGenerator.Core` restores from **nuget.org** like every other
+> dependency — no extra feed, no credentials.
+> `scripts/pack-velopack.sh` wraps the publish into Velopack installers (`Velopack`
 > 1.2.0 runtime ref + `VelopackApp.Build().Run()` first in `Program.Main`; `vpk`/`nbgv` pinned in
 > `.config/dotnet-tools.json`). CI: `.github/workflows/release.yml` (tri-OS vpk matrix) +
 > `ci.yml` (Desktop build-check). **Verified locally:** the SDK's cross-RID native flattening +
@@ -75,24 +75,22 @@ Standalone-AOT is feasible only for the pure leaf libs (`Parser`, `EntityTrackin
 
 ## 2. CSVG native C++ libraries — the real cross-cutting cost (a build task, not a limitation)
 
-The app loads `Cs2VideoGenerator.Core`'s native binaries per RID (mock + real server). **The earlier
-review examined a *partial* package (rc.28) that only carried win-x64 real + osx-arm64 mock — that was
-build-incompleteness, not the intended state.** The **full** package must ship, per owner direction:
+The app loads `Cs2VideoGenerator.Core`'s native binaries per RID (mock + real server). Coverage in the
+referenced pack (`0.9.0`, audited against its `runtimes/` tree):
 
 | Platform (RID) | mock server | real server | Notes |
 |---|---|---|---|
-| Windows (win-x64) | `mock_server.exe` | `server.dll` | present today |
-| macOS (osx-arm64) | `mock_server` | `server` *(to build)* | only mock present today |
-| Linux (linux-x64) | `mock_server.so` | `server.so` *(to build)* | none present today — **first-party target** |
+| Windows (win-x64) | `mock_server.exe` | `server.dll` | complete |
+| Linux (linux-x64) | `mock_server` | `server.so` | complete |
+| macOS (osx-arm64) | `mock_server` | *(to build)* | mock only — live sync is limited here |
 
 > Exact filenames/extensions per RID are a CSVG-repo detail; confirm them against CSVG's
 > `NativeAssetProvider` probe (see the §4 spike) before finalizing the pack.
 
 **This is the single largest recurring maintenance item of the whole plan** — larger than the packaging
-tool. Each platform's natives are built + verified in the sibling `Cs2VideoGenerator` repo and the
-package repacked. Known frictions to close: Windows natives need a native-Windows build; the macOS
-cross-compile has a masked SDKROOT/vcpkg issue; Linux natives don't exist yet. **Getting the full
-tri-platform CSVG package built is the prerequisite that gates first-party Linux + macOS parity.**
+tool. Each platform's natives are built + verified in the sibling CSVG repo and the package republished.
+The open item is the macOS real server: that cross-compile has a masked SDKROOT/vcpkg issue, and it is
+what gates first-party macOS parity.
 
 ## 3. Self-contained & trimming
 
@@ -173,12 +171,10 @@ second config to maintain against the "least maintenance" priority.
 
 ## 8. Proposed sequence
 
-1. **CSVG native completeness (§2) — the gating prerequisite. Expected in the `1.0.0` feed release.**
-   Build + verify mock+real servers for win-x64, osx-arm64, linux-x64 in the CSVG repo; publish
-   `Cs2VideoGenerator.Core` to the private GitHub NuGet feed (`Directory.Packages.props` already points at
-   `1.0.0`). The version-independent guard in `publish.sh` then requires whatever natives that pack carries
-   per RID — no script change as coverage grows. (The superseded `rc.28` pack had: win-x64 mock+real,
-   osx-arm64 mock-only, linux none.)
+1. **CSVG native completeness (§2) — the gating prerequisite. Outstanding: the osx-arm64 real server.**
+   Build + verify it in the CSVG repo, then publish `Cs2VideoGenerator.Core` to nuget.org and bump the
+   version in `Directory.Packages.props`. The version-independent guard in `publish.sh` then requires
+   whatever natives that pack carries per RID — no script change as coverage grows.
 2. **Spike — self-contained per-RID actually runs. Done (osx-arm64 verified; win/linux publish-verified).**
    `scripts/publish.sh <rid>` lays out Skia + CSVG natives + baked assets self-contained. osx-arm64 bundle
    launches; win-x64/linux-x64 publishes succeed (launch on those OSes covered by the CI matrix).

@@ -1,6 +1,6 @@
 #region
 
-using CS2DemoKit.Analysis.Plugins;
+using System.Numerics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Services;
@@ -39,16 +39,16 @@ public class PositionUtilGateTests
 
         // Seek to a mid-match frame where players are spread across the map (off-center cells).
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(frames.Count / 2, frames);
+        tracker.ReplayToIndex(frames.Count / 2, frames);
 
         int offCenter = 0;
         float maxAbsXy = 0;
-        List<(float X, float Y, float Z)> positions = new();
+        List<Vector3> positions = new();
         List<string> samples = new();
 
         PawnLookup.ForEachLivePawn(tracker, (slot, pawn) =>
         {
-            (float X, float Y, float Z)? pos = PositionUtil.CellToWorld(pawn);
+            Vector3? pos = PositionUtil.CellToWorld(pawn);
             if (pos is not { } p)
             {
                 return;

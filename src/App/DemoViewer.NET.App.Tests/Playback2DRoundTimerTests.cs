@@ -82,7 +82,7 @@ public class Playback2DRoundTimerTests
         double clockBase, int tickRate, int frame)
     {
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(frame, frames);
+        tracker.ReplayToIndex(frame, frames);
 
         PlaybackController controller = new();
         controller.LoadDemo(frames, tickRate);

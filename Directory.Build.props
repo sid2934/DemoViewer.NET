@@ -18,6 +18,20 @@
         <NoWarn>CS1591</NoWarn>
 
         <!--
+            Restore-time version problems must fail the build, not warn.
+
+            The CS2DemoKit packages are exact-pinned to each other pre-1.0, so bumping one and
+            forgetting its siblings resolves to a version nobody pinned. That is only NU1608
+            ("detected package version outside of dependency constraint"), a warning — restore
+            succeeds, the build succeeds, and the skew surfaces much later as a runtime
+            MissingMethodException from a call site that looks fine. NU1605 is the same shape for a
+            downgrade. Named explicitly rather than relying on TreatWarningsAsErrors above, because
+            that property's reach over restore-time NU* diagnostics is a NuGet implementation
+            detail and this guarantee is worth stating outright.
+        -->
+        <WarningsAsErrors>$(WarningsAsErrors);NU1608;NU1605</WarningsAsErrors>
+
+        <!--
             Nothing in this repo is published to NuGet unless it opts in. Only the three
             Cs2DemoKit library projects set IsPackable=true (see Directory.Build.targets for the
             metadata they then inherit); the app, tools, tests and sample heads stay unpackable so

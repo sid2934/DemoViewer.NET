@@ -1417,7 +1417,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         {
             StoreClassFilter = _scoreClasses
         };
-        tracker.AdvanceToIndex(frames.Count - 1, frames);
+        tracker.ReplayToIndex(frames.Count - 1, frames);
 
         int? ct = null, t = null;
         string? ctClan = null, tClan = null;

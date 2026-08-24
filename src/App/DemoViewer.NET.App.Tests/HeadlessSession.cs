@@ -1,5 +1,8 @@
 #region
 
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -27,13 +30,38 @@ public static class TestAppBuilder
 }
 
 /// <summary>
+///     Thrown internally when a dispatch faulted BEFORE the test body was entered — i.e. the fault
+///     came from Avalonia's per-dispatch isolated-application setup, not from the test. Never
+///     escapes <see cref="HeadlessSession.RunOnUi(Func{Task})" />.
+/// </summary>
+internal sealed class HeadlessSetupFaultException(Exception inner)
+    : Exception("Isolated-application setup faulted before the test body ran.", inner);
+
+/// <summary>
+///     Assembly warm-up. Forces the headless session and one full isolated-application setup up
+///     before any test runs, so a cold-start setup fault is attributed to the warm-up instead of to
+///     whichever test happened to go first (and cannot race a <c>[NotInParallel]</c> body that
+///     touches Avalonia statics before any application exists).
+/// </summary>
+public static class HeadlessWarmUp
+{
+    [Before(HookType.Assembly)]
+    public static async Task ForceSessionUp() => await HeadlessSession.WarmUp();
+}
+
+/// <summary>
 ///     Single shared headless session for the assembly (Avalonia requires one UI thread). Test bodies
-///     run their UI work via <see cref="RunOnUi" /> so they execute on the headless dispatcher thread.
+///     run their UI work via <see cref="RunOnUi(Func{Task})" /> so they execute on the headless dispatcher thread.
 /// </summary>
 public static class HeadlessSession
 {
-    private static readonly Lazy<HeadlessUnitTestSession> _session =
-        new(() => HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder)));
+    // Session construction is retried rather than memoised through Lazy<T>: the default
+    // LazyThreadSafetyMode.ExecutionAndPublication caches the EXCEPTION permanently, so one
+    // transient StartNew failure would rethrow the same stale error for every later test with no
+    // chance of recovery. StartNew is cheap (it only builds an AppBuilder on the session thread),
+    // so retrying it costs nothing.
+    private static readonly Lock _sessionGate = new();
+    private static HeadlessUnitTestSession? _session;
 
     // Set (with the culprit's description) when a dispatched body never completed: the session
     // thread is then wedged forever — Avalonia's DispatchCore does a BLOCKING
@@ -41,6 +69,20 @@ public static class HeadlessSession
     // nor timeout can free it, and every later dispatch would queue behind it eternally.
     // Poisoning turns that cascade into immediate, attributed failures.
     private static string? _wedgedBy;
+
+    // Set when isolated-application setup failed twice in a row. Avalonia builds a FRESH
+    // application per dispatch (StartNew defaults to AvaloniaTestIsolationLevel.PerTest, so
+    // EnsureIsolatedApplication runs on EVERY Dispatch, not once at session start), and the
+    // observed cold-start signature — TypeInitializationException on Avalonia.StyledElement — is
+    // a poisoned type initializer, which .NET caches for the life of the process. Nothing
+    // recovers from that, so the first surviving setup fault is recorded here with its fully
+    // unwrapped cause and every later RunOnUi fails fast against it. That is the whole point:
+    // one attributed root cause plus fast collateral, instead of ~130 six-second mystery
+    // failures that teach everyone to distrust the suite.
+    private static string? _poisonedBy;
+    private static string? _poisonDetail;
+
+    private static bool _warmUpBuiltAnApplication;
 
     // Auto-close registry: the headless session installs NO application lifetime (so there is
     // no IClassicDesktopStyleApplicationLifetime.Windows), but Window raises public routed
@@ -61,6 +103,43 @@ public static class HeadlessSession
             return dir;
         }
     }
+
+    private static HeadlessUnitTestSession Session
+    {
+        get
+        {
+            lock (_sessionGate)
+            {
+                return _session ??= HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Runs one trivial dispatch so the first isolated-application setup happens here, under
+    ///     the same retry-and-attribute path as a real test. Never throws: an Avalonia setup fault
+    ///     must not fail the ~470 suite members that never touch the UI, so it is recorded and
+    ///     left for <see cref="RunOnUi(Func{Task})" /> to report against the tests it actually affects.
+    /// </summary>
+    internal static async Task WarmUp()
+    {
+        try
+        {
+            await RunOnUi(() => Task.CompletedTask, "<assembly warm-up>");
+            Volatile.Write(ref _warmUpBuiltAnApplication, true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[headless-warmup] warm-up failed; UI tests will fail fast. {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    ///     True once the assembly warm-up has driven a full isolated-application setup to
+    ///     completion. Lets a test assert that the hook actually ran, rather than inferring it
+    ///     from state that the test's own dispatch would have produced anyway.
+    /// </summary>
+    internal static bool WarmUpBuiltAnApplication => Volatile.Read(ref _warmUpBuiltAnApplication);
 
     private static void EnsureWindowTracking()
     {
@@ -102,6 +181,59 @@ public static class HeadlessSession
     }
 
     /// <summary>
+    ///     Walks the whole cause chain and renders it, because the interesting exception is never
+    ///     the outer one: Avalonia's SetupUnsafe reaches the app through reflection, so the fault
+    ///     arrives wrapped in <see cref="TargetInvocationException" />, and the cold-start
+    ///     signature bottoms out in a <see cref="TypeInitializationException" /> whose
+    ///     <c>TypeName</c> is the only thing that identifies which static initializer died.
+    ///     Losing that chain is what left issue #6 unexplainable for a whole release cycle.
+    /// </summary>
+    internal static string DescribeFault(Exception fault)
+    {
+        StringBuilder sb = new();
+        Exception? cursor = fault;
+        Exception innermost = fault;
+
+        for (int depth = 0; cursor is not null && depth < 16; depth++)
+        {
+            sb.Append(' ', depth * 2)
+                .Append(depth == 0 ? string.Empty : "-> ")
+                .Append(cursor.GetType().FullName)
+                .Append(": ")
+                .Append(cursor.Message);
+
+            if (cursor is TypeInitializationException typeInit)
+            {
+                sb.Append("   [static initializer for ").Append(typeInit.TypeName).Append(']');
+            }
+
+            sb.AppendLine();
+
+            if (cursor is ReflectionTypeLoadException typeLoad)
+            {
+                foreach (Exception? loaderEx in typeLoad.LoaderExceptions.Where(e => e is not null).Take(5))
+                {
+                    sb.Append(' ', (depth + 1) * 2)
+                        .Append("loader: ")
+                        .AppendLine(loaderEx!.Message);
+                }
+            }
+
+            innermost = cursor;
+            cursor = cursor is AggregateException { InnerExceptions.Count: > 0 } aggregate
+                ? aggregate.InnerExceptions[0]
+                : cursor.InnerException;
+        }
+
+        // The innermost frame is where the fault actually happened; the outer stack is just the
+        // reflection plumbing that carried it out.
+        sb.AppendLine("--- innermost stack ---")
+            .AppendLine(innermost.StackTrace ?? "(none)");
+
+        return sb.ToString();
+    }
+
+    /// <summary>
     ///     Runs an async body on the shared headless UI thread and — unlike the naive
     ///     <c>Dispatch(work)</c> form — actually awaits the body.
     /// </summary>
@@ -123,7 +255,10 @@ public static class HeadlessSession
     ///         fail fast with the culprit's name rather than hanging behind it.
     ///     </para>
     /// </remarks>
-    public static async Task RunOnUi(Func<Task> work)
+    public static Task RunOnUi(Func<Task> work) =>
+        RunOnUi(work, TestContext.Current?.TestDetails.TestName ?? "unknown test");
+
+    private static async Task RunOnUi(Func<Task> work, string caller)
     {
         if (Volatile.Read(ref _wedgedBy) is { } culprit)
         {
@@ -132,41 +267,135 @@ public static class HeadlessSession
                 + "this failure is collateral; fix the culprit.");
         }
 
-        Task<bool> dispatched = _session.Value.Dispatch(async () =>
+        if (Volatile.Read(ref _poisonedBy) is { } poisoner)
         {
-            EnsureWindowTracking();
-            await work();
+            throw new InvalidOperationException(
+                $"Headless isolated-application setup is broken for this process — first seen in "
+                + $"{poisoner}; this failure is collateral, not a fault in {caller}. Root cause:"
+                + Environment.NewLine + Volatile.Read(ref _poisonDetail));
+        }
 
-            // Close whatever windows the body left open BEFORE the compositor flush below, so
-            // the flush drains detach work instead of re-rendering leaked animating content.
-            CloseLeakedWindows();
+        try
+        {
+            await DispatchWatched(work, caller);
+        }
+        catch (HeadlessSetupFaultException firstFault)
+        {
+            // The body provably never ran (see DispatchWatched), so nothing observable happened
+            // and re-dispatching is safe. This is the whole transient-flake cure: a cold-start
+            // setup fault that would have failed a test now costs one retry.
+            Console.WriteLine(
+                $"[headless-setup] {caller}: isolated-application setup faulted before the body ran "
+                + $"({firstFault.InnerException!.GetType().Name}: {firstFault.InnerException.Message}); retrying once.");
 
-            // Post-body composition flush. A body that leaves a Window open whose content keeps
-            // requesting animation frames (e.g. the 2D viewport's smooth camera lerp) saturates
-            // the compositor's in-flight batch queue — the headless render timer never ticks on
-            // its own (manual ForceRenderTimerTick platform), so the NEXT test's `new Window()`
-            // then parks forever inside a nested dispatcher frame waiting for a commit slot
-            // (root-caused via Playback2DCameraModeTests: AllModes leaked an animating window
-            // and ManualPanZoom wedged at Window construction; closing the window fixed it).
-            // Ticking here drains the backlog to at most the single re-requested frame, keeping
-            // leaked-but-animating windows from wedging their successors. The flush renders
-            // OTHER tests' leaked windows in whatever mid-teardown state they're in — a render
-            // exception there is the leaker's mess, not this body's failure, so log instead of
-            // faulting the innocent current test.
             try
             {
-                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-                Dispatcher.UIThread.RunJobs();
-                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-                Dispatcher.UIThread.RunJobs();
+                await DispatchWatched(work, caller);
             }
-            catch (Exception flushEx)
+            catch (HeadlessSetupFaultException secondFault)
             {
-                Console.WriteLine($"[runonui-flush] leaked-window render fault (not this test's failure): {flushEx.Message}");
-            }
+                string detail = DescribeFault(secondFault.InnerException!);
+                RecordPoison(caller, detail);
 
-            return true;
-        }, CancellationToken.None);
+                throw new InvalidOperationException(
+                    $"Headless isolated-application setup failed twice in {caller}; the test body "
+                    + "never ran, so this is a harness failure rather than a product failure. "
+                    + "Later UI tests will fail fast against this cause. Root cause:"
+                    + Environment.NewLine + detail,
+                    secondFault.InnerException);
+            }
+        }
+    }
+
+    private static void RecordPoison(string caller, string detail)
+    {
+        // Detail is published BEFORE the gate: _poisonedBy is what readers test, so writing it
+        // first would let a parallel test report "Root cause:" with nothing under it. A loser of
+        // the race may overwrite the detail, which is harmless — both describe the same fault.
+        Volatile.Write(ref _poisonDetail, detail);
+
+        // First-writer-wins, matching the wedge attribution: under parallel load several tests
+        // hit the broken setup at once and only the first is the real report.
+        if (Interlocked.CompareExchange(ref _poisonedBy, caller, null) is not null)
+        {
+            return;
+        }
+
+        Console.WriteLine($"[headless-setup] FATAL — first setup failure in {caller}:{Environment.NewLine}{detail}");
+
+        // Console output drowns in the collateral cascade, and this is exactly the forensic
+        // detail issue #6 needed and never had. Keep a copy beside the render captures.
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(ArtifactDir, "headless-setup-failure.txt"),
+                $"first setup failure in {caller}{Environment.NewLine}{detail}");
+        }
+        catch (Exception writeEx)
+        {
+            Console.WriteLine($"[headless-setup] could not write the forensic file: {writeEx.Message}");
+        }
+    }
+
+    /// <summary>
+    ///     One dispatch attempt, with the wedge watchdog. Throws
+    ///     <see cref="HeadlessSetupFaultException" /> when the dispatch faulted before the body was
+    ///     entered; any other fault is the body's own and propagates unchanged.
+    /// </summary>
+    private static async Task DispatchWatched(Func<Task> work, string caller)
+    {
+        // Avalonia invokes the body only after EnsureIsolatedApplication has returned, so this
+        // flag cleanly separates "the harness could not build an application" from "the test
+        // failed". Written on the session thread, read on the caller's — hence Volatile.
+        StrongBox<bool> bodyEntered = new(false);
+
+        // Acquiring the session (StartNew) and queueing the dispatch can both fail synchronously —
+        // and when they do the body has just as surely not run, so they belong on the same
+        // retry-and-attribute path rather than surfacing as a bare fault from the harness.
+        Task<bool> dispatched;
+        try
+        {
+            dispatched = Session.Dispatch(async () =>
+            {
+                Volatile.Write(ref bodyEntered.Value, true);
+                EnsureWindowTracking();
+                await work();
+
+                // Close whatever windows the body left open BEFORE the compositor flush below, so
+                // the flush drains detach work instead of re-rendering leaked animating content.
+                CloseLeakedWindows();
+
+                // Post-body composition flush. A body that leaves a Window open whose content keeps
+                // requesting animation frames (e.g. the 2D viewport's smooth camera lerp) saturates
+                // the compositor's in-flight batch queue — the headless render timer never ticks on
+                // its own (manual ForceRenderTimerTick platform), so the NEXT test's `new Window()`
+                // then parks forever inside a nested dispatcher frame waiting for a commit slot
+                // (root-caused via Playback2DCameraModeTests: AllModes leaked an animating window
+                // and ManualPanZoom wedged at Window construction; closing the window fixed it).
+                // Ticking here drains the backlog to at most the single re-requested frame, keeping
+                // leaked-but-animating windows from wedging their successors. The flush renders
+                // OTHER tests' leaked windows in whatever mid-teardown state they're in — a render
+                // exception there is the leaker's mess, not this body's failure, so log instead of
+                // faulting the innocent current test.
+                try
+                {
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    Dispatcher.UIThread.RunJobs();
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    Dispatcher.UIThread.RunJobs();
+                }
+                catch (Exception flushEx)
+                {
+                    Console.WriteLine($"[runonui-flush] leaked-window render fault (not this test's failure): {flushEx.Message}");
+                }
+
+                return true;
+            }, CancellationToken.None);
+        }
+        catch (Exception queueFault)
+        {
+            throw new HeadlessSetupFaultException(queueFault);
+        }
 
         // 8 × 30s = the 4-minute budget, with a thread-pool trend line while waiting: a wedge
         // with "dispatcher responsive: True" means the body awaits a NON-dispatcher completion,
@@ -193,6 +422,10 @@ public static class HeadlessSession
                         + $"mem={GC.GetTotalMemory(false) / 1048576}MB");
                 }
             }
+            catch (Exception dispatchFault) when (!Volatile.Read(ref bodyEntered.Value))
+            {
+                throw new HeadlessSetupFaultException(dispatchFault);
+            }
         }
 
         if (!completed)
@@ -200,8 +433,7 @@ public static class HeadlessSession
             // First-writer-wins: the session queue is FIFO, so the first timeout is the actual
             // wedger; a parallel caller whose body queued behind it also times out but is
             // collateral — attribute it as such rather than letting the last writer steal blame.
-            string me = TestContext.Current?.TestDetails.TestName ?? "unknown test";
-            string? prior = Interlocked.CompareExchange(ref _wedgedBy, me, null);
+            string? prior = Interlocked.CompareExchange(ref _wedgedBy, caller, null);
             if (prior is not null)
             {
                 throw new TimeoutException(
@@ -246,6 +478,13 @@ public static class HeadlessSession
                 + "Before the vacuous-pass fix this test would have silently passed.");
         }
 
-        await dispatched;
+        try
+        {
+            await dispatched;
+        }
+        catch (Exception dispatchFault) when (!Volatile.Read(ref bodyEntered.Value))
+        {
+            throw new HeadlessSetupFaultException(dispatchFault);
+        }
     }
 }

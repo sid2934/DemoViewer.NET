@@ -172,10 +172,23 @@ public class App : Application
             // the window must never wait on it. No-op unless Desktop supplied the service.
             viewModel.StartUpdateCheck();
 
-            // Post-update "What's new" gate (v0.6.0) — desktop-only like the update check. Runs
-            // synchronously (one settings read + at most one write); the notes fetch happens
-            // lazily when the window opens, so this never delays the shell either.
-            viewModel.StartWhatsNewCheck();
+            // Post-update "What's new" gate (v0.6.0) — desktop-only like the update check. The gate
+            // itself is cheap (one settings read + at most one write) and the notes fetch happens
+            // lazily when the window opens, so it never delays the shell — but it must NOT run here.
+            // The window it opens is OWNED by the main window, and Avalonia throws
+            // "Cannot show window with non-visible owner" if the owner has not been shown yet, which
+            // is exactly the state at this point in framework-init (v0.7.1 crashed on launch for every
+            // upgrading user this way). Deferred to a one-shot Opened hook, posted for the same
+            // re-entrancy reason as the first-run wizard below. Registered BEFORE the wizard's hook so
+            // the original ordering (What's-New gate first) is preserved; on a first run the gate
+            // records the version and stays silent anyway.
+            void ShowWhatsNewOnce(object? sender, EventArgs e)
+            {
+                window.Opened -= ShowWhatsNewOnce;
+                Dispatcher.UIThread.Post(viewModel.StartWhatsNewCheck);
+            }
+
+            window.Opened += ShowWhatsNewOnce;
 
             window.Content = new MainView();
             window.DataContext = viewModel;

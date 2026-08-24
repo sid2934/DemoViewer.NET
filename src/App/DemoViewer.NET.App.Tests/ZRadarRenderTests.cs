@@ -97,7 +97,7 @@ public class ZRadarRenderTests
         // camera fit frames most of the map — the right shape for judging world→radar alignment.
         int target = FindRoundStartFrame(frames);
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(target, frames);
+        tracker.ReplayToIndex(target, frames);
 
         PlaybackController controller = new();
         controller.LoadDemo(frames, 64);

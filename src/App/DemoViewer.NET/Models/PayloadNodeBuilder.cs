@@ -48,12 +48,25 @@ public static class PayloadNodeBuilder
     /// <summary>Build.</summary>
     public static IReadOnlyList<PayloadNode> Build(IMessage? message)
     {
-        // Deferred payloads (svc_UserCmds) carry raw bytes, not a field graph — materialize the real
+        // Undecoded payloads (svc_UserCmds) carry raw bytes, not a field graph — decode the real
         // message before reflecting over its fields. This is the inspector drill-in path; the field
-        // accessors below operate on the concrete proto instance, not the DeferredMessage wrapper.
-        if (message is DeferredMessage deferred)
+        // accessors below operate on the concrete proto instance, not the wrapper.
+        //
+        // Detected structurally rather than by naming the wrapper type, because the wrapper is not
+        // ours to name and it CHANGES: the parser produced DeferredMessage through 0.9.1 and
+        // produces BlockMessage from 0.9.2 (svc_UserCmds payloads moved into a shared arena), and
+        // both are internal to the parser assembly. A type test would not compile against the new
+        // one and, worse, the old test kept compiling while silently never matching — an inspector
+        // that quietly renders the wrapper's own fields instead of the user command.
+        //
+        // A wrapper is exactly a message whose CLR type is not the type its own descriptor declares,
+        // so that comparison identifies any of them, including whatever replaces BlockMessage next.
+        // On a normal concrete payload it is one reference compare and no round-trip; on a wrapper,
+        // WriteTo emits the raw payload bytes and the descriptor's parser turns them into the real
+        // message.
+        if (message is not null && message.Descriptor.ClrType != message.GetType())
         {
-            message = deferred.Materialize();
+            message = message.Descriptor.Parser.ParseFrom(message.ToByteArray());
         }
 
         return message is null ? [] : BuildFields(message);

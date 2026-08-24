@@ -11,8 +11,7 @@ on:
     branches: [main]
   pull_request:
 
-# No credentials needed to restore: everything comes from nuget.org except Cs2VideoGenerator.Core,
-# which is a committed .nupkg in local-packages/.
+# No credentials needed to restore: every dependency comes from nuget.org.
 permissions:
   contents: read
 

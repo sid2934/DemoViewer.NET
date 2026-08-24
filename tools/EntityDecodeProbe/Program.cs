@@ -207,7 +207,7 @@ if (schemaMode)
     EntityTracker schemaTracker = new();
     foreach (var frame in parsed.Frames)
     {
-        schemaTracker.AdvanceToIndex(frame.FrameNumber, parsed.Frames);
+        schemaTracker.ReplayToIndex(frame.FrameNumber, parsed.Frames);
         if (schemaTracker.Schema is not null)
         {
             break;

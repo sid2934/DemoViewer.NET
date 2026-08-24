@@ -27,7 +27,7 @@ public class GameInfoFieldProbeTests
         await Assert.That(frames.Count).IsGreaterThan(100);
 
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(frames.Count / 2, frames);
+        tracker.ReplayToIndex(frames.Count / 2, frames);
 
         // ── CCSGameRulesProxy (the LIVE class — the rules object is the m_pGameRules sub-object) ──
         EntityState? proxy = tracker.CurrentEntities.OfClass("CCSGameRulesProxy").FirstOrDefault();

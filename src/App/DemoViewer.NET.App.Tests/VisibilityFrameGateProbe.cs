@@ -1,7 +1,6 @@
 #region
 
 using System.Numerics;
-using CS2DemoKit.Analysis.Plugins;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Services;
@@ -68,7 +67,7 @@ public class VisibilityFrameGateProbe
         EntityTracker tracker = new();
         int start = Math.Min(frames.Count / 4, Math.Max(0, frames.Count - 1));
         int end = Math.Min(frames.Count - 1, start + 15000);
-        tracker.AdvanceToIndex(start, frames);
+        tracker.ReplayToIndex(start, frames);
         for (int i = start; i <= end; i++)
         {
             if (i > start)
@@ -152,7 +151,7 @@ public class VisibilityFrameGateProbe
         IReadOnlyList<DemoFrame> frames = demo.Frames;
         EntityTracker tracker = new();
         int start = Math.Min(frames.Count / 3, Math.Max(0, frames.Count - 1));
-        tracker.AdvanceToIndex(start, frames);
+        tracker.ReplayToIndex(start, frames);
         // Advance a little so pawns are fully populated.
         for (int i = start + 1; i <= Math.Min(frames.Count - 1, start + 200); i++)
         {

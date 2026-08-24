@@ -1,6 +1,6 @@
 #region
+using System.Numerics;
 
-using CS2DemoKit.Analysis.Plugins;
 using DemoViewer.NET.Modules.Abstractions;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
@@ -13,12 +13,13 @@ using DemoViewer.NET.ViewModels.Playback;
 namespace DemoViewer.NET.Modules;
 
 /// <summary>
-///     The concrete <see cref="IModuleContext" />. Lives in the App project (which
-///     references Analysis) because it performs the per-tick HOST PLAYER-JOIN: it reverse-resolves
+///     The concrete <see cref="IModuleContext" />. Lives in the App project (which references the
+///     parser) because it performs the per-tick HOST PLAYER-JOIN: it reverse-resolves
 ///     pawn↔slot via <see cref="PawnLookup" /> (the correct <c>m_hController</c> path, never the stale
 ///     <c>controller.m_hPawn</c>) and reconstructs world position via <see cref="PositionUtil" />, then
 ///     hands every module a pawn-joined, position-reconstructed <see cref="IPlayerState" /> list. The
-///     abstractions assembly stays clean of <see cref="PawnLookup" /> / Analysis.
+///     abstractions assembly stays clean of every parser type, which is what lets a module be written
+///     against <see cref="IPlayerState" /> without taking a dependency on the demo parser at all.
 ///     <para>
 ///         <b>Read-only by construction</b> — the only handle a module gets. No mutators, no raw
 ///         tracker, no bytes, no parser (the primary guardrail). The <c>Request*</c> operations route
@@ -301,7 +302,10 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
         }
 
         int team = pawn is not null ? CoerceInt(pawn["m_iTeamNum"]) : CoerceInt(ctrl?["m_iTeamNum"]);
-        (float X, float Y, float Z)? world = pawn is not null ? PositionUtil.CellToWorld(pawn) : null;
+        // CellToWorld returns Vector3? since CS2DemoKit 0.10.0; IPlayerState.WorldPosition is the
+        // add-on-facing contract and stays a tuple, so the shape converts here at the boundary.
+        Vector3? v = pawn is not null ? PositionUtil.CellToWorld(pawn) : null;
+        (float X, float Y, float Z)? world = v is { } p ? (p.X, p.Y, p.Z) : null;
 
         PooledPlayerState ps = RentPlayerState(used++);
         ps.Set(slot, team, pawn, ctrl, world);

@@ -88,15 +88,7 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
         };
         _parseChainWindow.Closed += (_, _) => _parseChainWindow = null;
 
-        Window? owner = ownerLookup();
-        if (owner is not null)
-        {
-            _parseChainWindow.Show(owner);
-        }
-        else
-        {
-            _parseChainWindow.Show();
-        }
+        ShowOwned(_parseChainWindow);
     }
 
     /// <summary>Open the Settings screen as a non-modal window owned by the main window.</summary>
@@ -132,15 +124,7 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
             _settingsWindow = null;
         };
 
-        Window? owner = ownerLookup();
-        if (owner is not null)
-        {
-            _settingsWindow.Show(owner);
-        }
-        else
-        {
-            _settingsWindow.Show();
-        }
+        ShowOwned(_settingsWindow);
     }
 
     /// <summary>
@@ -213,11 +197,11 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
         ShowOwned(_whatsNewWindow);
     }
 
-    // Shared non-modal show: owned by the main window when it exists (keeps the pop-up above the
-    // shell and closing with it), free-standing otherwise.
+    // Shared non-modal show: owned by the main window when it is available (keeps the pop-up above
+    // the shell and closing with it), free-standing otherwise.
     private void ShowOwned(Window window)
     {
-        Window? owner = ownerLookup();
+        Window? owner = Owner();
         if (owner is not null)
         {
             window.Show(owner);
@@ -227,6 +211,17 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
             window.Show();
         }
     }
+
+    /// <summary>
+    ///     The main window, but ONLY when it can legally act as an owner. Avalonia throws
+    ///     <see cref="InvalidOperationException" /> ("Cannot show window with non-visible owner") from
+    ///     both <c>Show(owner)</c> and <c>ShowDialog(owner)</c> if the owner has not been shown yet or
+    ///     has already closed — and the lookup hands back the main window from the moment it is
+    ///     constructed, well before it is shown. Callers that reach this during framework-init (or
+    ///     after the shell closes) therefore get <c>null</c> and fall back to a free-standing show,
+    ///     which is a cosmetically worse pop-up but never a crash.
+    /// </summary>
+    private Window? Owner() => ownerLookup() is { IsVisible: true } owner ? owner : null;
 
     /// <summary>
     ///     Shows the first-run wizard as a MODAL dialog owned by the main window, so the user completes
@@ -249,7 +244,7 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
         viewModel.Completed += OnCompleted;
         window.Closed += (_, _) => viewModel.Completed -= OnCompleted;
 
-        Window? owner = ownerLookup();
+        Window? owner = Owner();
         if (owner is not null)
         {
             // Modal: the owner is disabled until setup is finished / skipped. Fire-and-forget the dialog
@@ -258,8 +253,8 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
         }
         else
         {
-            // No owner yet (should not happen at the launch trigger, which waits for MainWindow.Opened) —
-            // fall back to a non-modal show rather than throwing.
+            // No showable owner (should not happen at the launch trigger, which waits for
+            // MainWindow.Opened) — fall back to a non-modal show rather than throwing.
             window.Show();
         }
     }

@@ -131,7 +131,7 @@ public class Playback2DBombTimerTests
         double clockBase, int tickRate, int frame)
     {
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(frame, frames);
+        tracker.ReplayToIndex(frame, frames);
 
         PlaybackController controller = new();
         controller.LoadDemo(frames, tickRate);
@@ -168,14 +168,14 @@ public class Playback2DBombTimerTests
     }
 
     // Finds the contiguous m_bBeingDefused run that ends at (just before) `defuseFrame`, using ONE tracker
-    // advanced FORWARD through a bounded window. AdvanceToIndex over ascending indices replays each frame
+    // advanced FORWARD through a bounded window. ReplayToIndex over ascending indices replays each frame
     // once total (O(window)), versus a fresh tracker per frame (replay-from-0 each = O(window²)). Returns
     // (-1,-1) if no being-defused frame is seen. The window (~1200 frames ≈ ≥10s defuse) is generous.
     private static (int Start, int End) DefuseRun(IReadOnlyList<DemoFrame> frames, int defuseFrame)
     {
         int from = Math.Max(0, defuseFrame - 1200);
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(from, frames); // prime to the window start ONCE (replay-from-0 just here)
+        tracker.ReplayToIndex(from, frames); // prime to the window start ONCE (replay-from-0 just here)
         int start = -1, end = -1;
 
         for (int i = from; i < defuseFrame; i++)

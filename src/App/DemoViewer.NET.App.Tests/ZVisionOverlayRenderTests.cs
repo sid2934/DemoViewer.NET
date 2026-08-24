@@ -69,7 +69,7 @@ public class ZVisionOverlayRenderTests
 
         int target = Math.Max(0, kill.Value.Fire.FrameNumber - 8);
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(target, frames);
+        tracker.ReplayToIndex(target, frames);
 
         PlaybackController controller = new();
         controller.LoadDemo(frames, 64);

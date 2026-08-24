@@ -1,6 +1,5 @@
 #region
 
-using CS2DemoKit.Analysis.Plugins;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Services;
@@ -47,7 +46,7 @@ public class ZFloorValidationProbe
         // then walk sequentially (the tracker needs every frame delta).
         int start = Math.Min(frames.Count / 4, Math.Max(0, frames.Count - 1));
         int end = Math.Min(frames.Count - 1, start + 15000);
-        tracker.AdvanceToIndex(start, frames);
+        tracker.ReplayToIndex(start, frames);
         Console.WriteLine($"[zprobe] sampling frames [{start}..{end}]");
 
         for (int i = start; i <= end; i++)
