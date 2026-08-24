@@ -47,13 +47,13 @@ public class EntityStoreFilterEquivalenceTests
             IReadOnlyList<DemoFrame> frames = parsed.Frames;
 
             EntityTracker full = new();
-            full.AdvanceToIndex(frames.Count - 1, frames);
+            full.ReplayToIndex(frames.Count - 1, frames);
 
             EntityTracker filtered = new()
             {
                 StoreClassFilter = _onlyTeam
             };
-            filtered.AdvanceToIndex(frames.Count - 1, frames);
+            filtered.ReplayToIndex(frames.Count - 1, frames);
 
             (int? fCt, int? fT, string? fCtClan, string? fTClan) = ReadTeams(full);
             (int? gCt, int? gT, string? gCtClan, string? gTClan) = ReadTeams(filtered);

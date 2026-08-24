@@ -36,7 +36,7 @@ public class Playback2DFloorThresholdProbeTests
 
         int target = Math.Clamp(frames.Count / 2, 0, frames.Count - 1);
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(target, frames);
+        tracker.ReplayToIndex(target, frames);
 
         PlaybackController controller = new();
         controller.LoadDemo(frames, 64);
@@ -105,7 +105,7 @@ public class Playback2DFloorThresholdProbeTests
         {
             int t = frames.Count / 2;
             EntityTracker tk = new();
-            tk.AdvanceToIndex(t, frames);
+            tk.ReplayToIndex(t, frames);
             PlaybackController c = new();
             c.LoadDemo(frames, 64);
             c.SyncPositionFromShell(t);
@@ -149,7 +149,7 @@ public class Playback2DFloorThresholdProbeTests
         {
             if (cursor < 0)
             {
-                sampleTracker.AdvanceToIndex(f, frames);
+                sampleTracker.ReplayToIndex(f, frames);
             }
             else
             {

@@ -1,7 +1,6 @@
 #region
 
 using System.Numerics;
-using CS2DemoKit.Analysis.Plugins;
 using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
@@ -37,7 +36,7 @@ public class VisibilityAnalyzerTests
     // map is safe.
     private static readonly Dictionary<string, (VisibilityEngine Engine, ParsedDemo Demo)?> _loadCache = [];
 
-    private static Func<EntityState, Vector3?> PositionResolver => PositionUtil.CellToWorldVector;
+    private static Func<EntityState, Vector3?> PositionResolver => PositionUtil.CellToWorld;
 
     private static (VisibilityEngine Engine, ParsedDemo Demo)? Load(string map)
     {
@@ -121,7 +120,7 @@ public class VisibilityAnalyzerTests
             int lookIdx = fire.FrameNumber - KillLookbackFrames;
             if (cursor < 0)
             {
-                tracker.AdvanceToIndex(lookIdx, frames);
+                tracker.ReplayToIndex(lookIdx, frames);
             }
             else
             {
@@ -223,7 +222,7 @@ public class VisibilityAnalyzerTests
             int lookIdx = fire.FrameNumber - KillLookbackFrames;
             if (cursor < 0)
             {
-                tracker.AdvanceToIndex(lookIdx, frames);
+                tracker.ReplayToIndex(lookIdx, frames);
             }
             else
             {
@@ -352,7 +351,7 @@ public class VisibilityAnalyzerTests
 
         // Raw smoke-lifetime scan (deliberately NO age cap — we want to SEE a never-expiring entity if it exists).
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(start, frames);
+        tracker.ReplayToIndex(start, frames);
         int maxConcurrent = 0, ticksWithSmoke = 0, minAge = int.MaxValue, maxAge = int.MinValue;
         for (int i = start; i <= end; i++)
         {
@@ -494,7 +493,7 @@ public class VisibilityAnalyzerTests
         int end = Math.Min(frames.Count - 1, start + 20000);
 
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(start, frames);
+        tracker.ReplayToIndex(start, frames);
         List<VisibilityAnalyzer.Vantage> samples = new(12);
 
         int crossFloorPairs = 0, occluded = 0;

@@ -1,6 +1,5 @@
 #region
 
-using CS2DemoKit.Analysis.Plugins;
 using DemoViewer.NET.Modules.Abstractions;
 using CS2DemoKit.Parser.EntityTracking;
 

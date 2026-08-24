@@ -1,6 +1,5 @@
 #region
 
-using CS2DemoKit.Analysis.Plugins;
 using DemoViewer.NET.Modules.Playback2D;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;

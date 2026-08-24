@@ -49,7 +49,7 @@ public class Playback2DAreaEffectsRealDemoTests
         int target = Math.Min(ev + 16, frames.Count - 1); // a bit after so the entity is live + fields filled
 
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(target, frames);
+        tracker.ReplayToIndex(target, frames);
 
         PlaybackController controller = new();
         controller.LoadDemo(frames, tickRate);

@@ -1064,7 +1064,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
                         Bundle = MapAssetBundleReader.TryReadIdentity(Path.GetDirectoryName(trisPath))
                     };
                 VisibilityAnalyzer.Report report =
-                    VisibilityAnalyzer.Analyze(demo.Frames, engine, PositionUtil.CellToWorldVector,
+                    VisibilityAnalyzer.Analyze(demo.Frames, engine, PositionUtil.CellToWorld,
                         options, token);
                 token.ThrowIfCancellationRequested();
                 return new VisibilityStatsProjector

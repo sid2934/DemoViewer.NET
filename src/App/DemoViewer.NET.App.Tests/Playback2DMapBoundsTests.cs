@@ -30,7 +30,7 @@ public class Playback2DMapBoundsTests
 
         int mid = frames.Count / 2;
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(mid, frames);
+        tracker.ReplayToIndex(mid, frames);
 
         PlaybackController controller = new();
         controller.LoadDemo(frames, 64);

@@ -59,7 +59,7 @@ public class Playback2DRealDemoRenderTests
         }
 
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(target, frames);
+        tracker.ReplayToIndex(target, frames);
 
         // Drive the controller synchronously: feed frames, publish the already-advanced tracker.
         PlaybackController controller = new();

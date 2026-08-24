@@ -74,7 +74,7 @@ public class PlaybackControllerPhase0Tests
 
             // …and the in-place-stepped entity set equals an independent seek-to-(N+1).
             EntityTracker fresh = new();
-            fresh.AdvanceToIndex(target + 1, vm.Frames.ToList());
+            fresh.ReplayToIndex(target + 1, vm.Frames.ToList());
 
             Dictionary<int, EntityState> stepped =
                 t.CurrentEntities.AllIndexed().ToDictionary(x => x.Index, x => x.Entity);

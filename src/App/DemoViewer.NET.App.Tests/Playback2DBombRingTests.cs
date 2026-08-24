@@ -43,7 +43,7 @@ public class Playback2DBombRingTests
         int gateFrame = Math.Min(plantFrame + 8, frames.Count - 1); // C4 entity exists + m_flC4Blow populated
 
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(gateFrame, frames);
+        tracker.ReplayToIndex(gateFrame, frames);
 
         PlaybackController controller = new();
         controller.LoadDemo(frames, tickRate);

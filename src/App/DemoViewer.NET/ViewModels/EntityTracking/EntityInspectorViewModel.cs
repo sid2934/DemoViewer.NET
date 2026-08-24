@@ -2,7 +2,6 @@
 
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CS2DemoKit.Analysis.Plugins;
 using CS2DemoKit.Parser.Entities;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.ViewModels.Shell;

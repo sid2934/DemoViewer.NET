@@ -90,7 +90,7 @@ public class PlaybackSeekPushTests
         controller.ApplySeek = idx =>
         {
             EntityTracker t = new();
-            t.AdvanceToIndex(idx, frames);
+            t.ReplayToIndex(idx, frames);
             controller.PublishTracker(t);
         };
         return controller;

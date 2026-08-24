@@ -1,7 +1,6 @@
 #region
 
 using System.Numerics;
-using CS2DemoKit.Analysis.Plugins;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Services;
@@ -48,7 +47,7 @@ public class VisibilityEngineTests
         EntityTracker tracker = new();
         int start = Math.Min(frames.Count / 4, Math.Max(0, frames.Count - 1));
         int end = Math.Min(frames.Count - 1, start + 12000);
-        tracker.AdvanceToIndex(start, frames);
+        tracker.ReplayToIndex(start, frames);
         for (int i = start; i <= end; i++)
         {
             if (i > start)

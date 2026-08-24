@@ -1,5 +1,6 @@
 #region
 
+using System.Numerics;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
@@ -45,7 +46,7 @@ public class Playback2DTrajectoryRealDemoTests
         int start = Math.Max(0, detonate - WindowFrames);
 
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(start, frames);
+        tracker.ReplayToIndex(start, frames);
         ReadOnlyEntityView view = new(tracker.CurrentEntities); // CurrentEntities mutates in place per step
 
         Ctx ctx = new();
@@ -120,11 +121,11 @@ public class Playback2DTrajectoryRealDemoTests
         }
 
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(start, frames);
+        tracker.ReplayToIndex(start, frames);
 
         Dictionary<int, float> maxPerAxisMove = new(); // serial → worst single-frame per-axis move
         Dictionary<int, int> seen = new();
-        Dictionary<int, (float X, float Y, float Z)> prev = new();
+        Dictionary<int, Vector3> prev = new();
         int steps = 0;
 
         for (int i = start; i <= end; i++)
@@ -143,7 +144,7 @@ public class Playback2DTrajectoryRealDemoTests
                 }
 
                 seen[e.Serial] = seen.GetValueOrDefault(e.Serial) + 1;
-                if (prev.TryGetValue(e.Serial, out (float X, float Y, float Z) p))
+                if (prev.TryGetValue(e.Serial, out Vector3 p))
                 {
                     // Match SamePoint's PER-AXIS test (each axis < 0.5 ⇒ no append), not a summed distance.
                     float perAxis = MathF.Max(MathF.Max(MathF.Abs(pos.X - p.X), MathF.Abs(pos.Y - p.Y)),

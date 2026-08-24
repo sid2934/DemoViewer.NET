@@ -32,7 +32,7 @@ namespace DemoViewer.NET.Modules;
 public static class GameClock
 {
     /// <summary>
-    ///     Advances a fresh tracker to <paramref name="firstFreezeEndFrame" /> and reads the game-rules
+    ///     Replays a fresh tracker to <paramref name="firstFreezeEndFrame" /> and reads the game-rules
     ///     entity to derive <c>clockBase</c>. Returns <c>(0, false)</c> when no game-rules entity or
     ///     <c>m_fRoundStartTime</c> is present (callers fall back to the naive reading, offset 0).
     /// </summary>
@@ -46,7 +46,7 @@ public static class GameClock
         }
 
         EntityTracker tracker = new();
-        tracker.AdvanceToIndex(firstFreezeEndFrame, frames);
+        tracker.ReplayToIndex(firstFreezeEndFrame, frames);
 
         EntityState? rules = null;
         foreach ((int _, EntityState e) in tracker.CurrentEntities.AllIndexed())
