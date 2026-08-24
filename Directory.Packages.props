@@ -32,9 +32,9 @@
             the other two transitively; the explicit references below are for the projects that
             use the parser without the engine.
         -->
-        <PackageVersion Include="CS2DemoKit.Parser" Version="0.9.2-beta0002"/>
-        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.9.2-beta0002"/>
-        <PackageVersion Include="CS2DemoKit.Analysis.Rules" Version="0.9.2-beta0002"/>
+        <PackageVersion Include="CS2DemoKit.Parser" Version="0.9.2-beta0003"/>
+        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.9.2-beta0003"/>
+        <PackageVersion Include="CS2DemoKit.Analysis.Rules" Version="0.9.2-beta0003"/>
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
         <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15"/>
         <!-- 3.29.5+ required by Cs2VideoGenerator.Core, and comfortably above the >= 3.27.0 floor
