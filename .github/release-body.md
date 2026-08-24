@@ -1,20 +1,35 @@
-## What's new in 0.7.1
+## What's new in 0.7.2
 
-A maintenance release. Nothing in the app looks or behaves differently; the change is underneath.
+A maintenance release built on new parser and analysis packages. One fix in it is worth upgrading
+for on its own.
 
-**The parser and analysis engine are now packages.** They moved out to
-[CS2DemoKit](https://github.com/CS2OpenDev/CS2DemoKit) and this app consumes them from nuget.org
-like any other dependency, which is why the source tree here shrank by roughly a hundred thousand
-lines. Anyone building their own CS2 demo tooling can now install the same parser and analysis
-engine this app runs on, without taking the app with it.
+**Demos that used to fail analysis outright now work.** Some demos died with an unhandled error the
+moment analysis started — not a degraded result, no result at all. The cause was a frame sharing a
+tick with a checkpoint the analyzer had picked, and across a corpus spanning every protocol version
+in a real matchmaking replays folder it took out 6 of 15 demos. All 15 now analyze. If you have a
+many-core machine you were far more likely to hit this: the analyzer picks more checkpoints the more
+cores you have, so above roughly 32 logical cores nearly every clash landed, while the same demos
+were fine on a 10-core box. That is also why it was hard to reproduce from a bug report.
 
-**For rule authors:** the editor schema file is now called `cs2demokit-rules.schema.json`. New rule
-files get the new name in their `# yaml-language-server:` line automatically. Existing files in
-your rules folder still point at `dv-rules.schema.json`, which stays where it is and keeps working
-— update the line when convenient to validate against the current schema.
+**Analysis is faster and much lighter on memory.** Against 0.7.1, measured as the median of three
+runs across nine demos: parsing is about 25% faster, evaluation about 13% faster, and total
+allocation is down between a third and a half.
+
+**A dead player's entity reference no longer resolves to the wrong entity.** One of the two
+"no such entity" markers was not being recognized in the app's read-only entity view, so instead of
+reading as empty it resolved to whatever happened to occupy that slot.
+
+**The "What's new" window no longer opens before the app does.** On the launch after an update it
+could appear ahead of the main window.
 
 <details>
-<summary>What was new in 0.7.0 and earlier</summary>
+<summary>What was new in 0.7.1 and earlier</summary>
+
+**0.7.1** was a maintenance release: the parser and analysis engine moved out to
+[CS2DemoKit](https://github.com/CS2OpenDev/CS2DemoKit) and are consumed from nuget.org as packages,
+shrinking the source tree here by roughly a hundred thousand lines, and the editor schema file for
+rule authors became `cs2demokit-rules.schema.json` (existing `dv-rules.schema.json` references keep
+working).
 
 **0.7.0** was the open-source debut: the source moved to a public repository under MIT, releases
 and auto-updates began coming from it, damage stats stopped overcounting same-frame burst hits, and
