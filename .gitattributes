@@ -1,0 +1,17 @@
+# Line endings are content here, not a checkout preference. rules/cs2demokit-rules.schema.json is
+# compared byte-for-byte against the copy extracted from the CS2DemoKit package, which is written
+# with LF, so a CRLF checkout fails ShippedSchemaDriftTests without anything having drifted. Pinning
+# eol=lf keeps that gate honest on Windows. Mirrors the same fix upstream (CS2DemoKit #44).
+* text=auto eol=lf
+
+# Binary: never line-ending converted, never diffed as text. Git's heuristic would classify these
+# correctly on its own; declaring them removes the question and stops a bad .gitattributes edit from
+# ever corrupting a demo or a collision bake.
+*.dem binary
+*.tris binary
+*.png binary
+*.ico binary
+
+# Shipped as-is to a shell that requires LF. Covered by the blanket rule above, but stated because a
+# CRLF publish script fails at run time rather than at review time.
+*.sh text eol=lf

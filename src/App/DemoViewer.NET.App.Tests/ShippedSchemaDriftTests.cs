@@ -49,7 +49,18 @@ public class ShippedSchemaDriftTests
 
             await Assert.That(File.Exists(packaged)).IsTrue()
                 .Because("the package must still ship the schema it tells consumers to validate against");
-            await Assert.That(await File.ReadAllTextAsync(repoSchema))
+
+            string committed = await File.ReadAllTextAsync(repoSchema);
+
+            // Checked BEFORE the exact compare, which is against a file the package writes with LF:
+            // on a CRLF checkout that compare fails with nothing having drifted, and its message
+            // would send a contributor to re-extract an already-correct file. Separating the two
+            // says which of the two actually happened.
+            await Assert.That(committed).DoesNotContain("\r")
+                .Because($"rules/{SchemaFileName} is stored eol=lf (see .gitattributes) — a CRLF "
+                         + "checkout is not drift: re-clone, or run git add --renormalize .");
+
+            await Assert.That(committed)
                 .IsEqualTo(await File.ReadAllTextAsync(packaged))
                 .Because($"rules/{SchemaFileName} has drifted from the package — re-extract it, do not hand-edit");
         }
