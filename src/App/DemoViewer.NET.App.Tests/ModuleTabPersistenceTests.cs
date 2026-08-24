@@ -20,6 +20,12 @@ namespace DemoViewer.NET.AppTests;
 ///         module VMs are lazy, so at restore time the object that should receive the state does not exist.
 ///     </para>
 /// </summary>
+/// <remarks>
+///     The cases that <c>Activate</c> a tab run on the UI thread: activation realizes the descriptor's
+///     View, and constructing a Control verifies dispatcher access. Off-thread they passed only while no
+///     dispatch had yet bound the UI thread — a race the assembly warm-up now settles, and the "Call from
+///     invalid thread" half of issue #6.
+/// </remarks>
 public class ModuleTabPersistenceTests
 {
     private sealed record FakeState(List<string> Items, int Version);
@@ -92,52 +98,54 @@ public class ModuleTabPersistenceTests
     ///     (nothing to give it) and not by force-building every module (that defeats the laziness).
     /// </summary>
     [Test]
-    public async Task ParkedState_IsAppliedWhenTheLazyViewModelIsFirstBuilt()
-    {
-        FakeTabViewModel? created = null;
-        WorkspaceTabDescriptor tab = Descriptor(() => created = new FakeTabViewModel(), "fake.lazy");
-
-        tab.PendingRestoreState = JsonSerializer.SerializeToElement(
-            new FakeState(["alpha", "bravo"], 3));
-
-        await Assert.That(created).IsNull().Because("parking state must not build the VM");
-
-        tab.Activate(null!);
-
-        using (Assert.Multiple())
+    public async Task ParkedState_IsAppliedWhenTheLazyViewModelIsFirstBuilt() =>
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(created).IsNotNull();
-            await Assert.That(created!.RestoreCalls).IsEqualTo(1);
-            await Assert.That(created.State.Items).IsEquivalentTo(new List<string> { "alpha", "bravo" });
-            await Assert.That(created.State.Version).IsEqualTo(3);
-            await Assert.That(tab.PendingRestoreState).IsNull()
-                .Because("the snapshot is consumed once");
-        }
-    }
+            FakeTabViewModel? created = null;
+            WorkspaceTabDescriptor tab = Descriptor(() => created = new FakeTabViewModel(), "fake.lazy");
+
+            tab.PendingRestoreState = JsonSerializer.SerializeToElement(
+                new FakeState(["alpha", "bravo"], 3));
+
+            await Assert.That(created).IsNull().Because("parking state must not build the VM");
+
+            tab.Activate(null!);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(created).IsNotNull();
+                await Assert.That(created!.RestoreCalls).IsEqualTo(1);
+                await Assert.That(created.State.Items).IsEquivalentTo(new List<string> { "alpha", "bravo" });
+                await Assert.That(created.State.Version).IsEqualTo(3);
+                await Assert.That(tab.PendingRestoreState).IsNull()
+                    .Because("the snapshot is consumed once");
+            }
+        });
 
     /// <summary>
     ///     Re-selecting a tab later in the session must not replay the startup snapshot over state the user
     ///     has changed since. Deactivate/Activate is an ordinary gesture — every tab switch does it.
     /// </summary>
     [Test]
-    public async Task ReActivating_DoesNotReplayTheStartupSnapshot()
-    {
-        FakeTabViewModel? created = null;
-        WorkspaceTabDescriptor tab = Descriptor(() => created = new FakeTabViewModel(), "fake.reactivate");
-        tab.PendingRestoreState = JsonSerializer.SerializeToElement(new FakeState(["original"], 1));
-
-        tab.Activate(null!);
-        created!.State = new FakeState(["user-changed-this"], 9);
-
-        tab.Deactivate();
-        tab.Activate(null!);
-
-        using (Assert.Multiple())
+    public async Task ReActivating_DoesNotReplayTheStartupSnapshot() =>
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(created.RestoreCalls).IsEqualTo(1);
-            await Assert.That(created.State.Items).IsEquivalentTo(new List<string> { "user-changed-this" });
-        }
-    }
+            FakeTabViewModel? created = null;
+            WorkspaceTabDescriptor tab = Descriptor(() => created = new FakeTabViewModel(), "fake.reactivate");
+            tab.PendingRestoreState = JsonSerializer.SerializeToElement(new FakeState(["original"], 1));
+
+            tab.Activate(null!);
+            created!.State = new FakeState(["user-changed-this"], 9);
+
+            tab.Deactivate();
+            tab.Activate(null!);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(created.RestoreCalls).IsEqualTo(1);
+                await Assert.That(created.State.Items).IsEquivalentTo(new List<string> { "user-changed-this" });
+            }
+        });
 
     /// <summary>The payload round-trips through the session record under its stable, name-based TabId.</summary>
     [Test]
@@ -176,55 +184,57 @@ public class ModuleTabPersistenceTests
     ///     </para>
     /// </summary>
     [Test]
-    public async Task AnIncompatibleBlob_DoesNotCostTheTab()
-    {
-        FakeTabViewModel? created = null;
-        WorkspaceTabDescriptor tab = Descriptor(() => created = new FakeTabViewModel(), "fake.legacy");
-
-        // Shape from an imaginary older schema — a bare string where a record is expected.
-        tab.PendingRestoreState = JsonSerializer.SerializeToElement("this used to be a state blob");
-
-        tab.Activate(null!);
-
-        using (Assert.Multiple())
+    public async Task AnIncompatibleBlob_DoesNotCostTheTab() =>
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(created).IsNotNull().Because("the tab still opened");
-            await Assert.That(tab.IsActive).IsTrue();
-            await Assert.That(tab.ActiveContent).IsNotNull()
-                .Because("the View is realized even though the restore threw");
-            await Assert.That(created!.RestoreCalls).IsEqualTo(1);
-            await Assert.That(created.State.Items).IsEmpty();
-            await Assert.That(tab.PendingRestoreState).IsNull()
-                .Because("a blob that threw must not be retried on the next activation");
-        }
-    }
+            FakeTabViewModel? created = null;
+            WorkspaceTabDescriptor tab = Descriptor(() => created = new FakeTabViewModel(), "fake.legacy");
+
+            // Shape from an imaginary older schema — a bare string where a record is expected.
+            tab.PendingRestoreState = JsonSerializer.SerializeToElement("this used to be a state blob");
+
+            tab.Activate(null!);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(created).IsNotNull().Because("the tab still opened");
+                await Assert.That(tab.IsActive).IsTrue();
+                await Assert.That(tab.ActiveContent).IsNotNull()
+                    .Because("the View is realized even though the restore threw");
+                await Assert.That(created!.RestoreCalls).IsEqualTo(1);
+                await Assert.That(created.State.Items).IsEmpty();
+                await Assert.That(tab.PendingRestoreState).IsNull()
+                    .Because("a blob that threw must not be retried on the next activation");
+            }
+        });
 
     /// <summary>
     ///     A persisted key whose tab no longer exists (module removed, feature gated off) is simply never
     ///     handed to anyone — it must not throw, and must not leak onto a different tab.
     /// </summary>
     [Test]
-    public async Task StateForAVanishedTab_IsIgnored()
-    {
-        WorkspaceTabDescriptor present = Descriptor(() => new FakeTabViewModel(), "fake.present");
-
-        Dictionary<string, JsonElement> states = new()
+    public async Task StateForAVanishedTab_IsIgnored() =>
+        await HeadlessSession.RunOnUi(async () =>
         {
-            ["fake.present"] = JsonSerializer.SerializeToElement(new FakeState(["mine"], 1)),
-            ["fake.removed-module"] = JsonSerializer.SerializeToElement(new FakeState(["orphan"], 1))
-        };
+            WorkspaceTabDescriptor present = Descriptor(() => new FakeTabViewModel(), "fake.present");
 
-        foreach (WorkspaceTabDescriptor tab in new[] { present })
-        {
-            if (states.TryGetValue(tab.TabId, out JsonElement state))
+            Dictionary<string, JsonElement> states = new()
             {
-                tab.PendingRestoreState = state;
+                ["fake.present"] = JsonSerializer.SerializeToElement(new FakeState(["mine"], 1)),
+                ["fake.removed-module"] = JsonSerializer.SerializeToElement(new FakeState(["orphan"], 1))
+            };
+
+            foreach (WorkspaceTabDescriptor tab in new[] { present })
+            {
+                if (states.TryGetValue(tab.TabId, out JsonElement state))
+                {
+                    tab.PendingRestoreState = state;
+                }
             }
-        }
 
-        present.Activate(null!);
+            present.Activate(null!);
 
-        await Assert.That(((FakeTabViewModel)present.TabViewModel!).State.Items)
-            .IsEquivalentTo(new List<string> { "mine" });
-    }
+            await Assert.That(((FakeTabViewModel)present.TabViewModel!).State.Items)
+                .IsEquivalentTo(new List<string> { "mine" });
+        });
 }
