@@ -167,7 +167,7 @@ internal static class BenchCommand
             Scene2DFrame frame = plan.WithRadarArt(source.FrameAt(i % Math.Max(1, source.Count)));
             SceneTime time = source.TimeAt(i % Math.Max(1, source.Count));
             plan.Renderer.Advance(in time, frame);
-            plan.Renderer.Render(surface, frame, RenderPurpose.Export);
+            plan.Renderer.Render(surface, frame, in time, RenderPurpose.Export);
         }
 
         // Settle the heap so the delta below measures the loop, not the warm-up's garbage.
@@ -190,7 +190,8 @@ internal static class BenchCommand
             long t0 = Stopwatch.GetTimestamp();
             plan.Renderer.Advance(in time, frame);
             long t1 = Stopwatch.GetTimestamp();
-            plan.Renderer.Render(surface, frame, RenderPurpose.Export);
+            // The source's clock, not frame.Time: bench must draw exactly what golden draws.
+            plan.Renderer.Render(surface, frame, in time, RenderPurpose.Export);
             long t2 = Stopwatch.GetTimestamp();
 
             advanceMs[i] = Ms(t1 - t0);

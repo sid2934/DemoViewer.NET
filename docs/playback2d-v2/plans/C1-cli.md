@@ -1049,3 +1049,52 @@ registry, with why. Nothing here was decided silently.
 
 **Not implemented, with reasons:** `dv2d export` (8 — blocked on B4); the T6 spike (13 — nothing to
 measure yet); `--layout` / `--level` (2 — blocked on B1/B3); GPU rendering (9 — C2 owns it).
+
+### Review fixes (independent review, 2026-08-24)
+
+Three defects found by the phase review, each with a regression test in
+`tools/DemoViewer.NET.Playback2D.Cli.Tests/ReviewRegressionTests.cs` that fails without its fix.
+
+18. **`HeadlessSceneRenderer.RenderInto` discarded the injected clock.** `RenderInto(surface, frame,
+    time)` passed `time` to `Advance` but then called
+    `Render(SKSurface, Scene2DFrame, RenderPurpose)`, which stamps the `SceneRenderContext` from
+    `frame.Time`. On the fixture path the two are the same value, which is why
+    `HeadlessSceneRendererTests.Render_MatchesRenderInto` could not see it — it passes `fixture.Time`
+    for a frame whose own `Time` *is* that value. They are **not** the same on the demo path:
+    `TrackerFrameSource.TimeAt` derives `DeltaSeconds` from fps/speed and authors `IsDiscontinuity`,
+    while the frame's `Time` comes from `SceneFrameBuilder`. Since `bench` renders through
+    `RenderInto`'s split pair and `golden` renders through `Render(frame, time, size)`, the two
+    commands would have drawn different scenes from the same input the moment a B1 layer read
+    `ctx.Time` — a silent §5.1 determinism break. **Fix:** added
+    `Render(SKSurface, Scene2DFrame, in SceneTime, RenderPurpose)`; `RenderInto` and both
+    `BenchCommand.Measure` loops now pass the source's clock. The 3-argument overload is unchanged
+    (it is the plan's contract signature) and delegates with `frame.Time`. No pixels move today — no
+    layer reads `ctx.Time` — and the committed goldens verified byte-identical after the change.
+    **B1: absorb this overload when the bench loop moves to `ScenePipelineBenchmark`.**
+
+19. **`ResolvedBackend.Backend` was a use-after-dispose in `GoldenCommand`.** It was declared
+    `=> Provider.Backend`, and `GoldenCommand` captures the first entry's `ResolvedBackend`
+    (`backend ??= plan.Backend`) but disposes each entry's `SceneRenderPlan` — and with it that
+    provider — at the end of every loop iteration, then reads `backend.Backend` when it builds the
+    summary payload. Inert against `CpuSurfaceProvider` (constant property, no-op `Dispose`), a fault
+    against C2's `GpuSurfaceProvider`, which owns an EGL context and which deviation (9) hands over
+    through this very type. **Fix:** the backend is captured at construction
+    (`public RenderBackend Backend { get; } = Provider.Backend;`). **C2: this is why the type is safe
+    to hand a real GPU provider.**
+
+20. **`TrackerSceneSnapshot.Refresh` allocated a delegate on every frame.** The callback was written
+    inline as `PawnLookup.ForEachLivePawn(tracker, (slot, pawn) => _pawnBySlot[slot] = pawn)`. That
+    lambda captures `this`, and Roslyn caches only fully non-capturing lambdas, so a fresh delegate
+    was allocated per call — in the one adapter that runs once per exported frame, straight onto the
+    §6 budget B4's export loop is measured against. **Fix:** the callback is built once in the
+    constructor and held in a field. Measured on the committed `assets/tour` demo: **424 → 360
+    bytes/frame**, the delegate being exactly 64 of them. The same inline pattern exists at
+    `src/App/DemoViewer.NET/Modules/ModuleContext.cs:307`; it was left alone as out of C1's scope.
+
+    **Carry-forward for B4:** the residual 360 bytes/frame is **not** Pipeline's and cannot be closed
+    here. Bisected on the same demo: 72 bytes inside `PawnLookup.ForEachLivePawn` and ~24 bytes per
+    boxed `EntityState` indexer read, both inside the pinned CS2DemoKit 0.10.0 package. Design §6's
+    zero-allocation contract for the demo-backed frame source needs a package-side allocation-free
+    read path. `ReviewRegressionTests.TrackerSceneSnapshot_Refresh_AllocatesNoPerFrameDelegate` pins
+    the current figure at ≤ 384 bytes/frame and carries `[Category("Budget")]`, for the same reason
+    `BenchAllocationTests` does (risk R6): an allocation figure must never flap a required CI check.

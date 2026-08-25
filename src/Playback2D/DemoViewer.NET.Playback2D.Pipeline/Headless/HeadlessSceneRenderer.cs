@@ -92,7 +92,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
         RenderPurpose purpose = RenderPurpose.Thumbnail)
     {
         Advance(in time, frame);
-        Render(surface, frame, purpose);
+        Render(surface, frame, in time, purpose);
     }
 
     /// <summary>Advance + Render into a fresh provider surface; the caller disposes the image.</summary>
@@ -130,17 +130,42 @@ public sealed class HeadlessSceneRenderer : IDisposable
         return Compositor.Advance(in time, frame);
     }
 
-    /// <summary>The pure half, measured on its own by <c>dv2d bench</c>.</summary>
+    /// <summary>
+    ///     The pure half, measured on its own by <c>dv2d bench</c>. The frame's own <c>Time</c> stamps the
+    ///     context; prefer the overload taking an explicit clock whenever the caller has one.
+    /// </summary>
     /// <param name="surface">The destination surface.</param>
     /// <param name="frame">The frame to draw. Its own <c>Time</c> is used for the context.</param>
     /// <param name="purpose">Why this scene is being rendered.</param>
     public void Render(SKSurface surface, Scene2DFrame frame, RenderPurpose purpose)
     {
+        ArgumentNullException.ThrowIfNull(frame);
+        SceneTime time = frame.Time;
+        Render(surface, frame, in time, purpose);
+    }
+
+    /// <summary>
+    ///     The pure half, drawn against an <b>explicit</b> clock.
+    ///     <para>
+    ///         The injected clock is the whole determinism contract (design §5.1): motion is a function of
+    ///         <see cref="SceneTime" />, never of a wall clock. On the demo path the frame's own <c>Time</c>
+    ///         and the source's <c>TimeAt</c> are <i>not</i> the same value —
+    ///         <c>TrackerFrameSource.TimeAt</c> derives <c>DeltaSeconds</c> from fps/speed and authors
+    ///         <c>IsDiscontinuity</c> — so a render context stamped from the frame silently discards what
+    ///         the caller injected, and <c>bench</c> and <c>golden</c> would draw different scenes from
+    ///         the same input the moment a layer reads <c>ctx.Time</c>.
+    ///     </para>
+    /// </summary>
+    /// <param name="surface">The destination surface.</param>
+    /// <param name="frame">The frame to draw.</param>
+    /// <param name="time">The frame's injected clock; stamped onto the render context.</param>
+    /// <param name="purpose">Why this scene is being rendered.</param>
+    public void Render(SKSurface surface, Scene2DFrame frame, in SceneTime time, RenderPurpose purpose)
+    {
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(frame);
 
         SKSizeI size = new(surface.Canvas.DeviceClipBounds.Width, surface.Canvas.DeviceClipBounds.Height);
-        SceneTime time = frame.Time;
         SceneRenderContext ctx = ContextFor(frame, in time, size, purpose);
 
         surface.Canvas.Clear(ctx.Palette.Background);

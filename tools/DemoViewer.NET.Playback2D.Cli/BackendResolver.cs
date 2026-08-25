@@ -12,8 +12,18 @@ namespace DemoViewer.NET.Playback2D.Cli;
 /// <param name="Reason">A one-line explanation, printed when the request was not honoured.</param>
 internal sealed record ResolvedBackend(IRenderSurfaceProvider Provider, string Requested, string? Reason)
 {
-    /// <summary>The backend actually in use.</summary>
-    public RenderBackend Backend => Provider.Backend;
+    /// <summary>
+    ///     The backend actually in use, <b>captured at construction</b> rather than read through
+    ///     <see cref="Provider" /> on demand.
+    ///     <para>
+    ///         <c>GoldenCommand</c> keeps the first entry's <see cref="ResolvedBackend" /> for its summary
+    ///         payload but disposes each entry's plan — and with it that provider — at the end of every
+    ///         loop iteration. Reading the provider afterwards is a use-after-dispose: inert against
+    ///         <c>CpuSurfaceProvider</c> (constant property, no-op <c>Dispose</c>), a fault against C2's
+    ///         <c>GpuSurfaceProvider</c>, which owns an EGL context and is handed over by this very type.
+    ///     </para>
+    /// </summary>
+    public RenderBackend Backend { get; } = Provider.Backend;
 }
 
 /// <summary>

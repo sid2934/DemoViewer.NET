@@ -36,6 +36,14 @@ public sealed class TrackerSceneSnapshot
     private readonly List<IPlayerState> _players = [];
     private readonly Dictionary<int, ulong> _steamIdBySlot = [];
 
+    // Held, not written inline at the call site. A lambda that captures `this` is NOT cached by Roslyn
+    // (only a fully non-capturing one is), so `ForEachLivePawn(tracker, (slot, pawn) => …)` allocates a
+    // fresh delegate on every single frame — in the one adapter that runs once per exported frame.
+    private readonly Action<int, EntityState> _collectPawn;
+
+    /// <summary>Creates a snapshot with its pools and its per-frame callback allocated once.</summary>
+    public TrackerSceneSnapshot() => _collectPawn = (slot, pawn) => _pawnBySlot[slot] = pawn;
+
     /// <summary>The players as of the last <see cref="Refresh" />. Transient — do not retain.</summary>
     public IReadOnlyList<IPlayerState> Players => _players;
 
@@ -62,7 +70,7 @@ public sealed class TrackerSceneSnapshot
         _players.Clear();
         _pawnBySlot.Clear();
 
-        PawnLookup.ForEachLivePawn(tracker, (slot, pawn) => _pawnBySlot[slot] = pawn);
+        PawnLookup.ForEachLivePawn(tracker, _collectPawn);
 
         // Controller-anchored emission over every seated slot, not just the live pawns: identity comes
         // from the persistent controller, so a dead player still gets a row. Slots are walked in order
