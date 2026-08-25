@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -24,6 +25,7 @@ public partial class Playback2DView : UserControl
     private readonly TextBlock? _modeLabel;
     private readonly MenuFlyout? _modeMenuFlyout;
     private readonly Playback2DViewport? _viewport;
+    private Playback2DTabViewModel? _boundViewModel;
 
     public Playback2DView()
     {
@@ -50,6 +52,113 @@ public partial class Playback2DView : UserControl
             modeButton.AddHandler(PointerReleasedEvent, OnModeButtonPointerReleased,
                 RoutingStrategies.Tunnel);
         }
+
+        // Tunnel, not bubble: transport keys must win over whatever inside the playback surface has
+        // focus (an overlay CheckBox would otherwise eat Space; the player-card ListBox would eat
+        // Up/Down). Skipped while a text input has focus so a future in-tab field still types.
+        AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
+
+        // Clicking the map focuses the surface, so the keymap starts working without a Tab press.
+        AddHandler(PointerPressedEvent, OnSurfacePointerPressed, RoutingStrategies.Tunnel);
+
+        Focusable = true;
+        DataContextChanged += OnDataContextChanged;
+        BindViewModel();
+    }
+
+    private void OnDataContextChanged(object? sender, EventArgs e) => BindViewModel();
+
+    // The VM is assigned after construction (and can be replaced), so the subscriptions are re-aimed
+    // here rather than in the ctor. Unsubscribing the PREVIOUS instance is what keeps a rebuilt tab from
+    // driving a stale view.
+    private void BindViewModel()
+    {
+        if (_boundViewModel is not null)
+        {
+            _boundViewModel.FollowSlotChanged -= OnFollowSlotChanged;
+            _boundViewModel.FitRequested -= OnFitRequested;
+        }
+
+        _boundViewModel = DataContext as Playback2DTabViewModel;
+
+        if (_boundViewModel is not null)
+        {
+            _boundViewModel.FollowSlotChanged += OnFollowSlotChanged;
+            _boundViewModel.FitRequested += OnFitRequested;
+        }
+    }
+
+    private void OnFitRequested() => _viewport?.FitToExtent();
+
+    // Mirrors the VM's single follow funnel onto the control. Setting FollowSlot implies FollowPlayer
+    // mode; -1 clears the follow and re-fits.
+    private void OnFollowSlotChanged(int slot)
+    {
+        if (slot < 0)
+        {
+            if (_viewport is not null)
+            {
+                _viewport.FollowSlot = -1;
+            }
+
+            SetMode(CameraMode.Fit);
+            return;
+        }
+
+        if (_viewport is not null)
+        {
+            _viewport.FollowSlot = slot;
+        }
+
+        string display = _boundViewModel?.SelectedPlayer?.Name is { Length: > 0 } name
+            ? name
+            : slot.ToString(CultureInfo.InvariantCulture);
+
+        if (_modeLabel is not null)
+        {
+            _modeLabel.Text = $"mode: Follow {display}";
+        }
+
+        if (_mapApproxNote is not null)
+        {
+            _mapApproxNote.IsVisible = false;
+        }
+    }
+
+    private void OnSurfacePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!IsFocused)
+        {
+            Focus();
+        }
+    }
+
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || DataContext is not Playback2DTabViewModel vm)
+        {
+            return;
+        }
+
+        // A focused text input owns every key: the tab has none today, but swallowing Space in a future
+        // in-tab field is exactly the kind of bug a tunneling handler introduces silently.
+        if (IsTextInputFocused())
+        {
+            return;
+        }
+
+        // toolActive is false throughout A1 — there is no pointer tool yet. B2 passes the router's state
+        // here and its tool-scoped bindings then shadow Space / Esc without editing the table.
+        if (Playback2DKeymap.TryResolve(e, false, out Playback2DAction action))
+        {
+            e.Handled = vm.ExecuteAction(action);
+        }
+    }
+
+    private bool IsTextInputFocused()
+    {
+        object? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+        return focused is TextBox or AutoCompleteBox;
     }
 
     private void OnModeButtonPointerReleased(object? sender, PointerReleasedEventArgs e)
@@ -132,7 +241,7 @@ public partial class Playback2DView : UserControl
                 Header = p.Display
             };
             int slot = p.Slot;
-            item.Click += (_, _) => FollowSlot(slot, p.Display);
+            item.Click += (_, _) => FollowSlot(slot);
             items.Add(item);
         }
 
@@ -148,24 +257,9 @@ public partial class Playback2DView : UserControl
         _followMenuItem.ItemsSource = items;
     }
 
-    private void FollowSlot(int slot, string display)
-    {
-        if (_viewport is not null)
-        {
-            _viewport.FollowSlot = slot; // selecting a player implies FollowPlayer mode
-        }
-
-        // Surface the pick as an observable (live-sync mirrors it to CS2 spectating).
+    // The SplitButton submenu pick goes through the VM's follow funnel like every other path; the viewport
+    // mirror and the mode label are then driven by OnFollowSlotChanged, so a menu pick and a card pick
+    // produce identical state.
+    private void FollowSlot(int slot) =>
         (DataContext as Playback2DTabViewModel)?.NotifyFollowSlotChanged(slot);
-
-        if (_modeLabel is not null)
-        {
-            _modeLabel.Text = $"mode: Follow {display}";
-        }
-
-        if (_mapApproxNote is not null)
-        {
-            _mapApproxNote.IsVisible = false;
-        }
-    }
 }

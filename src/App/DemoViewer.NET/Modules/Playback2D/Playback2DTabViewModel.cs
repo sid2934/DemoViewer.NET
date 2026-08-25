@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.PlayerStats;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Services;
 using CS2DemoKit.Analysis.Visibility;
 
@@ -68,6 +69,20 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         KillEventName
     };
 
+    // CS2 rounds OPEN at round_freeze_end (not round_start) — the same fact RoundTrack's band layout rests
+    // on, so Q/E round nav and the timeline's bands can never disagree about where a round starts.
+    private static readonly string[] _roundEventFilter =
+    {
+        RoundTrack.FreezeEndEvent
+    };
+
+    // The NavStrip speed ComboBox's ladder. ↑/↓ step within it rather than multiplying, so the keys and the
+    // ComboBox always offer the same set of speeds.
+    private static readonly double[] _speedPresets =
+    {
+        0.25, 0.5, 1, 2, 4, 8
+    };
+
     // The WHOLE demo's kills, pre-built ONCE at load from IModuleContext.GetEventTimeline("player_death")
     // (decoupling display from the push cadence — no kill lost to a render-skipped frame). Rebuilt if the
     // roster arrives after activation (#2, names depend on it). _killWindow is reusable render scratch.
@@ -111,6 +126,33 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private readonly List<int> _trailsToPrune = new(8);
     private readonly List<GrenadeTrail> _trailViews = new(16);
     private IModuleContext? _context;
+
+    // The shell's feature projection, captured at activation so deactivation unsubscribes the SAME
+    // instance. Null (no host projection) fails OPEN — every gated surface stays on.
+    private IModuleFeatureGate? _features;
+
+    // Re-entrancy guard: the follow funnel assigns SelectedPlayer, whose generated setter loops back into
+    // the funnel. Without it a card pick would raise FollowSlotChanged twice.
+    private bool _inFollowFunnel;
+
+    // The ITimelineData adapter over _context. Nulled on deactivation so the context isn't retained.
+    private ModuleTimelineData? _timelineData;
+
+    /// <summary>The followed roster slot, -1 = none. Set only through the follow funnel.</summary>
+    [ObservableProperty]
+    private int _followedSlot = -1;
+
+    /// <summary>"following {name} · requested" — spectate has no readback, so never "confirmed".</summary>
+    [ObservableProperty]
+    private string _followStatus = "";
+
+    /// <summary>Two-way bound to the player-card ListBox; setting it follows that player.</summary>
+    [ObservableProperty]
+    private PlayerAttributes? _selectedPlayer;
+
+    /// <summary>One-shot footer hint set when a speed key is refused because Live Sync pins the speed.</summary>
+    [ObservableProperty]
+    private string _speedLockNote = "";
 
     /// <summary>True when the demo carries kill events, gating the kill forward-nav buttons (Phase E).</summary>
     [ObservableProperty]
@@ -294,9 +336,49 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <summary>Number of <c>Advanced</c> pushes received while active (read by tests).</summary>
     public int PushCount { get; private set; }
 
+    /// <summary>
+    ///     Builds the tab with its timeline and the three A1 tracks registered. Parameterless by contract:
+    ///     gates arrive through <see cref="IModuleContext.Features" />, never through the constructor, so
+    ///     the module descriptor's <c>ViewModelFactory</c> stays a bare <c>new()</c>.
+    /// </summary>
+    public Playback2DTabViewModel()
+    {
+        Timeline.RegisterTrack(new RoundTrack());
+        Timeline.RegisterTrack(new KillTrack());
+        Timeline.RegisterTrack(new BombTrack());
+
+        // The timeline never moves the clock: it asks, and the shared clock decides (so LiveSync's
+        // SyncStateObserver keeps seeing every seek).
+        Timeline.SeekRequested += OnTimelineSeekRequested;
+    }
+
+    /// <summary>The scrub / rounds / markers chrome docked under the viewport.</summary>
+    public Playback2DTimelineViewModel Timeline { get; } = new();
+
+    /// <summary>
+    ///     Whether the <c>playback2d.timeline</c> feature is on. Fails OPEN on a null projection (matching the
+    ///     shell's own null-gate behaviour) and re-resolves live on the gate's Changed — a one-shot read would
+    ///     leave the surface wrong until the tab was rebuilt.
+    /// </summary>
+    public bool IsTimelineEnabled => _features?.IsEnabled("playback2d.timeline") ?? true;
+
+    /// <summary>Whether the <c>playback2d.follow</c> feature is on. Fail-open, live — see <see cref="IsTimelineEnabled" />.</summary>
+    public bool IsFollowEnabled => _features?.IsEnabled("playback2d.follow") ?? true;
+
+    /// <summary>Asks the view to re-fit the camera (the VM never touches the control).</summary>
+    public event Action? FitRequested;
+
     public void OnActivated(IModuleContext context)
     {
         _context = context;
+
+        _features = context.Features;
+        if (_features is not null)
+        {
+            _features.Changed += OnFeaturesChanged;
+        }
+
+        RefreshGates();
 
         context.Advanced += OnAdvanced;
         // Stay in sync across demo reloads WHILE active: LoadDemo resets the playback clock without
@@ -335,12 +417,22 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         ShowLiveSyncHud = false;
 
+        if (_features is not null)
+        {
+            _features.Changed -= OnFeaturesChanged;
+            _features = null;
+        }
+
         if (_context is not null)
         {
             _context.Advanced -= OnAdvanced;
             _context.DemoReset -= OnDemoReset;
             _context = null;
         }
+
+        // The adapter holds no subscriptions, but it holds the context — drop it so an inactive tab
+        // retains nothing.
+        _timelineData = null;
 
         // After this returns the module does ZERO per-tick work.
         Status = $"2D Playback — inactive · {PushCount} pushes received";
@@ -419,12 +511,264 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// </summary>
     public event Action<int>? FollowSlotChanged;
 
-    /// <summary>Called by the view when a Follow-Player menu pick lands (view-layer FollowSlot has no observable).</summary>
+    /// <summary>
+    ///     THE follow funnel. Every path that changes the followed player — a card click, the camera-mode
+    ///     SplitButton submenu, the F / Shift+F keys, Esc — lands here, so there is exactly one place that
+    ///     updates <see cref="FollowedSlot" />, the per-row followed flag, the selection, and the LiveSync
+    ///     spectate chain. Passing -1 clears the follow and deliberately does NOT push a spectate change
+    ///     (there is no "spectate nobody"; the CS2 session simply keeps its last target).
+    /// </summary>
     internal void NotifyFollowSlotChanged(int slot)
     {
+        _inFollowFunnel = true;
+        try
+        {
+            FollowedSlot = slot;
+
+            PlayerAttributes? followed = null;
+            foreach (PlayerAttributes row in Attributes)
+            {
+                row.IsFollowed = row.Slot == slot;
+                if (row.IsFollowed)
+                {
+                    followed = row;
+                }
+            }
+
+            SelectedPlayer = followed;
+
+            // "requested", never "confirmed": the spectate hook is fire-and-forget with no readback.
+            FollowStatus = followed is not null ? $"following {followed.Name} · requested" : "";
+            Timeline.FollowStatus = FollowStatus;
+        }
+        finally
+        {
+            _inFollowFunnel = false;
+        }
+
         FollowSlotChanged?.Invoke(slot);
-        _context?.NotifySpectateTarget(slot);
+
+        if (slot >= 0)
+        {
+            _context?.NotifySpectateTarget(slot);
+        }
     }
+
+    /// <summary>Follows a roster slot (the camera-mode submenu and the card list both come through here).</summary>
+    [RelayCommand]
+    public void FollowPlayer(int slot)
+    {
+        if (IsFollowEnabled)
+        {
+            NotifyFollowSlotChanged(slot);
+        }
+    }
+
+    /// <summary>Clears the follow target and asks the view to re-fit the camera.</summary>
+    [RelayCommand]
+    public void ClearFollow()
+    {
+        NotifyFollowSlotChanged(-1);
+        FitRequested?.Invoke();
+    }
+
+    /// <summary>Steps the follow target through <see cref="FollowablePlayers" />; +1 next, -1 previous.</summary>
+    public void CycleFollow(int direction)
+    {
+        if (!IsFollowEnabled)
+        {
+            return;
+        }
+
+        IReadOnlyList<FollowablePlayer> players = FollowablePlayers;
+        if (players.Count == 0)
+        {
+            return;
+        }
+
+        int current = -1;
+        for (int i = 0; i < players.Count; i++)
+        {
+            if (players[i].Slot == FollowedSlot)
+            {
+                current = i;
+                break;
+            }
+        }
+
+        int step = direction >= 0 ? 1 : -1;
+        int next = current < 0
+            ? step > 0 ? 0 : players.Count - 1
+            : (current + step + players.Count) % players.Count;
+
+        NotifyFollowSlotChanged(players[next].Slot);
+    }
+
+    /// <summary>
+    ///     Dispatches a keymap action. Returns false when the action cannot be serviced right now (no
+    ///     context, no demo, feature gated off, nothing to follow) — the view then leaves the key unhandled
+    ///     so it can still reach whatever else wants it.
+    ///     <para>
+    ///         Every playback mutation below routes through <c>IModuleContext.Request*</c>, which is what
+    ///         LiveSync's <c>SyncStateObserver</c> observes; a direct write to the controller would silently
+    ///         bypass a Synced session.
+    ///     </para>
+    /// </summary>
+    public bool ExecuteAction(Playback2DAction action)
+    {
+        if (_context is not { } ctx)
+        {
+            return false;
+        }
+
+        switch (action)
+        {
+            case Playback2DAction.TogglePlay:
+                if (ctx.IsPlaying)
+                {
+                    ctx.RequestPause();
+                }
+                else
+                {
+                    ctx.RequestPlay();
+                }
+
+                return true;
+
+            case Playback2DAction.StepBack:
+                if (ctx.CurrentFrameIndex <= 0)
+                {
+                    return false;
+                }
+
+                ctx.RequestSeekToFrame(ctx.CurrentFrameIndex - 1);
+                return true;
+
+            case Playback2DAction.StepForward:
+                int next = ctx.CurrentFrameIndex + 1;
+                if (next <= 0 || (ctx.TotalFrames > 0 && next >= ctx.TotalFrames))
+                {
+                    return false;
+                }
+
+                ctx.RequestSeekToFrame(next);
+                return true;
+
+            case Playback2DAction.SpeedUp:
+                return StepSpeed(ctx, 1);
+
+            case Playback2DAction.SpeedDown:
+                return StepSpeed(ctx, -1);
+
+            case Playback2DAction.PrevRound:
+                ctx.RequestPrevEvent(_roundEventFilter);
+                return true;
+
+            case Playback2DAction.NextRound:
+                ctx.RequestNextEvent(_roundEventFilter);
+                return true;
+
+            case Playback2DAction.PrevKill:
+                PrevKill();
+                return true;
+
+            case Playback2DAction.NextKill:
+                NextKill();
+                return true;
+
+            case Playback2DAction.CycleFollowNext:
+            case Playback2DAction.CycleFollowPrev:
+                if (!IsFollowEnabled || FollowablePlayers.Count == 0)
+                {
+                    return false;
+                }
+
+                CycleFollow(action == Playback2DAction.CycleFollowNext ? 1 : -1);
+                return true;
+
+            case Playback2DAction.ClearFollow:
+                ClearFollow();
+                return true;
+
+            case Playback2DAction.FitCamera:
+                FitRequested?.Invoke();
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    // Steps within the NavStrip's speed ladder from the nearest current value. A Live Sync session without
+    // the plugin's timescale capability pins the speed: the key is consumed (so it never reaches the card
+    // list underneath) but nothing is requested, and the footer says why.
+    private bool StepSpeed(IModuleContext ctx, int direction)
+    {
+        if (ctx.IsSpeedLocked)
+        {
+            SpeedLockNote = "speed pinned by Live Sync";
+            return true;
+        }
+
+        SpeedLockNote = "";
+
+        int index = 0;
+        double best = double.MaxValue;
+        for (int i = 0; i < _speedPresets.Length; i++)
+        {
+            double distance = Math.Abs(_speedPresets[i] - ctx.Speed);
+            if (distance < best)
+            {
+                best = distance;
+                index = i;
+            }
+        }
+
+        int target = Math.Clamp(index + direction, 0, _speedPresets.Length - 1);
+        if (target != index)
+        {
+            ctx.RequestSpeed(_speedPresets[target]);
+        }
+
+        return true;
+    }
+
+    // The ListBox two-way binding lands here. Guarded against the funnel's own SelectedPlayer assignment.
+    partial void OnSelectedPlayerChanged(PlayerAttributes? value)
+    {
+        if (_inFollowFunnel)
+        {
+            return;
+        }
+
+        if (value is null)
+        {
+            ClearFollow();
+            return;
+        }
+
+        FollowPlayer(value.Slot);
+    }
+
+    private void OnFeaturesChanged() => RefreshGates();
+
+    private void RefreshGates()
+    {
+        OnPropertyChanged(nameof(IsTimelineEnabled));
+        OnPropertyChanged(nameof(IsFollowEnabled));
+        Timeline.IsVisible = IsTimelineEnabled && (_context?.HasDemo ?? false);
+
+        if (!IsFollowEnabled && FollowedSlot >= 0)
+        {
+            NotifyFollowSlotChanged(-1);
+        }
+    }
+
+    private void OnTimelineSeekRequested(int frameIndex) => _context?.RequestSeekToFrame(frameIndex);
+
+    // The floating overlay's status readout moved into the timeline footer; mirror it so the one Status
+    // string still drives it.
+    partial void OnStatusChanged(string value) => Timeline.StatusText = value;
 
     // A NEW demo was loaded while this tab is active — the roster / map / entities changed under us with no
     // Advanced push (LoadDemo resets the clock silently). Full resync so the map image, marker labels,
@@ -458,6 +802,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _tickRate = _context.TickRate > 0 ? _context.TickRate : 64;
         BuildFrame(_context.CurrentPlayers, _context.Entities, _context.CurrentFrameIndex, _context.CurrentTick);
         UpdateKillFeedWindow(_context.CurrentTick); // show the kills around the resync position immediately
+
+        // Activation and DemoReset are exactly the two moments the demo's event set can change, so the
+        // timeline is rebuilt here and nowhere else. A fresh adapter drops the previous demo's per-name cache.
+        _timelineData = new ModuleTimelineData(_context);
+        Timeline.Rebuild(_timelineData);
+        Timeline.UpdatePlayhead(_context.CurrentFrameIndex, _context.CurrentTick);
+        RefreshGates();
+
         FrameUpdated?.Invoke();
     }
 
@@ -641,6 +993,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         UpdateKillFeedWindow(snapshot.Tick);
         Status = $"2D Playback — active · frame {snapshot.FrameIndex} · " +
                  $"{_markers.Count} players · {PushCount} pushes";
+
+        // The playhead follows the shared clock's push — never a private timer — so it tracks play, step,
+        // NavStrip nav, palette jumps and LiveSync-driven seeks alike. A binary search and two sets.
+        Timeline.UpdatePlayhead(snapshot.FrameIndex, snapshot.Tick);
 
         // Mark the viewport dirty; the View coalesces this to one InvalidateVisual on the render frame.
         FrameUpdated?.Invoke();

@@ -1,0 +1,124 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:timeline="using:DemoViewer.NET.Modules.Playback2D.Timeline"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="70"
+             x:Class="DemoViewer.NET.Views.Playback2D.TimelineControl"
+             x:DataType="timeline:Playback2DTimelineViewModel"
+             Focusable="False">
+
+    <!-- Playback timeline. Three rows: a rounds band, an intra-round scrub bar carrying event markers and
+         the playhead, and a footer holding the status readout that used to float over the viewport.
+
+         Colours come exclusively from the walled-off Pb2d* HUD tokens (design-system D21) — this is HUD
+         furniture over the 2D canvas, NOT app chrome, so the app-chrome ramp must not leak in.
+
+         Item layers are plain Panels, not Canvases: each band/marker positions itself with a left Margin
+         from its own view-model, so no attached property has to be set on a generated container. -->
+    <Border Background="{DynamicResource Pb2dPanelBg}"
+            BorderBrush="{DynamicResource Pb2dHudDivider}" BorderThickness="0,1,0,0"
+            Padding="8,4">
+        <Grid RowDefinitions="18,22,18" RowSpacing="2">
+
+            <!-- ── Rounds band ─────────────────────────────────────────────────────────── -->
+            <ItemsControl Grid.Row="0" x:Name="RoundsBand" ItemsSource="{Binding Bands}" ClipToBounds="True">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <Panel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="timeline:TimelineBandViewModel">
+                        <Border HorizontalAlignment="Left" VerticalAlignment="Stretch"
+                                Margin="{Binding Offset}" Width="{Binding Width}"
+                                Background="{Binding Brush}"
+                                BorderBrush="{DynamicResource Pb2dHudDivider}" BorderThickness="0,0,1,0"
+                                ToolTip.Tip="{Binding Tooltip}"
+                                PointerPressed="OnBandPressed">
+                            <TextBlock Text="{Binding Label}" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" ClipToBounds="True"
+                                       Foreground="{DynamicResource Pb2dTextMid}"
+                                       FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- ── Scrub bar ───────────────────────────────────────────────────────────── -->
+            <Panel Grid.Row="1" x:Name="ScrubBar"
+                   Background="{DynamicResource Pb2dInfoBg}"
+                   ClipToBounds="True"
+                   AutomationProperties.Name="Playback scrub bar"
+                   PointerPressed="OnScrubPressed"
+                   PointerMoved="OnScrubMoved"
+                   PointerReleased="OnScrubReleased"
+                   PointerExited="OnScrubExited">
+
+                <Rectangle Height="3" VerticalAlignment="Center"
+                           Fill="{DynamicResource Pb2dHudDivider}" />
+
+                <ItemsControl ItemsSource="{Binding Markers}" IsHitTestVisible="True">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Panel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="timeline:TimelineMarkerViewModel">
+                            <TextBlock HorizontalAlignment="Left" VerticalAlignment="Center"
+                                       Margin="{Binding Offset}" Text="{Binding Glyph}"
+                                       Foreground="{Binding Brush}" FontSize="11"
+                                       ToolTip.Tip="{Binding Tooltip}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Playhead. Driven by the shared clock's push, never by a private timer. -->
+                <Rectangle Width="2" HorizontalAlignment="Left" VerticalAlignment="Stretch"
+                           Margin="{Binding PlayheadOffset}"
+                           Fill="{DynamicResource Pb2dTextBrightest}"
+                           IsHitTestVisible="False" />
+            </Panel>
+
+            <!-- ── Footer ──────────────────────────────────────────────────────────────── -->
+            <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,*,Auto" >
+                <TextBlock Grid.Column="0" Text="{Binding CurrentRoundLabel}" VerticalAlignment="Center"
+                           Margin="0,0,10,0" MinWidth="18"
+                           Foreground="{DynamicResource Pb2dTextBright}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                           ToolTip.Tip="Current round" />
+                <TextBlock Grid.Column="1" Text="{Binding PositionText}" VerticalAlignment="Center"
+                           Margin="0,0,10,0"
+                           Foreground="{DynamicResource Pb2dTextMid}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+                <TextBlock Grid.Column="2" Text="{Binding FollowStatus}" VerticalAlignment="Center"
+                           Margin="0,0,10,0"
+                           Foreground="{DynamicResource Pb2dPositive}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+                <TextBlock Grid.Column="3" Text="{Binding StatusText}" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource Pb2dTextDim}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+
+                <!-- Per-track toggles. A track the demo cannot feed shows no checkbox at all, rather than a
+                     dead one (design §7.6: markers only for events the demo has). -->
+                <ItemsControl Grid.Column="4" ItemsSource="{Binding Tracks}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="8" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="timeline:TimelineTrackToggle">
+                            <CheckBox Content="{Binding DisplayName}" FontSize="10"
+                                      MinHeight="0" Padding="4,0,0,0"
+                                      IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                      IsVisible="{Binding IsAvailable}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

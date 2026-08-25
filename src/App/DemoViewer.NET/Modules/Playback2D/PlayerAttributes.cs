@@ -59,6 +59,13 @@ public sealed partial class PlayerAttributes : ObservableObject
     [ObservableProperty]
     private bool _isAlive;
 
+    /// <summary>
+    ///     True for the one card the 2D camera is following. Drives the card's followed treatment and the
+    ///     "requested" chip — spectate has no readback, so the UI never claims the pick was confirmed.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isFollowed;
+
     /// <summary>Match-total kills/deaths/assists ("K/D/A") — the cumulative scoreboard stat.</summary>
     [ObservableProperty]
     private string _kda = "—";

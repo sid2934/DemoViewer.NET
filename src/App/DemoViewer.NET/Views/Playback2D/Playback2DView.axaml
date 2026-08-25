@@ -5,6 +5,7 @@
              xmlns:vm="using:DemoViewer.NET.Modules.Playback2D"
              xmlns:p2d="using:DemoViewer.NET.Modules.Playback2D"
              xmlns:controls="using:DemoViewer.NET.Controls"
+             xmlns:tl="using:DemoViewer.NET.Views.Playback2D"
              controls:TutorialAnchor.Target="PlaybackTab"
              mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="650"
              x:Class="DemoViewer.NET.Views.Playback2D.Playback2DView"
@@ -23,6 +24,17 @@
         </Style>
         <Style Selector="Border.teamChip.teamCt">
             <Setter Property="Background" Value="{DynamicResource Pb2dTeamCt}" />
+        </Style>
+
+        <!-- The followed player's card. Outline only (no fill change) so the card's existing dead/alive
+             opacity treatment still reads. "requested" is the honest word: the spectate hook is
+             fire-and-forget and CS2 never reports back which player it actually locked onto. -->
+        <Style Selector="Border.playerCard">
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.playerCard.followed">
+            <Setter Property="BorderBrush" Value="{DynamicResource Pb2dPositive}" />
         </Style>
 
         <!-- CS2 live-sync HUD indicator dot. The walled-off Pb2d sibling of the
@@ -82,12 +94,12 @@
     </UserControl.Styles>
 
     <Grid ColumnDefinitions="*,4,320">
-        <!-- Left: custom-drawn viewport (grid + markers + floor sections). -->
-        <Grid Grid.Column="0">
-            <p2d:Playback2DViewport x:Name="Viewport" />
+        <!-- Left: custom-drawn viewport (grid + markers + floor sections) over the docked timeline. -->
+        <Grid Grid.Column="0" RowDefinitions="*,Auto">
+            <p2d:Playback2DViewport Grid.Row="0" x:Name="Viewport" />
 
             <!-- Transport / status overlay (bottom-left). -->
-            <Border HorizontalAlignment="Left" VerticalAlignment="Bottom"
+            <Border Grid.Row="0" HorizontalAlignment="Left" VerticalAlignment="Bottom"
                     Margin="10" Padding="8,4"
                     Background="{DynamicResource Pb2dOverlayBg}" CornerRadius="4">
                 <StackPanel Orientation="Horizontal" Spacing="10">
@@ -121,10 +133,6 @@
                                IsVisible="False" Foreground="{DynamicResource Pb2dMapApprox}"
                                FontFamily="Consolas,Menlo,monospace" FontSize="10"
                                ToolTip.Tip="Map mode fits the all-demo observed player positions — there is no real radar X/Y metadata yet." />
-                    <TextBlock Text="{Binding Status}" VerticalAlignment="Center"
-                               Foreground="{DynamicResource Pb2dTextMid}"
-                               FontFamily="Consolas,Menlo,monospace" FontSize="11" />
-
                     <!-- Module forward-nav (Phase E): jump between kills on the shared clock. Shown only when
                          the demo carries player_death events (HasKillEvents). -->
                     <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1"
@@ -143,7 +151,7 @@
             <!-- Top-right HUD stack: the CS2 live-sync indicator sits above the kill feed (A4).
                  The whole stack is display-only (IsHitTestVisible=False) so it never eats viewport
                  pan/zoom gestures — the shell status chip is the live-sync control centre. -->
-            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10" Spacing="6"
+            <StackPanel Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10" Spacing="6"
                         IsHitTestVisible="False">
 
                 <!-- Live Sync (CS2) in-context indicator. Display-only
@@ -232,7 +240,7 @@
             <!-- Overlay-visibility toggles (A4): each viewport sub-overlay can be turned off independently.
                  Top-left (the conventional layer-toggle corner), clear of the kill feed (top-right) and the
                  transport/status bar (bottom-left). Interactive, so NOT IsHitTestVisible=False. -->
-            <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10" Padding="8,4"
+            <Border Grid.Row="0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10" Padding="8,4"
                     Background="{DynamicResource Pb2dOverlayBg}" CornerRadius="4">
                 <StackPanel Orientation="Horizontal" Spacing="9">
                     <TextBlock Text="overlays" Foreground="{DynamicResource Pb2dTextDim}" VerticalAlignment="Center"
@@ -251,6 +259,11 @@
                               ToolTip.Tip="3D line-of-sight: draws a sightline from each player to every enemy they can currently see (recomputed from map collision)" />
                 </StackPanel>
             </Border>
+
+            <!-- The playback timeline (feature-gated). The VM folds the gate AND has-demo into IsVisible;
+                 the row is Auto-sized, so an off gate leaves no layout hole. -->
+            <tl:TimelineControl Grid.Row="1" DataContext="{Binding Timeline}"
+                                IsVisible="{Binding IsVisible}" />
         </Grid>
 
         <GridSplitter Grid.Column="1" Background="{DynamicResource Pb2dGridSplitter}" Width="4" />
@@ -302,11 +315,39 @@
 
             <!-- Attributes panel. -->
             <ScrollViewer Grid.Row="1" Padding="6">
-                <ItemsControl ItemsSource="{Binding Attributes}">
-                    <ItemsControl.ItemTemplate>
+                <!-- Selection surface: picking a card follows that player in the 2D camera AND relays the
+                     pick down the existing NotifySpectateTarget -> SyncStateObserver -> SetDesiredSpectator
+                     chain. The container chrome is stripped to nothing so the card Border below renders
+                     exactly as it did under the old ItemsControl. -->
+                <ListBox ItemsSource="{Binding Attributes}"
+                         SelectedItem="{Binding SelectedPlayer, Mode=TwoWay}"
+                         SelectionMode="Single"
+                         IsEnabled="{Binding IsFollowEnabled}"
+                         Background="Transparent" BorderThickness="0" Padding="0">
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem">
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Margin" Value="0" />
+                            <Setter Property="MinHeight" Value="0" />
+                            <Setter Property="Background" Value="Transparent" />
+                            <!-- The keymap owns Up/Down (speed); a focusable container would eat them. -->
+                            <Setter Property="Focusable" Value="False" />
+                        </Style>
+                        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+                            <Setter Property="Background" Value="Transparent" />
+                        </Style>
+                        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                            <Setter Property="Background" Value="Transparent" />
+                        </Style>
+                        <Style Selector="ListBoxItem:selected:focus /template/ ContentPresenter">
+                            <Setter Property="Background" Value="Transparent" />
+                        </Style>
+                    </ListBox.Styles>
+                    <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:PlayerAttributes">
                             <Border Margin="0,0,0,6" Padding="8,6" CornerRadius="4"
                                     Background="{DynamicResource Pb2dCardBg}"
+                                    Classes="playerCard" Classes.followed="{Binding IsFollowed}"
                                     IsVisible="{Binding InMatch}"
                                     Opacity="{Binding RowOpacity}">
                                 <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto">
@@ -321,6 +362,11 @@
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource Pb2dTextBrightest}"
                                                    VerticalAlignment="Center" />
+                                        <TextBlock Text="⦿ requested" FontSize="9"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource Pb2dPositive}"
+                                                   IsVisible="{Binding IsFollowed}"
+                                                   ToolTip.Tip="Following this player - requested, not confirmed (CS2 spectating has no readback)." />
                                     </StackPanel>
 
                                     <!-- HP / Armor row. -->
@@ -399,8 +445,8 @@
                                 </Grid>
                             </Border>
                         </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                    </ListBox.ItemTemplate>
+                </ListBox>
             </ScrollViewer>
         </Grid>
     </Grid>
