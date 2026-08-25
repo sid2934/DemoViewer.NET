@@ -1260,6 +1260,22 @@ list above.
     same track agree exactly. No production defect was found behind it — the chooser is correct; the
     gate was not.
 
+18. **Nothing exercised the follow → level → pane seam end to end.** `LevelSelectionTests` pins the
+    decision in isolation with a hand-built `Scene2DFrame`; `ManualPick_SwitchesPane_AndDisablesAuto`
+    pins the strip but never follows anybody, so `Scene2DHost`'s one line joining them —
+    `_levelSelection.FollowedSlot = _mode == CameraMode.FollowPlayer && _followSlot >= 0 ? … : null` —
+    had no coverage at all, and a chooser wired to a slot that is never assigned is indistinguishable
+    from one whose dwell has not elapsed. Verified by hand through the real wiring (VM follow funnel →
+    host → selection → `SingleLayout.ActiveLevelId` → the arranged pane) and found **correct**; landed as
+    `Playback2DLevelStripTests.AutoFollow_ShowsTheFollowedPlayersFloor_AndAManualPickOverridesUntilReleased`,
+    which also covers "a manual pick holds against the followed player" and "re-arming AUTO releases it".
+    It pushes frames until the outcome holds rather than a fixed count, because the dwell is scene time
+    and the host's `dt` comes from the headless animation clock.
+
+19. **`tests/fixtures/playback2d/scenes/nuke-multilevel.scene.json` is rewritten with CRLF by every test
+    run**, leaving the worktree dirty with a content-free diff. Reproduced at `f6ae1ab`, so it is B1's,
+    not B3's — recorded here only so the next phase does not re-diagnose it or commit the noise.
+
 **Reviewer verification not turned into new tests** (all clean): the `nuke-multilevel` parity gate is
 unmoved at 99.68 % within ±8 after all four fixes; `[budget] allocation 0 B/frame` and
 `advance p99 0.002 ms` / `render p99 2.007 ms` are unchanged; `StackedRender_IsByteIdentical_AfterASingleModeRoundTrip`

@@ -200,6 +200,82 @@ public class Playback2DLevelStripTests
         });
     }
 
+    /// <summary>
+    ///     <b>The whole AutoFollow chain, through the real wiring:</b> the VM's follow funnel →
+    ///     <c>Scene2DHost._followSlot</c> → <c>LevelSelection.FollowedSlot</c> → the hysteresis dwell →
+    ///     <c>SingleLayout.ActiveLevelId</c> → the arranged pane. <c>LevelSelectionTests</c> pins the
+    ///     decision in isolation and <see cref="ManualPick_SwitchesPane_AndDisablesAuto" /> pins the
+    ///     strip, but neither involves a followed player, so nothing else catches the seam between them
+    ///     going quiet — and a level chooser wired to a followed slot that is never assigned looks
+    ///     exactly like one whose dwell has not elapsed.
+    /// </summary>
+    [Test]
+    public async Task AutoFollow_ShowsTheFollowedPlayersFloor_AndAManualPickOverridesUntilReleased()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            (Window window, Playback2DView view) =
+                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+
+            Scene2DHost host = TwoFloors(ctx, view);
+            MapLevelId lower = host.Levels.Levels[0].Id;
+            MapLevelId upper = host.Levels.Levels[^1].Id;
+            await Assert.That(host.AutoLevelFollow).IsTrue();
+
+            // Follow a player on the UPPER floor: the shown level must become theirs.
+            vm.NotifyFollowSlotChanged(2);
+            bool followed = PushUntil(ctx, () => host.ActiveLevelId == upper);
+            Console.WriteLine($"[autofollow] follow slot 2 -> active={host.ActiveLevelId} " +
+                              $"(lower={lower} upper={upper})");
+            await Assert.That(followed).IsTrue()
+                .Because("AutoFollow must reach the followed player's floor");
+
+            // In Single mode that decision is what the one arranged pane shows.
+            vm.LevelStrip.ToggleDisplayModeCommand.Execute(null);
+            Playback2DTimelineHarness.Pump(5);
+            await Assert.That(host.DisplayMode).IsEqualTo(LevelDisplayMode.Single);
+            await Assert.That(host.PaneCountForTest).IsEqualTo(1);
+            await Assert.That(host.PrimaryPaneLevelForTest).IsEqualTo(upper);
+
+            // A manual pick PINS the other floor, and keeps it while the followed player stays put.
+            vm.LevelStrip.SelectCommand.Execute(vm.LevelStrip.Chips[^1]);
+            PushUntil(ctx, () => false);
+            Console.WriteLine($"[autofollow] manual pick -> active={host.ActiveLevelId} " +
+                              $"auto={host.AutoLevelFollow} pane0={host.PrimaryPaneLevelForTest}");
+            await Assert.That(host.AutoLevelFollow).IsFalse();
+            await Assert.That(host.ActiveLevelId).IsEqualTo(lower);
+            await Assert.That(host.PrimaryPaneLevelForTest).IsEqualTo(lower);
+
+            // Releasing the pin — re-arming AUTO — hands the decision back to the followed player.
+            vm.LevelStrip.EnableAutoCommand.Execute(null);
+            bool released = PushUntil(ctx, () => host.ActiveLevelId == upper);
+            Console.WriteLine($"[autofollow] AUTO re-arm -> active={host.ActiveLevelId} " +
+                              $"pane0={host.PrimaryPaneLevelForTest}");
+            await Assert.That(released).IsTrue();
+            await Assert.That(host.PrimaryPaneLevelForTest).IsEqualTo(upper);
+
+            window.Close();
+        });
+    }
+
+    // Pushes frames until the condition holds, or the cap is reached. The AutoFollow dwell is 0.35 s of
+    // SCENE time and the host's dt comes from the headless animation clock, so a fixed pump count would
+    // be a timing bet; stopping early on the outcome is not.
+    private static bool PushUntil(Playback2DFakeContext ctx, Func<bool> done, int cap = 400)
+    {
+        for (int i = 0; i < cap; i++)
+        {
+            PushFloors(ctx, 64f, 704f, 1);
+            if (done())
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static Border Strip(Playback2DView view) =>
         view.FindControl<Border>("LevelStrip")
         ?? throw new InvalidOperationException("level strip not found");
