@@ -226,8 +226,12 @@ public static class DemoTestHelper
     ///     containing <c>DemoViewer.NET.slnx</c>. Used to locate <c>demos/</c> relative to
     ///     the repo, not relative to the build output. Returns <c>null</c> if no slnx is
     ///     found within 8 levels (defensive cap; the test assembly is typically 5–6 levels deep).
+    ///     <para>
+    ///         Public because tests other than the demo locators need it: a source-reading architecture
+    ///         or wiring test has to find the repo, not the build output.
+    ///     </para>
     /// </summary>
-    private static string? FindRepoRoot()
+    public static string? FindRepoRoot()
     {
         string? dir = AppContext.BaseDirectory;
         for (int i = 0; i < 8 && dir is not null; i++)

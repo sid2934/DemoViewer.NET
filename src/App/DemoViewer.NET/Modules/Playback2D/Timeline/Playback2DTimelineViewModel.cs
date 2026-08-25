@@ -6,6 +6,8 @@ using System.Globalization;
 using System.Text;
 using Avalonia;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DemoViewer.NET.Theming;
 
@@ -371,16 +373,16 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject
         CurrentRoundLabel = "";
     }
 
-    private static SolidColorBrush BrushForBand(TimelineBand band) =>
+    private static ImmutableSolidColorBrush BrushForBand(TimelineBand band) =>
         band.Argb != 0
-            ? new SolidColorBrush(Color.FromUInt32(band.Argb))
+            ? new ImmutableSolidColorBrush(Color.FromUInt32(band.Argb))
             : Token("Pb2dHudDivider", 0x33404A4A);
 
-    private static SolidColorBrush BrushForMarker(TimelineMarker marker)
+    private static ImmutableSolidColorBrush BrushForMarker(TimelineMarker marker)
     {
         if (marker.Argb != 0)
         {
-            return new SolidColorBrush(Color.FromUInt32(marker.Argb));
+            return new ImmutableSolidColorBrush(Color.FromUInt32(marker.Argb));
         }
 
         return marker.Kind switch
@@ -395,11 +397,25 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject
     }
 
     // Resolves a walled-off Pb2d HUD token through the central theme resolver — the same token namespace
-    // XAML's {DynamicResource} reads — falling back to the dark-theme literal when there is no running
-    // Application (pure unit tests) or the key is missing.
-    private static SolidColorBrush Token(string key, uint fallbackArgb) =>
-        new SolidColorBrush(ThemeColors.Get(key, Application.Current?.ActualThemeVariant,
-            Color.FromUInt32(fallbackArgb)));
+    // XAML's {DynamicResource} reads — falling back to the dark-theme literal when the key is missing.
+    //
+    // Two thread rules are folded in here, and both are load-bearing rather than defensive:
+    //   * the brushes are IMMUTABLE — a SolidColorBrush is an AvaloniaObject whose constructor calls
+    //     VerifyAccess(), so building one off the UI thread throws;
+    //   * Application.ActualThemeVariant is a styled property with the same affinity, hence the
+    //     CheckAccess guard before reaching for it.
+    // Together they keep the layout math (and every marker/band it builds) testable without a dispatcher,
+    // falling back to the dark-theme literal in that case.
+    private static ImmutableSolidColorBrush Token(string key, uint fallbackArgb)
+    {
+        Color fallback = Color.FromUInt32(fallbackArgb);
+        if (Application.Current is not { } app || !Dispatcher.UIThread.CheckAccess())
+        {
+            return new ImmutableSolidColorBrush(fallback);
+        }
+
+        return new ImmutableSolidColorBrush(ThemeColors.Get(key, app.ActualThemeVariant, fallback));
+    }
 }
 
 /// <summary>One laid-out point marker on the scrub bar.</summary>
