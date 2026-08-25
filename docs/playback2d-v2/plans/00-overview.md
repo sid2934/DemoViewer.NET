@@ -20,6 +20,7 @@
 | [`B5-polish-wasm.md`](B5-polish-wasm.md) | B | Feature-flag + keybind audits, `Playback2DSettings` + `WriteInMemory` flattening, WASM verification + `wasm-build` CI job, docs, old-control removal plan | Release | 1 wk |
 | [`C1-cli.md`](C1-cli.md) | C (parallel with B2–B4) | `dv2d` tool (`render`/`export`/`bench`/`golden`/`fixture`), `TrackerFrameSource`, `HeadlessSceneRenderer`, golden corpus manifest, CI golden + budget gates | Any tick → PNG in <1 s with no app launch; CI uses `dv2d` | 1 wk |
 | [`C2-gpu-provider.md`](C2-gpu-provider.md) | C | `GpuSurfaceProvider` (ANGLE/EGL), probe + override precedence, SSIM/perceptual parity, `render-backends` CI matrix, ANGLE packaging + notices | GPU export ≥ 2× realtime at 1080p; CPU parity within perceptual tolerance | 1.5 wk |
+| [`P1-perf-instrumentation.md`](P1-perf-instrumentation.md) | P (post-C, measurement only) | `ISceneProfiler` seam on `SceneCompositor`, `ScenePerfRecorder` + `PerfReport`, `--perf` on `dv2d bench`/`export`, additive `perf` JSON block | Per-layer / per-stage breakdown of an export; §6 gates unchanged with the flag off | 0.5 wk |
 
 Total ≈ 15.5 person-weeks, ~12.5 on the A+B critical path (design §9).
 
@@ -221,6 +222,13 @@ its own over `() => new EntityTracker()` and never uses `MainViewModel.CreateTra
 `FrameTimeStats`, `BudgetPolicy` (`…Pipeline.Benchmarking`). C1's `SceneBenchHarness`/
 `SceneBenchRequest`/`SceneBenchResult` are withdrawn. Budgets scale by `DV2D_BUDGET_SCALE`
 (CI 2.0); the zero-allocation assertion is never scaled.
+
+**Perf capture (P1 owns):** `ISceneProfiler` + `LayerPhase` + `PictureCacheOutcome` in
+`…Core.Compositing` (clock-free by construction — Core is banned from `Stopwatch`), attached through
+`SceneCompositor.Profiler`; `ScenePerfRecorder`, `PerfStage`, `PerfReport`, `PerfRow`, `PerfRowKind`
+in `…Pipeline.Benchmarking`, consumed by `ScenePipelineBenchmark.Perf` and `SceneExportSession.Perf`.
+Surfaced as `dv2d bench|export --perf` and an additive `perf` key on the `schema_version: 1` payload.
+Null everywhere by default; the §6 gates run with it detached.
 
 **Goldens (B0 owns the comparator, C1 the corpus):** `GoldenImageComparer`, `GoldenTolerance`
 (`ByteExact` / `DefaultPerceptual` ≡ `CrossBackend`), `GoldenComparison`, `CreateDiffPng` in

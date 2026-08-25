@@ -68,6 +68,14 @@ public sealed class SceneCompositor : IDisposable
     public SceneCompositorStats Stats { get; private set; }
 
     /// <summary>
+    ///     Optional per-layer measurement (plan <c>P1-perf-instrumentation</c> §3.1). Null on the default
+    ///     path — the whole mechanism is then one field read and one predicted branch per layer per
+    ///     phase, no clock and no allocation. See <see cref="ISceneProfiler" /> for why the timestamping
+    ///     lives on the other side of the interface rather than here.
+    /// </summary>
+    public ISceneProfiler? Profiler { get; set; }
+
+    /// <summary>
     ///     Disposes every registered layer, everything handed to <see cref="AddOwned" />, and every
     ///     cached picture. Idempotent.
     /// </summary>
@@ -194,13 +202,22 @@ public sealed class SceneCompositor : IDisposable
             return false;
         }
 
+        // Hoisted once rather than re-read per layer: with no profiler attached this is a single field
+        // read for the whole loop and a predicted null branch per layer.
+        ISceneProfiler? profiler = Profiler;
+
         bool keepArmed = false;
-        foreach (ISceneLayer layer in _layers)
+        for (int i = 0; i < _layers.Count; i++)
         {
-            if (layer.IsEnabled)
+            ISceneLayer layer = _layers[i];
+            if (!layer.IsEnabled)
             {
-                keepArmed |= layer.Advance(in time, frame);
+                continue;
             }
+
+            profiler?.BeginLayer(i, layer.Id, LayerPhase.Advance);
+            keepArmed |= layer.Advance(in time, frame);
+            profiler?.EndLayer(i, LayerPhase.Advance);
         }
 
         return keepArmed;
@@ -344,6 +361,8 @@ public sealed class SceneCompositor : IDisposable
 
     private void RenderPane(SKCanvas canvas, in SceneRenderContext ctx)
     {
+        ISceneProfiler? profiler = Profiler;
+
         for (int i = 0; i < _layers.Count; i++)
         {
             ISceneLayer layer = _layers[i];
@@ -352,15 +371,21 @@ public sealed class SceneCompositor : IDisposable
                 continue;
             }
 
-            RenderLayer(canvas, layer, in ctx);
+            profiler?.BeginLayer(i, layer.Id, LayerPhase.Render);
+            RenderLayer(canvas, layer, i, profiler, in ctx);
+            profiler?.EndLayer(i, LayerPhase.Render);
             _layersRendered++;
         }
     }
 
-    private void RenderLayer(SKCanvas canvas, ISceneLayer layer, in SceneRenderContext ctx)
+    private void RenderLayer(SKCanvas canvas, ISceneLayer layer, int index, ISceneProfiler? profiler,
+        in SceneRenderContext ctx)
     {
         if (!_options.EnablePictureCaching || layer.Cache == LayerCacheHint.Dynamic)
         {
+            // Not a miss: there is no cache in this path at all, and counting it as one would make a
+            // Dynamic layer look like a permanent cache failure.
+            profiler?.RecordPicture(index, PictureCacheOutcome.Uncached);
             layer.Render(canvas, ctx);
             return;
         }
@@ -373,6 +398,11 @@ public sealed class SceneCompositor : IDisposable
             perCamera ? ctx.Pane.CameraEpoch : 0);
 
         SKPicture? picture = _cache.Get(in key);
+
+        // The hit/miss decision the compositor was already making; reporting it computes nothing new.
+        profiler?.RecordPicture(index,
+            picture is null ? PictureCacheOutcome.Recorded : PictureCacheOutcome.Replayed);
+
         if (picture is null)
         {
             Debug.Assert(Gate is null || Gate.IsHeld, "compositor cache mutated outside the render gate");

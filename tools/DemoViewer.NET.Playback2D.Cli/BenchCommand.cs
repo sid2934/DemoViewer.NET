@@ -49,6 +49,7 @@ internal static class BenchCommand
         int frames = args.Int("frames", 2000);
         int warmup = args.Int("warmup", 128);
         bool gate = args.Flag("gate");
+        bool perf = PerfOutput.Requested(args);
         string? reportDir = args.String("report-dir");
 
         if (frames <= 0)
@@ -79,11 +80,18 @@ internal static class BenchCommand
             Id = entry?.Name ?? source.Name,
             AuthoritativeFloors = plan.AuthoritativeFloors,
             RadarBinder = plan.RadarBinder,
-            Camera = camera
+            Camera = camera,
+
+            // Sized to the measured window so the rings hold the whole run rather than its tail; the
+            // harness attaches it before the warmup, which is what allocates them outside the §6
+            // bytes/frame window.
+            Perf = perf ? new ScenePerfRecorder(Math.Max(1, frames)) : null
         };
 
         BenchmarkReport result = benchmark.Run(new PlanFrameSource(plan, source),
             new BenchmarkRequest(frames, plan.Size, warmup));
+
+        PerfReport? perfReport = benchmark.Perf?.Snapshot();
 
         List<string> violations = [];
         if (gate)
@@ -110,6 +118,13 @@ internal static class BenchCommand
         bool passed = violations.Count == 0;
         JsonObject payload = BuildPayload(plan, source, entry, result, frames, warmup, scale, budget, gate,
             violations, passed);
+
+        // Additive: one new key on the documented schema_version 1 shape, absent entirely without the
+        // flag, so nothing that reads the payload today has to change.
+        if (perfReport is not null)
+        {
+            payload["perf"] = PerfOutput.ToJson(perfReport);
+        }
 
         if (reportDir is not null)
         {
@@ -143,6 +158,11 @@ internal static class BenchCommand
             ConsoleOut.Info(string.Create(CultureInfo.InvariantCulture,
                 $"  alloc   {result.AllocatedBytesPerFrame} bytes/frame  " +
                 $"gc {result.Gen0Collections}/{result.Gen1Collections}/{result.Gen2Collections}"));
+
+            if (perfReport is not null)
+            {
+                PerfOutput.WriteHuman(perfReport);
+            }
         }
 
         foreach (string violation in violations)

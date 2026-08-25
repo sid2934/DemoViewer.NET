@@ -36,7 +36,7 @@ internal static class Program
                    [--out <file>] [--format webm|mp4|gif]   default webm
                    [--fps N] [--size WxH] [--speed X]
                    [--layers a,b] [--assets <dir>] [--no-radar]
-                   [--hud] [--no-encode] [--ffmpeg-log]
+                   [--hud] [--no-encode] [--ffmpeg-log] [--perf]
                    [--cpu | --gpu | --backend <name>] [--strict-backend]
                    [--json]
 
@@ -47,7 +47,7 @@ internal static class Program
                    [--cpu | --gpu | --backend <name>] [--strict-backend]
                    [--gate] [--budget-scale X] [--budget-p99-ms X]
                    [--budget-advance-p99-ms X] [--budget-bytes-per-frame N]
-                   [--report-dir <dir>] [--json]
+                   [--report-dir <dir>] [--perf] [--json]
 
           golden   verify | update
                    [--corpus <dir>] [--name <fixture>]
@@ -64,6 +64,11 @@ internal static class Program
                    reports the render-surface backend this machine provides, and why.
                    A CPU answer is not an error (exit 0); --require-gpu makes it exit 6,
                    and --require-hardware additionally rejects WARP / llvmpipe.
+
+        --perf (alias --profile, env CS2DEMOKIT_PROFILE / DEMOVIEWER_PROFILE) adds a
+                    per-layer and per-stage breakdown to bench and export: p50/p99/total/share
+                    per stage and per layer, picture-cache hit rates, the uncapped render-only
+                    fps, and a slowest-first ranking. Off by default and free when off.
 
         backend selection (design §5.8): --cpu | --gpu | --backend <name>, then
                     DV2D_RENDER_BACKEND, then an auto-probe. --strict-backend turns a

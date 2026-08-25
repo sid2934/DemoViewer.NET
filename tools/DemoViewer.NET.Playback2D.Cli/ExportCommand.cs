@@ -12,6 +12,7 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Playback2D.Pipeline.Benchmarking;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
@@ -69,6 +70,7 @@ internal static class ExportCommand
         // fast enough" separately from "is libvpx fast enough" — and the measurement C2 compares a GPU
         // provider against, since a GPU cannot make an encoder quicker.
         bool noEncode = args.Flag("no-encode");
+        bool perf = PerfOutput.Requested(args);
         IReadOnlyList<string>? layers = args.List("layers");
         AssetsRoot assets = AssetsRootResolver.Resolve(args);
         // ForceCpu as the bottom rung, like the golden lane above it and for the same kind of reason: an
@@ -137,7 +139,10 @@ internal static class ExportCommand
         {
             Palette = ScenePalette.Dark,
             AuthoritativeFloors = mapAssets?.Floors,
-            RadarBinder = mapAssets is null ? null : new MapRadarBinder(mapAssets)
+            RadarBinder = mapAssets is null ? null : new MapRadarBinder(mapAssets),
+
+            // Sized to the range, so a two-minute capture is the whole two minutes rather than its tail.
+            Perf = perf ? new ScenePerfRecorder(Math.Max(1, source.FrameCount)) : null
         };
 
         // ffmpeg's stderr is its normal banner plus a per-second progress line, so it is echoed only on
@@ -166,10 +171,11 @@ internal static class ExportCommand
         double elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         double demoSeconds = (frames[endFrame].ServerTick - frames[startFrame].ServerTick) / (double)tickRate;
         double realtimeRatio = elapsedMs > 0 ? demoSeconds / (elapsedMs / 1000.0) : 0;
+        PerfReport? perfReport = session.Perf?.Snapshot();
 
         if (ConsoleOut.IsJson)
         {
-            ConsoleOut.Json(new JsonObject
+            JsonObject payload = new()
             {
                 ["schema_version"] = 1,
                 ["command"] = "export",
@@ -190,7 +196,16 @@ internal static class ExportCommand
                 ["layers"] = RenderCommand.ToArray(request.LayerIds),
                 ["parse_ms"] = RenderCommand.Round(parseMs),
                 ["elapsed_ms"] = RenderCommand.Round(elapsedMs)
-            });
+            };
+
+            // Additive: one new key on the documented schema_version 1 shape, absent without the flag.
+            // It is what decomposes realtime_ratio above into the five costs that produce it.
+            if (perfReport is not null)
+            {
+                payload["perf"] = PerfOutput.ToJson(perfReport);
+            }
+
+            ConsoleOut.Json(payload);
         }
         else
         {
@@ -199,6 +214,11 @@ internal static class ExportCommand
             ConsoleOut.Info(string.Create(CultureInfo.InvariantCulture,
                 $"elapsed {elapsedMs:F0} ms (parse {parseMs:F0} ms)  render {last.FramesPerSecond:F1} fps  " +
                 $"{realtimeRatio:F2}x realtime  encoder={(noEncode ? "none" : ffmpeg.Found ? "ffmpeg" : "imagesharp-gif")}"));
+
+            if (perfReport is not null)
+            {
+                PerfOutput.WriteHuman(perfReport);
+            }
         }
 
         return ExitCode.Success;

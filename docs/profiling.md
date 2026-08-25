@@ -9,19 +9,24 @@ left anywhere).
 
 ## The single switch — `Profiling.Enabled`
 
-All profiling is gated at runtime on one flag, `DemoViewer.NET.Parser.Profiling.Enabled`, which lives
-in the Parser assembly (the lowest common layer every other project references). When it is on, the
+All profiling is gated at runtime on one flag, `CS2DemoKit.Parser.Profiling.Enabled`, which lives
+in the Parser package (the lowest common layer every other project references). When it is on, the
 parse-pipeline and entity-decode accumulators populate; when it is off they are never touched. It is
 turned on three equivalent ways:
 
 | How | When | What it does |
 |---|---|---|
-| `DEMOVIEWER_PROFILE=1` env var | at process start | `Profiling.Enabled` resolves to `true`; `ProfilingSession` also attaches the Meter + ActivitySource listeners and dumps a combined report on exit |
+| `CS2DEMOKIT_PROFILE=1` env var | at process start | `Profiling.Enabled` resolves to `true`; `ProfilingSession` also attaches the Meter + ActivitySource listeners and dumps a combined report on exit |
 | `--profile` bench flag | before the bench run | sets `Profiling.Enabled = true` and attaches the Meter + Activity listeners for the run |
 | `Profiling.Enabled = true` (API) | before a run (e.g. the Diagnostics tab) | flips the switch programmatically |
 
-`DEMOVIEWER_PROFILE` accepts `1` / `true` / `yes` (case-insensitive). Default (unset / not flipped):
+The env var accepts `1` / `true` / `yes` (case-insensitive). Default (unset / not flipped):
 everything off.
+
+> **Env-var spelling.** The switch moved into the CS2DemoKit packages, and its variable is
+> `CS2DEMOKIT_PROFILE`. This document and `RuntimeEnvInfo` still name `DEMOVIEWER_PROFILE` in places;
+> that spelling no longer flips `Profiling.Enabled` on its own. `dv2d` honours **both** (see below);
+> elsewhere, prefer `CS2DEMOKIT_PROFILE`.
 
 **Threading contract — set before the run.** `Profiling.Enabled` is read on `Parallel.For` worker
 threads (parse pass-2, the parallel digest producer). Set it *before* the run it governs begins; the
@@ -62,7 +67,7 @@ dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --profile --no
 #  → "Parse-Pipeline Profile" + "Entity-Tracking Profile" + counters + timeline blocks
 
 # Equivalently via the env var (also dumps a combined ProfilingSession report on exit):
-DEMOVIEWER_PROFILE=1 dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --no-golden
+CS2DEMOKIT_PROFILE=1 dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --no-golden
 
 # Individual runtime listeners (also work on their own, without --profile):
 dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --counters --no-golden
@@ -101,7 +106,7 @@ dotnet-trace collect --name DemoViewer.NET.Desktop \
 
 `--name` takes the process name (or use `--process-id`).
 
-### One-env-var switch — `DEMOVIEWER_PROFILE=1`
+### One-env-var switch — `CS2DEMOKIT_PROFILE=1`
 
 For an in-proc report **dumped on exit** (no external tooling), set the env var. The bench and the
 Desktop app both honor it via the shared `ProfilingSession` helper — it attaches the Meter +
@@ -112,9 +117,9 @@ no cost.
 
 ```sh
 # Bench — report prints after the run:
-DEMOVIEWER_PROFILE=1 dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --no-golden
+CS2DEMOKIT_PROFILE=1 dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --no-golden
 # Desktop app — load/analyze a demo, then close the app; the report prints to the launching terminal:
-DEMOVIEWER_PROFILE=1 dotnet run --project DemoViewer.NET.Desktop
+CS2DEMOKIT_PROFILE=1 dotnet run --project DemoViewer.NET.Desktop
 ```
 
 Notes: the report is written to `Console.Out`, so it is only visible when launched from a terminal — on
@@ -130,7 +135,29 @@ the tab's **Re-run** reuses the already-parsed `ParsedDemo` (it does not re-pars
 
 - **Entity profiling** repopulates on a **Re-run** (entity decode happens during evaluation).
 - **Parse profiling** can only capture from a load done with profiling already on — set
-  `DEMOVIEWER_PROFILE=1` at startup (or flip the switch before loading) and **reload** the demo.
+  `CS2DEMOKIT_PROFILE=1` at startup (or flip the switch before loading) and **reload** the demo.
+
+## Playback2D scene capture (`dv2d --perf`)
+
+The scene pipeline has its own per-layer / per-stage capture, because Core is banned from wall-clock
+APIs and cannot instrument itself (design §5.1). `dv2d bench --perf` and `dv2d export --perf` attach a
+recorder to `SceneCompositor`'s profiler seam and report, per stage and per layer, p50/p95/p99/total
+and share-of-frame, plus picture-cache hit rates, the uncapped render-only fps, and a slowest-first
+ranking.
+
+```sh
+# Which layer is expensive, and how fast could this scene possibly draw?
+dv2d bench --name duel-mirage-b --frames 2000 --perf
+
+# Where does an export's realtime ratio actually go — decode, raster, read-back, or the encoder?
+dv2d export --demo match.dem --from t72000 --to t79680 --size 1280x720 --fps 60 --perf --json
+```
+
+`Profiling.Enabled` (i.e. `CS2DEMOKIT_PROFILE=1`, or the legacy `DEMOVIEWER_PROFILE=1`, both of which
+`dv2d` reads) turns the scene capture on implicitly. The reverse is not true: `--perf` deliberately
+does **not** set `Profiling.Enabled`, because the tracker decode is one of the stages being timed.
+Full contract: [`playback2d-v2/dv2d.md`](playback2d-v2/dv2d.md#performance-capture---perf) and
+[`playback2d-v2/plans/P1-perf-instrumentation.md`](playback2d-v2/plans/P1-perf-instrumentation.md).
 
 ## Micro-benchmarks (`tools/EntityMicroBench`)
 
@@ -148,8 +175,8 @@ dotnet run --project tools/EntityMicroBench -c Release -- --filter '*Precompute*
 ## Reading a snapshot programmatically
 
 ```csharp
-// Turn profiling on before the run (or set DEMOVIEWER_PROFILE=1 at startup):
-DemoViewer.NET.Parser.Profiling.Enabled = true;
+// Turn profiling on before the run (or set CS2DEMOKIT_PROFILE=1 at startup):
+CS2DemoKit.Parser.Profiling.Enabled = true;
 
 // Parse pipeline (after a parse done with profiling on):
 ParseProfilingSnapshot p = ParseProfilingSnapshot.Read();   // .Enabled == false if that parse was unprofiled

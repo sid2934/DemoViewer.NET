@@ -70,6 +70,19 @@ public sealed class ScenePipelineBenchmark
     /// </summary>
     public ViewportTransform? Camera { get; set; }
 
+    /// <summary>
+    ///     Optional per-layer / per-stage capture (plan <c>P1-perf-instrumentation</c>). Null — the
+    ///     default — leaves the compositor's profiler seam unattached and the run byte-for-byte the same
+    ///     as before this existed.
+    ///     <para>
+    ///         When set, the recorder is attached <b>before</b> the warmup and
+    ///         <see cref="ScenePerfRecorder.Reset" /> afterwards, so its rings are allocated by warmup
+    ///         frames and the measured window — the one <c>AllocatedBytesPerFrame</c> reads — writes only
+    ///         into arrays that already exist. The §6 zero stays zero with capture on.
+    ///     </para>
+    /// </summary>
+    public ScenePerfRecorder? Perf { get; set; }
+
     /// <summary>Runs the benchmark.</summary>
     /// <param name="source">Frames to replay; wrapped modulo its length when the request wants more.</param>
     /// <param name="request">What to measure.</param>
@@ -101,13 +114,36 @@ public sealed class ScenePipelineBenchmark
 
         double dt = 1.0 / 64 * Math.Max(0.01, request.Speed);
 
-        // Warmup: JIT, the picture caches, the text blobs and the marker smoothing all settle here.
-        // Measuring through them would report a first-frame cost as a steady-state one.
+        ScenePerfRecorder? perf = Perf;
+        _compositor.Profiler = perf;
+
+        try
+        {
+            return RunCore(renderer, source, request, dt, perf, cancellationToken);
+        }
+        finally
+        {
+            // The compositor belongs to the caller — in the app it is the live window's stack — so a run
+            // that left a recorder attached would go on charging every subsequent frame to a report
+            // nobody is going to read.
+            _compositor.Profiler = null;
+        }
+    }
+
+    private BenchmarkReport RunCore(HeadlessSceneRenderer renderer, ISceneFrameSource source,
+        BenchmarkRequest request, double dt, ScenePerfRecorder? perf, CancellationToken cancellationToken)
+    {
+        // Warmup: JIT, the picture caches, the text blobs and the marker smoothing all settle here — and,
+        // with capture on, the recorder's rings are allocated here too. Measuring through any of it would
+        // report a first-frame cost as a steady-state one.
         for (int i = 0; i < request.WarmupFrames; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Step(renderer, source, i, dt, fitFirstFrame: Camera is null);
+            Step(renderer, source, i, dt, fitFirstFrame: Camera is null, perf);
         }
+
+        // Warmup samples are not the run. The rings and their allocation survive; the counters do not.
+        perf?.Reset();
 
         double[] advanceMs = new double[request.Frames];
         double[] renderMs = new double[request.Frames];
@@ -130,21 +166,33 @@ public sealed class ScenePipelineBenchmark
             cancellationToken.ThrowIfCancellationRequested();
 
             int index = (request.WarmupFrames + i) % source.FrameCount;
+
+            // Source is its own stage, not part of advance: on a --demo run this is the entity tracker's
+            // decode plus SceneFrameBuilder, and folding it into advance is exactly the conflation the
+            // whole capture exists to undo.
+            perf?.BeginStage(PerfStage.Source);
             Scene2DFrame frame = source.FrameAt(index);
             SceneTime time = source.TimeAt(index) with
             {
                 DeltaSeconds = dt
             };
+            perf?.EndStage(PerfStage.Source);
 
             clock.Restart();
+            perf?.BeginStage(PerfStage.Advance);
             renderer.Advance(frame, in time);
+            perf?.EndStage(PerfStage.Advance);
             clock.Stop();
             double advance = clock.Elapsed.TotalMilliseconds;
 
             clock.Restart();
+            perf?.BeginStage(PerfStage.Render);
             renderer.Render();
+            perf?.EndStage(PerfStage.Render);
             clock.Stop();
             double render = clock.Elapsed.TotalMilliseconds;
+
+            perf?.EndFrame();
 
             advanceMs[i] = advance;
             renderMs[i] = render;
@@ -171,23 +219,34 @@ public sealed class ScenePipelineBenchmark
             GC.CollectionCount(2) - gen2Before);
     }
 
+    // The warmup runs through the SAME instrumented shape as the measured loop, deliberately: that is
+    // what allocates the recorder's rings before the bytes/frame window opens.
     private static void Step(HeadlessSceneRenderer renderer, ISceneFrameSource source, int i, double dt,
-        bool fitFirstFrame)
+        bool fitFirstFrame, ScenePerfRecorder? perf)
     {
         int index = i % source.FrameCount;
+
+        perf?.BeginStage(PerfStage.Source);
         Scene2DFrame frame = source.FrameAt(index);
         SceneTime time = source.TimeAt(index) with
         {
             DeltaSeconds = dt
         };
+        perf?.EndStage(PerfStage.Source);
 
+        perf?.BeginStage(PerfStage.Advance);
         renderer.Advance(frame, in time);
+        perf?.EndStage(PerfStage.Advance);
+
         if (i == 0 && fitFirstFrame)
         {
             renderer.FitAll(frame);
         }
 
+        perf?.BeginStage(PerfStage.Render);
         renderer.Render();
+        perf?.EndStage(PerfStage.Render);
+        perf?.EndFrame();
     }
 
     private void ApplyLayerFilter(IReadOnlySet<string>? layerIds)

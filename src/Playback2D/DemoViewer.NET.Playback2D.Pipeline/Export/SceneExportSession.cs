@@ -10,6 +10,7 @@ using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Rendering;
+using DemoViewer.NET.Playback2D.Pipeline.Benchmarking;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
 
@@ -92,6 +93,21 @@ public sealed class SceneExportSession
     public bool CacheRadarResample { get; set; } = true;
 
     /// <summary>
+    ///     Optional per-stage / per-layer capture (plan <c>P1-perf-instrumentation</c>). Null — the
+    ///     default — leaves the loop byte-for-byte what it was: the compositor's profiler seam stays
+    ///     unattached and each stage costs one predicted null branch.
+    ///     <para>
+    ///         With it set the loop is decomposed into <see cref="PerfStage.Source" /> (the tracker decode
+    ///         and scene build), <see cref="PerfStage.Advance" />, <see cref="PerfStage.Render" />,
+    ///         <see cref="PerfStage.Readback" /> and <see cref="PerfStage.Encode" /> — the last of which
+    ///         is the time the render loop sits blocked on the sink's bounded channel, i.e. how far the
+    ///         encoder is behind. That decomposition is what turns one <c>realtime_ratio</c> into an
+    ///         answer.
+    ///     </para>
+    /// </summary>
+    public ScenePerfRecorder? Perf { get; set; }
+
+    /// <summary>
     ///     The layers that are off unless <see cref="ExportRequest.LayerIds" /> names them explicitly.
     ///     Both HUD layers: an export that silently burned in a scoreboard would be a surprise.
     /// </summary>
@@ -165,6 +181,9 @@ public sealed class SceneExportSession
         byte[] buffer = ArrayPool<byte>.Shared.Rent(bytes);
         SKSurface? surface = null;
 
+        ScenePerfRecorder? perf = Perf;
+        _compositor.Profiler = perf;
+
         try
         {
             Report(progress, ExportPhase.Preparing, 0, total, clock, null);
@@ -214,17 +233,34 @@ public sealed class SceneExportSession
             {
                 ct.ThrowIfCancellationRequested();
 
+                // FrameAt is the tracker's decode plus SceneFrameBuilder — on a busy demo the single
+                // largest thing in this loop, and invisible in the aggregate fps this method reports.
+                perf?.BeginStage(PerfStage.Source);
                 SceneTime time = src.TimeAt(i);
                 Scene2DFrame frame = src.FrameAt(i);
+                perf?.EndStage(PerfStage.Source);
 
+                perf?.BeginStage(PerfStage.Advance);
                 renderer.Advance(frame, in time);
+                perf?.EndStage(PerfStage.Advance);
+
+                perf?.BeginStage(PerfStage.Render);
                 renderer.Render(surface);
                 surfaces.Flush(surface);
+                perf?.EndStage(PerfStage.Render);
 
+                perf?.BeginStage(PerfStage.Readback);
                 ReadInto(surface, readInfo, buffer, (int)stride);
+                perf?.EndStage(PerfStage.Readback);
 
+                // The backpressure number. The sink's channel is bounded at four with FullMode.Wait, so
+                // whatever this await costs beyond a memcpy is the encoder being behind the renderer.
+                perf?.BeginStage(PerfStage.Encode);
                 await sink.WriteAsync(new ReadOnlyMemory<byte>(buffer, 0, bytes), width, height, ct)
                     .ConfigureAwait(false);
+                perf?.EndStage(PerfStage.Encode);
+
+                perf?.EndFrame();
 
                 done++;
                 Report(progress, ExportPhase.Rendering, done, total, clock, null);
@@ -241,6 +277,10 @@ public sealed class SceneExportSession
             surface?.Dispose();
             ArrayPool<byte>.Shared.Return(buffer);
             layers.Dispose();
+
+            // Same reason the layer scope is restored: the compositor belongs to the caller, and in the
+            // app it is the live window's stack.
+            _compositor.Profiler = null;
         }
 
         // Closing the sink is its own step rather than part of the finally above, for two reasons.

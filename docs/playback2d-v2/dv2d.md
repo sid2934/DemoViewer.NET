@@ -90,7 +90,7 @@ dv2d bench    (--fixture <path> | --name <corpusEntry> | --demo <path> [--from N
               [--cpu | --gpu | --backend <name>] [--strict-backend]
               [--gate] [--budget-scale X] [--budget-p99-ms X]
               [--budget-advance-p99-ms X] [--budget-bytes-per-frame N]
-              [--report-dir <dir>] [--json]
+              [--report-dir <dir>] [--perf] [--json]
 ```
 
 Times `Advance` and `Render` separately (Core is banned from wall-clock APIs, design §5.1 — the
@@ -103,6 +103,8 @@ slow shared runner can gate without rewriting the design's numbers; **the alloca
 scaled** — 0 is 0 everywhere.
 
 Percentiles are nearest-rank on the sorted samples, so a reported p99 is always a real observed frame.
+
+`--perf` adds the per-layer / per-stage breakdown — see [Performance capture](#performance-capture-perf).
 
 ### `dv2d fixture capture | list | verify`
 
@@ -176,6 +178,7 @@ dv2d export --demo match.dem --from t12000 --to t20000 \
 | `--out` | `dv2d-export.<format>` | Output path |
 | `--no-encode` | off | Render and read back every frame, encode nothing |
 | `--ffmpeg-log` | off | Echo ffmpeg's stderr |
+| `--perf` | off | Per-stage / per-layer breakdown — see [Performance capture](#performance-capture-perf) |
 
 `export` has no `--camera`: it frames the map. Each pane is fitted once, on the first frame that
 carries a world extent, to the map's networked bounds (falling back to the observed extent) — the
@@ -196,11 +199,62 @@ a whole-demo export is composed differently from the rest.
 `--no-encode` is the diagnostic that separates "the renderer is slow" from "libvpx is slow", and it
 is what a GPU backend should be compared against — a GPU cannot make an encoder quicker.
 
+`--perf` is what turns the single `realtime_ratio` this command reports into the five costs that
+produce it — the tracker decode, the advance, the raster, the read-back, and how long the loop sat
+blocked on the encoder's bounded frame channel. Pair it with `--no-encode` to see the renderer alone.
+
 ffmpeg comes from `PATH` only here; the in-app managed download is not offered to a headless tool.
 Without it, `--format gif` still works through the ImageSharp floor and the other two exit **2**.
 
 Ctrl+C cancels: the token reaches the session, which disposes the sink, which kills ffmpeg and
 deletes the partial output.
+
+---
+
+## Performance capture (`--perf`)
+
+`bench` and `export` accept **`--perf`** (alias `--profile`). It decomposes the frame into stages and
+per-layer rows, so "the export runs at 1.1× realtime" becomes a list of named costs. Off by default,
+and free when off: the seam is one nullable field on `SceneCompositor`, which costs a predicted
+branch per layer per phase and allocates nothing.
+
+The switch it extends is the repo's existing one. `CS2DemoKit.Parser.Profiling.Enabled` —
+`CS2DEMOKIT_PROFILE=1`, or the `DEMOVIEWER_PROFILE=1` spelling `docs/profiling.md` still carries — is
+the single process-wide runtime profiling gate; when it is on, `dv2d` captures without being asked.
+The implication is one-way: `--perf` does **not** turn that switch on, because the tracker decode is
+one of the stages being timed and its own instrumentation would perturb it.
+
+| Stage | What it measures | Where |
+|---|---|---|
+| `source` | `ISceneFrameSource.FrameAt` — the entity tracker's decode plus `SceneFrameBuilder` | both |
+| `advance` | Level derivation, pane reconciliation, cameras, every layer's `Advance` | both |
+| `render` | Clear, every layer's `Render` over every pane, surface flush | both |
+| `readback` | `SKSurface.ReadPixels` into the staging buffer | export |
+| `encode` | `IFrameSink.WriteAsync` — time **blocked** on the sink's capacity-4 bounded channel, i.e. how far the encoder is behind | export |
+
+Stages partition the frame and their shares sum to 100 %. **Layer rows are nested inside `advance`
+and `render`**, never additional to them, and carry the picture-cache verdict per layer: `replayed`
+(hit), `recorded` (miss), `uncached` (a `Dynamic` layer, where there is no cache in the path at all —
+counted apart so it does not read as a permanent cache failure).
+
+`max_render_fps` is the uncapped render-only ceiling, `1000 / p50(render)`. It is the same figure
+under `bench` (which never encodes) and under `export --no-encode` (which encodes nothing) — that
+equality is the cross-check that both harnesses are measuring one renderer.
+
+```
+  perf 7680 frames  frame p50=13.902 p99=25.115 ms  max 71.9 fps  render-only 233.1 fps
+  stage                         p50      p99   total ms   share
+  source                      7.412   16.884    59204.1   55.4%
+  advance                     0.311    0.664     2571.6    2.4%
+  render                      4.290    8.955    34989.0   32.7%
+  readback                    0.402    0.881     3226.5    3.0%
+  encode                      0.808    4.117     6976.9    6.5%
+  slowest: source 55.4%, render 32.7%, playback2d.radar (render) 14.2%, …
+```
+
+Capture itself allocates nothing per frame in steady state — the ring buffers are filled during the
+warmup — which is asserted by `ScenePerfRecorderTests` alongside the 0 B assertion for the detached
+default path. Design and rationale: [`plans/P1-perf-instrumentation.md`](plans/P1-perf-instrumentation.md).
 
 ---
 
@@ -310,6 +364,18 @@ With `--json`, **stdout carries exactly one JSON object** and every human line m
  "budget":{"scale":1.0,"render_p99_ms":8.0,"advance_p99_ms":2.0,"bytes_per_frame":0},
  "gate":{"enabled":true,"passed":true,"violations":[]},
  "metadata":{"timestamp":"…","git_commit":"…","machine":{…}}}
+
+// bench / export with --perf — ONE additive "perf" key; absent without the flag
+{"…":"…","perf":{
+  "frames":7680,
+  "frame_ms":{"p50":13.902,"p95":21.4,"p99":25.115,"max":61.2,"mean":15.1},
+  "frame_total_ms":115968.1,"max_render_fps":233.1,"max_frame_fps":71.9,
+  "stages":[{"name":"source","p50":7.412,"p95":…,"p99":16.884,"max":…,"mean":…,
+             "samples":7680,"total_ms":59204.1,"share_pct":55.4}, …],
+  "layers":[{"name":"playback2d.radar","phase":"render","p50":1.98,…,
+             "samples":7680,"total_ms":15234.9,"share_pct":14.2,
+             "cache":{"replayed":7679,"recorded":1,"uncached":0,"hit_rate":0.9999}}, …],
+  "slowest":[{"name":"source","kind":"stage","total_ms":59204.1,"share_pct":55.4}, …]}}
 
 // golden verify
 {"schema_version":1,"command":"golden","action":"verify","ok":false,"backend":"CpuRaster",
