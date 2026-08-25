@@ -3,8 +3,9 @@
 # LiveSync engine, and runs the Playback2D core+pipeline suite (direct execution: no Avalonia
 # platform, no demo, no GPU — see docs/playback2d-v2/design.md §11).
 #
-# It does NOT build the Browser/WASM head (needs the wasm-tools workload — B5 adds that job), nor
-# run the App UI suite (single-process, OOM-prone — must be batched via scripts/test-app-suite.sh),
+# The Browser/WASM head is built by the `wasm-build` job below (B5), which owns the wasm-tools
+# workload and the native relink. It does NOT run the App UI suite (single-process, OOM-prone —
+# must be batched via scripts/test-app-suite.sh),
 # nor capture Playback2D goldens from a demo (the runner has no demo files, so those cases would
 # report as skipped noise). The parser and analysis suites moved out with the libraries and now run
 # in the CS2DemoKit repo's own CI.
@@ -38,6 +39,49 @@ jobs:
 
       - name: Build Desktop head (Release)
         run: dotnet build src/App/DemoViewer.NET.Desktop -c Release
+
+  # B5's WASM regression net (docs/playback2d-v2/wasm-matrix.md). A SEPARATE job so the workload
+  # install — 2-4 min — never slows the desktop build's feedback.
+  #
+  # It PUBLISHES rather than builds, deliberately. `dotnet build` of this head succeeds even when the
+  # app cannot boot: the two ways it has actually broken are a missing native relink (a runtime
+  # DllNotFoundException for libSkiaSharp) and the ILLink pass (a trimmed publish this app cannot
+  # survive — see the Browser csproj for why it opts out). Only publish runs both. The head is
+  # otherwise executed by nobody in CI, which is exactly why the cheapest possible check is not
+  # enough.
+  wasm-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # Nerdbank.GitVersioning needs full history
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # PINNED to the SDK's own runtime-pack band. Installing the newest manifest relinks against a
+      # System.Private.CoreLib the runtime then rejects ("Your mono runtime and class libraries are
+      # out of sync") — B0 D11 finding 2, observed at manifest 10.0.111 against runtime 10.0.103.
+      # Bump this in the same commit as the SDK, never on its own.
+      - name: Install wasm-tools
+        run: dotnet workload install wasm-tools --version 10.0.103
+
+      - name: Publish Browser head (Release)
+        run: dotnet publish src/App/DemoViewer.NET.Browser -c Release -o artifacts/wasm-publish
+
+      # The boot-critical artefacts, asserted rather than eyeballed: the runtime's own wasm, the
+      # relinked native (its absence is the DllNotFoundException above), and the app assembly.
+      - name: Verify the published payload
+        run: |
+          set -e
+          FW=artifacts/wasm-publish/wwwroot/_framework
+          # Fingerprinted names (dotnet.native.<hash>.wasm), so these are patterns, not paths.
+          ls "$FW" | grep -q '^dotnet\.native\..*\.wasm$' || { echo "no relinked native runtime"; exit 1; }
+          test -f "$FW/dotnet.js" || { echo "no dotnet.js loader"; exit 1; }
+          ls "$FW" | grep -q '^DemoViewer\.NET\..*\.wasm$' || { echo "no app assembly"; exit 1; }
+          ls "$FW" | grep -q '^SkiaSharp\..*\.wasm$' || { echo "SkiaSharp did not ship"; exit 1; }
+          du -sh artifacts/wasm-publish/wwwroot
 
   # The job the rest of the Playback2D track extends: B1 added the `playback2d-budget` lane below,
   # C1 appends its CLI tests plus `dv2d golden verify --cpu` and `dv2d bench --gate`, and C2 adds the

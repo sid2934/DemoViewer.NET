@@ -215,6 +215,36 @@ public class Playback2DAnnotationPersistenceTests
         await Assert.That(controller.Session.AnchorToEntities).IsTrue();
     }
 
+    /// <summary>
+    ///     On the browser head the status line must NOT name a sidecar path. System.IO writes there land
+    ///     in the WASM runtime's in-memory virtual FS, so the store finds a "writable" location, reports
+    ///     it, and the user reads a filename as a promise the next reload breaks. Design §8: annotations
+    ///     work in session, a reload loses them, and the UI says so.
+    ///     <para>
+    ///         Found by B5's WASM verification pass on the published head — with a demo attached, the
+    ///         panel read "saving to /sample-de_nuke.dem.dvann.json" in a browser tab.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task Controller_OnBrowser_SaysTheTabForgets_RatherThanNamingAPath()
+    {
+        using TempDemo demo = new();
+
+        using AnnotationSessionController desktop =
+            new(new AnnotationStore(demo.AppData), null, static () => false);
+        await desktop.AttachDemoAsync(demo.DemoPath, demo.Clock);
+        await Assert.That(desktop.StatusText).StartsWith("saving to ")
+            .Because("a desktop user gets a real path they can find the file at");
+
+        using AnnotationSessionController browser =
+            new(new AnnotationStore(demo.AppData), null, static () => true);
+        await browser.AttachDemoAsync(demo.DemoPath, demo.Clock);
+
+        await Assert.That(browser.StatusText).DoesNotContain(".dvann.json");
+        await Assert.That(browser.StatusText).Contains("session only");
+        await Assert.That(browser.StatusText).Contains("reload");
+    }
+
     private static AnnotationElement Stroke() =>
         new(Guid.NewGuid(), AnnotationKind.Freehand, AnnotationStyle.Default, new SpaceRef.World(0),
             TimeEnvelope.Static,

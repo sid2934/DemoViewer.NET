@@ -149,8 +149,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // through it so there is exactly one code path that advances the clock: it is the
     // fan-out point + observable position state, incremental stepping, and the play loop.
 
-    // CPU/RAM perf tracking
-    private readonly Process _process = Process.GetCurrentProcess();
+    // CPU/RAM perf tracking.
+    //
+    // Null on the WASM head. System.Diagnostics.Process does not exist in a browser and
+    // Process.GetCurrentProcess() throws PlatformNotSupportedException — from a FIELD INITIALIZER, so
+    // constructing MainViewModel threw before its constructor body ran and the whole app came up black
+    // with one line in the console (`Process_PlatformNotSupported`). Found by B5's WASM verification
+    // pass, which is the first thing to actually boot the published head. There is nothing to degrade
+    // to: a browser tab has no OS process to report, and the readout it feeds is a desktop diagnostics
+    // affordance (a PID to hand to dotnet-dump), so the title simply stays the product name there.
+    private readonly Process? _process =
+        OperatingSystem.IsBrowser() ? null : Process.GetCurrentProcess();
 
     /// <summary>
     ///     This process's OS PID, shown in the window title. Exposed so the running instance can be fed
@@ -645,13 +654,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // 3.4b: WatchedValues -> HasWatched subscription moved into EntityTab's
         // constructor (both ends are now EntityTab-owned). No subscription here.
 
-        _lastCpuUse = _process.TotalProcessorTime;
-        _perfTimer = new DispatcherTimer
+        if (_process is not null)
         {
-            Interval = TimeSpan.FromSeconds(1)
-        };
-        _perfTimer.Tick += (_, _) => UpdatePerfStats();
-        _perfTimer.Start();
+            _lastCpuUse = _process.TotalProcessorTime;
+            _perfTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1)
+            };
+            _perfTimer.Tick += (_, _) => UpdatePerfStats();
+            _perfTimer.Start();
+        }
 
         _repoRoot = FindRepoRoot();
         _protoIndex = _repoRoot != null
@@ -4369,6 +4381,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void UpdatePerfStats()
     {
+        if (_process is null)
+        {
+            return; // browser: no OS process, and the timer that calls this was never started
+        }
+
         _process.Refresh();
         DateTime now = DateTime.UtcNow;
         double elapsed = (now - _lastCpuAt).TotalMilliseconds;

@@ -54,11 +54,27 @@ public sealed class AnnotationSessionController : IDisposable
     private int _lastSavedVersion = -1;
     private bool _loading;
 
+    // Injected so the browser branch of DescribeLocation is testable on a desktop runner:
+    // OperatingSystem.IsBrowser() is a JIT-folded intrinsic and cannot be faked from outside.
+    private readonly Func<bool> _isBrowser;
+
     /// <summary>Creates a controller. Every dependency is optional so a headless test needs no container.</summary>
     /// <param name="store">The sidecar store, or null to run session-only.</param>
     /// <param name="settings">The app settings service, or null to use the built-in defaults.</param>
     public AnnotationSessionController(AnnotationStore? store, SettingsService? settings)
+        : this(store, settings, OperatingSystem.IsBrowser)
     {
+    }
+
+    /// <summary>Test seam: the same controller with the host predicate injected.</summary>
+    /// <param name="store">The sidecar store, or null to run session-only.</param>
+    /// <param name="settings">The app settings service, or null to use the built-in defaults.</param>
+    /// <param name="isBrowser">Whether the host is the WASM head.</param>
+    internal AnnotationSessionController(AnnotationStore? store, SettingsService? settings,
+        Func<bool> isBrowser)
+    {
+        ArgumentNullException.ThrowIfNull(isBrowser);
+        _isBrowser = isBrowser;
         _store = store;
         _settings = settings;
 
@@ -495,6 +511,17 @@ public sealed class AnnotationSessionController : IDisposable
         if (result?.DemoMismatch == true)
         {
             return "an existing sidecar belongs to a different demo — it will not be touched";
+        }
+
+        // The browser head has no filesystem: System.IO writes land in the WASM runtime's in-memory
+        // virtual FS, which is real enough that the store finds a "writable" path and reports it — and
+        // gone the instant the tab reloads. Naming a path there is worse than saying nothing, because
+        // the user reads it as a promise. Design §8 asks for exactly this sentence: annotations work in
+        // session, a reload loses them, AND THE UI SAYS SO. Found by B5's WASM verification pass, which
+        // is what happens when somebody finally opens the published head with a demo in it.
+        if (_isBrowser())
+        {
+            return "session only — this browser tab forgets annotations when it reloads";
         }
 
         string? path = _store.ResolvePath(_demoPath);

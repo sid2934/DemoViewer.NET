@@ -1,9 +1,60 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
     <PropertyGroup>
         <TargetFramework>net10.0-browser</TargetFramework>
         <OutputType>Exe</OutputType>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <!--
+        WASM runtime configuration (docs/playback2d-v2/wasm-matrix.md).
+
+        Both properties below are what make the published head BOOT. They are stated explicitly rather
+        than inherited, because both are SDK defaults today and a default that flips takes the app with
+        it — silently, at runtime, in the one head nothing in CI executes.
+    -->
+    <PropertyGroup>
+        <!--
+            Relink the native runtime so the @(NativeFileReference) set is actually linked in.
+            libSkiaSharp.a arrives through Avalonia.Browser (and again through Playback2D.Core's
+            SkiaSharp reference, at the same 2.88.9 pin), and WITHOUT the relink the head fails at boot
+            with `System.DllNotFoundException: libSkiaSharp` out of SKImageInfo's static constructor —
+            whether or not anything of ours touches SkiaSharp, because Avalonia's own browser renderer
+            needs the same native. `dotnet build` still SUCCEEDS in that state, which is exactly why
+            B5's wasm-build CI job builds with this on rather than trusting a green build to mean
+            anything. Recorded as B0 D11 finding 1.
+        -->
+        <WasmBuildNative>true</WasmBuildNative>
+
+        <!--
+            NOT trimmed, deliberately, and this is a decision rather than an omission.
+
+            A trimmed publish fails outright today: ILLink reports ~30 IL2026 sites plus IL2104 for
+            CS2DemoKit.Parser, CS2DemoKit.Analysis and FFMpegCore. They are not incidental — they are
+            three whole mechanisms the app is built on:
+              * reflection-based System.Text.Json in eleven stores (settings, library, cache,
+                bookmarks, breakpoints, themes, module session state),
+              * ConfigurationBinder.Get<AppSettings>(), which IS the settings layer, and
+              * Avalonia's reflection ViewLocator, which resolves every view in the shell.
+            Trimming them safely means source-generated JSON contexts and a compiled ViewLocator across
+            the whole app — a program of work, not a publish flag. Forcing the publish through with
+            SuppressTrimAnalysisWarnings would produce a head that builds and then throws
+            `JsonSerializerIsReflectionDisabled` on the way up (B0 D11 finding 3 saw exactly that), which
+            is strictly worse than a larger download.
+
+            The cost is download size, and it is paid by the target that is already explicitly a
+            degraded one (design §8). Revisit when the JSON stores are source-generated; the day
+            `dotnet publish` is green with this removed is the day to remove it.
+        -->
+        <PublishTrimmed>false</PublishTrimmed>
+
+        <!--
+            Follows from the line above, said out loud: the JSON stores need reflection. The SDK ties
+            this switch to PublishTrimmed, so it is already true here — pinning it means a future
+            trimming experiment fails at BUILD time on a real trim warning instead of at boot on a
+            serializer that quietly stopped working.
+        -->
+        <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
     </PropertyGroup>
 
     <ItemGroup>
