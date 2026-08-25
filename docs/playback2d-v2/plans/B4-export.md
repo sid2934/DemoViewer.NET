@@ -1449,3 +1449,69 @@ Written at implementation time. Everything not listed here was built as the plan
     notice became **§g**. The two cross-references that named it were updated: §c's "See §e" and the
     `FFMpegCore` comment in `Directory.Packages.props`. C2's own ANGLE notice pointed at "§d" (the
     Inter font) for its licence text; corrected to §e in the same pass.
+
+### Post-merge defects (the export path, found by watching an export)
+
+30. **The HUD clock was never wired to a demo's game rules in EITHER front end — D4's "pure function
+    of tick" was satisfied by two functions that were not of the tick.** `SceneFrameBuilder` has
+    always read the round off `CCSGameRulesProxy.m_pGameRules.m_totalRoundsPlayed` and the scores off
+    the two `CCSTeam.m_iScore` entities, and `ClockLayer` has always drawn whatever its data source
+    answered. The join was the defect, twice over:
+
+    - `dv2d export --hud` built `new TimelineHudDataSource([], tickRate, static _ =>
+      ClockReading.Unknown)` — a **constant**. Every frame of every CLI export, at any point in any
+      match, read `Round —  T 0 : 0 CT`. The comment above it called this "the frame's own GameInfo,
+      projected once per tick", which was simply not what the code did.
+    - `Playback2DTabViewModel.BuildExportHud` closed over the tab's own `_frame` — the **live
+      viewport's** frame. The video therefore carried the scoreboard as it stood when Start was
+      pressed, on every frame; and because the closure was live rather than a copy, resuming playback
+      while the export rendered made the burnt-in round drift with the viewport instead of with the
+      video. `IncludeHud` defaults on, so this shipped in the default export.
+
+    The fix gives the export's own frame source the answer: `TrackerFrameSource.LastGameInfo`, stamped
+    at the end of `FrameAt`, read by both front ends' clock delegates. The ordering is safe by
+    construction — `SceneExportSession.RunAsync` is strictly `TimeAt` → `FrameAt` → `Advance` →
+    `Render` per output frame and `ClockLayer` asks during `Advance`, so the last frame built is
+    always the frame being drawn. `ExportSceneSetup.Hud` became
+    `Func<TrackerFrameSource, IHudDataSource>?` for the same reason: a *value* on that record can only
+    be built from state the tab has, and the tab does not have the export's frame.
+
+    **Why the suite missed it.** `Playback2DKillFeedTests.TheExportedClock_ProjectsTheSameGameInfoTheXamlPanelShows`
+    asserts `ClockReading.From` against a hand-built `SceneGameInfo` and, separately, that the VM
+    publishes a `GameInfo` — both true, neither executing the closure that joins them. Deviation 7's
+    reasoning (no HUD golden PNGs; pin the *content* instead) is still right, but the content was
+    pinned one level below the bug. The new cases execute the production delegates:
+    `ExportHudClockTests` (CLI, `ExportCommand.BuildHud` made `internal` so the test cannot rebuild a
+    look-alike that would have passed against the constant) and `Playback2DExportHudSourceTests`
+    (App, asserting the reading is the SOURCE's while the live viewport is pushed forward underneath
+    it). Both fail on the pre-fix closures.
+
+    **Still open:** the CLI's kill feed. `TimelineHudDataSource` gets `[]` for its rows, because kill
+    rows come from a parsed event timeline the App builds off `AllGameEvents` and `dv2d` has no
+    equivalent. `--hud` on the CLI now draws a **true clock over an empty feed**; the code comment and
+    `dv2d.md`'s limitations table say so rather than claiming the whole HUD is a layout check.
+
+31. **Every export was framed by `WorldBounds.Default`, the ±3000 placeholder.** `PaneSet.Reconcile`
+    fits a newly appeared level to the extent it is handed, and on frame one that extent is whatever
+    the frame carries before anything has been read — the placeholder. Nothing in the export path
+    ever re-framed it afterwards: `CameraScriptResolver` holds transforms keyed by `MapLevelId` and
+    the *default* script is an empty `Fixed` in both front ends (the CLI never had a `--camera` for
+    `export`, and the App falls back to empty without a mounted v2 surface), `SceneExportSession` sets
+    `AdvanceCameras = false` so no rig steps, and `FitAll` was never called. The live window has the
+    step this was missing — `Scene2DHost`'s one-shot "auto-fit once real positions exist" — and the
+    headless renderer simply did not.
+
+    de_nuke exports looked plausible and hid it: two stacked bands halve each pane's height, which
+    halves the fit scale, which happened to land near the map. A one-band map does not get that
+    coincidence — a 1280×720 de_inferno export was clipped off three edges of the frame.
+
+    `HeadlessSceneRenderer.AutoFitOnFirstMapBounds` is the offscreen twin of the host's fit:
+    **opt-in** (a golden's and a `dv2d render`'s camera is data, and a fit would silently re-baseline
+    the corpus), set only by `SceneExportSession`, and applied immediately after `Panes.Reconcile` and
+    **before** the `Camera` pin and `CameraPolicy.Apply` — so a pinned camera or "mirror the live
+    view" still has the last word on the same frame. The birth extent passed to `Reconcile` also
+    became `NetworkedBounds ?? ObservedBounds`, so a level born mid-export (a player taking the lift
+    on Nuke) is fitted to the map rather than to how far the players have wandered. New coverage:
+    `ExportInitialFitTests`, including the negative control (flag off → the placeholder framing
+    survives, which is the shipped bug) and the explicit-camera-wins case. Every committed golden is
+    unchanged: they pin `Camera`, which is applied after the fit.
