@@ -54,7 +54,17 @@ public class Playback2DGoldenCaptureTests
     [Test]
     public async Task Nuke_TwoFloors_MatchesGolden() =>
         await CaptureAndCompare("nuke-multilevel",
-            ["003816306022075596881_1029495947.dem", "match730_003826256877184877003_0981591541_410.dem"]);
+            [
+                "003816306022075596881_1029495947.dem",
+                "match730_003826256877184877003_0981591541_410.dem",
+
+                // Repo-relative, and therefore present in EVERY checkout and on CI: the bundled tour
+                // sample is the first 3 rounds of a pro de_nuke GOTV demo (docs/tour-sample-demo.md),
+                // trimmer-verified and app-loadable. DemoTestHelper does not search assets/tour, so
+                // without this entry the one fixture that most needs a two-floor map — and with it
+                // B1's whole parity gate — would sit empty waiting on a demo nobody has staged.
+                "assets/tour/sample-de_nuke.dem"
+            ]);
 
     [Test]
     public async Task Dust2_RoundStart_MatchesGolden() =>
@@ -64,14 +74,18 @@ public class Playback2DGoldenCaptureTests
     ///     The corpus root, resolved by walking up to the directory holding
     ///     <c>DemoViewer.NET.slnx</c>. The captures write into the repo, not into the build output.
     /// </summary>
-    internal static string CorpusRoot()
+    internal static string CorpusRoot() =>
+        Path.Combine(RepoRoot(), "tests", "fixtures", "playback2d");
+
+    /// <summary>The directory holding <c>DemoViewer.NET.slnx</c>, found by walking up from the binaries.</summary>
+    private static string RepoRoot()
     {
         DirectoryInfo? dir = new(AppContext.BaseDirectory);
         while (dir is not null)
         {
             if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
             {
-                return Path.Combine(dir.FullName, "tests", "fixtures", "playback2d");
+                return dir.FullName;
             }
 
             dir = dir.Parent;
@@ -81,12 +95,32 @@ public class Playback2DGoldenCaptureTests
                                             AppContext.BaseDirectory);
     }
 
+    /// <summary>
+    ///     Resolves one demo candidate. A bare file name goes through the usual
+    ///     <see cref="DemoTestHelper" /> search (<c>DEMO_PATH</c> → <c>TestData/</c> →
+    ///     <c>demos/benchmarks/</c> → <c>demos/</c>); a candidate containing a separator is treated as
+    ///     repo-relative, which is how a demo committed to the tree (rather than staged by a developer)
+    ///     is reachable. Returns null when neither locates a file.
+    /// </summary>
+    /// <param name="candidate">A bare demo file name, or a repo-relative path.</param>
+    private static string? ResolveDemo(string candidate)
+    {
+        if (candidate.Contains('/', StringComparison.Ordinal) ||
+            candidate.Contains('\\', StringComparison.Ordinal))
+        {
+            string absolute = Path.Combine(RepoRoot(), candidate.Replace('/', Path.DirectorySeparatorChar));
+            return File.Exists(absolute) ? absolute : null;
+        }
+
+        return DemoTestHelper.FindDemoPath(candidate);
+    }
+
     private static async Task CaptureAndCompare(string name, IReadOnlyList<string> demoCandidates)
     {
         string? path = null;
         foreach (string candidate in demoCandidates)
         {
-            path = DemoTestHelper.FindDemoPath(candidate);
+            path = ResolveDemo(candidate);
             if (path is not null)
             {
                 break;
