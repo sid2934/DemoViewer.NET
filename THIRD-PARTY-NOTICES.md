@@ -59,3 +59,52 @@ unaffiliated with Valve. No game assets are redistributed in the packages.
 This project depends on the following NuGet packages, each under its own license, resolved
 via NuGet and not reproduced here: Google.Protobuf, Snappier, YamlDotNet,
 Microsoft.Extensions.Logging.Abstractions, CS2OpenDev.Sdk.
+
+## d. ANGLE (BSD-3-Clause)
+
+The Windows build links ANGLE (`av_libglesv2.dll`) **in-process** to create windowless EGL /
+OpenGL ES contexts for GPU-accelerated offscreen rendering (2D playback video export and headless
+rendering — see `docs/playback2d-v2/design.md` §5.8). The binary is redistributed exactly as
+published in the `Avalonia.Angle.Windows.Natives` NuGet package, built from
+<https://github.com/AvaloniaUI/angle> (commit `cb8b4e1307a9d8f5ff56b8c5973bea4158ffead8`).
+Upstream project: <https://github.com/google/angle>.
+
+Because the linkage is in-process rather than a separate program, the obligation is to reproduce
+the copyright notice, the licence conditions and the disclaimer — which this section does. Nothing
+is bundled on Linux or macOS: there, EGL (when present at all) is a system library supplied by the
+driver stack, and its absence simply makes the probe fall back to the CPU provider.
+
+```
+Copyright 2018 The ANGLE Project Authors.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+    Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+
+    Redistributions in binary form must reproduce the above
+    copyright notice, this list of conditions and the following
+    disclaimer in the documentation and/or other materials provided
+    with the distribution.
+
+    Neither the name of TransGaming Inc., Google Inc., 3DLabs Inc.
+    Ltd., nor the names of their contributors may be used to endorse
+    or promote products derived from this software without specific
+    prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+```

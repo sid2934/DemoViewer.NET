@@ -33,6 +33,23 @@
              would silently re-baseline every golden. The CI job installs its one system dependency:
              `sudo apt-get install -y libfontconfig1`. -->
         <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="2.88.9"/>
+        <!-- ANGLE (EGL + GLES2 over D3D11) native binaries — the windowless GPU render-surface backend
+             (docs/playback2d-v2/design.md §5.8, plans/C2-gpu-provider.md §8.1).
+
+             This is ALREADY in the desktop graph: Avalonia.Win32 11.3.12 depends on exactly this
+             version, and the Desktop publish has been shipping av_libglesv2.dll all along. The explicit
+             entry exists so projects that do NOT reference Avalonia (the Playback2D test project, and
+             C1's dv2d CLI) get the same DLL.
+
+             PINNED, NOT FLOATED: the version must equal what the pinned Avalonia.Win32 depends on, or
+             the app would load two different ANGLE builds. Bump it only in the same commit as an
+             Avalonia bump, after re-reading avalonia.win32.nuspec. A lone dependabot bump of this
+             package is a defect, exactly like a lone SkiaSharp bump above.
+
+             License: BSD-3-Clause (The ANGLE Project Authors) — see THIRD-PARTY-NOTICES.md §d. Unlike
+             ffmpeg this is LINKED IN-PROCESS, so the "separate programs" posture does not apply; the
+             obligation is reproducing the notice, which §d does. -->
+        <PackageVersion Include="Avalonia.Angle.Windows.Natives" Version="2.1.25547.20250602"/>
         <PackageVersion Include="Msagl" Version="1.2.1"/>
         <PackageVersion Include="YamlDotNet" Version="16.3.0"/>
         <!--

@@ -21,6 +21,12 @@
         <!-- Native Skia for Linux CI runners; a harmless no-op elsewhere (SkiaSharp resolves the
              platform native it actually needs at load time). -->
         <PackageReference Include="SkiaSharp.NativeAssets.Linux"/>
+        <!-- ANGLE, for the windowless GPU provider the C2 suites exercise. This project deliberately
+             references no Avalonia, so it does not inherit av_libglesv2.dll the way the Desktop head
+             does. Native assets only — no managed assembly — so ArchitectureTests' "Core references
+             only SkiaSharp" rule and SceneSmokeRenderTests' "no Avalonia* assembly is loaded" rule are
+             both untouched by construction: both read ASSEMBLY metadata, and this package ships none. -->
+        <PackageReference Include="Avalonia.Angle.Windows.Natives"/>
     </ItemGroup>
 
     <ItemGroup>
