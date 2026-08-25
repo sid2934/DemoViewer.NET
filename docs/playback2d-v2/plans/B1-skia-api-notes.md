@@ -94,6 +94,15 @@ Note also that `SKFont.BaselineSnap` defaults to **true**, so the drawn baseline
 pixel. Sub-pixel vertical placement is not available and is not wanted: it is what keeps a row of
 labels on one line.
 
+**Consequence for tests that measure rasterised ink.** Because the placement is line-box based and the
+baseline snaps, a glyph-ink bounding box is *not* exactly centred on the point the text was centred on,
+even when the placement is right. At `MarkerLabelSize` (10 px) with the embedded Inter the measured
+terms are: **−0.364 px** structural (the line box is centred, but cap-height ink with no descender does
+not fill it symmetrically), **±0.5 px** baseline snap, **±0.5 px** box quantisation, and up to
+**0.446 px** of side-bearing asymmetry horizontally. Any assertion of the form "the rasterised ink
+centre is the disc centre" needs a ~1.4 px budget — see `B1-compositor-port.md` deviation 29. When an
+exact number is wanted, assert against the *analytic* `Advance`/`Ascent`/`Descent` instead.
+
 ### Arcs (`BombLayer`, T7)
 
 ```csharp

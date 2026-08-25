@@ -20,6 +20,14 @@ public class SceneLayerTests
 {
     private static readonly SKSizeI _size = new(200, 200);
 
+    /// <summary>
+    ///     Error budget for comparing a <b>rasterised</b> ink bounding box against the point the text was
+    ///     centred on: -0.364 px structural (line-box centring vs cap-height ink), ±0.5 px baseline snap,
+    ///     ±0.5 px bounding-box quantisation, and up to 0.446 px of side-bearing asymmetry horizontally.
+    ///     See <see cref="MarkerLayer_LabelInk_IsCentredOnTheDisc" />.
+    /// </summary>
+    private const float InkCentreTolerancePx = 2f;
+
     [Test]
     public async Task RadarLayer_WithNoImage_FallsBackToTheGrid()
     {
@@ -178,9 +186,26 @@ public class SceneLayerTests
     ///         differences, and exactly the kind of thing a pixel count cannot see.
     ///     </para>
     ///     <para>
-    ///         Four labels of very different widths, because a fix that centred the ink box per string
+    ///         Six labels of very different widths, because a fix that centred the ink box per string
     ///         would also pass on one of them — and the disc is drawn <b>off</b> the pane's midpoint, so
-    ///         an error that happens to cancel at the centre still shows.
+    ///         an error that happens to cancel at the centre still shows. <c>MM</c> and <c>il</c> are the
+    ///         worst side-bearing cases in the set.
+    ///     </para>
+    ///     <para>
+    ///         <b>Why the tolerance is <see cref="InkCentreTolerancePx" /> and not a pixel.</b> Ink
+    ///         centre and disc centre are not the same point even when the placement is exactly right,
+    ///         and the gap is three measured terms: the label is centred on the font's <b>line box</b>
+    ///         (which is what the pre-v2 control did, and what parity requires), so cap-height ink with
+    ///         no descender sits a structural <b>-0.364 px</b> high at this size; <c>SKFont.BaselineSnap</c>
+    ///         is on, so the drawn baseline rounds to a whole pixel (±0.5 px); and a rasterised bounding
+    ///         box quantises to whole pixels (±0.5 px). That is a ~1.36 px budget vertically and ~0.95 px
+    ///         horizontally (<c>MM</c> carries a -0.446 px side-bearing asymmetry), so a 1 px gate has
+    ///         ~0.16 px of headroom and would flip on any Skia build that rounds a glyph's edge row
+    ///         differently. The bug this guards against was <b>4.2-6.2 px</b>, so the wider gate still
+    ///         catches it with more than double the margin. The quantisation-free statement of the same
+    ///         property — that the advance box lands exactly on the point — is
+    ///         <c>TextBlobCacheTests.OriginForCentre_PutsTheInkOnThePoint</c>; this test's job is that
+    ///         the real layer wires that up.
     ///     </para>
     /// </summary>
     /// <param name="label">The initials to draw.</param>
@@ -189,6 +214,8 @@ public class SceneLayerTests
     [Arguments("WW")]
     [Arguments("7")]
     [Arguments("10")]
+    [Arguments("MM")]
+    [Arguments("il")]
     public async Task MarkerLayer_LabelInk_IsCentredOnTheDisc(string label)
     {
         const float worldX = 120f, worldY = -260f;
@@ -222,8 +249,8 @@ public class SceneLayerTests
                           $"centre=({inkCentreX:F2},{inkCentreY:F2}) " +
                           $"offset=({inkCentreX - discX:F2},{inkCentreY - discY:F2})");
 
-        await Assert.That(inkCentreX).IsEqualTo((float)discX).Within(1f);
-        await Assert.That(inkCentreY).IsEqualTo((float)discY).Within(1f);
+        await Assert.That(inkCentreX).IsEqualTo((float)discX).Within(InkCentreTolerancePx);
+        await Assert.That(inkCentreY).IsEqualTo((float)discY).Within(InkCentreTolerancePx);
     }
 
     /// <summary>Parity invariant 8: below half a degree the arc collapses and is skipped entirely.</summary>

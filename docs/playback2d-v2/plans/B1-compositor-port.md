@@ -1638,7 +1638,23 @@ with a regression test that fails without the fix.
     `.OriginForCentre_PutsTheInkOnThePoint` (4 labels), and — the one that would have caught this —
     `SceneLayerTests.MarkerLayer_LabelInk_IsCentredOnTheDisc`, which diffs a labelled against an
     unlabelled render to get an exact glyph-ink mask and asserts its bounding box is centred on the
-    disc within 1 px. Measured offset after the fix: `(−0.08, −0.84)` px for all four labels.
+    disc. Measured offsets after the fix, over six labels and four disc positions: worst
+    `dx = 0.58`, `dy = 0.84` px (was 4.2–6.2 px left before).
+
+    **Tolerance: 2 px, not 1 (review correction).** A rasterised ink box and the point the text was
+    centred on are not the same point even when placement is exactly right, and the gap is three
+    *measured* terms: labels are centred on the font's **line box** (what the pre-v2 control did, and
+    what parity requires), so cap-height ink with no descender sits a structural **−0.364 px** high at
+    `MarkerLabelSize`; `SKFont.BaselineSnap` is on, so the drawn baseline rounds to a whole pixel
+    (±0.5 px); and the bounding box quantises to whole pixels (±0.5 px). That is a ~1.36 px budget
+    vertically and ~0.95 px horizontally (`MM` carries a −0.446 px side-bearing asymmetry). The
+    original 1 px gate left ~0.16 px of headroom and would flip on any Skia build that rounds a
+    glyph's edge row differently — a latent cross-platform CI failure. At 2 px the gate still catches
+    the 4.2–6.2 px bug with more than double the margin, and `MM`/`il` (the worst side-bearing cases)
+    were added to the argument set, so coverage is strictly wider than before. The
+    quantisation-free statement of the same property is
+    `TextBlobCacheTests.OriginForCentre_PutsTheInkOnThePoint`, which works on analytic metrics and
+    needs no such budget; this test's job is only that the real layer wires it up.
 
     **Corpus.** Only `nuke-single-upper@900x900` and `nuke-multilevel-noradar@900x900` moved; both are
     v2-owned (`LevelGoldenTests`) and were re-baselined. The synthetic family renders `DebugGridLayer`
