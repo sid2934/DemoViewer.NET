@@ -273,23 +273,25 @@ public static class Playback2DKeymap
         new(Playback2DAction.ClearFollow, Key.Escape, KeyModifiers.None, Playback2DBindingScope.Always,
             "Clear the follow target and re-fit the camera", false),
 
-        // ── Reserved: declared so the conflict checker guards them; bound by B2/B3. ──
-        new(Playback2DAction.FitCamera, Key.Home, KeyModifiers.None, Playback2DBindingScope.Always,
-            "Fit the camera to the map (reserved)", true),
+        // ── Annotations (declared by A1, BOUND by B2). ──
         new(Playback2DAction.ToolDraw, Key.D, KeyModifiers.None, Playback2DBindingScope.Always,
-            "Draw tool (reserved for annotations)", true),
+            "Draw tool (press again for pan)", false),
         new(Playback2DAction.ToolErase, Key.X, KeyModifiers.None, Playback2DBindingScope.Always,
-            "Erase tool (reserved for annotations)", true),
+            "Erase tool (press again for pan)", false),
         new(Playback2DAction.Undo, Key.Z, KeyModifiers.Control, Playback2DBindingScope.Always,
-            "Undo (reserved for annotations)", true),
+            "Undo the last annotation edit", false),
         new(Playback2DAction.Redo, Key.Z, KeyModifiers.Control | KeyModifiers.Shift,
-            Playback2DBindingScope.Always, "Redo (reserved for annotations)", true),
+            Playback2DBindingScope.Always, "Redo the last undone annotation edit", false),
         new(Playback2DAction.ClearAnnotations, Key.X, KeyModifiers.Control, Playback2DBindingScope.Always,
-            "Clear all annotations (reserved)", true),
+            "Clear every annotation", false),
         new(Playback2DAction.HoldPan, Key.Space, KeyModifiers.None, Playback2DBindingScope.WhenToolActive,
-            "Hold to pan while a tool is active (reserved)", true),
+            "Hold to pan while a drawing tool is active", false),
         new(Playback2DAction.CancelGesture, Key.Escape, KeyModifiers.None,
-            Playback2DBindingScope.WhenToolActive, "Cancel the in-progress gesture (reserved)", true)
+            Playback2DBindingScope.WhenToolActive, "Cancel the in-progress gesture", false),
+
+        // ── Reserved: declared so the conflict checker guards them; bound by B3. ──
+        new(Playback2DAction.FitCamera, Key.Home, KeyModifiers.None, Playback2DBindingScope.Always,
+            "Fit the camera to the map (reserved)", true)
     ];
 
     // Mirrors MainView.axaml's UserControl.KeyBindings block. Playback2DKeybindConflictTests asserts this

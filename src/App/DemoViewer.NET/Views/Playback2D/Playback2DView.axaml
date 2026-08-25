@@ -101,6 +101,13 @@
                  satisfy IPlayback2DSurface, so everything below drives either one. -->
             <ContentControl Grid.Row="0" x:Name="ViewportHost" />
 
+            <!-- Annotation toolbar (top-left), mirroring the transport overlay's chrome in the opposite
+                 corner. Hidden entirely when the playback2d.annotations feature is off — the gate must
+                 remove the surface, not merely disable it. -->
+            <tl:AnnotationToolbar Grid.Row="0" x:Name="AnnotationToolbarHost"
+                                  HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10"
+                                  DataContext="{Binding Annotations}" />
+
             <!-- Transport / status overlay (bottom-left). -->
             <Border Grid.Row="0" HorizontalAlignment="Left" VerticalAlignment="Bottom"
                     Margin="10" Padding="8,4"

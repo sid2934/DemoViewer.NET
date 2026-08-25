@@ -1,0 +1,95 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Playback2D"
+             mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="40"
+             x:Class="DemoViewer.NET.Views.Playback2D.AnnotationToolbar"
+             x:DataType="vm:AnnotationsPanelViewModel">
+
+    <!-- The annotation toolbar: tool picker, ink style, envelope defaults, undo/redo.
+         Chrome mirrors the transport overlay in the opposite corner (Pb2dOverlayBg on a 4px radius),
+         so the two read as one HUD rather than two unrelated widgets. -->
+    <!-- Gated off, the whole toolbar is REMOVED, not merely disabled: a disabled draw button still says
+         "this app can draw here", which is the opposite of what the gate means. The binding lives here
+         rather than on the mounting element so it evaluates against this control's own DataContext. -->
+    <Border Background="{DynamicResource Pb2dOverlayBg}" CornerRadius="4" Padding="8,4"
+            IsVisible="{Binding IsEnabled}">
+        <StackPanel Orientation="Vertical" Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+
+                <!-- Tools. ToggleButtons rather than RadioButtons: the same key that selects a tool
+                     toggles back to pan, and a RadioButton group cannot express "none of us". -->
+                <ToggleButton x:Name="PanTool" Padding="8,2" Content="✋"
+                              IsChecked="{Binding IsPanZoomSelected, Mode=OneWay}"
+                              Command="{Binding SelectPanZoomCommand}"
+                              ToolTip.Tip="Pan / zoom" />
+                <ToggleButton x:Name="DrawTool" Padding="8,2" Content="✎"
+                              IsChecked="{Binding IsDrawSelected, Mode=OneWay}"
+                              Command="{Binding SelectDrawCommand}"
+                              ToolTip.Tip="Draw (D) — hold Space to pan, Esc to cancel" />
+                <ToggleButton x:Name="EraseTool" Padding="8,2" Content="⌫"
+                              IsChecked="{Binding IsEraseSelected, Mode=OneWay}"
+                              Command="{Binding SelectEraseCommand}"
+                              ToolTip.Tip="Erase whole strokes (X)" />
+
+                <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1" />
+
+                <!-- Ink colour. The live swatch is what the user actually reads at a glance; the picker
+                     behind it is for the once-a-session change. -->
+                <ColorPicker x:Name="InkColorPicker" Width="46" Height="24"
+                             Color="{Binding InkColor, Mode=TwoWay}"
+                             ToolTip.Tip="Ink colour" />
+
+                <TextBlock Text="w" Foreground="{DynamicResource Pb2dTextDim}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center" />
+                <Slider x:Name="WidthSlider" Width="90" Minimum="1" Maximum="48"
+                        Value="{Binding InkWidth, Mode=TwoWay}" VerticalAlignment="Center"
+                        ToolTip.Tip="Stroke width, in world units — ink zooms with the map" />
+
+                <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1" />
+
+                <!-- Visibility envelope. "Pin to now" is the one-click path: it switches to Fade and
+                     re-times the stroke just drawn to open at the playhead. -->
+                <ComboBox x:Name="VisibilityBox" Width="94" SelectedIndex="{Binding VisibilityIndex, Mode=TwoWay}"
+                          ToolTip.Tip="When new annotations are visible">
+                    <ComboBoxItem Content="Always" />
+                    <ComboBoxItem Content="Fade" />
+                    <ComboBoxItem Content="Custom" />
+                </ComboBox>
+                <Button x:Name="PinToNowButton" Content="Pin to now" Padding="8,2"
+                        Command="{Binding PinToNowCommand}"
+                        ToolTip.Tip="Anchor the newest annotation to the current tick and fade it out" />
+
+                <CheckBox x:Name="AnchorToggle" Content="Track player"
+                          IsChecked="{Binding AnchorToEntities, Mode=TwoWay}"
+                          ToolTip.Tip="Strokes started on a player follow them by SteamId" />
+
+                <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1" />
+
+                <Button x:Name="UndoButton" Content="↶" Padding="8,2"
+                        Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}"
+                        ToolTip.Tip="Undo (Ctrl+Z)" />
+                <Button x:Name="RedoButton" Content="↷" Padding="8,2"
+                        Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}"
+                        ToolTip.Tip="Redo (Ctrl+Shift+Z)" />
+                <Button x:Name="ClearAllButton" Content="Clear" Padding="8,2"
+                        Command="{Binding ClearAllCommand}"
+                        ToolTip.Tip="Clear every annotation (Ctrl+X) — one undo entry" />
+            </StackPanel>
+
+            <!-- Persistence + identity status. One line, always honest about where the ink lives. -->
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock x:Name="StatusLabel" Text="{Binding StatusText}"
+                           Foreground="{DynamicResource Pb2dTextDim}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="420" />
+                <TextBlock x:Name="ClockWarning" Text="⚠ different parse"
+                           Foreground="{DynamicResource Pb2dTeamT}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                           VerticalAlignment="Center" IsVisible="{Binding ClockMismatch}"
+                           ToolTip.Tip="These annotations were authored against a different parse of this demo — time anchors may be off. Static annotations are unaffected." />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

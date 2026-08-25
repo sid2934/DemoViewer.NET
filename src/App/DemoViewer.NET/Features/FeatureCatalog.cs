@@ -144,6 +144,10 @@ public static class FeatureCatalog
         // their own rows HERE (final order: annotations · timeline · levels.auto · follow · export) — the ids
         // are persisted override keys and must never be renamed.
         new(
+            "playback2d.annotations", FeatureScope.SubFeature, "Annotations",
+            "Draw and erase over the 2D playback surface; static or clock-anchored.",
+            "tab.playback2d", null, false, Defaults(true, true, true)),
+        new(
             "playback2d.timeline", FeatureScope.SubFeature, "Playback timeline",
             "Scrubbable round / kill / bomb timeline under the 2D playback view.",
             "tab.playback2d", null, false, Defaults(true, true, true)),

@@ -26,4 +26,7 @@ public static class SceneLayerIds
 
     /// <summary>Per-band floor caption.</summary>
     public const string FloorLabel = "playback2d.floorlabel";
+
+    /// <summary>User ink: dry, animated and wet annotation strokes (B2).</summary>
+    public const string Annotations = "playback2d.annotations";
 }

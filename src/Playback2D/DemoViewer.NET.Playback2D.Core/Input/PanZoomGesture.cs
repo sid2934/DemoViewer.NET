@@ -43,8 +43,21 @@ public sealed class PanZoomGesture
     public bool Press(PaneSet panes, float x, float y)
     {
         ArgumentNullException.ThrowIfNull(panes);
+        return Press(panes.PaneAt(x, y), x, y);
+    }
 
-        _pane = panes.PaneAt(x, y);
+    /// <summary>
+    ///     Begins a drag on a pane the caller has already hit-tested. B2's <c>PanZoomTool</c> takes this
+    ///     overload: the router resolves the pane once per event and hands it to whichever tool owns the
+    ///     gesture, so re-running the hit test here would be both redundant and a second answer.
+    /// </summary>
+    /// <param name="pane">The pane under the cursor, or null.</param>
+    /// <param name="x">Host X.</param>
+    /// <param name="y">Host Y.</param>
+    /// <returns>True when a pane was captured.</returns>
+    public bool Press(LevelPane? pane, float x, float y)
+    {
+        _pane = pane;
         _lastX = x;
         _lastY = y;
         return _pane is not null;
@@ -90,8 +103,23 @@ public sealed class PanZoomGesture
     public bool Wheel(PaneSet panes, float x, float y, double delta)
     {
         ArgumentNullException.ThrowIfNull(panes);
+        return Wheel(panes.PaneAt(x, y), x, y, delta);
+    }
 
-        if (panes.PaneAt(x, y) is not { } pane)
+    /// <summary>
+    ///     Zooms a pane the caller has already hit-tested, about the host-space cursor position. The
+    ///     overload B2's router calls (wheel is router-level, never a tool member — plan decision D2).
+    /// </summary>
+    /// <param name="pane">The pane under the cursor, or null.</param>
+    /// <param name="x">Host X.</param>
+    /// <param name="y">Host Y.</param>
+    /// <param name="delta">Wheel delta; positive zooms in.</param>
+    /// <returns>True when the camera changed.</returns>
+    [SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "Instance by contract, for the same reason as the PaneSet overload above.")]
+    public bool Wheel(LevelPane? pane, float x, float y, double delta)
+    {
+        if (pane is null)
         {
             return false;
         }

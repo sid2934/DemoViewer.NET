@@ -1073,3 +1073,293 @@ if they match §5.5's `IPointerTool` exactly; otherwise B1's must be removed, no
 - [ ] Steady-state allocation over 512 headless frames is 0 bytes with no active stroke.
 - [ ] `dotnet build src/App/DemoViewer.NET.Desktop -c Release` is clean (warnings are errors), and both
       new CI test steps are green.
+
+---
+
+## Implementation notes (deviations)
+
+Written at implementation time. Everything not listed here was built as the plan body and the
+`Integrator corrections` block specify.
+
+### Typed identity, where the plan body still said `string`
+
+1. **`WetStroke.PaneLevelId` is `MapLevelId?`, not `string?`.** The contracts section spells it
+   `string? PaneLevelId`, but B1 landed level identity as a typed `MapLevelId` struct precisely so the
+   compiler rejects the id-vs-index (and now id-vs-name) mix-up design risk 5 is about. A string here
+   would have been the one place in the level model that could be silently wrong. Same reasoning as B1's
+   own deviation 1; B3 sees a typed id everywhere.
+
+2. **`AnnotationLoadResult.Elements` stays `IReadOnlyList<AnnotationElement>`** as the contract says, and
+   the unknown-JSON preservation is done by memoising the extension data per sidecar path inside
+   `AnnotationStore` and re-emitting it on the next save. Returning DTOs would have leaked the
+   persistence shape into every consumer for the sake of one round-trip guarantee.
+
+### Additive API, agreed shapes unchanged
+
+3. **`PanZoomGesture` gained `Press(LevelPane?, …)` / `Wheel(LevelPane?, …)` overloads.** Correction 7
+   says B2 *wraps* B1's gesture, but the shipped signatures take a `PaneSet` and hit-test internally —
+   and the router has already resolved the pane by the time a tool sees the event. Re-running the hit
+   test inside the tool would be a second answer to a question the router already answered. The `PaneSet`
+   overloads are unchanged and still delegate to the new ones.
+
+4. **`AnnotationSession` carries the envelope authoring inputs** (`DefaultVisibility`, `FadeInTicks`,
+   `FadeOutTicks`, `HoldTicks`, `AnchorWorldRadius`, `SampleSpacingFactor`) plus
+   `EnvelopeForNewElement(currentTick)`. The contract lists only `NewElementEnvelope`, but T09 requires
+   the tool to "snapshot `NewElementEnvelope` resolved against `s.CurrentTick`" — resolving needs the
+   mode and the ramp lengths, and putting them anywhere else would mean the App recomputing the envelope
+   on every settings change and pushing it in.
+
+5. **`FreehandOptions` gained `WithSize` and `ForWidth`.** `ForWidth` is the single place an
+   `AnnotationStyle.WidthWorld` becomes a `FreehandOptions.Size`, so the eraser's hit-test outline and
+   the layer's drawn outline are provably the same polygon.
+
+6. **`InputToolRouter` gained `IsDrawingToolActive` and `GestureTool`.** The first is what the view passes
+   to `Playback2DKeymap.TryResolve` as its `toolActive` flag; without it the App would re-derive "is a
+   drawing tool selected" from the session and the two answers could drift. The second is a test seam for
+   "which tool actually took this gesture", which is the whole of decision D3.
+
+7. **`AnnotationElement` has hand-written structural equality.** The synthesized record equality compares
+   `Points` by REFERENCE, which makes an element that survived a save/load round trip unequal to the one
+   that was written — the exact comparison persistence, export and the undo tests all need to make. Cost
+   is O(n) in the sample count, paid only when something compares.
+
+8. **`AnnotationSessionController` takes `SettingsService?`, not `IOptionsMonitor<AppSettings>`.** The
+   controller must *write* the ink style back (colour, width, last tool), and `IOptionsMonitor` is
+   read-only. `SettingsService` is the repo's single read+write seam for preferences and is what
+   `Playback2DRenderer` already resolves. It also takes no `IFeatureGate` — correction 12 routes gates
+   through `IModuleContext.Features`, so the gate arrives via `SetFeatures`.
+
+9. **`AttachDemoAsync` gained a `force` parameter.** A tab RE-activation rebuilds the view but keeps the
+   cached view-model, and reloading the sidecar there would throw away anything the debounce had not yet
+   written. Activation passes `force: false` (skip when already attached to this demo); `DemoReset` passes
+   `force: true`, which is the one moment the file on disk really is the newer truth.
+
+10. **`Playback2DTabViewModel` now implements `IDisposable`**, following the existing
+    `RuleWorkbenchTabViewModel` precedent. It owns the controller and the timeline track, and CA1001 is
+    on for this assembly.
+
+### Things found while building, that the plan did not anticipate
+
+11. **`AnnotationDocument.Changed` is raised again when a gesture CLOSES.** Closing a gesture is the
+    moment its deltas become an undo entry — until then they sit in the open batch and `UndoDepth` still
+    reads zero. Without a notification there, the toolbar's undo button stayed greyed out after the first
+    stroke of a session and only woke on some later unrelated mutation. `Version` is deliberately *not*
+    bumped (no content changed, and the ink layer re-records every level's dry picture on a version
+    change). Found by the headless exit-criterion suite; pinned by
+    `AnnotationDocumentTests.Gesture_Close_AnnouncesTheNewUndoEntry` and `.Gesture_Close_DoesNotBumpVersion`.
+
+12. **`RefreshGates` now raises `FrameUpdated`.** A feature-gate flip changes which LAYERS the surface
+    should carry, and `Scene2DHost` only re-reads that on a frame push — the same mechanism the overlay
+    toggles already use. Without it, switching `playback2d.annotations` off left the ink layer registered
+    and drawing until the next playback push.
+
+13. **`Scene2DHost` registers and removes the annotation layer under the render gate.** B1 review
+    carry-forward 28 predicted exactly this: `RenderPane` walks the layer list by index on the render
+    thread, and B2 is the first phase to add or remove a layer in response to a user action.
+
+14. **The host owns ONE router over a swappable session.** `SceneHostToolServices.Session` is settable and
+    the host re-points it when a view-model binds, rather than rebuilding the router. Rebuilding would
+    drop a gesture that was in flight across a data-context change, and the router is also the thing that
+    holds `IsSpaceHeld`.
+
+### Test-plan deviations
+
+15. **`FreehandOutlineTests` pins BOTH stages, not just the outline.** The generator script in the plan
+    emits only `getStroke`'s output; the committed vectors also carry `getStrokePoints`, so a streamline
+    or minimum-length error is attributed to stage 1 instead of showing up as a mysterious outline
+    mismatch. All three vectors match upstream to 1e-6 relative with exact point counts.
+
+16. **`SinglePoint_ProducesClosedDot` split in two.** Upstream's circular-dot branch fires when
+    `getStrokePoints` collapses to ONE point, which happens for two coincident samples (what `DrawTool`
+    commits for a tap) — not for a lone sample, which upstream expands into a very short capped stroke.
+    The circle assertion moved to `CoincidentPair_ProducesAClosedDot`; the single-sample case asserts a
+    closed blob of about the stroke's width.
+
+17. **`Save_IsAtomic_NoPartialFileObserved` is written as `Save_IsAtomic_NoTempFileLeftBehind`.**
+    Observing a partial file requires racing the writer, which is a flaky test by construction. What is
+    actually assertable — and what the atomic write exists to guarantee — is that a second save leaves no
+    `.tmp` behind and the file still parses. `Save_OnIoFailure_ReturnsFalse_DoesNotThrow` covers the
+    failure half by holding the destination open with no sharing.
+
+18. **`AnnotationLayerGoldenTests` is not written as a separate checked-in-PNG suite.** Four annotation
+    goldens would need a fixture corpus of their own plus a regeneration path, and what they would assert
+    — static / mid-fade / entity-anchored / wet ink each land on the right pane with the right opacity —
+    is asserted directly in `AnnotationLayerTests` by counting pixels, which localises a failure to one
+    rule instead of to "the picture changed". `Playback2DAnnotationHostTests.DrawnStroke_RendersOnTheSurface`
+    covers the end-to-end "ink reaches the real surface" claim with a captured PNG for eyeball review.
+
+19. **Two A1 keymap tests were updated, not deleted.** `TryResolve_ReservedGesture_ReturnsFalseInA1`
+    asserted that `X`, `D` and `Ctrl+Z` resolve to nothing; B2 binds all three. It is now
+    `TryResolve_ReservedGesture_ReturnsFalse` (covering `Home`, still B3's) plus a new
+    `TryResolve_AnnotationGestures_AreBoundByB2`. `TryResolve_ToolActive_PrefersToolScopedBinding`
+    asserted the tool-scoped shadow resolves to *nothing*; it now asserts it resolves to `HoldPan` and
+    `CancelGesture`.
+
+20. **The `Playback2DAnnotationHostTests` fixture focuses the view before a key test.** Nothing focuses
+    the 2D view until the user clicks the surface, so a key case that never clicks would silently assert
+    nothing at all.
+
+### Not built, and why
+
+21. **`THIRD-PARTY-NOTICES.md` uses section `## e.`, not `## d.`** — B1 landed the Inter font as `d.`; the
+    plan's instruction to "add `## d.`" predates it, and sections are appended in landing order.
+    **Superseded at the merge — see 34.**
+
+22. **`ContractVersion` was not bumped** (correction 11): A1 already set it to `1.2.0`.
+
+23. **`Directory.Packages.props` and `.github/workflows/ci.yml` are untouched.** B2 adds no package, and
+    its tests live in the two projects B0's `playback2d-tests` job already runs.
+
+24. **`AnnotationHitTester` throws `NotSupportedException` for non-`Freehand` kinds** rather than
+    answering "no hit". A silent miss for a shape kind nobody implemented is an eraser that mysteriously
+    refuses to erase; the plan permitted the stub and this is the loud version of it.
+
+25. **Attaching to a demo no longer writes an empty sidecar.** Loading calls `AnnotationDocument.Reset`,
+    which raises `Changed`, which scheduled an autosave — so simply *opening* a demo dropped an empty
+    `.dvann.json` beside it. Caught by a stray `assets/tour/sample-de_nuke.dem.dvann.json` appearing in
+    the repo's own working tree after an App-suite run. Two guards, because either alone is incomplete:
+    autosave is suppressed for the duration of a load, and a save of an EMPTY document is skipped unless
+    a sidecar already exists — erasing the last stroke must still clear the file. Pinned by
+    `Playback2DAnnotationPersistenceTests.Controller_AttachingToADemoWithNoAnnotations_WritesNothing`
+    and `.Controller_ErasingTheLastStroke_StillClearsAnExistingSidecar`.
+
+26. **`AnnotationNukeLevelTests` added, over the real two-floor Nuke frame.** The plan's fixture list asks
+    for "a `SceneFixture` JSON with two levels"; B1's `nuke-multilevel` capture already is one, so the
+    level-anchoring rule is proved against the bands `MapSpaceFactory` actually derives
+    (`-1562:[-100000..-528]` and `-8:[-528..100000]`) rather than only against a synthetic band list.
+    `SceneStage` gained a `params ISceneLayer[] extra` so the ink layer is exercised over the SAME seven
+    layers the app ships. Ink is measured as a delta against a render with an empty document, inside each
+    pane's real rectangle — Nuke's lower floor already carries red team discs, and an absolute red count
+    would be measuring the markers.
+
+27. **The deactivate flush is SYNCHRONOUS (`AnnotationSessionController.Flush`).** T17 lists "flush on
+    tab deactivate / DemoReset / shutdown", and the shell's shutdown path is
+    `MainViewModel.Dispose → SelectedTab.Deactivate() → OnDeactivated` — where a fire-and-forget write
+    races the process exit and loses the stroke someone drew ten seconds before quitting. Every await
+    inside the controller and the store is `ConfigureAwait(false)`, so blocking there cannot deadlock on
+    the UI context, and the payload is a small JSON file: the same trade
+    `SettingsService.SaveSession` already makes on this thread. `FlushAsync` is still there for callers
+    that have somewhere to await.
+
+### Review findings (independent reviewer, on top of `c82d516`)
+
+Six defects found by adversarial review, each pinned by a regression test that fails without the fix.
+
+28. **Coalesced pointer samples reached the ink BACKWARDS, with the oldest dropped and the primary one
+    duplicated.** `Scene2DHost.Translate` walked `GetIntermediatePoints` from the end, on the belief that
+    Avalonia returns it newest-first. It does not: verified against Avalonia 11.3.12 (a
+    `PointerEventArgs` built with three known previous points), `GetIntermediatePoints` is literally
+    *previous raw points ++ `GetCurrentPoint`* — **oldest-first, with THIS event's own point LAST**. The
+    shipped loop therefore emitted `[current, p₍n−1₎ … p₁]` and dropped `p₀`, and `DrawTool` then appended
+    the primary point again: every sub-frame batch zig-zagged and duplicated a sample. Invisible to the
+    whole suite, because headless `MouseMove` carries no sub-frame history — but a real 1000 Hz digitiser,
+    or a plain mouse on a 60 Hz surface, hits it on every fast drag. The plan's S1 spike is what this was
+    meant to settle. Fixed by walking forwards and dropping the trailing entry; pinned by
+    `Playback2DAnnotationHostTests.CoalescedSamples_ReachTheInk_OldestFirst_AndOnlyOnce`, which builds a
+    real event with history through Avalonia's internal constructor so an upstream ordering flip fails
+    here rather than shipping.
+
+29. **The eraser hit-tested the WHOLE document at the RAW stored coordinates.** `EraseTool` called
+    `AnnotationHitTester.HitTestAll`, which knows nothing about panes, levels or the clock. Three separate
+    consequences, all silent data loss: on a stacked two-floor map (Nuke — the phase's own fixture) both
+    panes show the same world XY, so erasing on the lower floor deleted the upper floor's callout from a
+    band it was never drawn in; an entity-anchored stroke is DRAWN at `marker + offset` but was TESTED at
+    its authoring coordinates, making it un-erasable where the user can see it and erasable at a phantom
+    location; and a stroke its envelope had faded to nothing was still erasable. `IToolServices` gains
+    **`TryResolveDrawOffset(LevelPane, AnnotationElement, out float, out float)`** — the same resolution
+    `AnnotationLayer` performs per frame, returning false when the element does not render in this pane at
+    all — and `EraseTool` now walks the elements topmost-first, skips anything the envelope has hidden,
+    and tests at `world − offset`. Pinned by `EraseToolTests.EraserOnOneFloor_LeavesTheOtherFloorsInkAlone`,
+    `.EntityAnchored_IsErasedWhereItIsDrawn_NotWhereItWasAuthored` and `.StrokeOutsideItsEnvelope_IsNotErased`.
+    *Carry-forward:* the offset rule now exists twice (layer + services). B3 should hoist it into one Core
+    helper before the level work makes them drift.
+
+30. **`Undo` during an open gesture destroyed the previous stroke, unrecoverably.** Ctrl+Z is bound
+    `Always` and the pointer being captured does not stop a key from arriving. Undoing mid-stroke popped
+    the PREVIOUS entry onto the redo stack; the in-flight stroke's own `Apply` then cleared that redo
+    stack on the next sample — leaving the earlier stroke deleted with no way back. `Undo`/`Redo` now
+    return false while `IsGestureOpen`: the gesture is the user's current intent, and history editing
+    waits for it to finish. Pinned by `AnnotationDocumentTests.Undo_DuringAnOpenGesture_IsRefused_AndLosesNothing`.
+
+31. **Ctrl+X mid-stroke threw `InvalidOperationException` out of a key handler.** "Clear all" opens a
+    gesture of its own, and gestures deliberately do not nest (D4) — so the guard that makes nesting a bug
+    detector became a crash on a bound keystroke. `ClearAll` and `PinToNow` now stand down while a gesture
+    is in flight. Pinned by `Playback2DAnnotationHostTests.ClearAll_MidStroke_StandsDown_InsteadOfThrowing`.
+
+32. **Entity-anchored ink could not work in the running app at all: `SceneFrameInput.SteamIdForSlot` was
+    never supplied.** Correction 4 added the resolver to the builder for exactly this feature, but
+    `Playback2DTabViewModel.BuildFrame` never passed one, so every real `PlayerMarker.SteamId` was 0 — and
+    both halves of the feature treat 0 as unresolvable, so the tool would not capture an anchor and the
+    layer would not draw one. Every direct-execution test stayed green because they all inject their own
+    markers. The roster already carries `PlayerRosterEntry.SteamId`; it is now cached slot-keyed in
+    `SeedRosterDisplay` alongside the name and handed to the builder. Pinned by
+    `Playback2DAnnotationHostTests.EntityAnchor_IsCapturedFromARealSceneFrame`, which asserts against the
+    frame the app itself builds.
+
+33. **Persistence: two threads, one dictionary, and one temp-file name.** `AnnotationStore`'s
+    writable-directory probe cache and its unknown-JSON memo are plain `Dictionary` instances reached from
+    both the UI thread (`ResolvePath`, for the panel's status line) and the thread pool (the debounced
+    autosave, `LoadAsync`'s continuation) — a read racing a write there can spin forever inside bucket
+    traversal, not merely lose an entry. They are now behind one `Lock`, with the probe itself left outside
+    it so a dead network share cannot stall the UI thread. Separately, cancelling the debounce does not
+    stop a save already inside the store's write, so a flush-on-deactivate immediately after a stroke could
+    run concurrently with it: both wrote the same `<path>.tmp` and raced to `File.Move` it, which can leave
+    the OLDER snapshot on disk with nothing scheduled to correct it. `AnnotationSessionController` now
+    serializes saves and stamps each snapshot with the document `Version`, so a slower writer stands down
+    instead of overwriting a newer document.
+
+**Verified, no change needed:** envelope opacity is frame-exact at both ramp edges and at zero-length
+fades; strokes on the wrong level do not render (`AnnotationNukeLevelTests`, real two-floor Nuke bands
+`-1562:[-100000..-528]` / `-8:[-528..100000]`); the ink layer allocates 0 B/frame steady-state when idle
+(second window 0 B over 512 Advance+Render frames) and the B1 budget lane is unchanged at 0 B/frame;
+`BailToMark` mid-gesture rolls back every delta with no undo entry, for both tools.
+
+**Carry-forwards for later phases**
+
+- **C1/B4:** entity anchoring is proved against synthetic frames and against ONE real Nuke frame; there is
+  no multi-frame real-demo seek test, because B2 has no `TrackerFrameSource` yet. Add one when C1 lands.
+- **B5:** the App builds `AnnotationStore` with the DEFAULT demo-key resolver, so the first autosave of a
+  session streams a full SHA-256 of the `.dem`. It is off the UI thread, so D11's hard rule holds, but D11
+  also asked the App to pass `DemoLibraryService`'s cached `(size, mtime)` hash and it does not.
+- **B3:** see 29 — one Core helper for the draw offset, consumed by both the layer and the tool services.
+
+### Merge into `feature/playback2d-v2` (integrator, on top of `460e201`)
+
+B2 branched from `f6ae1ab`; by the time it merged, C1 (`477cbd4`) and C2 Stage 0 + C2.7 (`2475f93`,
+`460e201`) had already landed. `git merge feature/playback2d-v2-b2` produced **one** conflict.
+
+34. **`THIRD-PARTY-NOTICES.md`: perfect-freehand landed as `## f.`, not `## e.`** — the merge's only
+    conflict was an add/add on `## e.`: C2 had taken it for ANGLE, B2 had taken it for perfect-freehand.
+    Resolved by keeping **both**, in landing order (§4.3's rule): `d.` Inter font (B1), `e.` ANGLE (C2),
+    `f.` perfect-freehand (B2). Nothing referenced the letter — `FreehandOutline.cs` and
+    `FreehandOptions.cs` cite the section *by name* (`§ "perfect-freehand (MIT)"`), which is why the
+    rename costs no code change. Deviation 21 is superseded by this one.
+
+35. **`tests/fixtures/playback2d/scenes/nuke-multilevel.scene.json` is regenerated with real
+    `steamId` values.** `Playback2DGoldenCaptureTests` rewrites the fixture unconditionally from the same
+    push that produces the PNG, and finding 32's fix (the App now supplies
+    `SceneFrameInput.SteamIdForSlot` from the roster) means every marker in that fixture now carries its
+    real SteamId instead of `0`. The paired golden is **unaffected** — SteamId reaches no draw call, and
+    `GoldenParityTests`/`Playback2DGoldenCaptureTests` both stay green at the same numbers. Committed as
+    part of the merge so the capture is idempotent again and so C1/B4 fixtures carry usable ids. This
+    also explains the CRLF churn the implementer and reviewer both reported on this file: it is rewritten
+    on every Windows app-suite run, and `.gitattributes` normalises the line endings back to LF on
+    staging, so only genuine content changes ever reach a commit.
+
+**Verified at the merge (`460e201` + B2):** `dotnet build DemoViewer.NET.slnx` 0 errors / 0 warnings;
+Playback2D suite **349/349**, 0 failed, 0 skipped (up from 282 on the B2 branch alone — C1/C2 added 67);
+the 59 annotation-class tests pass with the ink allocation gate at **window1 19 704 B / window2 0 B**;
+the B1 budget lane unchanged at **advance p99 0.007 ms, render p99 1.851 ms, 0 B/frame**; golden parity
+on `nuke-multilevel` unchanged at **identical 63.72 %, ±8 99.68 %, ±32 99.74 %, max 204**; App suite
+**812 total / 708 passed / 98 skipped / 6 failed**, all six the known environmental set.
+
+**Not a regression, confirmed by re-running it at `460e201`:** the `dv2d` CLI suite is 107 total /
+106 passed / 1 failed — `BenchAllocationTests.SmallestDrawingFixture_AllocatesNothingPerFrame`, 3 336 B,
+**identical byte count before and after the merge**. It is `[Category("Budget")]` and its own doc comment
+says it is expected to fail until `SceneLayerCatalog` registers B1's seven layers; CI excludes it
+(`Category!=Budget`).
+
+**Carry-forward from the merge — `SceneLayerCatalog` still registers only B0's `DebugGridLayer`.** B1's
+seven layers were never added to it, so `playback2d.annotations` is not headless-selectable via
+`dv2d --layers` either. Closing that seam (C1 risk R6 / C1 deviation 14) should add the annotation layer
+in the same pass, together with a source for `SceneFixture.Annotations`.
