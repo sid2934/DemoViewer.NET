@@ -404,11 +404,21 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private TimelineHudDataSource BuildExportHud() =>
         new(_allKills, _tickRate, _ => ClockReading.From(_frame.GameInfo));
 
+    /// <summary>
+    ///     The live surface's camera capture, supplied by the View when it binds (and cleared when it
+    ///     unbinds). The VM cannot reach the mounted control itself — the View owns the surface — and the
+    ///     legacy viewport has no pane cameras to capture, so this is null under the escape hatch and on
+    ///     any host that never mounted a surface at all.
+    /// </summary>
+    internal Func<CameraScript>? LiveCameraSource { get; set; }
+
     // Plan D12: a CAPTURE, taken once when Start is pressed. Panning the live window afterwards changes
-    // nothing about the video. There is no live pane list to read until B3's host exposes one, so this is
-    // an empty Fixed script today — every pane keeps the fit its own level was born with.
-    private static CameraScript.Fixed CaptureLiveCamera() =>
-        new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>());
+    // nothing about the video. With no live surface — the legacy escape hatch, a designer, a VM-only
+    // test — the fallback is an empty Fixed script, which leaves every pane on the fit its own level was
+    // born with. That is a correct framing, just not the user's.
+    private CameraScript CaptureLiveCamera() =>
+        LiveCameraSource?.Invoke()
+        ?? new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>());
 
     private int OutputFrameCount(int startFrame, int endFrame, int fps, double speed) =>
         _context is ModuleContext { ExportHost: { } host } && host.Frames() is { } frames

@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Avalonia;
 using Avalonia.Controls;
@@ -14,6 +15,7 @@ using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Cameras;
 using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
@@ -204,6 +206,40 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, ID
 
     /// <summary>The resolved level set. B3's level strip reads it.</summary>
     public MapSpace Levels => _levels.Space;
+
+    /// <summary>
+    ///     Freezes the live panes' cameras into a <see cref="CameraScript.MirrorLiveView" /> — B4 D12's
+    ///     "capture once, at Start". Panning the real window afterwards changes nothing about the video,
+    ///     which is what makes an export reproducible from its request alone.
+    ///     <para>
+    ///         The snapshot is taken here rather than assembled by the export dialog because
+    ///         <see cref="PaneSet" /> is the only pane-lifetime owner (registry §3.4) and it is private to
+    ///         this control. Before this existed the dialog captured an empty <c>Fixed</c> script and every
+    ///         exported pane silently kept the fit its own level was born with — right for a whole round,
+    ///         wrong for a user who had zoomed into A site (B4 deviation 20).
+    ///     </para>
+    ///     <para>
+    ///         Keyed by <see cref="MapLevelId" />, never by pane index: a level set that gains a floor
+    ///         mid-export must not slide every camera down one band (design risk 5). Panes with no level
+    ///         yet — the state before the first frame push — produce an empty script, which resolves to
+    ///         the per-level fit exactly as before.
+    ///     </para>
+    /// </summary>
+    public CameraScript CaptureCameraScript()
+    {
+        IReadOnlyList<LevelPane> panes = _panes.Panes;
+        ImmutableArray<PaneCameraSnapshot>.Builder builder =
+            ImmutableArray.CreateBuilder<PaneCameraSnapshot>(panes.Count);
+
+        for (int i = 0; i < panes.Count; i++)
+        {
+            LevelPane pane = panes[i];
+            builder.Add(new PaneCameraSnapshot(pane.LevelId, pane.Camera.Current,
+                pane.Camera.ManualOverride));
+        }
+
+        return new CameraScript.MirrorLiveView(builder.ToImmutable(), _displayMode);
+    }
 
     /// <inheritdoc />
     public event Action? LevelStateChanged;

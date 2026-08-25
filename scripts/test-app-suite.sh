@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 # Runs the full App test suite as N sequential PROCESS batches instead of one process.
 #
 # Why: a single process accumulating the whole suite (multi-GB ParsedDemo cache entries,
@@ -7,6 +7,13 @@
 # Sequential batches cap the per-process peak and return memory between batches. Batch
 # membership is computed from the discovered class list, so new test classes are always
 # covered — a partition bug shows up as a count mismatch, not silent loss.
+#
+# Shell portability: this script used to be #!/bin/zsh and indexed CLASSES from 1, which is
+# a zsh array convention. Under bash — Git Bash on Windows, and most Linux CI images — the
+# same loop silently skipped the FIRST class and then aborted on the last iteration with
+# "CLASSES[$i]: unbound variable" under set -u, so the partition audit never got to run.
+# It now iterates the array itself with a 0-based counter, which means the same thing in
+# both shells; there is no remaining zsh-ism, so bash is the shebang.
 #
 # Usage: scripts/test-app-suite.sh [-c Release|Debug] [-n BATCHES]
 set -u
@@ -56,8 +63,10 @@ for ((b = 1; b <= BATCHES; b++)); do
   # Round-robin partition: class i goes to batch (i mod BATCHES). Keeps batches balanced
   # even though heavy classes cluster alphabetically (Playback*, Z*).
   MEMBERS=()
-  for ((i = 1; i <= ${#CLASSES[@]}; i++)); do
-    if (( (i - 1) % BATCHES == b - 1 )); then MEMBERS+=("${CLASSES[$i]}"); fi
+  i=0
+  for CLS in "${CLASSES[@]}"; do
+    if (( i % BATCHES == b - 1 )); then MEMBERS+=("$CLS"); fi
+    i=$((i + 1))
   done
   FILTER="/*/*/($(IFS='|'; echo "${MEMBERS[*]}"))/*"
   echo "[batch-runner] batch $b/$BATCHES: ${#MEMBERS[@]} classes"

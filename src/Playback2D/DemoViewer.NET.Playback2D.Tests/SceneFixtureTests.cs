@@ -243,6 +243,25 @@ public class SceneFixtureTests
         FollowSlot = 5
     };
 
+    /// <summary>
+    ///     The corpus is committed text and <c>.gitattributes</c> pins it to LF, so the writer must emit
+    ///     LF on every platform. <c>JsonWriterOptions.NewLine</c> defaults to <c>Environment.NewLine</c>,
+    ///     which made every Windows App-suite run rewrite <c>nuke-multilevel.scene.json</c> with CRLF —
+    ///     invisible in <c>git status</c> (staging normalises it back), permanent in the working tree.
+    /// </summary>
+    [Test]
+    public async Task Write_UsesLfLineEndings_OnEveryPlatform()
+    {
+        using MemoryStream stream = new();
+        SceneFixtureSerializer.Write(new SceneFixture { Frame = SampleFrame() }, stream);
+
+        string json = System.Text.Encoding.UTF8.GetString(stream.ToArray());
+
+        await Assert.That(json).Contains("\n").Because("the writer is indented, so it has line endings");
+        await Assert.That(json.Contains('\r')).IsFalse()
+            .Because("a CRLF fixture is a permanently dirty working tree on Windows");
+    }
+
     // A structural description, because the frame's collections are reference types and the value types
     // inside them are records — comparing the rendered shape is both readable in a failure message and
     // insensitive to which concrete list implementation the serializer chose.

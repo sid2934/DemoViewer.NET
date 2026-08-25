@@ -98,6 +98,7 @@ public partial class Playback2DView : UserControl
             _boundViewModel.FitRequested -= OnFitRequested;
             _boundViewModel.Annotations.ToolSelected -= OnToolSelected;
             _boundViewModel.LevelStrip.Bind(null);
+            _boundViewModel.LiveCameraSource = null;
         }
 
         _boundViewModel = DataContext as Playback2DTabViewModel;
@@ -115,6 +116,13 @@ public partial class Playback2DView : UserControl
             // The strip drives the v2 host only. Under the legacy escape hatch there is no level
             // identity to drive, so the strip stays unbound and collapsed.
             _boundViewModel.LevelStrip.Bind(_levelSurface);
+
+            // The export dialog's "mirror the live view" camera is captured on Start, from the panes the
+            // mounted surface actually has. The View is the only side that knows which surface is
+            // mounted; under the legacy hatch there are no pane cameras, so this stays null and the
+            // dialog falls back to the per-level fit.
+            _boundViewModel.LiveCameraSource =
+                _surface is Scene2DHost cameraHost ? cameraHost.CaptureCameraScript : null;
 
             // The View is DESTROYED on deactivation and rebuilt from the descriptor's ViewFactory on every
             // activation, while the tab VM is cached (WorkspaceTabDescriptor.Activate / .Deactivate). The

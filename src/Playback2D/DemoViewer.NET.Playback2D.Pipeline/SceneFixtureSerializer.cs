@@ -43,7 +43,20 @@ public static class SceneFixtureSerializer
         return Read(stream);
     }
 
-    /// <summary>Writes a fixture to a stream.</summary>
+    // Indented output with an EXPLICIT LF. JsonWriterOptions.NewLine defaults to Environment.NewLine, so
+    // the same fixture written on Windows and on Linux differed in every line ending — and the corpus is
+    // committed text that .gitattributes pins to LF (eol=lf). The visible symptom was
+    // tests/fixtures/playback2d/scenes/nuke-multilevel.scene.json turning up CRLF in the working tree
+    // after every Windows App-suite run: staging normalised it back, so nothing ever reached a commit and
+    // nothing ever stopped happening either. Recorded at the B2 merge (deviation 35); fixed here, because
+    // "your checkout is dirty and it does not matter" is a thing every contributor has to learn once.
+    private static readonly JsonWriterOptions _writerOptions = new()
+    {
+        Indented = true,
+        NewLine = "\n"
+    };
+
+    /// <summary>Writes a fixture to a stream. Indented, with LF line endings on every platform.</summary>
     /// <param name="fixture">The fixture to write.</param>
     /// <param name="destination">The stream written to. Not closed.</param>
     public static void Write(SceneFixture fixture, Stream destination)
@@ -51,7 +64,8 @@ public static class SceneFixtureSerializer
         ArgumentNullException.ThrowIfNull(fixture);
         ArgumentNullException.ThrowIfNull(destination);
 
-        JsonSerializer.Serialize(destination, ToDto(fixture), SceneFixtureJsonContext.Default.SceneFixtureDto);
+        using Utf8JsonWriter writer = new(destination, _writerOptions);
+        JsonSerializer.Serialize(writer, ToDto(fixture), SceneFixtureJsonContext.Default.SceneFixtureDto);
     }
 
     /// <summary>Writes a fixture to a file, creating the directory if needed.</summary>
