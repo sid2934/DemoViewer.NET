@@ -1211,3 +1211,115 @@ constructed at `:698-701`). There is nothing to extract: B4's `TrackerFrameSourc
 `new EntitySeekService(() => new EntityTracker())` — deliberately **not** `MainViewModel.CreateTracker`
 (`:2736-2751`), which wires the interactive Tier-3 debugger — calls `SeekToFrameNoSnapshot(startFrame,
 frames)`, keeps the returned tracker privately, and steps it with `AdvanceOneFrame(frames[i])`.
+
+---
+
+## Implementation notes (deviations)
+
+Written at implementation time. Everything not listed here was built as the plan and the
+`Integrator corrections` block specify.
+
+### Contract shapes that changed representation, not surface
+
+1. **`Scene2DFrame`'s `init` properties are backed by `internal` fields.** The published shape is
+   exactly as contracted (`{ get; init; }` to every caller, so a fixture or a test still builds one
+   with an object initializer, and nothing outside can mutate a published frame). But `init` is
+   settable only during construction, which makes decision D6's "refill the off-screen buffer in
+   place" impossible from the builder. Each property therefore reads
+   `get => XField; init => XField = value;` over an `internal` field that `SceneFrameBuilder`
+   (Pipeline, via `InternalsVisibleTo`) writes directly. The alternative — allocating a
+   `Scene2DFrame` per `Build` — would have put ~100 bytes/frame on the §6 budget for no gain.
+   **B1–B5/C1–C2 see no difference.**
+
+2. **`SceneFrameInput.FollowSlot` is stored biased by one.** A `ref struct` cannot carry a field
+   initializer, so an omitted `FollowSlot` would default to `0` — i.e. "follow the first player" —
+   which is a silent bug, not a compile error. The property stores `value + 1` and returns
+   `_followSlotPlusOne - 1`, so the default is `-1` (nobody). Public shape unchanged.
+
+3. **`SceneFixture` gained an `internal Dictionary<string, JsonElement>? Extra`.** This is where the
+   tolerant reader parks top-level members it does not recognise so it can re-emit them. Internal
+   because it is a transport detail of the format, not part of the scene.
+
+4. **Two small additions to the moved value types**, both consumed by `DebugGridLayer` and the
+   builder, both additive: `WorldBounds.Extend(x, y)` (the observed-extent accumulator) and
+   `ScenePalette.TeamFill(team)` (the 2/3/other switch every layer would otherwise repeat).
+
+### Behaviour the extraction preserved that the plan did not name
+
+5. **The builder persists the round-level HUD fields between frames.** The pre-v2 view-model held
+   `GameInfo` on an `ObservableObject` and mutated it in place, so a frame in which the rules entity
+   is not decoded (a seek can land on one) left the panel at its previous values. Rebuilding
+   `SceneGameInfo` from scratch each frame would have blanked it. The builder therefore keeps
+   `_hud*` fields and assembles the record from them —
+   `SceneFrameBuilderTests.GameInfo_WithoutRulesEntity_KeepsThePreviousRoundState` pins it.
+
+6. **`SceneFrameBuilder.Reset()` does not clear the networked map bounds.** `ReadMapBoundsOnce`
+   latches on first success and the view-model's resync path reset only the section heights, so a
+   demo reload kept the previous map's bounds. Carried over verbatim under the behaviour-identity
+   rule, and flagged on `Reset`'s XML doc as a B3 question (B3 owns map identity).
+
+7. **The `GrenadeTrail` objects in a published frame are shared between the two buffered slots** —
+   they are the builder's live dictionary entries by reference, exactly as the pre-v2 `_trailViews`
+   were. The double buffer therefore isolates the *lists*, not the trails inside them. Documented on
+   the type; harmless because a consumer must not retain a frame across pushes anyway.
+
+8. **The view-model refreshes the kill window BEFORE building the frame** (the two calls were the
+   other way round in `OnAdvanced`). Required so the built frame carries *this* tick's rows for B4's
+   HUD layer; safe because `UpdateKillFeedWindow` is a pure filter over the pre-built timeline.
+
+9. **`IModuleHost.cs`'s `<see cref="IWorkspaceModule.CreateTabs" />` became `<c>`** — T1 moved that
+   interface to the sibling assembly, and the base project cannot cref forward into it.
+
+### Test-plan additions, and one relaxed assertion
+
+10. **`SceneGoldenTests` is new** (not in the §5 test table). It commits CPU-provider goldens for the
+    three synthetic fixtures, which needs no demo and therefore runs in CI. Added because T12's
+    demo-derived corpus is empty in this checkout (item 14 below), which would otherwise leave B0's
+    "goldens green" clause entirely unexercised and B1's parity gate with nothing to compare
+    against. These pin **B0's own** loop — palette, transform, compositor, fixture format — and say
+    so; they are explicitly not the pre-v2-control corpus. Risk **R3** names the synthetic fallback.
+    Compared at `DefaultPerceptual` because CPU AA rasterisation can differ by a least-significant
+    bit between SIMD paths and the images are committed from one machine; same-machine
+    byte-exactness is gated separately by `SceneRendererTests.Render_Twice_…`.
+
+11. **`SceneFrameBuilderTests.Build_TwiceInARow_…` asserts < 128 bytes/build, not 0** — risk **R7**'s
+    documented fallback, tightened from the ceiling R7 suggests to just above the measurement.
+    Measured **72 bytes/build**, and the builder's own path contributes none of it: the pooled lists
+    are reused, `SceneMapInfo` is republished by reference, and the `m:ss` clock strings are cached
+    on the rounded second. The residue is the boxed `IEnumerable<IReadOnlyEntity>` enumerator each
+    `OfClass` call costs — an entity-read-surface cost that B1 owns removing, and §6 makes zero a
+    hard budget from B1's `dv2d bench`.
+
+    One related finding worth carrying: on a map that publishes **no** `m_MinimapVerticalSectionHeights`,
+    `ReadSectionHeightsOnce` never latches and re-scans (8 interpolated path strings + a `List<double>`)
+    every frame, forever. That is pre-v2 behaviour carried over verbatim — the retry exists because
+    the array may simply not be decoded yet after a seek — but it is ~2 KB/frame on such maps, and
+    B1 should bound the retry rather than leave it unbounded.
+
+12. **`GoldenImageComparerTests` is new**, covering the comparator B0 now owns (C1's plan listed
+    `GoldenComparerTests` under C1; correction 8 moved the type to B0, so its tests came with it).
+
+13. **`scripts/test-app-suite.sh` runs the Playback2D suite first and unbatched** rather than adding
+    it to the batch list. That script's round-robin partition and its discovery audit are written
+    against one project's source tree; the direct-execution suite loads no Avalonia platform and
+    holds no `ParsedDemo`, so it is neither slow nor a memory-pressure risk and does not need
+    batching.
+
+### Left undone
+
+14. **The demo-derived golden pairs are not committed.** All three `Playback2DGoldenCaptureTests`
+    cases skip: this checkout has no `.dem` (only a `.dem.info`), the same gap A1's review recorded.
+    The comparator, the capture harness, the determinism guard, the `PB2D_GOLDEN_UPDATE=1` gate and
+    `scripts/update-playback2d-goldens.sh` all ship and are covered; only the images are blocked.
+    **Acceptance items 5 and 6 are therefore open**, and this is the first thing to do once a demo is
+    staged — B1's exit criterion ("pixel-parity vs B0 goldens") depends on it.
+
+15. **Acceptance item 5's path is stale in the plan body**: it says `tests/goldens/playback2d/`, which
+    Integrator correction 6 replaced with `tests/fixtures/playback2d/goldens/cpu/`. The same stale
+    path appears in the "Exported to other phases" table. Read both as the corrected layout.
+
+### Environment note
+
+16. **The `wasm-tools` workload was installed on the dev machine** (pinned to manifest `10.0.103` to
+    match the SDK runtime pack) to run the D11 spike. B5's `wasm-build` CI job needs the same pin —
+    see D11 finding 2.
