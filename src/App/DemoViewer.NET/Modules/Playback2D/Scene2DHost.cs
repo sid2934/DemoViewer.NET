@@ -9,7 +9,9 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Styling;
 using CS2DemoKit.Analysis.Visibility;
+using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Cameras;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Input;
@@ -43,11 +45,21 @@ namespace DemoViewer.NET.Modules.Playback2D;
 public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
 {
     private readonly SceneRenderGate _gate = new();
-    private readonly PanZoomGesture _gesture = new();
     private readonly MapSpaceFactory _levels = new();
     private readonly PaneSet _panes;
     private readonly List<LevelPaneSnapshot> _snapshots = new(4);
     private readonly MarkerSmoother _smoother = new();
+
+    // The input path. B2 replaces B1's direct pan handlers with a router (plan decision D1), so pan,
+    // draw and erase all reach the panes through ONE seam and cannot disagree about which pane a
+    // gesture captured. The services start over a throwaway session and are re-pointed at the tab's
+    // real one when a view-model binds — rebuilding the router there would drop a live gesture.
+    private readonly SceneHostToolServices _toolServices;
+    private readonly InputToolRouter _router;
+    private readonly List<InkPoint> _coalesced = new(64);
+
+    private AnnotationLayer? _annotationLayer;
+    private AnnotationSession? _boundSession;
 
     private SceneCompositor _compositor;
     private RadarLayer _radarLayer;
@@ -80,8 +92,50 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         ClipToBounds = true;
 
         _panes = new PaneSet(new StackedLayout());
+
+        _toolServices = new SceneHostToolServices(this, new AnnotationSession(new AnnotationDocument()));
+        _router = new InputToolRouter(_toolServices, new PanZoomTool());
+        _router.Register(new DrawTool());
+        _router.Register(new EraseTool());
+
         BuildScene();
     }
+
+    /// <summary>The pointer-tool router. The view drives tool selection and gesture cancellation through it.</summary>
+    internal InputToolRouter Router => _router;
+
+    /// <summary>The frame currently being shown. Read by the tool services; never retained.</summary>
+    internal Scene2DFrame CurrentSceneFrame => _vm?.CurrentFrame ?? Scene2DFrame.Empty;
+
+    /// <summary>The pane under a host-space point, or null. The successor to <c>SliceIndexAtScreenY</c>.</summary>
+    /// <param name="x">Host X.</param>
+    /// <param name="y">Host Y.</param>
+    internal LevelPane? PaneAtHostPoint(float x, float y) => _panes.PaneAt(x, y);
+
+    /// <summary>Repaint request from a pointer tool. Coalesced by Avalonia.</summary>
+    internal void RequestToolRender()
+    {
+        ArmFrameLoopIfNeeded();
+        InvalidateVisual();
+    }
+
+    /// <summary>Hold-to-pan (plan decision D3). The view sets it from the Space key.</summary>
+    /// <param name="held">Whether Space is down.</param>
+    internal void SetSpacePanHeld(bool held) => _router.IsSpaceHeld = held;
+
+    /// <summary>Esc: abandons whatever gesture is in flight.</summary>
+    internal void CancelActiveGesture()
+    {
+        _router.CancelActive();
+        InvalidateVisual();
+    }
+
+    /// <summary>Selects the active pointer tool.</summary>
+    /// <param name="kind">The tool.</param>
+    internal void SetActiveTool(ToolKind kind) => _router.SetActive(kind);
+
+    /// <summary>The annotation layer, once a session has been bound. Test hook.</summary>
+    internal AnnotationLayer? AnnotationLayerForTest => _annotationLayer;
 
     /// <summary>
     ///     Builds the text cache, the seven layers and the compositor over them.
@@ -112,8 +166,11 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         _compositor.Add(new BombLayer());
         _compositor.Add(new FloorLabelLayer(_text));
 
-        // The map bundle is re-pulled on the next SyncFromViewModel, so the fresh radar layer is bound.
+        // The map bundle and the annotation session are re-pulled on the next SyncFromViewModel, so the
+        // fresh layers are bound.
         _boundAsset = null;
+        _annotationLayer = null;
+        _boundSession = null;
         _released = false;
     }
 
@@ -310,15 +367,20 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         _fallbackBitmap = null;
     }
 
+    // ── Pointer input. Every gesture goes through the router (plan decision D1); this control's job is
+    //    to turn Avalonia events into pane-and-world coordinates and nothing else.
+
     /// <inheritdoc />
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
         ArgumentNullException.ThrowIfNull(e);
 
-        Point p = e.GetPosition(this);
-        _gesture.Press(_panes, (float)p.X, (float)p.Y);
-        e.Pointer.Capture(this);
+        ToolPointerEvent sample = Translate(e, includeIntermediate: false);
+        if (_router.OnPressed(in sample))
+        {
+            e.Pointer.Capture(this);
+        }
     }
 
     /// <inheritdoc />
@@ -327,11 +389,13 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         base.OnPointerMoved(e);
         ArgumentNullException.ThrowIfNull(e);
 
-        Point p = e.GetPosition(this);
-        if (_gesture.Move((float)p.X, (float)p.Y))
+        if (!_router.IsGestureOpen)
         {
-            InvalidateVisual();
+            return;
         }
+
+        ToolPointerEvent sample = Translate(e, includeIntermediate: true);
+        _router.OnMoved(in sample);
     }
 
     /// <inheritdoc />
@@ -340,7 +404,8 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         base.OnPointerReleased(e);
         ArgumentNullException.ThrowIfNull(e);
 
-        _gesture.Release();
+        ToolPointerEvent sample = Translate(e, includeIntermediate: true);
+        _router.OnReleased(in sample);
         e.Pointer.Capture(null);
     }
 
@@ -351,11 +416,126 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         ArgumentNullException.ThrowIfNull(e);
 
         Point p = e.GetPosition(this);
-        if (_gesture.Wheel(_panes, (float)p.X, (float)p.Y, e.Delta.Y))
+        LevelPane? pane = _panes.PaneAt((float)p.X, (float)p.Y);
+        if (pane is null)
         {
-            InvalidateVisual();
-            e.Handled = true;
+            return;
         }
+
+        _router.OnWheel(new ToolWheelEvent(pane, new SKPoint((float)p.X, (float)p.Y),
+            new SKPoint((float)p.X - pane.ViewportRect.Left, (float)p.Y - pane.ViewportRect.Top),
+            e.Delta.Y, Translate(e.KeyModifiers)));
+        e.Handled = true;
+    }
+
+    // Avalonia event → pane-resolved, world-resolved tool sample. The coalesced samples are the reason
+    // a fast stroke looks smooth: a 1000 Hz digitiser delivers dozens of points per 60 Hz frame, and
+    // taking only the primary one turns a curve into a polyline.
+    private ToolPointerEvent Translate(PointerEventArgs e, bool includeIntermediate)
+    {
+        Point position = e.GetPosition(this);
+        float x = (float)position.X;
+        float y = (float)position.Y;
+        LevelPane? pane = _panes.PaneAt(x, y);
+
+        float pressure = 0.5f;
+        try
+        {
+            PointerPointProperties properties = e.GetCurrentPoint(this).Properties;
+            pressure = properties.Pressure > 0 ? properties.Pressure : 0.5f;
+        }
+        catch (InvalidOperationException)
+        {
+            // A synthetic event with no backing device reports no properties; 0.5 with simulated
+            // pressure is upstream perfect-freehand's own default and looks right for a mouse.
+        }
+
+        _coalesced.Clear();
+        if (includeIntermediate && pane is not null)
+        {
+            IReadOnlyList<PointerPoint>? points = e.GetIntermediatePoints(this);
+            if (points is not null)
+            {
+                // Avalonia hands these back NEWEST-first; the ink wants oldest-first, and the primary
+                // point is appended by the tool after them. Skip index 0, which is this event's own.
+                for (int i = points.Count - 1; i >= 1; i--)
+                {
+                    PointerPoint point = points[i];
+                    (double wx, double wy) = pane.Camera.Current.ScreenToWorld(
+                        point.Position.X - pane.ViewportRect.Left,
+                        point.Position.Y - pane.ViewportRect.Top);
+                    float p = point.Properties.Pressure > 0 ? point.Properties.Pressure : pressure;
+                    _coalesced.Add(new InkPoint((float)wx, (float)wy, p));
+                }
+            }
+        }
+
+        SKPoint world = default;
+        SKPoint local = default;
+        if (pane is not null)
+        {
+            local = new SKPoint(x - pane.ViewportRect.Left, y - pane.ViewportRect.Top);
+            (double worldX, double worldY) = pane.Camera.Current.ScreenToWorld(local.X, local.Y);
+            world = new SKPoint((float)worldX, (float)worldY);
+        }
+
+        return new ToolPointerEvent
+        {
+            Pane = pane,
+            Screen = new SKPoint(x, y),
+            PaneLocal = local,
+            World = world,
+            Pressure = pressure,
+            Button = ButtonOf(e),
+            Modifiers = Translate(e.KeyModifiers),
+            Intermediate = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_coalesced)
+        };
+    }
+
+    private static ToolPointerButton ButtonOf(PointerEventArgs e)
+    {
+        PointerPointProperties properties;
+        try
+        {
+            properties = e.GetCurrentPoint(null).Properties;
+        }
+        catch (InvalidOperationException)
+        {
+            return ToolPointerButton.Left;
+        }
+
+        if (properties.IsRightButtonPressed)
+        {
+            return ToolPointerButton.Right;
+        }
+
+        if (properties.IsMiddleButtonPressed)
+        {
+            return ToolPointerButton.Middle;
+        }
+
+        return properties.IsLeftButtonPressed ? ToolPointerButton.Left : ToolPointerButton.None;
+    }
+
+    private static ToolModifiers Translate(KeyModifiers modifiers)
+    {
+        ToolModifiers result = ToolModifiers.None;
+        if (modifiers.HasFlag(KeyModifiers.Shift))
+        {
+            result |= ToolModifiers.Shift;
+        }
+
+        if (modifiers.HasFlag(KeyModifiers.Control))
+        {
+            result |= ToolModifiers.Control;
+        }
+
+        if (modifiers.HasFlag(KeyModifiers.Alt))
+        {
+            result |= ToolModifiers.Alt;
+        }
+
+        return result;
     }
 
     /// <inheritdoc />
@@ -415,8 +595,10 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         if (_levels.Update(frame))
         {
             // A rebuilt level set invalidates every recorded picture: the bands moved, and a PerCamera
-            // picture is keyed on a level id that may now describe a different Z range.
+            // picture is keyed on a level id that may now describe a different Z range. The ink layer
+            // holds its own per-level pictures, outside the compositor's cache, so it is told too.
             _compositor.InvalidateCaches();
+            _annotationLayer?.InvalidateLevels();
         }
 
         if (_panes.Reconcile(_levels.Space, LevelDisplayMode.Stacked, host, CurrentExtent()))
@@ -557,8 +739,13 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         _initialFitApplied = false;
         _lastFrameIdentity = (-1, -1);
 
+        // A gesture in flight belongs to the outgoing view-model's document; carrying it across would
+        // commit half a stroke into a different demo's annotations.
+        _router.CancelActive();
+
         if (_vm is null)
         {
+            BindAnnotations(null);
             return;
         }
 
@@ -591,6 +778,9 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         _compositor.SetEnabled(SceneLayerIds.Vision, vm.ShowVision);
         _compositor.SetEnabled(SceneLayerIds.Bomb, vm.ShowBombRing);
 
+        BindAnnotations(vm.AnnotationSession);
+        _compositor.SetEnabled(SceneLayerIds.Annotations, vm.IsAnnotationsEnabled);
+
         LoadedMapAsset? asset = vm.MapAsset;
         if (!ReferenceEquals(asset, _boundAsset))
         {
@@ -602,6 +792,45 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
     }
 
     private LoadedMapAsset? _boundAsset;
+
+    // Registers (or drops) the ink layer for the tab's session.
+    //
+    // Under the render gate on purpose: RenderPane walks the layer list BY INDEX on Avalonia's render
+    // thread, and this is the first phase that adds or removes a layer in response to something a user
+    // did. An unsynchronized mutation there surfaces as an intermittent ArgumentOutOfRangeException on
+    // the render thread — which no golden would ever catch (B1 review carry-forward 28).
+    private void BindAnnotations(AnnotationSession? session)
+    {
+        if (ReferenceEquals(_boundSession, session))
+        {
+            return;
+        }
+
+        _boundSession = session;
+
+        using (_gate.Enter())
+        {
+            if (_annotationLayer is not null)
+            {
+                _compositor.Remove(SceneLayerIds.Annotations);
+                _annotationLayer = null;
+            }
+
+            if (session is not null)
+            {
+                _annotationLayer = new AnnotationLayer(session);
+                _compositor.Add(_annotationLayer);
+            }
+        }
+
+        if (session is null)
+        {
+            return;
+        }
+
+        _toolServices.Session = session;
+        _router.SetActive(session.ActiveTool);
+    }
 
     private void ArmFrameLoopIfNeeded()
     {

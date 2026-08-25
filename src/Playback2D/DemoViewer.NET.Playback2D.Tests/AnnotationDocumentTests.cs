@@ -50,6 +50,49 @@ public class AnnotationDocumentTests
         await Assert.That(doc.RedoDepth).IsEqualTo(1);
     }
 
+    /// <summary>
+    ///     Closing a gesture is the moment its deltas become an undo entry — until then they sit in the
+    ///     open batch and <c>UndoDepth</c> still reads zero. Without a notification there, every consumer
+    ///     tracking undo depth (the toolbar's undo button first among them) stays stale until some
+    ///     unrelated mutation happens to wake it. Found by the headless exit-criterion suite.
+    /// </summary>
+    [Test]
+    public async Task Gesture_Close_AnnouncesTheNewUndoEntry()
+    {
+        AnnotationDocument doc = new();
+
+        int depthWhenLastNotified = -1;
+        doc.Changed += () => depthWhenLastNotified = doc.UndoDepth;
+
+        using (doc.BeginGesture("draw"))
+        {
+            doc.Apply(new DocDelta.Add(AnnotationFakes.Stroke(), 0));
+            await Assert.That(depthWhenLastNotified).IsEqualTo(0)
+                .Because("mid-gesture the delta is not an undo entry yet");
+        }
+
+        await Assert.That(depthWhenLastNotified).IsEqualTo(1);
+    }
+
+    /// <summary>
+    ///     ...and the close notification must NOT bump <c>Version</c>: nothing about the CONTENT changed,
+    ///     and the ink layer re-records every level's dry picture on a version change.
+    /// </summary>
+    [Test]
+    public async Task Gesture_Close_DoesNotBumpVersion()
+    {
+        AnnotationDocument doc = new();
+
+        int versionInsideGesture;
+        using (doc.BeginGesture("draw"))
+        {
+            doc.Apply(new DocDelta.Add(AnnotationFakes.Stroke(), 0));
+            versionInsideGesture = doc.Version;
+        }
+
+        await Assert.That(doc.Version).IsEqualTo(versionInsideGesture);
+    }
+
     [Test]
     public async Task Gesture_ZeroDeltas_PushesNoUndoEntry()
     {

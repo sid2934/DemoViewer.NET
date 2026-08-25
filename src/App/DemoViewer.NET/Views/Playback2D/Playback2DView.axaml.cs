@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core.Input;
 
 #endregion
 
@@ -70,6 +71,10 @@ public partial class Playback2DView : UserControl
         // Up/Down). Skipped while a text input has focus so a future in-tab field still types.
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
 
+        // Space is HELD to pan while a drawing tool is active (plan decision D3), so its release has to
+        // be observed too — the keymap only ever resolves a press.
+        AddHandler(KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel);
+
         // Clicking the map focuses the surface, so the keymap starts working without a Tab press.
         AddHandler(PointerPressedEvent, OnSurfacePointerPressed, RoutingStrategies.Tunnel);
 
@@ -89,6 +94,7 @@ public partial class Playback2DView : UserControl
         {
             _boundViewModel.FollowSlotChanged -= OnFollowSlotChanged;
             _boundViewModel.FitRequested -= OnFitRequested;
+            _boundViewModel.Annotations.ToolSelected -= OnToolSelected;
         }
 
         _boundViewModel = DataContext as Playback2DTabViewModel;
@@ -97,6 +103,11 @@ public partial class Playback2DView : UserControl
         {
             _boundViewModel.FollowSlotChanged += OnFollowSlotChanged;
             _boundViewModel.FitRequested += OnFitRequested;
+
+            // The toolbar picks a tool; the ROUTER owns which tool a press goes to. This is the one
+            // wire between them, and it exists here because the router is the surface's, not the VM's.
+            _boundViewModel.Annotations.ToolSelected += OnToolSelected;
+            OnToolSelected(_boundViewModel.Annotations.ActiveTool);
 
             // The View is DESTROYED on deactivation and rebuilt from the descriptor's ViewFactory on every
             // activation, while the tab VM is cached (WorkspaceTabDescriptor.Activate / .Deactivate). The
@@ -111,6 +122,14 @@ public partial class Playback2DView : UserControl
     }
 
     private void OnFitRequested() => _surface?.FitToExtent();
+
+    private void OnToolSelected(ToolKind kind)
+    {
+        if (_surface is Scene2DHost host)
+        {
+            host.SetActiveTool(kind);
+        }
+    }
 
     // Mirrors the VM's single follow funnel onto the control. Setting FollowSlot implies FollowPlayer
     // mode; -1 clears the follow and re-fits.
@@ -169,11 +188,48 @@ public partial class Playback2DView : UserControl
             return;
         }
 
-        // toolActive is false throughout A1 — there is no pointer tool yet. B2 passes the router's state
-        // here and its tool-scoped bindings then shadow Space / Esc without editing the table.
-        if (Playback2DKeymap.TryResolve(e, false, out Playback2DAction action))
+        // A drawing tool being active is what makes the keymap's tool-scoped rows shadow the always-scoped
+        // ones, which is how B2 takes Space and Esc back without editing A1's table.
+        bool toolActive = vm.IsAnnotationsEnabled && vm.Annotations.IsDrawingToolActive;
+
+        if (!Playback2DKeymap.TryResolve(e, toolActive, out Playback2DAction action))
         {
-            e.Handled = vm.ExecuteAction(action);
+            return;
+        }
+
+        // Two actions belong to the SURFACE, not the view-model: they act on the router's in-flight
+        // gesture, which is host state the VM deliberately does not own.
+        switch (action)
+        {
+            case Playback2DAction.HoldPan:
+                if (_surface is Scene2DHost holdHost)
+                {
+                    holdHost.SetSpacePanHeld(true);
+                    e.Handled = true;
+                }
+
+                return;
+
+            case Playback2DAction.CancelGesture:
+                if (_surface is Scene2DHost cancelHost)
+                {
+                    cancelHost.CancelActiveGesture();
+                    e.Handled = true;
+                }
+
+                return;
+
+            default:
+                e.Handled = vm.ExecuteAction(action);
+                return;
+        }
+    }
+
+    private void OnKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Space && _surface is Scene2DHost host)
+        {
+            host.SetSpacePanHeld(false);
         }
     }
 

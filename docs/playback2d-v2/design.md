@@ -712,6 +712,9 @@ lands first and independently; every B phase ships behind its gate.
    found proposals disagreed on its current shape/name — confirm at implementation start).
 2. Windowless GPU backend choice (ANGLE/EGL vs native GL vs SkiaSharp Vulkan) — resolved by the
    time-boxed C2 spike; macOS Metal support is a separate later decision.
-3. Whether `AnnotationTrack` envelope drag-editing lands in B2 or B3 (UX dependency on timeline).
+3. ~~Whether `AnnotationTrack` envelope drag-editing lands in B2 or B3 (UX dependency on timeline).~~
+   **Resolved in B2** (plan decision D8): B2 ships `AnnotationTrack`'s markers plus envelope authoring
+   through the toolbar (Always / Fade / Custom, and "pin to now"); **B3 adds drag-to-edit** on the
+   timeline, using the `DocDelta.Replace` API B2 exports.
 4. WebCodecs sink priority for WASM export — after desktop ships, gauge demand.
 5. Voice-audio sync (CS:DM's beloved feature) — natural future track/layer; out of scope here.

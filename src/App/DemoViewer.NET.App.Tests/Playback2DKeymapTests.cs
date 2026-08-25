@@ -54,35 +54,50 @@ public class Playback2DKeymapTests
     }
 
     [Test]
-    public async Task TryResolve_ReservedGesture_ReturnsFalseInA1()
+    public async Task TryResolve_ReservedGesture_ReturnsFalse()
     {
-        // X is DECLARED (so the conflict checker guards it) but not routed until B2 ships the erase tool.
-        await Assert.That(Playback2DKeymap.TryResolve(Key.X, KeyModifiers.None, false, out Playback2DAction erase))
-            .IsFalse();
-        await Assert.That(erase).IsEqualTo(Playback2DAction.None);
+        // Home is still DECLARED-not-routed (the conflict checker guards it; B3 binds it). A reserved
+        // binding resolves to nothing, so the view leaves the key unhandled rather than pretending.
+        await Assert.That(Playback2DKeymap.TryResolve(Key.Home, KeyModifiers.None, false,
+            out Playback2DAction fit)).IsFalse();
+        await Assert.That(fit).IsEqualTo(Playback2DAction.None);
+    }
 
-        await Assert.That(Playback2DKeymap.TryResolve(Key.D, KeyModifiers.None, false, out _)).IsFalse();
-        await Assert.That(Playback2DKeymap.TryResolve(Key.Z, KeyModifiers.Control, false, out _)).IsFalse();
-        await Assert.That(Playback2DKeymap.TryResolve(Key.Home, KeyModifiers.None, false, out _)).IsFalse();
+    /// <summary>
+    ///     A1 declared the annotation gestures reserved; B2 binds them. This is the moment the reservation
+    ///     paid off — the gestures were guarded from the day the table shipped, so binding them here is a
+    ///     flag flip rather than a collision hunt.
+    /// </summary>
+    [Test]
+    public async Task TryResolve_AnnotationGestures_AreBoundByB2()
+    {
+        await Assert.That(Resolve(Key.X, KeyModifiers.None)).IsEqualTo(Playback2DAction.ToolErase);
+        await Assert.That(Resolve(Key.D, KeyModifiers.None)).IsEqualTo(Playback2DAction.ToolDraw);
+        await Assert.That(Resolve(Key.Z, KeyModifiers.Control)).IsEqualTo(Playback2DAction.Undo);
+        await Assert.That(Resolve(Key.Z, KeyModifiers.Control | KeyModifiers.Shift))
+            .IsEqualTo(Playback2DAction.Redo);
+        await Assert.That(Resolve(Key.X, KeyModifiers.Control))
+            .IsEqualTo(Playback2DAction.ClearAnnotations);
     }
 
     [Test]
     public async Task TryResolve_ToolActive_PrefersToolScopedBinding()
     {
-        // D7: Space is play/pause normally, but a tool-scoped HoldPan SHADOWS it while a tool is active.
-        // HoldPan is reserved in A1, so the shadow shows up as "no longer TogglePlay" — which is exactly
-        // the mechanism B2 needs, proved before B2 depends on it.
+        // D7: Space is play/pause normally, but the tool-scoped HoldPan SHADOWS it while a drawing tool
+        // is active. B2 bound HoldPan, so the shadow now resolves to the action rather than to nothing.
         await Assert.That(Playback2DKeymap.TryResolve(Key.Space, KeyModifiers.None, false,
             out Playback2DAction idle)).IsTrue();
         await Assert.That(idle).IsEqualTo(Playback2DAction.TogglePlay);
 
         await Assert.That(Playback2DKeymap.TryResolve(Key.Space, KeyModifiers.None, true,
-            out Playback2DAction drawing)).IsFalse();
-        await Assert.That(drawing).IsNotEqualTo(Playback2DAction.TogglePlay);
+            out Playback2DAction drawing)).IsTrue();
+        await Assert.That(drawing).IsEqualTo(Playback2DAction.HoldPan);
 
-        // D8: same for Esc — clear-follow normally, gesture bail while a tool is active.
+        // D8: same for Esc — clear-follow normally, gesture bail while a drawing tool is active.
         await Assert.That(Resolve(Key.Escape, KeyModifiers.None)).IsEqualTo(Playback2DAction.ClearFollow);
-        await Assert.That(Playback2DKeymap.TryResolve(Key.Escape, KeyModifiers.None, true, out _)).IsFalse();
+        await Assert.That(Playback2DKeymap.TryResolve(Key.Escape, KeyModifiers.None, true,
+            out Playback2DAction bail)).IsTrue();
+        await Assert.That(bail).IsEqualTo(Playback2DAction.CancelGesture);
     }
 
     [Test]

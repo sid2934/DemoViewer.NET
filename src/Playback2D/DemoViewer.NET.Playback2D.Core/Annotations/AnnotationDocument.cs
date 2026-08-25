@@ -67,7 +67,10 @@ public sealed class AnnotationDocument
     /// <summary>The open gesture's name, or null. Diagnostics only.</summary>
     public string? OpenGestureName => _gesture?.Name;
 
-    /// <summary>Raised after any mutation, once per mutation.</summary>
+    /// <summary>
+    ///     Raised after any mutation, once per mutation, <b>and once more when a gesture closes</b> — the
+    ///     moment its deltas become a single undo entry and <see cref="UndoDepth" /> finally moves.
+    /// </summary>
     public event Action? Changed;
 
     /// <summary>
@@ -446,6 +449,14 @@ public sealed class AnnotationDocument
 
         PushUndo([.. _open]);
         _open.Clear();
+
+        // Closing a gesture is when its deltas actually BECOME an undo entry: until now they sat in the
+        // open batch and UndoDepth still read zero. Announce it, or every consumer tracking undo depth —
+        // the toolbar's undo button first among them — stays stale until the next unrelated mutation.
+        //
+        // Version is deliberately NOT bumped: no content changed, and bumping it would make the ink
+        // layer re-record every level's dry picture at the end of every single stroke.
+        Changed?.Invoke();
     }
 
     private void Bump()

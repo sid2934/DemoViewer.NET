@@ -3,20 +3,29 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Numerics;
+using System.Text.Json;
+using Avalonia.Media;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.PlayerStats;
 using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Parser.EntityTracking;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
+using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Pipeline;
+using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.ViewModels.Playback2D;
+using Microsoft.Extensions.DependencyInjection;
 
 #endregion
 
@@ -31,7 +40,7 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///     returns. The viewport redraw is coalesced to the render frame, driven by
 ///     <see cref="FrameUpdated" />.
 /// </summary>
-public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspaceTabViewModel
+public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspaceTabViewModel, IDisposable
 {
     // The inventory array slots scanned per player: the dotted bracket-indexed paths are built ONCE
     // here, not per-frame, so the per-tick grenade loop allocates no path strings.
@@ -304,13 +313,98 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// </summary>
     public Playback2DTabViewModel()
     {
+        // Every dependency is optional, resolved the way Playback2DRenderer resolves its setting: the
+        // descriptor's ViewModelFactory is a bare new(), and a headless test builds this with no
+        // container at all. No store and no settings means annotations still work — session only.
+        _annotationController = new AnnotationSessionController(
+            TryResolveAnnotationStore(), TryResolveSettings());
+        _annotationController.LoadRecentColors();
+
+        Annotations = new AnnotationsPanelViewModel(_annotationController,
+            () => _context?.CurrentTick ?? _frame.Time.Tick);
+
+        _annotationTrack = new AnnotationTrack(_annotationController.Document);
+
         Timeline.RegisterTrack(new RoundTrack());
         Timeline.RegisterTrack(new KillTrack());
         Timeline.RegisterTrack(new BombTrack());
+        Timeline.RegisterTrack(_annotationTrack);
 
         // The timeline never moves the clock: it asks, and the shared clock decides (so LiveSync's
         // SyncStateObserver keeps seeing every seek).
         Timeline.SeekRequested += OnTimelineSeekRequested;
+    }
+
+    private readonly AnnotationSessionController _annotationController;
+    private readonly AnnotationTrack _annotationTrack;
+
+    /// <summary>The annotation toolbar's state. A nested VM, so this class does not grow another screen.</summary>
+    public AnnotationsPanelViewModel Annotations { get; }
+
+    /// <summary>The session the v2 host's ink layer and pointer tools share with the toolbar.</summary>
+    public AnnotationSession? AnnotationSession => IsAnnotationsEnabled ? Annotations.Session : null;
+
+    /// <summary>Whether the <c>playback2d.annotations</c> feature is on. Fail-open, live.</summary>
+    public bool IsAnnotationsEnabled =>
+        _features?.IsEnabled(AnnotationSessionController.FeatureId) ?? true;
+
+    // The store needs an app-data root for its fallback location and the App's cached demo hash for its
+    // key; both come from the container when there is one. Pipeline must not reference the App, so the
+    // App is the side that knows AppPaths.
+    private static AnnotationStore? TryResolveAnnotationStore()
+    {
+        try
+        {
+            return new AnnotationStore(AppPaths.ConfigRoot);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private static SettingsService? TryResolveSettings()
+    {
+        try
+        {
+            return App.Services?.GetService<SettingsService>();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     Rebases annotation world anchors after a level-set rebuild. B3's hysteresis/rebuild path calls
+    ///     this; it consumes no undo slot (plan decision D6) and covers the wet stroke too.
+    /// </summary>
+    /// <param name="zMinMap">Old quantized level ZMin → new quantized level ZMin.</param>
+    public void ApplyAnnotationLevelRebuild(IReadOnlyDictionary<double, double> zMinMap) =>
+        _annotationController.ApplyLevelRebuild(zMinMap);
+
+    /// <summary>
+    ///     Shutdown: flushes any pending annotation autosave and drops the controller's subscriptions.
+    ///     The flush is synchronous here on purpose — this is the last chance the document has.
+    /// </summary>
+    public void Dispose()
+    {
+        try
+        {
+            _annotationController.FlushAsync().GetAwaiter().GetResult();
+        }
+        catch (IOException)
+        {
+            // Best-effort, exactly as SettingsService.SaveSession is: a failed write at shutdown must
+            // not turn into an unhandled exception on the way out.
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+
+        Annotations.Dispose();
+        _annotationTrack.Dispose();
+        _annotationController.Dispose();
     }
 
     /// <summary>The scrub / rounds / markers chrome docked under the viewport.</summary>
@@ -339,6 +433,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             _features.Changed += OnFeaturesChanged;
         }
 
+        _annotationController.SetFeatures(_features);
         RefreshGates();
 
         context.Advanced += OnAdvanced;
@@ -362,11 +457,33 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // roster-derived display + map asset and the marker draw-state from the current host player-join
         // before the next push arrives.
         ResyncToCurrentDemo();
+        AttachAnnotationsToCurrentDemo(force: false);
         Status = $"2D Playback — active · {context.CurrentPlayers.Count} players · 0 pushes";
+    }
+
+    // Loads (or reloads) the annotation sidecar for whatever demo the context is on. Fire-and-forget by
+    // design: an activation must not block on a disk read, and every failure inside is already reduced
+    // to a status line by the controller.
+    private void AttachAnnotationsToCurrentDemo(bool force)
+    {
+        if (_context is not { } ctx)
+        {
+            return;
+        }
+
+        ClockIdentity clock = new(ClockIdentity.DvFrameClock,
+            ctx.TickRate > 0 ? ctx.TickRate : 64, ctx.TotalFrames, 0, 0);
+
+        _ = _annotationController.AttachDemoAsync(ctx.DemoPath, clock, force)
+            .ContinueWith(static _ => { }, TaskScheduler.Default);
     }
 
     public void OnDeactivated()
     {
+        // Annotations are flushed FIRST, while the context is still attached: a debounced autosave that
+        // had not fired yet is the difference between a stroke surviving a tab switch and vanishing.
+        _ = _annotationController.FlushAsync().ContinueWith(static _ => { }, TaskScheduler.Default);
+
         // Unsubscribe the CS2 indicator projection from the SAME instance captured at activation, before the
         // context is dropped (the seam is stable, but re-reading _context.LiveSyncHud late is not guaranteed
         // identical). After this the indicator does no work while inactive.
@@ -655,6 +772,57 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                 FitRequested?.Invoke();
                 return true;
 
+            // ── Annotations (declared by A1, bound here). Gated off, the keys stay unhandled so they
+            //    can still reach whatever else wants them.
+            case Playback2DAction.ToolDraw:
+                if (!IsAnnotationsEnabled)
+                {
+                    return false;
+                }
+
+                Annotations.SelectTool(Annotations.ActiveTool == ToolKind.Draw
+                    ? ToolKind.PanZoom
+                    : ToolKind.Draw);
+                return true;
+
+            case Playback2DAction.ToolErase:
+                if (!IsAnnotationsEnabled)
+                {
+                    return false;
+                }
+
+                Annotations.SelectTool(Annotations.ActiveTool == ToolKind.Erase
+                    ? ToolKind.PanZoom
+                    : ToolKind.Erase);
+                return true;
+
+            case Playback2DAction.Undo:
+                if (!IsAnnotationsEnabled || !Annotations.CanUndo)
+                {
+                    return false;
+                }
+
+                Annotations.UndoCommand.Execute(null);
+                return true;
+
+            case Playback2DAction.Redo:
+                if (!IsAnnotationsEnabled || !Annotations.CanRedo)
+                {
+                    return false;
+                }
+
+                Annotations.RedoCommand.Execute(null);
+                return true;
+
+            case Playback2DAction.ClearAnnotations:
+                if (!IsAnnotationsEnabled)
+                {
+                    return false;
+                }
+
+                Annotations.ClearAllCommand.Execute(null);
+                return true;
+
             default:
                 return false;
         }
@@ -749,13 +917,139 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     {
         OnPropertyChanged(nameof(IsTimelineEnabled));
         OnPropertyChanged(nameof(IsFollowEnabled));
+        OnPropertyChanged(nameof(IsAnnotationsEnabled));
+        OnPropertyChanged(nameof(AnnotationSession));
         Timeline.IsVisible = IsTimelineEnabled && (_context?.HasDemo ?? false);
 
         if (!IsFollowEnabled && FollowedSlot >= 0)
         {
             NotifyFollowSlotChanged(-1);
         }
+
+        // Gated off, the surface reverts to plain pan/zoom: leaving a drawing tool selected would let a
+        // click still open a gesture on a document the user can no longer see.
+        if (!IsAnnotationsEnabled)
+        {
+            Annotations.SelectTool(ToolKind.PanZoom);
+        }
+
+        // A gate flip changes which LAYERS the surface should carry, and the surface only re-reads that
+        // on a frame push. Nudging it here is the same mechanism the overlay toggles use.
+        FrameUpdated?.Invoke();
     }
+
+    /// <summary>
+    ///     Session state carried across restarts: the annotation TOOL state only — active tool, ink
+    ///     style, envelope defaults.
+    ///     <para>
+    ///         Deliberately <b>not</b> the document (that is <c>AnnotationStore</c>'s job, keyed to the
+    ///         demo) and deliberately not the camera, the playhead or the selection.
+    ///     </para>
+    /// </summary>
+    public object? SnapshotState() => new Playback2DTabState(
+        Annotations.ActiveTool.ToString(),
+        Annotations.InkColorHex,
+        Annotations.InkWidth,
+        Annotations.InkOpacity,
+        Annotations.Visibility.ToString(),
+        Annotations.FadeInTicks,
+        Annotations.FadeOutTicks,
+        Annotations.HoldTicks,
+        Annotations.AnchorToEntities);
+
+    /// <summary>
+    ///     Restores <see cref="SnapshotState" />. Session state is a convenience, never a source of
+    ///     truth: a blob written by an older build degrades to "restore nothing" rather than throwing on
+    ///     startup.
+    /// </summary>
+    /// <param name="state">The persisted blob as a <c>JsonElement</c>, or null.</param>
+    public void RestoreState(object? state)
+    {
+        if (state is not JsonElement element || element.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        Playback2DTabState? restored;
+        try
+        {
+            restored = element.Deserialize<Playback2DTabState>();
+        }
+        catch (JsonException)
+        {
+            return;
+        }
+
+        if (restored is null)
+        {
+            return;
+        }
+
+        if (Enum.TryParse(restored.ActiveTool, ignoreCase: true, out ToolKind tool))
+        {
+            Annotations.SelectTool(tool);
+        }
+
+        if (TryParseArgb(restored.InkColorHex, out uint argb))
+        {
+            Annotations.InkColor = Color.FromArgb((byte)(argb >> 24), (byte)(argb >> 16),
+                (byte)(argb >> 8), (byte)argb);
+        }
+
+        if (restored.InkWidth > 0)
+        {
+            Annotations.InkWidth = restored.InkWidth;
+        }
+
+        if (restored.InkOpacity is > 0 and <= 1)
+        {
+            Annotations.InkOpacity = restored.InkOpacity;
+        }
+
+        if (Enum.TryParse(restored.Visibility, ignoreCase: true, out EnvelopeMode mode))
+        {
+            Annotations.Visibility = mode;
+        }
+
+        Annotations.FadeInTicks = Math.Max(0, restored.FadeInTicks);
+        Annotations.FadeOutTicks = Math.Max(0, restored.FadeOutTicks);
+        Annotations.HoldTicks = Math.Max(0, restored.HoldTicks);
+        Annotations.AnchorToEntities = restored.AnchorToEntities;
+    }
+
+    private static bool TryParseArgb(string? hex, out uint argb)
+    {
+        argb = 0;
+        if (string.IsNullOrWhiteSpace(hex))
+        {
+            return false;
+        }
+
+        ReadOnlySpan<char> span = hex.AsSpan().TrimStart('#');
+        return span.Length == 8
+               && uint.TryParse(span, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out argb);
+    }
+
+    /// <summary>The 2D tab's session blob. Tool state only — never the document, camera or playhead.</summary>
+    /// <param name="ActiveTool">The <c>ToolKind</c> name.</param>
+    /// <param name="InkColorHex"><c>#AARRGGBB</c>.</param>
+    /// <param name="InkWidth">World units.</param>
+    /// <param name="InkOpacity">0..1.</param>
+    /// <param name="Visibility">The <c>EnvelopeMode</c> name.</param>
+    /// <param name="FadeInTicks">Lead-in ticks.</param>
+    /// <param name="FadeOutTicks">Lead-out ticks.</param>
+    /// <param name="HoldTicks">Fully-opaque hold.</param>
+    /// <param name="AnchorToEntities">Whether new strokes follow a nearby player.</param>
+    public sealed record Playback2DTabState(
+        string ActiveTool,
+        string InkColorHex,
+        double InkWidth,
+        double InkOpacity,
+        string Visibility,
+        int FadeInTicks,
+        int FadeOutTicks,
+        int HoldTicks,
+        bool AnchorToEntities);
 
     private void OnTimelineSeekRequested(int frameIndex) => _context?.RequestSeekToFrame(frameIndex);
 
@@ -771,7 +1065,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // Advanced push (LoadDemo resets the clock silently). Full resync so the map image, marker labels,
     // trails, ring state, and kill feed all reflect the new demo, exactly as a fresh activation would. This
     // is the state-restoration parity the Open-file button and the library browser must share.
-    private void OnDemoReset() => ResyncToCurrentDemo();
+    private void OnDemoReset()
+    {
+        ResyncToCurrentDemo();
+
+        // A demo reload is the one moment the sidecar on disk really is the newer truth, so this one
+        // forces — unlike a tab re-activation, which must keep the in-memory document.
+        AttachAnnotationsToCurrentDemo(force: true);
+    }
 
     // Rebuilds ALL per-demo draw-state from the CURRENT context — shared by on-activation and by the
     // demo-reset signal. Re-seeds the roster display + map asset (SeedRosterDisplay → EnsureMapAsset), drops

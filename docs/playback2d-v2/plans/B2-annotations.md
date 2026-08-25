@@ -1073,3 +1073,151 @@ if they match §5.5's `IPointerTool` exactly; otherwise B1's must be removed, no
 - [ ] Steady-state allocation over 512 headless frames is 0 bytes with no active stroke.
 - [ ] `dotnet build src/App/DemoViewer.NET.Desktop -c Release` is clean (warnings are errors), and both
       new CI test steps are green.
+
+---
+
+## Implementation notes (deviations)
+
+Written at implementation time. Everything not listed here was built as the plan body and the
+`Integrator corrections` block specify.
+
+### Typed identity, where the plan body still said `string`
+
+1. **`WetStroke.PaneLevelId` is `MapLevelId?`, not `string?`.** The contracts section spells it
+   `string? PaneLevelId`, but B1 landed level identity as a typed `MapLevelId` struct precisely so the
+   compiler rejects the id-vs-index (and now id-vs-name) mix-up design risk 5 is about. A string here
+   would have been the one place in the level model that could be silently wrong. Same reasoning as B1's
+   own deviation 1; B3 sees a typed id everywhere.
+
+2. **`AnnotationLoadResult.Elements` stays `IReadOnlyList<AnnotationElement>`** as the contract says, and
+   the unknown-JSON preservation is done by memoising the extension data per sidecar path inside
+   `AnnotationStore` and re-emitting it on the next save. Returning DTOs would have leaked the
+   persistence shape into every consumer for the sake of one round-trip guarantee.
+
+### Additive API, agreed shapes unchanged
+
+3. **`PanZoomGesture` gained `Press(LevelPane?, …)` / `Wheel(LevelPane?, …)` overloads.** Correction 7
+   says B2 *wraps* B1's gesture, but the shipped signatures take a `PaneSet` and hit-test internally —
+   and the router has already resolved the pane by the time a tool sees the event. Re-running the hit
+   test inside the tool would be a second answer to a question the router already answered. The `PaneSet`
+   overloads are unchanged and still delegate to the new ones.
+
+4. **`AnnotationSession` carries the envelope authoring inputs** (`DefaultVisibility`, `FadeInTicks`,
+   `FadeOutTicks`, `HoldTicks`, `AnchorWorldRadius`, `SampleSpacingFactor`) plus
+   `EnvelopeForNewElement(currentTick)`. The contract lists only `NewElementEnvelope`, but T09 requires
+   the tool to "snapshot `NewElementEnvelope` resolved against `s.CurrentTick`" — resolving needs the
+   mode and the ramp lengths, and putting them anywhere else would mean the App recomputing the envelope
+   on every settings change and pushing it in.
+
+5. **`FreehandOptions` gained `WithSize` and `ForWidth`.** `ForWidth` is the single place an
+   `AnnotationStyle.WidthWorld` becomes a `FreehandOptions.Size`, so the eraser's hit-test outline and
+   the layer's drawn outline are provably the same polygon.
+
+6. **`InputToolRouter` gained `IsDrawingToolActive` and `GestureTool`.** The first is what the view passes
+   to `Playback2DKeymap.TryResolve` as its `toolActive` flag; without it the App would re-derive "is a
+   drawing tool selected" from the session and the two answers could drift. The second is a test seam for
+   "which tool actually took this gesture", which is the whole of decision D3.
+
+7. **`AnnotationElement` has hand-written structural equality.** The synthesized record equality compares
+   `Points` by REFERENCE, which makes an element that survived a save/load round trip unequal to the one
+   that was written — the exact comparison persistence, export and the undo tests all need to make. Cost
+   is O(n) in the sample count, paid only when something compares.
+
+8. **`AnnotationSessionController` takes `SettingsService?`, not `IOptionsMonitor<AppSettings>`.** The
+   controller must *write* the ink style back (colour, width, last tool), and `IOptionsMonitor` is
+   read-only. `SettingsService` is the repo's single read+write seam for preferences and is what
+   `Playback2DRenderer` already resolves. It also takes no `IFeatureGate` — correction 12 routes gates
+   through `IModuleContext.Features`, so the gate arrives via `SetFeatures`.
+
+9. **`AttachDemoAsync` gained a `force` parameter.** A tab RE-activation rebuilds the view but keeps the
+   cached view-model, and reloading the sidecar there would throw away anything the debounce had not yet
+   written. Activation passes `force: false` (skip when already attached to this demo); `DemoReset` passes
+   `force: true`, which is the one moment the file on disk really is the newer truth.
+
+10. **`Playback2DTabViewModel` now implements `IDisposable`**, following the existing
+    `RuleWorkbenchTabViewModel` precedent. It owns the controller and the timeline track, and CA1001 is
+    on for this assembly.
+
+### Things found while building, that the plan did not anticipate
+
+11. **`AnnotationDocument.Changed` is raised again when a gesture CLOSES.** Closing a gesture is the
+    moment its deltas become an undo entry — until then they sit in the open batch and `UndoDepth` still
+    reads zero. Without a notification there, the toolbar's undo button stayed greyed out after the first
+    stroke of a session and only woke on some later unrelated mutation. `Version` is deliberately *not*
+    bumped (no content changed, and the ink layer re-records every level's dry picture on a version
+    change). Found by the headless exit-criterion suite; pinned by
+    `AnnotationDocumentTests.Gesture_Close_AnnouncesTheNewUndoEntry` and `.Gesture_Close_DoesNotBumpVersion`.
+
+12. **`RefreshGates` now raises `FrameUpdated`.** A feature-gate flip changes which LAYERS the surface
+    should carry, and `Scene2DHost` only re-reads that on a frame push — the same mechanism the overlay
+    toggles already use. Without it, switching `playback2d.annotations` off left the ink layer registered
+    and drawing until the next playback push.
+
+13. **`Scene2DHost` registers and removes the annotation layer under the render gate.** B1 review
+    carry-forward 28 predicted exactly this: `RenderPane` walks the layer list by index on the render
+    thread, and B2 is the first phase to add or remove a layer in response to a user action.
+
+14. **The host owns ONE router over a swappable session.** `SceneHostToolServices.Session` is settable and
+    the host re-points it when a view-model binds, rather than rebuilding the router. Rebuilding would
+    drop a gesture that was in flight across a data-context change, and the router is also the thing that
+    holds `IsSpaceHeld`.
+
+### Test-plan deviations
+
+15. **`FreehandOutlineTests` pins BOTH stages, not just the outline.** The generator script in the plan
+    emits only `getStroke`'s output; the committed vectors also carry `getStrokePoints`, so a streamline
+    or minimum-length error is attributed to stage 1 instead of showing up as a mysterious outline
+    mismatch. All three vectors match upstream to 1e-6 relative with exact point counts.
+
+16. **`SinglePoint_ProducesClosedDot` split in two.** Upstream's circular-dot branch fires when
+    `getStrokePoints` collapses to ONE point, which happens for two coincident samples (what `DrawTool`
+    commits for a tap) — not for a lone sample, which upstream expands into a very short capped stroke.
+    The circle assertion moved to `CoincidentPair_ProducesAClosedDot`; the single-sample case asserts a
+    closed blob of about the stroke's width.
+
+17. **`Save_IsAtomic_NoPartialFileObserved` is written as `Save_IsAtomic_NoTempFileLeftBehind`.**
+    Observing a partial file requires racing the writer, which is a flaky test by construction. What is
+    actually assertable — and what the atomic write exists to guarantee — is that a second save leaves no
+    `.tmp` behind and the file still parses. `Save_OnIoFailure_ReturnsFalse_DoesNotThrow` covers the
+    failure half by holding the destination open with no sharing.
+
+18. **`AnnotationLayerGoldenTests` is not written as a separate checked-in-PNG suite.** Four annotation
+    goldens would need a fixture corpus of their own plus a regeneration path, and what they would assert
+    — static / mid-fade / entity-anchored / wet ink each land on the right pane with the right opacity —
+    is asserted directly in `AnnotationLayerTests` by counting pixels, which localises a failure to one
+    rule instead of to "the picture changed". `Playback2DAnnotationHostTests.DrawnStroke_RendersOnTheSurface`
+    covers the end-to-end "ink reaches the real surface" claim with a captured PNG for eyeball review.
+
+19. **Two A1 keymap tests were updated, not deleted.** `TryResolve_ReservedGesture_ReturnsFalseInA1`
+    asserted that `X`, `D` and `Ctrl+Z` resolve to nothing; B2 binds all three. It is now
+    `TryResolve_ReservedGesture_ReturnsFalse` (covering `Home`, still B3's) plus a new
+    `TryResolve_AnnotationGestures_AreBoundByB2`. `TryResolve_ToolActive_PrefersToolScopedBinding`
+    asserted the tool-scoped shadow resolves to *nothing*; it now asserts it resolves to `HoldPan` and
+    `CancelGesture`.
+
+20. **The `Playback2DAnnotationHostTests` fixture focuses the view before a key test.** Nothing focuses
+    the 2D view until the user clicks the surface, so a key case that never clicks would silently assert
+    nothing at all.
+
+### Not built, and why
+
+21. **`THIRD-PARTY-NOTICES.md` uses section `## e.`, not `## d.`** — B1 landed the Inter font as `d.`; the
+    plan's instruction to "add `## d.`" predates it, and sections are appended in landing order.
+
+22. **`ContractVersion` was not bumped** (correction 11): A1 already set it to `1.2.0`.
+
+23. **`Directory.Packages.props` and `.github/workflows/ci.yml` are untouched.** B2 adds no package, and
+    its tests live in the two projects B0's `playback2d-tests` job already runs.
+
+24. **`AnnotationHitTester` throws `NotSupportedException` for non-`Freehand` kinds** rather than
+    answering "no hit". A silent miss for a shape kind nobody implemented is an eraser that mysteriously
+    refuses to erase; the plan permitted the stub and this is the loud version of it.
+
+25. **Attaching to a demo no longer writes an empty sidecar.** Loading calls `AnnotationDocument.Reset`,
+    which raises `Changed`, which scheduled an autosave — so simply *opening* a demo dropped an empty
+    `.dvann.json` beside it. Caught by a stray `assets/tour/sample-de_nuke.dem.dvann.json` appearing in
+    the repo's own working tree after an App-suite run. Two guards, because either alone is incomplete:
+    autosave is suppressed for the duration of a load, and a save of an EMPTY document is skipped unless
+    a sidecar already exists — erasing the last stroke must still clear the file. Pinned by
+    `Playback2DAnnotationPersistenceTests.Controller_AttachingToADemoWithNoAnnotations_WritesNothing`
+    and `.Controller_ErasingTheLastStroke_StillClearsAnExistingSidecar`.

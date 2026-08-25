@@ -400,4 +400,41 @@ public sealed class Playback2DSettings
     ///     </para>
     /// </summary>
     public bool LegacyViewport { get; set; }
+
+    // ── Annotations (B2). Property names are the registry's (§3.10); every one of them has a
+    //    SettingsService.WriteInMemory row, because annotations are WASM-reachable — in-session drawing
+    //    works in the browser — and an unflattened key there is a setting that silently forgets itself.
+
+    /// <summary>The pointer tool the surface opens with: a <c>ToolKind</c> name.</summary>
+    public string LastTool { get; set; } = "PanZoom";
+
+    /// <summary>Ink colour as packed ARGB (0xAARRGGBB), not a string — the scene speaks in ARGB.</summary>
+    public uint AnnotationColorArgb { get; set; } = 0xFFFFC107;
+
+    /// <summary>Ink width in WORLD units, so a stroke zooms with the map like a map pen.</summary>
+    public double AnnotationWidth { get; set; } = 8;
+
+    /// <summary>Ink opacity multiplier, 0..1, applied on top of the time envelope.</summary>
+    public double AnnotationOpacity { get; set; } = 1.0;
+
+    /// <summary>Envelope authoring mode for new elements: <c>Always</c>, <c>Fade</c> or <c>Custom</c>.</summary>
+    public string AnnotationDefaultVisibility { get; set; } = "Always";
+
+    /// <summary>Lead-in length in DV frame-clock ticks for <c>Fade</c> elements.</summary>
+    public int AnnotationFadeInTicks { get; set; } = 8;
+
+    /// <summary>Lead-out length in DV frame-clock ticks for <c>Fade</c> elements.</summary>
+    public int AnnotationFadeOutTicks { get; set; } = 16;
+
+    /// <summary>Fully-opaque hold for <c>Fade</c> elements. 320 ≈ 5 s at 64 tick.</summary>
+    public int AnnotationHoldTicks { get; set; } = 320;
+
+    /// <summary>Whether a stroke started near a player anchors to them by SteamId.</summary>
+    public bool AnnotationAnchorToEntities { get; set; }
+
+    /// <summary>Whether the document is written to its sidecar automatically.</summary>
+    public bool AnnotationAutoSave { get; set; } = true;
+
+    /// <summary>Recently used ink colours, newest first, as <c>#AARRGGBB</c>. Flattened as indexed keys.</summary>
+    public string[] AnnotationRecentColors { get; set; } = [];
 }

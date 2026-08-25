@@ -434,8 +434,33 @@ public sealed class SettingsService
             // Playback2D: every property of the section is flattened here. On WASM there is no file,
             // so a key missing from this list is a setting that silently forgets itself on reload.
             new KeyValuePair<string, string?>("Playback2D:LegacyViewport",
-                settings.Playback2D.LegacyViewport ? "true" : "false")
+                settings.Playback2D.LegacyViewport ? "true" : "false"),
+            new KeyValuePair<string, string?>("Playback2D:LastTool", settings.Playback2D.LastTool),
+            new KeyValuePair<string, string?>("Playback2D:AnnotationColorArgb",
+                settings.Playback2D.AnnotationColorArgb.ToString(CultureInfo.InvariantCulture)),
+            new KeyValuePair<string, string?>("Playback2D:AnnotationWidth",
+                settings.Playback2D.AnnotationWidth.ToString(CultureInfo.InvariantCulture)),
+            new KeyValuePair<string, string?>("Playback2D:AnnotationOpacity",
+                settings.Playback2D.AnnotationOpacity.ToString(CultureInfo.InvariantCulture)),
+            new KeyValuePair<string, string?>("Playback2D:AnnotationDefaultVisibility",
+                settings.Playback2D.AnnotationDefaultVisibility),
+            new KeyValuePair<string, string?>("Playback2D:AnnotationFadeInTicks",
+                settings.Playback2D.AnnotationFadeInTicks.ToString(CultureInfo.InvariantCulture)),
+            new KeyValuePair<string, string?>("Playback2D:AnnotationFadeOutTicks",
+                settings.Playback2D.AnnotationFadeOutTicks.ToString(CultureInfo.InvariantCulture)),
+            new KeyValuePair<string, string?>("Playback2D:AnnotationHoldTicks",
+                settings.Playback2D.AnnotationHoldTicks.ToString(CultureInfo.InvariantCulture)),
+            new KeyValuePair<string, string?>("Playback2D:AnnotationAnchorToEntities",
+                settings.Playback2D.AnnotationAnchorToEntities ? "true" : "false"),
+            new KeyValuePair<string, string?>("Playback2D:AnnotationAutoSave",
+                settings.Playback2D.AnnotationAutoSave ? "true" : "false")
         };
+
+        for (int i = 0; i < settings.Playback2D.AnnotationRecentColors.Length; i++)
+        {
+            data.Add(new KeyValuePair<string, string?>($"Playback2D:AnnotationRecentColors:{i}",
+                settings.Playback2D.AnnotationRecentColors[i]));
+        }
 
         for (int i = 0; i < settings.Library.Folders.Length; i++)
         {
