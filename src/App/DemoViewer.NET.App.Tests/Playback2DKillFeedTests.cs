@@ -178,6 +178,24 @@ public class Playback2DKillFeedTests
         await Assert.That(vm.GameInfo).IsNotNull();
     }
 
+    /// <summary>
+    ///     On a build with no export host — the browser head, this test harness, the designer — the tab
+    ///     offers nothing. Hidden rather than disabled: a button that starts an export whose LiveSync and
+    ///     reel refusals silently do not apply would be worse than no button, and a dead one that
+    ///     explains nothing is worse than an absent one.
+    /// </summary>
+    [Test]
+    public async Task WithoutAnExportHost_TheTabOffersNoExport()
+    {
+        (Playback2DTabViewModel vm, _) = Activate();
+
+        await Assert.That(vm.CanExport).IsFalse();
+
+        // And the command is inert rather than throwing, so a stale binding cannot crash the tab.
+        vm.OpenExportCommand.Execute(null);
+        await Assert.That(vm.ExportDialog).IsNull();
+    }
+
     private static string NameFor(FakeCtx ctx, int slot)
     {
         foreach (PlayerRosterEntry entry in ctx.Roster)

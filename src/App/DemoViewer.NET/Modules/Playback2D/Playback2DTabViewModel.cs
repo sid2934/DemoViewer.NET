@@ -16,7 +16,14 @@ using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Playback2D.Pipeline.Export;
+using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
+using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Playback2D.Pipeline.Hud;
+using DemoViewer.NET.Playback2D.Pipeline.Vision;
+using DemoViewer.NET.Services.Dependencies;
+using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services;
 
 #endregion
@@ -263,6 +270,150 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     /// <summary>Round-level game-info panel state.</summary>
     public GameInfo GameInfo { get; } = new();
+
+    // ── Video export (B4) ──────────────────────────────────────────────────────
+    // Everything reusable is in Pipeline/Core; what is here is the composition. The host arrives
+    // through ModuleContext.SetExportHost, so on a build without one (browser, tests, designer) the
+    // affordance is simply hidden rather than offered in a half-wired state where the LiveSync and
+    // reel refusals would silently not apply.
+
+    private ExportJobService? _exportJob;
+
+    /// <summary>
+    ///     True when this build can export: the feature is on, a host is wired, and a demo is loaded.
+    /// </summary>
+    public bool CanExport =>
+        _context?.Features?.IsEnabled(ExportFeatureId) is not false &&
+        _context is ModuleContext { ExportHost: not null } &&
+        _context.HasDemo;
+
+    /// <summary>The open export dialog, or null. Non-null is what the view binds its overlay's visibility to.</summary>
+    [ObservableProperty]
+    private ViewModels.Playback2D.Playback2DExportDialogViewModel? _exportDialog;
+
+    /// <summary>The running export's status, for the chip. Idle when none has run.</summary>
+    public ExportJobStatus ExportStatus => _exportJob?.Status ?? ExportJobStatus.Idle;
+
+    /// <summary>Opens the export dialog, seeded from the saved defaults and the current round.</summary>
+    [RelayCommand]
+    private void OpenExport()
+    {
+        if (!CanExport || _context is not ModuleContext { ExportHost: { } host })
+        {
+            return;
+        }
+
+        _exportJob ??= new ExportJobService(
+            new SceneExportRunner(_ => BuildExportSetup(host)),
+            host.Gate,
+            host.IsLiveSyncBusy,
+            host.IsReelRunning);
+
+        ExportDialog = new ViewModels.Playback2D.Playback2DExportDialogViewModel(
+            BuildExportRanges(),
+            host.Settings().Playback2D,
+            _exportJob,
+            CaptureLiveCamera,
+            OutputFrameCount,
+            () => FfmpegLocationFor(FfmpegDependency.Locate()),
+            host.IsLiveSyncBusy,
+            host.PersistSettings);
+
+        ExportDialog.StartRequested += CloseExport;
+    }
+
+    /// <summary>Closes the export dialog. The job keeps running — its progress lives on the status chip.</summary>
+    [RelayCommand]
+    private void CloseExport()
+    {
+        if (ExportDialog is { } dialog)
+        {
+            dialog.StartRequested -= CloseExport;
+        }
+
+        ExportDialog = null;
+        OnPropertyChanged(nameof(ExportStatus));
+    }
+
+    // Whole rounds, plus the whole demo. CS2 rounds OPEN at round_freeze_end — the same fact RoundTrack's
+    // bands rest on — so the ranges here and the timeline's bands cannot disagree about where a round starts.
+    private List<ViewModels.Playback2D.ExportRangeOption> BuildExportRanges()
+    {
+        List<ViewModels.Playback2D.ExportRangeOption> ranges = [];
+        int total = _context?.TotalFrames ?? 0;
+        if (total <= 0)
+        {
+            return ranges;
+        }
+
+        IReadOnlyList<int> starts = _context?.EventFrames(RoundTrack.FreezeEndEvent) ?? [];
+        for (int i = 0; i < starts.Count; i++)
+        {
+            int from = starts[i];
+            int to = (i + 1 < starts.Count ? starts[i + 1] : total) - 1;
+            if (to > from)
+            {
+                ranges.Add(new ViewModels.Playback2D.ExportRangeOption(
+                    string.Create(CultureInfo.InvariantCulture, $"Round {i + 1}  (frames {from}–{to})"),
+                    from, to));
+            }
+        }
+
+        ranges.Add(new ViewModels.Playback2D.ExportRangeOption(
+            string.Create(CultureInfo.InvariantCulture, $"Whole demo  ({total} frames)"), 0, total - 1));
+
+        // The round containing the playhead leads: it is what the user is looking at.
+        int current = _context?.CurrentFrameIndex ?? 0;
+        int here = ranges.FindIndex(r => current >= r.StartFrame && current <= r.EndFrame);
+        if (here > 0)
+        {
+            ViewModels.Playback2D.ExportRangeOption pick = ranges[here];
+            ranges.RemoveAt(here);
+            ranges.Insert(0, pick);
+        }
+
+        return ranges;
+    }
+
+    private ExportSceneSetup BuildExportSetup(Playback2DExportHost host) => new(
+        host.Frames() ?? [],
+        _tickRate,
+        _context?.MapName,
+        ScenePaletteFactory.Build(Avalonia.Application.Current?.ActualThemeVariant),
+        LevelDisplayMode.Stacked,
+
+        // The export builds its own solver over the same engine: VisionLayer is stateless per frame, and
+        // the engine itself is a read-only mesh.
+        VisionEngine is null ? null : new VisibilityEngineSolver(() => VisionEngine),
+        BuildExportHud(),
+        MapAsset);
+
+    // The exported HUD reads the SAME pre-built kill timeline the XAML feed windows, and the same
+    // SceneGameInfo the panel binds — which is what makes design risk 8 (dual-HUD drift) impossible.
+    private TimelineHudDataSource BuildExportHud() =>
+        new(_allKills, _tickRate, _ => ClockReading.From(_frame.GameInfo));
+
+    // Plan D12: a CAPTURE, taken once when Start is pressed. Panning the live window afterwards changes
+    // nothing about the video. There is no live pane list to read until B3's host exposes one, so this is
+    // an empty Fixed script today — every pane keeps the fit its own level was born with.
+    private static CameraScript.Fixed CaptureLiveCamera() =>
+        new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>());
+
+    private int OutputFrameCount(int startFrame, int endFrame, int fps, double speed) =>
+        _context is ModuleContext { ExportHost: { } host } && host.Frames() is { } frames
+            ? TrackerFrameSource.OutputFrameCount(frames, startFrame, endFrame, fps, speed, _tickRate)
+            : Math.Max(1, endFrame - startFrame + 1);
+
+    private static FfmpegLocation FfmpegLocationFor(FfmpegStatus status) => new(status.Found,
+        status.Directory, status.Source switch
+        {
+            FfmpegSource.SystemPath => FfmpegOrigin.SystemPath,
+            FfmpegSource.Managed => FfmpegOrigin.Managed,
+            _ => FfmpegOrigin.None
+        });
+
+    /// <summary>The feature id gating the whole export affordance. A persisted key — never renamed.</summary>
+    private const string ExportFeatureId = "playback2d.export";
 
     /// <summary>The current frame's marker draw-state. Read by the custom-drawn viewport.</summary>
     public IReadOnlyList<PlayerMarker> Markers => _frame.Markers;

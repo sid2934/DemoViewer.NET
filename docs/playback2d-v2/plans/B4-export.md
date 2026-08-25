@@ -1137,6 +1137,11 @@ Plan additions:
 - [x] **Dialog is thin.** Every format/fps/size/range rule routes through
       `SceneExportSession.Validate`; `ExportSeamHeadlessTests` renders a fixture to a GIF and asserts
       no `Avalonia*` assembly is loaded in the process.
+- [x] **Reachable in the app.** `Playback2DTabViewModel.OpenExportCommand` composes the runner, the
+      job service and the dialog; the view carries an "Export video…" button and a side pane. Both are
+      **hidden** unless the feature is on, a demo is loaded and the shell wired an export host — a
+      button whose refusals silently did not apply would be worse than no button. See deviations 18–20
+      for the seam, and 20 for the one thing still missing (a live pane snapshot for `MirrorLiveView`).
 - [x] **Build & style.** `dotnet build DemoViewer.NET.slnx` clean, 0 warnings, 0 errors.
       **R7 verified with a caveat:** `dotnet publish src/App/DemoViewer.NET.Browser -c Release` fails
       — and fails **identically at the base commit** (`IL2104` trim warnings from
@@ -1266,6 +1271,40 @@ Written at implementation time. Everything not listed here was built as the plan
     `-movflags faststart` without the `+` (which only matters when combining several). Transport is
     FFMpegCore's named pipe rather than literal stdin — same subprocess, same separateness, and it is
     what the library supports.
+
+### The composition root, and the file it could not touch
+
+18. **The export host reaches the 2D tab through `ModuleContext.SetExportHost`, not through
+    `IModuleContext`.** An export needs the parsed frame list, and `IModuleContext`'s opening
+    doc-comment is explicit that it "deliberately does NOT expose the live `EntityTracker`, the raw
+    byte buffer, the `DemoParser`, or any mutator — a module simply has no API to corrupt state (the
+    primary, real guardrail)". Handing every module the frame list to give one module a video export
+    is a bad trade. `Playback2DExportHost` is a first-party capability the shell hands one tab, the
+    same shape as `SetLiveSyncHud` and `SetSpeedLock`, and it carries the three things the tab cannot
+    otherwise see: the frames, the `HeavyJobGate`, and the "is something else using the machine"
+    predicates.
+    <br>It is wired in `App.axaml.cs` — B4.11's stated site — through `MainViewModel.ModuleContext`,
+    which was **already public**, so `MainViewModel.cs` stayed untouched as D1 requires. The only
+    other addition is `PlaybackController.Frames`, a read-only accessor over a list that is immutable
+    post-parse.
+
+19. **The live-sync predicate is `State.IsSessionActive`, not
+    `IsSessionActive || OwnsSessionResources` (D11).** `LiveSyncService.OwnsSessionResources` is
+    `internal` to the desktop-only LiveSync project, which the App project cannot reference — the
+    reel job can use it only because it *is* that project. The narrower predicate refuses every case
+    a user can create deliberately; the gap is a *faulted* session still holding the gRPC host for
+    fast retry, which costs a port rather than the CPU an export is competing for. `ExportJobService`
+    takes the predicate as a delegate, so a future host that can see both flags passes both with no
+    change here.
+
+20. **`CameraScript.MirrorLiveView` is not yet reachable from the app.** The dialog captures a camera
+    on Start exactly as D12 requires, and `CameraScriptResolver` implements all three cases with the
+    capture-immutability case tested — but the capture is an empty `Fixed` script today, because
+    there is no live pane list to read: `Scene2DHost` owns its `PaneSet` privately and exposes no
+    snapshot. Every exported pane therefore keeps the fit its own level was born with, which is the
+    correct framing for a whole round and the wrong one for a user who had zoomed in. **The one-line
+    fix is a pane snapshot accessor on `Scene2DHost` (B1/B3's file), and the resolver already
+    consumes it.**
 
 ### Not built, and why
 

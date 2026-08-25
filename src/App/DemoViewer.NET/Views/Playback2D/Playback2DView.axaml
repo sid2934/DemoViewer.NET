@@ -267,6 +267,30 @@
                 </StackPanel>
             </Border>
 
+            <!-- Video export (B4). Hidden — not disabled — when the feature is off, when no demo is
+                 loaded, or on a build with no export host (browser, tests, designer): a dead button that
+                 explains nothing is worse than no button. -->
+            <Button Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="10"
+                    Padding="10,4" FontSize="11" Content="Export video…"
+                    Command="{Binding OpenExportCommand}" IsVisible="{Binding CanExport}"
+                    ToolTip.Tip="Render this view to a video file. Runs in the background — you can keep watching." />
+
+            <!-- The export pane. Not a modal: an export runs for minutes, so it hands off and closes,
+                 and progress lives on the status chip (the same shape the reel job uses). -->
+            <Border Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                    Width="360" Margin="0" BorderThickness="1,0,0,0"
+                    Background="{DynamicResource Pb2dPanelBg}"
+                    BorderBrush="{DynamicResource Pb2dGridSplitter}"
+                    IsVisible="{Binding ExportDialog, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Grid RowDefinitions="*,Auto">
+                    <ScrollViewer Grid.Row="0">
+                        <ContentControl Content="{Binding ExportDialog}" />
+                    </ScrollViewer>
+                    <Button Grid.Row="1" Content="Close" Margin="12,0,12,12" HorizontalAlignment="Right"
+                            Command="{Binding CloseExportCommand}" />
+                </Grid>
+            </Border>
+
             <!-- The playback timeline (feature-gated). The VM folds the gate AND has-demo into IsVisible;
                  the row is Auto-sized, so an off gate leaves no layout hole. -->
             <tl:TimelineControl Grid.Row="1" DataContext="{Binding Timeline}"
