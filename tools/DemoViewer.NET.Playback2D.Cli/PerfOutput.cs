@@ -73,17 +73,17 @@ internal static class PerfOutput
             $"  perf {report.Frames} frames  frame p50={report.Frame.P50Ms:F3} p99={report.Frame.P99Ms:F3} ms  " +
             $"max {report.MaxFrameFps:F1} fps  render-only {report.MaxRenderFps:F1} fps"));
 
-        ConsoleOut.Info($"  {"stage",-24} {"p50",8} {"p99",8} {"total ms",10} {"share",7}");
+        ConsoleOut.Info($"  {"stage",-28} {"p50",8} {"p99",8} {"total ms",10} {"share",7}");
         foreach (PerfRow row in report.Stages)
         {
             ConsoleOut.Info(string.Create(CultureInfo.InvariantCulture,
-                $"  {row.Name,-24} {row.Times.P50Ms,8:F3} {row.Times.P99Ms,8:F3} {row.TotalMs,10:F1} " +
+                $"  {row.Name,-28} {row.Times.P50Ms,8:F3} {row.Times.P99Ms,8:F3} {row.TotalMs,10:F1} " +
                 $"{row.SharePct,6:F1}%"));
         }
 
         // Layers are nested inside the advance and render stages, never additional to them — said here
         // because a reader adding the two columns up and getting 180 % would otherwise be right to worry.
-        ConsoleOut.Info($"  {"layer (nested in stage)",-24} {"p50",8} {"p99",8} {"total ms",10} {"share",7} cache");
+        ConsoleOut.Info($"  {"layer (nested in stage)",-28} {"p50",8} {"p99",8} {"total ms",10} {"share",7} cache");
         foreach (PerfRow row in report.Layers)
         {
             string cache = row.CacheHitRate is { } rate
@@ -94,7 +94,7 @@ internal static class PerfOutput
                     : "";
 
             ConsoleOut.Info(string.Create(CultureInfo.InvariantCulture,
-                $"  {Truncate(row.Label, 24),-24} {row.Times.P50Ms,8:F3} {row.Times.P99Ms,8:F3} " +
+                $"  {Truncate(row.Label, 28),-28} {row.Times.P50Ms,8:F3} {row.Times.P99Ms,8:F3} " +
                 $"{row.TotalMs,10:F1} {row.SharePct,6:F1}% {cache}"));
         }
 

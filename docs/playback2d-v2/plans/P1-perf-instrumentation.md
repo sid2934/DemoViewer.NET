@@ -144,9 +144,9 @@ or changes meaning.
 }
 ```
 
-`max_render_fps` is requirement 3 in one number, and it is the same number under `bench` (which never
-encodes) and under `export --no-encode` (which encodes nothing) — that equality is the cross-check
-that the two harnesses are measuring the same renderer.
+`max_render_fps` is requirement 3 in one number: `bench` never encodes and `export --no-encode`
+encodes nothing, so both report the uncapped render-only ceiling for the stack they drew. §8.1 is why
+those two stacks are not yet the same one.
 
 ## 5. Proving the default path is untouched
 
@@ -170,3 +170,70 @@ that the two harnesses are measuring the same renderer.
 3. **`dv2d bench`'s `frame_ms` is unchanged** and still means advance + render. The `perf` block's own
    `frame_ms` means the sum of the captured stages, which under `export` also includes source,
    read-back and encode. Two names, two scopes, documented at both ends.
+
+---
+
+## 7. What it measured (first run, 2026-08-25)
+
+Windows 11, RTX 4070 Ti SUPER box, **CPU raster**, 1280×720 @ 60 fps, `--hud`, ffmpeg on PATH
+(libvpx-vp9, CRF 30, `-row-mt 1`). Inferno = the two-minute mid-match range `--from 72000 --to 79680`
+of `match730_003837017413086347571_2138351068_117.dem`; nuke = the whole bundled
+`assets/tour/sample-de_nuke.dem`.
+
+| Run | out fps | realtime | frame p50 | source | advance | render | readback | sink |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| inferno, vp9 | 65.0 | 1.1× | 14.96 | 0.405 | 0.014 | 4.143 | 2.151 | **8.067** |
+| inferno, `--no-encode` | 153.4 | 2.5× | 6.06 | 0.223 | 0.010 | 2.785 | 1.486 | 1.530 |
+| inferno, `--no-encode --no-radar` | 196.8 | 3.2× | 4.75 | 0.215 | 0.012 | **1.311** | 1.678 | 1.526 |
+| nuke, vp9 | 73.9 | 1.2× | 12.92 | 0.272 | 0.020 | 4.202 | 2.087 | **6.241** |
+| nuke, `--no-encode` | 150.3 | 2.5× | 6.53 | 0.138 | 0.010 | 3.163 | 1.678 | 1.524 |
+
+Stage columns are p50 ms. `sink` under `--no-encode` is `HashingFrameSink` SHA-256ing a 3.5 MB frame —
+not free, and the reason "no encoder" is not the same as "renderer alone".
+
+**Share of the inferno vp9 frame:** encode 54.0 %, render 27.9 %, readback 14.9 %, source 3.0 %,
+advance 0.1 %. Inside render: `playback2d.radar` 22.2 % of the whole frame — four fifths of the
+raster — then `playback2d.markers` 1.4 %, `hud.clock` 0.4 %, everything else under 0.3 % combined.
+
+**The attribution is checked, not asserted.** Turning the radar art off drops the render stage p50 by
+1.474 ms and the radar layer row by 1.499 ms — the two agree within 2 %, which is what makes the
+per-layer column trustworthy rather than decorative.
+
+**Answering the motivating question.** It is not tracker decode, not vision, not area effects at ten
+players. `source` — `FrameAt`, i.e. the entity decode plus `SceneFrameBuilder` — is 3.0 % of the
+frame; inferno's is 49 % dearer than nuke's, which moves the total by ~1.5 %. Vision and area effects
+together are under 0.3 %. The frame is **libvpx (54 %) + one radar `DrawImage` (22 %) + a read-back
+(15 %)**, and content barely enters it.
+
+Nor does the 1.1× / 2.7× gap reproduce as a content difference: at these settings inferno and nuke
+are 65.0 and 73.9 fps, 14 % apart, not 2.4×. What does reproduce is **2.5× realtime with the encoder
+out of the loop, for both demos** — within 8 % of the 2.7 × nuke reference. The reference pair was
+almost certainly measured with libvpx in one path and not the other.
+
+Two second-order facts the stage table makes visible:
+
+- **ffmpeg steals from the renderer.** The same inferno frames raster at 2.785 ms p50 with no encoder
+  and 4.143 ms with libvpx running beside them (+49 %), and `max_render_fps` reads 359 vs 241. The
+  encoder is not just serialised after the raster; it competes with it for cores and memory bandwidth.
+- **Read-back is a real line item**, 15 % of the encoding frame and 25–36 % once the encoder is gone.
+  A GPU provider (C2 Stage 1) has to beat a 1.5–2.2 ms `ReadPixels`, not only the raster.
+
+Where the wins are, in order: the encoder (preset/codec/threads, or a GPU encoder), the radar blit
+(cache the *pixels* at pane resolution, not just the picture — `RadarLayer.CacheScaledImage` already
+caches the resample but the blit itself is still per frame), and the read-back.
+
+## 8. Findings this surfaced (not fixed here)
+
+1. **`dv2d bench` cannot see the shipping layer stack.** `SceneRenderPlan` builds through
+   `SceneLayerCatalog.Create`, whose `KnownLayerIds` is still B0's single `playback2d.debuggrid` —
+   the seam C1 deviation 14 / risk R6 left open. `export` goes through `CreateSceneStack` and gets the
+   real nine. So `bench --perf` reports a correct per-layer table *of a debug grid*, and the CI budget
+   gate is gating on it. Closing it means registering the nine layers in the catalog, which changes
+   what a default `dv2d render` draws and therefore every golden captured through the tool — B1/C1's
+   change to make, not this phase's. Until then, **`export --no-encode --perf` is the per-layer
+   authority** and `bench --perf` is the max-render-rate one.
+2. **`docs/profiling.md` had drifted.** The single profiling switch moved into the CS2DemoKit package
+   and its env var is `CS2DEMOKIT_PROFILE`; the doc still told readers to set `DEMOVIEWER_PROFILE`,
+   which no longer flips anything on its own. Corrected in that doc; `dv2d` honours both spellings.
+   `RuntimeEnvInfo` and the Desktop/AnalysisBench comments still carry the old name — app-side, out of
+   scope here.

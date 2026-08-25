@@ -237,20 +237,38 @@ and `render`**, never additional to them, and carry the picture-cache verdict pe
 (hit), `recorded` (miss), `uncached` (a `Dynamic` layer, where there is no cache in the path at all —
 counted apart so it does not read as a permanent cache failure).
 
-`max_render_fps` is the uncapped render-only ceiling, `1000 / p50(render)`. It is the same figure
-under `bench` (which never encodes) and under `export --no-encode` (which encodes nothing) — that
-equality is the cross-check that both harnesses are measuring one renderer.
+`max_render_fps` is the uncapped render-only ceiling, `1000 / p50(render)`. `bench` never encodes and
+`export --no-encode` encodes nothing, so both report it for the stack they are drawing.
+
+> **Which command to ask about layers.** `bench` (and `render`) build through
+> `SceneLayerCatalog.Create`, which in this build still knows only B0's `playback2d.debuggrid` — the
+> seam C1 deviation 14 left open. `export` builds through `CreateSceneStack` and gets the real nine.
+> So today **`export --no-encode --perf` is the per-layer authority**, and `bench --perf` reports a
+> correct table of whatever stack it managed to build. See
+> [`plans/P1-perf-instrumentation.md`](plans/P1-perf-instrumentation.md) §8.
+
+Measured — `export --from 72000 --to 79680 --size 1280x720 --fps 60 --hud --perf` on a de_inferno
+MM demo, CPU raster, libvpx-vp9 (this is the real output, not an illustration):
 
 ```
-  perf 7680 frames  frame p50=13.902 p99=25.115 ms  max 71.9 fps  render-only 233.1 fps
-  stage                         p50      p99   total ms   share
-  source                      7.412   16.884    59204.1   55.4%
-  advance                     0.311    0.664     2571.6    2.4%
-  render                      4.290    8.955    34989.0   32.7%
-  readback                    0.402    0.881     3226.5    3.0%
-  encode                      0.808    4.117     6976.9    6.5%
-  slowest: source 55.4%, render 32.7%, playback2d.radar (render) 14.2%, …
+  perf 7201 frames  frame p50=14.960 p99=20.005 ms  max 66.8 fps  render-only 241.3 fps
+  stage                             p50      p99   total ms   share
+  source                          0.405    0.601     3220.7    3.0%
+  advance                         0.014    0.037      135.1    0.1%
+  render                          4.143    5.356    30277.5   27.9%
+  readback                        2.151    3.739    16209.5   14.9%
+  encode                          8.067   13.117    58628.9   54.0%
+  layer (nested in stage)           p50      p99   total ms   share cache
+  playback2d.radar (render)       3.265    4.483    24083.3   22.2% 100.0% hit (7200/7201)
+  playback2d.markers (render)     0.232    0.349     1531.1    1.4% uncached
+  …
+  slowest: encode 54.0%, render 27.9%, playback2d.radar (render) 22.2%, readback 14.9%, source 3.0%
 ```
+
+Read that way round it is unambiguous: the frame is libvpx plus one radar `DrawImage` plus a
+read-back, and the entity decode everyone suspects (`source`) is 3 % of it. The full analysis,
+including the ablation that checks the per-layer column against reality, is in
+[`plans/P1-perf-instrumentation.md`](plans/P1-perf-instrumentation.md) §7.
 
 Capture itself allocates nothing per frame in steady state — the ring buffers are filled during the
 warmup — which is asserted by `ScenePerfRecorderTests` alongside the 0 B assertion for the detached
@@ -367,15 +385,15 @@ With `--json`, **stdout carries exactly one JSON object** and every human line m
 
 // bench / export with --perf — ONE additive "perf" key; absent without the flag
 {"…":"…","perf":{
-  "frames":7680,
-  "frame_ms":{"p50":13.902,"p95":21.4,"p99":25.115,"max":61.2,"mean":15.1},
-  "frame_total_ms":115968.1,"max_render_fps":233.1,"max_frame_fps":71.9,
-  "stages":[{"name":"source","p50":7.412,"p95":…,"p99":16.884,"max":…,"mean":…,
-             "samples":7680,"total_ms":59204.1,"share_pct":55.4}, …],
-  "layers":[{"name":"playback2d.radar","phase":"render","p50":1.98,…,
-             "samples":7680,"total_ms":15234.9,"share_pct":14.2,
-             "cache":{"replayed":7679,"recorded":1,"uncached":0,"hit_rate":0.9999}}, …],
-  "slowest":[{"name":"source","kind":"stage","total_ms":59204.1,"share_pct":55.4}, …]}}
+  "frames":7201,
+  "frame_ms":{"p50":14.9599,"p95":17.6,"p99":20.0052,"max":61.2,"mean":15.1},
+  "frame_total_ms":108471.7,"max_render_fps":241.3477,"max_frame_fps":66.8454,
+  "stages":[{"name":"source","p50":0.405,"p95":0.517,"p99":0.601,"max":…,"mean":…,
+             "samples":7201,"total_ms":3220.7,"share_pct":3.0}, …],
+  "layers":[{"name":"playback2d.radar","phase":"render","p50":3.265,…,
+             "samples":7201,"total_ms":24083.3,"share_pct":22.2,
+             "cache":{"replayed":7200,"recorded":1,"uncached":0,"hit_rate":0.9999}}, …],
+  "slowest":[{"name":"encode","kind":"stage","total_ms":58628.9,"share_pct":54.0}, …]}}
 
 // golden verify
 {"schema_version":1,"command":"golden","action":"verify","ok":false,"backend":"CpuRaster",
