@@ -263,7 +263,12 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
     ///     without a job service, and so the CLI's own argument parsing can be compared against it.
     /// </summary>
     /// <param name="range">The range to export.</param>
-    public ExportRequest BuildRequest(ExportRangeOption range)
+    /// <param name="camera">
+    ///     The camera, or null to capture the live one now. Validation passes a placeholder: the camera
+    ///     cannot make a request invalid, and capturing on every keystroke would defeat D12's "captured
+    ///     once, at Start".
+    /// </param>
+    public ExportRequest BuildRequest(ExportRangeOption range, CameraScript? camera = null)
     {
         ArgumentNullException.ThrowIfNull(range);
 
@@ -277,7 +282,7 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
             SelectedFormat,
             BuildLayerIds(),
             // D12: the capture happens HERE, at Start, not when the user picked the camera option.
-            _captureLiveCamera());
+            camera ?? _captureLiveCamera());
     }
 
     private HashSet<string> BuildLayerIds()
@@ -417,7 +422,7 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
         {
             // The ONE validator. Everything above is about the dialog's own environment; everything a
             // request can be wrong about is Pipeline's rule set, so the CLI refuses identically.
-            SceneExportSession.Validate(BuildRequest(range));
+            SceneExportSession.Validate(BuildRequest(range, DefaultCamera()));
         }
         catch (ExportValidationException ex)
         {

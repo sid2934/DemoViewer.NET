@@ -289,4 +289,104 @@ public class HeavyJobGateTests
         bgHeld.Dispose();
         await Assert.That(gate.InFlight).IsEqualTo(0);
     }
+
+    // ── B4: the 2D-export session ──────────────────────────────────────────────
+    // A new session kind rather than an interactive or a background slot (plan D10). An export is
+    // CPU-bound and holds one extra EntityTracker, not a multi-gigabyte parse: taking an interactive slot
+    // would block the user's next demo open for the whole render, and taking a background one would queue
+    // it behind — and then in front of — the user's own work.
+
+    [Test]
+    public async Task Export_PausesBackground_ButNeverBlocksAnInteractiveLoad()
+    {
+        using HeavyJobGate gate = new();
+        using IDisposable export = await gate.EnterExportSessionAsync();
+
+        await Assert.That(gate.IsExportActive).IsTrue();
+        await Assert.That(gate.CanStartBackground).IsFalse();
+
+        Task<IDisposable> background = gate.AcquireBackgroundAsync();
+        await AssertStaysBlockedAsync(background, "background while an export renders");
+
+        // The user's foreground demo load still wins — that is the whole point of not reusing the reel
+        // session's semantics here.
+        IDisposable interactive = await gate.AcquireInteractiveAsync();
+        interactive.Dispose();
+
+        export.Dispose();
+        IDisposable held = await background;
+        held.Dispose();
+        await Assert.That(gate.IsExportActive).IsFalse();
+    }
+
+    [Test]
+    public async Task Export_DoesNotDrainAnInFlightParse()
+    {
+        using HeavyJobGate gate = new();
+        using IDisposable parse = await gate.AcquireInteractiveAsync();
+
+        // Unlike a reel session, an export shares the machine with a parse that is already running; it
+        // only declines to let a NEW one start. Entering must therefore not wait for the drain.
+        Task<IDisposable> entering = gate.EnterExportSessionAsync();
+        IDisposable export = await entering.WaitAsync(TimeSpan.FromSeconds(2));
+
+        await Assert.That(gate.InFlight).IsEqualTo(1);
+        export.Dispose();
+    }
+
+    [Test]
+    public async Task AReel_IsRefusedWhileAnExportRenders()
+    {
+        using HeavyJobGate gate = new();
+        using IDisposable export = await gate.EnterExportSessionAsync();
+
+        ExportInProgressException? refusal = null;
+        try
+        {
+            await gate.EnterReelSessionAsync();
+        }
+        catch (ExportInProgressException ex)
+        {
+            refusal = ex;
+        }
+
+        await Assert.That(refusal).IsNotNull();
+        await Assert.That(refusal!.Message).Contains("2D video export");
+    }
+
+    [Test]
+    public async Task AnExport_IsRefusedWhileAReelRenders()
+    {
+        using HeavyJobGate gate = new();
+        using IDisposable reel = await gate.EnterReelSessionAsync();
+
+        ReelInProgressException? refusal = null;
+        try
+        {
+            await gate.EnterExportSessionAsync();
+        }
+        catch (ReelInProgressException ex)
+        {
+            refusal = ex;
+        }
+
+        // Symmetric with the case above: whichever heavy renderer got there first keeps the machine, and
+        // the second is told so instead of quietly interleaving with it.
+        await Assert.That(refusal).IsNotNull();
+    }
+
+    [Test]
+    public async Task DisposingAnExportSessionTwice_IsSafe()
+    {
+        using HeavyJobGate gate = new();
+        IDisposable export = await gate.EnterExportSessionAsync();
+
+        export.Dispose();
+        export.Dispose();
+
+        // A double release that decremented twice would leave the counter negative and make the NEXT
+        // export's refusal checks silently pass.
+        await Assert.That(gate.IsExportActive).IsFalse();
+        await Assert.That(gate.CanStartBackground).IsTrue();
+    }
 }

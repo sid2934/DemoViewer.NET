@@ -3,6 +3,7 @@
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Pipeline.Hud;
 
 #endregion
 
@@ -94,6 +95,100 @@ public class Playback2DKillFeedTests
         await Assert.That(vm.KillFeed.Count).IsEqualTo(6);
         await Assert.That(vm.KillFeed[0].Tick).IsEqualTo(1020);
         await Assert.That(vm.KillFeed[^1].Tick).IsEqualTo(1070);
+    }
+
+    /// <summary>
+    ///     Design §11's snapshot test, in the form B4 D5 made possible: the XAML feed and the exported
+    ///     <c>hud.killfeed</c> layer are fed by the SAME <c>KillFeedTimeline.Window</c> call, so at every
+    ///     sampled tick their rows must agree exactly — not approximately, not usually.
+    ///     <para>
+    ///         This is the executable half of "dual-HUD drift is structurally impossible". If someone ever
+    ///         re-introduces a second windowing rule, this is what fails.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task AtEverySampledTick_TheExportedFeed_MatchesTheXamlFeedRowForRow()
+    {
+        List<GameEventView> timeline = [];
+        for (int i = 0; i < 12; i++)
+        {
+            timeline.Add(Kill(1000 + i * 90, i % 2, (i + 1) % 2, i % 3 == 0 ? "awp" : "ak47",
+                hs: i % 2 == 0, penetrated: i % 4 == 0 ? 1 : 0));
+        }
+
+        (Playback2DTabViewModel vm, FakeCtx ctx) = Activate([.. timeline]);
+
+        // The rows the exported layer would draw, built the way the App builds them.
+        List<KillFeedRow> all = [];
+        foreach (GameEventView ev in timeline)
+        {
+            all.Add(new KillFeedRow(ev.Tick,
+                NameFor(ctx, (int)(ev.Fields["Attacker"] ?? -1)),
+                null,
+                NameFor(ctx, (int)(ev.Fields["UserId"] ?? -1)),
+                (string)(ev.Fields["Weapon"] ?? ""),
+                (bool)(ev.Fields["Headshot"] ?? false),
+                (int)(ev.Fields["Penetrated"] ?? 0) > 0,
+                false, false, false, false, false));
+        }
+
+        List<KillFeedRow> exported = [];
+
+        for (int tick = 900; tick <= 2200; tick += 37)
+        {
+            ctx.Push(0, tick);
+            KillFeedTimeline.Window(all, tick, ctx.TickRate, exported);
+
+            await Assert.That(vm.KillFeed.Count).IsEqualTo(exported.Count);
+            for (int i = 0; i < exported.Count; i++)
+            {
+                await Assert.That(vm.KillFeed[i].Tick).IsEqualTo(exported[i].Tick);
+                await Assert.That(vm.KillFeed[i].Attacker).IsEqualTo(exported[i].Attacker);
+                await Assert.That(vm.KillFeed[i].Victim).IsEqualTo(exported[i].Victim);
+                await Assert.That(vm.KillFeed[i].Weapon).IsEqualTo(exported[i].Weapon);
+                await Assert.That(vm.KillFeed[i].Headshot).IsEqualTo(exported[i].Headshot);
+                await Assert.That(vm.KillFeed[i].Penetrated).IsEqualTo(exported[i].Penetrated);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     The clock half of the same snapshot: what <c>ClockLayer</c> draws is a projection of the very
+    ///     <c>SceneGameInfo</c> the XAML panel binds, so the two cannot disagree about the round number,
+    ///     the score or the countdown.
+    /// </summary>
+    [Test]
+    public async Task TheExportedClock_ProjectsTheSameGameInfoTheXamlPanelShows()
+    {
+        (Playback2DTabViewModel vm, FakeCtx ctx) = Activate();
+        ctx.Push(0, 1000);
+
+        SceneGameInfo info = new("Live", "Planted", 13, 12, 34.5, "0:34",
+            true, false, "kit", double.NaN, "—", 7, 5);
+        ClockReading reading = ClockReading.From(info);
+
+        await Assert.That(reading.Round).IsEqualTo(info.RoundNumber.ToString(
+            System.Globalization.CultureInfo.InvariantCulture));
+        await Assert.That(reading.TScore).IsEqualTo(info.TScore);
+        await Assert.That(reading.CtScore).IsEqualTo(info.CtScore);
+        await Assert.That(reading.CountdownSeconds).IsEqualTo(info.RoundSeconds);
+        await Assert.That(reading.BombTicking).IsEqualTo(info.BombTicking);
+
+        // And the VM publishes the same record the projection reads, so there is one source for both.
+        await Assert.That(vm.GameInfo).IsNotNull();
+    }
+
+    private static string NameFor(FakeCtx ctx, int slot)
+    {
+        foreach (PlayerRosterEntry entry in ctx.Roster)
+        {
+            if (entry.Slot == slot)
+            {
+                return entry.Name;
+            }
+        }
+
+        return "world";
     }
 
     // ── Setup + builders ──

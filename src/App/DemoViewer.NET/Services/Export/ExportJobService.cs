@@ -171,8 +171,7 @@ public sealed class ExportJobService : IExportJobService, IDisposable
             // exactly the case the start-time rule is about.
             RefuseIfBusy();
 
-            Progress<ExportProgress> progress = new(OnProgress);
-            await _runner.RunAsync(request, progress, ct).ConfigureAwait(false);
+            await _runner.RunAsync(request, new DirectProgress(OnProgress), ct).ConfigureAwait(false);
 
             terminal = Status with
             {
@@ -219,5 +218,21 @@ public sealed class ExportJobService : IExportJobService, IDisposable
         }
 
         Dispatcher.UIThread.Post(() => StatusChanged?.Invoke(this, status));
+    }
+
+    /// <summary>
+    ///     Calls straight through instead of posting.
+    ///     <para>
+    ///         <see cref="Progress{T}" /> captures the <see cref="SynchronizationContext" /> of whoever
+    ///         constructed it, and this job is constructed on a thread-pool thread — so it would post to
+    ///         the pool, and a report queued mid-render could arrive <b>after</b> the terminal status and
+    ///         overwrite "Completed" with "Rendering". The status would then say the export is still going
+    ///         forever. Marshalling to the UI thread is <see cref="SetStatus" />'s job and happens once,
+    ///         at the end of this chain, where the ordering is already fixed.
+    ///     </para>
+    /// </summary>
+    private sealed class DirectProgress(Action<ExportProgress> report) : IProgress<ExportProgress>
+    {
+        public void Report(ExportProgress value) => report(value);
     }
 }

@@ -150,7 +150,12 @@ public static class FfmpegAcquisition
             }
         }
 
-        return FfmpegLocator.Locate(offer.TargetDirectory);
+        // The MANAGED location, not a fresh Locate(): the caller asked for a download and got one, and
+        // Locate would hand back whatever is on PATH — which is a different binary, possibly a different
+        // licence, and not the thing whose checksum was just verified.
+        return File.Exists(Path.Combine(offer.TargetDirectory, FfmpegLocator.ExecutableName))
+            ? new FfmpegLocation(true, offer.TargetDirectory, FfmpegOrigin.Managed)
+            : FfmpegLocation.NotFound;
     }
 
     private static async Task<string> DownloadAndHashAsync(HttpClient client, FfmpegDownloadOffer offer,
