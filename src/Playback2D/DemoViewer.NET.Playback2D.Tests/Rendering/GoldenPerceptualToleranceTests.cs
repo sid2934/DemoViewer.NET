@@ -228,6 +228,69 @@ public class GoldenPerceptualToleranceTests
         await Assert.That(result.Ssim).IsLessThan(0.995);
     }
 
+    /// <summary>
+    ///     <b>The comparator's arithmetic, against a closed form rather than against itself.</b> Two flat
+    ///     images have zero variance and zero covariance, so SSIM collapses to its luminance term alone:
+    ///     <c>(2·μx·μy + C₁) / (μx² + μy² + C₁)</c>, with <c>C₁ = (0.01·255)² = 6.5025</c>. For greys 100
+    ///     and 110 that is <c>22006.5025 / 22106.5025 = 0.9954764…</c>, independent of the window size and
+    ///     of the Gaussian weights.
+    ///     <para>
+    ///         This is the case that catches a wrong <c>C₁</c>, a mis-normalised kernel, or luma weights
+    ///         that do not sum to one — none of which the pass/fail cases above would notice, because
+    ///         every one of them would still fall on the same side of its threshold.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task Ssim_OnTwoFlatImages_MatchesTheClosedFormLuminanceTerm()
+    {
+        byte[] expected = Solid(48, 48, new SKColor(100, 100, 100));
+        byte[] actual = Solid(48, 48, new SKColor(110, 110, 110));
+
+        GoldenComparison result =
+            GoldenImageComparer.Compare(expected, actual, GoldenTolerance.DefaultPerceptual);
+
+        const double c1 = 0.01 * 255 * (0.01 * 255);
+        double closedForm = ((2 * 100.0 * 110.0) + c1) / ((100.0 * 100.0) + (110.0 * 110.0) + c1);
+
+        await Assert.That(closedForm).IsEqualTo(0.99547).Within(0.00001);
+        await Assert.That(result.Ssim).IsEqualTo(closedForm).Within(0.00002);
+        await Assert.That(result.MinWindowSsim).IsEqualTo(closedForm).Within(0.00002);
+    }
+
+    /// <summary>
+    ///     The other half of the formula — the contrast/structure term, which the flat case leaves at
+    ///     exactly 1 and therefore cannot test at all.
+    ///     <para>
+    ///         A period-2 checkerboard of <c>m ± d</c> has, under <i>any</i> symmetric normalised window,
+    ///         μ = m and σ² = d²; shifting it one pixel flips its sign, giving σxy = −d² while μ is
+    ///         unchanged. The luminance term is then exactly 1 and SSIM reduces to
+    ///         <c>(−2d² + C₂) / (2d² + C₂)</c> with <c>C₂ = (0.03·255)² = 58.5225</c>. For d = 3 that is
+    ///         <c>40.5225 / 76.5225 = 0.529554…</c>.
+    ///     </para>
+    ///     <para>
+    ///         So this pins the covariance path, <c>C₂</c>, and the separable two-pass convolution
+    ///         together: a horizontal/vertical pass that failed to compose into a true 2-D window would
+    ///         not land on this number.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task Ssim_OnAnAntiCorrelatedCheckerboard_MatchesTheClosedFormStructureTerm()
+    {
+        byte[] expected = Pixels(48, 48, (x, y) => Checker(x, y));
+        byte[] actual = Pixels(48, 48, (x, y) => Checker(x + 1, y));
+
+        GoldenComparison result =
+            GoldenImageComparer.Compare(expected, actual, GoldenTolerance.DefaultPerceptual);
+
+        const double c2 = 0.03 * 255 * (0.03 * 255);
+        const double variance = 3.0 * 3.0;
+        double closedForm = ((-2 * variance) + c2) / ((2 * variance) + c2);
+
+        await Assert.That(closedForm).IsEqualTo(0.52955).Within(0.00001);
+        await Assert.That(result.Ssim).IsEqualTo(closedForm).Within(0.0005);
+        await Assert.That(result.MinWindowSsim).IsEqualTo(closedForm).Within(0.0005);
+    }
+
     private static SKColor Checker(int x, int y) =>
         (x + y) % 2 == 0 ? new SKColor(100, 100, 100) : new SKColor(106, 106, 106);
 

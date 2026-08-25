@@ -126,6 +126,54 @@ public class RenderSurfaceProbeTests
     }
 
     /// <summary>
+    ///     §2.5's precedence, at the place it is actually load-bearing: an explicit API argument outranks
+    ///     <c>DV2D_RENDER_BACKEND</c>. The cached probe short-circuits to <c>forced-cpu</c> when the
+    ///     ambient variable says <c>cpu</c>, and that is a <i>policy</i> answer, not a capability one —
+    ///     letting it veto a caller that outranks the environment would make
+    ///     <c>Create(ForceGpu)</c> throw on a machine whose GPU is working perfectly, in direct
+    ///     contradiction of §6.2 ("throws only ... when no GPU backend is available").
+    ///     <para>
+    ///         Asserted on the failure <i>reason</i> so it runs on every machine: with EGL also made
+    ///         unavailable the throw is inevitable either way, but a message naming <c>forced-cpu</c>
+    ///         means the environment vetoed the explicit argument, and a message naming
+    ///         <c>no-egl-library</c> means the hardware was actually consulted.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task Create_ForceGpu_ConsultsTheHardware_EvenWhenTheEnvironmentSaysCpu()
+    {
+        using ProbeEnvironment env = ProbeEnvironment.WithBackend("cpu", missingEglLibrary: true);
+
+        InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(() =>
+            RenderSurfaceProviderFactory.Create(RenderBackendPreference.ForceGpu));
+
+        await Assert.That(thrown.Message).Contains("no-egl-library");
+        await Assert.That(thrown.Message).DoesNotContain("forced-cpu");
+    }
+
+    /// <summary>
+    ///     The other half of the same rule, on hardware: <c>PreferGpu</c> passed explicitly must reach the
+    ///     GPU even while <c>DV2D_RENDER_BACKEND=cpu</c> is set — otherwise a stale shell variable
+    ///     silently overrides the CLI flag or the export dialog's advanced option, which is precisely the
+    ///     inversion §2.5 exists to prevent.
+    /// </summary>
+    [Test]
+    [Category("Gpu")]
+    public async Task Create_PreferGpu_ReachesTheGpu_EvenWhenTheEnvironmentSaysCpu()
+    {
+        using (ProbeEnvironment clean = ProbeEnvironment.Clean())
+        {
+            GpuFixtureRender.RequireGpu();
+        }
+
+        using ProbeEnvironment env = ProbeEnvironment.WithBackend("cpu");
+        using IRenderSurfaceProvider provider =
+            RenderSurfaceProviderFactory.Create(RenderBackendPreference.PreferGpu);
+
+        await Assert.That(provider.Backend).IsNotEqualTo(RenderBackend.CpuRaster);
+    }
+
+    /// <summary>
     ///     WASM surfaces belong to Avalonia's compositor and there is no EGL to bind to, so the browser
     ///     branch must never reach the GPU attempt. Asserted through the injected platform rather than by
     ///     running the suite on WASM — the branch is what needs proving, not the runtime.

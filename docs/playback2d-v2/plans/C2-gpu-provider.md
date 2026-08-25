@@ -1237,6 +1237,70 @@ Every remaining differing pixel is on the anti-aliased rim of a marker disc. Dif
     build does; symbol resolution tries direct exports first and `eglGetProcAddress` second, which is
     what makes older ANGLE builds that return null for core functions work.
 
+### Deviations found and fixed in independent review
+
+Recorded by the reviewer, on the same branch, after the implementer's four commits.
+
+19. **§2.5 precedence was inverted for an explicit GPU preference (defect — fixed).**
+    `RenderSurfaceProviderFactory.Probe()` short-circuits to `forced-cpu` when the **ambient**
+    `DV2D_RENDER_BACKEND` says `cpu`, and `Create` consulted that cached probe unconditionally. The
+    consequence on a machine with a perfectly working GPU:
+    `Create(RenderBackendPreference.ForceGpu)` **threw** — "no GPU render surface backend is
+    available: forced-cpu" — and `Create(PreferGpu)` silently returned the CPU provider. That is the
+    exact inversion §2.5 exists to prevent (an explicit API argument, and the CLI flag that becomes
+    one, outrank the environment) and it contradicts §6.2's documented contract that `Create` throws
+    "only … when no GPU backend is available". It would have surfaced in C1 as `dv2d render --gpu`
+    being overridden by a stale shell variable, and in B4 as the export dialog's advanced option
+    doing nothing.
+    Fixed in `Create` alone: a probe that declined with the *policy* reason `forced-cpu` no longer
+    vetoes a caller that outranks the environment — control only reaches that branch with a non-`Auto`
+    preference, because `Auto` resolves to `ForceCpu` and returns earlier. `Probe()`'s semantics,
+    the cached short-circuit and therefore the forced-CPU CI lane's 13 skips are all unchanged.
+    Regression tests (both fail against the pre-fix code, verified):
+    `RenderSurfaceProbeTests.Create_ForceGpu_ConsultsTheHardware_EvenWhenTheEnvironmentSaysCpu`
+    (runs everywhere — asserts the failure names `no-egl-library`, not `forced-cpu`) and
+    `Create_PreferGpu_ReachesTheGpu_EvenWhenTheEnvironmentSaysCpu` (`[Category("Gpu")]`).
+
+20. **SSIM was verified only against itself; it is now pinned to a closed form.** Every §7.1 case
+    asserted a pass/fail side of a threshold, so a wrong `C₁`/`C₂`, a mis-normalised Gaussian, luma
+    weights that do not sum to one, or a separable two-pass convolution that did not compose into a
+    true 2-D window would all have gone unnoticed — each of those errors leaves every existing case
+    on the same side of its threshold. Two analytic cases now bracket the formula:
+    - `Ssim_OnTwoFlatImages_MatchesTheClosedFormLuminanceTerm` — two flat greys have zero variance
+      and zero covariance, so SSIM collapses to `(2μxμy + C₁)/(μx² + μy² + C₁)`, window- and
+      weight-independent. Greys 100/110 ⇒ `22006.5025/22106.5025 = 0.9954764…`.
+    - `Ssim_OnAnAntiCorrelatedCheckerboard_MatchesTheClosedFormStructureTerm` — a period-2
+      checkerboard `m ± d` has μ = m and σ² = d² under any symmetric normalised window; shifting it
+      one pixel flips its sign, so σxy = −d², the luminance term is exactly 1, and SSIM reduces to
+      `(−2d² + C₂)/(2d² + C₂)`. For d = 3 ⇒ `40.5225/76.5225 = 0.529554…`.
+
+    Both hold to 5 decimal places against the implementation, so the comparator's arithmetic is
+    confirmed independently of its thresholds.
+
+### Carried forward (found in review, not fixed here)
+
+- **`eglTerminate` is display-scoped, and the App's Avalonia already owns an ANGLE display.**
+  `EglContext.Dispose` calls `eglTerminate(display)`. On Windows the display comes from
+  `eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE, EGL_DEFAULT_DISPLAY, {D3D11})`, and EGL
+  returns the *same* `EGLDisplay` for identical parameters — which is what Avalonia.Win32 asks for
+  too. Modern ANGLE ref-counts `eglInitialize`/`eglTerminate`, which is why nothing has been
+  observed, but this is unverified and it is only ever exercised in this repo by a test project that
+  references no Avalonia. **B1 and B4 must verify in-process coexistence** (create and dispose a
+  `GpuSurfaceProvider` while an Avalonia window is up, and confirm the window still renders) before
+  the provider is wired into the app. If it does not hold, the fix is to stop calling `eglTerminate`
+  on a display this process did not exclusively create.
+- **`Create` logs its CPU-fallback line on every call**, unlike `Probe`, which logs once. Harmless at
+  one provider per export; worth folding into the once-per-process line if any caller ever
+  constructs per frame.
+- **`Ssim.Compute` allocates five `double[w·h]` scratch planes plus two `float[w·h]` luma planes** —
+  ≈100 MB transient for one 1080p perceptual comparison. Fine for the six comparisons the parity
+  suite makes, and the arrays are skipped entirely when the images are byte-identical; revisit if
+  C1's corpus grows a large perceptual lane.
+- **Integrator correction 6** asked for a comment on the §11 architecture test saying a
+  native-asset-only package is outside its scope. The comment landed in the test **csproj** instead,
+  next to the ANGLE `PackageReference`. Equivalent in effect; noted so nobody hunts for it in
+  `ArchitectureTests.cs`.
+
 ### Acceptance checklist — Stage 0 status
 
 Ticked where Stage 0 closes the item; every unticked line names what it waits on.

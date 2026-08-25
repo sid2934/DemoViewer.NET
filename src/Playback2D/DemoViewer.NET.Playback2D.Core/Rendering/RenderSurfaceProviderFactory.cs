@@ -20,6 +20,14 @@ namespace DemoViewer.NET.Playback2D.Core.Rendering;
 /// </summary>
 public static class RenderSurfaceProviderFactory
 {
+    /// <summary>
+    ///     The probe reason that means "the ambient environment asked for CPU", as opposed to the
+    ///     capability reasons (<c>no-egl-library</c>, <c>all-backends-failed</c>, <c>browser</c>,
+    ///     <c>macos-deferred</c>). <see cref="Create" /> has to tell the two apart: only a capability
+    ///     answer may veto a caller that outranks the environment.
+    /// </summary>
+    private const string ForcedCpuReason = "forced-cpu";
+
     private static readonly Lock _gate = new();
     private static RenderSurfaceProbe? _probe;
 
@@ -77,10 +85,20 @@ public static class RenderSurfaceProviderFactory
         RenderSurfaceProbe probe = Probe(log);
         string failure = probe.Reason;
 
+        // The cached probe short-circuits to "forced-cpu" when the AMBIENT DV2D_RENDER_BACKEND says cpu.
+        // That is a policy answer, not a capability one, and an explicit argument outranks the
+        // environment (§2.5) — control only reaches here with a non-Auto preference, because Auto
+        // resolved to ForceCpu and returned above. Letting the ambient variable stand would make
+        // Create(ForceGpu) throw on a machine whose GPU works perfectly, contradicting §6.2's "throws
+        // only ... when no GPU backend is available", and would let a stale shell variable silently
+        // override a --gpu flag or the export dialog's advanced option.
+        bool declinedByPolicy = !probe.GpuAvailable && string.Equals(probe.Reason, ForcedCpuReason,
+            StringComparison.Ordinal);
+
         // A probe that said "GPU available" can still lose the context between then and now — a driver
         // reset, a display change, a second provider on a thread the first one owns. Treat it as a
         // fallback, not an invariant violation.
-        if (probe.GpuAvailable)
+        if (probe.GpuAvailable || declinedByPolicy)
         {
             if (TryCreateGpu(out IRenderSurfaceProvider? gpu, out string reason))
             {
@@ -123,7 +141,7 @@ public static class RenderSurfaceProviderFactory
 
         long start = time.GetTimestamp();
 
-        string? shortCircuit = preference == RenderBackendPreference.ForceCpu ? "forced-cpu"
+        string? shortCircuit = preference == RenderBackendPreference.ForceCpu ? ForcedCpuReason
             : platform switch
             {
                 // WASM surfaces belong to Avalonia's compositor; the CPU provider is the only offscreen
