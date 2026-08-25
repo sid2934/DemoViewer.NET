@@ -40,14 +40,19 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///         still settling or a marker is still gliding, so an idle tab requests no frames at all.
 ///     </para>
 /// </summary>
-public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
+public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IDisposable
 {
+    private readonly LevelCrossingTracker _crossings = new();
     private readonly SceneRenderGate _gate = new();
     private readonly PanZoomGesture _gesture = new();
     private readonly MapSpaceFactory _levels = new();
+    private readonly LevelSelection _levelSelection;
     private readonly PaneSet _panes;
+    private readonly SingleLayout _singleLayout = new();
+    private readonly StackedLayout _stackedLayout = new();
     private readonly List<LevelPaneSnapshot> _snapshots = new(4);
     private readonly MarkerSmoother _smoother = new();
+    private LevelDisplayMode _displayMode = LevelDisplayMode.Stacked;
 
     private SceneCompositor _compositor;
     private RadarLayer _radarLayer;
@@ -79,7 +84,13 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         Focusable = true;
         ClipToBounds = true;
 
-        _panes = new PaneSet(new StackedLayout());
+        _panes = new PaneSet(_stackedLayout);
+        _smoother.LevelCrossings = _crossings;
+
+        _levelSelection = new LevelSelection(_levels.Space);
+        _levelSelection.ActiveLevelChanged += OnActiveLevelChanged;
+        _levels.Space.LevelSetChanged += OnLevelSetChanged;
+
         BuildScene();
     }
 
@@ -138,6 +149,72 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
     /// <summary>The resolved level set. B3's level strip reads it.</summary>
     public MapSpace Levels => _levels.Space;
 
+    /// <inheritdoc />
+    public event Action? LevelStateChanged;
+
+    /// <inheritdoc />
+    public LevelDisplayMode DisplayMode
+    {
+        get => _displayMode;
+        set
+        {
+            if (_displayMode == value || value == LevelDisplayMode.SideBySide)
+            {
+                return;
+            }
+
+            _displayMode = value;
+            _panes.Policy = value == LevelDisplayMode.Single ? _singleLayout : _stackedLayout;
+
+            // Every recorded picture is pane-local, and every pane just changed shape.
+            using (_gate.Enter())
+            {
+                _compositor.InvalidateCaches();
+            }
+
+            LevelStateChanged?.Invoke();
+            InvalidateVisual();
+        }
+    }
+
+    /// <inheritdoc />
+    public bool AutoLevelFollow
+    {
+        get => _levelSelection.Mode == LevelSelectionMode.AutoFollow;
+        set
+        {
+            if (value == AutoLevelFollow)
+            {
+                return;
+            }
+
+            if (value)
+            {
+                _levelSelection.EnableAutoFollow();
+            }
+            else
+            {
+                _levelSelection.PickManually(_levelSelection.ActiveLevelId);
+            }
+
+            LevelStateChanged?.Invoke();
+            InvalidateVisual();
+        }
+    }
+
+    /// <inheritdoc />
+    public MapLevelId ActiveLevelId => _levelSelection.ActiveLevelId;
+
+    /// <inheritdoc />
+    public void PickLevel(MapLevelId id)
+    {
+        _levelSelection.PickManually(id);
+        DisplayMode = LevelDisplayMode.Single;
+        _singleLayout.ActiveLevelId = _levelSelection.ActiveLevelId;
+        LevelStateChanged?.Invoke();
+        InvalidateVisual();
+    }
+
     /// <summary>
     ///     Follow-camera deadzone half-extent in world units. B1's one deliberate behaviour change;
     ///     0 reproduces the pre-v2 feel exactly.
@@ -147,6 +224,16 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
     /// <summary>Test hook: the rendered transform of the lowest pane. Same name as the pre-v2 control's.</summary>
     internal ViewportTransform PrimaryCameraTransform =>
         _panes.Panes.Count > 0 ? _panes.Panes[0].Camera.Current : default;
+
+    /// <summary>Test hook: how many panes are arranged. 1 under <c>Single</c>, one per floor under <c>Stacked</c>.</summary>
+    internal int PaneCountForTest => _panes.Panes.Count;
+
+    /// <summary>Test hook: the level the first arranged pane is showing.</summary>
+    internal MapLevelId PrimaryPaneLevelForTest =>
+        _panes.Panes.Count > 0 ? _panes.Panes[0].LevelId : MapLevelId.None;
+
+    /// <summary>Test hook: which entities changed floor on the last advanced frame.</summary>
+    internal LevelCrossingTracker CrossingsForTest => _crossings;
 
     /// <summary>Test hook: whether the lowest pane is in manual override.</summary>
     internal bool PrimaryCameraManual =>
@@ -210,7 +297,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         set
         {
             _mode = value;
-            _panes.ClearManualOverrides();
+            _panes.ResetAll();
             ApplyRigs();
 
             if (_mode == CameraMode.Fit)
@@ -241,6 +328,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         _followSlot = -1;
         _initialFitApplied = true;
         ApplyRigs();
+        _panes.ResetAll();
         _panes.FitAll(CurrentExtent());
         InvalidateVisual();
     }
@@ -408,6 +496,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         if (discontinuity)
         {
             ResetDeadzones();
+            _crossings.Reset();
         }
 
         SKSize host = new((float)bounds.Width, (float)bounds.Height);
@@ -417,12 +506,23 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
             // A rebuilt level set invalidates every recorded picture: the bands moved, and a PerCamera
             // picture is keyed on a level id that may now describe a different Z range.
             _compositor.InvalidateCaches();
+            _crossings.Reset();
+            _panes.RetainUnarranged(_levels.Space.LastChange);
         }
 
-        if (_panes.Reconcile(_levels.Space, LevelDisplayMode.Stacked, host, CurrentExtent()))
+        // The followed player's level wins: A1's follow funnel sets _followSlot, and AutoFollow shows
+        // whichever floor that player is on. Nothing followed leaves the choice where the user put it.
+        _levelSelection.FollowedSlot =
+            _mode == CameraMode.FollowPlayer && _followSlot >= 0 ? _followSlot : null;
+        _levelSelection.Update(in time, frame);
+        _singleLayout.ActiveLevelId = _levelSelection.ActiveLevelId;
+
+        if (_panes.Reconcile(_levels.Space, _displayMode, host, CurrentExtent()))
         {
             ApplyRigs();
         }
+
+        UpdateCrossings(frame);
 
         // One-shot auto-fit once real positions exist. Deliberately NOT continuous: a fit that re-runs
         // every frame fights the user's pan.
@@ -438,6 +538,9 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         bool keepArmed = CameraAdvancer.Advance(_panes, frame, in time);
         _panes.SyncCameraEpochs();
         keepArmed |= _compositor.Advance(in time, frame);
+
+        // A crossing is true for exactly one frame, and everything that cares has now advanced.
+        _crossings.EndFrame();
 
         if (keepArmed)
         {
@@ -552,6 +655,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         // A new view-model (or a detach) must not glide markers from a previous demo's positions, and
         // its level split belongs to a different map.
         _smoother.Clear();
+        _crossings.Reset();
         _levels.Reset();
         _panes.Clear();
         _initialFitApplied = false;
@@ -660,6 +764,36 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
                 follow.ResetDeadzone();
             }
         }
+    }
+
+    // Indexed and allocation-free: one dictionary write per marker over an existing key. Skipped
+    // entirely on a single-floor map, which is most of them.
+    private void UpdateCrossings(Scene2DFrame frame)
+    {
+        MapSpace space = _levels.Space;
+        if (space.Levels.Count < 2)
+        {
+            return;
+        }
+
+        IReadOnlyList<PlayerMarker> markers = frame.Markers;
+        for (int i = 0; i < markers.Count; i++)
+        {
+            _crossings.Update(markers[i].Slot, markers[i].WorldZ, space);
+        }
+    }
+
+    private void OnLevelSetChanged()
+    {
+        _levelSelection.OnLevelSetChanged();
+        _singleLayout.ActiveLevelId = _levelSelection.ActiveLevelId;
+        LevelStateChanged?.Invoke();
+    }
+
+    private void OnActiveLevelChanged()
+    {
+        _singleLayout.ActiveLevelId = _levelSelection.ActiveLevelId;
+        LevelStateChanged?.Invoke();
     }
 
     private WorldBounds CurrentExtent() => _vm?.CurrentFrame.Map.ObservedBounds ?? WorldBounds.Default;
