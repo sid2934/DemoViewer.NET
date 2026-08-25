@@ -143,7 +143,9 @@ public class Playback2DAnnotationPersistenceTests
         controller.Document.Apply(new DocDelta.Add(Stroke(), 0));
         await Assert.That(File.Exists(demo.SidecarPath)).IsFalse();
 
-        await controller.FlushAsync();
+        // The BLOCKING overload, which is what OnDeactivated calls: the shell deactivates the tab on
+        // its way out of MainViewModel.Dispose, where a fire-and-forget write races the process exit.
+        controller.Flush();
 
         await Assert.That(File.Exists(demo.SidecarPath)).IsTrue()
             .Because("a debounced autosave that had not fired yet is the difference between a stroke " +

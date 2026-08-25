@@ -1230,3 +1230,12 @@ Written at implementation time. Everything not listed here was built as the plan
     layers the app ships. Ink is measured as a delta against a render with an empty document, inside each
     pane's real rectangle — Nuke's lower floor already carries red team discs, and an absolute red count
     would be measuring the markers.
+
+27. **The deactivate flush is SYNCHRONOUS (`AnnotationSessionController.Flush`).** T17 lists "flush on
+    tab deactivate / DemoReset / shutdown", and the shell's shutdown path is
+    `MainViewModel.Dispose → SelectedTab.Deactivate() → OnDeactivated` — where a fire-and-forget write
+    races the process exit and loses the stroke someone drew ten seconds before quitting. Every await
+    inside the controller and the store is `ConfigureAwait(false)`, so blocking there cannot deadlock on
+    the UI context, and the payload is a small JSON file: the same trade
+    `SettingsService.SaveSession` already makes on this thread. `FlushAsync` is still there for callers
+    that have somewhere to await.

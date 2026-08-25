@@ -10,6 +10,7 @@ using Avalonia.Platform;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Views.Playback2D;
@@ -34,8 +35,17 @@ public class Playback2DAnnotationHostTests
         {
             using Fixture f = Fixture.Create();
 
-            await Assert.That(f.Host.Compositor.Find(SceneLayerIds.Annotations)).IsNotNull();
+            ISceneLayer? layer = f.Host.Compositor.Find(SceneLayerIds.Annotations);
+            await Assert.That(layer).IsNotNull();
+            await Assert.That(layer!.IsEnabled).IsTrue();
             await Assert.That(f.Vm.IsAnnotationsEnabled).IsTrue();
+
+            // Registration, not render count: which overlays happen to be toggled on is the user's
+            // business, and asserting a rendered-layer total would encode that incidental.
+            string ids = string.Join(",", f.Host.Compositor.Layers.Select(l => l.Id));
+            Console.WriteLine($"[annotations] layers={ids}");
+            await Assert.That(f.Host.Compositor.Layers.Count).IsEqualTo(8)
+                .Because("the ink layer joins B1's seven");
         });
     }
 

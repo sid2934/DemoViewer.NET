@@ -389,19 +389,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// </summary>
     public void Dispose()
     {
-        try
-        {
-            _annotationController.FlushAsync().GetAwaiter().GetResult();
-        }
-        catch (IOException)
-        {
-            // Best-effort, exactly as SettingsService.SaveSession is: a failed write at shutdown must
-            // not turn into an unhandled exception on the way out.
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
-
+        _annotationController.Flush();
         Annotations.Dispose();
         _annotationTrack.Dispose();
         _annotationController.Dispose();
@@ -480,9 +468,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     public void OnDeactivated()
     {
-        // Annotations are flushed FIRST, while the context is still attached: a debounced autosave that
-        // had not fired yet is the difference between a stroke surviving a tab switch and vanishing.
-        _ = _annotationController.FlushAsync().ContinueWith(static _ => { }, TaskScheduler.Default);
+        // Annotations are flushed FIRST, while the context is still attached, and SYNCHRONOUSLY: a
+        // debounced autosave that had not fired yet is the difference between a stroke surviving and
+        // vanishing, and the shell calls this on its way out of MainViewModel.Dispose — where a
+        // fire-and-forget write races the process exit.
+        _annotationController.Flush();
 
         // Unsubscribe the CS2 indicator projection from the SAME instance captured at activation, before the
         // context is dropped (the seam is stable, but re-reading _context.LiveSyncHud late is not guaranteed

@@ -190,6 +190,33 @@ public sealed class AnnotationSessionController : IDisposable
     }
 
     /// <summary>
+    ///     Blocking flush, for the two moments there is no "later": tab deactivation (the shell calls it
+    ///     on the way out of <c>MainViewModel.Dispose</c>) and this controller's own disposal.
+    ///     <para>
+    ///         Deliberately synchronous. A fire-and-forget flush at shutdown races the process exit, and
+    ///         losing the stroke someone drew ten seconds before quitting is exactly the failure the
+    ///         autosave exists to prevent. Every await inside is <c>ConfigureAwait(false)</c>, so there is
+    ///         no context to deadlock on, and the payload is a small JSON file — the same trade
+    ///         <c>SettingsService.SaveSession</c> already makes on this thread.
+    ///     </para>
+    /// </summary>
+    public void Flush()
+    {
+        try
+        {
+            FlushAsync().GetAwaiter().GetResult();
+        }
+        catch (IOException)
+        {
+            // Best-effort by contract (plan decision D12): a failed write is a status line, never an
+            // exception thrown out of a tab switch.
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    /// <summary>
     ///     Rebases world anchors across a level-set rebuild, including the wet stroke. Consumes no undo
     ///     slot (plan decision D6) and marks the document dirty so the rebase is persisted.
     /// </summary>
