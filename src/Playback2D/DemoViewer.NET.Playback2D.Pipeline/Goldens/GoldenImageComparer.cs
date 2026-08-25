@@ -45,8 +45,13 @@ public static class GoldenImageComparer
         int height = expected.Height;
         long total = (long)width * height;
         long mismatched = 0;
+        long outliers = 0;
         int maxDelta = 0;
         int maxAlphaDelta = 0;
+
+        bool perceptual = tolerance.Mode == GoldenMode.Perceptual;
+        float[]? lumaExpected = perceptual ? new float[total] : null;
+        float[]? lumaActual = perceptual ? new float[total] : null;
 
         for (int y = 0; y < height; y++)
         {
@@ -54,42 +59,74 @@ public static class GoldenImageComparer
             {
                 SKColor e = expected.GetPixel(x, y);
                 SKColor a = actual.GetPixel(x, y);
+
+                if (lumaExpected is not null && lumaActual is not null)
+                {
+                    int i = y * width + x;
+                    lumaExpected[i] = Luma(e);
+                    lumaActual[i] = Luma(a);
+                }
+
                 if (e == a)
                 {
                     continue;
                 }
 
                 mismatched++;
-                maxDelta = Math.Max(maxDelta, Math.Abs(e.Red - a.Red));
-                maxDelta = Math.Max(maxDelta, Math.Abs(e.Green - a.Green));
-                maxDelta = Math.Max(maxDelta, Math.Abs(e.Blue - a.Blue));
+                int delta = Math.Max(Math.Abs(e.Red - a.Red),
+                    Math.Max(Math.Abs(e.Green - a.Green), Math.Abs(e.Blue - a.Blue)));
+                maxDelta = Math.Max(maxDelta, delta);
                 maxAlphaDelta = Math.Max(maxAlphaDelta, Math.Abs(e.Alpha - a.Alpha));
+                if (delta > tolerance.MaxChannelDelta)
+                {
+                    outliers++;
+                }
             }
         }
 
         double fraction = total == 0 ? 0 : mismatched / (double)total;
+        double outlierFraction = total == 0 ? 0 : outliers / (double)total;
 
-        // SSIM is C2's to implement; until then it is reported as a perfect score rather than a fake
-        // number, and MinSsim is therefore never the thing that fails a comparison.
-        const double ssim = 1.0;
+        // Identical pixels are identical structure; skipping the convolution here is not an
+        // approximation, and it keeps the byte-exact-in-practice cases (most golden runs) cheap.
+        double meanSsim = 1.0;
+        double minWindowSsim = 1.0;
+        if (perceptual && mismatched > 0)
+        {
+            Ssim.Compute(lumaExpected!, lumaActual!, width, height, out meanSsim, out minWindowSsim);
+        }
 
+        // The §7.3 rule, in the order that makes a failure message most informative: a wrong colour
+        // first, then wrong coverage, then too much AA disagreement, then structure. Note that
+        // MaxChannelDelta is a BUDGET THRESHOLD, not a hard ceiling — the ceiling is
+        // OutlierChannelDelta. One edge pixel landing on the far side of a coverage rounding must not
+        // fail a frame; half a percent of them must.
         string? reason = tolerance.Mode switch
         {
             GoldenMode.ByteExact when mismatched > 0 => string.Create(CultureInfo.InvariantCulture,
                 $"{mismatched} of {total} pixels differ (max channel delta {maxDelta})"),
-            GoldenMode.Perceptual when maxDelta > tolerance.MaxChannelDelta =>
+            GoldenMode.Perceptual when maxDelta > tolerance.OutlierChannelDelta =>
                 string.Create(CultureInfo.InvariantCulture,
-                    $"max channel delta {maxDelta} exceeds {tolerance.MaxChannelDelta}"),
+                    $"max channel delta {maxDelta} exceeds the outlier ceiling " +
+                    $"{tolerance.OutlierChannelDelta}"),
             GoldenMode.Perceptual when maxAlphaDelta > tolerance.MaxAlphaDelta =>
                 string.Create(CultureInfo.InvariantCulture,
                     $"max alpha delta {maxAlphaDelta} exceeds {tolerance.MaxAlphaDelta}"),
-            GoldenMode.Perceptual when fraction > tolerance.MaxMismatchedFraction =>
+            GoldenMode.Perceptual when outlierFraction > tolerance.MaxMismatchedFraction =>
                 string.Create(CultureInfo.InvariantCulture,
-                    $"{fraction:P3} of pixels differ, budget {tolerance.MaxMismatchedFraction:P3}"),
+                    $"{outlierFraction:P3} of pixels differ by more than {tolerance.MaxChannelDelta}, " +
+                    $"budget {tolerance.MaxMismatchedFraction:P3}"),
+            GoldenMode.Perceptual when meanSsim < tolerance.MinSsim =>
+                string.Create(CultureInfo.InvariantCulture,
+                    $"mean SSIM {meanSsim:F5} is below {tolerance.MinSsim:F5}"),
+            GoldenMode.Perceptual when minWindowSsim < tolerance.MinWindowSsim =>
+                string.Create(CultureInfo.InvariantCulture,
+                    $"worst SSIM window {minWindowSsim:F5} is below {tolerance.MinWindowSsim:F5}"),
             _ => null
         };
 
-        return new GoldenComparison(reason is null, maxDelta, fraction, ssim, width, height, reason);
+        return new GoldenComparison(reason is null, maxDelta, fraction, meanSsim, width, height, reason,
+            outlierFraction, maxAlphaDelta, minWindowSsim);
     }
 
     /// <summary>
@@ -223,6 +260,10 @@ public static class GoldenImageComparer
         }
     }
 
+    // Rec. 709 luma on the unpremultiplied channels SKColor already hands back. SSIM is defined on a
+    // single-channel signal, and luma is the channel human structure perception actually rides on.
+    private static float Luma(SKColor c) => (0.2126f * c.Red) + (0.7152f * c.Green) + (0.0722f * c.Blue);
+
     private static GoldenComparison Failed(int width, int height, string reason) =>
-        new(false, 255, 1.0, 0, width, height, reason);
+        new(false, 255, 1.0, 0, width, height, reason, 1.0, 255, 0);
 }

@@ -1,3 +1,9 @@
+#region
+
+using System.Globalization;
+
+#endregion
+
 namespace DemoViewer.NET.Playback2D.Pipeline.Goldens;
 
 /// <summary>How strictly a golden is compared.</summary>
@@ -21,12 +27,30 @@ public enum GoldenMode
 ///     </para>
 /// </summary>
 /// <param name="Mode">Byte-exact or perceptual.</param>
-/// <param name="MaxChannelDelta">Perceptual only: the largest allowed per-channel difference.</param>
-/// <param name="MaxMismatchedFraction">Fraction of pixels allowed to differ, e.g. 0.005 = 0.5%.</param>
-/// <param name="MinSsim">Mean SSIM floor. Reported as 1 until C2 implements it.</param>
-/// <param name="OutlierChannelDelta">C2: no single pixel may exceed this per-channel difference.</param>
-/// <param name="MaxAlphaDelta">C2: the largest allowed alpha difference.</param>
-/// <param name="MinWindowSsim">C2: the floor for the worst 11×11 SSIM window.</param>
+/// <param name="MaxChannelDelta">
+///     Perceptual only: the per-channel difference a pixel may reach before it counts against
+///     <paramref name="MaxMismatchedFraction" />. 8/255 is below the just-noticeable difference for a
+///     single flat-region step and comfortably covers rounding on gradients and AA edges.
+/// </param>
+/// <param name="MaxMismatchedFraction">
+///     Fraction of pixels allowed to exceed <paramref name="MaxChannelDelta" />, e.g. 0.005 = 0.5%. Sized
+///     to allow a scene's whole anti-aliased fringe (well under 0.5% of a 1080p frame) without allowing a
+///     recoloured or displaced element.
+/// </param>
+/// <param name="MinSsim">Mean SSIM floor over all windows.</param>
+/// <param name="OutlierChannelDelta">
+///     The per-channel difference no single pixel may exceed. A lone edge pixel can legitimately land on
+///     the other side of a coverage rounding; 32/255 is far too small to hide a wrong colour, a missing
+///     glyph or a displaced marker.
+/// </param>
+/// <param name="MaxAlphaDelta">
+///     The largest allowed alpha difference, checked separately and far tighter: a backend that disagrees
+///     about <i>coverage</i> is a real bug, not an anti-aliasing difference.
+/// </param>
+/// <param name="MinWindowSsim">
+///     The floor for the worst 11×11 SSIM window. This is the metric that makes the policy mean anything:
+///     a global mean averages away one missing glyph or one absent cone, and the worst window does not.
+/// </param>
 public readonly record struct GoldenTolerance(
     GoldenMode Mode,
     int MaxChannelDelta,
@@ -50,11 +74,18 @@ public readonly record struct GoldenTolerance(
 /// <summary>The result of one golden comparison.</summary>
 /// <param name="Match">Whether the images are within tolerance.</param>
 /// <param name="MaxChannelDelta">The largest per-channel difference observed.</param>
-/// <param name="MismatchedFraction">Fraction of pixels that differed at all.</param>
-/// <param name="Ssim">Mean SSIM; 1 until C2 implements it.</param>
+/// <param name="MismatchedFraction">Fraction of pixels that differed at all, however slightly.</param>
+/// <param name="Ssim">Mean SSIM over all windows.</param>
 /// <param name="Width">Compared width, or the expected image's width when the sizes disagree.</param>
 /// <param name="Height">Compared height.</param>
 /// <param name="FailureReason">A one-line diagnosis when <paramref name="Match" /> is false.</param>
+/// <param name="OutlierFraction">
+///     Fraction of pixels whose per-channel difference exceeded <c>GoldenTolerance.MaxChannelDelta</c> —
+///     the quantity the 0.5% budget is actually spent on. Distinct from
+///     <paramref name="MismatchedFraction" />, which counts a 1/255 wobble the same as a wrong colour.
+/// </param>
+/// <param name="MaxAlphaDelta">The largest alpha difference observed.</param>
+/// <param name="MinWindowSsim">The worst single 11×11 SSIM window.</param>
 public readonly record struct GoldenComparison(
     bool Match,
     int MaxChannelDelta,
@@ -62,7 +93,21 @@ public readonly record struct GoldenComparison(
     double Ssim,
     int Width,
     int Height,
-    string? FailureReason);
+    string? FailureReason,
+    double OutlierFraction = 0,
+    int MaxAlphaDelta = 0,
+    double MinWindowSsim = 1.0)
+{
+    /// <summary>
+    ///     A one-line, assertion-message-ready description. Reports every metric on success as well as
+    ///     failure: a comparison that passed at SSIM 0.9951 against a 0.995 floor is a comparison worth
+    ///     knowing about before it goes red on somebody else's machine.
+    /// </summary>
+    public string Summary => string.Create(CultureInfo.InvariantCulture,
+        $"{(Match ? "match" : "MISMATCH")} {Width}x{Height} maxDelta={MaxChannelDelta} " +
+        $"outliers={OutlierFraction:P4} alphaDelta={MaxAlphaDelta} ssim={Ssim:F5} " +
+        $"minWindowSsim={MinWindowSsim:F5}{(FailureReason is null ? "" : " — " + FailureReason)}");
+}
 
 /// <summary>
 ///     The per-pixel delta distribution between two images of the same size, as produced by
