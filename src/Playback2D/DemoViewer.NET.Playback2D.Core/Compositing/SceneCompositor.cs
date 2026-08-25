@@ -27,6 +27,7 @@ public sealed class SceneCompositor : IDisposable
     private readonly LayerPictureCache _cache;
     private readonly SKPaint _divider;
     private readonly List<ISceneLayer> _layers = [];
+    private readonly List<IDisposable> _owned = [];
     private readonly SceneCompositorOptions _options;
     private bool _disposed;
     private int _layersRendered;
@@ -66,7 +67,10 @@ public sealed class SceneCompositor : IDisposable
     /// <summary>Counters from the last completed render. Diagnostics and the bench harness.</summary>
     public SceneCompositorStats Stats { get; private set; }
 
-    /// <summary>Disposes every registered layer and every cached picture. Idempotent.</summary>
+    /// <summary>
+    ///     Disposes every registered layer, everything handed to <see cref="AddOwned" />, and every
+    ///     cached picture. Idempotent.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed)
@@ -84,6 +88,33 @@ public sealed class SceneCompositor : IDisposable
         }
 
         _layers.Clear();
+
+        // After the layers, never before: a shared resource is shared precisely because a layer is
+        // still using it right up to its own Dispose.
+        foreach (IDisposable resource in _owned)
+        {
+            resource.Dispose();
+        }
+
+        _owned.Clear();
+    }
+
+    /// <summary>
+    ///     Registers a resource the compositor should dispose along with its layers — a
+    ///     <see cref="TextBlobCache" /> several layers share, and nothing else so far.
+    ///     <para>
+    ///         <b>Why this exists.</b> A shared resource cannot be owned by one of the layers sharing it:
+    ///         <see cref="Remove" /> disposes the layer it drops, which would take the font out from
+    ///         under everyone else still drawing with it. Hosts that build their own stack
+    ///         (<c>Scene2DHost</c>, the test stage) hold such resources in a field and dispose them after
+    ///         the compositor; a factory that hands back only a compositor has nowhere else to put them.
+    ///     </para>
+    /// </summary>
+    /// <param name="resource">The resource to dispose at teardown. Disposed after every layer.</param>
+    public void AddOwned(IDisposable resource)
+    {
+        ArgumentNullException.ThrowIfNull(resource);
+        _owned.Add(resource);
     }
 
     /// <summary>Registers a layer and re-sorts the stack.</summary>

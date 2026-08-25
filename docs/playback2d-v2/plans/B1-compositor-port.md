@@ -1309,7 +1309,7 @@ Where the design left a choice open, this is the call. Each is reversible cheapl
 |---|---|---|---|---|
 | R1 | **SkiaSharp 2.88.9's API differs from what the plan assumes** (`SKSamplingOptions` overloads, `SKTextBlob` factories, `SKPath.ArcTo` sweep semantics) | M / M | **T0 spike** before any layer is written; write down the chosen overloads | **1 h** |
 | R2 | **The lease canvas's matrix/clip state is not what we expect** (render scaling already applied? clip already set to the op's bounds?) | M / H | **Spike inside T12**: render a 1 px red border at the op's `Bounds` under the lease at 100 %/150 %/200 % scaling and inspect; adjust the submission's `RenderScaling` handling accordingly | **2 h** |
-| R3 | **Text metrics differ from `FormattedText`** enough that marker labels shift by a pixel or two and every golden diffs | **H** / M | Two-tier goldens (test 14); labels centred on measured `SKTextBlob` bounds; differences reviewed in `B1-text-metrics-review.md`, not auto-failed. Design risk 1 | — |
+| R3 | **Text metrics differ from `FormattedText`** enough that marker labels shift by a pixel or two and every golden diffs | **H** / M | **This risk fired, and the mitigation as first written is what fired it.** "Labels centred on measured `SKTextBlob` bounds" — but a blob's bounds are *conservative*, not tight ink, so every label drew 4.2–6.2 px left of its 9 px disc and the tolerant text tier hid it. Labels are now centred on the run's **advance** and the font's **metrics** (`SKFont.MeasureText(glyphs, out ink)` + `SKFont.Metrics`), which is exactly what `FormattedText.Width`/`Height` are. Two-tier goldens (test 14) and the review in `B1-text-metrics-review.md` stand; see deviation 29. Design risk 1 | — |
 | R4 | **Radar `DrawImage` under a world-space matrix samples differently** from today's screen-space dest rect | M / M | Pin `SKSamplingOptions` explicitly; if the Tier-A golden still diffs, fall back to computing the screen dest rect exactly as line 1080–1082 (the fallback is one line and costs nothing) | **2 h** if it fires |
 | R5 | **Render-thread race against layer caches** (design risk 2) | M / **H** | Advance/Render purity split; `SceneRenderGate`; ops consume immutable snapshots; `Debug.Assert(gate.IsHeld)` on every cache mutation; `RenderGateStressTests` in CI | — |
 | R6 | **Zero-allocation is missed by a boxed enumerator or a hidden closure** and the assertion becomes a nag | M / M | Test 12 prints a per-layer allocation breakdown on failure; T15 is a dedicated task, not a "while I'm here"; indexed `for` loops are a review checklist item | — |
@@ -1585,6 +1585,95 @@ with a regression test that fails without the fix.
     already exists; B2 must take it around registration, exactly as it is taken around cache
     mutation. `SetEnabled` is fine as-is — a racing `bool` write costs at most one frame of a stale
     toggle.
+
+### Post-merge correction: the text stack measured the wrong rectangle
+
+29. **`ShapedText.Bounds` was `SKTextBlob.Bounds`, which is not ink.** One wrong measurement produced
+    four visible defects, and the reason it survived review is worth writing down: the arithmetic on
+    top of it was correct, the tolerant glyph tier
+    (`GoldenTolerance.ForTextBearingGolden`) was designed to forgive exactly the pixels it moved, and
+    the goldens were re-baselined against the wrong picture, so nothing ever went red.
+
+    Skia computes a blob's bounds *conservatively*, from the font's global glyph box rather than from
+    the glyphs in the run. On the embedded Inter Regular at 10 px, `blob.Bounds.Left` is `-7.386` for
+    every string, `Top`/`Bottom` are exactly `SKFontMetrics.Top`/`Bottom`, and the width is 2.2–5.5×
+    the tight ink. What followed:
+
+    - `OriginForCentre` centred on `Bounds.MidX`, so **marker initials drew 4.2–6.2 px left of a 9 px
+      disc** (`"WW"` −4.22, `"AA"` −5.72, `"7"` −6.22). Vertically it was accidentally fine — the
+      metrics box it centred on is near-symmetric with the line box — to 0.14 px.
+    - `Width`/`Height` were the conservative box, so **the HUD clock panel was ~37 px too wide and
+      ~3 px too tall** for its content, and `OriginForTopLeft` (which subtracted `Bounds.Left`) then
+      pushed the text back right by `0.7386 em`, leaving it visibly left of the panel it sat in.
+    - **Kill-feed rows** were right-aligned on the same inflated width, so each row's panel overhung
+      its text on the left by ~1.5 em.
+    - **The floor caption** drew at x ≈ 16 instead of the intended 8, and one line lower.
+
+    The fix, in `TextBlobCache.Measure`: on the miss path only, `CountGlyphs` → `GetGlyphs` into a
+    64-slot `stackalloc` → `SKFont.MeasureText(glyphs, out SKRect ink)` for tight ink and the advance,
+    plus `SKFont.Metrics`. `ShapedText` widens to `(Blob, Bounds, Advance, Ascent, Descent)`, and the
+    two placement helpers now mean what their callers meant:
+
+    | Member | Was | Is |
+    |---|---|---|
+    | `Width` | `Bounds.Width` (conservative box) | `Advance` |
+    | `Height` | `Bounds.Height` (font's global box) | `Descent - Ascent`, one line box |
+    | `OriginForTopLeft(x, y)` | `(x - Bounds.Left, y - Bounds.Top)` — ink top-left | `(x, y - Ascent)` — **line-box** top-left |
+    | `OriginForCentre(cx, cy)` | `(cx - Bounds.MidX, cy - Bounds.MidY)` | `(cx - Advance/2, cy - (Ascent+Descent)/2)` |
+
+    Both new forms exactly reproduce the pre-v2 control, whose `FormattedText.Width` is an advance and
+    whose `Height` is a line height: viewport line 1212 is
+    `Point(center.X - text.Width/2, center.Y - text.Height/2)` and line 937 is `Point(8, 6)`.
+    Advance-based horizontal centring also removes a per-string jitter the ink box had — `"AA"` and
+    `"WW"` now centre identically — and metrics-based vertical placement keeps every label in a scene
+    on one baseline instead of each centring its own ink.
+
+    No layer needed changing for the fix itself. `ClockLayer`'s panel height was additionally rewritten
+    as `padY + score + gap + countdown + padY` rather than a lump `MarginPx * 2.2f`, so the box cannot
+    drift out of agreement with the two lines it wraps; that is a 6 px change in bottom padding and the
+    only deliberate visual change beyond the correction.
+
+    **Gated by** `TextBlobCacheTests.Bounds_AreTightInk_NotTheBlobsConservativeBox`,
+    `.WidthIsTheAdvance_AndHeightIsTheLineBox`, `.OriginForTopLeft_PlacesTheLineBoxTopLeftAtThePoint`,
+    `.OriginForCentre_PutsTheInkOnThePoint` (4 labels), and — the one that would have caught this —
+    `SceneLayerTests.MarkerLayer_LabelInk_IsCentredOnTheDisc`, which diffs a labelled against an
+    unlabelled render to get an exact glyph-ink mask and asserts its bounding box is centred on the
+    disc. Measured offsets after the fix, over six labels and four disc positions: worst
+    `dx = 0.58`, `dy = 0.84` px (was 4.2–6.2 px left before).
+
+    **Tolerance: 2 px, not 1 (review correction).** A rasterised ink box and the point the text was
+    centred on are not the same point even when placement is exactly right, and the gap is three
+    *measured* terms: labels are centred on the font's **line box** (what the pre-v2 control did, and
+    what parity requires), so cap-height ink with no descender sits a structural **−0.364 px** high at
+    `MarkerLabelSize`; `SKFont.BaselineSnap` is on, so the drawn baseline rounds to a whole pixel
+    (±0.5 px); and the bounding box quantises to whole pixels (±0.5 px). That is a ~1.36 px budget
+    vertically and ~0.95 px horizontally (`MM` carries a −0.446 px side-bearing asymmetry). The
+    original 1 px gate left ~0.16 px of headroom and would flip on any Skia build that rounds a
+    glyph's edge row differently — a latent cross-platform CI failure. At 2 px the gate still catches
+    the 4.2–6.2 px bug with more than double the margin, and `MM`/`il` (the worst side-bearing cases)
+    were added to the argument set, so coverage is strictly wider than before. The
+    quantisation-free statement of the same property is
+    `TextBlobCacheTests.OriginForCentre_PutsTheInkOnThePoint`, which works on analytic metrics and
+    needs no such budget; this test's job is only that the real layer wires it up.
+
+    **Corpus.** Only `nuke-single-upper@900x900` and `nuke-multilevel-noradar@900x900` moved; both are
+    v2-owned (`LevelGoldenTests`) and were re-baselined. The synthetic family renders `DebugGridLayer`
+    alone, which draws no text, so it did not move. The pre-v2 control corpus was **not** regenerated.
+    `GoldenParityTests` improved on every tier: pixels over ±8 went 2629 → 2562 and over ±32 went
+    2087 → 2018 of 810 000 (`within±1` 93.17 → 93.18 %, `within±32` 99.74 → 99.75 %, worst pixel
+    204 → 201). The movement is small because the pre-v2 control draws in
+    `Consolas,Menlo,monospace` and B1 draws in Inter, so glyph *shapes* never agree and only placement
+    can — which is why the visual check (labels now sit on their discs, matching the golden) is the
+    evidence and the aggregate is corroboration.
+
+30. **`SceneCompositor.AddOwned` added; `SceneLayerCatalog.BuildLayer` shares one `TextBlobCache`.**
+    The catalog gave each of the four text layers its own cache — four copies of the embedded Inter
+    face and four LRUs holding the same dozen strings — where `Scene2DHost` and the test stage have
+    always shared one. The shared cache cannot be owned by one of the layers sharing it, because
+    `SceneCompositor.Remove` disposes the layer it drops and would take the font out from under the
+    others; and `CreateSceneStack` hands back only a compositor, so there is nowhere else to put it.
+    `AddOwned(IDisposable)` gives the compositor an explicit teardown list, disposed **after** every
+    layer.
 
 ### Not built, and why
 

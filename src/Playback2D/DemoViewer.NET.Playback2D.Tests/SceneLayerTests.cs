@@ -20,6 +20,14 @@ public class SceneLayerTests
 {
     private static readonly SKSizeI _size = new(200, 200);
 
+    /// <summary>
+    ///     Error budget for comparing a <b>rasterised</b> ink bounding box against the point the text was
+    ///     centred on: -0.364 px structural (line-box centring vs cap-height ink), ±0.5 px baseline snap,
+    ///     ±0.5 px bounding-box quantisation, and up to 0.446 px of side-bearing asymmetry horizontally.
+    ///     See <see cref="MarkerLayer_LabelInk_IsCentredOnTheDisc" />.
+    /// </summary>
+    private const float InkCentreTolerancePx = 2f;
+
     [Test]
     public async Task RadarLayer_WithNoImage_FallsBackToTheGrid()
     {
@@ -163,6 +171,86 @@ public class SceneLayerTests
         // The glyphs sit ON the disc, so hiding them shows more of the team fill, not less.
         await Assert.That(CountColour(bare, ScenePalette.Dark.TeamT))
             .IsGreaterThan(CountColour(labelled, ScenePalette.Dark.TeamT));
+    }
+
+    /// <summary>
+    ///     <b>The initials must land on the disc, not beside it.</b> Rendering the same marker with and
+    ///     without labels and diffing the two frames gives an exact glyph-ink mask; its bounding box has
+    ///     to be centred on the disc.
+    ///     <para>
+    ///         This is the regression gate for the measurement bug that shipped with B1:
+    ///         <c>ShapedText.Bounds</c> was <c>SKTextBlob.Bounds</c>, which Skia computes conservatively
+    ///         from the font's <i>global</i> glyph box rather than from the run, so its <c>MidX</c> was
+    ///         a constant ~0.37 em to the left of the real ink centre and every label drew 4-6 px left of
+    ///         its 9 px disc. Cheap to state, invisible to a perceptual golden that tolerates glyph
+    ///         differences, and exactly the kind of thing a pixel count cannot see.
+    ///     </para>
+    ///     <para>
+    ///         Six labels of very different widths, because a fix that centred the ink box per string
+    ///         would also pass on one of them — and the disc is drawn <b>off</b> the pane's midpoint, so
+    ///         an error that happens to cancel at the centre still shows. <c>MM</c> and <c>il</c> are the
+    ///         worst side-bearing cases in the set.
+    ///     </para>
+    ///     <para>
+    ///         <b>Why the tolerance is <see cref="InkCentreTolerancePx" /> and not a pixel.</b> Ink
+    ///         centre and disc centre are not the same point even when the placement is exactly right,
+    ///         and the gap is three measured terms: the label is centred on the font's <b>line box</b>
+    ///         (which is what the pre-v2 control did, and what parity requires), so cap-height ink with
+    ///         no descender sits a structural <b>-0.364 px</b> high at this size; <c>SKFont.BaselineSnap</c>
+    ///         is on, so the drawn baseline rounds to a whole pixel (±0.5 px); and a rasterised bounding
+    ///         box quantises to whole pixels (±0.5 px). That is a ~1.36 px budget vertically and ~0.95 px
+    ///         horizontally (<c>MM</c> carries a -0.446 px side-bearing asymmetry), so a 1 px gate has
+    ///         ~0.16 px of headroom and would flip on any Skia build that rounds a glyph's edge row
+    ///         differently. The bug this guards against was <b>4.2-6.2 px</b>, so the wider gate still
+    ///         catches it with more than double the margin. The quantisation-free statement of the same
+    ///         property — that the advance box lands exactly on the point — is
+    ///         <c>TextBlobCacheTests.OriginForCentre_PutsTheInkOnThePoint</c>; this test's job is that
+    ///         the real layer wires that up.
+    ///     </para>
+    /// </summary>
+    /// <param name="label">The initials to draw.</param>
+    [Test]
+    [Arguments("AA")]
+    [Arguments("WW")]
+    [Arguments("7")]
+    [Arguments("10")]
+    [Arguments("MM")]
+    [Arguments("il")]
+    public async Task MarkerLayer_LabelInk_IsCentredOnTheDisc(string label)
+    {
+        const float worldX = 120f, worldY = -260f;
+        Scene2DFrame frame = new()
+        {
+            Markers = [new PlayerMarker(0, 2, worldX, worldY, 0, 0, RingState.Team, 1, label, true)]
+        };
+
+        ViewportTransform camera = ViewportTransform.Fit(_size.Width, _size.Height,
+            -500, -500, 500, 500);
+        (double discX, double discY) = camera.WorldToScreen(worldX, worldY);
+
+        using MarkerLayer withLabels = new();
+        using MarkerLayer withoutLabels = new()
+        {
+            DrawLabels = false
+        };
+
+        SKColor[] labelled = Render(withLabels, frame, null, camera);
+        SKColor[] bare = Render(withoutLabels, frame, null, camera);
+
+        (int minX, int minY, int maxX, int maxY, int inkPixels) = DiffBounds(labelled, bare);
+        await Assert.That(inkPixels).IsGreaterThan(0);
+
+        // +1 because the box spans whole pixels: columns [minX, maxX] cover [minX, maxX+1).
+        float inkCentreX = (minX + maxX + 1) / 2f;
+        float inkCentreY = (minY + maxY + 1) / 2f;
+
+        Console.WriteLine($"[markers] \"{label}\" disc=({discX:F2},{discY:F2}) " +
+                          $"ink=[{minX}..{maxX}]x[{minY}..{maxY}] ({inkPixels} px) " +
+                          $"centre=({inkCentreX:F2},{inkCentreY:F2}) " +
+                          $"offset=({inkCentreX - discX:F2},{inkCentreY - discY:F2})");
+
+        await Assert.That(inkCentreX).IsEqualTo((float)discX).Within(InkCentreTolerancePx);
+        await Assert.That(inkCentreY).IsEqualTo((float)discY).Within(InkCentreTolerancePx);
     }
 
     /// <summary>Parity invariant 8: below half a degree the arc collapses and is skipped entirely.</summary>
@@ -313,6 +401,35 @@ public class SceneLayerTests
         }
 
         return count;
+    }
+
+    /// <summary>
+    ///     The bounding box of the pixels where two renders of the same scene disagree — an exact mask
+    ///     of whatever the second render left out.
+    /// </summary>
+    /// <param name="a">One render.</param>
+    /// <param name="b">The same render with one thing turned off.</param>
+    private static (int MinX, int MinY, int MaxX, int MaxY, int Count) DiffBounds(
+        SKColor[] a, SKColor[] b)
+    {
+        int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue, count = 0;
+        for (int i = 0; i < a.Length; i++)
+        {
+            if (a[i] == b[i])
+            {
+                continue;
+            }
+
+            int x = i % _size.Width;
+            int y = i / _size.Width;
+            minX = Math.Min(minX, x);
+            minY = Math.Min(minY, y);
+            maxX = Math.Max(maxX, x);
+            maxY = Math.Max(maxY, y);
+            count++;
+        }
+
+        return count == 0 ? (0, 0, 0, 0, 0) : (minX, minY, maxX, maxY, count);
     }
 
     private static int Count(SKColor[] pixels, Func<SKColor, bool> predicate)

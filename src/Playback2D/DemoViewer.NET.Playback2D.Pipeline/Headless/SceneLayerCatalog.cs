@@ -192,6 +192,13 @@ public static class SceneLayerCatalog
         MarkerSmoother shared = smoother ?? new MarkerSmoother();
         SceneCompositor compositor = new();
 
+        // ONE blob cache for all four text layers, exactly as Scene2DHost and the test stage wire it.
+        // Left to their defaults each layer builds its own, which means four copies of the embedded
+        // Inter face and four LRUs holding the same handful of strings. Built eagerly rather than on
+        // first text layer because the compositor is what owns it — see SceneCompositor.AddOwned.
+        TextBlobCache text = new();
+        compositor.AddOwned(text);
+
         try
         {
             foreach (string id in SceneStackIds)
@@ -213,7 +220,7 @@ public static class SceneLayerCatalog
                     continue; // asked for, but nothing to feed it — draw nothing rather than an empty box.
                 }
 
-                compositor.Add(BuildLayer(id, vision, hud, shared));
+                compositor.Add(BuildLayer(id, vision, hud, shared, text));
             }
         }
         catch
@@ -226,17 +233,17 @@ public static class SceneLayerCatalog
     }
 
     private static ISceneLayer BuildLayer(string id, IVisionSolver? vision, IHudDataSource? hud,
-        MarkerSmoother smoother) => id switch
+        MarkerSmoother smoother, TextBlobCache text) => id switch
     {
         SceneLayerIds.Radar => new RadarLayer(),
         SceneLayerIds.Trails => new TrailLayer(),
         SceneLayerIds.AreaEffects => new AreaEffectLayer(),
         SceneLayerIds.Vision => new VisionLayer(vision, smoother),
-        SceneLayerIds.Markers => new MarkerLayer(smoother),
+        SceneLayerIds.Markers => new MarkerLayer(smoother, text),
         SceneLayerIds.Bomb => new BombLayer(),
-        SceneLayerIds.FloorLabel => new FloorLabelLayer(),
-        SceneLayerIds.HudClock => new ClockLayer(hud!),
-        _ => new KillFeedLayer(hud!)
+        SceneLayerIds.FloorLabel => new FloorLabelLayer(text),
+        SceneLayerIds.HudClock => new ClockLayer(hud!, text: text),
+        _ => new KillFeedLayer(hud!, text: text)
     };
 
     private sealed record Registration(string Id, Func<ISceneLayer> Create);

@@ -105,6 +105,19 @@ were measured against the golden:
 
 ## 4. Text metrics: the specific differences
 
+> **Correction (fix/p2d-text-centering).** The table and sign-off below were wrong on the point they
+> were most confident about, and the error shipped. They said B1 centred labels on "the **ink**
+> bounds" and signed that off as an improvement over the pre-v2 layout box. B1 was centring on
+> `SKTextBlob.Bounds`, which is **neither**: Skia computes a blob's bounds conservatively from the
+> font's *global* glyph box, so `Left` was a constant `-0.7386 em` for every string and the width ran
+> 2.2–5.5× the tight ink. Every marker initial drew **4.2–6.2 px left of its 9 px disc**. The
+> corrected rows are below the original; the reasoning that reached the wrong answer is left visible
+> on purpose, because "we compared the new thing to the old thing and preferred the new thing" is what
+> a review is supposed to catch and this one did not — the comparison was against a description of the
+> code, not against the pixels.
+
+### As reviewed (wrong)
+
 | Aspect | Pre-v2 | B1 | Consequence |
 |---|---|---|---|
 | Typeface | host `Consolas,Menlo,monospace` | embedded Inter Regular | different outlines and advances; the whole point of correction 6 |
@@ -112,9 +125,27 @@ were measured against the golden:
 | Marker label centring | `center - (FormattedText.Width/2, Height/2)` — the **layout box**, which includes line height | `ShapedText.OriginForCentre` — the **ink** bounds | B1's labels sit a little higher inside the disc; visually better centred, and different |
 | Floor label | 11 px at pane-local (8, 6) | same size, same point, top-left preserved | matches |
 
-**Signed off.** The label change is an improvement (ink-centred text is centred; box-centred text is
-centred on a box with descender space the string may not use), and the typeface change is a
-requirement rather than a preference. Neither is a regression to fix.
+*Signed off, in error:* "The label change is an improvement (ink-centred text is centred; box-centred
+text is centred on a box with descender space the string may not use), and the typeface change is a
+requirement rather than a preference. Neither is a regression to fix."
+
+### Corrected
+
+| Aspect | Pre-v2 | v2 today | Consequence |
+|---|---|---|---|
+| Typeface | host `Consolas,Menlo,monospace` | embedded Inter Regular | different outlines and advances; the whole point of correction 6. **This is the only text difference that remains** |
+| Positioning | `DrawingContext.DrawText(text, point)` — **line-box** top-left, not ink top-left (Avalonia's `FormattedText.Width` is an advance and `Height` a line height) | `SKCanvas.DrawText(blob, x, y, paint)` — **baseline** | converted as `y - Ascent`; see `ShapedText.OriginForTopLeft` |
+| Marker label centring | `center - (FormattedText.Width/2, Height/2)` — advance and line box | `ShapedText.OriginForCentre` = `(cx - Advance/2, cy - (Ascent+Descent)/2)` | **identical placement rule**; only the outlines differ |
+| Floor label | 11 px at pane-local (8, 6) | same size, same point, line-box top-left preserved | matches (it did not before: it drew at x ≈ 16) |
+| Measurement source | `FormattedText` | `SKFont.MeasureText(glyphs, out SKRect ink)` + `SKFont.Metrics`, cached per (string, size) | tight ink for "where did the pixels land", advance and metrics for "where should this go" |
+
+**Signed off.** The placement rule is now the pre-v2 rule exactly, so the only remaining text
+difference is the typeface, which is a requirement rather than a preference. The parity gate improved
+on every tier when the placement was fixed (pixels over ±8: 2629 → 2562; over ±32: 2087 → 2018, of
+810 000) — a small movement, because two different typefaces cannot agree on glyph *shape* and only
+placement was ever available to fix. The regression gate is
+`SceneLayerTests.MarkerLayer_LabelInk_IsCentredOnTheDisc`, which measures the ink rather than reading
+the code. Full write-up: `B1-compositor-port.md` deviation 29.
 
 ---
 

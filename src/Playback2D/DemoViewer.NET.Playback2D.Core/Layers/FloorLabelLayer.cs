@@ -77,6 +77,8 @@ public sealed class FloorLabelLayer : ISceneLayer
             return;
         }
 
+        // Line-box top-left, which is what the pre-v2 `DrawText(text, new Point(8, 6))` also meant:
+        // the caption's inset must not move with which glyphs the caption happens to start with.
         _paint.Color = ctx.Palette.Label;
         (float x, float y) = shaped.OriginForTopLeft(MarginX, MarginY);
         canvas.DrawText(shaped.Blob, x, y, _paint);

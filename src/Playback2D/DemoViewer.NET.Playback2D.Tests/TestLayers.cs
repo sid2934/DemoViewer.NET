@@ -49,5 +49,12 @@ internal sealed class RecordingLayer : ISceneLayer
         canvas.DrawRect(ctx.PaneBounds, paint);
     }
 
-    public void Dispose() => Disposed = true;
+    /// <summary>Called on <see cref="Dispose" />, for a test that cares about teardown ORDER.</summary>
+    public Action? OnDispose { get; init; }
+
+    public void Dispose()
+    {
+        Disposed = true;
+        OnDispose?.Invoke();
+    }
 }

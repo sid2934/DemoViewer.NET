@@ -1449,3 +1449,16 @@ Written at implementation time. Everything not listed here was built as the plan
     notice became **§g**. The two cross-references that named it were updated: §c's "See §e" and the
     `FFMpegCore` comment in `Directory.Packages.props`. C2's own ANGLE notice pointed at "§d" (the
     Inter font) for its licence text; corrected to §e in the same pass.
+
+30. **Post-merge: the two HUD layers inherited a bad text measurement, and `ClockLayer`'s panel is
+    now derived rather than fudged.** `ShapedText.Width`/`Height` were `SKTextBlob.Bounds`, which
+    Skia computes conservatively from the font's global glyph box rather than from the run — see
+    `B1-compositor-port.md` deviation 29 for the full account. The scoreboard panel was therefore
+    ~37 px wider and ~3 px taller than its content and the text inside it sat visibly left of centre,
+    and each kill-feed row's panel overhung its text on the left by roughly 1.5 em. Neither layer's
+    *code* was wrong: `Width` now means the advance and `Height` one line box, which is what both were
+    already asking for, so the drawing calls are unchanged. The one deliberate change here is
+    `ClockLayer`'s panel height, rewritten from `score + countdown + MarginPx * 2.2f` to
+    `padY + score + gap + countdown + padY` — the lump constant left 7.2 px of padding above the text
+    and 13.2 px below it, and a panel whose height is not derived from the rows it wraps will drift
+    again the next time a font size moves.
