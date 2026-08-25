@@ -291,6 +291,139 @@ public class GoldenPerceptualToleranceTests
         await Assert.That(result.MinWindowSsim).IsEqualTo(closedForm).Within(0.0005);
     }
 
+    // ── The glyph tier ──────────────────────────────────────────────────────────────────────────────
+    // GoldenTolerance.ForTextBearingGolden resolves per platform, so asserting the RULES through it
+    // would test one branch on Windows and the other on Linux. These use the open tier as a literal
+    // instead, and the platform policy itself is pinned separately below.
+
+    private static readonly GoldenTolerance _openGlyphTier =
+        GoldenTolerance.DefaultPerceptual with
+        {
+            GlyphOutlierChannelDelta = 96,
+            MaxGlyphOutlierFraction = 0.0001,
+            MinWindowSsim = 0.90
+        };
+
+    // The channel rules, isolated. A lone 70-level spike in a flat field is exactly the local structure
+    // ALonePixelUnderBothChannelRules_StillFailsOnWindowedSsim exists to catch, so SSIM is stood down
+    // here to keep each case about one rule.
+    private static GoldenTolerance ChannelRulesOnly(GoldenTolerance tolerance) =>
+        tolerance with { MinSsim = 0, MinWindowSsim = 0 };
+
+    /// <summary>
+    ///     <b>The Windows gate did not move.</b> Every stock tolerance keeps the glyph tier shut, which is
+    ///     what makes the two rules added for it collapse back into the single ceiling rule the
+    ///     comparator has always had.
+    /// </summary>
+    [Test]
+    public async Task EveryStockTolerance_KeepsTheGlyphTierClosed()
+    {
+        foreach (GoldenTolerance tolerance in new[]
+                 {
+                     GoldenTolerance.ByteExact, GoldenTolerance.DefaultPerceptual,
+                     GoldenTolerance.CrossBackend
+                 })
+        {
+            await Assert.That(tolerance.GlyphOutlierChannelDelta).IsEqualTo(0);
+            await Assert.That(tolerance.MaxGlyphOutlierFraction).IsEqualTo(0);
+        }
+
+        await Assert.That(GoldenTolerance.DefaultPerceptual.OutlierChannelDelta).IsEqualTo(32);
+        await Assert.That(GoldenTolerance.DefaultPerceptual.MaxChannelDelta).IsEqualTo(8);
+        await Assert.That(GoldenTolerance.DefaultPerceptual.MaxMismatchedFraction).IsEqualTo(0.005);
+        await Assert.That(GoldenTolerance.DefaultPerceptual.MaxAlphaDelta).IsEqualTo(2);
+        await Assert.That(GoldenTolerance.DefaultPerceptual.MinSsim).IsEqualTo(0.995);
+        await Assert.That(GoldenTolerance.DefaultPerceptual.MinWindowSsim).IsEqualTo(0.95);
+    }
+
+    /// <summary>
+    ///     The platform policy, stated as an assertion rather than left implicit in a property: on the
+    ///     machine that authored the corpus a text-bearing golden is judged by exactly the default
+    ///     budget, and off it by the default budget plus three named, bounded allowances.
+    /// </summary>
+    [Test]
+    public async Task ForTextBearingGolden_RelaxesNothing_OnTheAuthoringPlatform()
+    {
+        GoldenTolerance resolved = GoldenTolerance.ForTextBearingGolden;
+
+        if (GoldenTolerance.GlyphsMatchTheCorpus)
+        {
+            await Assert.That(resolved).IsEqualTo(GoldenTolerance.DefaultPerceptual);
+            return;
+        }
+
+        await Assert.That(resolved).IsEqualTo(_openGlyphTier);
+
+        // Everything the tier does NOT touch, so a future edit widening it has to come through here.
+        await Assert.That(resolved.MaxChannelDelta)
+            .IsEqualTo(GoldenTolerance.DefaultPerceptual.MaxChannelDelta);
+        await Assert.That(resolved.OutlierChannelDelta)
+            .IsEqualTo(GoldenTolerance.DefaultPerceptual.OutlierChannelDelta);
+        await Assert.That(resolved.MaxMismatchedFraction)
+            .IsEqualTo(GoldenTolerance.DefaultPerceptual.MaxMismatchedFraction);
+        await Assert.That(resolved.MaxAlphaDelta)
+            .IsEqualTo(GoldenTolerance.DefaultPerceptual.MaxAlphaDelta);
+        await Assert.That(resolved.MinSsim).IsEqualTo(GoldenTolerance.DefaultPerceptual.MinSsim);
+    }
+
+    /// <summary>
+    ///     Eight pixels of 102 400 at a 70-level difference: over the strict 32 ceiling, under the tier's
+    ///     96, and inside the 0.01 % budget. The default tolerance rejects the same image outright, which
+    ///     is what makes this a test of the tier rather than of the picture.
+    /// </summary>
+    [Test]
+    public async Task TheGlyphTier_AdmitsABudgetedFewPixelsOverTheStrictCeiling()
+    {
+        byte[] expected = Solid(320, 320, new SKColor(100, 100, 100));
+        byte[] actual = Pixels(320, 320, (x, y) =>
+            y == 7 && x < 8 ? new SKColor(170, 170, 170) : new SKColor(100, 100, 100));
+
+        GoldenComparison strict =
+            GoldenImageComparer.Compare(expected, actual, GoldenTolerance.DefaultPerceptual);
+        await Assert.That(strict.Match).IsFalse();
+        await Assert.That(strict.FailureReason).Contains("ceiling");
+
+        GoldenComparison tiered =
+            GoldenImageComparer.Compare(expected, actual, ChannelRulesOnly(_openGlyphTier));
+        await Assert.That(tiered.MaxChannelDelta).IsEqualTo(70);
+        await Assert.That(tiered.AboveCeilingFraction).IsEqualTo(8 / 102400.0).Within(1e-12);
+        await Assert.That(tiered.FailureReason).IsNull();
+    }
+
+    /// <summary>Sixteen of the same pixels is over the 0.01 % budget, and the tier says so by name.</summary>
+    [Test]
+    public async Task TheGlyphTier_StillFails_WhenTooManyPixelsSpendIt()
+    {
+        byte[] expected = Solid(320, 320, new SKColor(100, 100, 100));
+        byte[] actual = Pixels(320, 320, (x, y) =>
+            y == 7 && x < 16 ? new SKColor(170, 170, 170) : new SKColor(100, 100, 100));
+
+        GoldenComparison result =
+            GoldenImageComparer.Compare(expected, actual, ChannelRulesOnly(_openGlyphTier));
+
+        await Assert.That(result.Match).IsFalse();
+        await Assert.That(result.FailureReason).Contains("glyph-tier budget");
+    }
+
+    /// <summary>
+    ///     And the tier has a ceiling of its own. One pixel at 130 is past 96, so it fails however few
+    ///     pixels are involved — a wrong colour is not a rasterisation difference at any count.
+    /// </summary>
+    [Test]
+    public async Task TheGlyphTier_StillFails_AboveItsOwnCeiling()
+    {
+        byte[] expected = Solid(320, 320, new SKColor(100, 100, 100));
+        byte[] actual = Pixels(320, 320, (x, y) =>
+            x == 7 && y == 7 ? new SKColor(230, 230, 230) : new SKColor(100, 100, 100));
+
+        GoldenComparison result =
+            GoldenImageComparer.Compare(expected, actual, ChannelRulesOnly(_openGlyphTier));
+
+        await Assert.That(result.MaxChannelDelta).IsEqualTo(130);
+        await Assert.That(result.Match).IsFalse();
+        await Assert.That(result.FailureReason).Contains("ceiling 96");
+    }
+
     private static SKColor Checker(int x, int y) =>
         (x + y) % 2 == 0 ? new SKColor(100, 100, 100) : new SKColor(106, 106, 106);
 

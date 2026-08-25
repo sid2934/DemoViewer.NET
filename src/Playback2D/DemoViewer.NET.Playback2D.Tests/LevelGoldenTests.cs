@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Goldens;
@@ -115,7 +116,141 @@ public class LevelGoldenTests
         await Assert.That(result.Match).IsTrue();
     }
 
+    /// <summary>
+    ///     <b>The proof obligation behind <see cref="GoldenTolerance.ForTextBearingGolden" />.</b> The
+    ///     glyph tier forgives a budgeted handful of pixels and one SSIM window off the platform that
+    ///     authored the corpus. That is only defensible if what it forgives is glyphs — so this
+    ///     re-renders each golden with the text layers off and uses the difference as an exact glyph-ink
+    ///     mask.
+    ///     <para>
+    ///         Two assertions ride on that mask. The cheap one: no pixel outside the ink may exceed even
+    ///         the ±8 band. The complete one: substitute the golden's own pixels under the ink and run
+    ///         the frame through <see cref="GoldenTolerance.DefaultPerceptual" /> with <b>nothing</b>
+    ///         relaxed — same ceiling, same 0.5 % budget, same alpha bound, both SSIM floors. Passing
+    ///         that means the tier's allowance is spent on glyph ink and on nothing else.
+    ///     </para>
+    ///     <para>
+    ///         It runs everywhere, not just off Windows. On the authoring platform it passes with zeroes,
+    ///         which is itself worth pinning: it is the assertion that would go red first if the
+    ///         rasteriser difference ever stopped being confined to text.
+    ///     </para>
+    /// </summary>
+    /// <param name="name">The golden to attribute.</param>
+    [Test]
+    [Arguments("nuke-multilevel-noradar")]
+    [Arguments("nuke-single-upper")]
+    public async Task EveryPixelOverTheStrictCeiling_LiesUnderGlyphInk(string name)
+    {
+        SceneFixture fixture = LoadNuke();
+        string goldenPath = GoldenPath(name, fixture.Size);
+        if (!File.Exists(goldenPath))
+        {
+            throw new SkipTestException($"no golden at {goldenPath}");
+        }
+
+        byte[] goldenPng = await File.ReadAllBytesAsync(goldenPath);
+        using SKBitmap golden = Decode(goldenPng);
+        using SKBitmap actual = Decode(Render(name, fixture, true));
+        using SKBitmap noText = Decode(Render(name, fixture, false));
+        using SKBitmap patched = new(golden.Width, golden.Height, SKColorType.Rgba8888,
+            SKAlphaType.Premul);
+
+        int strictCeiling = GoldenTolerance.DefaultPerceptual.OutlierChannelDelta;
+        int softCeiling = GoldenTolerance.DefaultPerceptual.MaxChannelDelta;
+        int worstOutsideInk = 0, worstUnderInk = 0, worstX = 0, worstY = 0;
+        long inkPixels = 0, overCeilingOutsideInk = 0, overCeilingUnderInk = 0;
+
+        for (int y = 0; y < golden.Height; y++)
+        {
+            for (int x = 0; x < golden.Width; x++)
+            {
+                SKColor e = golden.GetPixel(x, y);
+                SKColor a = actual.GetPixel(x, y);
+                bool underInk = a != noText.GetPixel(x, y);
+                int delta = Math.Max(Math.Abs(e.Red - a.Red),
+                    Math.Max(Math.Abs(e.Green - a.Green), Math.Abs(e.Blue - a.Blue)));
+
+                // The glyph tier's allowance, neutralised: under the ink the golden judges itself, so
+                // whatever survives is by construction NOT a text difference.
+                patched.SetPixel(x, y, underInk ? e : a);
+
+                if (underInk)
+                {
+                    inkPixels++;
+                    worstUnderInk = Math.Max(worstUnderInk, delta);
+                    if (delta > strictCeiling)
+                    {
+                        overCeilingUnderInk++;
+                    }
+
+                    continue;
+                }
+
+                if (delta > worstOutsideInk)
+                {
+                    worstOutsideInk = delta;
+                    worstX = x;
+                    worstY = y;
+                }
+
+                if (delta > strictCeiling)
+                {
+                    overCeilingOutsideInk++;
+                }
+            }
+        }
+
+        Console.WriteLine($"[attribution] {name}: glyph ink {inkPixels} px; " +
+                          $"worst under ink {worstUnderInk} ({overCeilingUnderInk} over {strictCeiling}); " +
+                          $"worst outside ink {worstOutsideInk} at ({worstX},{worstY}) " +
+                          $"({overCeilingOutsideInk} over {strictCeiling})");
+
+        // Not a tautology: the mask is "where the text layers changed the picture", and the deltas are
+        // measured against the COMMITTED golden. A geometry regression lands outside the mask.
+        await Assert.That(overCeilingOutsideInk).IsEqualTo(0L);
+        await Assert.That(worstOutsideInk).IsLessThanOrEqualTo(softCeiling);
+
+        // And the whole unrelaxed policy over the glyph-patched frame — the assertion that actually
+        // licenses the tier, because it re-imposes every limit ForTextBearingGolden loosens.
+        GoldenComparison strict = GoldenImageComparer.Compare(goldenPng, Encode(patched),
+            GoldenTolerance.DefaultPerceptual);
+        Console.WriteLine($"[attribution] {name} glyph-patched, unrelaxed: {strict.Summary}");
+        await Assert.That(strict.FailureReason).IsNull();
+    }
+
     private static int TopMostIndex(MapSpace space) => space.Levels.Count - 1;
+
+    private static string GoldenPath(string name, SKSizeI size) =>
+        Path.Combine(FixtureCorpus.Root, "goldens", "cpu", $"{name}@{size.Width}x{size.Height}.png");
+
+    private static SKBitmap Decode(byte[] png) =>
+        SKBitmap.Decode(png) ?? throw new InvalidOperationException("the image did not decode");
+
+    private static byte[] Encode(SKBitmap bitmap)
+    {
+        using SKImage image = SKImage.FromBitmap(bitmap);
+        using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
+    }
+
+    /// <summary>Renders one of the two level goldens, optionally with every text layer silenced.</summary>
+    /// <param name="name">The golden name, which selects the radar binding and the pane layout.</param>
+    /// <param name="fixture">The nuke capture both goldens are drawn from.</param>
+    /// <param name="drawText">False silences marker initials and the floor caption.</param>
+    private static byte[] Render(string name, SceneFixture fixture, bool drawText)
+    {
+        bool single = string.Equals(name, "nuke-single-upper", StringComparison.Ordinal);
+
+        using SceneStage stage = new(fixture.Size);
+        stage.TryBindMap(fixture.MapName, single);
+        if (!drawText)
+        {
+            stage.Markers.DrawLabels = false;
+            stage.Compositor.SetEnabled(SceneLayerIds.FloorLabel, false);
+        }
+
+        return single ? RenderSingle(stage, fixture, TopMostIndex) : stage.RenderFixturePng(fixture);
+    }
 
     private static byte[] RenderSingle(SceneStage stage, SceneFixture fixture,
         Func<MapSpace, int> pick, SingleLayout? policy = null)
@@ -147,8 +282,7 @@ public class LevelGoldenTests
 
     private static async Task CompareOrWrite(string name, SKSizeI size, byte[] actual)
     {
-        string goldenPath = Path.Combine(FixtureCorpus.Root, "goldens", "cpu",
-            $"{name}@{size.Width}x{size.Height}.png");
+        string goldenPath = GoldenPath(name, size);
 
         if (!File.Exists(goldenPath))
         {
@@ -167,10 +301,14 @@ public class LevelGoldenTests
         }
 
         byte[] expected = await File.ReadAllBytesAsync(goldenPath);
+
+        // ForTextBearingGolden, not DefaultPerceptual: both of these goldens carry marker initials and
+        // (in the stacked case) floor captions, and glyph rasterisation is the one input this renderer
+        // cannot pin. On the platform that authored the corpus the two tolerances are the same value.
+        // EveryPixelOverTheStrictCeiling_LiesUnderGlyphInk above is what keeps the difference honest.
         GoldenComparison result =
-            GoldenImageComparer.Compare(expected, actual, GoldenTolerance.DefaultPerceptual);
-        Console.WriteLine($"[golden] {name} match={result.Match} maxDelta={result.MaxChannelDelta} " +
-                          $"diff={result.MismatchedFraction:P4}");
+            GoldenImageComparer.Compare(expected, actual, GoldenTolerance.ForTextBearingGolden);
+        Console.WriteLine($"[golden] {name} {result.Summary}");
 
         if (!result.Match)
         {

@@ -1030,3 +1030,77 @@ on purpose).
     `TimelineLayoutTests.PersistedTrackIds_AreTheOnesTheTracksActuallyCarry` pins that the four
     registered tracks carry `round` / `kill` / `bomb` / `annotation` and that a restore against the
     three persisted ids lands on a real toggle. The end-to-end tab-level test stays a follow-up.
+
+### Found by CI's first run (post-PR, ubuntu lanes)
+
+The Windows lane was green — locally and on `windows-latest` — and every ubuntu lane failed the same
+five cases. All five were platform assumptions baked into tests, none was a defect in the renderer.
+Reproduced and fixed against a real Ubuntu 24.04 / .NET 10 checkout (WSL) rather than by guessing at
+a runner, so each fix below is verified on both operating systems.
+
+21. **Two text-bearing goldens failed at `max channel delta 70 exceeds the outlier ceiling 32`**
+    (`nuke-single-upper`, `nuke-multilevel-noradar`, both 900×900, 0.196 % / 0.129 % of pixels
+    differing). **Skia's glyph rasteriser is not the same code on every OS**, and the embedded
+    typeface does not change that. Measured directly: the same `SKTextBlob`, drawn at the same origin
+    into a blank bitmap, lays down **65** ink pixels under the Windows text stack and **70** under
+    FreeType; the blob's own measured bounds differ in the fourth decimal at 10 px
+    (`R=33.018463` vs `33.018677`), which shifts a *centred* label by a fraction of a pixel on top of
+    that. Geometry has no such problem — outside the label ink those same frames agree to within
+    **1/255** (5 pixels of 810 000), and the synthetic geometry goldens are byte-identical. The CLI
+    corpus lane was never affected for a duller reason: `SceneLayerCatalog` still registers only
+    `playback2d.debuggrid`, so `dv2d golden verify` renders no text at all.
+
+    Fixed with a **glyph tier** on `GoldenTolerance`: two new members, both defaulting to 0, which is
+    exactly the pre-existing behaviour — every stock tolerance keeps the tier shut and
+    `EveryStockTolerance_KeepsTheGlyphTierClosed` pins that, member by member. `ForTextBearingGolden`
+    opens it **only off the platform that authored the corpus**, and moves three limits and no
+    others: a pixel may reach 96 rather than 32; at most 0.01 % of the frame may (measured need: 13
+    pixels of 810 000, 0.0016 %); and the worst 11×11 SSIM window drops to 0.90 (measured 0.9396 for
+    a window sitting on a two-letter label). `MaxChannelDelta`, the 0.5 % coverage budget, the alpha
+    ceiling and the *mean* SSIM floor are untouched. **Windows compares at literally the same value it
+    did before.**
+
+    The relaxation is not taken on trust.
+    `LevelGoldenTests.EveryPixelOverTheStrictCeiling_LiesUnderGlyphInk` re-renders each golden with
+    the text layers silenced, uses the difference as an exact glyph-ink mask, substitutes the golden's
+    own pixels there, and runs the result through **unrelaxed** `DefaultPerceptual` — every rule, both
+    SSIM floors. It passes at `maxDelta=1, ssim=1.00000` on Linux, which is the actual evidence that
+    the tier forgives glyph ink and nothing else. It runs on every platform, Windows included.
+
+22. **`Geometry_WithoutText_IsAtLeastAsCloseAsTheFullFrame` failed by one level** (geometry max 201,
+    full-frame max 200, both at the same pixel). The invariant was stated on the *maximum*, which
+    this file's own header explains is the metric that "says nothing" across two rasterisers — and it
+    has one legitimate way to move the wrong way: the worst pixel in the frame can be one a **glyph
+    was sitting on**, so removing the glyph uncovers it. (Exactly what happens at (63,276), which is
+    inside a marker label.) The distribution assertions are now made at every tier the review quotes
+    — ±1, ±2, ±8 and ±32, up from ±8 alone — and the maximum is allowed to rise only when the pixel
+    that rose is one the text layers actually drew on, which the test checks rather than assumes.
+
+23. **`CommittedBudgetFixture_MatchesTheGenerator` failed on one float:** `"y": -1991.9182` against
+    `-1991.9183`, one float ulp at that magnitude. Not line endings (deviation 12's fix holds) —
+    **`MathF.Sin`/`MathF.Cos` forward to the host's libm**, and glibc's `sinf` and the Windows CRT's
+    disagree in the last bit, which lands directly in a fixture that is committed as text and then
+    compared character by character. Rounding to a decimal grid does not fix this; it only moves the
+    coin flip to the grid boundary. `SyntheticScenes` now computes in **double** and narrows once:
+    the two platforms' doubles differ by at most ~2⁻⁵² and the cast to float discards ~28 bits below
+    that, so they must round to the same float. Verified, not assumed — the regenerated
+    `full-scene-budget.scene.json` is byte-identical on Windows and Ubuntu, and the test is the
+    standing check. The fixture is regenerated in this commit (282 lines, all ulp-scale).
+
+24. **`Save_OnIoFailure_ReturnsFalse_DoesNotThrow` reported `saved=True` on Linux.** The injection
+    held the destination open with `FileShare.None`, which is a **Windows-only** fact: share modes are
+    mandatory there and merely advisory on Unix, where `rename(2)` happily replaced a file another
+    handle had open and the save legitimately succeeded. Now puts a **directory** where the sidecar
+    goes — refused by both (`EISDIR` / `ERROR_ACCESS_DENIED`) at the same line of `SaveAsync` — and
+    additionally asserts the `.tmp` scratch file was cleaned up, which the old shape never checked.
+
+25. **Not a failure, confirmed working as designed:** the `egl-surfaceless` and `egl-default-display`
+    probes fail on the headless runner (`eglGetPlatformDisplayEXT is not exported`, `eglInitialize
+    failed`) and the backend falls back to CPU with that text as its stated reason. That is C2
+    Stage 0's contract. Reproduced identically under WSL and left alone.
+
+    Final numbers, both platforms, this commit: **481/481** on Windows
+    (`dotnet test src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release`, 474 before — the 7 new
+    cases are 2 attribution × 2 goldens and 5 glyph-tier unit tests) and **473/473** on Ubuntu with
+    CI's `Category!=Budget` filter, plus 109/109 CLI on each, `golden verify --cpu` 6 matched at
+    `max_channel_delta 0`, and the bench gate and GIF export smoke green on Ubuntu.

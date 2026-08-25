@@ -256,13 +256,19 @@ public class AnnotationStoreTests
         AnnotationStore store = new(tree.AppData);
         string path = store.ResolvePath(tree.DemoPath)!;
 
-        // Hold the destination open with no sharing, so the atomic replace cannot complete.
-        using FileStream blocker = new(path, FileMode.Create, FileAccess.Write, FileShare.None);
+        // Put a DIRECTORY where the sidecar goes, so the atomic replace at the end of SaveAsync cannot
+        // complete. The obvious injection — holding the destination open with FileShare.None — is a
+        // Windows-only fact: share modes are mandatory there and merely advisory on Unix, where
+        // rename(2) happily replaces a file somebody else has open and the save reported success. A
+        // directory is refused by both (EISDIR / ERROR_ACCESS_DENIED), so this exercises the same
+        // failure at the same line on every OS the suite runs on.
+        Directory.CreateDirectory(path);
 
         bool saved = await store.SaveAsync(tree.DemoPath, tree.Demo, tree.Clock,
             [AnnotationFakes.Stroke()]);
 
         await Assert.That(saved).IsFalse();
+        await Assert.That(File.Exists(path + ".tmp")).IsFalse();
     }
 
     [Test]

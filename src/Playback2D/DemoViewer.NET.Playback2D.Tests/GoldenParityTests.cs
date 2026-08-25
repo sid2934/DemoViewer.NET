@@ -4,6 +4,7 @@ using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Goldens;
+using SkiaSharp;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -92,23 +93,54 @@ public class GoldenParityTests
 
         using SceneStage withText = new(fixture.Size, palette: CapturePalette);
         withText.TryBindMap(fixture.MapName);
-        GoldenDeltaProfile full =
-            GoldenImageComparer.Analyze(expected, withText.RenderFixturePng(fixture))!.Value;
+        byte[] withTextPng = withText.RenderFixturePng(fixture);
+        GoldenDeltaProfile full = GoldenImageComparer.Analyze(expected, withTextPng)!.Value;
 
         using SceneStage noText = new(fixture.Size, palette: CapturePalette);
         noText.TryBindMap(fixture.MapName);
         noText.Markers.DrawLabels = false;
         noText.Compositor.SetEnabled(SceneLayerIds.FloorLabel, false);
-        GoldenDeltaProfile geometry =
-            GoldenImageComparer.Analyze(expected, noText.RenderFixturePng(fixture))!.Value;
+        byte[] noTextPng = noText.RenderFixturePng(fixture);
+        GoldenDeltaProfile geometry = GoldenImageComparer.Analyze(expected, noTextPng)!.Value;
 
         Console.WriteLine($"[parity] {name} full      {full.Describe()}");
         Console.WriteLine($"[parity] {name} geometry  {geometry.Describe()}");
 
-        // Removing text can only move pixels toward agreement. If it ever does not, the difference is
-        // NOT the typeface and the review's conclusion is wrong.
+        // Removing text can only move the DISTRIBUTION toward agreement. If it ever does not, the
+        // difference is NOT the typeface and the review's conclusion is wrong. Asserted at every tier
+        // the review quotes, rather than at ±8 alone.
+        await Assert.That(geometry.FractionWithin(1)).IsGreaterThanOrEqualTo(full.FractionWithin(1));
+        await Assert.That(geometry.FractionWithin(2)).IsGreaterThanOrEqualTo(full.FractionWithin(2));
         await Assert.That(geometry.FractionWithin(8)).IsGreaterThanOrEqualTo(full.FractionWithin(8));
-        await Assert.That(geometry.MaxChannelDelta).IsLessThanOrEqualTo(full.MaxChannelDelta);
+        await Assert.That(geometry.FractionWithin(32)).IsGreaterThanOrEqualTo(full.FractionWithin(32));
+
+        // The MAXIMUM is a different claim, and a weaker one — this file's own header says why a single
+        // worst pixel across two rasterisers says nothing. It has exactly one legitimate way to move the
+        // wrong way: the worst pixel in the frame can be one a GLYPH was sitting on, and taking the
+        // glyph away uncovers it. (Observed on Linux: the worst pixel, (63,276), sits inside a marker
+        // label and goes 200 → 201 when the label is removed.) So allow that case and no other, by
+        // checking whether the text layers actually drew on that pixel.
+        if (geometry.MaxChannelDelta > full.MaxChannelDelta)
+        {
+            bool underInk = PixelChanged(withTextPng, noTextPng, geometry.MaxDeltaX, geometry.MaxDeltaY);
+            Console.WriteLine($"[parity] {name} geometry's worst pixel " +
+                              $"({geometry.MaxDeltaX},{geometry.MaxDeltaY}) rose to " +
+                              $"{geometry.MaxChannelDelta} from {full.MaxChannelDelta}; " +
+                              $"under glyph ink: {underInk}");
+            await Assert.That(underInk).IsTrue();
+        }
+    }
+
+    /// <summary>Whether the two renders disagree at one pixel — i.e. the text layers drew there.</summary>
+    /// <param name="withTextPng">The render with every layer on.</param>
+    /// <param name="noTextPng">The same render with the text layers silenced.</param>
+    /// <param name="x">Pixel X.</param>
+    /// <param name="y">Pixel Y.</param>
+    private static bool PixelChanged(byte[] withTextPng, byte[] noTextPng, int x, int y)
+    {
+        using SKBitmap a = SKBitmap.Decode(withTextPng);
+        using SKBitmap b = SKBitmap.Decode(noTextPng);
+        return a.GetPixel(x, y) != b.GetPixel(x, y);
     }
 
     private static (SceneFixture Fixture, byte[] Golden) LoadCorpusEntry(string name)

@@ -46,6 +46,7 @@ public static class GoldenImageComparer
         long total = (long)width * height;
         long mismatched = 0;
         long outliers = 0;
+        long aboveCeiling = 0;
         int maxDelta = 0;
         int maxAlphaDelta = 0;
 
@@ -81,11 +82,17 @@ public static class GoldenImageComparer
                 {
                     outliers++;
                 }
+
+                if (delta > tolerance.OutlierChannelDelta)
+                {
+                    aboveCeiling++;
+                }
             }
         }
 
         double fraction = total == 0 ? 0 : mismatched / (double)total;
         double outlierFraction = total == 0 ? 0 : outliers / (double)total;
+        double aboveCeilingFraction = total == 0 ? 0 : aboveCeiling / (double)total;
 
         // Identical pixels are identical structure; skipping the convolution here is not an
         // approximation, and it keeps the byte-exact-in-practice cases (most golden runs) cheap.
@@ -101,14 +108,25 @@ public static class GoldenImageComparer
         // MaxChannelDelta is a BUDGET THRESHOLD, not a hard ceiling — the ceiling is
         // OutlierChannelDelta. One edge pixel landing on the far side of a coverage rounding must not
         // fail a frame; half a percent of them must.
+        //
+        // The glyph tier adds a SECOND ceiling above that one, open only when a tolerance asks for it
+        // (GoldenTolerance.ForTextBearingGolden, off the platform that authored the corpus). With the
+        // tier closed — every tolerance in the repo except that one — `ceiling` is
+        // OutlierChannelDelta and MaxGlyphOutlierFraction is 0, so the two rules below collapse back
+        // into the single "nothing may exceed the ceiling" rule this file has always had.
+        int ceiling = Math.Max(tolerance.OutlierChannelDelta, tolerance.GlyphOutlierChannelDelta);
         string? reason = tolerance.Mode switch
         {
             GoldenMode.ByteExact when mismatched > 0 => string.Create(CultureInfo.InvariantCulture,
                 $"{mismatched} of {total} pixels differ (max channel delta {maxDelta})"),
-            GoldenMode.Perceptual when maxDelta > tolerance.OutlierChannelDelta =>
+            GoldenMode.Perceptual when maxDelta > ceiling =>
                 string.Create(CultureInfo.InvariantCulture,
-                    $"max channel delta {maxDelta} exceeds the outlier ceiling " +
-                    $"{tolerance.OutlierChannelDelta}"),
+                    $"max channel delta {maxDelta} exceeds the outlier ceiling {ceiling}"),
+            GoldenMode.Perceptual when aboveCeilingFraction > tolerance.MaxGlyphOutlierFraction =>
+                string.Create(CultureInfo.InvariantCulture,
+                    $"{aboveCeiling} of {total} pixels ({aboveCeilingFraction:P4}) exceed " +
+                    $"{tolerance.OutlierChannelDelta}, glyph-tier budget " +
+                    $"{tolerance.MaxGlyphOutlierFraction:P4}"),
             GoldenMode.Perceptual when maxAlphaDelta > tolerance.MaxAlphaDelta =>
                 string.Create(CultureInfo.InvariantCulture,
                     $"max alpha delta {maxAlphaDelta} exceeds {tolerance.MaxAlphaDelta}"),
@@ -126,7 +144,7 @@ public static class GoldenImageComparer
         };
 
         return new GoldenComparison(reason is null, maxDelta, fraction, meanSsim, width, height, reason,
-            outlierFraction, maxAlphaDelta, minWindowSsim);
+            outlierFraction, maxAlphaDelta, minWindowSsim, aboveCeilingFraction);
     }
 
     /// <summary>
@@ -265,5 +283,5 @@ public static class GoldenImageComparer
     private static float Luma(SKColor c) => (0.2126f * c.Red) + (0.7152f * c.Green) + (0.0722f * c.Blue);
 
     private static GoldenComparison Failed(int width, int height, string reason) =>
-        new(false, 255, 1.0, 0, width, height, reason, 1.0, 255, 0);
+        new(false, 255, 1.0, 0, width, height, reason, 1.0, 255, 0, 1.0);
 }

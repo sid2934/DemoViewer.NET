@@ -24,6 +24,32 @@ internal static class SyntheticScenes
     /// <summary>The corpus name of the budget scene.</summary>
     public const string FullSceneBudgetName = "full-scene-budget";
 
+    /// <summary>
+    ///     <c>sin</c> and <c>cos</c> for a fixture that gets <b>committed as text</b> and then compared
+    ///     character by character against a regeneration on another machine.
+    ///     <para>
+    ///         .NET does not promise bit-identical transcendental results across platforms — it forwards
+    ///         to the host's libm, and glibc's <c>sinf</c> and the Windows CRT's disagree in the last
+    ///         bit. Through <c>MathF</c> that lands directly in the emitted float:
+    ///         <c>"y": -1991.9182</c> on Windows against <c>-1991.9183</c> on Linux, which is one float
+    ///         ulp at this magnitude and enough to fail an exact comparison. Rounding the result to a
+    ///         decimal grid does not fix it — it only moves the coin flip to the grid boundary.
+    ///     </para>
+    ///     <para>
+    ///         Computing in <b>double</b> and narrowing once does. The two platforms' doubles differ by
+    ///         at most an ulp of a double (~2⁻⁵²), and the cast to float discards ~28 bits below that, so
+    ///         they have to round to the same float unless the exact result sits within 2⁻⁵² of a float
+    ///         rounding boundary. Verified rather than assumed: the regenerated fixture is byte-identical
+    ///         on Windows and on Ubuntu, and <c>BudgetFixtureCorpusTests</c> is the standing check.
+    ///     </para>
+    /// </summary>
+    /// <param name="radians">The angle.</param>
+    private static float Sin(double radians) => (float)Math.Sin(radians);
+
+    /// <inheritdoc cref="Sin" />
+    /// <param name="radians">The angle.</param>
+    private static float Cos(double radians) => (float)Math.Cos(radians);
+
     /// <summary>Builds the budget scene.</summary>
     public static SceneFixture FullSceneBudget()
     {
@@ -66,8 +92,8 @@ internal static class SyntheticScenes
                 float progress = p / 63f;
                 trail.Points.Add(new GrenadeTrailPoint(
                     -1500f + t * 400f + progress * 2600f,
-                    -800f + MathF.Sin(progress * MathF.PI) * 900f,
-                    -450f + MathF.Sin(progress * MathF.PI * 2) * 700f));
+                    -800f + Sin(progress * Math.PI) * 900f,
+                    -450f + Sin(progress * Math.PI * 2) * 700f));
             }
 
             trails.Add(trail);
@@ -81,10 +107,10 @@ internal static class SyntheticScenes
             for (int r = 0; r < fan.Length; r++)
             {
                 float degrees = m.YawDegrees - 53f + 106f * r / (fan.Length - 1);
-                float radians = degrees * (MathF.PI / 180f);
+                double radians = degrees * (Math.PI / 180.0);
                 float range = 800f + r % 7 * 260f;
-                fan[r] = new ConePoint(m.WorldX + MathF.Cos(radians) * range,
-                    m.WorldY + MathF.Sin(radians) * range);
+                fan[r] = new ConePoint(m.WorldX + Cos(radians) * range,
+                    m.WorldY + Sin(radians) * range);
             }
 
             cones.Add(new VisionCone
