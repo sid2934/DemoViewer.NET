@@ -54,19 +54,45 @@ under a world matrix" case never arises.
 
 ```csharp
 SKTextBlob? blob = SKTextBlob.Create(string, SKFont);       // NULLABLE — empty string returns null
-SKRect bounds    = blob.Bounds;                             // the measurement B1 centres on
 canvas.DrawText(SKTextBlob, float x, float y, SKPaint);     // NOTE: SKPaint, not SKFont
+
+int    n       = font.CountGlyphs(text);
+font.GetGlyphs(text, glyphs);                               // Span<ushort>, stackalloc-able
+float  advance = font.MeasureText(glyphs, out SKRect ink);  // the measurement B1 should have used
+SKFontMetrics m = font.Metrics;                             // Ascent < 0, Descent > 0
 ```
 
-`SKFont.MeasureText` in 2.88.9 accepts **only** `ReadOnlySpan<ushort>` (glyph ids) — there is no
-`MeasureText(string, out SKRect)`. Measurement therefore comes from `SKTextBlob.Bounds`, which is
-what `TextBlobCache` caches alongside the blob. `SKFontMetrics` (`Ascent`/`Descent`/`Top`/`Bottom`)
-is available off `SKFont.Metrics` and is used for nothing else.
+> **Correction (fix/p2d-text-centering).** This section previously said `SKFont.MeasureText` "accepts
+> **only** `ReadOnlySpan<ushort>` (glyph ids) — there is no `MeasureText(string, out SKRect)`", and
+> concluded that measurement therefore had to come from `SKTextBlob.Bounds`. The premise is true and
+> the conclusion does not follow: taking glyph ids is not the same as being unusable. `SKFont.GetGlyphs`
+> converts a string to ids into a caller-provided `Span<ushort>`, so
+> `MeasureText(ReadOnlySpan<ushort>, out SKRect, SKPaint?)` **is** reachable in 2.88.9 and is the only
+> API here that returns tight ink.
+
+**`SKTextBlob.Bounds` is not ink.** Skia computes a blob's bounds *conservatively*, from the font's
+global glyph box rather than from the glyphs in the run. Measured on the embedded Inter Regular:
+
+| | `blob.Bounds` | `MeasureText(glyphs, out ink)` |
+|---|---|---|
+| `"AA"` @ 10 px | `L=-7.386 T=-10.909 W=39.979 H=14.105` | `L=0 T=-8 W=13.761 H=8`, advance `13.523` |
+| `"WW"` @ 10 px | `L=-7.386 T=-10.909 W=42.706 H=14.105` | `L=0 T=-8 W=19.489 H=8`, advance `18.977` |
+| `"7"` @ 10 px | `L=-7.386 T=-10.909 W=33.217 H=14.105` | `L=0 T=-8 W=6.000 H=8`, advance `5.710` |
+
+`Left` is the same `-0.7386 em` for every string; `Top`/`Bottom` are exactly `SKFontMetrics.Top`/
+`Bottom`; the width runs 2.2–5.5× the real ink. Centring on `blob.Bounds.MidX` therefore drew every
+marker label 4.2–6.2 px left of its 9 px disc — correct arithmetic over the wrong rectangle. What
+`TextBlobCache` caches alongside the blob is now the tight ink, the advance, and `Ascent`/`Descent`.
 
 `DrawText(SKTextBlob, x, y, SKPaint)` positions the blob's **baseline origin** at `(x, y)`; the
-pre-v2 `context.DrawText(text, point)` positioned the text's **top-left**. The conversion is
-`y - bounds.Top`, and it is the single largest source of the reviewed text-metric delta (design
-risk 1, plan D-17).
+pre-v2 `context.DrawText(text, point)` positioned the text's **line-box top-left** (Avalonia's
+`FormattedText.Width` is an advance and its `Height` is a line height — not an ink box). The
+conversions are therefore `y - Ascent` for a top-left and `(cx - Advance/2, cy - (Ascent+Descent)/2)`
+for a centre, which is exactly what the pre-v2 call did.
+
+Note also that `SKFont.BaselineSnap` defaults to **true**, so the drawn baseline is rounded to a whole
+pixel. Sub-pixel vertical placement is not available and is not wanted: it is what keeps a row of
+labels on one line.
 
 ### Arcs (`BombLayer`, T7)
 
@@ -134,8 +160,18 @@ correction 6 forbids it.
 - Notice added to `THIRD-PARTY-NOTICES.md` as section **d**.
 
 `TextBlobCache` owns exactly one `SKTypeface` (lazily loaded from the manifest resource), one
-`SKFont` per size, and a bounded LRU of `(text, size) → (SKTextBlob, SKRect bounds)`, cap 512.
-The pre-v2 sizes are the only ones B1 asks for: **10 px** marker labels, **11 px** floor labels.
+`SKFont` per size, and a bounded LRU of
+`(text, size) → (SKTextBlob, SKRect tightInk, float advance, float ascent, float descent)`, cap 512.
+All five are measured on the **miss** path; a hit copies the struct out and allocates nothing.
+B1's sizes are the pre-v2 ones — **10 px** marker labels, **11 px** floor labels — plus B4's HUD text
+at **14 px** and its countdown at **18.9 px**.
+
+**One cache per scene, not one per layer.** Four layers draw text (markers, floor label, HUD clock,
+kill feed). `Scene2DHost`, the test stage and `SceneLayerCatalog.CreateSceneStack` all pass one shared
+instance — the headless factory did not until it was corrected, and four private caches meant four
+copies of the embedded face. A shared cache is owned by the **compositor**
+(`SceneCompositor.AddOwned`, disposed after every layer), never by one of the layers using it:
+`SceneCompositor.Remove` disposes the layer it drops.
 
 ---
 
