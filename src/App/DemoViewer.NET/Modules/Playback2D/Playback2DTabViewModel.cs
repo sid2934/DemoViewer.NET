@@ -386,12 +386,25 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         return ranges;
     }
 
-    private ExportSceneSetup BuildExportSetup(Playback2DExportHost host) => new(
+    /// <summary>
+    ///     The scene setup an export run is built from. Evaluated when the run STARTS (the runner holds a
+    ///     factory, not a value), so it reads the live level mode at that moment — which is the same
+    ///     instant <see cref="CaptureLiveCamera" /> freezes the cameras.
+    ///     <para>
+    ///         Internal for the mirror-live-view test: the display mode used to be hard-coded
+    ///         <c>Stacked</c>, so a user watching Nuke in SINGLE mode and exporting "mirror the live view"
+    ///         got a two-band stacked video of a view they were not looking at. B4 D12 says the capture
+    ///         carries "plus the host's current <c>LevelDisplayMode</c>" — <c>MirrorLiveView.DisplayMode</c>
+    ///         recorded it and nothing read it, which is the second half of B4 deviation 20.
+    ///     </para>
+    /// </summary>
+    /// <param name="host">The shell's export host.</param>
+    internal ExportSceneSetup BuildExportSetup(Playback2DExportHost host) => new(
         host.Frames() ?? [],
         _tickRate,
         _context?.MapName,
         ScenePaletteFactory.Build(Avalonia.Application.Current?.ActualThemeVariant),
-        LevelDisplayMode.Stacked,
+        LevelStrip.DisplayMode,
 
         // The export builds its own solver over the same engine: VisionLayer is stateless per frame, and
         // the engine itself is a read-only mesh.

@@ -1,6 +1,8 @@
 #region
 
 using DemoViewer.NET.Modules.Playback2D.Timeline;
+using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Core.Timeline;
 
 #endregion
 
@@ -231,6 +233,36 @@ public class TimelineLayoutTests
         vm.Rebuild(new FakeTimelineData(1000));
         await Assert.That(vm.Tracks[0].IsAvailable).IsFalse();
         await Assert.That(announced).IsEqualTo(0);
+    }
+
+    private static readonly string[] _registeredTrackIds = ["round", "kill", "bomb", "annotation"];
+    private static readonly string[] _persistedTrackIds = ["kill", "bomb", AnnotationTrack.TrackId];
+
+    /// <summary>
+    ///     The three ids <c>Playback2DTabViewModel.LoadTimelineSettings</c> / <c>SaveTimelineSettings</c>
+    ///     key <c>Playback2D:TimelineShowKills|Bomb|Annotations</c> on. <c>RestoreTrackEnabled</c> and
+    ///     <c>SetTrackEnabled</c> both IGNORE an unknown id by contract, and <c>IsTrackEnabled</c> answers
+    ///     <c>true</c> for one — so renaming a track's id does not fail anywhere: it just quietly turns the
+    ///     persisted preference back into session state, which is the exact bug B5 was added to fix.
+    /// </summary>
+    [Test]
+    public async Task PersistedTrackIds_AreTheOnesTheTracksActuallyCarry()
+    {
+        Playback2DTimelineViewModel vm = new();
+        vm.RegisterTrack(new RoundTrack());
+        vm.RegisterTrack(new KillTrack());
+        vm.RegisterTrack(new BombTrack());
+        vm.RegisterTrack(new AnnotationTrack(new AnnotationDocument()));
+
+        await Assert.That(vm.Tracks.Select(t => t.Id).ToArray()).IsEquivalentTo(_registeredTrackIds);
+
+        // And a restore against those ids actually lands, rather than being swallowed as unknown.
+        foreach (string id in _persistedTrackIds)
+        {
+            vm.RestoreTrackEnabled(id, false);
+            await Assert.That(vm.Tracks.Single(t => t.Id == id).IsEnabled).IsFalse()
+                .Because($"Playback2D:TimelineShow* writes '{id}' and nothing errors if it misses");
+        }
     }
 
     private static Playback2DTimelineViewModel Sized(int totalFrames, double pixelWidth)

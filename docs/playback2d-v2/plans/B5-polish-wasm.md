@@ -1005,3 +1005,28 @@ on purpose).
 
 18. **The `wasm-build` CI job has not run on a GitHub runner**, only locally — it is added in the same
     commit as the fixes it would have caught, so its first real execution is the next push.
+
+### Found by the independent B5 review (pre-PR gate)
+
+19. **"Mirror the live view" still did not mirror the live LAYOUT.** B5 closed B4 deviation 20 by
+    capturing the panes' cameras — and `CameraScript.MirrorLiveView` carries the second half B4 D12
+    specifies, *"plus the host's current `LevelDisplayMode`"* — but nothing read it:
+    `Playback2DTabViewModel.BuildExportSetup` passed a hard-coded `LevelDisplayMode.Stacked` into
+    `ExportSceneSetup`, whose own doc comment says the field "mirror[s] the live host". A user watching
+    a two-floor map in **SINGLE** mode and exporting got a two-band stacked video of a framing they had
+    never seen — the same class of silent wrong-framing bug the capture was added to fix, one layer
+    down. Now reads `LevelStrip.DisplayMode`; the setup is a factory the runner evaluates at Start, so
+    it is read at the same instant the cameras are frozen. `BuildExportSetup` became `internal` for the
+    test. Pinned by `Playback2DMirrorLiveViewTests
+    .ExportSetup_TakesTheLiveDisplayMode_NotAHardCodedStacked`.
+
+20. **The three new timeline keys had no test on the wire that reads them.** Deviation 1's fix is
+    correct, but `RestoreTrackEnabled` / `SetTrackEnabled` ignore an unknown track id by contract and
+    `IsTrackEnabled` answers `true` for one — so renaming `KillTrack.Id` fails nowhere: it silently
+    turns the persisted preference back into session state, which is the exact bug B5 existed to fix.
+    The load/save pair itself resolves `SettingsService` from the static `App.Services`, so testing it
+    end to end means swapping the app container (the same shape `LoadLevelSettings` already has, and
+    not something to introduce at a release gate). Covered instead at the seam that actually drifts:
+    `TimelineLayoutTests.PersistedTrackIds_AreTheOnesTheTracksActuallyCarry` pins that the four
+    registered tracks carry `round` / `kill` / `bomb` / `annotation` and that a restore against the
+    three persisted ids lands on a real toggle. The end-to-end tab-level test stays a follow-up.

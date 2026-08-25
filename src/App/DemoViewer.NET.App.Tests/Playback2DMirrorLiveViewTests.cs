@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Export;
@@ -174,6 +175,52 @@ public class Playback2DMirrorLiveViewTests
             try
             {
                 await Assert.That(vm.LiveCameraSource is null).IsTrue();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    /// <summary>
+    ///     The other half of the capture. B4 D12 says the snapshot carries the pane cameras <b>plus the
+    ///     host's current <c>LevelDisplayMode</c></b>; <c>MirrorLiveView.DisplayMode</c> recorded it and the
+    ///     App's export setup hard-coded <c>Stacked</c>, so a user watching a two-floor map in SINGLE mode
+    ///     and exporting "mirror the live view" got a stacked video of a framing they had never seen. The
+    ///     setup is a FACTORY on the runner, evaluated at Start, so reading the live mode there is the same
+    ///     instant the cameras are frozen.
+    /// </summary>
+    [Test]
+    public async Task ExportSetup_TakesTheLiveDisplayMode_NotAHardCodedStacked()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            ctx.PushMarkers((0, 2, -800f, 600f, -700f, 90f), (1, 3, 900f, -500f, 64f, 270f));
+
+            (Window window, Playback2DView view) =
+                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            try
+            {
+                Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
+                Playback2DTimelineHarness.Pump();
+
+                Playback2DExportHost exportHost = new(
+                    () => null, null, null, null, () => new AppSettings(), _ => { });
+
+                await Assert.That(vm.BuildExportSetup(exportHost).DisplayMode)
+                    .IsEqualTo(LevelDisplayMode.Stacked).Because("stacked is the shipping default");
+
+                vm.LevelStrip.IsSingleMode = true;
+                Playback2DTimelineHarness.Pump();
+
+                await Assert.That(host.DisplayMode).IsEqualTo(LevelDisplayMode.Single)
+                    .Because("the strip drives the live surface");
+                await Assert.That(Mirror(host).DisplayMode).IsEqualTo(LevelDisplayMode.Single);
+                await Assert.That(vm.BuildExportSetup(exportHost).DisplayMode)
+                    .IsEqualTo(LevelDisplayMode.Single)
+                    .Because("an export that mirrors the live view must mirror its LAYOUT too");
             }
             finally
             {
