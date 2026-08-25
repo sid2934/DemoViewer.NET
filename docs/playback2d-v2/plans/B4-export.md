@@ -1,0 +1,1140 @@
+# Phase B4 — Video export (implementation plan)
+
+**Branch:** `feature/playback2d-v2` · **Owns design open question 1** (checkpoint-replay seek-core
+boundary) · **Depends on:** B0 (Core + Pipeline projects, `Scene2DFrame`, `SceneFrameBuilder`,
+`CpuSurfaceProvider`), B1 (layer stack, `SceneTime` plumbing, `MapSpace`/`LevelPane`).
+**Parallel with:** C1 (`dv2d` CLI — consumes everything here), C2 (`GpuSurfaceProvider`).
+
+This plan is self-contained: a coding agent should be able to execute it without reading
+`design.md`. Where the design pinned a signature (§5.7, §5.8) it is reproduced verbatim and marked
+**BINDING**. Where the design was silent, this plan makes the call and records it under
+**Decisions made**.
+
+> ## Integrator corrections (BINDING — supersede anything below that disagrees)
+>
+> Cross-phase reconciliation; `plans/00-overview.md` §3 is the canonical registry. R1 and the
+> `Playback2DSettings` ordering note are resolved here.
+>
+> 1. **R1 resolved, and `SceneFrameBuilder` is NOT re-shaped.** B0's D1 splits the Avalonia-typed
+>    half of `Modules.Abstractions` into `…Abstractions.Ui`, so Pipeline *can* reference
+>    `IPlaybackSnapshot`/`IPlayerState`/`IReadOnlyEntityView` and `SceneFrameBuilder.Build(in
+>    SceneFrameInput)` stays as B0 shipped it. B4 instead adds
+>    `Pipeline/Export/TrackerSceneSnapshot.cs`: a Pipeline-side adapter that presents an
+>    `EntityTracker`'s state as `IReadOnlyList<IPlayerState>` + `IReadOnlyEntityView`, doing the
+>    pawn↔slot join with `CS2DemoKit.Analysis.Plugins.PawnLookup`. That is the *only* new join, it
+>    lives next to its single consumer, and C1's CLI gets it for free. Pipeline's
+>    `CS2DemoKit.Analysis` reference is confirmed (B0 already declares it).
+> 2. **`TrackerFrameSource` is C1's, not B4's.** C1 needs it in its first week for
+>    `dv2d render --demo`/`bench --demo`, and B4 lands after it. Delete B4.4's "Create"; B4
+>    **consumes** it. The canonical signature merges both plans and is in `00-overview.md` §3 — it
+>    keeps B4's `Prepare(CancellationToken)`, `throwOnNonSequentialAccess`, and fps/speed/tickRate
+>    `SceneTime` construction, plus C1's `DemoFrameIndexOf` and `static FrameIndexForTick`. If C1
+>    slips past B4.4, B4 creates it **to that signature** and C1 consumes it — first lander wins,
+>    but the shape does not change either way.
+> 3. **`KillFeedRow` is a Core type, defined by B0** (`Tick, Attacker, Assister, Victim, Weapon,
+>    Headshot, Penetrated, NoScope, ThroughSmoke, AttackerBlind, AttackerInAir, AssistedFlash`).
+>    `Scene2DFrame.KillFeed` already carries it. **Do not declare a second `KillFeedRow` in
+>    Pipeline** — B4.9's Pipeline record and its `KillerName`/`IsHeadshot`/`IsWallbang`/`IsNoScope`/
+>    `IsThroughSmoke`/`IsFlashAssist` names are withdrawn; use B0's members. `KillFeedTimeline`
+>    stays in Pipeline and windows over the Core record.
+> 4. **`HudSnapshot` moves to `…Core.Hud`.** `IHudDataSource.At(int tick)` returns it and lives in
+>    Core, so a Pipeline `HudSnapshot` will not compile. `TimelineHudDataSource` stays in Pipeline.
+> 5. **Level identity is `MapLevelId`, not `string`.** `PaneCameraSnapshot` becomes
+>    `(MapLevelId LevelId, ViewportTransform Transform, bool ManualOverride)` and
+>    `CameraScript.Fixed` takes `IReadOnlyDictionary<MapLevelId, ViewportTransform> PaneTransforms`.
+> 6. **`Playback2DSettings` is flat and fully flattened.** No nested `Playback2DExportSettings`: the
+>    canonical properties are `ExportFormatId`, `ExportFps`, `ExportWidth`, `ExportHeight`,
+>    `ExportOutputDirectory`, `ExportIncludeHud`, `ExportIncludeAnnotations` (B5's list), plus C2's
+>    `RenderBackend` — B4's `ExportBackendOverride` is withdrawn in favour of that one key. B5 D3
+>    also **reverses** B4.12's `WriteInMemory` decision: the whole `Playback2D` section is flattened,
+>    export keys included. Delete the "DELIBERATELY PARTIAL … `Playback2D:Export:*` excluded" comment.
+> 7. **One test project: `src/Playback2D/DemoViewer.NET.Playback2D.Tests`** (B0 creates it).
+>    `…Core.Tests` / `…Pipeline.Tests` do not exist; both of B4's direct-execution tables land
+>    there, and B4.17 adds **no** CI step — B0's `playback2d-tests` job already runs that project.
+> 8. **Feature-catalog placement:** `playback2d.export` is the fifth row of the one contiguous v2
+>    block A1 creates after `analysis.breakpoints`. The `!OperatingSystem.IsBrowser()` AND lives in
+>    exactly one place, `ShellModuleFeatureGate.DesktopOnlyIds` (B5 D4) — B4 does not add a second
+>    shim. Gate reads go through `IModuleContext.Features`.
+> 9. **`ContractVersion` is bumped once per release, by A1 (to 1.2.0) and audited by B5.** B4 does
+>    not bump it.
+> 10. **Goldens live at `tests/fixtures/playback2d/goldens/cpu/`** (C1's corpus layout), not
+>     `tests/fixtures/playback2d/goldens/export/`; name them `hud-clock@…`, `hud-killfeed-6rows@…`.
+>     Comparison goes through B0's `GoldenImageComparer`/`GoldenTolerance`.
+
+---
+
+## Scope & exit criterion
+
+The design's phase table row (§9), quoted exactly:
+
+> | | B4 | Export: seek-core extraction, `SceneExportSession`, ffmpeg sink + GIF floor, dialog, settings, gates, HUD layers + snapshot tests | 1080p round export ≥ realtime on CPU; cancel-safe; refuses under LiveSync | 2 wk |
+
+Supporting rules from §5.7 that this phase must satisfy:
+
+- Export never touches the shared app clock; `TrackerFrameSource` owns a **private** tracker replay
+  on a background thread.
+- Fixed timestep `dt = 1/fps` through the same layer stack (`RenderPurpose.Export`), rendering to an
+  `SKSurface` from an `IRenderSurfaceProvider`, `ReadPixels` → sink.
+- Export enables two Core HUD layers (`ClockLayer`, `KillFeedLayer`) fed by the same pre-built kill
+  timeline as the XAML HUD; snapshot tests pin export-HUD rows to the same VM data.
+- In-app export runs under `HeavyJobGate` and **refuses to start** while a LiveSync session or reel
+  job is active. The CLI has no such constraint.
+- Sinks: `FfmpegFrameSink` via FFMpegCore (MIT) piping rawvideo RGBA over stdin to an ffmpeg
+  **subprocess**. Defaults WebM/VP9 (`-c:v libvpx-vp9 -pix_fmt yuv420p -an`), MP4/H.264
+  (`libx264 -crf`), GIF via `palettegen`/`paletteuse`. Progress frames-done based; cancel kills
+  ffmpeg.
+- ffmpeg acquisition ladder: `FfmpegDependency.Locate()` → download-on-demand pinned BtbN build with
+  license text + source link → `ManagedGifSink` (ImageSharp) as the no-ffmpeg floor. Never
+  Xabe.FFmpeg. Settings mirror `HighlightsSettings`.
+- WASM: export feature-gated off in v1.
+
+**Out of scope for B4:** `GpuSurfaceProvider` (C2), the `dv2d` command-line front end (C1 — B4 ships
+the callable seam and a smoke test that drives it in-process), WebCodecs sink, audio of any kind,
+highlight-reel auto-`CameraScript` emission.
+
+---
+
+## Decisions made
+
+Numbered so later phases and reviews can cite them.
+
+### D1 — Open question 1 is resolved: **there is nothing to extract from `MainViewModel`.**
+
+The checkpoint-replay seek core is already a standalone, stateless, package-level type:
+
+```
+CS2DemoKit.Parser.EntityTracking.EntitySeekService     (+ readonly record struct SeekResult)
+```
+
+sourced from the `CS2DemoKit.Parser` NuGet package (pinned `0.10.0` in `Directory.Packages.props`).
+`MainViewModel` owns only **an instance** of it:
+
+- `src/App/DemoViewer.NET/ViewModels/Shell/MainViewModel.cs:205-206` — field
+  `private readonly EntitySeekService? _seekService;`, commented *"Stateless checkpoint-replay seek
+  core, shared by EntityTab's three seek pipelines."*
+- `MainViewModel.cs:698-701` — constructed as `new EntitySeekService(CreateTracker)` and handed to
+  `EntityTab.SeekService`.
+- `MainViewModel.CreateTracker` (`MainViewModel.cs:2736-2751`) wires the new tracker's
+  `PacketProcessed` to the Tier-3 `Debugger` and `DecodeErrorRaised` to the Output panel via
+  `Dispatcher.UIThread.Post`. **Export must never use this factory** — it is UI/debugger-specific and
+  would marshal to the UI thread from the export thread.
+
+Its full surface (all three methods build a brand-new `EntityTracker` from the injected factory and
+replay it **from frame 0**):
+
+```csharp
+public sealed class EntitySeekService
+{
+    public EntitySeekService(Func<EntityTracker> createTracker);
+    public SeekResult SeekToFrame(int frameIndex, IReadOnlyList<DemoFrame> frames);
+    public SeekResult SeekToFrameNoSnapshot(int frameIndex, IReadOnlyList<DemoFrame> frames);
+    public SeekResult SeekToFrameWithSnapshotAt(int snapshotAt, int endFrameIndex, bool takeSnapshot,
+        IReadOnlyList<DemoFrame> frames);
+}
+public readonly record struct SeekResult(EntityTracker Tracker,
+    Dictionary<int, Dictionary<string, object?>>? PrevSnapshot);
+```
+
+**Therefore the "seek-core extraction" line item becomes:**
+
+1. `MainViewModel` is **not modified**. Zero risk to the interactive seek path. (Task B4.0 is a
+   documentation change only.)
+2. `TrackerFrameSource` (Pipeline) constructs its **own** `EntitySeekService` with a bare
+   `Func<EntityTracker>` factory (`() => new EntityTracker()`, optionally + a decode-error callback
+   for CLI logging).
+3. Design §12 open question 1 is marked resolved with a pointer to this document; the misleading
+   phrase in §5.7 ("extract it from `MainViewModel`'s wiring") gets a one-line correction note.
+
+**Concurrency safety (verified):** `EntityTracker` is `sealed`; every field is a per-instance
+`Dictionary`/`List`. Its only static is `_decodeErrorConsoleLock`, whose own comment states *"Each
+worker is a separate `EntityTracker` instance… Static so it spans all workers in a parallel decode"* —
+multiple independent trackers over the same frame list is an already-supported production pattern.
+The `IReadOnlyList<DemoFrame>` is immutable post-parse, so a second tracker walking it concurrently
+with `PlaybackController.AuthoritativeTracker` is safe.
+
+### D2 — One from-zero replay at export start; O(1) per frame after.
+
+`§5.7` hoped to avoid "paying a from-zero replay to reach `StartFrame`". No checkpoint cache exists
+today (every `EntitySeekService` call replays from 0, by design and by doc comment). B4 **accepts**
+one from-zero replay, on a background thread, surfaced as an `ExportPhase.Seeking` progress phase.
+It is amortized across hundreds-to-thousands of exported frames and is strictly less work than the
+alternatives. Every subsequent frame steps once via `EntityTracker.AdvanceOneFrame(frames[i])`
+(sub-millisecond), mirroring `PlaybackController.cs:346`. If risk-4's checkpoint-density cache ever
+lands in Track A, `TrackerFrameSource` picks it up by swapping the seed call — no contract change.
+
+### D3 — `ISceneFrameSource` is random-access by contract, forward-only by implementation.
+
+`TrackerFrameSource` keeps a monotonic cursor:
+`FrameAt(cursor)` → cached; `FrameAt(cursor + 1)` → one `AdvanceOneFrame` (the fast path
+`SceneExportSession` always takes); any other index → full re-seed from 0 (correct, slow, logged
+once per occurrence). A `ThrowOnNonSequentialAccess` ctor flag (default `false` in the app, `true`
+in tests) turns a regression that makes the session non-monotonic into a test failure instead of a
+silent 100× slowdown.
+
+### D4 — HUD layers are fed by an `IHudDataSource`, **not** by a new `Scene2DFrame` field.
+
+Adding a member to B0's `Scene2DFrame` record from B4 is a guaranteed merge conflict, and the design
+already describes the HUD as fed by *"the same pre-built kill timeline as the XAML HUD"* — i.e. a
+timeline queried by tick, not per-frame world state. `ClockLayer`/`KillFeedLayer` are therefore
+constructed with an `IHudDataSource` that answers `HudSnapshot At(int tick)`. Pure function of tick →
+deterministic → satisfies §5.1. Works headlessly in the CLI. No B0 coupling.
+
+### D5 — The kill-feed **window** function moves to Pipeline; the **row builder** stays at the event source.
+
+`Playback2DTabViewModel.BuildKillTimeline()` (`:653-686`) reads `GameEventView` from
+`IModuleContext.GetEventTimeline("player_death")` — a `DemoViewer.NET.Modules.Abstractions` type,
+and that project references Avalonia, so Pipeline cannot consume it. Only the **windowing** is the
+drift-prone half, so only that moves:
+
+- `KillFeedRow` (Pipeline) — identical shape to today's `KillFeedEntry`.
+- `KillFeedTimeline.Window(rows, nowTick, tickRate, windowSeconds, maxRows)` (Pipeline, pure static)
+  — the exact algorithm from `UpdateKillFeedWindow` (`:693-726`), including the load-bearing
+  `k.Tick > lowTick && k.Tick <= nowTick` inclusive-upper bound.
+- `Playback2DTabViewModel` is retargeted to `KillFeedRow` and calls `KillFeedTimeline.Window`;
+  `KillFeedEntry` is deleted. Property names are identical, so the XAML bindings in
+  `src/App/DemoViewer.NET/Views/Playback2D/Playback2DView.axaml` are unchanged.
+
+Result: risk 8 (dual-HUD drift) becomes structurally impossible for the row *set*; the snapshot test
+then only has to pin **formatting**. **Fallback if the retarget entangles more than expected
+(time-box 3 h):** keep `KillFeedEntry`, add a `KillFeedRow` ⇄ `KillFeedEntry` projection in the App,
+and rely on the snapshot test alone.
+
+### D6 — GIF is a single ffmpeg invocation using `split` + `palettegen` + `paletteuse`.
+
+A literal two-pass needs the input twice; over a stdin pipe that would force a multi-GB rawvideo
+temp file. The standard single-input equivalent buffers inside one `-filter_complex`:
+
+```
+-filter_complex "[0:v]fps={fps},scale={w}:-1:flags=lanczos,split[a][b];
+                 [a]palettegen=stats_mode=diff[p];
+                 [b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
+-loop 0
+```
+
+Semantically the design's two-pass; one process, no temp file. Because `palettegen` buffers the whole
+stream, GIF export is capped (see D7).
+
+### D7 — GIF has its own fps list and its own size/length caps.
+
+GIF frame delay is an integer number of centiseconds, so only fps values dividing 100 are exact:
+**{10, 20, 25, 50}**, default **20**. The 30/60/64 presets are video-only. GIF also defaults to
+≤ 640 px wide and refuses > 1800 frames (`ExportValidationException`) — `palettegen` buffering plus
+ImageSharp's in-memory `Image` make longer GIFs an OOM, not a slow export.
+
+### D8 — Even dimensions are enforced for `yuv420p` formats.
+
+`libvpx-vp9`/`libx264` with `-pix_fmt yuv420p` require even width and height. `ExportRequest`
+validation throws `ExportValidationException` for odd dimensions when `FormatId` is `webm` or `mp4`
+(GIF unaffected). The dialog's presets are all even; the custom-size fields snap down to even.
+
+### D9 — The managed ffmpeg download is the **LGPL** BtbN build, Windows + Linux only.
+
+WebM/VP9 (the default format) is present in LGPL builds; H.264 is not. Downloading the LGPL variant
+keeps the redistribution story trivial and matches the design's "WebM/LGPL default" mitigation for
+risk 9. If a user picks MP4 with only a managed LGPL ffmpeg, the dialog explains that H.264 needs a
+GPL build on PATH and offers WebM instead. macOS gets install instructions (`brew install ffmpeg`)
+and the GIF floor — no managed download (no comparably pinnable/hash-verifiable macOS artifact).
+
+Archives are pinned by **exact release tag + SHA-256**; the hash is verified before extraction. The
+consent gate shows the LGPL 2.1 text extracted from the archive plus the BtbN source link, and the
+user must explicitly accept. Extraction target is `FfmpegDependency.ManagedDirectory`
+(`<config>/tools/ffmpeg`), so `Locate()` finds it afterwards **and** `CsvgWebHost` reuses it for
+reels — one download serves both features.
+
+### D10 — Export takes a *new* `HeavyJobGate` session kind, not an interactive or background slot.
+
+`AcquireInteractiveAsync` would block a user's demo open for the whole export; `AcquireBackgroundAsync`
+would sit behind (and then in front of) interactive work. Neither matches an export's resource shape
+(CPU-bound, one extra `EntityTracker`, no multi-GB parse). B4 adds `EnterExportSessionAsync`, which:
+
+- **refuses** (throws `ReelInProgressException`) if a reel session is active;
+- pauses **background** parses for its duration (they would steal CPU from a realtime-target encode)
+  — i.e. `_exportSessions > 0` behaves like a reel for `CanStartBackground`/`AcquireBackgroundAsync`;
+- does **not** block `AcquireInteractiveAsync` (the user's foreground demo load still wins);
+- makes reel start **refuse** while held, via a new symmetric `ExportInProgressException` thrown from
+  `EnterReelSessionAsync`.
+
+This is the smallest change to a well-tested type that honors "runs under `HeavyJobGate` and refuses
+under reel" without a UX regression.
+
+### D11 — LiveSync refusal is a pre-flight check in the job service, before the gate.
+
+`HeavyJobGate` knows nothing about LiveSync. The refusal mirrors `ReelJobService.cs:156`:
+`liveSync.State.IsSessionActive || liveSync.OwnsSessionResources` → refuse with a clear message
+(`ExportRefusedException`). Checked at `Start` and re-checked immediately after the gate is entered
+(a session could start during the drain). If LiveSync starts *mid-export*, the export **continues**
+(it never touches the app clock, so it cannot corrupt sync) — refusal is start-time only, exactly as
+§5.7 specifies ("refuses to start").
+
+### D12 — `CameraScript.MirrorLiveView` is a **capture**, taken once at export start.
+
+Defined precisely: at the moment the user presses Start in the export dialog (before any frame is
+rendered), the App snapshots the live `Scene2DHost`'s pane list into
+`ImmutableArray<PaneCameraSnapshot>` — for each pane, its `MapLevel.Id`, its
+`SliceCamera.Current` (`ViewportTransform`), and its `ManualOverride` flag — plus the host's current
+`LevelDisplayMode`. That snapshot is embedded in the `CameraScript.MirrorLiveView` record and is
+**never re-read**: subsequent live panning/zooming during the export changes nothing. The transforms
+are re-fitted to the export size via `ViewportTransform.WithViewport(exportPaneW, exportPaneH)` so a
+1080p export of a 700 px pane keeps the same world framing, not the same pixel scale.
+
+`MirrorLiveView` is therefore behaviourally identical to `Fixed` once captured; it stays a distinct
+case so (a) the dialog can label it, (b) a serialized CLI request can reject it with a clear
+"mirror-live-view has no meaning headlessly — it is captured from a running window" message rather
+than silently rendering a default camera.
+
+### D13 — Determinism is asserted on **pre-encode RGBA frame hashes**, not on encoded bytes.
+
+`libvpx-vp9` and `libx264` are not bit-reproducible across thread counts/versions. The determinism
+test wraps the real sink in `HashingFrameSink` (a decorator that XXH/SHA-256s each RGBA buffer and
+forwards) and asserts the two runs' hash sequences are byte-identical. Encoded-file equality is
+explicitly not a contract.
+
+### D14 — `FfmpegLocator` implementation moves to Pipeline; `FfmpegDependency` stays as a shim.
+
+`FfmpegDependency` (App, `Services/Dependencies/`) has three existing consumers
+(`App.axaml.cs:610`, `HighlightReelDialogViewModel`, `CsvgWebHost.cs:177`) and depends on
+`AppPaths.ConfigRoot`. Pipeline needs the same PATH scan headlessly. Rather than duplicating it,
+the scan body moves to `Pipeline/Ffmpeg/FfmpegLocator.cs` taking an explicit managed directory, and
+`FfmpegDependency.Locate()` becomes a delegating shim that keeps `FfmpegStatus`/`FfmpegSource` and
+their namespace unchanged. Zero churn for the three consumers.
+
+### D15 — Layer ids for the export HUD are `hud.clock` and `hud.killfeed`.
+
+Ids are persisted keys (they appear in `ExportRequest.LayerIds` and in saved export presets) — chosen
+once, never renamed.
+
+---
+
+## Ordered work breakdown
+
+Each task is ≤ ~half a day. **Ordering constraints** are stated per task; tasks with no stated
+predecessor beyond the listed one can be parallelised.
+
+### B4.0 — Record the seek-core boundary (docs only) · no predecessor
+- **Modify** `docs/playback2d-v2/design.md` §12 item 1: append
+  `**Resolved (B4):** the core is CS2DemoKit.Parser.EntityTracking.EntitySeekService — a package
+  type, already standalone. MainViewModel owns only an instance. See plans/B4-export.md D1.`
+- **Modify** `docs/playback2d-v2/design.md` §5.7 first bullet: append the same one-line correction so
+  the parenthetical no longer implies App-side surgery.
+- No code changes. Explicitly assert in the commit message that `MainViewModel.cs` is untouched.
+
+### B4.1 — Packages, project references, solution, notices · predecessor: B0 (projects exist)
+- **Modify** `Directory.Packages.props` — add (see *Build & wiring* for exact XML + comments):
+  `FFMpegCore`, `SixLabors.ImageSharp`.
+- **Modify** `src/Playback2D/DemoViewer.NET.Playback2D.Pipeline/DemoViewer.NET.Playback2D.Pipeline.csproj`
+  — add `<PackageReference Include="FFMpegCore"/>`, `<PackageReference Include="SixLabors.ImageSharp"/>`,
+  and (if B0 didn't) `<PackageReference Include="CS2DemoKit.Analysis"/>` (needed for `PawnLookup`).
+- **Modify** `src/App/DemoViewer.NET/DemoViewer.NET.csproj` — `ProjectReference` to Pipeline (if B1
+  hasn't already added it).
+- **Modify** `DemoViewer.NET.slnx` — ensure the `/src/Playback2D/` folder lists Core, Pipeline and
+  their `.Tests` projects (create the folder block if B0 didn't).
+- **Modify** `THIRD-PARTY-NOTICES.md` §c — add `FFMpegCore` (MIT) and `SixLabors.ImageSharp`
+  (Six Labors Split License 1.0 — Apache-2.0 terms for open-source projects, which this repo is);
+  add a new §d **"ffmpeg (not redistributed)"** stating: DemoViewer invokes ffmpeg as a **separate
+  program** over a pipe and ships no ffmpeg binary; an optional in-app download fetches a pinned
+  **LGPL** BtbN build, displays its license, and links its source.
+- **Verify:** `dotnet build src/App/DemoViewer.NET.Desktop -c Release` succeeds.
+
+### B4.2 — `FfmpegLocator` in Pipeline + `FfmpegDependency` shim · predecessor: B4.1
+- **Create** `src/Playback2D/DemoViewer.NET.Playback2D.Pipeline/Ffmpeg/FfmpegLocator.cs` — the PATH
+  scan lifted verbatim from `FfmpegDependency.FindOnPath` (`FfmpegDependency.cs:57-81`), plus the
+  managed-directory probe; returns `FfmpegLocation`.
+- **Modify** `src/App/DemoViewer.NET/Services/Dependencies/FfmpegDependency.cs` — `Locate()` becomes
+  a delegating shim mapping `FfmpegLocation` → the existing `FfmpegStatus`. Keep `ManagedDirectory`,
+  `FfmpegStatus`, `FfmpegSource` and the namespace exactly as they are; keep the doc comment and add
+  a line pointing at the Pipeline implementation.
+- **Verify:** existing `HighlightReelDialogViewModel` ffmpeg pre-flight tests still pass.
+
+### B4.3 — `FfmpegAcquisition` (download ladder) · predecessor: B4.2
+- **Create** `Pipeline/Ffmpeg/FfmpegAcquisition.cs` — pinned-build table (tag + URL + SHA-256 per
+  RID), `Offer()` (returns `FfmpegDownloadOffer` or null on unsupported OS), `AcquireAsync(offer,
+  consent, progress, ct)`: download → verify SHA-256 → extract `bin/ffmpeg[.exe]` and
+  `bin/ffprobe[.exe]` into the target directory → re-`Locate()`. Consent is an injected
+  `Func<FfmpegDownloadOffer, CancellationToken, Task<bool>>`; the license text is read out of the
+  archive (`LICENSE.txt`) and handed to the consent callback so no license text is vendored here.
+- **Create** `Pipeline/Ffmpeg/FfmpegDownloadOffer.cs` (record) — see *Public API contracts*.
+- Cancellation: a cancelled/failed download leaves **no** partial file (download to `*.part`, rename
+  on success).
+- **Verify:** unit test with a local `file://`-ish injected `HttpMessageHandler`; no network in CI.
+
+### B4.4 — `TrackerFrameSource` · predecessors: B0 (`SceneFrameBuilder`, `Scene2DFrame`), B4.1
+- **Create** `Pipeline/Export/TrackerFrameSource.cs` implementing `ISceneFrameSource` per D1/D2/D3.
+  Owns: `IReadOnlyList<DemoFrame>`, its own `EntitySeekService(() => new EntityTracker())`, a
+  `SceneFrameBuilder`, a monotonic cursor, the last built `Scene2DFrame`.
+- `Prepare(int startFrame, CancellationToken)` performs the one-time `SeekToFrameNoSnapshot` seed
+  (blocking, called from the export background thread).
+- `TimeAt(i)` computes `SceneTime` from the frame's `ServerTick`, the demo tick rate, the request's
+  `Fps`/`Speed` (`DeltaSeconds = Speed / Fps`), and `IsDiscontinuity = (i == StartFrame)`.
+- **Never** publishes its tracker to `PlaybackController.PublishTracker` — assert this with a code
+  comment and an architecture test (B4.15).
+
+### B4.5 — Core export contracts + `SceneExportSession` · predecessors: B0 (`IRenderSurfaceProvider`, `SceneCompositor`), B1 (layer stack)
+- **Create** in `src/Playback2D/DemoViewer.NET.Playback2D.Core/Export/`:
+  `ISceneFrameSource.cs`, `IFrameSink.cs`, `ExportRequest.cs`, `CameraScript.cs`,
+  `ExportProgress.cs`, `ExportValidationException.cs`, `SceneExportSession.cs`.
+- `SceneExportSession.RunAsync` loop: validate request → create surface once (`SKSizeI Size`) →
+  for `i` in `[StartFrame, EndFrame]`: `src.TimeAt(i)`, `src.FrameAt(i)`, resolve cameras from the
+  `CameraScript`, `layer.Advance(time, frame)` for enabled layers, `compositor.Render(canvas, ctx)`
+  with `RenderPurpose.Export`, `provider.Flush(surface)`, `surface.PeekPixels().ReadPixels(...)` into
+  a pooled RGBA buffer, `await sink.WriteAsync(...)`, report progress, `ct.ThrowIfCancellationRequested()`.
+- Layer filtering by `ExportRequest.LayerIds` (empty set = "all enabled layers"); `hud.clock` /
+  `hud.killfeed` are off unless listed.
+- One surface, one `SKBitmap`-free read path, `ArrayPool<byte>.Shared` for the RGBA staging buffer —
+  the ≥ realtime budget requires no per-frame allocation here either.
+
+### B4.6 — Camera scripts · predecessor: B4.5, B1 (`ICameraRig`, `LevelPane`)
+- **Create** `Core/Export/CameraScriptResolver.cs` — turns a `CameraScript` + `MapSpace` +
+  `Scene2DFrame` + export size into the per-pane `ViewportTransform`s for the current export frame:
+  - `Fixed` → the stored per-level transforms, re-fitted with `WithViewport`.
+  - `FollowPlayer(steamId)` → drive `FollowPlayerRig`, stepping each pane's `SliceCamera` with
+    `StepToward(target, t)` where `t` derives from `SceneTime.DeltaSeconds` (deterministic — the
+    same settle constant the interactive path uses, so an export looks like the live view).
+    Unresolvable/dead target → hold the last transform (never snap to origin).
+  - `MirrorLiveView` → per D12: identical handling to `Fixed`, from the captured snapshot.
+- **Create** `Core/Export/PaneCameraSnapshot.cs`.
+
+### B4.7 — `FfmpegFrameSink` + the push→pull pump · predecessor: B4.5
+- **Create** `Pipeline/Export/FfmpegFrameSink.cs` and `Pipeline/Export/ChannelVideoFrameSource.cs`.
+- **The load-bearing detail:** FFMpegCore's `RawVideoPipeSource` is a **pull** source — it takes an
+  `IEnumerator<IVideoFrame>` and drains it on the ffmpeg pump task. `IFrameSink.WriteAsync` is a
+  **push**. Bridge them with a bounded `Channel<PooledRgbaFrame>` (capacity **4**, `SingleReader`,
+  `SingleWriter`, `FullMode = Wait`) exposed through `ChannelVideoFrameSource : IEnumerator<IVideoFrame>`:
+  the sink rents from `ArrayPool<byte>`, copies the RGBA span in, and `await`s the channel write
+  (natural backpressure — the renderer never outruns the encoder); the enumerator returns the buffer
+  to the pool after `Serialize`. `DisposeAsync` completes the channel and awaits the ffmpeg task.
+- Argument construction (explicit, never inferred):
+  - input: `-f rawvideo -pix_fmt rgba -video_size {w}x{h} -framerate {fps} -i -`
+  - `webm`: `-c:v libvpx-vp9 -b:v 0 -crf {crf} -pix_fmt yuv420p -row-mt 1 -an`
+  - `mp4`: `-c:v libx264 -preset {preset} -crf {crf} -pix_fmt yuv420p -movflags +faststart -an`
+  - `gif`: per D6.
+- Cancellation: `.CancellableThrough(ct)` on the FFMpegCore processor; on cancel the partial output
+  file is deleted unless `ExportRequest`'s settings say otherwise.
+- `FFMpegCore.GlobalFFOptions.Configure(new FFOptions { BinaryFolder = <located dir> })` is **not**
+  used (process-global mutable state); the sink passes the binary folder per-invocation via the
+  `FFOptions` overload so a CLI and an in-app export can disagree.
+
+### B4.8 — `ManagedGifSink` (ImageSharp floor) · predecessor: B4.5
+- **Create** `Pipeline/Export/ManagedGifSink.cs` — accumulates frames into an ImageSharp
+  `Image<Rgba32>` (`WuQuantizer`, global palette, `GifFrameMetadata.FrameDelay` in centiseconds from
+  D7's fps list, `RepeatCount = 0`), writes on `DisposeAsync`. Enforces the D7 caps and throws
+  `ExportValidationException` above them **before** rendering starts (the session validates the
+  request first, so the user never renders 2000 frames into a refusal).
+
+### B4.9 — HUD data source + `ClockLayer` + `KillFeedLayer` · predecessors: B1 (layer contract), D5
+- **Create** `Pipeline/Hud/KillFeedRow.cs`, `Pipeline/Hud/KillFeedTimeline.cs` (pure static
+  `Window(...)`), `Pipeline/Hud/HudSnapshot.cs`, `Core/Hud/IHudDataSource.cs`,
+  `Pipeline/Hud/TimelineHudDataSource.cs`.
+- **Create** `Core/Layers/ClockLayer.cs` (`Id = "hud.clock"`, `Slot = Hud`, `Cache = Dynamic`) and
+  `Core/Layers/KillFeedLayer.cs` (`Id = "hud.killfeed"`, `Slot = Hud`, `Cache = Dynamic`). Both draw
+  with keyed `SKTextBlob`/`SKFont` caches — no per-frame text shaping (§6 allocation contract).
+  `ClockLayer` renders round number, T/CT score, and the main countdown (round clock, or C4 countdown
+  when `BombTicking`), matching `GameInfo`'s semantics; `KillFeedLayer` renders up to 6 rows with the
+  headshot/wallbang/noscope/smoke/blind/air/flash-assist modifier glyphs.
+- **Modify** `src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs` — retarget
+  `_allKills`/`_killWindow`/`KillFeed` to `KillFeedRow`; replace the body of `UpdateKillFeedWindow`
+  (`:693-726`) with a call to `KillFeedTimeline.Window` + the existing unchanged-slice short-circuit.
+- **Delete** `src/App/DemoViewer.NET/Modules/Playback2D/KillFeedEntry.cs`.
+- **Modify** `src/App/DemoViewer.NET.App.Tests/Playback2DKillFeedTests.cs` (+
+  `Playback2DKillFeedRenderTests.cs`) for the type rename.
+
+### B4.10 — `HeavyJobGate` export session · predecessor: none (independent)
+- **Modify** `src/App/DemoViewer.NET/Services/HeavyJobGate.cs` per D10: add `_exportSessions`,
+  `IsExportActive`, `EnterExportSessionAsync`; include `_exportSessions == 0` in `CanStartBackground`
+  and in `AcquireBackgroundAsync`'s admission test; throw `ExportInProgressException` from
+  `EnterReelSessionAsync` when an export is active. **Do not** touch `AcquireInteractiveAsync`.
+- **Create** `ExportInProgressException` next to `ReelInProgressException` (same file).
+- **Modify** `src/App/DemoViewer.NET.App.Tests/HeavyJobGateTests.cs` — new cases (B4.15).
+
+### B4.11 — `ExportJobService` (App-side orchestration) · predecessors: B4.4, B4.5, B4.7, B4.8, B4.10
+- **Create** `src/App/DemoViewer.NET/Services/Export/IExportJobService.cs` and
+  `src/App/DemoViewer.NET/Services/Export/ExportJobService.cs` — the shape deliberately mirrors
+  `IReelJobService`/`ReelJobService`: single-flight `Start(Scene2DExportRequest)`, `CancelAsync()`,
+  `Status`, `StatusChanged` (marshalled to the UI thread via `Dispatcher.UIThread.Post` when one
+  exists). The whole job runs on `Task.Run`; the **only** UI-thread work is status marshalling.
+- Order inside `RunAsync`: LiveSync pre-flight refusal (D11) → `EnterExportSessionAsync` →
+  re-check LiveSync → resolve ffmpeg (`FfmpegLocator` → offer download → GIF floor) → build
+  `TrackerFrameSource` → `Prepare` → `SceneExportSession.RunAsync` → dispose sink → publish terminal
+  status **after** the gate is released (the `ReelJobService.cs:138-141` "IsRunning stays true until
+  the machine is free" pattern).
+- **Modify** `src/App/DemoViewer.NET/Services/AppHostHooks.cs` — no new hook needed (the service is
+  platform-neutral managed code); it is constructed in `App.axaml.cs` alongside the reel service.
+
+### B4.12 — Settings · predecessor: none (but see the B2 ordering note)
+- **Modify** `src/App/DemoViewer.NET/Configuration/AppSettings.cs` — add
+  `public Playback2DSettings Playback2D { get; set; } = new();` and, inside `Playback2DSettings`,
+  `public Playback2DExportSettings Export { get; set; } = new();`.
+  **Ordering:** B2 also creates `Playback2DSettings`. Whichever phase lands first creates the class;
+  the second adds only its own property. If B4 lands first, create the class with a comment naming
+  B2's incoming annotation-tool properties.
+- **Modify** `src/App/DemoViewer.NET/Configuration/SettingsService.cs` `WriteInMemory`
+  (`:419-448`) — add a comment to the existing "DELIBERATELY PARTIAL" block naming
+  `Playback2D:Export:*` as excluded (export is feature-gated off on WASM, exactly like LiveSync and
+  Highlights). **B2's tool prefs are WASM-reachable and MUST be flattened** — say so in the comment
+  so B2 doesn't miss it.
+- **Modify** `src/App/DemoViewer.NET/ViewModels/Settings/SettingsViewModel.cs` + its view — one new
+  section mirroring the Highlights/reel section: output directory, default format, default fps,
+  default resolution, CRF, "prefer GPU when available" (advanced), "managed ffmpeg directory" +
+  Re-check.
+
+### B4.13 — Feature gate · predecessor: none
+- **Modify** `src/App/DemoViewer.NET/Features/FeatureCatalog.cs` — append (order matters: the
+  catalog's leader-lock test keys off position, so add **after** the existing group members, next to
+  the other Playback2D sub-features B2/B3 introduce):
+  ```
+  new("playback2d.export", FeatureScope.SubFeature, "Video export",
+      "Render the 2D playback to webm/mp4/gif. Desktop only.",
+      "tab.playback2d", null, false, Defaults(true, true, true)),
+  ```
+- **Modify** the shell shim that resolves it to additionally AND `!OperatingSystem.IsBrowser()` —
+  same treatment as `chrome.livesync` (`FeatureCatalog.cs:158-167` documents the pattern).
+- Id is a persisted key — never rename.
+
+### B4.14 — Export dialog (thin) · predecessors: B4.11, B4.12, B4.13
+- **Create** `src/App/DemoViewer.NET/ViewModels/Playback2D/Playback2DExportDialogViewModel.cs` and
+  `src/App/DemoViewer.NET/Views/Playback2D/Playback2DExportDialogView.axaml(.cs)`.
+  Naming follows the ViewLocator `…ViewModel` → `…View` mapping.
+- The VM is **thin by constraint (b)**: it collects range (current round / timeline selection /
+  custom frames), format, preset size, fps, camera script choice, layer toggles, output path; it
+  validates via `SceneExportSession`'s own request validator (no duplicated rules); it calls
+  `IExportJobService.Start`. Every reusable rule lives in Pipeline/Core so `dv2d export` gets it free.
+- Mirrors `HighlightReelDialogViewModel`'s proven seams: injected `Func<FfmpegLocation>` locator
+  (null ⇒ assume present, keeping pure-VM tests filesystem-free), injected `Func<bool>`
+  `isLiveSyncSessionActive`, injected `Action<Action<AppSettings>>` `persistDefaults`, injected
+  `Func<string,bool>` `fileExists`.
+- The ffmpeg strip mirrors `HighlightReelDialogViewModel.cs:400-460`: missing-ffmpeg message,
+  instructions, **Download (LGPL)** button (opens the consent sheet from B4.3), Re-check, and a
+  "GIF only, without ffmpeg" fallback affordance.
+- Progress + cancel live on a status chip bound to `IExportJobService.Status` — **not** a modal
+  (same rationale as the reel job).
+
+### B4.15 — Tests · predecessors: all of the above (write alongside each task; land as one suite)
+See *Test plan*.
+
+### B4.16 — CLI seam smoke · predecessor: B4.11
+- No `dv2d` project is created here (C1 owns it). B4 adds one Pipeline-level test that drives
+  `SceneExportSession` + `TrackerFrameSource` + `ManagedGifSink` with **no App types referenced at
+  all**, proving the seam C1 will consume is complete. If C1 has already landed, additionally add
+  `dv2d export --demo … --from … --to … --format gif` to that test as a process invocation.
+
+### B4.17 — CI + docs · predecessor: B4.15
+- **Modify** `.github/workflows/ci.yml` — add a `dotnet run --project
+  src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release --
+  --treenode-filter "/*/*/(Export*|Ffmpeg*|KillFeed*)/*"` step. This is the first automated test
+  execution in this repo's CI; it is safe to add here because these tests are direct-execution (no
+  Avalonia platform, no headless session, no demo parse) and therefore not the OOM-prone shape the
+  CI comment warns about. Do **not** add the App UI suite.
+- **Create** `docs/playback2d-v2/export.md` — user-facing: formats, presets, the ffmpeg ladder, the
+  LiveSync/reel refusal, and the GIF caps.
+
+---
+
+## Public API contracts
+
+**BINDING for other phases.** Signatures marked *(design §5.7 verbatim)* must not be altered.
+
+### Core — `DemoViewer.NET.Playback2D.Core.Export`
+
+```csharp
+// (design §5.7 verbatim)
+public interface ISceneFrameSource
+{
+    int FrameCount { get; }
+    SceneTime TimeAt(int frameIndex);
+    Scene2DFrame FrameAt(int frameIndex);
+}
+
+// (design §5.7 verbatim)
+public interface IFrameSink : IAsyncDisposable
+{
+    ValueTask WriteAsync(ReadOnlyMemory<byte> rgba, int width, int height, CancellationToken ct);
+}
+
+// (design §5.7 verbatim)
+public sealed record ExportRequest(int StartFrame, int EndFrame, int Fps, SKSizeI Size, double Speed,
+    string FormatId /* webm | mp4 | gif */, IReadOnlySet<string> LayerIds, CameraScript Camera);
+
+/// <summary>Well-known <see cref="ExportRequest.FormatId"/> values. Persisted keys.</summary>
+public static class ExportFormats
+{
+    public const string WebM = "webm";
+    public const string Mp4  = "mp4";
+    public const string Gif  = "gif";
+}
+
+// (design §5.7: "Fixed(transform) | FollowPlayer(steamId) | MirrorLiveView")
+public abstract record CameraScript
+{
+    /// <summary>Per-level transforms held for the whole export. Key = MapLevelId (correction 5).</summary>
+    public sealed record Fixed(IReadOnlyDictionary<MapLevelId, ViewportTransform> PaneTransforms) : CameraScript;
+
+    /// <summary>Follow one player by SteamId; hides/holds while unresolvable or dead.</summary>
+    public sealed record FollowPlayer(ulong SteamId, double DeadzoneHalfExtentWorld = 900d) : CameraScript;
+
+    /// <summary>Captured once at export start from the live host — see plan D12. Never re-read.</summary>
+    public sealed record MirrorLiveView(
+        ImmutableArray<PaneCameraSnapshot> Panes,
+        LevelDisplayMode DisplayMode) : CameraScript;
+}
+
+public readonly record struct PaneCameraSnapshot(MapLevelId LevelId, ViewportTransform Transform,
+    bool ManualOverride);
+
+public enum ExportPhase { Preparing, Seeking, Rendering, Finalizing, Completed, Cancelled, Failed }
+
+public readonly record struct ExportProgress(
+    ExportPhase Phase,
+    int FramesDone,
+    int FramesTotal,
+    double FramesPerSecond,
+    TimeSpan Elapsed,
+    TimeSpan? Eta,
+    string? Detail);
+
+/// <summary>A request the session refuses before rendering (odd dims, GIF caps, empty range, …).</summary>
+public sealed class ExportValidationException(string message) : InvalidOperationException(message);
+
+// (design §5.7 verbatim, plus the static validator the dialog and CLI both call)
+public sealed class SceneExportSession
+{
+    public SceneExportSession(SceneCompositor compositor);
+
+    public Task RunAsync(ExportRequest req, ISceneFrameSource src, IFrameSink sink,
+        IRenderSurfaceProvider surfaces,
+        IProgress<ExportProgress> progress, CancellationToken ct);
+
+    /// <summary>Throws <see cref="ExportValidationException"/>; called by the dialog AND the CLI.</summary>
+    public static void Validate(ExportRequest req);
+
+    /// <summary>The fps values a format supports (GIF: 10/20/25/50 — see plan D7).</summary>
+    public static IReadOnlyList<int> SupportedFps(string formatId);
+}
+```
+
+### Core — `DemoViewer.NET.Playback2D.Core.Hud`
+
+```csharp
+/// <summary>Pure function of tick → HUD state. Deterministic; no wall clock (design §5.1).</summary>
+public interface IHudDataSource
+{
+    HudSnapshot At(int tick);
+}
+
+/// <summary>Correction 4: HudSnapshot is a CORE type (IHudDataSource returns it and Core cannot
+/// see Pipeline). KillFeedRow is B0's Core record — Pipeline must not redeclare it.</summary>
+public readonly record struct HudSnapshot(
+    int Tick, string RoundNumber, int TScore, int CtScore,
+    double CountdownSeconds, bool BombTicking, bool DefuseInProgress, double DefuseSeconds,
+    IReadOnlyList<KillFeedRow> KillRows);
+
+public sealed class ClockLayer : ISceneLayer      // Id "hud.clock",    Slot Hud, Cache Dynamic
+{
+    public ClockLayer(IHudDataSource data, HudStyle? style = null);
+}
+
+public sealed class KillFeedLayer : ISceneLayer   // Id "hud.killfeed", Slot Hud, Cache Dynamic
+{
+    public KillFeedLayer(IHudDataSource data, HudStyle? style = null);
+}
+
+public sealed record HudStyle(float FontSizePx = 14f, float MarginPx = 12f, uint TextArgb = 0xFFF2F2F2u,
+    uint PanelArgb = 0x99101010u);
+```
+
+### Pipeline — `DemoViewer.NET.Playback2D.Pipeline.Export`
+
+```csharp
+// CORRECTION 2: owned by C1 (it needs it a phase earlier); B4 CONSUMES this. The signature below
+// is the canonical merge of both plans — whoever lands first writes exactly this.
+public sealed class TrackerFrameSource : ISceneFrameSource, IDisposable
+{
+    /// <param name="frames">The immutable post-parse frame list. Read-only; shared safely.</param>
+    /// <param name="builder">B0's frame builder, fed through Pipeline's TrackerSceneSnapshot adapter.</param>
+    /// <param name="createTracker">Defaults to <c>() =&gt; new EntityTracker()</c>. NEVER MainViewModel.CreateTracker.</param>
+    public TrackerFrameSource(IReadOnlyList<DemoFrame> frames, SceneFrameBuilder builder,
+        int startFrame, int endFrame, int fps, double speed, int tickRate,
+        Func<EntityTracker>? createTracker = null, bool throwOnNonSequentialAccess = false);
+
+    public int FrameCount { get; }
+    public int StartFrame { get; }
+
+    /// <summary>The one-time from-zero replay to <see cref="StartFrame"/> (plan D2). Blocking; call off the UI thread.</summary>
+    public void Prepare(CancellationToken ct);
+
+    public SceneTime TimeAt(int frameIndex);      // frameIndex is source-relative (0-based)
+    public Scene2DFrame FrameAt(int frameIndex);  // sequential O(1); rewind re-seeds
+    public int DemoFrameIndexOf(int frameIndex);
+    public void Dispose();
+
+    /// <summary>Binary search over ServerTick; -1 when the tick is outside the demo.</summary>
+    public static int FrameIndexForTick(IReadOnlyList<DemoFrame> frames, int serverTick);
+}
+
+public sealed class FfmpegFrameSink : IFrameSink
+{
+    public FfmpegFrameSink(FfmpegSinkOptions options);
+    public ValueTask WriteAsync(ReadOnlyMemory<byte> rgba, int width, int height, CancellationToken ct);
+    public ValueTask DisposeAsync();
+}
+
+public sealed record FfmpegSinkOptions(
+    string OutputPath,
+    string FormatId,
+    int Width,
+    int Height,
+    int Fps,
+    string? BinaryFolder = null,      // from FfmpegLocator; null = rely on PATH
+    int Crf = 30,                     // VP9 default; 20 for H.264
+    string H264Preset = "medium",
+    bool DeletePartialOnCancel = true,
+    Action<string>? Log = null);
+
+public sealed class ManagedGifSink : IFrameSink
+{
+    public ManagedGifSink(string outputPath, int fps, int maxFrames = 1800);
+    public ValueTask WriteAsync(ReadOnlyMemory<byte> rgba, int width, int height, CancellationToken ct);
+    public ValueTask DisposeAsync();
+}
+
+/// <summary>Determinism-test decorator (plan D13): hashes each RGBA frame, then forwards.</summary>
+public sealed class HashingFrameSink : IFrameSink
+{
+    public HashingFrameSink(IFrameSink? inner = null);
+    public IReadOnlyList<string> FrameHashes { get; }
+    public ValueTask WriteAsync(ReadOnlyMemory<byte> rgba, int width, int height, CancellationToken ct);
+    public ValueTask DisposeAsync();
+}
+```
+
+### Pipeline — `DemoViewer.NET.Playback2D.Pipeline.Ffmpeg`
+
+```csharp
+public enum FfmpegOrigin { None, SystemPath, Managed }
+
+public readonly record struct FfmpegLocation(bool Found, string? Directory, FfmpegOrigin Origin);
+
+public static class FfmpegLocator
+{
+    /// <summary>PATH scan first (a user-chosen install always wins), then <paramref name="managedDirectory"/>. Never throws.</summary>
+    public static FfmpegLocation Locate(string? managedDirectory);
+}
+
+public sealed record FfmpegDownloadOffer(
+    string Url, string ArchiveSha256, string ReleaseTag, string SourceUrl,
+    string LicenseName /* "LGPL-2.1" */, long ApproxBytes, string TargetDirectory);
+
+public static class FfmpegAcquisition
+{
+    /// <summary>Null on macOS/browser/unsupported RIDs (plan D9).</summary>
+    public static FfmpegDownloadOffer? Offer(string targetDirectory);
+
+    /// <param name="consent">Shown the offer plus the license text read from the archive; false aborts.</param>
+    public static Task<FfmpegLocation> AcquireAsync(
+        FfmpegDownloadOffer offer,
+        Func<FfmpegDownloadOffer, string /*licenseText*/, CancellationToken, Task<bool>> consent,
+        IProgress<double>? progress, HttpClient? http, CancellationToken ct);
+}
+```
+
+### Pipeline — `DemoViewer.NET.Playback2D.Pipeline.Hud`
+
+```csharp
+// CORRECTION 3: KillFeedRow is NOT declared here. It is B0's Core record, already carried on
+// Scene2DFrame.KillFeed:
+//     public readonly record struct KillFeedRow(
+//         int Tick, string Attacker, string? Assister, string Victim, string Weapon,
+//         bool Headshot, bool Penetrated, bool NoScope, bool ThroughSmoke,
+//         bool AttackerBlind, bool AttackerInAir, bool AssistedFlash);
+// D5's retarget of Playback2DTabViewModel maps KillFeedEntry onto THESE member names, and the XAML
+// bindings in Playback2DView.axaml are updated with it (Attacker/Victim/Headshot/…).
+
+public static class KillFeedTimeline
+{
+    public const int DefaultWindowSeconds = 8;
+    public const int DefaultMaxRows = 6;
+
+    /// <summary>Rows with <c>Tick &gt; nowTick - windowSeconds*tickRate</c> AND <c>Tick &lt;= nowTick</c>,
+    /// sorted by tick, most recent <paramref name="maxRows"/> kept. Inclusive upper bound is load-bearing:
+    /// a kill AHEAD of the playhead must never appear when paused or seeking.</summary>
+    public static void Window(IReadOnlyList<KillFeedRow> all, int nowTick, int tickRate,
+        List<KillFeedRow> into, int windowSeconds = DefaultWindowSeconds, int maxRows = DefaultMaxRows);
+}
+
+// HudSnapshot is declared in Core.Hud (correction 4) — see above.
+
+public sealed class TimelineHudDataSource : IHudDataSource
+{
+    public TimelineHudDataSource(IReadOnlyList<KillFeedRow> allKills, int tickRate,
+        Func<int, (string Round, int T, int Ct, double Countdown, bool BombTicking,
+                   bool Defusing, double DefuseSeconds)> clockAt);
+    public HudSnapshot At(int tick);
+}
+```
+
+### App — `DemoViewer.NET.Services.Export`
+
+```csharp
+public interface IExportJobService
+{
+    ExportJobStatus Status { get; }
+    event EventHandler<ExportJobStatus>? StatusChanged;
+
+    /// <exception cref="ExportRefusedException">A LiveSync session or reel job is active.</exception>
+    /// <exception cref="InvalidOperationException">An export is already running.</exception>
+    void Start(Scene2DExportRequest request);
+
+    Task CancelAsync();
+}
+
+/// <summary>The App-level hand-off: the Core request plus the App-only bits (output path, source demo).</summary>
+public sealed record Scene2DExportRequest(
+    ExportRequest Core, string OutputPath, string DemoPath, bool AllowFfmpegDownload);
+
+public readonly record struct ExportJobStatus(
+    ExportPhase Phase, int FramesDone, int FramesTotal, double FramesPerSecond,
+    TimeSpan Elapsed, string? OutputPath, string? Error)
+{
+    public bool IsRunning => Phase is ExportPhase.Preparing or ExportPhase.Seeking
+                                   or ExportPhase.Rendering or ExportPhase.Finalizing;
+}
+
+public sealed class ExportRefusedException(string message) : InvalidOperationException(message);
+```
+
+### App — `HeavyJobGate` additions (modified type)
+
+```csharp
+public sealed class HeavyJobGate : IDisposable
+{
+    // ... existing members unchanged ...
+
+    /// <summary>True while a 2D video export owns the machine's spare CPU (background parses pause).</summary>
+    public bool IsExportActive { get; }
+
+    /// <summary>
+    ///     Marks a 2D-export session. Pauses BACKGROUND parses for its duration but never blocks an
+    ///     INTERACTIVE demo load (an export is CPU-bound, not multi-GB-RAM-bound — see plan D10).
+    /// </summary>
+    /// <exception cref="ReelInProgressException">A reel session is active.</exception>
+    public Task<IDisposable> EnterExportSessionAsync(CancellationToken cancellationToken = default);
+
+    // EnterReelSessionAsync now additionally throws:
+}
+
+/// <summary>A reel was refused because a 2D video export is rendering. The message is user-facing copy.</summary>
+public sealed class ExportInProgressException() : InvalidOperationException(
+    "A 2D video export is rendering — try again when it finishes.");
+```
+
+### Consumers of the above
+
+| API | Consumed by |
+|---|---|
+| `ExportRequest`, `CameraScript`, `SceneExportSession`, `IFrameSink`, `ISceneFrameSource` | C1 (`dv2d export`), future highlight generator |
+| `TrackerFrameSource`, `FfmpegFrameSink`, `ManagedGifSink` | C1, App `ExportJobService` |
+| `FfmpegLocator`, `FfmpegAcquisition` | C1, App export dialog, App `FfmpegDependency` shim |
+| `KillFeedRow`, `KillFeedTimeline`, `IHudDataSource` | B1/B2's `Playback2DTabViewModel`, C1 |
+| `ClockLayer`, `KillFeedLayer` | `SceneExportSession`, C1 `dv2d render --hud` |
+| `IExportJobService` | The export dialog, the status chip |
+| `HeavyJobGate.EnterExportSessionAsync` / `IsExportActive` / `ExportInProgressException` | `ExportJobService`, `ReelJobService` |
+
+---
+
+## Test plan
+
+Two execution modes, per design §11:
+
+- **Direct-execution** (no Avalonia platform, no window, no dispatcher, no demo parse) — the default.
+  These live in `src/Playback2D/DemoViewer.NET.Playback2D.Tests` and `…Core.Tests`.
+- **Headless-Avalonia** (`HeadlessSession`) — only for tests that genuinely need the App: the dialog
+  VM, the kill-feed XAML snapshot comparison, the gate/refusal wiring. These live in
+  `src/App/DemoViewer.NET.App.Tests`.
+
+Fixtures: `tests/fixtures/playback2d/` (B0's `SceneFixture` JSON corpus) plus one small demo resolved
+through `DemoTestHelper.FindDemoPath()` (skips via `SkipTestException` when absent). Goldens for this
+phase live in `tests/fixtures/playback2d/goldens/export/`.
+
+### Core.Tests (direct execution)
+
+| Class | Cases |
+|---|---|
+| `ExportRequestValidationTests` | odd width/height rejected for webm+mp4, accepted for gif (D8); `EndFrame < StartFrame` rejected; unsupported fps per format rejected (D7); GIF frame cap rejected; `SupportedFps("gif")` == `[10,20,25,50]` |
+| `SceneExportSessionLoopTests` | frame count written == `EndFrame - StartFrame + 1`; buffers are `width*height*4`; `RenderPurpose.Export` reaches every layer; `LayerIds` filtering (empty = all enabled, `hud.*` off unless listed) |
+| `SceneExportSessionCancellationTests` | cancel mid-run → `OperationCanceledException`, sink disposed exactly once, terminal progress `Phase == Cancelled`; cancel before first frame; cancel token already-cancelled |
+| `SceneExportSessionProgressTests` | monotonic `FramesDone`; `FramesTotal` constant; final report `Completed` with `FramesDone == FramesTotal`; `Eta` null until ≥ 2 frames |
+| `CameraScriptResolverTests` | `Fixed` re-fits with `WithViewport` (world framing preserved across a 700→1920 px change); `FollowPlayer` holds last transform on an unresolvable SteamId; `MirrorLiveView` ignores post-capture mutation of the source pane list (D12) |
+| `ExportDeterminismTests` | two `RunAsync` calls over the same fixture + request produce identical `HashingFrameSink.FrameHashes` (D13); a `SceneTime.DeltaSeconds` change produces *different* hashes (the test's own negative control) |
+| `HudLayerGoldenTests` | `ClockLayer` + `KillFeedLayer` over a fixed `HudSnapshot` on `CpuSurfaceProvider` vs `goldens/export/hud-clock.png`, `hud-killfeed-6rows.png`; zero-row and bomb-ticking variants |
+| `ExportAllocationTests` | `GC.GetAllocatedBytesForCurrentThread()` across a 512-frame headless export (null sink) is zero after warm-up (§6 contract) |
+
+### Pipeline.Tests (direct execution)
+
+| Class | Cases |
+|---|---|
+| `TrackerFrameSourceTests` | `Prepare` seeds to `StartFrame` (assert `tracker.CurrentFrameIndex`); sequential `FrameAt` costs one `AdvanceOneFrame` (assert via a counting tracker factory); repeat `FrameAt(cursor)` is cached; `throwOnNonSequentialAccess: true` throws on a rewind; **the private tracker is never the app's** (reference-inequality against a supplied `PlaybackController`-held tracker). Needs a demo → `SkipTestException` when absent. |
+| `TrackerFrameSourceIsolationTests` | running a `TrackerFrameSource` concurrently with a second tracker over the same frame list yields identical entity state at the same index (D1's concurrency claim, made executable) |
+| `KillFeedTimelineTests` | ported verbatim from the current `Playback2DKillFeedTests` window cases + a kill exactly at `nowTick` is included, a kill at `nowTick + 1` is not, a kill at exactly `lowTick` is not; > 6 kills keeps the newest 6 in tick order |
+| `FfmpegArgumentTests` | the built argument strings for webm/mp4/gif contain `-f rawvideo`, `-pix_fmt rgba`, `-video_size`, `-framerate`, `-an`, and the per-format codec flags; **no** `-i` twice for gif (D6); no `GlobalFFOptions` mutation |
+| `ChannelVideoFrameSourceTests` | backpressure (writer blocks at capacity 4); every rented buffer is returned to the pool; completing the channel ends the enumerator; disposal after a faulted encoder does not deadlock |
+| `ManagedGifSinkTests` | produces a decodable GIF with N frames and centisecond delays matching D7; refuses > `maxFrames`; refuses a non-D7 fps |
+| `FfmpegFrameSinkIntegrationTests` | `[Category("Integration")]`; skips via `SkipTestException` when `FfmpegLocator.Locate` finds nothing; encodes 30 synthetic frames to webm, asserts the file exists, is > 1 KB, and `ffprobe` reports the expected frame count/size |
+| `FfmpegAcquisitionTests` | offer is null on macOS; SHA-256 mismatch aborts and leaves no file; declined consent leaves no file; success extracts both binaries and re-locates (all against an injected `HttpMessageHandler` serving a fixture zip — **no network**) |
+| `ExportSeamHeadlessTests` | the B4.16 no-App-types smoke: fixture → `SceneExportSession` → `ManagedGifSink` → a GIF on disk, asserting the test assembly loads no `Avalonia.*` assembly (architecture assertion) |
+
+### App.Tests (headless-Avalonia where noted)
+
+| Class | Mode | Cases |
+|---|---|---|
+| `HeavyJobGateTests` (extend existing) | direct | export session pauses background but not interactive; reel refused while export active (`ExportInProgressException`); export refused while reel active (`ReelInProgressException`); `IsExportActive` clears on dispose; double dispose is safe |
+| `ExportJobServiceTests` | direct | refuses while `IsSessionActive`; refuses while `OwnsSessionResources`; refuses a second concurrent `Start`; terminal status publishes only after the gate is released; `CancelAsync` before the first frame completes cleanly; a LiveSync session starting mid-export does **not** abort it (D11) |
+| `Playback2DExportDialogTests` | direct (pure VM) | `CanStart` false without an output path / with an invalid range / while a job runs / while ffmpeg is missing **and** format ≠ gif; GIF stays available with no ffmpeg; format switch re-lists fps per `SupportedFps`; custom size snaps to even; `MirrorLiveView` capture happens on Start, not on selection |
+| `Playback2DExportHudSnapshotTests` | **headless** | at N sampled ticks over a real demo, `KillFeedTimeline.Window(...)` (what `KillFeedLayer` draws) equals `Playback2DTabViewModel.KillFeed` row-for-row; and the clock fields equal `GameInfo`'s (`RoundNumber`, `TScore`, `CtScore`, `RoundSeconds`, `BombTicking`). This is design §11's "export HUD rows vs XAML HUD data" snapshot test |
+| `Playback2DExportFeatureGateTests` | direct | `playback2d.export` cascades off with `tab.playback2d`; forced off when `OperatingSystem.IsBrowser()`; the id string is exactly `"playback2d.export"` (persisted-key lock, mirroring the existing id-lock tests) |
+| `Playback2DExportRoundTripTests` | **headless**, `[Category("Integration")]` | the exit-criterion test: export one round at 1920×1080 to webm from a real demo, assert wall-clock elapsed ≤ frame count / 64 s (≥ realtime on CPU) and the file decodes. Skips without a demo or ffmpeg |
+
+### Commands
+
+```bash
+# Direct-execution suites (fast; these are what CI runs)
+dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests     -c Release
+dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
+
+# One class
+dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release -- \
+  --treenode-filter "/*/*/TrackerFrameSourceTests/*"
+
+# The App-side additions (batched runner — the App suite is OOM-prone as one process)
+scripts/test-app-suite.sh -c Release -n 3
+# or, targeted:
+dotnet run --project src/App/DemoViewer.NET.App.Tests -c Release -- \
+  --treenode-filter "/*/*/(ExportJobServiceTests|Playback2DExportDialogTests|Playback2DExportHudSnapshotTests|HeavyJobGateTests)/*"
+
+# Integration lanes (need ffmpeg and/or a demo; they skip cleanly without)
+DEMO_PATH=/path/to/demo.dem dotnet run --project src/App/DemoViewer.NET.App.Tests -c Release -- \
+  --treenode-filter "/*/*/Playback2DExportRoundTripTests/*"
+```
+
+---
+
+## Build & wiring
+
+### `Directory.Packages.props` additions
+
+Insert next to the existing encoding/tooling entries, with the comments (this repo documents *why*
+every pin exists):
+
+```xml
+<!-- 2D-playback video export (docs/playback2d-v2/design.md §5.7). FFMpegCore is MIT and only
+     BUILDS ARGUMENTS and pipes rawvideo to an ffmpeg SUBPROCESS — no ffmpeg code is linked, which
+     is what keeps the GPL/LGPL posture clean (FSF "separate programs"). We never ship an ffmpeg
+     binary; see THIRD-PARTY-NOTICES.md §d. Xabe.FFmpeg is CC BY-NC-SA and must never be added. -->
+<PackageVersion Include="FFMpegCore" Version="5.2.0"/>
+<!-- The no-ffmpeg GIF floor (ManagedGifSink). Six Labors Split License 1.0: Apache-2.0 terms for
+     open-source projects, which this repository is (MIT, see LICENSE). A downstream closed-source
+     redistribution would need a commercial Six Labors license — record that before any such change. -->
+<PackageVersion Include="SixLabors.ImageSharp" Version="3.1.12"/>
+```
+
+**Version policy.** This repo pins exact versions, never floating ranges, and documents the reason
+inline. The two versions above are the newest stable at plan time; the implementer **must** confirm
+them at implementation start (`dotnet package search FFMpegCore`,
+`dotnet package search SixLabors.ImageSharp`) and pin whatever the newest stable
+`FFMpegCore` 5.x / `SixLabors.ImageSharp` 3.1.x is then, recording the resolved version in the
+commit message. Do **not** move ImageSharp to a 4.x major without re-reading its license terms.
+`TreatWarningsAsErrors=true` + `WarningsAsErrors` including `NU1608;NU1605` means a transitive
+version conflict fails the build — resolve it by pinning, never by `NoWarn`.
+
+SkiaSharp itself is **B0's** addition, not B4's.
+
+### New/modified project files
+
+B4 creates **no new projects** if B0 created `…Core`, `…Pipeline`, `…Core.Tests` and
+`…Pipeline.Tests`. If `…Pipeline.Tests` does not exist yet, create it as:
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <!-- Distinct from the Pipeline assembly's own namespace to avoid a type collision. -->
+        <RootNamespace>DemoViewer.NET.Playback2D.PipelineTests</RootNamespace>
+        <!-- CA1707: test method names conventionally use underscores (Method_Condition_Expected). -->
+        <NoWarn>$(NoWarn);CA1707</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Entity replay over a real demo churns multi-hundred-MB transients. -->
+        <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="TUnit"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\DemoViewer.NET.Playback2D.Pipeline\DemoViewer.NET.Playback2D.Pipeline.csproj"/>
+        <ProjectReference Include="..\..\Testing\DemoViewer.NET.TestSupport\DemoViewer.NET.TestSupport.csproj"/>
+    </ItemGroup>
+
+</Project>
+```
+
+Deliberately **no** `Avalonia*` reference — that absence is what makes `ExportSeamHeadlessTests`'
+architecture assertion meaningful.
+
+### `DemoViewer.NET.slnx`
+
+Add (or extend, if B0 created it) — the `/src/Playback2D/` folder block:
+
+```xml
+<Folder Name="/src/Playback2D/">
+    <Project Path="src/Playback2D/DemoViewer.NET.Playback2D.Core/DemoViewer.NET.Playback2D.Core.csproj"/>
+    <Project Path="src/Playback2D/DemoViewer.NET.Playback2D.Pipeline/DemoViewer.NET.Playback2D.Pipeline.csproj"/>
+    <Project Path="src/Playback2D/DemoViewer.NET.Playback2D.Tests/DemoViewer.NET.Playback2D.Core.Tests.csproj"/>
+    <Project
+            Path="src/Playback2D/DemoViewer.NET.Playback2D.Tests/DemoViewer.NET.Playback2D.Pipeline.Tests.csproj"/>
+</Folder>
+```
+
+### CI
+
+`.github/workflows/ci.yml` — append one step after the existing build:
+
+```yaml
+      - name: Playback2D export suites (direct execution, no Avalonia platform)
+        run: |
+          dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
+          dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
+```
+
+Rationale to put in the step's comment: these are direct-execution suites (no demo parse, no Avalonia
+platform, no headless session), so they are not the OOM-prone single-process shape the file's header
+comment warns about. Integration-category tests skip on the runner (no demo, no ffmpeg) by design.
+
+### Code style (enforced — `TreatWarningsAsErrors=true`, `EnforceCodeStyleInBuild=true`)
+
+File-scoped namespaces; Allman braces, always braced; **explicit types, never `var`**; 4-space
+indent; LF endings; 120-col soft limit; the `#region` / `using …` / `#endregion` header block before
+the namespace; XML doc comments on every public member (`GenerateDocumentationFile=true`,
+`CS1591` is *not* in `NoWarn` for new projects unless inherited).
+
+---
+
+## Dependencies
+
+### Consumed from other phases — **B4 cannot start without these**
+
+| From | API B4 needs | Note |
+|---|---|---|
+| **B0** | `Scene2DFrame` (immutable per-frame world state) | passed through `ISceneFrameSource` |
+| **B0** | `SceneTime(int Tick, int FrameIndex, double DemoSeconds, double DeltaSeconds, bool IsDiscontinuity)`, `enum RenderPurpose { Interactive, Export, Thumbnail }` | design §5.1 verbatim |
+| **B0** | `IRenderSurfaceProvider` + `CpuSurfaceProvider` — `RenderBackend Backend`, `SKSurface CreateSurface(SKSizeI)`, `void Flush(SKSurface)` | design §5.8 verbatim |
+| **B0** | `ViewportTransform` (incl. `WithViewport`), `SliceCamera` (incl. `StepToward`, `ManualOverride`) moved verbatim into Core | needed by `CameraScript`/`PaneCameraSnapshot` |
+| **B0/B1** | **`SceneFrameBuilder` must build a `Scene2DFrame` from an `EntityTracker` alone** — proposed: `Scene2DFrame Build(EntityTracker tracker, int frameIndex)`, doing the pawn↔slot join itself via `CS2DemoKit.Analysis.Plugins.PawnLookup` | **⚠ integrator action — see Risks R1.** The App's join lives in `ModuleContext` (`:266-330`) behind `IPlaybackSnapshot`, which is defined in `DemoViewer.NET.Modules.Abstractions` — a project that references **Avalonia**, so Pipeline cannot consume it. `PawnLookup` is in the `CS2DemoKit.Analysis` package, so Pipeline *can* do the join |
+| **B1** | `ISceneLayer` (`Id`, `Slot`, `Order`, `Cache`, `IsEnabled`, `bool Advance(in SceneTime, Scene2DFrame)`, `void Render(SKCanvas, SceneRenderContext)`), `SceneCompositor`, `SceneRenderContext`, `LayerSlot`, `LayerCacheHint` | design §5.2 verbatim |
+| **B1** | `MapSpace`, `MapLevel` (`Id` is quantized-`ZMin`-keyed), `LevelPane`, `LevelDisplayMode`, `ICameraRig`, `FollowPlayerRig` | design §5.3 |
+| **B2** | `Playback2DSettings` on `AppSettings` — B4 nests `Export` inside it | either phase may create the class; see B4.12 |
+| **B2** | `AnnotationLayer`'s layer id, so the dialog's layer toggles can list it | display only |
+| **B3** | `LevelDisplayMode` values for the `MirrorLiveView` capture | display only |
+| **package** | `CS2DemoKit.Parser.EntityTracking.{EntitySeekService, SeekResult, EntityTracker, EntitySet}`, `CS2DemoKit.Parser.DemoFrame` | already pinned at `0.10.0` |
+| **package** | `CS2DemoKit.Analysis.Plugins.PawnLookup` | requires Pipeline → `CS2DemoKit.Analysis` reference |
+| **existing App** | `HeavyJobGate` (modified by B4.10), `LiveSyncState.IsSessionActive`, `LiveSyncService.OwnsSessionResources`, `IReelJobService.Status.IsRunning`, `FeatureCatalog`, `SettingsService.WriteInMemory`, `FfmpegDependency.ManagedDirectory` | |
+
+### Exported by B4 — who consumes them
+
+- **C1 (`dv2d`)** consumes the entire Core `Export` namespace, `TrackerFrameSource`,
+  `FfmpegFrameSink`, `ManagedGifSink`, `FfmpegLocator`, `FfmpegAcquisition`, `ClockLayer`,
+  `KillFeedLayer` — `dv2d export` is `SceneExportSession` with argument parsing and nothing more.
+- **C2** consumes `SceneExportSession.RunAsync`'s `IRenderSurfaceProvider` parameter unchanged
+  (a `GpuSurfaceProvider` drops in with no B4 change) and the `ExportDeterminismTests` harness for
+  its perceptual-diff lane.
+- **B1/B2's `Playback2DTabViewModel`** consumes `KillFeedRow` + `KillFeedTimeline.Window`.
+- **`ReelJobService`** (LiveSync project) newly observes `ExportInProgressException` from
+  `HeavyJobGate.EnterReelSessionAsync` — its existing catch-all already surfaces it as a Failed
+  status with the exception's user-facing message, so no change is strictly required there; add a
+  one-line comment naming the new exception.
+- **A future highlight generator** consumes `CameraScript` + `SceneExportSession` wholesale.
+
+---
+
+## Risks & spikes
+
+| # | Risk | Mitigation | Time-box |
+|---|---|---|---|
+| **R1** | **`SceneFrameBuilder` ships App-coupled** (taking `IPlaybackSnapshot`), leaving Pipeline unable to build frames headlessly — which also breaks C1's exit criterion, not just B4's | Raise with the integrator **before B4.4**. Contingency: `TrackerFrameSource` gains an injected `Func<EntityTracker, int, Scene2DFrame>` so the App can pass its own builder; B4 ships, CLI export is deferred to C1 with a note. Do not silently duplicate the join in two places | 2 h to confirm with B0's author; 3 h to implement the contingency |
+| **R2** | **FFMpegCore pull-vs-push impedance** (`RawVideoPipeSource` takes an `IEnumerator<IVideoFrame>`) mis-modelled → a deadlock or an unbounded frame queue | Spike `ChannelVideoFrameSource` first, standalone, against synthetic frames before wiring the compositor; assert backpressure and pool return in tests; a `DisposeAsync` timeout (30 s) turns a deadlock into a diagnosable failure | **4 h spike, before B4.7** |
+| **R3** | 1080p CPU export misses ≥ realtime (the exit criterion). Vision-cone `Advance` is §6's biggest consumer | Measure early with `ExportAllocationTests`' harness at 1080p on the B1 layer stack; levers in order: (1) exclude `world.vision` from the export's default `LayerIds`, (2) run `Advance` for vision one frame ahead on a worker (the layer contract permits it), (3) accept 720p as the shipped default preset and document 1080p as GPU-preferred (C2) | 1 day of measurement mid-phase; escalate to the integrator if all three are needed |
+| **R4** | ffmpeg absent on the target machine → export silently degrades or hard-fails | The three-rung ladder is the mitigation and is itself tested (`FfmpegAcquisitionTests`); the dialog never offers a format the located ffmpeg cannot produce; GIF always works | — |
+| **R5** | BtbN pinned URL/asset naming drifts (they re-tag `-latest-` assets) | Pin the **immutable dated release tag**, not a `-latest-` asset, and verify SHA-256. A 404 or hash mismatch degrades to the GIF floor with a clear message, never a crash. Recheck the pin each release | 2 h at implementation; annual |
+| **R6** | ImageSharp license posture questioned downstream | Recorded in `THIRD-PARTY-NOTICES.md` §c with the OSS-terms rationale; ImageSharp is used **only** by `ManagedGifSink`, so dropping it costs one class if the posture ever changes | — |
+| **R7** | WASM head fails to publish because Pipeline now carries FFMpegCore/ImageSharp (both managed, but `System.Diagnostics.Process` is unsupported in browser) | Both are managed-only and restore fine for `net10.0`; nothing calls `Process` unless a sink is constructed, and `playback2d.export` is gated off on browser. Verify with an actual `dotnet publish` of the Browser head during B4.17; if trimming complains, the escape hatch is moving the two sinks to a `…Pipeline.Encoders` assembly the Browser head does not reference | **3 h verification, in B4.17** |
+| **R8** | The `KillFeedEntry` → `KillFeedRow` retarget (D5) drags in more App surface than expected | Time-boxed; documented fallback (projection + snapshot test only) | **3 h**, then fall back |
+| **R9** | `HeavyJobGate` change destabilises a well-tested, concurrency-sensitive type | The change is additive: one counter, one property, one method, two admission-test conjuncts. Existing `HeavyJobGateTests` must pass unmodified; new cases are additions | — |
+
+---
+
+## Acceptance checklist
+
+**Maps 1:1 to the design's exit criterion** — *"1080p round export ≥ realtime on CPU; cancel-safe;
+refuses under LiveSync"* — plus this plan's own additions.
+
+Design exit criterion:
+
+- [ ] **≥ realtime on CPU at 1080p.** `Playback2DExportRoundTripTests` exports a full round at
+      1920×1080 to WebM on `CpuSurfaceProvider` and asserts elapsed ≤ frameCount / 64 s.
+- [ ] **Cancel-safe.** Cancelling at any point (before `Prepare`, mid-seek, mid-render, mid-finalize)
+      terminates promptly, kills ffmpeg, disposes the sink exactly once, deletes the partial output,
+      releases the gate, and publishes `ExportPhase.Cancelled`. Covered by
+      `SceneExportSessionCancellationTests` + `ExportJobServiceTests`.
+- [ ] **Refuses under LiveSync.** `Start` throws `ExportRefusedException` when
+      `State.IsSessionActive || OwnsSessionResources`; re-checked after the gate is entered; a session
+      starting mid-export does not abort the export.
+- [ ] **Refuses under a reel job.** `EnterExportSessionAsync` throws `ReelInProgressException`; a reel
+      start is symmetrically refused with `ExportInProgressException`.
+
+Plan additions:
+
+- [ ] **D1 recorded and `MainViewModel.cs` untouched.** `git diff` for the phase shows no change to
+      `src/App/DemoViewer.NET/ViewModels/Shell/MainViewModel.cs`; design §12 item 1 is marked
+      resolved.
+- [ ] **Private tracker.** `TrackerFrameSource` builds its own `EntityTracker` via
+      `() => new EntityTracker()`, never `MainViewModel.CreateTracker`, and never calls
+      `PlaybackController.PublishTracker`. Asserted by `TrackerFrameSourceTests`.
+- [ ] **Background thread.** No export code path touches `Dispatcher.UIThread` except
+      `ExportJobService`'s status marshalling.
+- [ ] **Determinism.** Two identical export runs produce byte-identical pre-encode RGBA frame hashes
+      on the CPU backend (`ExportDeterminismTests`), with its negative control passing.
+- [ ] **Zero steady-state allocation** across a 512-frame export after warm-up
+      (`ExportAllocationTests`), per §6.
+- [ ] **Sinks.** WebM/VP9 default, MP4/H.264, GIF all produce decodable files; `-an` present in every
+      video invocation; `-framerate` / `-video_size` / `-pix_fmt rgba` explicit on the input; no
+      `GlobalFFOptions` mutation; ffmpeg is only ever a subprocess.
+- [ ] **GIF floor.** With ffmpeg absent and the download declined, a GIF still exports via
+      `ManagedGifSink`.
+- [ ] **ffmpeg ladder.** `Locate` → offer pinned **LGPL** BtbN build with SHA-256 verification,
+      license text and source link, explicit consent → GIF floor. macOS shows instructions, no
+      download. A hash mismatch or 404 degrades cleanly.
+- [ ] **HUD layers.** `hud.clock` and `hud.killfeed` render in exports and are off unless requested;
+      `Playback2DExportHudSnapshotTests` shows export rows == XAML HUD rows and export clock fields
+      == `GameInfo` fields at every sampled tick; HUD goldens are green.
+- [ ] **Single kill-feed builder.** `KillFeedEntry` is deleted; the VM and the export layer both go
+      through `KillFeedTimeline.Window` (or, on the R8 fallback, the snapshot test is green and the
+      duplication is documented).
+- [ ] **Camera scripts.** `Fixed`, `FollowPlayer`, `MirrorLiveView` all produce correct framing;
+      `MirrorLiveView` is provably a one-time capture (mutating the live panes after Start changes
+      nothing).
+- [ ] **Settings.** `AppSettings.Playback2D.Export` binds from an empty/partial/missing file;
+      defaults persist and reload; `WriteInMemory` carries the documented exclusion comment naming
+      B2's obligation.
+- [ ] **Feature gate.** `playback2d.export` exists with exactly that id, cascades off with
+      `tab.playback2d`, and is forced off on browser.
+- [ ] **Dialog is thin.** No validation, format, fps, or size rule exists in the VM that is not also
+      reachable from Pipeline/Core (constraint (b)); `ExportSeamHeadlessTests` proves the seam is
+      complete without any App type.
+- [ ] **Build & style.** `dotnet build src/App/DemoViewer.NET.Desktop -c Release` is clean with
+      `TreatWarningsAsErrors=true`; the Browser head still publishes (R7); the new CI step is green.
+- [ ] **Notices.** `THIRD-PARTY-NOTICES.md` lists FFMpegCore and ImageSharp and carries the new
+      "ffmpeg (not redistributed)" section.
