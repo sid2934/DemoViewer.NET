@@ -13,6 +13,7 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Views.Playback2D;
 
 #endregion
@@ -165,6 +166,88 @@ public class Playback2DAnnotationHostTests
             await Assert.That(f.Document.Elements.Count).IsEqualTo(1);
             await Assert.That(f.Document.Elements[0]).IsEqualTo(drawn);
         });
+    }
+
+    /// <summary>
+    ///     The WIRE B3 could not connect, closing its T8 (B5). B3 built and tested the whole remap —
+    ///     <c>LevelSetChange.TryRemapAnchor</c> → <c>ApplyLevelRebuild</c> →
+    ///     <c>AnnotationDocument.RemapWorldLevels</c> — and nothing in production called it, because B2
+    ///     had not landed. The test above this one drives the VM entry point by hand; this one moves the
+    ///     LEVEL SET and asserts the ink follows on its own.
+    ///     <para>
+    ///         It matters because the boundary really does move: the floor split is derived from a Z
+    ///         histogram that changes all demo long, and an anchor stamped with the old band's quantized
+    ///         <c>ZMin</c> stops matching any pane the moment it drifts — the stroke does not move, it
+    ///         vanishes.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task LevelSetRebuild_RebasesTheStrokesAnchor_WithoutConsumingUndo()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Fixture f = Fixture.Create();
+
+            // Quantum multiples, so QuantizeZ is the identity here and the arithmetic below is exact.
+            // A frame push after each rebuild, because the panes are reconciled inside Advance — a bare
+            // render tick over an unchanged submission does not re-arrange them, and drawing onto a
+            // stale pane would stamp the anchor with the level it is replacing.
+            Rebuild(f, -768, -128, 512);
+
+            f.DrawStroke();
+            double before = ((SpaceRef.World)f.Document.Elements[0].Space).LevelMinZ;
+            int undoBefore = f.Document.UndoDepth;
+            int versionBefore = f.Document.Version;
+            await Assert.That(before).IsEqualTo(-768).Or.IsEqualTo(-128)
+                .Because("the stroke must be anchored to one of the two floors that exist");
+
+            // The same two floors, both slid down one quantum — identity survives (overlap carry), so
+            // every anchor follows its own band rather than being reassigned by containment.
+            Rebuild(f, -832, -192, 448);
+
+            double after = ((SpaceRef.World)f.Document.Elements[0].Space).LevelMinZ;
+            Console.WriteLine($"[level-remap] anchor {before} → {after}");
+
+            await Assert.That(after).IsEqualTo(before - 64)
+                .Because("the band the stroke was drawn on moved down one quantum, and so must its anchor");
+            await Assert.That(f.Document.UndoDepth).IsEqualTo(undoBefore)
+                .Because("a level rebuild is a system event; Ctrl+Z must not restore a stale anchor");
+            await Assert.That(f.Document.Version).IsGreaterThan(versionBefore)
+                .Because("the ink layer re-records its dry picture on a version change");
+        });
+    }
+
+    /// <summary>
+    ///     ...and a rebuild that moves nothing must cost nothing: no document version bump, so the ink
+    ///     layer does not re-record, and no spurious dirty state for the autosave to write.
+    /// </summary>
+    [Test]
+    public async Task LevelSetRebuild_ThatMovesNoBand_LeavesTheDocumentAlone()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Fixture f = Fixture.Create();
+            Rebuild(f, -768, -128, 512);
+
+            f.DrawStroke();
+            double before = ((SpaceRef.World)f.Document.Elements[0].Space).LevelMinZ;
+            int versionBefore = f.Document.Version;
+
+            // A drift far too small to change any quantized key.
+            Rebuild(f, -768, -126, 512);
+
+            await Assert.That(((SpaceRef.World)f.Document.Elements[0].Space).LevelMinZ).IsEqualTo(before);
+            await Assert.That(f.Document.Version).IsEqualTo(versionBefore);
+        });
+    }
+
+    // Re-derives the level set as two contiguous bands and pushes a frame, so the panes are actually
+    // reconciled onto it before anything is drawn.
+    private static void Rebuild(Fixture f, double low, double mid, double high)
+    {
+        f.Host.Levels.Rebuild([new FloorSlice(low, mid), new FloorSlice(mid, high)]);
+        f.Ctx.PushMarkers((0, 2, -800f, 600f, 64f, 90f), (1, 3, 900f, -500f, 64f, 270f));
+        Playback2DTimelineHarness.Pump();
     }
 
     [Test]

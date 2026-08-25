@@ -35,6 +35,12 @@ reads. You never need to download those by hand.
 assists, ADR, KAST%, HLTV rating, weapon breakdowns, per-round detail. A bundled sample match ships
 with the app, so there is something to look at before you have found your own demos.
 
+**2D playback.** A top-down replay of the round with a scrubbable timeline — round bands, kill and
+bomb markers, one click to any moment. Follow a player by clicking their card, draw over the map
+with a pen that can pin its ink to the demo clock or to a player, and on a multi-floor map like
+Nuke watch the view follow the action between floors. When you have found the ten seconds worth
+showing someone, export them to webm, mp4 or gif with the drawings and HUD burned in.
+
 **Highlights and reels.** Rule-driven detection of aces, clutches, no-scopes, spray transfers,
 ninja defuses and the rest, each with the tick it happened on. With CS2 installed you can jump
 straight to a moment in-game, or render clips to video (requires `ffmpeg`).
@@ -48,7 +54,13 @@ looking at, verify a highlight actually looks the way the rules claim.
 **The developer half.** A Parser tab that walks every demo frame down to the message, the byte
 range, and the `.proto` field that decoded it; an Entity Tracking tab for entity state and
 serializer schemas at any tick; an Analysis tab that shows the rule graph evaluating, with
-breakpoints; a 2D playback view; and a Diagnostics tab with live logs and counters.
+breakpoints; and a Diagnostics tab with live logs and counters.
+
+**Browser build.** There is a WebAssembly head as well as the desktop one. Most of the app works
+there, including the whole 2D playback view; a few things that need a real filesystem or a
+subprocess do not, and video export is absent rather than broken. What works and what degrades is
+recorded per capability in
+[`docs/playback2d-v2/wasm-matrix.md`](docs/playback2d-v2/wasm-matrix.md).
 
 ## Rules
 

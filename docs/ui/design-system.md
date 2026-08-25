@@ -502,21 +502,32 @@ handler so transport keys beat whatever inside the playback surface has focus, a
 input has focus. Every mutation routes through `PlaybackController` commands or capability-gated
 `IModuleContext.Request*` — the surfaces LiveSync's `SyncStateObserver` observes.
 
-| Gesture | Action | Notes |
-|---|---|---|
-| `Space` | Play / pause | |
-| `←` / `→` | Step one frame | |
-| `↑` / `↓` | Speed ladder `0.25 · 0.5 · 1 · 2 · 4 · 8` | Inert (with a footer note) while Live Sync pins the speed |
-| `Q` / `E` | Previous / next round | Rounds open at `round_freeze_end`, not `round_start` |
-| `Shift+Q` / `Shift+E` | Previous / next kill | |
-| `F` / `Shift+F` | Cycle the follow target | |
-| `Esc` | Clear follow + re-fit the camera | |
+**This table is the source of truth the conflict test reads.** `Playback2DKeybindConflictTests` parses
+`MainView.axaml` at test time for the shell's accelerators rather than mirroring a list, and pins the
+resolutions below individually — so a later edit that re-introduces a collision fails there, not in a
+user's hands.
 
-**Reserved** (declared so the conflict checker guards them, unbound until a later phase): `Home` fit ·
-`D` draw · `X` erase · `Ctrl+Z` undo · `Ctrl+Shift+Z` redo · `Ctrl+X` clear annotations ·
-`Space`/`Esc` at `WhenToolActive` scope (hold-to-pan / cancel gesture), which SHADOW their always-scoped
-siblings while a pointer tool is active. `X` (not `E`) is erase: `E` is round navigation, and the CS:DM
-parity key list does not include `E`.
+| Gesture | Scope | Action | Notes |
+|---|---|---|---|
+| `Space` | Always | Play / pause | **Unless a drawing tool is active** — see the row below. |
+| `Space` (held) | WhenToolActive | Temporary pan | Shadows play/pause while `Draw`/`Erase` is selected, and a tap does **not** toggle playback: every pan would otherwise start by un-pausing the demo under the user's pen. |
+| `←` / `→` | Always | Step one frame | Owned by the transport, not by the player-card `ItemsControl` — the cards became selectable in A1, and the tunnelling handler is what keeps arrows from being silently swallowed. |
+| `↑` / `↓` | Always | Speed ladder `0.25 · 0.5 · 1 · 2 · 4 · 8` | Inert (with a footer note) while Live Sync pins the speed. A refused key is still CONSUMED, so it cannot fall through to the card list. |
+| `Q` / `E` | Always | Previous / next round | Rounds open at `round_freeze_end`, not `round_start`. |
+| `Shift+Q` / `Shift+E` | Always | Previous / next kill | |
+| `F` / `Shift+F` | Always | Cycle the follow target | |
+| `D` | Always | Draw tool (press again for pan) | |
+| `X` | Always | **Erase** tool (press again for pan) | **Not `E`.** Design §7.5 assigned `E` to both round-nav and erase; the keybind audit resolved it in favour of round nav (market parity), and erase pairs coherently with `Ctrl+X` below. B5 D1, pinned by `EraseIsX_NotE`. |
+| `Ctrl+Z` / `Ctrl+Shift+Z` | Always | Undo / redo an annotation edit | Refused while a stroke is in flight — the gesture is the user's current intent. |
+| `Ctrl+X` | Always | Clear every annotation | CS:DM parity. Collides with Cut inside a focused `TextBox`, which the text-input rule below resolves. |
+| `Esc` | Always | Clear follow + re-fit the camera | |
+| `Esc` | WhenToolActive | Cancel the in-progress gesture | |
+| `Home` | Always | Fit the camera (**reserved**, unbound) | Declared so the conflict checker guards the gesture before anything claims it. |
+
+**Text-input suppression is one global rule, not a per-binding flag.** The tunnelling handler bails
+when `FocusManager.GetFocusedElement()` is a text input, which covers every single-letter binding and
+both `Ctrl+X`/`Ctrl+Z` at once — so Cut and Undo mean Cut and Undo inside the annotation Text tool and
+the export dialog's filename box.
 
 **Follow-by-card.** The right-hand attributes panel is a `ListBox` whose containers are stripped of Fluent
 chrome (`Padding=0`, transparent, `Focusable=False`). Selecting a card runs the single follow funnel
@@ -1266,7 +1277,12 @@ feature stays user-toggleable in Settings. `●` default-visible, `○` default-
 | **Library** tab | Tab | R | R | R | Landing tab; needs no demo. |
 | **Match Overview** tab | Tab | ● | ● | ● | **THE per-demo page (v0.5.3)** — two modes: *Live* (shown the instant a demo opens, before parse, so a double-click has instant feedback) and *Cached* (any indexed demo rendered from `DemoCacheRecord`, parse-free). A completeness chip names the tier and offers the one action that advances it. See [Match Overview redesign](#match-overview-redesign-v053). Cached mode is desktop-only (the cache needs a filesystem) — guarded at the **entry point**, never with an `IsBrowser` branch in the view. |
 | **Stats** tab | Tab | ● | ● | ● | Player-facing scoreboard — core viewing. |
-| **2D Playback** tab | Tab | ● | ● | ● | Core viewing; module tab (gate at registration). |
+| **2D Playback** tab | Tab | ● | ● | ● | Core viewing; module tab (gate at registration). Its five v2 sub-features follow immediately below, as one contiguous `_catalog` block — they are the rows Settings renders indented under this one. |
+| 2D Playback **`playback2d.annotations`** | SubFeature | ● | ● | ● | **Playback2D v2 (B2).** Draw and erase over the surface; static or clock-anchored ink. `ParentId "tab.playback2d"`, no `GroupId`, `Defaults(true, true, true)`. Default-ON for every category for the `tab.highlights` reason: gating a release's headline payoff away from the audience most excited by it is the wrong trade (B5 D6). Reached through `IModuleContext.Features`, never a `IFeatureGate` injected into the tab VM. Note the id is *also* the ink LAYER id (registry §3.3) — deliberate, and pinned by `Playback2DFeatureWiringTests`. |
+| 2D Playback **`playback2d.timeline`** | SubFeature | ● | ● | ● | **Playback2D v2 (A1).** The scrubbable round / kill / bomb timeline under the viewport. The VM folds gate AND has-demo into `IsVisible`; the row is `Auto`-sized, so an off gate leaves no layout hole. Per-track visibility is a *setting* (`Playback2D:TimelineShow*`), not a second gate. |
+| 2D Playback **`playback2d.levels.auto`** | SubFeature | ● | ● | ● | **Playback2D v2 (B3).** Auto-switch the shown floor to the followed player's, with hysteresis. With it off, manual floor picking and the level strip stay available — the gate removes the automation, not the feature. |
+| 2D Playback **`playback2d.follow`** | SubFeature | ● | ● | ● | **Playback2D v2 (A1).** Selecting a player card follows them in the 2D camera, and mirrors to CS2 through `NotifySpectateTarget` while Live Sync is active. The wording is always "requested" — CS2 spectating has no readback. |
+| 2D Playback **`playback2d.export`** | SubFeature | ● | ● | ● | **Playback2D v2 (B4). Desktop only (ANDs `!IsBrowser()`)** — it writes a file and drives an ffmpeg subprocess. That AND lives in exactly ONE place, `ShellModuleFeatureGate.DesktopOnlyIds`, never re-derived per call site (B5 D4); the same treatment `chrome.livesync` and `chrome.processingQueue` get. On the browser head the Export affordance is absent from the toolbar entirely. Known cosmetic: this row's Settings toggle still shows the user's stored preference there, because the platform AND is folded one layer further out — see `docs/playback2d-v2/wasm-matrix.md`. |
 | **Parser** tab | Tab | ○ | ● | ● | Needs wire-format mental model → power+. |
 | **Entity Tracking** tab | Tab | ○ | ● | ● | Entity-layer knowledge → power+. |
 | **Analysis Engine** tab | Tab | ○ | ● | ● | Rule-graph knowledge → power+. |

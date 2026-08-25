@@ -1052,9 +1052,20 @@ additions.
       it cannot pass vacuously.
 - [x] Panes are remapped on rebuild **by id**, preserving pan/zoom/manual-override; a newly-appeared
       level is Fit, never inherits another level's camera (`CameraSurvives_LevelInsertedBelow`).
-- [ ] Annotation `SpaceRef.World(LevelMinZ)` anchors are remapped on rebuild, without polluting undo —
-      **blocked on B2** (deviation 6). `LevelSetChange.TryRemapAnchor` is implemented and tested; only
-      the `AnnotationLevelRemapper` that drives it is missing.
+- [x] Annotation `SpaceRef.World(LevelMinZ)` anchors are remapped on rebuild, without polluting undo.
+      ~~**blocked on B2** (deviation 6)~~ — **closed in B5.** B2 landed the remap's other half
+      (`AnnotationSessionController.ApplyLevelRebuild` → `AnnotationDocument.RemapWorldLevels` +
+      `AnnotationSession.RemapWorldLevel`, undo-transparent per D6) and
+      `Playback2DTabViewModel.ApplyAnnotationLevelRebuild` exposed it — but **nothing in production
+      called it**: `Scene2DHost.OnLevelSetChanged` did not build the zMin map or hand it over, so the
+      chain was one wire short and only a test ever exercised it. B5 added
+      `Scene2DHost.RebaseAnnotationAnchors`, which derives the map from `LastChange.LevelsBefore` +
+      `TryRemapAnchor`, **keyed on the quantized ZMin** (anchors are stamped
+      `MapSpace.QuantizeZ(pane.Level.ZMin)`, so a raw-Z key would have matched nothing), and allocates
+      only when a band actually moved. Pinned by
+      `Playback2DAnnotationHostTests.LevelSetRebuild_RebasesTheStrokesAnchor_WithoutConsumingUndo`
+      (anchor −128 → −192 across a one-quantum slide, undo depth unchanged) and
+      `.LevelSetRebuild_ThatMovesNoBand_LeavesTheDocumentAlone`.
 - [x] Marker-smoothing buffers **reset on level crossing** (no streak across the map). Trail buffers do
       **not** — see deviation 3 for why that is the right answer rather than a gap.
 - [x] Radar is bound **explicitly per level** at (re)build, by Z-band overlap; a level with no radar
@@ -1063,8 +1074,19 @@ additions.
 - [x] `ResolveRadarImage` and its per-band LINQ no longer exist in the **v2** render path (B1 already
       replaced it with `MapRadarBinder`; B3 replaced the count-match rule inside it). The pre-v2
       `Playback2DViewport.ResolveRadarImage` still exists behind the legacy escape hatch — deviation 4.
-- [ ] `AnnotationTrack` markers carry **drag handles** — **blocked on B2** (deviation 6). The Core half
-      that needs no annotation types (`TickAxis`) is shipped.
+- [x] `AnnotationTrack` **exists and satisfies the timeline contract** — closed at the B2 merge, and
+      re-verified in B5. It implements all six `ITimelineTrack` members (registry §3.5), places markers
+      on the **frame-index** axis via `ITimelineData.FrameIndexAtTick` and drops the ones that resolve
+      to −1, raises `MarkersChanged` on document changes, and keeps the bare track id `annotation`
+      (deliberately not the layer/feature id `playback2d.annotations`). Evidence:
+      `TimelineContractTests.ITimelineTrack_HasExactlySixMembers`, the seven cases in
+      `AnnotationTrackTests`, and `Playback2DFeatureWiringTests
+      .AnnotationsId_IsBothAFeatureIdAndALayerId_AndTheTrackIdIsNot`.
+- [ ] `AnnotationTrack` markers carry **drag handles** — **still open, and it is a FEATURE, not
+      residue.** Everything it needs now exists (B2 exports `DocDelta.Replace`; `TickAxis` ships with
+      its domain warning), so nothing blocks it any more — but drag-to-edit an envelope on the timeline
+      is new user-facing behaviour, which B5 explicitly does not ship. Design §12 Q3 assigns it to B3;
+      it should be scheduled as a small follow-up rather than smuggled into a polish phase.
 
 **Additional (this plan):**
 
@@ -1145,6 +1167,12 @@ Written at implementation time. Everything not listed here was built as the plan
    them is landed: `LevelSetChange.TryRemapAnchor` implements the plan's four-rule rebase and is
    directly tested, and `TickAxis` ships with correction 6's domain warning on it. B2's implementer
    inherits a remap function that already works and a `MapSpace.QuantizeZ` to stamp anchors with.
+
+   **Closed out in B5, split two ways.** *T8 is done*: B2 landed the document-side remap and the tab's
+   entry point, and B5 added the wire between them (`Scene2DHost.RebaseAnnotationAnchors`) — without
+   which the whole chain was reachable only from a test. *T9's annotation half is still not built*, and
+   is now unblocked rather than blocked: `DocDelta.Replace` exists, so envelope drag-to-edit is a small
+   scheduled feature, not residue. See the acceptance checklist above for the evidence on each.
 
 ### Additive API on B1's contracts
 

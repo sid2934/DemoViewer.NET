@@ -1056,7 +1056,64 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, ID
     {
         _levelSelection.OnLevelSetChanged();
         _singleLayout.ActiveLevelId = _levelSelection.ActiveLevelId;
+        RebaseAnnotationAnchors();
         LevelStateChanged?.Invoke();
+    }
+
+    /// <summary>
+    ///     Rebases level-anchored ink when the level SET moves under it (B3 T8, wired in B5).
+    ///     <para>
+    ///         An annotation drawn on a floor stores that floor's quantized <c>ZMin</c>, and the
+    ///         histogram that derives the bands moves the boundary all demo long — so without this a
+    ///         stroke drawn on Nuke lower stops matching any pane the first time the split shifts, and
+    ///         silently disappears. B3 built and tested the whole remap (<c>TryRemapAnchor</c> →
+    ///         <c>ApplyLevelRebuild</c> → <c>RemapWorldLevels</c>) but could not connect it: B2 had not
+    ///         landed. This is the missing wire; B3's plan item stays open until it exists.
+    ///     </para>
+    ///     <para>
+    ///         Allocation-free unless a band actually moved, and this is not a per-frame path anyway —
+    ///         <c>LevelSetChanged</c> fires on a rebuild that changed something, not on every push.
+    ///     </para>
+    /// </summary>
+    private void RebaseAnnotationAnchors()
+    {
+        if (_vm is null)
+        {
+            return;
+        }
+
+        LevelSetChange change = _levels.Space.LastChange;
+        if (change.IsEmpty || change.LevelsBefore.Count == 0)
+        {
+            return;
+        }
+
+        Dictionary<double, double>? moved = null;
+        for (int i = 0; i < change.LevelsBefore.Count; i++)
+        {
+            double before = change.LevelsBefore[i].ZMin;
+            if (!change.TryRemapAnchor(before, out double after))
+            {
+                continue;
+            }
+
+            // Anchors are stamped QUANTIZED (DrawTool: MapSpace.QuantizeZ(pane.Level.ZMin)), so the
+            // map has to be keyed the same way — a raw-Z key would match nothing and rebase nothing.
+            double oldKey = MapSpace.QuantizeZ(before);
+            double newKey = MapSpace.QuantizeZ(after);
+            if (oldKey.Equals(newKey))
+            {
+                continue;
+            }
+
+            moved ??= new Dictionary<double, double>();
+            moved[oldKey] = newKey;
+        }
+
+        if (moved is not null)
+        {
+            _vm.ApplyAnnotationLevelRebuild(moved);
+        }
     }
 
     private void OnActiveLevelChanged()

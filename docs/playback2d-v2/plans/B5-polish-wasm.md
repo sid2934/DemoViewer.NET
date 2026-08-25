@@ -813,42 +813,195 @@ Maps to the design exit criterion ("Release") item by item; the first block is t
 list, the second is B5's additions.
 
 **WASM verification pass**
-- [ ] `playback2d.export` resolves **false** on the browser head, via `ShellModuleFeatureGate.DesktopOnlyIds` — one place, tested
-- [ ] The other four ids resolve identically on both hosts (no accidental platform AND)
-- [ ] Every `Playback2DSettings` property has a `WriteInMemory` row; `SettingsWasmRoundTripTests` green, reflection-driven so it covers later additions
-- [ ] The render-surface provider factory returns `CpuSurfaceProvider` on browser **before** any GPU probe runs
-- [ ] `Playback2DWasmBudgetTests` green: relaxed budget (Advance p99 ≤ 4 ms, Render p99 ≤ 24 ms, combined p99 ≤ 32 ms @ 1280×720) and zero steady-state allocation
-- [ ] `dotnet build src/App/DemoViewer.NET.Browser -c Release` green in CI (`wasm-build` job added)
-- [ ] The manual browser checklist has been run once and `docs/playback2d-v2/wasm-matrix.md` reflects the result — including "annotations are session-only, and the UI says so"
+- [x] `playback2d.export` resolves **false** on the browser head, via `ShellModuleFeatureGate.DesktopOnlyIds` — one place, tested
+- [x] The other four ids resolve identically on both hosts (no accidental platform AND)
+- [x] Every `Playback2DSettings` property has a `WriteInMemory` row; `SettingsWasmRoundTripTests` green, reflection-driven so it covers later additions
+- [x] The render-surface provider factory returns `CpuSurfaceProvider` on browser **before** any GPU probe runs
+- [x] `Playback2DWasmBudgetTests` green: relaxed budget (Advance p99 ≤ 4 ms, Render p99 ≤ 24 ms, combined p99 ≤ 32 ms @ 1280×720) and zero steady-state allocation
+- [x] `wasm-build` job added — and it **publishes** rather than builds, because `dotnet build` of
+      this head is green in states where the app cannot boot. Verified locally (`dotnet publish` green,
+      payload asserted); the job itself has not yet run on a GitHub runner.
+- [x] The manual browser checklist has been run once and `docs/playback2d-v2/wasm-matrix.md` reflects the result — including "annotations are session-only, and the UI says so"
 
 **Feature-flag audit**
-- [ ] All five ids present in `FeatureCatalog`, `FeatureScope.SubFeature`, `ParentId "tab.playback2d"`, no `GroupId`, `Defaults(true, true, true)`
-- [ ] Group leaders unchanged (`parser.hex`, `analysis.breakpoints`) — pinned by test
-- [ ] Every id is consumed by at least one non-catalog source file — pinned by test
-- [ ] Turning a tab off cascades all five off; turning one sub-feature off leaves the others alone
-- [ ] Core / Pipeline / `dv2d` reference **zero** feature-gating types or id literals (design §7.7)
-- [ ] The five rows appear in Settings under "2D Playback" and toggling one takes effect live (no restart)
+- [x] All five ids present in `FeatureCatalog`, `FeatureScope.SubFeature`, `ParentId "tab.playback2d"`, no `GroupId`, `Defaults(true, true, true)`
+- [x] Group leaders unchanged (`parser.hex`, `analysis.breakpoints`) — pinned by test
+- [x] Every id is consumed by at least one non-catalog source file — pinned by test
+- [x] Turning a tab off cascades all five off; turning one sub-feature off leaves the others alone
+- [x] Core / Pipeline / `dv2d` reference **zero** feature-gating types or id literals (design §7.7)
+- [x] The five rows appear in Settings under "2D Playback" and toggling one takes effect live (no restart)
 
 **Keybind conflict audit**
-- [ ] No duplicate gesture inside `Playback2DKeymap` (`E` double-assignment resolved: erase = `X`)
-- [ ] No intersection with the shell accelerators, asserted by **parsing `MainView.axaml`**, not by a mirrored list
-- [ ] Single-letter and `Ctrl+X`/`Ctrl+Z`/`Ctrl+Shift+Z` actions are suppressed while a text input has focus
-- [ ] Arrow keys reach the transport, not the selectable player-card list
-- [ ] `Space` is play/pause except while a drawing tool is active (then hold-to-pan, no playback toggle)
+- [x] No duplicate gesture inside `Playback2DKeymap` (`E` double-assignment resolved: erase = `X`)
+- [x] No intersection with the shell accelerators, asserted by **parsing `MainView.axaml`**, not by a mirrored list
+- [x] Single-letter and `Ctrl+X`/`Ctrl+Z`/`Ctrl+Shift+Z` actions are suppressed while a text input has focus
+- [x] Arrow keys reach the transport, not the selectable player-card list
+- [x] `Space` is play/pause except while a drawing tool is active (then hold-to-pan, no playback toggle)
 
 **Docs**
-- [ ] `README.md` names the v2 capabilities and links the browser-support note
-- [ ] `docs/ui/design-system.md` §5 carries five new matrix rows, with the export row marked desktop-only
-- [ ] `docs/ui/design-system.md` §2 carries the `### Playback2D keymap (v2)` table — the source of truth the conflict test mirrors
-- [ ] `docs/playback2d-v2/wasm-matrix.md` exists and is filled in
-- [ ] `docs/playback2d-v2/old-control-removal.md` exists, lists all 8 file actions and all 6 retargeting test classes, and states the removal trigger
+- [x] `README.md` names the v2 capabilities and links the browser-support note
+- [x] `docs/ui/design-system.md` §5 carries five new matrix rows, with the export row marked desktop-only
+- [x] `docs/ui/design-system.md` §2 carries the `### Playback2D keymap (v2)` table — the source of truth the conflict test mirrors
+- [x] `docs/playback2d-v2/wasm-matrix.md` exists and is filled in
+- [x] `docs/playback2d-v2/old-control-removal.md` exists, lists all 8 file actions and all 6 retargeting test classes, and states the removal trigger
 
 **ContractVersion**
-- [ ] `Playback2DModule.ContractVersion == new Version(1, 2, 0)`, comment lists every newly consumed additive `IModuleContext` member, each grep-verified
-- [ ] `Playback2DContractVersionTests` pins the version and the stable ids (`playback2d.viewport`, `tab.playback2d`, `net.demoviewer.playback2d`)
+- [x] `Playback2DModule.ContractVersion == new Version(1, 2, 0)`, comment lists every newly consumed additive `IModuleContext` member, each grep-verified
+- [x] `Playback2DContractVersionTests` pins the version and the stable ids (`playback2d.viewport`, `tab.playback2d`, `net.demoviewer.playback2d`)
 
 **Release gate**
-- [ ] `scripts/test-app-suite.sh -c Release` green (batched; the partition audit passes)
-- [ ] `dotnet build src/App/DemoViewer.NET.Desktop -c Release` green with `TreatWarningsAsErrors`
-- [ ] No new package added to `Directory.Packages.props` by B5
-- [ ] The legacy toggle is **off** by default and the old control is not constructed when it is off
+- [x] `scripts/test-app-suite.sh -c Release` runs (under **bash**, after B5 fixed its 1-indexed
+      partition) and the audit passes: 895 run ≥ 869 listed. **6 failures, all the known
+      environmental set** (A1 deviation 21 / B3 deviation 8) — `DiagnosticsFileLogTests` ×3,
+      `Scan_DeduplicatesSameFile_AcrossSymlinkedFolders`,
+      `SettingsBacked_AddRemoveFolder_WritesThroughToSettingsJson`,
+      `QueuePath_PersistsCache_SoSecondLaunchDoesNotReparse`. None in a subsystem B5 touches.
+- [x] `dotnet build src/App/DemoViewer.NET.Desktop -c Release` green with `TreatWarningsAsErrors`
+- [x] No new package added to `Directory.Packages.props` by B5
+- [x] The legacy toggle is **off** by default and the old control is not constructed when it is off
+
+---
+
+## Implementation notes (deviations)
+
+Written at implementation time. Everything not listed here was done as the plan body and the
+`Integrator corrections` block specify.
+
+B5 arrived last, so most of its "build this" tasks were already built: **B5-1** (the five catalog
+rows), **B5-2** (the gate seam, shipped by A1 per correction 2), **B5-3**'s container, **B5-4**'s
+browser short-circuit (C2's `ProbeCore`) and legacy-toggle branch, **B5-5**'s `X`-is-erase
+resolution, and **B5-9**'s `ContractVersion` bump. Each was verified against the plan's stated shape
+before being ticked, and the verification is now a test rather than a reading. What follows is what
+differed, and what the verification found.
+
+### The audits found four things, not zero
+
+1. **Three registry §3.10 settings keys did not exist:** `TimelineShowKills`, `TimelineShowBomb`,
+   `TimelineShowAnnotations`. A1 shipped the timeline's footer check-boxes as **session** state, so a
+   user who turned kill markers off got them back on the next launch. Added, flattened, and wired
+   through the same load/save seam the level strip already uses — with a `RestoreTrackEnabled` that
+   does **not** echo back out as a change to save, because writing settings from a constructor turns a
+   read-only config directory into a swallowed exception on every tab open. `TrackVisibilityChanged`
+   is deliberately not raised for an availability change: "this demo has no bomb" is a property of the
+   demo, and persisting it would carry to the next one.
+
+2. **`RenderBackend` (registry §3.10, C2.8) was NOT added, deliberately.** It is the one canonical
+   property still missing from `Playback2DSettings`, and adding it in B5 would have been worse than
+   leaving it out: its only App-side consumer would be the export path, and `SceneExportSession`
+   currently **refuses** any provider whose backend is not `CpuRaster` (B4 deviation 26 — the session
+   awaits its sink between frames and `GpuSurfaceProvider` is thread-affine). A persisted
+   `RenderBackend=gpu` would therefore be a setting whose only effect is to make exports fail. It
+   belongs to C2 Stage 1, in the commit that makes a GPU export work. `SettingsWasmRoundTripTests` is
+   reflection-driven, so it will cover the property the day it appears, with no test edit.
+
+3. **`playback2d.annotations` is both a feature id (§3.10) and a layer id (§3.3).** The plan's
+   `CoreAndPipeline_NeverReferenceFeatureGating` scan flagged `SceneLayerIds.cs` and
+   `AnnotationTrack.cs` on its first run. The collision is intentional and documented in
+   `AnnotationTrack`'s own comment; the scan now bans the gating TYPES everywhere and the four ids
+   that are *not* also layer ids, and a separate case pins the collision so the exemption has a reason
+   under test rather than a comment.
+
+4. **The keybind audit's class already existed under another name.** A1 shipped
+   `Playback2DKeybindConflictTests` (which parses `MainView.axaml`, as the plan requires); the plan
+   names it `Playback2DKeymapConflictTests`. B5's four extra pins — `NoDuplicateGesture_WithinTheKeymap`,
+   `EraseIsX_NotE`, `Space_IsPlayPause_UnlessADrawingToolIsActive`, `ArrowKeys_AreBoundToTheTransport`
+   — joined the existing class rather than arriving as a near-duplicate of it. Text-input suppression
+   is asserted where the rule lives (`Playback2DKeyRoutingTests.TextBoxFocused_KeysAreNotIntercepted`),
+   because correction 5 makes it one global handler behaviour and not a per-binding flag.
+
+### Two test seams the plan asks for and the code did not have
+
+5. **`ShellModuleFeatureGate` gained an internal `Func<bool> isBrowser` ctor**, and
+   `AnnotationSessionController` gained the same. `OperatingSystem.IsBrowser()` is a JIT-folded
+   intrinsic, so a browser branch cannot be faked from outside — and both branches are exactly the
+   kind that ships broken because nobody can run them. The public constructors are unchanged.
+
+6. **`SettingsWasmRoundTripTests` covers `AnnotationRecentColors` as its own case**, not through the
+   reflection loop: correction 4a predicted arrays would need special-casing. `ExportOutputDirectory`
+   is `string` with an `""` default rather than the plan's `string?`/null (B4's shape), so the plan's
+   `NullStringProperty_OmitsKey_AndBindsDefault` became
+   `EmptyStringProperty_RoundTripsAsEmpty_NotAsTheDefault` — the property that actually needs proving
+   for the shape that shipped.
+
+### The WASM verification pass found three defects, all in the app, none in Playback2D
+
+7. **The published browser head did not boot.** `MainViewModel` initialised
+   `Process.GetCurrentProcess()` in a **field initializer** for the window-title CPU/RAM readout;
+   that throws `PlatformNotSupportedException` on WASM before the constructor body runs, so the whole
+   app came up black with one console line. Now null on browser, with the perf ticker not started.
+   This is the other half of B0 D11 finding 3 — the `JsonSerializerIsReflectionDisabled` it recorded
+   was real too, and is item 8.
+
+8. **`dotnet publish` of the head failed outright**, on ~30 `IL2026` sites plus `IL2104` for
+   `CS2DemoKit.Parser`, `CS2DemoKit.Analysis` and `FFMpegCore`. Not incidental call sites: reflection
+   `System.Text.Json` in eleven stores, `ConfigurationBinder.Get<AppSettings>()` (which *is* the
+   settings layer), and Avalonia's reflection `ViewLocator`. `PublishTrimmed=false`, stated in the
+   csproj with its revisit trigger; `WasmBuildNative=true` beside it, no longer relying on an SDK
+   default. Cost: 16.3 MB brotli.
+
+9. **The annotation panel lied on the browser.** With a demo attached it read
+   `saving to /sample-de_nuke.dem.dvann.json` — true, in that the WASM in-memory VFS accepted the
+   write; false, in that the next reload discards it. Design §8 asks for the opposite in as many
+   words. Now: *"session only — this browser tab forgets annotations when it reloads."*
+
+**The pass itself was run on the published head in a real browser**, not simulated: `sample-de_nuke.dem`
+(19 237 frames) parsed in-browser, the 2D tab rendered markers / kill feed / round HUD / floor labels,
+the timeline scrubbed, the level strip appeared on the two-floor map, Settings listed all five
+sub-features and toggling `playback2d.timeline` removed it live (hidden-count 9 → 10, viewport
+reclaimed the row), and **Video export was absent from the UI entirely**. Full record in
+`docs/playback2d-v2/wasm-matrix.md`, including the two remaining degradations (no baked radar art on
+this head; nothing survives a reload) and the one cosmetic (the export row's Settings toggle shows the
+stored preference, because the platform AND is folded one layer further out — D4 keeps it in one place
+on purpose).
+
+### Carry-forwards closed on other phases' behalf
+
+10. **B4 deviation 20 — `CameraScript.MirrorLiveView` captured an empty script.** `Scene2DHost` owns
+    its `PaneSet` privately and exposed no snapshot, so "mirror the live view" exported every pane on
+    the fit its own level was born with. `Scene2DHost.CaptureCameraScript()` now freezes each pane into
+    a `PaneCameraSnapshot` keyed by `MapLevelId`, and the View hands the delegate to the tab on bind
+    (null under the legacy hatch, which has no pane cameras). Four tests, including that the capture
+    does not move when the live camera does afterwards — which is the whole of D12.
+
+11. **B3's T8 was one wire short.** B2 landed the document-side remap and the tab's entry point, but
+    `Scene2DHost.OnLevelSetChanged` never built the zMin map, so the chain existed and only a test ever
+    ran it — meanwhile the histogram moves the floor boundary all demo long, and a stroke whose anchor
+    stops matching any pane does not move, it vanishes. `RebaseAnnotationAnchors` closes it, keyed on
+    the **quantized** ZMin (a raw-Z key matches nothing, since `DrawTool` stamps
+    `MapSpace.QuantizeZ(pane.Level.ZMin)`). B3's checklist item is ticked with the evidence; T9's
+    annotation half is **not** built and is now recorded as an open FEATURE (design §0 O5) rather than
+    as blocked residue — `DocDelta.Replace` exists, so nothing blocks it but scheduling.
+
+12. **The golden harness rewrote its own fixture with CRLF on every Windows run.**
+    `JsonWriterOptions.NewLine` defaults to `Environment.NewLine`, against a corpus `.gitattributes`
+    pins to LF. Staging normalised it back, so nothing ever reached a commit and nothing ever stopped
+    happening. Fixed in `SceneFixtureSerializer`, with a test that asserts the bytes.
+
+13. **`scripts/test-app-suite.sh` could not run under bash.** Its partition indexed `CLASSES` from 1
+    (a zsh convention): under bash it skipped the first class and then aborted the last batch on
+    `unbound variable`, before the partition audit that exists to catch exactly that could run. Now
+    iterates the array with a 0-based counter — identical in both shells — and the shebang follows the
+    last zsh-ism out. Verified: three batches, audit **895 ran >= 869 listed**.
+
+### Not done
+
+14. **`Playback2DWasmBudgetTests` is `[Category("Budget")]`**, so CI's `playback2d-tests` lane
+    (`Category!=Budget`) excludes it and the `playback2d-budget` lane runs it. That matches every other
+    allocation gate in the repo; the plan did not say either way.
+
+15. **The two pre-existing inline `!IsBrowser()` call sites** (`MainViewModel.IsLiveSyncEnabled`,
+    `IsProcessingQueueEnabled`) were not consolidated into `ShellModuleFeatureGate`. D4 explicitly
+    scopes that out as a follow-up, and B5 ships no refactor it does not need.
+
+16. **`AppSettings.Playback2D.RenderBackend`** — see item 2.
+
+17. **`docs/playback2d-v2/old-control-removal.md` lists 10 file actions, not the plan's 8.** The plan's
+    table predates B1/B3/B4; grepping the tree found `Playback2DRenderer` (the toggle's own resolver)
+    and `MapAssetLoader`'s legacy `Bitmap` half, and corrected several line numbers and the reference
+    counts. It also splits `Playback2DGoldenCaptureTests` out into its own step: those goldens are
+    captured **from the pre-v2 control on purpose**, which is what makes them a parity baseline rather
+    than a snapshot of v2's own output, so retargeting them is a deliberate re-capture and not part of
+    a deletion commit.
+
+18. **The `wasm-build` CI job has not run on a GitHub runner**, only locally — it is added in the same
+    commit as the fixes it would have caught, so its first real execution is the next push.

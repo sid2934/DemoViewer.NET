@@ -1,6 +1,9 @@
 # Playback2D v2 — Architecture & Feature Design
 
-**Status:** Proposed (design review, revision 2) · **Branch:** `feature/playback2d-v2` · **Date:** 2026-08-24
+**Status:** **Implemented** — A1, B0–B5, C1 and C2 Stage 0 have landed on `feature/playback2d-v2`.
+Five exit criteria are **still open**; they are listed in [§0](#0-status--what-is-still-open) rather
+than in a plan appendix, because the next person to work on this needs to find them.
+· **Branch:** `feature/playback2d-v2` · **Design date:** 2026-08-24 · **Status updated:** 2026-08-25 (B5)
 
 This document is the design for the 2D playback window rework: drawable annotations (static and
 time-anchored), video export of the 2D playback, a proper multi-level map model, follow-player,
@@ -16,6 +19,31 @@ decision; the rest is the synthesized design.
 64-tick rate (§6), CPU/GPU render-surface providers usable with no UI window (§5.8), a parser-side
 `Pipeline` assembly and a `dv2d` CLI tool for headless rendering/export/benchmarking (§4), and a
 test/iteration story that executes directly against the core (§11).
+
+---
+
+## 0. Status — what is still open
+
+The nine phases are merged. The design's per-phase exit criteria are met **except** the five below.
+None of them blocks the release; all five are things a later contributor will otherwise rediscover
+from scratch, so they live here, with their owner and the measurement that closes each one.
+
+| # | Criterion | State | Owner / what closes it |
+|---|---|---|---|
+| **O1** | **1080p60 CPU export ≥ realtime** (§9, B4's row) | **Open — and the default moved instead.** Measured on `assets/tour/sample-de_nuke.dem`, shipped layer set, WebM/VP9: **109.8 fps at 1280×720** (1.83× realtime at 60 fps) and **58.4 fps at 1920×1080** (0.97×). B4 took the third of its R3 levers and made **720p the default export size**; 1080p is one click away and perfectly usable, it simply cannot promise "faster than watching it". | Closed either by CPU work on the layer stack, or by O2 — a GPU provider makes the 1080p number moot. Do not quietly re-default to 1080p without re-measuring. |
+| **O2** | **GPU export ≥ 2× realtime at 1080p** (§9, C2's row; transferred to B4 by coordinator decision 2) | **Open.** C2 shipped Stage 0 only: `GpuSurfaceProvider` exists and its ANGLE/D3D11 path is proven on real hardware, with cross-backend parity measured (worst ΔSSIM 0.98352, all divergence on anti-aliased marker rims). Stages 1–2 — flush/readback tuning, threshold calibration, throughput — are deferred to a scheduled spike. Today `SceneExportSession` **refuses** a non-CPU provider, because it awaits its sink between frames and `GpuSurfaceProvider` is thread-affine; making that work is a redesign of `RunAsync` and is the same work Stage 1 needs. | **C2 Stages 1–2.** The baseline to beat is already measured: `dv2d export --no-encode` renders **62.6 fps at 1080p** on `CpuRaster`. |
+| **O3** | **`duel-mirage-b` and `fitmap-mirage-eco` goldens** (§11's corpus) | **Open — blocked on an asset, not on code.** Both capture cases are written and skip cleanly; the only demo in the tree is `assets/tour/sample-de_nuke.dem`. `mirage-single-level` is absent for the same reason, so B3's "strip hidden on a single-level map" case is covered synthetically instead. | Whoever stages a de_mirage demo: run `Playback2DGoldenCaptureTests` with `DV_UPDATE_PLAYBACK2D_GOLDENS=1` and commit the pairs. The `nuke-multilevel` pair is committed and byte-exact, so the parity gate is real in the meantime. |
+| **O4** | **R2 scrub-latency measurement** (A1's risk register) | **Open.** A1's plan called for measuring perceived latency while dragging the scrub bar on a long demo, to decide whether A2 needs a coalescing/preview seek. Never taken — it needed a staged demo at the time, and the reference demo has since landed. | Anyone, in an hour: drag-scrub `assets/tour/sample-de_nuke.dem` (19 237 frames) end to end and record the seek-to-paint latency. The A2 decision it feeds stays open until then. |
+| **O5** | **Envelope drag handles on `AnnotationTrack`** (§12 Q3, B3's T9) | **Open — a feature, not residue.** B2 ships the annotation markers and envelope authoring through the toolbar (Always / Fade / Custom, "pin to now"); dragging a marker's ends to re-time it on the timeline is not built. It was blocked on B2's `DocDelta.Replace`, which now exists — so it is unblocked, small, and simply unscheduled. B5 did not take it because B5 ships no new user-facing behaviour. | **B3's owner**, as a follow-up. B3's plan carries the design sketch (`EnvelopeHitTest`, `EnvelopeDragSession`, `AnnotationTrackInteraction`) and `TickAxis` is already shipped for the drag math. |
+
+**Not open, recorded so nobody re-opens them:** the SkiaSharp-on-WASM question (B0's spike passed;
+the offscreen CPU provider works on the browser head, and B5 verified the whole app path there — see
+[`wasm-matrix.md`](wasm-matrix.md)); §12 Q1 (the seek core is a package type, nothing to extract);
+§12 Q3 (B2 ships the markers, B3 the drag handles).
+
+**Scheduled, not open:** deleting the pre-v2 control. §9 keeps it one release behind the toggle; the
+plan for removing it is [`old-control-removal.md`](old-control-removal.md), with its trigger
+conditions stated.
 
 ---
 
@@ -629,6 +657,13 @@ null-tolerated), `GpuSurfaceProvider` (browser surfaces belong to Avalonia's com
 provider is the only offscreen path there). The allocation-free render path is what keeps the single
 thread honest. Any new persisted settings keys must be added to `SettingsService.WriteInMemory`.
 
+**Verified, and the record is [`wasm-matrix.md`](wasm-matrix.md).** B5 published the head and ran it
+in a real browser with a real demo: the paragraph above holds, and three things it does not mention
+came out of the pass — the head needs `WasmBuildNative=true` and `PublishTrimmed=false` to boot at
+all, baked radar art is a further degradation (there is no directory to load it from, so every level
+falls back to the grid), and `SettingsService.WriteInMemory` now has a reflection-driven test making
+the "any new persisted key" rule mechanical rather than remembered.
+
 ---
 
 ## 9. Migration plan
@@ -661,6 +696,12 @@ C builds the headless/CLI/GPU surface on top of B and can run in parallel with B
 
 **Honest total: ~15.5 person-weeks** (~12.5 on the A+B critical path; C overlaps B2–B4). Track A
 lands first and independently; every B phase ships behind its gate.
+
+**As built:** every row above has landed except C2's Stages 1–2. The two exit criteria in this table
+that are not met — B4's "1080p ≥ realtime on CPU" and C2's "GPU ≥ 2× realtime" — are
+[§0](#0-status--what-is-still-open) O1 and O2, with their measurements. The per-phase
+`Implementation notes (deviations)` sections in `plans/*.md` are the record of what each phase
+actually shipped and where it departed from its plan.
 
 ---
 
@@ -724,6 +765,7 @@ lands first and independently; every B phase ships behind its gate.
 3. ~~Whether `AnnotationTrack` envelope drag-editing lands in B2 or B3 (UX dependency on timeline).~~
    **Resolved in B2** (plan decision D8): B2 ships `AnnotationTrack`'s markers plus envelope authoring
    through the toolbar (Always / Fade / Custom, and "pin to now"); **B3 adds drag-to-edit** on the
-   timeline, using the `DocDelta.Replace` API B2 exports.
+   timeline, using the `DocDelta.Replace` API B2 exports. *The question is resolved; the drag-to-edit
+   half is not built — see [§0](#0-status--what-is-still-open) O5.*
 4. WebCodecs sink priority for WASM export — after desktop ships, gauge demand.
 5. Voice-audio sync (CS:DM's beloved feature) — natural future track/layer; out of scope here.
