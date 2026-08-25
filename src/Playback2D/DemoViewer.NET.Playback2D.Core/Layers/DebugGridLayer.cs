@@ -98,7 +98,8 @@ internal sealed class DebugGridLayer : ISceneLayer
         {
             double worldX = i * GridStepWorld;
             (double sx, _) = t.WorldToScreen(worldX, 0);
-            canvas.DrawLine((float)sx, bounds.Top, (float)sx, bounds.Bottom, i % MajorEvery == 0 ? major : minor);
+            float x = PixelCentre(sx);
+            canvas.DrawLine(x, bounds.Top, x, bounds.Bottom, i % MajorEvery == 0 ? major : minor);
         }
 
         long firstY = (long)Math.Floor(minY / GridStepWorld);
@@ -107,9 +108,29 @@ internal sealed class DebugGridLayer : ISceneLayer
         {
             double worldY = i * GridStepWorld;
             (_, double sy) = t.WorldToScreen(0, worldY);
-            canvas.DrawLine(bounds.Left, (float)sy, bounds.Right, (float)sy, i % MajorEvery == 0 ? major : minor);
+            float y = PixelCentre(sy);
+            canvas.DrawLine(bounds.Left, y, bounds.Right, y, i % MajorEvery == 0 ? major : minor);
         }
     }
+
+    /// <summary>
+    ///     Snaps a 1px un-antialiased stroke onto the centre of the pixel column or row it falls in.
+    ///     <para>
+    ///         Without this, a line whose screen coordinate lands on an exact integer covers two pixels by
+    ///         exactly half each, and <i>which</i> one wins is a rasteriser tie-break: software raster
+    ///         picks the right/lower pixel and ANGLE picks the left/upper one. That is a 1px displacement
+    ///         with no defensible answer, and C2's cross-backend parity suite found it on the origin
+    ///         cross of every fixture.
+    ///     </para>
+    ///     <para>
+    ///         Snapping changes nothing anywhere else: an un-antialiased hairline already resolves to the
+    ///         pixel containing its coordinate, which is exactly the pixel this centres it in — the
+    ///         committed CPU goldens are byte-identical across this change, and that is the check that
+    ///         proves it.
+    ///     </para>
+    /// </summary>
+    /// <param name="screen">The line's screen coordinate along the axis it is perpendicular to.</param>
+    private static float PixelCentre(double screen) => MathF.Floor((float)screen) + 0.5f;
 
     private static void DrawMarkers(SKCanvas canvas, SceneRenderContext ctx)
     {
