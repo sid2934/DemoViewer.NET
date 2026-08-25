@@ -2,90 +2,37 @@
 
 using Avalonia.Media.Imaging;
 using CS2DemoKit.Analysis.Visibility;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Assets;
 
 #endregion
 
 namespace DemoViewer.NET.Modules.Playback2D;
 
-// The bitmap half of map-asset loading. Locating the bundle directory, and parsing bundle.json into
-// the MapAssetBundle DTOs, live in CS2DemoKit.Analysis.Visibility (MapAssetBundleReader) — that half
-// is BCL-only and ships in the package. What stays here is the part that cannot: decoding the radar
-// images into Avalonia Bitmaps. The APP is VRF-free either way — it consumes baked, ready-to-use
-// artifacts (PNG + JSON), never the CS2 assets directly.
+// What is left of map-asset loading in the App after B1's T5. Locating the bundle directory and
+// parsing bundle.json live in CS2DemoKit.Analysis.Visibility (MapAssetBundleReader); decoding the
+// radar layers into SKImages moved to DemoViewer.NET.Playback2D.Pipeline.Assets.MapAssetPipeline,
+// which is what makes the scene loadable without a windowing system.
+//
+// Two Avalonia-shaped jobs remain, both deliberate (plan decision D-16):
+//   * the library card thumbnail, which needs Bitmap.DecodeToWidth's downscale-on-decode and has no
+//     SKImage analogue;
+//   * radar bitmaps for the LEGACY Playback2DViewport, which draws through a DrawingContext and
+//     cannot consume an SKImage. That cache is deleted with the legacy control in B5.
 
 /// <summary>
-///     A loaded map-asset bundle: the parsed <see cref="MapAssetBundle" /> plus the decoded radar
-///     <see cref="Bitmap" />s (by image name). Exposes the nav floor bands as <see cref="FloorSlice" />s
-///     for the viewport's <c>FloorSplitter</c>.
-/// </summary>
-public sealed class LoadedMapAsset : IDisposable
-{
-    private bool _disposed;
-
-    public required MapAssetBundle Bundle { get; init; }
-
-    /// <summary>Decoded radar bitmaps by file name (best-effort — empty if the platform can't decode).</summary>
-    public required IReadOnlyDictionary<string, Bitmap> RadarBitmaps { get; init; }
-
-    /// <summary>The directory the bundle was loaded from (holds sibling artifacts like <c>collision.tris</c>).</summary>
-    public required string BakedDir { get; init; }
-
-    /// <summary>The bundle's nav-derived floor bands as <see cref="FloorSlice" />s (low→high).</summary>
-    public IReadOnlyList<FloorSlice> Floors =>
-        Bundle.Floors.Select(f => new FloorSlice(f.MinZ, f.MaxZ)).ToList();
-
-    /// <summary>Absolute path to the baked collision.tris blob, or null if the bundle has no collision mesh.</summary>
-    public string? CollisionTrisPath =>
-        Bundle.CollisionMesh is { } cm ? Path.Combine(BakedDir, cm.File) : null;
-
-    /// <summary>
-    ///     Releases the decoded radar bitmaps. This is one of the few places in the app where
-    ///     <see cref="IDisposable" /> genuinely buys something: an Avalonia <see cref="Bitmap" /> is
-    ///     Skia-backed, so its pixel buffer is UNMANAGED memory — invisible to <c>gc-heap-size</c>, and
-    ///     reclaimed only via the finalizer queue, which the GC has little pressure signal to run. A CS2
-    ///     radar is 1024×1024 RGBA ≈ 4 MB decoded, one or two per map, and a map swap used to orphan the
-    ///     previous set without disposing it.
-    ///     <para>
-    ///         Idempotent: <see cref="Playback2DTabViewModel" /> disposes on map change and on unload, and
-    ///         those can overlap.
-    ///     </para>
-    /// </summary>
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        foreach (Bitmap bitmap in RadarBitmaps.Values)
-        {
-            bitmap.Dispose();
-        }
-    }
-}
-
-/// <summary>
-///     Loads a baked map-asset bundle for a map — <see cref="MapAssetBundleReader" /> for the
-///     directory walk-up and the JSON, this type for the radar bitmaps. <b>Never throws</b>: a
-///     missing/malformed bundle returns null so the module degrades to its grid + Z-histogram
-///     fallback.
+///     Loads the lightweight radar thumbnail the library card uses as a background.
+///     <b>Never throws</b>: a missing bundle, an undecodable image or a headless environment all
+///     return null and the caller falls back to the accent card.
 /// </summary>
 public static class MapAssetLoader
 {
-    public static LoadedMapAsset? TryLoad(string? mapName)
-    {
-        string? dir = MapAssetBundleReader.FindBundleDirectory(mapName);
-        return dir is null ? null : TryLoadFromDirectory(dir);
-    }
-
     /// <summary>
-    ///     Loads JUST the map's primary radar image as a lightweight thumbnail (decoded to
-    ///     <paramref name="width" /> px wide), for the library card background. Null when the map has no baked
-    ///     bundle / radar (dev cache miss) or decoding fails — callers fall back to the accent card. Far cheaper
-    ///     than <see cref="TryLoad" />: one downscaled decode, no full-res bitmaps, floors or collision.
+    ///     Loads JUST the map's primary radar image, decoded to <paramref name="width" /> px wide. Far
+    ///     cheaper than a full bundle load: one downscaled decode, no full-res images, no floors, no
+    ///     collision mesh.
     /// </summary>
+    /// <param name="mapName">e.g. <c>de_mirage</c>.</param>
+    /// <param name="width">Target width in pixels.</param>
     public static Bitmap? TryLoadRadarThumbnail(string? mapName, int width)
     {
         string? dir = MapAssetBundleReader.FindBundleDirectory(mapName);
@@ -116,41 +63,73 @@ public static class MapAssetLoader
             return null; // undecodable / headless without imaging → accent fallback
         }
     }
+}
 
-    /// <summary>Loads a bundle from an explicit directory (used by tests). Null-graceful.</summary>
-    internal static LoadedMapAsset? TryLoadFromDirectory(string dir)
+/// <summary>
+///     Avalonia <see cref="Bitmap" />s for the legacy <see cref="Playback2DViewport" />, decoded lazily
+///     from a loaded bundle's directory.
+///     <para>
+///         <b>Why this exists rather than a second decode in the bundle.</b> The scene path owns
+///         <c>SKImage</c>s; a <c>DrawingContext</c> cannot draw one. Rather than have every map load pay
+///         for two full-resolution decodes (~4 MB each) so that a temporary escape hatch can render, the
+///         legacy control decodes its own copy on first use and only if the toggle is actually set.
+///         Deleted with the legacy control in B5.
+///     </para>
+/// </summary>
+internal sealed class LegacyRadarBitmapCache
+{
+    private readonly Dictionary<string, Bitmap?> _bitmaps = new(StringComparer.Ordinal);
+    private string? _bakedDir;
+
+    /// <summary>
+    ///     The decoded bitmap for one of the asset's radar images, or null when it cannot be decoded.
+    ///     Switching to a different bundle directory drops the previous map's bitmaps.
+    /// </summary>
+    /// <param name="asset">The loaded bundle the image belongs to.</param>
+    /// <param name="imageName">The bundle-relative image file name.</param>
+    public Bitmap? Get(LoadedMapAsset asset, string imageName)
     {
-        if (MapAssetBundleReader.TryRead(dir) is not { } bundle)
+        ArgumentNullException.ThrowIfNull(asset);
+
+        if (!string.Equals(_bakedDir, asset.BakedDir, StringComparison.Ordinal))
         {
-            return null; // missing / malformed / unreadable → fall back
+            Clear();
+            _bakedDir = asset.BakedDir;
         }
 
-        // Radar bitmaps are best-effort: decode each independently so a decode failure (or a headless env
-        // without an imaging platform) still yields the floor metadata the FloorSplitter needs.
-        Dictionary<string, Bitmap> bitmaps = new();
-        foreach (string img in bundle.RadarImages)
+        if (_bitmaps.TryGetValue(imageName, out Bitmap? cached))
         {
-            string path = Path.Combine(dir, img);
-            if (!File.Exists(path))
-            {
-                continue;
-            }
+            return cached;
+        }
 
+        Bitmap? decoded = null;
+        string path = Path.Combine(asset.BakedDir, imageName);
+        if (File.Exists(path))
+        {
             try
             {
-                bitmaps[img] = new Bitmap(path);
+                decoded = new Bitmap(path);
             }
             catch (Exception)
             {
-                // ignore — floors/transform still usable without the picture
+                decoded = null; // headless without imaging, or a corrupt PNG — draw the grid instead
             }
         }
 
-        return new LoadedMapAsset
+        // A null is cached too: a failed decode must not be retried once per band per frame.
+        _bitmaps[imageName] = decoded;
+        return decoded;
+    }
+
+    /// <summary>Releases every decoded bitmap. Called when the control detaches from the visual tree.</summary>
+    public void Clear()
+    {
+        foreach (Bitmap? bitmap in _bitmaps.Values)
         {
-            Bundle = bundle,
-            RadarBitmaps = bitmaps,
-            BakedDir = dir
-        };
+            bitmap?.Dispose();
+        }
+
+        _bitmaps.Clear();
+        _bakedDir = null;
     }
 }

@@ -11,6 +11,7 @@ using Avalonia.Styling;
 using Avalonia;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Theming;
 
@@ -86,6 +87,11 @@ public sealed class Playback2DViewport : Control
     private readonly List<(PlayerMarker Viewer, PlayerMarker Target)> _sightlines = new();
     private readonly List<Vector4> _smokeScratch = new(4);
     private readonly Dictionary<int, (float X, float Y)> _smoothedPos = new(16);
+
+    // Avalonia bitmaps for THIS control only. The scene path owns SKImages and a DrawingContext cannot
+    // draw one; rather than make every map load pay for two full-resolution decodes so a temporary
+    // escape hatch can render, the legacy control decodes its own on first use. Deleted with it in B5.
+    private readonly LegacyRadarBitmapCache _legacyRadar = new();
 
     private readonly Typeface _typeface = new("Consolas,Menlo,monospace");
     private readonly List<(PlayerMarker Marker, VisibilityAnalyzer.Vantage Vantage)> _visionScratch = new(12);
@@ -281,6 +287,7 @@ public sealed class Playback2DViewport : Control
         base.OnDetachedFromVisualTree(e);
         ActualThemeVariantChanged -= OnThemeVariantChanged;
         AttachVm(null);
+        _legacyRadar.Clear();
         _frameLoopArmed = false;
         _havePrevFrameTime = false;
     }
@@ -1073,7 +1080,7 @@ public sealed class Playback2DViewport : Control
         }
 
         string? image = ResolveRadarImage(asset, sliceIndex);
-        if (image is null || !asset.RadarBitmaps.TryGetValue(image, out Bitmap? bitmap))
+        if (image is null || _legacyRadar.Get(asset, image) is not { } bitmap)
         {
             return false;
         }

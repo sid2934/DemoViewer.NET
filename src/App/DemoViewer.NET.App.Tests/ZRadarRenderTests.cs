@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Core;
 using System.Runtime.InteropServices;
 using Avalonia;
@@ -150,7 +151,7 @@ public class ZRadarRenderTests
             }
 
             floors = vm.AuthoritativeFloors?.Count ?? 0;
-            bitmaps = vm.MapAsset!.RadarBitmaps.Count;
+            bitmaps = vm.MapAsset!.RadarImages.Count;
             images = vm.MapAsset.Bundle.RadarImages;
             transform = vm.MapAsset.Bundle.Transform;
             bounds = vm.MapAsset.Bundle.Bounds;

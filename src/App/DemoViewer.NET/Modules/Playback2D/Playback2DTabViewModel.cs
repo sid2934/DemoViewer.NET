@@ -15,6 +15,7 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Pipeline;
+using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services;
 
 #endregion
@@ -202,6 +203,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     [ObservableProperty]
     private string _status = "2D Playback — inactive";
+
+    // The current map's radar layers, described once per map asset (see ReplaceMapAsset).
+    private IReadOnlyList<MapRadarImage> _radars = [];
 
     private int _tickRate = 64;
 
@@ -856,7 +860,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             return;
         }
 
-        ReplaceMapAsset(MapAssetLoader.TryLoad(name));
+        ReplaceMapAsset(MapAssetPipeline.TryLoad(name));
         LoadedMapNameForTest = name;
 
         // Map changed → the old collision engine no longer applies. Drop it and (re)load if Vision is on.
@@ -866,20 +870,26 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     /// <summary>
-    ///     Swaps in a new map asset and DISPOSES the one it replaces. The radar bitmaps are Skia-backed, so
+    ///     Swaps in a new map asset and DISPOSES the one it replaces. The radar images are Skia-backed, so
     ///     their pixel buffers are unmanaged (~4 MB each) — simply dropping the reference leaks them until a
     ///     finalizer happens to run, which is why a map swap used to grow native memory every time.
     ///     <para>
-    ///         The old asset is disposed at Background priority rather than inline: the compositor may still
-    ///         be holding it for the frame currently being rendered, and this hands the release to a point
-    ///         where that frame has been submitted. Avalonia ref-counts the underlying bitmap impl, so this
-    ///         is belt-and-braces rather than load-bearing — but a torn frame is a nasty thing to debug.
+    ///         The old asset is disposed at Background priority rather than inline: the render thread may
+    ///         still be replaying a cached SKPicture that references one of these images for the frame in
+    ///         flight. B1 made that genuinely load-bearing rather than belt-and-braces — the render gate
+    ///         plus this one dispatcher hop is what covers the window.
     ///     </para>
     /// </summary>
     private void ReplaceMapAsset(LoadedMapAsset? next)
     {
         LoadedMapAsset? previous = MapAsset;
         MapAsset = next;
+
+        // Described ONCE per map, not per push: the frame publishes the same list instance every frame
+        // so SceneFrameBuilder's "map facts unchanged" short-circuit holds and the steady state stays
+        // allocation-free.
+        _radars = next is null ? [] : MapAssetPipeline.DescribeRadars(next);
+
         if (previous is null || ReferenceEquals(previous, next))
         {
             return;
@@ -1112,6 +1122,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             LabelForSlot = LabelFor,
             MapName = _context?.MapName,
             KillFeed = _killRows,
+            Radars = _radars,
             FollowSlot = FollowedSlot
         };
 
