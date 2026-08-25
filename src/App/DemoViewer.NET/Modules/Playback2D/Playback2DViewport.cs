@@ -46,7 +46,7 @@ public enum CameraMode
 ///     render frame; the smooth modes (Alive / Follow) lerp toward their target off the render loop, NOT the
 ///     per-tick push, and a manual gesture flips that slice to a free/manual camera.
 /// </summary>
-public sealed class Playback2DViewport : Control
+public sealed class Playback2DViewport : Control, IPlayback2DSurface
 {
     // Default fixed world rectangle drawn before any position is observed, e.g. [-3000,3000]^2.
     private const double DefaultWorldExtent = 3000;

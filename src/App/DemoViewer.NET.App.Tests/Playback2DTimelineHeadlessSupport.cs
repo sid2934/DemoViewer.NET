@@ -43,10 +43,24 @@ internal static class Playback2DTimelineHarness
         return (vm, ctx);
     }
 
-    /// <summary>Shows a window hosting the 2D view and pumps enough render frames for layout to settle.</summary>
+    /// <summary>
+    ///     Shows a window hosting the 2D view and pumps enough render frames for layout to settle.
+    ///     <para>
+    ///         The surface kind is pinned rather than left to <c>Playback2DRenderer.Selected</c>: these
+    ///         are the CARRIED-FORWARD suites, whose job is to prove the pre-v2 control still works
+    ///         behind B1's toggle (plan §6.3). Tests that want the v2 host pass
+    ///         <see cref="Playback2DRendererKind.Scene" /> explicitly.
+    ///     </para>
+    /// </summary>
+    /// <param name="vm">The activated tab.</param>
+    /// <param name="width">Window width.</param>
+    /// <param name="height">Window height.</param>
+    /// <param name="renderer">Which surface to mount.</param>
     public static (Window Window, Playback2DView View) Show(Playback2DTabViewModel vm,
-        int width = 1000, int height = 700)
+        int width = 1000, int height = 700,
+        Playback2DRendererKind renderer = Playback2DRendererKind.Legacy)
     {
+        Playback2DRenderer.ResetForTest(renderer);
         Playback2DView view = new()
         {
             DataContext = vm
@@ -76,9 +90,23 @@ internal static class Playback2DTimelineHarness
         view.GetVisualDescendants().OfType<TimelineControl>().FirstOrDefault()
         ?? throw new InvalidOperationException("TimelineControl not found in the view's visual tree.");
 
+    /// <summary>The mounted surface, whichever kind it is.</summary>
+    /// <param name="view">The 2D view.</param>
+    public static Control Surface(Playback2DView view) =>
+        view.FindControl<ContentControl>("ViewportHost")?.Content as Control
+        ?? throw new InvalidOperationException("no surface mounted in ViewportHost");
+
+    /// <summary>The mounted surface as the legacy viewport. Throws when the v2 host is mounted.</summary>
+    /// <param name="view">The 2D view.</param>
     public static Playback2DViewport Viewport(Playback2DView view) =>
-        view.FindControl<Playback2DViewport>("Viewport")
-        ?? throw new InvalidOperationException("viewport not found");
+        Surface(view) as Playback2DViewport
+        ?? throw new InvalidOperationException("the legacy viewport is not mounted");
+
+    /// <summary>The mounted surface as the v2 host. Throws when the legacy viewport is mounted.</summary>
+    /// <param name="view">The 2D view.</param>
+    public static Scene2DHost SceneHost(Playback2DView view) =>
+        Surface(view) as Scene2DHost
+        ?? throw new InvalidOperationException("the scene host is not mounted");
 
     public static Panel ScrubBar(TimelineControl control) =>
         control.FindControl<Panel>("ScrubBar")

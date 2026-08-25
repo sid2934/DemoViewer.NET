@@ -1,0 +1,100 @@
+#region
+
+using DemoViewer.NET.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+#endregion
+
+namespace DemoViewer.NET.Modules.Playback2D;
+
+/// <summary>The two things that can sit in the Playback2D tab's viewport slot.</summary>
+public enum Playback2DRendererKind
+{
+    /// <summary>The v2 compositor host. The default.</summary>
+    Scene,
+
+    /// <summary>The pre-v2 <see cref="Playback2DViewport" />. A parity escape hatch, removed in B5.</summary>
+    Legacy
+}
+
+/// <summary>
+///     Both surfaces satisfy this, so the view's mode selector, follow funnel and Fit button drive
+///     either one without knowing which is mounted.
+/// </summary>
+public interface IPlayback2DSurface
+{
+    /// <summary>The active camera mode.</summary>
+    CameraMode Mode { get; set; }
+
+    /// <summary>The followed roster slot; -1 clears. Setting it implies follow mode.</summary>
+    int FollowSlot { set; }
+
+    /// <summary>Re-frames to the observed extent and clears manual overrides.</summary>
+    void FitToExtent();
+}
+
+/// <summary>
+///     Chooses which surface the tab mounts.
+///     <para>
+///         <b>Deliberately not a <c>FeatureCatalog</c> id.</b> Catalog ids are permanent persisted keys,
+///         and this toggle exists to be deleted in B5 when the legacy control goes (plan decision D-9).
+///         It is an environment variable for CI and bisecting, over a developer-mode-only setting.
+///     </para>
+///     <para>
+///         Resolved <b>once per process</b>: a mid-session flip would leave two surfaces disagreeing
+///         about camera state, and the whole point of the escape hatch is a clean A/B.
+///     </para>
+/// </summary>
+public static class Playback2DRenderer
+{
+    /// <summary>The environment variable, honoured on desktop and absent on WASM.</summary>
+    public const string EnvironmentVariable = "DV_PLAYBACK2D_RENDERER";
+
+    private static Playback2DRendererKind? _forced;
+    private static Playback2DRendererKind? _resolved;
+
+    /// <summary>
+    ///     Which surface to mount, in order: the environment variable, then
+    ///     <c>AppSettings.Playback2D.LegacyViewport</c>, then <see cref="Playback2DRendererKind.Scene" />.
+    /// </summary>
+    public static Playback2DRendererKind Selected => _forced ?? (_resolved ??= Resolve());
+
+    /// <summary>Test hook: pins the selection, or clears the pin when null.</summary>
+    /// <param name="forced">The kind to force, or null to restore normal resolution.</param>
+    internal static void ResetForTest(Playback2DRendererKind? forced)
+    {
+        _forced = forced;
+        _resolved = null;
+    }
+
+    private static Playback2DRendererKind Resolve()
+    {
+        string? env = Environment.GetEnvironmentVariable(EnvironmentVariable);
+        if (string.Equals(env, "legacy", StringComparison.OrdinalIgnoreCase))
+        {
+            return Playback2DRendererKind.Legacy;
+        }
+
+        if (string.Equals(env, "scene", StringComparison.OrdinalIgnoreCase))
+        {
+            return Playback2DRendererKind.Scene;
+        }
+
+        // Settings are optional here on purpose: the surface is constructed by a control, which a
+        // headless test builds with no container at all. A missing service means the default, and a
+        // settings layer that cannot bind must never stop the tab from opening.
+        try
+        {
+            if (App.Services?.GetService<SettingsService>()?.Current.Playback2D.LegacyViewport == true)
+            {
+                return Playback2DRendererKind.Legacy;
+            }
+        }
+        catch (Exception)
+        {
+            // fall through to the default
+        }
+
+        return Playback2DRendererKind.Scene;
+    }
+}

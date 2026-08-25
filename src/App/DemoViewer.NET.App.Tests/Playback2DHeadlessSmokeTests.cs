@@ -75,6 +75,9 @@ public class Playback2DHeadlessSmokeTests
             await Assert.That(vm.Markers.Count).IsEqualTo(2);
 
             // Render the View standalone.
+            // Carried-forward suite: pin the LEGACY surface (plan §6.3). B1 mounts the surface in
+            // code, so a view built without this would get the v2 host.
+            Playback2DRenderer.ResetForTest(Playback2DRendererKind.Legacy);
             Playback2DView view = new()
             {
                 DataContext = vm

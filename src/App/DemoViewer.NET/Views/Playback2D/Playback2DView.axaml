@@ -96,7 +96,10 @@
     <Grid ColumnDefinitions="*,4,320">
         <!-- Left: custom-drawn viewport (grid + markers + floor sections) over the docked timeline. -->
         <Grid Grid.Column="0" RowDefinitions="*,Auto">
-            <p2d:Playback2DViewport Grid.Row="0" x:Name="Viewport" />
+            <!-- The surface is mounted in code (Playback2DRenderer.Selected): Scene2DHost by default,
+                 the pre-v2 Playback2DViewport behind the DV_PLAYBACK2D_RENDERER escape hatch. Both
+                 satisfy IPlayback2DSurface, so everything below drives either one. -->
+            <ContentControl Grid.Row="0" x:Name="ViewportHost" />
 
             <!-- Transport / status overlay (bottom-left). -->
             <Border Grid.Row="0" HorizontalAlignment="Left" VerticalAlignment="Bottom"

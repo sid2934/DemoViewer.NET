@@ -63,6 +63,9 @@ public sealed class AppSettings
     /// <summary>Idle-mode configuration (auto-close the open demo after inactivity to conserve RAM).</summary>
     public IdleSettings Idle { get; set; } = new();
 
+    /// <summary>The 2D Playback module's settings. ONE section for the whole module.</summary>
+    public Playback2DSettings Playback2D { get; set; } = new();
+
     /// <summary>
     ///     The app version (x.y.z) whose release notes the user has been shown — the post-update
     ///     "What's new" gate. Null until a launch records it. Compared against the running version at
@@ -369,4 +372,32 @@ public enum UserCategory
 
     /// <summary>Developer — everything, including parser/RE workbenches.</summary>
     Developer
+}
+
+/// <summary>
+///     Configuration for the 2D Playback module. Binder-safe.
+///     <para>
+///         <b>One section for the whole module.</b> B2 (annotations), B3 (levels), B4 (export) and C2
+///         (render backend) each ADD properties here rather than creating a sibling section — the
+///         canonical property list lives in <c>docs/playback2d-v2/plans/00-overview.md</c> §3.10, and a
+///         second section would split one feature's state across two places in the file.
+///     </para>
+///     <para>
+///         Every property must also be flattened into <c>SettingsService.WriteInMemory</c>, or writes
+///         vanish silently on WASM (design §5.4, §8) — there is no file there, only the in-memory
+///         provider that method populates.
+///     </para>
+/// </summary>
+public sealed class Playback2DSettings
+{
+    /// <summary>
+    ///     Mounts the pre-v2 <c>Playback2DViewport</c> instead of the v2 compositor host.
+    ///     <para>
+    ///         An internal parity escape hatch for one release, then deleted together with the old
+    ///         control in B5. Deliberately NOT a <c>FeatureCatalog</c> id: catalog ids are permanent
+    ///         persisted keys and this is temporary by design (plan decision D-9). The
+    ///         <c>DV_PLAYBACK2D_RENDERER</c> environment variable overrides it, for CI and bisecting.
+    ///     </para>
+    /// </summary>
+    public bool LegacyViewport { get; set; }
 }

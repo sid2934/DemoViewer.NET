@@ -23,6 +23,10 @@
         <PackageReference Include="Avalonia.Themes.Fluent"/>
         <PackageReference Include="Avalonia.Fonts.Inter"/>
         <PackageReference Include="Avalonia.AvaloniaEdit"/>
+        <!-- ISkiaSharpApiLeaseFeature for Scene2DHost's custom draw operation. Present transitively via
+             the Desktop and Browser heads, but the type needs a direct compile-time reference here.
+             SkiaSharp itself is a DERIVED pin on this package's version — see Directory.Packages.props. -->
+        <PackageReference Include="Avalonia.Skia"/>
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
         <PackageReference Include="Avalonia.Diagnostics">
             <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>

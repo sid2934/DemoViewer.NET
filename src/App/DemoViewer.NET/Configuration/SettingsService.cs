@@ -430,7 +430,11 @@ public sealed class SettingsService
             new KeyValuePair<string, string?>("ProcessingQueue:MaxQueueSize",
                 settings.ProcessingQueue.MaxQueueSize.ToString(CultureInfo.InvariantCulture)),
             new KeyValuePair<string, string?>("ProcessingQueue:MaxConcurrency",
-                settings.ProcessingQueue.MaxConcurrency.ToString(CultureInfo.InvariantCulture))
+                settings.ProcessingQueue.MaxConcurrency.ToString(CultureInfo.InvariantCulture)),
+            // Playback2D: every property of the section is flattened here. On WASM there is no file,
+            // so a key missing from this list is a setting that silently forgets itself on reload.
+            new KeyValuePair<string, string?>("Playback2D:LegacyViewport",
+                settings.Playback2D.LegacyViewport ? "true" : "false")
         };
 
         for (int i = 0; i < settings.Library.Folders.Length; i++)

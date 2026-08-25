@@ -24,13 +24,25 @@ public partial class Playback2DView : UserControl
     private readonly TextBlock? _mapApproxNote;
     private readonly TextBlock? _modeLabel;
     private readonly MenuFlyout? _modeMenuFlyout;
-    private readonly Playback2DViewport? _viewport;
+    private readonly IPlayback2DSurface? _surface;
     private Playback2DTabViewModel? _boundViewModel;
 
     public Playback2DView()
     {
         InitializeComponent();
-        _viewport = this.FindControl<Playback2DViewport>("Viewport");
+
+        // The surface is chosen once per process (env var → developer setting → Scene) and mounted
+        // here rather than declared in XAML, which is what lets the pre-v2 control stay live behind the
+        // toggle for one release without a second view file.
+        Control surface = Playback2DRenderer.Selected == Playback2DRendererKind.Legacy
+            ? new Playback2DViewport()
+            : new Scene2DHost();
+        _surface = (IPlayback2DSurface)surface;
+        if (this.FindControl<ContentControl>("ViewportHost") is { } slot)
+        {
+            slot.Content = surface;
+        }
+
         _followMenuItem = this.FindControl<MenuItem>("FollowMenuItem");
         _modeLabel = this.FindControl<TextBlock>("ModeLabel");
         _mapApproxNote = this.FindControl<TextBlock>("MapApproxNote");
@@ -98,7 +110,7 @@ public partial class Playback2DView : UserControl
         }
     }
 
-    private void OnFitRequested() => _viewport?.FitToExtent();
+    private void OnFitRequested() => _surface?.FitToExtent();
 
     // Mirrors the VM's single follow funnel onto the control. Setting FollowSlot implies FollowPlayer
     // mode; -1 clears the follow and re-fits.
@@ -106,18 +118,18 @@ public partial class Playback2DView : UserControl
     {
         if (slot < 0)
         {
-            if (_viewport is not null)
+            if (_surface is not null)
             {
-                _viewport.FollowSlot = -1;
+                _surface.FollowSlot = -1;
             }
 
             SetMode(CameraMode.Fit);
             return;
         }
 
-        if (_viewport is not null)
+        if (_surface is not null)
         {
-            _viewport.FollowSlot = slot;
+            _surface.FollowSlot = slot;
         }
 
         string display = _boundViewModel?.SelectedPlayer?.Name is { Length: > 0 } name
@@ -191,13 +203,13 @@ public partial class Playback2DView : UserControl
     // Left-click the main button = apply-once Fit (the original behaviour); also resets the mode to Fit.
     private void OnFitClick(object? sender, RoutedEventArgs e)
     {
-        _viewport?.FitToExtent();
+        _surface?.FitToExtent();
         SetMode(CameraMode.Fit);
     }
 
     private void OnModeFit(object? sender, RoutedEventArgs e)
     {
-        _viewport?.FitToExtent();
+        _surface?.FitToExtent();
         SetMode(CameraMode.Fit);
     }
 
@@ -207,9 +219,9 @@ public partial class Playback2DView : UserControl
 
     private void SetMode(CameraMode mode)
     {
-        if (_viewport is not null)
+        if (_surface is not null)
         {
-            _viewport.Mode = mode;
+            _surface.Mode = mode;
         }
 
         if (_modeLabel is not null)

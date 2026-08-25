@@ -112,6 +112,28 @@ internal sealed class Playback2DFakeContext : IModuleContext
         Advanced?.Invoke(new FakeSnapshot(frameIndex, tick, Entities, _players));
     }
 
+    /// <summary>
+    ///     Pushes one snapshot of ALIVE players at explicit world positions, advancing the frame and
+    ///     tick. The default <see cref="AddPlayer" /> states carry a field-less pawn, which the scene
+    ///     builder correctly reads as "not alive" — no discs, no rings, nothing to look at. This is the
+    ///     entry point the render tests use.
+    /// </summary>
+    /// <param name="markers">Slot, team, world X/Y/Z and yaw per player.</param>
+    public void PushMarkers(params (int Slot, int Team, float X, float Y, float Z, float Yaw)[] markers)
+    {
+        ArgumentNullException.ThrowIfNull(markers);
+
+        List<IPlayerState> states = new(markers.Length);
+        foreach ((int slot, int team, float x, float y, float z, float yaw) in markers)
+        {
+            states.Add(LivePlayerState.Alive(slot, team, x, y, z, yaw));
+        }
+
+        CurrentFrameIndex++;
+        CurrentTick += 2;
+        Advanced?.Invoke(new FakeSnapshot(CurrentFrameIndex, CurrentTick, Entities, states));
+    }
+
     public void RaiseDemoReset() => DemoReset?.Invoke();
 
     private sealed class FakeSnapshot(
@@ -143,6 +165,62 @@ internal sealed class Playback2DFakeContext : IModuleContext
 
         public bool TryGet<T>(string fieldPath, out T value)
         {
+            value = default!;
+            return false;
+        }
+    }
+
+    /// <summary>A live pawn with the handful of fields the scene builder actually reads.</summary>
+    private sealed class LivePlayerState : IPlayerState
+    {
+        private LivePlayerState(int slot, int team, IReadOnlyEntity pawn, IReadOnlyEntity controller,
+            (float X, float Y, float Z) position)
+        {
+            Slot = slot;
+            Team = team;
+            Pawn = pawn;
+            Controller = controller;
+            WorldPosition = position;
+        }
+
+        public int Slot { get; }
+        public int Team { get; }
+        public bool HasLivePawn => true;
+        public IReadOnlyEntity? Pawn { get; }
+        public IReadOnlyEntity? Controller { get; }
+        public (float X, float Y, float Z)? WorldPosition { get; }
+
+        public static LivePlayerState Alive(int slot, int team, float x, float y, float z, float yaw)
+        {
+            FieldEntity pawn = new("CCSPlayerPawn");
+            pawn.Fields["m_iHealth"] = 100;
+            pawn.Fields["m_iShotsFired"] = 0;
+            pawn.Fields["m_lifeState"] = 0;
+            pawn.Fields["m_flFlashDuration"] = 0f;
+            pawn.Fields["m_angEyeAngles"] = new System.Numerics.Vector3(0, yaw, 0);
+            pawn.Fields["m_ArmorValue"] = 100;
+
+            FieldEntity controller = new("CCSPlayerController");
+            return new LivePlayerState(slot, team, pawn, controller, (x, y, z));
+        }
+    }
+
+    private sealed class FieldEntity(string className) : IReadOnlyEntity
+    {
+        public Dictionary<string, object?> Fields { get; } = [];
+        public string ClassName => className;
+        public int Serial => 1;
+        public bool IsInPvs => true;
+        public object? this[string fieldPath] => Fields.GetValueOrDefault(fieldPath);
+
+        public bool TryGet<T>(string fieldPath, out T value)
+        {
+            if (Fields.TryGetValue(fieldPath, out object? found) && found is T typed)
+            {
+                value = typed;
+                return true;
+            }
+
             value = default!;
             return false;
         }
