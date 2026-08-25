@@ -14,6 +14,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The real-GPU lane below is opt-in and has no other trigger.
+  workflow_dispatch:
 
 # No credentials needed to restore: every dependency comes from nuget.org.
 permissions:
@@ -58,4 +60,83 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1
 
       - name: Playback2D core + pipeline tests (direct execution, no Avalonia)
+        run: dotnet test src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
+
+  # Render-backend correctness (docs/playback2d-v2/plans/C2-gpu-provider.md §8.4).
+  #
+  # Deliberately narrow: it runs ONLY the Playback2D test project, which parses no demos and allocates
+  # no multi-GB ParsedDemo graphs — so it does NOT inherit the OOM problem that keeps the App UI suite
+  # out of CI. Hosted runners have no GPU, but they DO exercise the real GPU code paths: Windows runs
+  # ANGLE over D3D11 WARP, Linux runs EGL over llvmpipe. These lanes gate CORRECTNESS AND PERCEPTUAL
+  # PARITY ONLY. The >=2x-realtime throughput number is gated on the opt-in self-hosted lane below and
+  # never here — a software rasteriser's frames-per-second means nothing.
+  #
+  # A lane that finds no GPU backend SKIPS its GPU cases (SkipTestException) and stays green. That is
+  # the design's rule, not a gap: "CPU provider is the contract baseline — GPU is opportunistic"
+  # (design §10 risk 7). The second pass then forces the CPU path back on, which is what proves the
+  # fallback is a real, exercised path rather than a branch that merely compiles.
+  render-backends:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            backend: egl-llvmpipe
+          - os: windows-latest
+            backend: angle-warp
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # Nerdbank.GitVersioning needs full history
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # libfontconfig1 is the SkiaSharp native's dependency (see playback2d-tests above); libegl1 and
+      # libgles2 are what the surfaceless EGL path binds. mesa-utils is only for reading a failing
+      # probe out of the log.
+      - name: Install native deps (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libfontconfig1 libegl1 libgles2 libgl1 libglx-mesa0 mesa-utils
+
+      - name: Render-backend tests (CPU contract + cross-backend parity)
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          GALLIUM_DRIVER: llvmpipe
+        run: dotnet test src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
+
+      - name: Render-backend tests (GPU path forced off)
+        env:
+          DV2D_RENDER_BACKEND: cpu
+        run: dotnet test src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: render-diffs-${{ matrix.backend }}
+          path: artifacts/bin/DemoViewer.NET.Playback2D.Tests/**/artifacts/**/*.png
+          if-no-files-found: ignore
+
+  # Real-GPU lane. Opt-in only: label a PR `gpu-lane` or dispatch the workflow by hand. It needs a
+  # self-hosted runner carrying the labels below; where none exists the job is simply never scheduled,
+  # which is exactly why it must NEVER be in the required-checks set.
+  render-backends-gpu:
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'gpu-lane') }}
+    runs-on: [self-hosted, windows, gpu]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # force-gpu, so the lane FAILS rather than silently skipping if the runner lost its GPU. That is
+      # the whole reason RenderBackendPreference.ForceGpu exists.
+      - name: GPU parity + determinism (must not skip)
+        env:
+          DV2D_RENDER_BACKEND: force-gpu
         run: dotnet test src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release

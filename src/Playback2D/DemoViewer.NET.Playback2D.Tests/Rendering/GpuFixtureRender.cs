@@ -27,16 +27,28 @@ internal static class GpuFixtureRender
     ///     Skips the calling test when this machine has no GPU backend, naming the probe's reason so a
     ///     skipped run is still a diagnosis. A no-GPU machine reaching this cleanly is itself the test
     ///     that the probe reports failure as data rather than throwing.
+    ///     <para>
+    ///         <c>DV2D_RENDER_BACKEND=force-gpu</c> turns the skip into a failure. That is the whole
+    ///         point of <see cref="RenderBackendPreference.ForceGpu" />: the self-hosted lane exists to
+    ///         assert it exercised the GPU, and a lane that goes green having silently skipped every GPU
+    ///         case measured nothing while claiming to.
+    ///     </para>
     /// </summary>
     public static RenderSurfaceProbe RequireGpu()
     {
         RenderSurfaceProbe probe = RenderSurfaceProviderFactory.Probe();
-        if (!probe.GpuAvailable)
+        if (probe.GpuAvailable)
         {
-            throw new SkipTestException($"No GPU surface backend on this machine: {probe.Reason}");
+            return probe;
         }
 
-        return probe;
+        if (RenderBackendPreferenceParser.FromEnvironment() == RenderBackendPreference.ForceGpu)
+        {
+            throw new InvalidOperationException(
+                $"force-gpu was requested but no GPU surface backend is available: {probe.Reason}");
+        }
+
+        throw new SkipTestException($"No GPU surface backend on this machine: {probe.Reason}");
     }
 
     /// <summary>Creates a GPU provider on the calling thread, or skips with the failure reason.</summary>
