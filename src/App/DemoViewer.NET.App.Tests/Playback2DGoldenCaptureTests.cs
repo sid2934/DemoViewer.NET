@@ -66,8 +66,10 @@ public class Playback2DGoldenCaptureTests
                 "assets/tour/sample-de_nuke.dem"
             ]);
 
+    // Named for the fixture it captures, not for the map the plan's superseded draft guessed at:
+    // the corpus name is canonical (plans/00-overview.md §registry) and B1/C1/C2 all key off it.
     [Test]
-    public async Task Dust2_RoundStart_MatchesGolden() =>
+    public async Task FitMap_Eco_MatchesGolden() =>
         await CaptureAndCompare("fitmap-mirage-eco", ["003801777854962729156_0256036251.dem"]);
 
     /// <summary>

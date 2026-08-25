@@ -1307,12 +1307,27 @@ Written at implementation time. Everything not listed here was built as the plan
 
 ### Left undone
 
-14. **The demo-derived golden pairs are not committed.** All three `Playback2DGoldenCaptureTests`
-    cases skip: this checkout has no `.dem` (only a `.dem.info`), the same gap A1's review recorded.
-    The comparator, the capture harness, the determinism guard, the `PB2D_GOLDEN_UPDATE=1` gate and
-    `scripts/update-playback2d-goldens.sh` all ship and are covered; only the images are blocked.
-    **Acceptance items 5 and 6 are therefore open**, and this is the first thing to do once a demo is
-    staged — B1's exit criterion ("pixel-parity vs B0 goldens") depends on it.
+14. **The demo-derived golden pairs are ~~not committed~~ one-of-three committed.**
+    *Superseded at B0 review (`96d4acf`).* The original note read: all three
+    `Playback2DGoldenCaptureTests` cases skip, this checkout has no `.dem`, acceptance items 5 and 6
+    are open. That was wrong about the premise. A usable demo **is** committed to the tree —
+    `assets/tour/sample-de_nuke.dem`, the first 3 rounds of a pro de_nuke GOTV match
+    (`docs/tour-sample-demo.md`), trimmer-verified and app-loadable. It was invisible only because
+    `DemoTestHelper` searches `DEMO_PATH` / `TestData/` / `demos/benchmarks/` / `demos/` and never
+    `assets/tour`.
+
+    The review taught `CaptureAndCompare` to resolve a candidate containing a path separator as
+    repo-relative and added the tour sample as the nuke case's last candidate (the named pro demos
+    still win when staged). **`nuke-multilevel` is now captured and committed** — a two-floor render
+    with both radar levels, floor-split panes and ten labelled markers, plus the paired
+    `.scene.json` from the same push (10 markers, section heights `[-456, -416, -352]`, networked
+    bounds). It reproduces **byte-exact across separate processes** (`maxDelta=0`, `diff=0.0000%`),
+    so it is a real gate rather than a snapshot — and it is the *two-floor* fixture, which is the one
+    B1's compositor port and B3's level work most need.
+
+    **Acceptance items 5 and 6 are therefore satisfied for the multilevel case and remain open for
+    `duel-mirage-b` and `fitmap-mirage-eco`**, both of which still skip pending their pro demos.
+    B1 has a non-empty pre-v2 control corpus to gate against on day one.
 
 15. **Acceptance item 5's path is stale in the plan body**: it says `tests/goldens/playback2d/`, which
     Integrator correction 6 replaced with `tests/fixtures/playback2d/goldens/cpu/`. The same stale
