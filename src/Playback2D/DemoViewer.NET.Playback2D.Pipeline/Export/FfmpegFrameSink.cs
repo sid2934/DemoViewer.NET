@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using ChannelClosedException = System.Threading.Channels.ChannelClosedException;
 using DemoViewer.NET.Playback2D.Core.Export;
 using FFMpegCore;
 using FFMpegCore.Enums;
@@ -60,8 +61,12 @@ public sealed class FfmpegFrameSink : IFrameSink
     /// <summary>How long <see cref="DisposeAsync" /> waits for ffmpeg to drain before giving up.</summary>
     public static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(30);
 
+    /// <summary>How many trailing stderr lines are kept to explain a failure.</summary>
+    private const int StderrTailLines = 6;
+
     private readonly ChannelVideoFrameSource _frames = new();
     private readonly FfmpegSinkOptions _options;
+    private readonly Queue<string> _stderrTail = new(StderrTailLines);
     private CancellationTokenSource? _kill;
     private bool _disposed;
     private Task<bool>? _encoder;
@@ -91,20 +96,120 @@ public sealed class FfmpegFrameSink : IFrameSink
         // Queue the frame BEFORE starting ffmpeg: FFMpegCore builds the input arguments by pulling the
         // first frame off this enumerator (that is how it learns the pixel format and the size), so a
         // start with an empty channel would block the argument build until the next write.
-        await _frames.WriteAsync(rgba, width, height, ct).ConfigureAwait(false);
+        try
+        {
+            await _frames.WriteAsync(rgba, width, height, ct).ConfigureAwait(false);
+        }
+        catch (ChannelClosedException) when (_encoder is not null)
+        {
+            // The stream was ended under us, which only EndFrameStream does, and only because the
+            // encoder stopped. Surface why it stopped rather than the channel's own
+            // "the channel has been closed", which names the symptom and not one cause.
+            await AwaitEncoderAsync().ConfigureAwait(false);
+            throw;
+        }
+
         FramesWritten++;
 
         if (_encoder is null)
         {
             _kill = CancellationTokenSource.CreateLinkedTokenSource(ct);
             _encoder = BuildProcessor(_kill.Token).ProcessAsynchronously(true, BuildOptions(_options));
+
+            // The pump task is the channel's ONLY reader. If ffmpeg exits early — a bad output path, a
+            // full disk, a codec the located build does not carry — nothing will ever drain the queue
+            // again, and a writer parked on a full one would wait forever. That is risk R2's deadlock,
+            // and it is not covered by DisposeAsync's timeout because disposal is never reached. Ending
+            // the encoder therefore ends the frame stream, which turns that wait into the encoder's own
+            // exception at the very next write.
+            _ = _encoder.ContinueWith(EndFrameStream, _frames, CancellationToken.None,
+                TaskContinuationOptions.None, TaskScheduler.Default);
         }
 
         if (_encoder.IsFaulted)
         {
             // Surface an encoder that died (a bad codec name, a full disk) at the next write instead of
             // rendering another 1700 frames into a pipe nobody is reading.
-            await _encoder.ConfigureAwait(false);
+            await AwaitEncoderAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Awaits the encoder, turning a failure into one that names the cause.
+    ///     <para>
+    ///         When ffmpeg refuses its output the pipe breaks before FFMpegCore observes the exit, so the
+    ///         raw fault is <c>IOException: Pipe is broken</c> — true, and useless. ffmpeg has already
+    ///         said what was wrong on stderr, which <see cref="_stderrTail" /> is holding; a failure that
+    ///         reads "Error opening output …: No such file or directory" is one a user can act on.
+    ///     </para>
+    /// </summary>
+    private async Task AwaitEncoderAsync()
+    {
+        try
+        {
+            await _encoder!.ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            string tail = StderrTail();
+            throw tail.Length == 0
+                ? new FfmpegEncodeException($"ffmpeg failed: {ex.Message}", ex)
+                : new FfmpegEncodeException($"ffmpeg failed: {tail}", ex);
+        }
+    }
+
+    private string StderrTail()
+    {
+        lock (_stderrTail)
+        {
+            // Newest first: the last thing ffmpeg said before it died is the thing that explains it, and
+            // the lines before it are the banner.
+            return _stderrTail.Count == 0 ? string.Empty : string.Join(" | ", _stderrTail.Reverse());
+        }
+    }
+
+    private void OnStderr(string line)
+    {
+        _options.Log?.Invoke(line);
+
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return;
+        }
+
+        lock (_stderrTail)
+        {
+            _stderrTail.Enqueue(line);
+            while (_stderrTail.Count > StderrTailLines)
+            {
+                _stderrTail.Dequeue();
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Ends the frame stream when the encoder task ends, whatever ended it.
+    ///     <para>
+    ///         A cancelled encoder is left alone: the token that killed it is the caller's own, so the
+    ///         writer is already observing it, and faulting here would race a clean
+    ///         <see cref="OperationCanceledException" /> into a <see cref="ChannelClosedException" />.
+    ///     </para>
+    /// </summary>
+    private static void EndFrameStream(Task encoder, object? state)
+    {
+        ChannelVideoFrameSource frames = (ChannelVideoFrameSource)state!;
+
+        if (encoder.IsFaulted)
+        {
+            frames.Fault(encoder.Exception!.GetBaseException());
+            return;
+        }
+
+        if (encoder.IsCompletedSuccessfully)
+        {
+            // Normally this is redundant — DisposeAsync completes the stream and only then awaits the
+            // encoder. It matters when ffmpeg exits 0 on its own, before the render loop is finished.
+            frames.Complete();
         }
     }
 
@@ -179,7 +284,7 @@ public sealed class FfmpegFrameSink : IFrameSink
     private FFMpegArgumentProcessor BuildProcessor(CancellationToken ct) =>
         Build(_options, new RawVideoPipeSource(_frames) { FrameRate = _options.Fps })
             .CancellableThrough(ct)
-            .NotifyOnError(line => _options.Log?.Invoke(line));
+            .NotifyOnError(OnStderr);
 
     private static FFMpegArgumentProcessor Build(FfmpegSinkOptions options, RawVideoPipeSource source) =>
         FFMpegArguments
@@ -268,5 +373,30 @@ public sealed class FfmpegFrameSink : IFrameSink
 
         public Task SerializeAsync(Stream pipe, CancellationToken token) =>
             throw new NotSupportedException("The argument-describing stub frame is never written.");
+    }
+}
+
+/// <summary>
+///     An ffmpeg subprocess failed. The message carries ffmpeg's own last words rather than the pipe
+///     error that usually races ahead of them.
+/// </summary>
+public sealed class FfmpegEncodeException : InvalidOperationException
+{
+    /// <summary>Creates the exception.</summary>
+    /// <param name="message">User-facing copy, normally ffmpeg's stderr tail.</param>
+    /// <param name="inner">The raw failure — usually the broken pipe, not the reason for it.</param>
+    public FfmpegEncodeException(string message, Exception inner) : base(message, inner)
+    {
+    }
+
+    /// <summary>Creates the exception.</summary>
+    public FfmpegEncodeException() : base("The ffmpeg subprocess failed.")
+    {
+    }
+
+    /// <summary>Creates the exception.</summary>
+    /// <param name="message">User-facing copy.</param>
+    public FfmpegEncodeException(string message) : base(message)
+    {
     }
 }

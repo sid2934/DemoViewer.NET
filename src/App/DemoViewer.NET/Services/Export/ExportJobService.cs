@@ -40,6 +40,18 @@ public sealed class ExportJobService : IExportJobService, IDisposable
     private CancellationTokenSource? _cts;
     private Task? _job;
 
+    /// <summary>
+    ///     Single-flight, held from inside <see cref="Start" /> rather than read off
+    ///     <see cref="Status" />.
+    ///     <para>
+    ///         The job body runs on the thread pool, so <c>Status</c> is still <c>Idle</c> for a moment
+    ///         after <c>Start</c> returns. Guarding on the published status alone would let a
+    ///         double-clicked Start button run two exports at the same output path, with the first job's
+    ///         token source overwritten and its task unreachable by <see cref="CancelAsync" />.
+    ///     </para>
+    /// </summary>
+    private bool _running;
+
     /// <summary>Creates the service.</summary>
     /// <param name="runner">Does the actual rendering. The seam every test replaces.</param>
     /// <param name="gate">The machine-wide heavy-job gate, or null in a headless harness.</param>
@@ -89,11 +101,12 @@ public sealed class ExportJobService : IExportJobService, IDisposable
 
         lock (_lifecycle)
         {
-            if (Status.IsRunning)
+            if (_running || Status.IsRunning)
             {
                 throw new InvalidOperationException("A 2D video export is already running.");
             }
 
+            _running = true;
             _cts?.Dispose();
             _cts = new CancellationTokenSource();
             CancellationToken token = _cts.Token;
@@ -196,6 +209,13 @@ public sealed class ExportJobService : IExportJobService, IDisposable
             if (terminal is { } final)
             {
                 SetStatus(final);
+            }
+
+            // Last, so there is never an instant where the single-flight latch is open while Status
+            // still says the export is running.
+            lock (_lifecycle)
+            {
+                _running = false;
             }
         }
     }

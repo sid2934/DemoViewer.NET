@@ -52,6 +52,78 @@ public class ProgramDispatchTests
         }
     }
 
+    /// <summary>
+    ///     Every option the export usage block advertises must actually be an option.
+    ///     <para>
+    ///         The usage text is the only documentation a user of a headless tool reads, and this repo's
+    ///         parser rejects anything it does not consume — so an advertised-but-unimplemented flag is
+    ///         not a cosmetic wart, it is a documented invocation that exits 1 with "unknown option".
+    ///         B4's review found four of them (<c>--round</c>, <c>--camera</c>, <c>--ffmpeg</c>,
+    ///         <c>--progress</c>) shipped alongside three real ones that went unmentioned.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task EveryOptionTheExportUsageAdvertises_IsAnOptionExportAccepts()
+    {
+        string demo = Dv2d.RequireDemo();
+        string output = Path.Combine(Path.GetTempPath(), $"dv2d-usage-{Guid.NewGuid():N}.gif");
+
+        foreach (string option in UsageOptionsFor("export"))
+        {
+            // A one-frame GIF: fast, needs no ffmpeg, and reaches the parser either way. All that is
+            // asserted is that the parser did not reject the NAME.
+            CliRun run = Dv2d.InProcess("export", "--demo", demo, "--from", "0", "--to", "0",
+                "--format", "gif", "--fps", "20", "--size", "64x64", "--out", output, option);
+
+            await Assert.That(run.StdErr).DoesNotContain($"unknown option: {option}");
+        }
+
+        if (File.Exists(output))
+        {
+            File.Delete(output);
+        }
+    }
+
+    /// <summary>Pulls the <c>--name</c> tokens out of one verb's block of <see cref="Program.Usage" />.</summary>
+    /// <param name="verb">The verb whose block to read.</param>
+    private static List<string> UsageOptionsFor(string verb)
+    {
+        List<string> options = [];
+        bool inBlock = false;
+
+        foreach (string raw in Program.Usage.Split('\n'))
+        {
+            string line = raw.TrimEnd('\r');
+            string trimmed = line.TrimStart();
+
+            if (trimmed.StartsWith(verb + " ", StringComparison.Ordinal))
+            {
+                inBlock = true;
+            }
+            else if (inBlock && trimmed.Length > 0 && !trimmed.StartsWith('-') &&
+                     !trimmed.StartsWith('[') && !trimmed.StartsWith('('))
+            {
+                break;
+            }
+
+            if (!inBlock)
+            {
+                continue;
+            }
+
+            foreach (string token in line.Split([' ', '\t', '[', ']', '(', ')', '|'],
+                         StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (token.StartsWith("--", StringComparison.Ordinal) && token.Length > 2)
+                {
+                    options.Add(token);
+                }
+            }
+        }
+
+        return options;
+    }
+
     [Test]
     public async Task ExitCodeTable_IsTheDocumentedOne()
     {

@@ -2,6 +2,7 @@
 
 using System.Buffers;
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Compositing;
@@ -203,26 +204,46 @@ public sealed class SceneExportSession
         catch (Exception ex)
         {
             failure = ex;
-            throw;
         }
         finally
         {
             surface?.Dispose();
             ArrayPool<byte>.Shared.Return(buffer);
             layers.Dispose();
+        }
 
-            // The sink's DisposeAsync is where ffmpeg is drained (or killed) and where a GIF is written.
-            // It runs on every path, including a cancellation whose token is already tripped — hence
-            // CancellationToken.None inside the sinks' own shutdown paths.
+        // Closing the sink is its own step rather than part of the finally above, for two reasons.
+        //
+        // It is where ffmpeg is drained (or killed) and where a GIF is written — so a failure HERE is an
+        // export failure even when every frame rendered. Muxing happens on close: "all frames written"
+        // is not "a file exists that plays", and reporting Completed would point a user at a file that
+        // does not decode.
+        //
+        // And a throw out of a finally would escape before the terminal report was made, leaving a
+        // caller that drives a progress bar off Phase with Rendering as the last thing it ever saw.
+        // Exactly one terminal report, on every path, is the contract.
+        try
+        {
             await sink.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            failure ??= ex;
+        }
 
-            ExportPhase terminal = failure switch
-            {
-                null => ExportPhase.Completed,
-                OperationCanceledException => ExportPhase.Cancelled,
-                _ => ExportPhase.Failed
-            };
-            Report(progress, terminal, done, total, clock, failure?.Message);
+        ExportPhase terminal = failure switch
+        {
+            null => ExportPhase.Completed,
+            OperationCanceledException => ExportPhase.Cancelled,
+            _ => ExportPhase.Failed
+        };
+        Report(progress, terminal, done, total, clock, failure?.Message);
+
+        if (failure is not null)
+        {
+            // Rethrown with its original stack: the caller's catch is what turns this into a Failed job
+            // status, and a repackaged exception would lose where the encode actually died.
+            ExceptionDispatchInfo.Capture(failure).Throw();
         }
     }
 

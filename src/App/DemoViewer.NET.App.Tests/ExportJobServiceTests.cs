@@ -106,6 +106,45 @@ public class ExportJobServiceTests
         await service.CancelAsync();
     }
 
+    /// <summary>
+    ///     Single-flight has to hold from the instant <c>Start</c> returns, not from the instant the
+    ///     job's first status lands.
+    ///     <para>
+    ///         The job body runs on the thread pool, so between <c>Start</c> returning and
+    ///         <c>RunAsync</c> publishing <see cref="ExportPhase.Preparing" /> there is a window in which
+    ///         <c>Status.IsRunning</c> is still false. A guard that reads only the published status
+    ///         therefore misses a double-click on the dialog's Start button — and two exports would then
+    ///         race for the same output path, with the first one's cancellation source overwritten and
+    ///         its task no longer reachable by <c>CancelAsync</c>.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task ASecondStart_InTheWindowBeforeTheFirstJobPublishesAnything_IsStillRefused()
+    {
+        FakeRunner runner = new() { Block = new TaskCompletionSource() };
+        ExportJobService service = new(runner);
+
+        // Deliberately NO await between the two calls: this is the double-click, not the second click a
+        // second later that ASecondStart_WhileOneIsRunning_IsRefused already covers.
+        service.Start(Request());
+
+        InvalidOperationException? refusal = null;
+        try
+        {
+            service.Start(Request());
+        }
+        catch (InvalidOperationException ex)
+        {
+            refusal = ex;
+        }
+
+        await Assert.That(refusal).IsNotNull();
+
+        runner.Block.SetResult();
+        await service.CancelAsync();
+        await Assert.That(runner.Started).IsEqualTo(1);
+    }
+
     [Test]
     public async Task TheTerminalStatus_PublishesOnlyAfterTheGateIsReleased()
     {

@@ -1092,7 +1092,12 @@ Design exit criterion:
 - [x] **Cancel-safe.** `SceneExportSessionCancellationTests` (already-cancelled token, cancel
       mid-render, a sink that throws) and `ExportJobServiceTests` (cancel before the first frame).
       The sink is disposed exactly once on every path, which is what kills ffmpeg and removes the
-      partial file; the gate is released before the terminal status is published.
+      partial file; the gate is released before the terminal status is published. Verified in the
+      review against a **real** ffmpeg subprocess: cancelling mid-encode leaves zero `ffmpeg`
+      processes and no output file. **Cancel-safe was true; fail-safe was not** — see deviations
+      21-23 for the deadlock, the mute failure and the `Completed`-on-a-broken-file report the
+      review found and fixed, and for why the missing `FfmpegFrameSinkIntegrationTests` is what let
+      all three through.
 - [x] **Refuses under LiveSync.** `ExportJobService.Start` throws `ExportRefusedException`, re-checked
       after the gate is entered; a session starting mid-export does not abort it (D11), pinned by
       `ALiveSyncSessionStartingMidExport_DoesNotAbortIt`.
@@ -1114,6 +1119,11 @@ Plan additions:
       supplied — B1's, not B4's, and named as a carry-forward rather than swallowed.
 - [x] **Sinks.** All three produce decodable files (`ManagedGifSinkTests`, `ExportSeamHeadlessTests`,
       and a real `dv2d export` to WebM verified with `ffprobe`: 154 frames, 640×360, 60/1).
+      Re-verified independently at review: full-demo WebM/VP9 1280x720@60 (17998 frames, 299.97 s,
+      3.63 MB), 1920x1080@60 (17998 frames, 4.81 MB), MP4/H.264 720p60 (3601 frames, 60.02 s),
+      ffmpeg GIF (401 frames, 20.05 s) and the managed ImageSharp GIF with `PATH` stripped
+      (201 frames, 10.05 s) all decode under `ffprobe` with the expected codec, size, rate and frame
+      count, one stream and no audio.
       `FfmpegArgumentTests` pins `-an` on every format, the fully specified rawvideo input, one `-i`
       for GIF, and that `GlobalFFOptions` is never mutated.
 - [x] **GIF floor.** Verified end to end on the real demo with `PATH` stripped of ffmpeg:
@@ -1320,3 +1330,68 @@ Written at implementation time. Everything not listed here was built as the plan
     `SceneExportSession.RunAsync` takes the provider as a parameter precisely so one drops in with no
     change here. `dv2d export --no-encode` is the measurement to compare against when it lands —
     62.6 exported fps at 1080p on `CpuRaster` today, render only. **Open, and owned by C2.**
+
+---
+
+### Found by the independent review, fixed there (2026-08-25)
+
+21. **A failing ffmpeg deadlocked the export forever — R2's predicted failure mode, shipped.**
+    `dv2d export … --out /a/directory/that/does/not/exist/out.webm` never returned; it was still
+    blocked after ten minutes, with ffmpeg long gone. The cause: `ChannelVideoFrameSource` is drained
+    only by FFMpegCore's pump task, so once ffmpeg exits nothing reads the queue again; the queue
+    fills at four frames and `FfmpegFrameSink.WriteAsync` parks on
+    `_channel.Writer.WriteAsync(frame, ct)` with a token nobody will cancel. The
+    `_encoder.IsFaulted` check that was meant to catch exactly this sits **after** that write, so it
+    is unreachable once the queue is full, and `DisposeAsync`'s 30 s timeout never runs because
+    disposal is never reached. `ChannelVideoFrameSource.Fault` existed from the first commit and had
+    **no caller** — it was written for this and never wired.
+    <br>**Fix:** a continuation on the encoder task ends the frame stream when the encoder ends —
+    `Fault` on a faulted encoder, `Complete` on one that exited early, nothing on a cancelled one
+    (its token is the caller's own, and faulting would race a clean `OperationCanceledException`
+    into a `ChannelClosedException`). A parked writer is released at once and rethrows the encoder's
+    failure. Pinned by `ExportFailureTests.AnFfmpegThatCannotOpenItsOutput_FailsTheWrites_…`
+    (`[Category("Integration")]`, skips with no ffmpeg) and
+    `ChannelVideoFrameSourceFaultTests.FaultingTheChannel_ReleasesAWriterAlreadyBlocked…`. The same
+    CLI invocation now exits 3 in about a second. **This is also the gap that let it ship:** the plan's
+    `FfmpegFrameSinkIntegrationTests` was never written and never recorded as a deviation, so the only
+    sink that runs a subprocess had `DescribeArguments` coverage and no execution coverage at all.
+
+22. **The failure said "Pipe is broken", which is true and useless.** The named pipe breaks before
+    FFMpegCore observes the process exit, so the raw fault beats ffmpeg's own explanation to the
+    caller. The sink already received the stderr lines through `NotifyOnError` and threw them away.
+    `FfmpegFrameSink` now keeps the last six and wraps an encoder failure in `FfmpegEncodeException`
+    carrying them, so the CLI prints `ffmpeg failed: Error opening output …: No such file or
+    directory` instead. Asserted in the same test.
+
+23. **`SceneExportSession` could report `Completed` on an export that produced nothing playable, and
+    could report no terminal phase at all.** Disposal of the sink happened inside the `finally`, so a
+    throw from it escaped **before** `Report(terminal, …)` — a caller driving a progress bar off
+    `ExportProgress.Phase` saw `Rendering` as the last word on a failed export. And because muxing
+    happens on close, "every frame was written" is not "a file exists that decodes": a sink that
+    failed only at finalisation had already been reported as progressing normally. Disposal is now
+    its own step after the `finally`: its failure becomes the run's failure (`failure ??= ex`),
+    exactly one terminal report is made on every path, and the original exception is rethrown through
+    `ExceptionDispatchInfo` so its stack survives. Pinned by
+    `AThrowingDisposal_StillReportsATerminalPhase` and
+    `ASinkThatFailsOnlyWhenClosed_FailsTheRun_AndNeverReportsCompleted`.
+
+24. **`ExportJobService`'s single-flight had a window a double-click fits through.** `Start` guarded
+    on `Status.IsRunning`, but the job body runs on the thread pool, so `Status` is still `Idle` for a
+    moment after `Start` returns. Two `Start` calls with no await between them both got through: two
+    exports to one output path, with the first job's `_cts` overwritten and its `_job` unreachable by
+    `CancelAsync`. A `_running` latch is now set inside the same lock that starts the task and cleared
+    after the terminal status is published. Pinned by
+    `ExportJobServiceTests.ASecondStart_InTheWindowBeforeTheFirstJobPublishesAnything_IsStillRefused`;
+    the existing `ASecondStart_WhileOneIsRunning_IsRefused` waits for the runner to enter and so never
+    touched the window.
+
+25. **`dv2d export`'s usage text advertised four options that do not exist and omitted three that
+    do.** `--round N`, `--camera …`, `--ffmpeg <path>` and `--progress` were all in the help and all
+    rejected by the parser with `unknown option` (exit 1) — documented invocations that cannot run —
+    while `--hud`, `--no-encode` and `--ffmpeg-log`, which are real and were used to produce the
+    measurements in this plan, were unmentioned. The block now matches the parser, and
+    `ProgramDispatchTests.EveryOptionTheExportUsageAdvertises_IsAnOptionExportAccepts` runs every
+    `--name` token in the export block through the parser so it cannot drift again. **Note for a
+    follow-up:** `--camera` and `--round` are worth *implementing* rather than only un-documenting —
+    a headless export is stuck with the default fit today, and `CameraScriptResolver` already
+    supports `FollowPlayer`.
