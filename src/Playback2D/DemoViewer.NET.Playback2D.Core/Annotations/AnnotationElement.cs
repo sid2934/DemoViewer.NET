@@ -208,4 +208,52 @@ public sealed record AnnotationElement(
     SpaceRef Space,
     TimeEnvelope Time,
     IReadOnlyList<InkPoint> Points,
-    string? Text);
+    string? Text)
+{
+    /// <summary>
+    ///     Structural equality, including the samples.
+    ///     <para>
+    ///         The synthesized record equality would compare <see cref="Points" /> by REFERENCE, which
+    ///         makes an element that survived a save/load round trip unequal to the one that was written
+    ///         — the exact comparison persistence and export both need to be able to make. The cost is
+    ///         O(n) in the sample count, paid only when something actually compares two elements.
+    ///     </para>
+    /// </summary>
+    /// <param name="other">The element to compare against.</param>
+    public bool Equals(AnnotationElement? other) =>
+        other is not null
+        && Id.Equals(other.Id)
+        && Kind == other.Kind
+        && Style.Equals(other.Style)
+        && Space.Equals(other.Space)
+        && Time.Equals(other.Time)
+        && string.Equals(Text, other.Text, StringComparison.Ordinal)
+        && SamePoints(Points, other.Points);
+
+    /// <inheritdoc />
+    public override int GetHashCode() =>
+        HashCode.Combine(Id, Kind, Style, Space, Time, Text, Points.Count);
+
+    private static bool SamePoints(IReadOnlyList<InkPoint> a, IReadOnlyList<InkPoint> b)
+    {
+        if (ReferenceEquals(a, b))
+        {
+            return true;
+        }
+
+        if (a.Count != b.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (!a[i].Equals(b[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}

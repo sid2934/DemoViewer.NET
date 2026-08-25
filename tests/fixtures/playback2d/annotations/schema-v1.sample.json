@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "demo": {
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "fileName": "sample.dem",
+    "sizeBytes": 8
+  },
+  "clock": {
+    "kind": "dv-frame-clock",
+    "tickRate": 64,
+    "frameCount": 12345,
+    "firstTick": 128,
+    "lastTick": 49500
+  },
+  "elements": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "kind": "Freehand",
+      "colorArgb": 4294951175,
+      "widthWorld": 6,
+      "opacity": 1,
+      "revealOnFadeIn": false,
+      "space": "world",
+      "levelMinZ": -384,
+      "steamId": 0,
+      "dx": 0,
+      "dy": 0,
+      "fadeInTicks": 0,
+      "fadeOutTicks": 0,
+      "points": [
+        -120.5,
+        240.25,
+        0.5,
+        -60,
+        260,
+        0.62,
+        10,
+        250,
+        0.71
+      ],
+      "futureElementField": "written by a newer build"
+    },
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "kind": "Freehand",
+      "colorArgb": 3221284351,
+      "widthWorld": 9.5,
+      "opacity": 0.85,
+      "revealOnFadeIn": true,
+      "space": "entity",
+      "levelMinZ": 0,
+      "steamId": 76561198000000042,
+      "dx": 18,
+      "dy": -32,
+      "fromTick": 640,
+      "untilTick": 960,
+      "fadeInTicks": 8,
+      "fadeOutTicks": 16,
+      "points": [
+        0,
+        0,
+        0.5,
+        24,
+        12,
+        0.55
+      ]
+    }
+  ],
+  "futureRootField": "written by a newer build"
+}
