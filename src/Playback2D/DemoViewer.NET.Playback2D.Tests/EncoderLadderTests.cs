@@ -3,6 +3,7 @@
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
+using TUnit.Core.Exceptions;
 
 #endregion
 
@@ -425,6 +426,83 @@ public class EncoderProbeCacheTests
 
         await Assert.That(inner.Calls.Count).IsEqualTo(2);
         await Assert.That(cache.Hits).IsEqualTo(0);
+    }
+}
+
+/// <summary>
+///     The real probe against the real ffmpeg. Skips cleanly when there is none, the way
+///     <c>FfmpegAcquisitionTests</c> and <c>ExportFailureTests</c> already do — CI has no GPU and may
+///     have no ffmpeg, and neither is a failure.
+/// </summary>
+public class FfmpegEncoderProbeTests
+{
+    [Test]
+    public async Task TheTestEncodeTransport_Works_AgainstASoftwareEncoder()
+    {
+        string? folder = RequireFfmpeg();
+        FfmpegEncoderProbe probe = new();
+
+        // trustListing:false forces the actual two-frames-on-stdin encode. Every OTHER caller of this
+        // path is a hardware rung, so without this case the transport itself — rawvideo yuv420p on
+        // stdin, out to -f null - — would only ever be exercised on a machine with a working GPU. If it
+        // were broken, `auto` would silently reject every hardware rung and fall to software forever.
+        EncoderProbeResult result = probe.Verify("libvpx-vp9", folder, false, CancellationToken.None);
+
+        await Assert.That(result.Works).IsTrue().Because(result.Detail);
+        await Assert.That(result.Detail).IsEqualTo("verified");
+        await Assert.That(probe.TestEncodes).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task AnEncoderNoBuildHas_IsRejectedFromTheListing_WithoutSpawningAnything()
+    {
+        string? folder = RequireFfmpeg();
+        FfmpegEncoderProbe probe = new();
+
+        EncoderProbeResult result =
+            probe.Verify("h265_unicorn", folder, false, CancellationToken.None);
+
+        await Assert.That(result.Works).IsFalse();
+        await Assert.That(result.Detail).IsEqualTo("not built into this ffmpeg");
+
+        // The listing is a cheap pre-filter, and its whole job is to answer this without a subprocess.
+        await Assert.That(probe.TestEncodes).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task TheListing_ContainsTheSoftwareRungs_AndIsCached()
+    {
+        string? folder = RequireFfmpeg();
+        FfmpegEncoderProbe probe = new();
+
+        IReadOnlySet<string> first = probe.ListEncoders(folder, CancellationToken.None);
+        await Assert.That(first).Contains("libvpx-vp9");
+        await Assert.That(first).Contains("libx264");
+
+        // Same instance back, not a re-read: `-encoders` is half a second and every export asks.
+        await Assert.That(probe.ListEncoders(folder, CancellationToken.None)).IsSameReferenceAs(first);
+    }
+
+    [Test]
+    public async Task ANonexistentFfmpeg_IsUnavailable_NotAnException()
+    {
+        FfmpegEncoderProbe probe = new();
+        string nowhere = Path.Combine(Path.GetTempPath(), "dv-no-ffmpeg-" + Guid.NewGuid().ToString("N"));
+
+        EncoderProbeResult result = probe.Verify("libx264", nowhere, false, CancellationToken.None);
+
+        // A probe must never be the thing that fails an export: it answers "unavailable" and the ladder
+        // handles it, exactly as it handles a driver that says no.
+        await Assert.That(result.Works).IsFalse();
+        await Assert.That(result.Detail).IsEqualTo("could not read `ffmpeg -encoders`");
+    }
+
+    private static string? RequireFfmpeg()
+    {
+        FfmpegLocation located = FfmpegLocator.Locate(null);
+        return located.Found
+            ? located.Directory
+            : throw new SkipTestException("no ffmpeg on PATH.");
     }
 }
 

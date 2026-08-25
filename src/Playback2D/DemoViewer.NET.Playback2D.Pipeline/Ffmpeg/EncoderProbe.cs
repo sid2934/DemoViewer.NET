@@ -127,6 +127,17 @@ public sealed class FfmpegEncoderProbe : IEncoderProbe
     public IReadOnlySet<string> ListEncoders(string? binaryFolder, CancellationToken ct) =>
         _listings.GetOrAdd(binaryFolder ?? string.Empty, _ => ReadListing(binaryFolder, ct));
 
+    /// <summary>
+    ///     Forgets the cached <c>-encoders</c> listings, so the next question re-reads them.
+    ///     <para>
+    ///         An empty listing is cached like any other answer — "this ffmpeg carries nothing" is a fact
+    ///         about a build. It stops being one when the build changes underneath us, which is exactly
+    ///         what the export dialog's Re-check button means, so <see cref="EncoderProbeCache.Clear" />
+    ///         reaches through to this.
+    ///     </para>
+    /// </summary>
+    public void ClearListings() => _listings.Clear();
+
     private static HashSet<string> ReadListing(string? binaryFolder, CancellationToken ct)
     {
         HashSet<string> names = new(StringComparer.Ordinal);
@@ -365,10 +376,19 @@ public sealed class EncoderProbeCache(IEncoderProbe? inner = null) : IEncoderPro
         return result;
     }
 
-    /// <summary>Forgets everything. For tests, and for an app-side "re-check" after an install.</summary>
+    /// <summary>
+    ///     Forgets everything. For tests, and for an app-side "re-check" after an install.
+    ///     <para>
+    ///         It reaches through to the wrapped probe's own <c>-encoders</c> listing cache when there is
+    ///         one: a <c>Clear</c> that emptied this dictionary and left the listing behind would answer
+    ///         the next question from the build that was installed before the user pressed Re-check,
+    ///         which is the one moment it exists for.
+    ///     </para>
+    /// </summary>
     public void Clear()
     {
         _results.Clear();
         Interlocked.Exchange(ref _hits, 0);
+        (_inner as FfmpegEncoderProbe)?.ClearListings();
     }
 }

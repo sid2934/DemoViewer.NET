@@ -148,6 +148,11 @@ public sealed class EncoderSelector(IEncoderProbe? probe = null)
 
         for (int i = 0; i < rungs.Count; i++)
         {
+            // Between rungs, not just before the walk: each hardware rung is a subprocess that can take
+            // most of a second, and a Ctrl+C during a four-rung walk on a machine where nothing verifies
+            // should not have to wait the walk out.
+            ct.ThrowIfCancellationRequested();
+
             VideoEncoder rung = rungs[i];
             EncoderProbeResult result = _probe.Verify(rung.Name, binaryFolder, !rung.IsHardware, ct);
             attempts.Add(result);
