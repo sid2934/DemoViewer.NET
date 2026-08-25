@@ -1574,6 +1574,18 @@ with a regression test that fails without the fix.
     overloads. B3 should either adopt the nullable shape or make an empty `MapSpace`
     unrepresentable; it must not silently narrow it.
 
+28. **`SceneCompositor.Add`/`Remove` are not covered by the gate, and B2 is the first phase that will
+    call them at runtime.** Not changed — B1 registers every layer during construction, before the
+    host is ever attached, so there is no live trigger and no test that fails today. But
+    `RenderPane` walks `_layers` by index on the render thread, and `Add`/`Remove` mutate that
+    `List<T>` on the UI thread: the first phase that registers or drops a layer in response to a
+    user action (B2's annotation layer, B4's HUD layers) introduces an unsynchronized list mutation
+    against an indexed read, whose symptom is an intermittent `ArgumentOutOfRangeException` on the
+    render thread rather than anything a golden would catch. §5.8's gate is the mechanism that
+    already exists; B2 must take it around registration, exactly as it is taken around cache
+    mutation. `SetEnabled` is fine as-is — a racing `bool` write costs at most one frame of a stale
+    toggle.
+
 ### Not built, and why
 
 21. **`SpriteAtlas` / `SceneRenderOptions.UseSprites` (decision D-12) is not built.** D-12 already says
