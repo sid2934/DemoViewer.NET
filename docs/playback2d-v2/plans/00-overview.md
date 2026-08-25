@@ -21,8 +21,9 @@
 | [`C1-cli.md`](C1-cli.md) | C (parallel with B2–B4) | `dv2d` tool (`render`/`export`/`bench`/`golden`/`fixture`), `TrackerFrameSource`, `HeadlessSceneRenderer`, golden corpus manifest, CI golden + budget gates | Any tick → PNG in <1 s with no app launch; CI uses `dv2d` | 1 wk |
 | [`C2-gpu-provider.md`](C2-gpu-provider.md) | C | `GpuSurfaceProvider` (ANGLE/EGL), probe + override precedence, SSIM/perceptual parity, `render-backends` CI matrix, ANGLE packaging + notices | GPU export ≥ 2× realtime at 1080p; CPU parity within perceptual tolerance | 1.5 wk |
 | [`P1-perf-instrumentation.md`](P1-perf-instrumentation.md) | P (post-C, measurement only) | `ISceneProfiler` seam on `SceneCompositor`, `ScenePerfRecorder` + `PerfReport`, `--perf` on `dv2d bench`/`export`, additive `perf` JSON block | Per-layer / per-stage breakdown of an export; §6 gates unchanged with the flag off | 0.5 wk |
+| [`P2-export-throughput.md`](P2-export-throughput.md) | P (post-P1, spends its answer) | `VideoEncoder`/`EncoderLadder`/`EncoderSelector` + the verifying `FfmpegEncoderProbe`, `ExportQuality` presets per encoder, `--encoder`/`--quality`, additive export JSON keys, the export-node seams (design only) | An export picks a verified hardware encoder where one exists, degrades honestly to tuned software where none does, and the determinism gate is unchanged | 0.5 wk |
 
-Total ≈ 15.5 person-weeks, ~12.5 on the A+B critical path (design §9).
+Total ≈ 16 person-weeks, ~12.5 on the A+B critical path (design §9).
 
 ---
 
@@ -230,6 +231,14 @@ in `…Pipeline.Benchmarking`, consumed by `ScenePipelineBenchmark.Perf` and `Sc
 Surfaced as `dv2d bench|export --perf` and an additive `perf` key on the `schema_version: 1` payload.
 Null everywhere by default; the §6 gates run with it detached.
 
+**Encoder selection (P2 owns):** `ExportQuality` (`Draft|Standard|Best`) + `ExportQualities`,
+`VideoEncoder` + `EncoderAcceleration`, `EncoderLadder`, `EncoderSelection` + `EncoderSelector`,
+`IEncoderProbe` + `EncoderProbeResult` + `FfmpegEncoderProbe` + `EncoderProbeCache` — **all in
+`…Pipeline.Ffmpeg`**, none in Core. `FfmpegSinkOptions` carries `Encoder` + `Quality` in place of
+`Crf` + `H264Preset`. The selection is a **per-session value**, never process-global; the probe cache
+is shared and concurrent because it holds machine facts only. `ExportRequest`, `IFrameSink` and
+`SceneExportSession` are unchanged, so §3.8 and design §5.7 stand.
+
 **Goldens (B0 owns the comparator, C1 the corpus):** `GoldenImageComparer`, `GoldenTolerance`
 (`ByteExact` / `DefaultPerceptual` ≡ `CrossBackend`), `GoldenComparison`, `CreateDiffPng` in
 `…Pipeline.Goldens`; C2 implements SSIM **inside** it. `GoldenCorpus`, `GoldenCorpusEntry`,
@@ -282,7 +291,8 @@ clear follow. Text-input suppression is A1's single global rule, not a per-bindi
 `AnnotationAutoSave`, `AnnotationRecentColors` (`string[]`, indexed keys) · `LevelDisplayMode`,
 `AutoLevelFollow` · `TimelineShowKills`, `TimelineShowBomb`, `TimelineShowAnnotations` ·
 `ExportFormatId`, `ExportFps`, `ExportWidth`, `ExportHeight`, `ExportOutputDirectory`,
-`ExportIncludeHud`, `ExportIncludeAnnotations` · `RenderBackend` (`auto|cpu|gpu`) ·
+`ExportIncludeHud`, `ExportIncludeAnnotations`, **`ExportEncoder`** (`auto|software|<rung>`, P2),
+**`ExportQuality`** (`draft|standard|best`, P2) · `RenderBackend` (`auto|cpu|gpu`) ·
 `LegacyViewport`. First lander creates the class; everyone else adds properties.
 
 ---
