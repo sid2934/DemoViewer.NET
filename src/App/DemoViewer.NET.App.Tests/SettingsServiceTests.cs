@@ -276,6 +276,31 @@ public class SettingsServiceTests
             .Because("a removed override key must not linger in the in-memory provider");
     }
 
+    /// <summary>
+    ///     Every <c>Playback2D</c> property must survive the FILELESS write path.
+    ///     <para>
+    ///         On WASM there is no settings file — only the in-memory provider that
+    ///         <c>SettingsService.WriteInMemory</c> populates by hand, key by key. A property that is
+    ///         modelled on <c>AppSettings</c> but missing from that method binds fine, writes fine, and
+    ///         forgets itself on the next reload, with nothing to see anywhere. B2, B3, B4 and C2 each
+    ///         add properties to this one section (registry §3.10), so the trap is set for all of them.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task WriteInMemory_RoundTripsEveryPlayback2DProperty()
+    {
+        SettingsService svc = new(null); // fileless in-memory path
+
+        await Assert.That(svc.Current.Playback2D.LegacyViewport).IsFalse();
+
+        svc.Write(s => s.Playback2D.LegacyViewport = true);
+        await Assert.That(svc.Current.Playback2D.LegacyViewport).IsTrue()
+            .Because("a Playback2D key missing from WriteInMemory vanishes silently on WASM");
+
+        svc.Write(s => s.Playback2D.LegacyViewport = false);
+        await Assert.That(svc.Current.Playback2D.LegacyViewport).IsFalse();
+    }
+
     // ── Consolidated Session + Recents sections ────────────────────────────────
 
     /// <summary>

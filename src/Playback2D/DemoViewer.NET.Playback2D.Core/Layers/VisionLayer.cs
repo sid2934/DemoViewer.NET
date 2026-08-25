@@ -36,7 +36,10 @@ public sealed class VisionLayer : ISceneLayer
     /// <param name="solver">The solve seam; null draws nothing.</param>
     /// <param name="smoother">
     ///     The shared marker smoothing, so cone apexes and sightline endpoints sit on the drawn dots
-    ///     rather than the raw samples. Null falls back to raw positions.
+    ///     rather than the raw samples. <b>Read, never advanced</b> — <c>MarkerLayer</c> owns that, and
+    ///     the compositor advances it second (draw order 40 against this layer's 30), so a cone apex
+    ///     trails its dot by one frame while a glide is in progress. Sightline endpoints are resolved at
+    ///     Render and are always current. Null falls back to raw positions.
     /// </param>
     public VisionLayer(IVisionSolver? solver, MarkerSmoother? smoother = null)
     {
@@ -81,11 +84,6 @@ public sealed class VisionLayer : ISceneLayer
     /// <inheritdoc />
     public bool Advance(in SceneTime time, Scene2DFrame frame)
     {
-        // The smoothing has to be current before the solve, because the cone apex sits on the smoothed
-        // dot. Whichever of this layer and MarkerLayer advances first drives it; the other's call is a
-        // no-op (see MarkerSmoother.AdvanceOnce).
-        _smoother?.AdvanceOnce(in time, frame);
-
         if (_solver is null)
         {
             Solution.Clear();

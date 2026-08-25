@@ -106,40 +106,59 @@ public class MarkerSmoothingTests
     }
 
     /// <summary>
-    ///     Both the marker layer and the vision layer drive the smoothing, and the compositor advances
-    ///     them in DRAW order — vision (30) before markers (40). The second call in one cycle must be a
-    ///     no-op, or every dot would take two smoothing steps per frame and glide at double speed.
+    ///     <b>One owner, and it is the marker layer.</b> Two advances in one frame step every dot twice
+    ///     and it glides at double speed — which is what an earlier draft did, by de-duplicating on
+    ///     <c>(frame, time)</c> so either the marker layer or the vision layer could drive it. A constant
+    ///     frame delta (exactly what a headless render timer produces) then made every call after the
+    ///     first a no-op that handed back a stale "still moving", and the self-terminating render loop
+    ///     never terminated. This pins the replacement rule.
     /// </summary>
     [Test]
-    public async Task AdvanceOnce_IsIdempotentWithinOneCycle_ButStepsAgainOnANewOne()
+    public async Task Advance_TwiceInOneFrame_DoubleSteps_WhichIsWhyOnlyOneLayerOwnsIt()
+    {
+        MarkerSmoother single = new();
+        single.Advance([Marker(0, 100f, 0f)], Dt);
+        single.Advance([Marker(0, 140f, 0f)], Dt);
+
+        MarkerSmoother doubled = new();
+        doubled.Advance([Marker(0, 100f, 0f)], Dt);
+        doubled.Advance([Marker(0, 140f, 0f)], Dt);
+        doubled.Advance([Marker(0, 140f, 0f)], Dt);
+
+        float once = single.Position(0)!.Value.X;
+        float twice = doubled.Position(0)!.Value.X;
+        Console.WriteLine($"[smoothing] one step={once:F3} two steps={twice:F3}");
+
+        await Assert.That(twice).IsGreaterThan(once);
+    }
+
+    /// <summary>
+    ///     The settle rule is what lets the render loop stop: once every dot is within half a unit of
+    ///     its sample, nothing is moving and nobody asks for another frame.
+    /// </summary>
+    [Test]
+    public async Task Advance_OnceSettled_ReportsNothingMoving_ForeverAfter()
     {
         MarkerSmoother smoother = new();
-        Scene2DFrame frame = new()
+        PlayerMarker[] markers = [Marker(0, 100f, 0f), Marker(1, -40f, 900f)];
+
+        bool moving = true;
+        int frames = 0;
+        while (moving && frames++ < 500)
         {
-            Markers = [Marker(0, 100f, 0f)]
-        };
-        SceneTime seed = new(0, 0, 0, Dt, false);
-        smoother.AdvanceOnce(in seed, frame);
+            moving = smoother.Advance(markers, Dt);
+        }
 
-        Scene2DFrame moved = new()
+        await Assert.That(moving).IsFalse();
+        Console.WriteLine($"[smoothing] settled after {frames} frames");
+
+        // A constant dt is the headless case, and the case that used to pin the loop on.
+        for (int i = 0; i < 200; i++)
         {
-            Markers = [Marker(0, 140f, 0f)]
-        };
-        SceneTime time = new(1, 1, 0.5, Dt, false);
+            await Assert.That(smoother.Advance(markers, Dt)).IsFalse();
+        }
 
-        smoother.AdvanceOnce(in time, moved);
-        float afterFirst = smoother.Position(0)!.Value.X;
-        smoother.AdvanceOnce(in time, moved); // the second layer of the same cycle
-        float afterSecond = smoother.Position(0)!.Value.X;
-
-        await Assert.That(afterSecond).IsEqualTo(afterFirst);
-
-        SceneTime nextCycle = time with
-        {
-            DeltaSeconds = Dt * 1.01
-        };
-        smoother.AdvanceOnce(in nextCycle, moved);
-        await Assert.That(smoother.Position(0)!.Value.X).IsGreaterThan(afterSecond);
+        await Assert.That(smoother.AnyMoving).IsFalse();
     }
 
     [Test]

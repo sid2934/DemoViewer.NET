@@ -35,12 +35,12 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
     private readonly HashSet<int> _liveSlots = new(16);
     private readonly List<int> _pruneScratch = new(8);
     private readonly Dictionary<int, (float X, float Y)> _smoothed = new(16);
-    private Scene2DFrame? _lastFrame;
-    private SceneTime _lastTime;
-    private bool _seenAny;
 
     /// <summary>How many slots are currently tracked.</summary>
     public int Count => _smoothed.Count;
+
+    /// <summary>Whether the last <see cref="Advance" /> left anything still gliding.</summary>
+    public bool AnyMoving { get; private set; }
 
     /// <inheritdoc />
     public bool TryGetSmoothed(int slot, out float x, out float y)
@@ -63,47 +63,23 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
         _smoothed.TryGetValue(slot, out (float X, float Y) p) ? p : null;
 
     /// <summary>
-    ///     Advances the smoothing for one frame, <b>at most once per advance cycle</b>.
+    ///     The smoothing step.
     ///     <para>
-    ///         Two layers depend on these positions — the markers that draw them and the vision solver
-    ///         whose cone apexes sit on them — and the compositor advances layers in draw order, which
-    ///         puts vision (30) before markers (40). Rather than invent an advance-order concept for one
-    ///         case, whichever layer runs first drives the smoothing and the second call is a no-op.
+    ///         <b>Exactly one owner may call this per frame</b>, and that owner is <c>MarkerLayer</c>.
+    ///         Two calls in one frame step every dot twice and it glides at double speed. The vision
+    ///         solver shares these positions but only <i>reads</i> them, which costs it a one-frame lag
+    ///         on the cone apexes during a glide — a couple of pixels at most, and only while something
+    ///         is moving. That is much cheaper than the alternative: an earlier draft de-duplicated on
+    ///         <c>(frame, time)</c> so either layer could drive it, and a constant frame delta — which
+    ///         is exactly what a headless render timer produces — made every call after the first a
+    ///         no-op that returned a stale "still moving", pinning the self-terminating render loop
+    ///         permanently on.
     ///     </para>
     ///     <para>
-    ///         The de-duplication key is the frame <i>reference</i> plus the whole <see cref="SceneTime" />
-    ///         value, so a re-render of the same frame at a new <c>DeltaSeconds</c> — which is exactly what
-    ///         a glide is — still advances. Two consecutive frames with a bit-identical
-    ///         <c>DeltaSeconds</c> would be skipped; that would cost one frame of glide and cannot
-    ///         happen from a real animation-frame timestamp.
+    ///         Public and un-deduplicated so a test can drive it with a known <paramref name="dt" />:
+    ///         the pre-v2 <c>AdvanceMarkers</c> was <c>internal</c> for the same reason, and
+    ///         <c>Playback2DInterpolationTests</c> is ported onto this signature.
     ///     </para>
-    /// </summary>
-    /// <param name="time">The injected clock.</param>
-    /// <param name="frame">The frame being advanced to.</param>
-    /// <returns>True while any marker is still gliding.</returns>
-    public bool AdvanceOnce(in SceneTime time, Scene2DFrame frame)
-    {
-        ArgumentNullException.ThrowIfNull(frame);
-
-        if (_seenAny && ReferenceEquals(_lastFrame, frame) && _lastTime.Equals(time))
-        {
-            return AnyMoving;
-        }
-
-        _lastFrame = frame;
-        _lastTime = time;
-        _seenAny = true;
-        AnyMoving = Advance(frame.Markers, time.DeltaSeconds, time.IsDiscontinuity);
-        return AnyMoving;
-    }
-
-    /// <summary>Whether the last advance left anything still gliding.</summary>
-    public bool AnyMoving { get; private set; }
-
-    /// <summary>
-    ///     The smoothing step itself. Public and un-deduplicated so a test can drive it with a known
-    ///     <paramref name="dt" /> — the pre-v2 <c>AdvanceMarkers</c> was <c>internal</c> for the same
-    ///     reason, and <c>Playback2DInterpolationTests</c> is ported onto this signature.
     /// </summary>
     /// <param name="markers">The frame's markers.</param>
     /// <param name="dt">Seconds since the previous rendered frame.</param>
@@ -170,6 +146,7 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
             }
         }
 
+        AnyMoving = anyMoving;
         return anyMoving;
     }
 
@@ -177,8 +154,6 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
     public void Clear()
     {
         _smoothed.Clear();
-        _seenAny = false;
-        _lastFrame = null;
         AnyMoving = false;
     }
 }

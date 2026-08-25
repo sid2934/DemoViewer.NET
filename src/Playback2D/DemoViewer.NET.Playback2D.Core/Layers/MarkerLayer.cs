@@ -92,7 +92,16 @@ public sealed class MarkerLayer : ISceneLayer
     public (float X, float Y)? SmoothedMarkerPosition(int slot) => _smoother.Position(slot);
 
     /// <inheritdoc />
-    public bool Advance(in SceneTime time, Scene2DFrame frame) => _smoother.AdvanceOnce(in time, frame);
+    /// <remarks>
+    ///     <b>The sole owner of the shared smoothing.</b> The vision layer reads the same positions but
+    ///     never advances them — see <see cref="MarkerSmoother.Advance" /> for why that ownership is
+    ///     single rather than shared.
+    /// </remarks>
+    public bool Advance(in SceneTime time, Scene2DFrame frame)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+        return _smoother.Advance(frame.Markers, time.DeltaSeconds, time.IsDiscontinuity);
+    }
 
     /// <inheritdoc />
     public void Render(SKCanvas canvas, SceneRenderContext ctx)

@@ -57,6 +57,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
 
     private WriteableBitmap? _fallbackBitmap;
     private int _followSlot = -1;
+    private int _frameLoopArmCount;
     private bool _frameLoopArmed;
     private bool _havePrevFrameTime;
     private bool _initialFitApplied;
@@ -143,6 +144,14 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
 
     /// <summary>Test hook: forces the CPU fallback path on, so it is exercised without a broken backend.</summary>
     internal void ForceLeaseUnavailableForTest() => _leaseUnavailable = true;
+
+    /// <summary>
+    ///     Test hook: how many times the animation loop has been armed. The loop is
+    ///     <b>self-terminating</b> — it re-arms only while a camera is settling or a marker is gliding —
+    ///     so on an idle tab this stops growing. A loop that spins forever burns a core in the
+    ///     background and is invisible until someone notices the fan.
+    /// </summary>
+    internal int FrameLoopArmCountForTest => _frameLoopArmCount;
 
     /// <summary>Test hook: the id of the most recent submission. Must be strictly monotonic.</summary>
     internal long LastSubmissionIdForTest => Interlocked.Read(ref _submissionId);
@@ -399,6 +408,9 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
             _initialFitApplied = true;
         }
 
+        // Both halves matter to whether the loop re-arms: a camera still lerping toward its rig's target,
+        // or a marker still gliding toward its sample. Once neither is true nothing asks for another
+        // frame, which is what makes an idle tab cost nothing.
         bool keepArmed = CameraAdvancer.Advance(_panes, frame, in time);
         _panes.SyncCameraEpochs();
         keepArmed |= _compositor.Advance(in time, frame);
@@ -580,6 +592,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         }
 
         _frameLoopArmed = true;
+        _frameLoopArmCount++;
         top.RequestAnimationFrame(OnAnimationFrame);
     }
 

@@ -168,6 +168,48 @@ public class Scene2DHostTests
     }
 
     /// <summary>
+    ///     The self-terminating animation loop. It exists so an idle tab requests no frames at all; if
+    ///     it ever stops terminating, the app quietly burns a core in the background and nobody notices
+    ///     until they hear the fan.
+    /// </summary>
+    [Test]
+    public async Task AnimationLoop_StopsRearmingOnceEverythingHasSettled()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            ctx.PushMarkers((0, 2, -800f, 600f, 64f, 90f), (1, 3, 900f, -500f, 64f, 270f));
+
+            (Window _, Playback2DView view) =
+                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
+
+            // Alive mode with a moving roster: the camera is chasing, so the loop MUST be armed.
+            host.Mode = CameraMode.Alive;
+            for (int i = 0; i < 20; i++)
+            {
+                ctx.PushMarkers((0, 2, -800f + i * 40f, 600f, 64f, 90f),
+                    (1, 3, 900f - i * 40f, -500f, 64f, 270f));
+                Playback2DTimelineHarness.Pump(1);
+            }
+
+            int whileMoving = host.FrameLoopArmCountForTest;
+            await Assert.That(whileMoving).IsGreaterThan(0);
+
+            // Stop pushing and let it converge.
+            Playback2DTimelineHarness.Pump(200);
+            int afterSettling = host.FrameLoopArmCountForTest;
+
+            // Then idle. Nothing is moving, so nothing should ask for another frame.
+            Playback2DTimelineHarness.Pump(120);
+            int afterIdle = host.FrameLoopArmCountForTest;
+
+            Console.WriteLine($"[raf] arms: moving={whileMoving} settled={afterSettling} idle={afterIdle}");
+            await Assert.That(afterIdle).IsEqualTo(afterSettling);
+        });
+    }
+
+    /// <summary>
     ///     The <c>WriteableBitmap</c> fallback (plan T13, risk R12). It never runs in normal use, so it
     ///     is forced on every run — a path that only executes on a broken backend is a path that rots.
     /// </summary>
