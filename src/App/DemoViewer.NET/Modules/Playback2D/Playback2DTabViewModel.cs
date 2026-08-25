@@ -24,6 +24,14 @@ using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Playback2D.Pipeline.Export;
+using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
+using DemoViewer.NET.Playback2D.Pipeline.Frames;
+using DemoViewer.NET.Playback2D.Pipeline.Hud;
+using DemoViewer.NET.Playback2D.Pipeline.Vision;
+using DemoViewer.NET.Services.Dependencies;
+using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Playback2D;
 using Microsoft.Extensions.DependencyInjection;
@@ -46,8 +54,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // The inventory array slots scanned per player: the dotted bracket-indexed paths are built ONCE
     // here, not per-frame, so the per-tick grenade loop allocates no path strings.
     private const int MyWeaponsSlots = 64;
-    private const int KillFeedWindowSeconds = 8; // a kill stays visible this long (game time) after it happens
-    private const int MaxKillFeedRows = 6;
+    // The window constants now live with the window function they parameterise (B4 D5), so the exported
+    // feed and this one cannot drift apart by editing one number.
+    private const int KillFeedWindowSeconds = KillFeedTimeline.DefaultWindowSeconds;
+    private const int MaxKillFeedRows = KillFeedTimeline.DefaultMaxRows;
 
     // The module's own "events of interest" for forward-nav (Phase E): a 2D combat viewer scrubs between
     // kills. The filter is matched against the host's demo-derived event set, so the buttons only show when
@@ -55,7 +65,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private const string KillEventName = "player_death";
 
     private static readonly string[] _myWeaponsPaths = BuildMyWeaponsPaths();
-    private static readonly Comparison<KillFeedEntry> _byTick = (a, b) => a.Tick.CompareTo(b.Tick);
 
     private static readonly string[] _killEventFilter =
     {
@@ -79,19 +88,20 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // The WHOLE demo's kills, pre-built ONCE at load from IModuleContext.GetEventTimeline("player_death")
     // (decoupling display from the push cadence — no kill lost to a render-skipped frame). Rebuilt if the
     // roster arrives after activation (#2, names depend on it). _killWindow is reusable render scratch.
-    private readonly List<KillFeedEntry> _allKills = new();
+    private readonly List<KillFeedRow> _allKills = new();
 
     // Attributes panel: one row per roster slot, updated in place each push (no list rebuild).
     private readonly Dictionary<int, PlayerAttributes> _attrsBySlot = new();
-    private readonly List<KillFeedEntry> _killWindow = new(16);
 
     // The scene half of a push: every marker / area-effect / trail / bomb / game-info read moved into
     // SceneFrameBuilder in B0. The VM keeps only panel state and re-publishes the built frame's contents
     // through the properties the XAML and the viewport already bind to.
     private readonly SceneFrameBuilder _frameBuilder = new();
 
-    // The kill window projected onto the Core row type, refreshed only when the visible slice changes,
-    // so the per-push builder input costs no allocation.
+    // The visible kill window, filled by KillFeedTimeline.Window — the SAME function B4's KillFeedLayer
+    // calls, which is what makes the exported feed and this one structurally incapable of disagreeing
+    // about which kills are on screen (B4 D5). Doubles as the per-push SceneFrameBuilder input, so
+    // publishing costs no allocation.
     private readonly List<KillFeedRow> _killRows = new(MaxKillFeedRows);
 
     private Scene2DFrame _frame = Scene2DFrame.Empty;
@@ -267,10 +277,154 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     The kill-feed rows currently in the display window (ordered oldest→newest). A tick-window
     ///     filter over the pre-built timeline, refreshed each push — NOT an accumulator.
     /// </summary>
-    public ObservableCollection<KillFeedEntry> KillFeed { get; } = new();
+    public ObservableCollection<KillFeedRow> KillFeed { get; } = new();
 
     /// <summary>Round-level game-info panel state.</summary>
     public GameInfo GameInfo { get; } = new();
+
+    // ── Video export (B4) ──────────────────────────────────────────────────────
+    // Everything reusable is in Pipeline/Core; what is here is the composition. The host arrives
+    // through ModuleContext.SetExportHost, so on a build without one (browser, tests, designer) the
+    // affordance is simply hidden rather than offered in a half-wired state where the LiveSync and
+    // reel refusals would silently not apply.
+
+    private ExportJobService? _exportJob;
+
+    /// <summary>
+    ///     True when this build can export: the feature is on, a host is wired, and a demo is loaded.
+    /// </summary>
+    public bool CanExport =>
+        _context?.Features?.IsEnabled(ExportFeatureId) is not false &&
+        _context is ModuleContext { ExportHost: not null } &&
+        _context.HasDemo;
+
+    /// <summary>The open export dialog, or null. Non-null is what the view binds its overlay's visibility to.</summary>
+    [ObservableProperty]
+    private ViewModels.Playback2D.Playback2DExportDialogViewModel? _exportDialog;
+
+    /// <summary>The running export's status, for the chip. Idle when none has run.</summary>
+    public ExportJobStatus ExportStatus => _exportJob?.Status ?? ExportJobStatus.Idle;
+
+    /// <summary>Opens the export dialog, seeded from the saved defaults and the current round.</summary>
+    [RelayCommand]
+    private void OpenExport()
+    {
+        if (!CanExport || _context is not ModuleContext { ExportHost: { } host })
+        {
+            return;
+        }
+
+        _exportJob ??= new ExportJobService(
+            new SceneExportRunner(_ => BuildExportSetup(host)),
+            host.Gate,
+            host.IsLiveSyncBusy,
+            host.IsReelRunning);
+
+        ExportDialog = new ViewModels.Playback2D.Playback2DExportDialogViewModel(
+            BuildExportRanges(),
+            host.Settings().Playback2D,
+            _exportJob,
+            CaptureLiveCamera,
+            OutputFrameCount,
+            () => FfmpegLocationFor(FfmpegDependency.Locate()),
+            host.IsLiveSyncBusy,
+            host.PersistSettings);
+
+        ExportDialog.StartRequested += CloseExport;
+    }
+
+    /// <summary>Closes the export dialog. The job keeps running — its progress lives on the status chip.</summary>
+    [RelayCommand]
+    private void CloseExport()
+    {
+        if (ExportDialog is { } dialog)
+        {
+            dialog.StartRequested -= CloseExport;
+        }
+
+        ExportDialog = null;
+        OnPropertyChanged(nameof(ExportStatus));
+    }
+
+    // Whole rounds, plus the whole demo. CS2 rounds OPEN at round_freeze_end — the same fact RoundTrack's
+    // bands rest on — so the ranges here and the timeline's bands cannot disagree about where a round starts.
+    private List<ViewModels.Playback2D.ExportRangeOption> BuildExportRanges()
+    {
+        List<ViewModels.Playback2D.ExportRangeOption> ranges = [];
+        int total = _context?.TotalFrames ?? 0;
+        if (total <= 0)
+        {
+            return ranges;
+        }
+
+        IReadOnlyList<int> starts = _context?.EventFrames(RoundTrack.FreezeEndEvent) ?? [];
+        for (int i = 0; i < starts.Count; i++)
+        {
+            int from = starts[i];
+            int to = (i + 1 < starts.Count ? starts[i + 1] : total) - 1;
+            if (to > from)
+            {
+                ranges.Add(new ViewModels.Playback2D.ExportRangeOption(
+                    string.Create(CultureInfo.InvariantCulture, $"Round {i + 1}  (frames {from}–{to})"),
+                    from, to));
+            }
+        }
+
+        ranges.Add(new ViewModels.Playback2D.ExportRangeOption(
+            string.Create(CultureInfo.InvariantCulture, $"Whole demo  ({total} frames)"), 0, total - 1));
+
+        // The round containing the playhead leads: it is what the user is looking at.
+        int current = _context?.CurrentFrameIndex ?? 0;
+        int here = ranges.FindIndex(r => current >= r.StartFrame && current <= r.EndFrame);
+        if (here > 0)
+        {
+            ViewModels.Playback2D.ExportRangeOption pick = ranges[here];
+            ranges.RemoveAt(here);
+            ranges.Insert(0, pick);
+        }
+
+        return ranges;
+    }
+
+    private ExportSceneSetup BuildExportSetup(Playback2DExportHost host) => new(
+        host.Frames() ?? [],
+        _tickRate,
+        _context?.MapName,
+        ScenePaletteFactory.Build(Avalonia.Application.Current?.ActualThemeVariant),
+        LevelDisplayMode.Stacked,
+
+        // The export builds its own solver over the same engine: VisionLayer is stateless per frame, and
+        // the engine itself is a read-only mesh.
+        VisionEngine is null ? null : new VisibilityEngineSolver(() => VisionEngine),
+        BuildExportHud(),
+        MapAsset);
+
+    // The exported HUD reads the SAME pre-built kill timeline the XAML feed windows, and the same
+    // SceneGameInfo the panel binds — which is what makes design risk 8 (dual-HUD drift) impossible.
+    private TimelineHudDataSource BuildExportHud() =>
+        new(_allKills, _tickRate, _ => ClockReading.From(_frame.GameInfo));
+
+    // Plan D12: a CAPTURE, taken once when Start is pressed. Panning the live window afterwards changes
+    // nothing about the video. There is no live pane list to read until B3's host exposes one, so this is
+    // an empty Fixed script today — every pane keeps the fit its own level was born with.
+    private static CameraScript.Fixed CaptureLiveCamera() =>
+        new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>());
+
+    private int OutputFrameCount(int startFrame, int endFrame, int fps, double speed) =>
+        _context is ModuleContext { ExportHost: { } host } && host.Frames() is { } frames
+            ? TrackerFrameSource.OutputFrameCount(frames, startFrame, endFrame, fps, speed, _tickRate)
+            : Math.Max(1, endFrame - startFrame + 1);
+
+    private static FfmpegLocation FfmpegLocationFor(FfmpegStatus status) => new(status.Found,
+        status.Directory, status.Source switch
+        {
+            FfmpegSource.SystemPath => FfmpegOrigin.SystemPath,
+            FfmpegSource.Managed => FfmpegOrigin.Managed,
+            _ => FfmpegOrigin.None
+        });
+
+    /// <summary>The feature id gating the whole export affordance. A persisted key — never renamed.</summary>
+    private const string ExportFeatureId = "playback2d.export";
 
     /// <summary>The current frame's marker draw-state. Read by the custom-drawn viewport.</summary>
     public IReadOnlyList<PlayerMarker> Markers => _frame.Markers;
@@ -1371,7 +1525,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             // the miss default: "world" killed "world", never a headshot. Check the embedded catalog (CatalogResource.Load()) before
             // adding a key here; it is generated by reflecting over these same records.
             int assister = ReadSlot(ev, "Assister");
-            _allKills.Add(new KillFeedEntry(
+            _allKills.Add(new KillFeedRow(
                 ev.Tick,
                 NameForSlot(ReadSlot(ev, "Attacker")),
                 assister >= 0 && _nameBySlot.TryGetValue(assister, out string? an) ? an : null,
@@ -1397,22 +1551,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // slice is unchanged (it changes only when the playhead crosses a kill's tick or its expiry).
     private void UpdateKillFeedWindow(int nowTick)
     {
-        int lowTick = nowTick - KillFeedWindowSeconds * Math.Max(1, _tickRate);
+        // The windowing itself is KillFeedTimeline's (B4 D5). What stays here is the unchanged-slice
+        // short-circuit, which is a UI concern: an ObservableCollection rebuilt every push would churn
+        // the ItemsControl sixty-four times a second for a feed that changes twice a round.
+        KillFeedTimeline.Window(_allKills, nowTick, _tickRate, _killRows, KillFeedWindowSeconds,
+            MaxKillFeedRows);
 
-        _killWindow.Clear();
-        foreach (KillFeedEntry k in _allKills)
-        {
-            if (k.Tick > lowTick && k.Tick <= nowTick)
-            {
-                _killWindow.Add(k);
-            }
-        }
-
-        _killWindow.Sort(_byTick);
-        int start = Math.Max(0, _killWindow.Count - MaxKillFeedRows);
-        int count = _killWindow.Count - start;
-        int firstTick = count > 0 ? _killWindow[start].Tick : 0;
-        int lastTick = count > 0 ? _killWindow[^1].Tick : 0;
+        int count = _killRows.Count;
+        int firstTick = count > 0 ? _killRows[0].Tick : 0;
+        int lastTick = count > 0 ? _killRows[^1].Tick : 0;
 
         if (count == _lastKillCount && firstTick == _lastKillFirstTick && lastTick == _lastKillLastTick)
         {
@@ -1420,14 +1567,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
 
         KillFeed.Clear();
-        _killRows.Clear();
-        for (int i = start; i < _killWindow.Count; i++)
+        for (int i = 0; i < _killRows.Count; i++)
         {
-            KillFeedEntry k = _killWindow[i];
-            KillFeed.Add(k);
-            _killRows.Add(new KillFeedRow(k.Tick, k.KillerName, k.AssisterName, k.VictimName, k.Weapon,
-                k.IsHeadshot, k.IsWallbang, k.IsNoScope, k.IsThroughSmoke, k.AttackerBlind, k.AttackerInAir,
-                k.IsFlashAssist));
+            KillFeed.Add(_killRows[i]);
         }
 
         _lastKillCount = count;

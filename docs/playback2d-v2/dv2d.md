@@ -153,11 +153,38 @@ lane actually needs.
 
 ### `dv2d export`
 
-**Deferred to B4.** The verb exists and is documented, and exits **6** naming what is missing
-(`SceneExportSession`, `FfmpegFrameSink`, `ManagedGifSink`). A private encoder path in the CLI was
-explicitly rejected: it would be the thing B4 has to delete, and until then it would produce video
-that does not match the app's export. `TrackerFrameSource` — the frame source that session consumes —
-already ships, in `DemoViewer.NET.Playback2D.Pipeline.Frames`.
+A range of a demo to a video file. Argument parsing and nothing more: the flags become an
+`ExportRequest`, `TrackerFrameSource` replays a **private** tracker over the demo, and
+`SceneExportSession` does the rest. The full user-facing story — formats, frame rates, the ffmpeg
+ladder, the GIF caps, measured speed — is in [`export.md`](export.md).
+
+```bash
+dv2d export --demo match.dem --from t12000 --to t20000 \
+            --format webm --fps 60 --size 1920x1080 --out round-7.webm
+```
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--demo <path>` | required | The `.dem` to export |
+| `--from` / `--to` | whole demo | A frame index, or a tick with a `t` prefix (`--from t12000`) |
+| `--format` | `webm` | `webm` · `mp4` · `gif` |
+| `--fps` | 60 (20 for gif) | Must be one the format supports — GIF is 10/20/25/50 |
+| `--speed` | `1` | Playback-rate multiplier; fixes the timestep at `speed / fps` |
+| `--size` | `1920x1080` | Even in both axes for `webm`/`mp4` |
+| `--layers` | the seven scene layers | Bare or prefixed ids; the HUD is opt-in |
+| `--hud` | off | Adds `hud.clock` and `hud.killfeed` |
+| `--out` | `dv2d-export.<format>` | Output path |
+| `--no-encode` | off | Render and read back every frame, encode nothing |
+| `--ffmpeg-log` | off | Echo ffmpeg's stderr |
+
+`--no-encode` is the diagnostic that separates "the renderer is slow" from "libvpx is slow", and it
+is what a GPU backend should be compared against — a GPU cannot make an encoder quicker.
+
+ffmpeg comes from `PATH` only here; the in-app managed download is not offered to a headless tool.
+Without it, `--format gif` still works through the ImageSharp floor and the other two exit **2**.
+
+Ctrl+C cancels: the token reaches the session, which disposes the sink, which kills ffmpeg and
+deletes the partial output.
 
 ---
 
@@ -171,7 +198,7 @@ already ships, in `DemoViewer.NET.Playback2D.Pipeline.Frames`.
 | 3 | runtime failure (decode / render / encode threw) |
 | **4** | **gate failure** — a golden mismatched or a budget was exceeded |
 | 5 | cancelled (Ctrl+C) |
-| 6 | the requested environment is unavailable (`--gpu` under `--strict-backend`, `probe --require-gpu` with no GPU, `--layout single` before B3, `export` before B4) |
+| 6 | the requested environment is unavailable (`--gpu` under `--strict-backend`, `probe --require-gpu` with no GPU, `--layout single` before B3) |
 
 **4 is the only code CI should read as "the change is bad."** Everything else means "the run is
 broken", and conflating the two is how a golden regression becomes a green build.
@@ -327,7 +354,7 @@ These are phase boundaries, not bugs. Each is an honest failure rather than a si
 |---|---|---|
 | `--layout single`, `--level` | exit 6 — `MapSpace`/`StackedLayout` landed with B1, so `--layout stacked` is a real multi-pane render; the single-level policy is still B3's | B3 |
 | `--gpu` on macOS | always degrades to CPU (`macos-deferred`); ANGLE/EGL ships for Windows and Linux only | C2 Stage 1 |
-| `export` | exit 6 | B4 |
-| The layer set | one smoke layer (`playback2d.debuggrid`); `SceneLayerCatalog` is the single place the real seven register | B1 |
+| `export --gpu` | exit 6 — `SceneExportSession` awaits its sink between frames, so the loop resumes on whatever pool thread the continuation lands on, while `GpuSurfaceProvider` is bound to the thread that created its EGL context. `export`'s backend chain therefore ends at `force-cpu` rather than `auto`, exactly as `golden` does, so the default is never a refusal. Pinning the loop to one thread is the work, and it is the same work the ≥2× throughput number needs | C2 Stage 1 |
+| The `render`/`golden`/`bench` layer set | one smoke layer (`playback2d.debuggrid`); `SceneLayerCatalog.Create` is the single place the real seven register. `export` already draws them, through `SceneLayerCatalog.CreateSceneStack` — a second entry point on purpose, because growing `Create`'s default set moves every committed golden | B1 |
 | A scene with no players and no map bundle | derives no floor band, so it gets no pane and renders background only (`synthetic-empty`, marked `pending` in the manifest) | B1, B3 |
 | Byte-exact goldens | the corpus defaults to `perceptual`; CPU rasterisation of anti-aliased edges can differ by a least-significant bit between SIMD paths | B1 (embedded typeface), C2 (SSIM) |

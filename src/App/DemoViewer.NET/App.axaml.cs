@@ -111,6 +111,30 @@ public class App : Application
                 viewModel.AttachReelJob(reelJob);
             }
 
+            // 2D video export (docs/playback2d-v2/export.md). Everything reusable is in Core/Pipeline and
+            // the 2D tab composes the job itself; what it cannot see through IModuleContext — the frame
+            // list, the heavy-job gate, and whether Live Sync or a reel already owns the machine — is
+            // handed to it here, the same way the live-sync HUD projection and the speed lock are.
+            //
+            // Not an AppHostHooks entry: every implementation involved lives in THIS project, which is
+            // exactly the distinction that seam's doc-comment draws. Null host on Browser (the feature is
+            // gated off there anyway) and in the designer → the tab's Export affordance stays hidden.
+            if (viewModel.ModuleContext is ModuleContext moduleContext)
+            {
+                SettingsService settings = services.GetRequiredService<SettingsService>();
+                moduleContext.SetExportHost(new Playback2DExportHost(
+                    () => viewModel.Playback.Frames,
+                    services.GetRequiredService<HeavyJobGate>(),
+                    // IsSessionActive only: OwnsSessionResources is internal to the desktop-only LiveSync
+                    // project. The narrower predicate still refuses every case a user can create — a
+                    // faulted session holding the gRPC host for retry is the gap, and the gate's own reel
+                    // check covers the overlap that actually costs CPU.
+                    () => liveSync?.State.IsSessionActive == true,
+                    () => reelJob?.Status.IsRunning == true,
+                    () => settings.Current,
+                    settings.Write));
+            }
+
             // The highlight-scan chip. Attached from the container's instance so the strip shows a
             // running library scan even when the Reels tab has never been opened (module tab VMs are lazy).
             viewModel.AttachHighlightScanStatus(services.GetRequiredService<HighlightScanStatusViewModel>());

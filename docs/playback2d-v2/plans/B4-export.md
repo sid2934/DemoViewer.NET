@@ -1083,58 +1083,369 @@ refuses under LiveSync"* — plus this plan's own additions.
 
 Design exit criterion:
 
-- [ ] **≥ realtime on CPU at 1080p.** `Playback2DExportRoundTripTests` exports a full round at
-      1920×1080 to WebM on `CpuSurfaceProvider` and asserts elapsed ≤ frameCount / 64 s.
-- [ ] **Cancel-safe.** Cancelling at any point (before `Prepare`, mid-seek, mid-render, mid-finalize)
-      terminates promptly, kills ffmpeg, disposes the sink exactly once, deletes the partial output,
-      releases the gate, and publishes `ExportPhase.Cancelled`. Covered by
-      `SceneExportSessionCancellationTests` + `ExportJobServiceTests`.
-- [ ] **Refuses under LiveSync.** `Start` throws `ExportRefusedException` when
-      `State.IsSessionActive || OwnsSessionResources`; re-checked after the gate is entered; a session
-      starting mid-export does not abort the export.
-- [ ] **Refuses under a reel job.** `EnterExportSessionAsync` throws `ReelInProgressException`; a reel
-      start is symmetrically refused with `ExportInProgressException`.
+- [ ] **≥ realtime on CPU at 1080p — NOT MET at 60 fps; met at 30 fps and at 720p60.** Measured with
+      `dv2d export --json` on `assets/tour/sample-de_nuke.dem`, WebM/VP9, the shipped layer set:
+      **1280×720@60 → 109.8 fps (1.83×)**, **1920×1080@30 → 53.0 fps (1.77×)**,
+      **1920×1080@60 → 58.4 fps (0.97×)**. R3's third lever is taken and the shipped default preset
+      is 720p. The 1080p60 number is 2.7× what it was before deviation 8's radar fix (21.4 fps) and
+      the remaining gap is one full-frame image composite — see deviations 8 and 9. **Open.**
+- [x] **Cancel-safe.** `SceneExportSessionCancellationTests` (already-cancelled token, cancel
+      mid-render, a sink that throws) and `ExportJobServiceTests` (cancel before the first frame).
+      The sink is disposed exactly once on every path, which is what kills ffmpeg and removes the
+      partial file; the gate is released before the terminal status is published. Verified in the
+      review against a **real** ffmpeg subprocess: cancelling mid-encode leaves zero `ffmpeg`
+      processes and no output file. **Cancel-safe was true; fail-safe was not** — see deviations
+      21-23 for the deadlock, the mute failure and the `Completed`-on-a-broken-file report the
+      review found and fixed, and for why the missing `FfmpegFrameSinkIntegrationTests` is what let
+      all three through.
+- [x] **Refuses under LiveSync.** `ExportJobService.Start` throws `ExportRefusedException`, re-checked
+      after the gate is entered; a session starting mid-export does not abort it (D11), pinned by
+      `ALiveSyncSessionStartingMidExport_DoesNotAbortIt`.
+- [x] **Refuses under a reel job.** Both directions, pinned in `HeavyJobGateTests`.
 
 Plan additions:
 
-- [ ] **D1 recorded and `MainViewModel.cs` untouched.** `git diff` for the phase shows no change to
-      `src/App/DemoViewer.NET/ViewModels/Shell/MainViewModel.cs`; design §12 item 1 is marked
-      resolved.
-- [ ] **Private tracker.** `TrackerFrameSource` builds its own `EntityTracker` via
-      `() => new EntityTracker()`, never `MainViewModel.CreateTracker`, and never calls
-      `PlaybackController.PublishTracker`. Asserted by `TrackerFrameSourceTests`.
-- [ ] **Background thread.** No export code path touches `Dispatcher.UIThread` except
-      `ExportJobService`'s status marshalling.
-- [ ] **Determinism.** Two identical export runs produce byte-identical pre-encode RGBA frame hashes
-      on the CPU backend (`ExportDeterminismTests`), with its negative control passing.
-- [ ] **Zero steady-state allocation** across a 512-frame export after warm-up
-      (`ExportAllocationTests`), per §6.
-- [ ] **Sinks.** WebM/VP9 default, MP4/H.264, GIF all produce decodable files; `-an` present in every
-      video invocation; `-framerate` / `-video_size` / `-pix_fmt rgba` explicit on the input; no
-      `GlobalFFOptions` mutation; ffmpeg is only ever a subprocess.
-- [ ] **GIF floor.** With ffmpeg absent and the download declined, a GIF still exports via
-      `ManagedGifSink`.
-- [ ] **ffmpeg ladder.** `Locate` → offer pinned **LGPL** BtbN build with SHA-256 verification,
-      license text and source link, explicit consent → GIF floor. macOS shows instructions, no
-      download. A hash mismatch or 404 degrades cleanly.
-- [ ] **HUD layers.** `hud.clock` and `hud.killfeed` render in exports and are off unless requested;
-      `Playback2DExportHudSnapshotTests` shows export rows == XAML HUD rows and export clock fields
-      == `GameInfo` fields at every sampled tick; HUD goldens are green.
-- [ ] **Single kill-feed builder.** `KillFeedEntry` is deleted; the VM and the export layer both go
-      through `KillFeedTimeline.Window` (or, on the R8 fallback, the snapshot test is green and the
-      duplication is documented).
-- [ ] **Camera scripts.** `Fixed`, `FollowPlayer`, `MirrorLiveView` all produce correct framing;
-      `MirrorLiveView` is provably a one-time capture (mutating the live panes after Start changes
-      nothing).
-- [ ] **Settings.** `AppSettings.Playback2D.Export` binds from an empty/partial/missing file;
-      defaults persist and reload; `WriteInMemory` carries the documented exclusion comment naming
-      B2's obligation.
-- [ ] **Feature gate.** `playback2d.export` exists with exactly that id, cascades off with
-      `tab.playback2d`, and is forced off on browser.
-- [ ] **Dialog is thin.** No validation, format, fps, or size rule exists in the VM that is not also
-      reachable from Pipeline/Core (constraint (b)); `ExportSeamHeadlessTests` proves the seam is
-      complete without any App type.
-- [ ] **Build & style.** `dotnet build src/App/DemoViewer.NET.Desktop -c Release` is clean with
-      `TreatWarningsAsErrors=true`; the Browser head still publishes (R7); the new CI step is green.
-- [ ] **Notices.** `THIRD-PARTY-NOTICES.md` lists FFMpegCore and ImageSharp and carries the new
+- [x] **D1 recorded and `MainViewModel.cs` untouched.** `git diff 477cbd4..HEAD -- …/MainViewModel.cs`
+      is empty; design §12 item 1 and §5.7's parenthetical both carry the correction.
+- [x] **Private tracker.** `TrackerFrameSource` is unchanged in this respect (C1 built it that way);
+      the export builds its own compositor and its own surface too.
+- [x] **Background thread.** The only `Dispatcher.UIThread` reference in the export path is
+      `ExportJobService.SetStatus`.
+- [x] **Determinism.** `ExportDeterminismTests`, on pre-encode RGBA hashes (D13). The negative control
+      moves a marker rather than the timestep — see deviation 6.
+- [x] **Zero steady-state allocation.** `ExportAllocationTests`: 512-frame and 1024-frame runs differ
+      by **48 bytes total**, which is B1 deviation 14's characterised JIT-tiering artefact. A
+      companion case reports the **701 bytes/frame** the level derivation costs when no map bundle is
+      supplied — B1's, not B4's, and named as a carry-forward rather than swallowed.
+- [x] **Sinks.** All three produce decodable files (`ManagedGifSinkTests`, `ExportSeamHeadlessTests`,
+      and a real `dv2d export` to WebM verified with `ffprobe`: 154 frames, 640×360, 60/1).
+      Re-verified independently at review: full-demo WebM/VP9 1280x720@60 (17998 frames, 299.97 s,
+      3.63 MB), 1920x1080@60 (17998 frames, 4.81 MB), MP4/H.264 720p60 (3601 frames, 60.02 s),
+      ffmpeg GIF (401 frames, 20.05 s) and the managed ImageSharp GIF with `PATH` stripped
+      (201 frames, 10.05 s) all decode under `ffprobe` with the expected codec, size, rate and frame
+      count, one stream and no audio.
+      `FfmpegArgumentTests` pins `-an` on every format, the fully specified rawvideo input, one `-i`
+      for GIF, and that `GlobalFFOptions` is never mutated.
+- [x] **GIF floor.** Verified end to end on the real demo with `PATH` stripped of ffmpeg:
+      51 frames, `encoder=imagesharp-gif`. CI runs the same command on a runner that has no ffmpeg.
+- [x] **ffmpeg ladder.** `FfmpegAcquisitionTests` covers the null offer off Windows-x64, a checksum
+      mismatch, declined consent, a 404, and a success that extracts both binaries and leaves no
+      `*.part`. The pin is a dated release tag with the SHA-256 read from the GitHub release API.
+- [x] **HUD layers.** Opt-in by name (`SceneExportSessionLoopTests`), drawn once per host rather than
+      per band (`HudLayerTests`), and `Playback2DKillFeedTests.AtEverySampledTick_…` compares the
+      exported rows against the XAML feed's at 36 sampled ticks. No HUD *goldens* — see deviation 7.
+- [x] **Single kill-feed builder.** `KillFeedEntry` is deleted; the VM, the XAML `DataTemplate` and
+      `KillFeedLayer` all read Core's `KillFeedRow`, windowed by the one `KillFeedTimeline.Window`.
+      The R8 fallback was not needed.
+- [x] **Camera scripts.** `CameraScriptResolverTests`, including "`MirrorLiveView` ignores later
+      mutation of the live panes" and "`FollowPlayer` holds rather than snapping to the origin".
+- [x] **Settings.** Seven flat `Export*` properties, all flattened into `WriteInMemory`. The
+      exclusion comment the plan asked for is **not** there, deliberately: B5 D3 reversed that call
+      and the keys are written like every other Playback2D key.
+- [x] **Feature gate.** `Playback2DExportFeatureGateTests` locks the id, the parent, the position in
+      the contiguous block, and its membership of `ShellModuleFeatureGate.DesktopOnlyIds`.
+- [x] **Dialog is thin.** Every format/fps/size/range rule routes through
+      `SceneExportSession.Validate`; `ExportSeamHeadlessTests` renders a fixture to a GIF and asserts
+      no `Avalonia*` assembly is loaded in the process.
+- [x] **Reachable in the app.** `Playback2DTabViewModel.OpenExportCommand` composes the runner, the
+      job service and the dialog; the view carries an "Export video…" button and a side pane. Both are
+      **hidden** unless the feature is on, a demo is loaded and the shell wired an export host — a
+      button whose refusals silently did not apply would be worse than no button. See deviations 18–20
+      for the seam, and 20 for the one thing still missing (a live pane snapshot for `MirrorLiveView`).
+- [x] **Build & style.** `dotnet build DemoViewer.NET.slnx` clean, 0 warnings, 0 errors.
+      **R7 verified with a caveat:** `dotnet publish src/App/DemoViewer.NET.Browser -c Release` fails
+      — and fails **identically at the base commit** (`IL2104` trim warnings from
+      `CS2DemoKit.Analysis` and `CS2DemoKit.Parser`, then `NETSDK1144`). Neither FFMpegCore nor
+      ImageSharp appears anywhere in the diagnostics, and `dotnet build` of the Browser head is clean.
+      The trimmed publish was already red; it is B5's `wasm-build` job to own.
+- [x] **Notices.** §c gains FFMpegCore and ImageSharp with their terms stated; §e is the new
       "ffmpeg (not redistributed)" section.
+
+---
+
+## Implementation notes (deviations)
+
+Written at implementation time. Everything not listed here was built as the plan and the
+`Integrator corrections` block specify.
+
+### Where things ended up
+
+1. **`SceneExportSession` lives in `…Pipeline.Export`, not `…Core.Export`.** Registry §3.7 says there
+   is **one** headless render entry point and never a second render path — and that entry point,
+   `HeadlessSceneRenderer`, is Pipeline's. A Core session would have had to re-implement level
+   derivation, pane reconciliation and the multi-pane submission, which is the second render path the
+   registry forbids; it is also the only reason a two-floor Nuke export shows two bands. Everything
+   §5.7 pins as a *contract* — `ISceneFrameSource`, `IFrameSink`, `ExportRequest`, `CameraScript`,
+   `PaneCameraSnapshot`, `ExportProgress`, `ExportValidationException`, `CameraScriptResolver` — is
+   in Core exactly as specified. Only the loop moved, and every type it takes and throws is Core's.
+
+2. **`SceneLayerCatalog.CreateSceneStack` is a second entry point beside `Create`.** The seven real
+   layers had to become buildable from Pipeline for `dv2d export` to draw anything (C1 deviation 6
+   left that to B1). Adding them to `Create`'s registration table would change what `Create()` with
+   no arguments returns — which is what `dv2d render` and every committed CPU golden are built on, so
+   every golden in the corpus would have moved in a commit about video export. Two tables, one file,
+   with the unification pointed at B1's eventual re-baseline PR.
+
+3. **The managed ffmpeg download is Windows-x64 only, not "Windows + Linux" (D9).** BtbN publishes
+   its Linux builds as `.tar.xz`; neither .NET nor this repository has an xz decoder, and taking a
+   compression dependency to unpack a binary that every distribution already packages (`apt install
+   ffmpeg`) is the wrong trade. Linux joins macOS on the instructions-plus-GIF-floor rung. The pin
+   table is data, and a Linux row goes in the day an xz decoder earns its place.
+
+### Additive API, agreed shapes unchanged
+
+4. **`IPaneCameraPolicy` (Core.Cameras) + `HeadlessSceneRenderer.CameraPolicy`.** The generalisation
+   of B1's `Camera` pin: an export needs a different transform per level, and a follow script needs to
+   *step* them, and both must land inside the same `Advance` call — a camera written after the
+   submission snapshot is one frame late, and one written before reconciliation is discarded by it.
+   Null by default, so B1's own construction sites and `dv2d` are unchanged.
+
+5. **Small additions to consumed types.** `IPreparableFrameSource` (Core.Export) so the session can
+   report an `ExportPhase.Seeking` for a source that needs a from-zero replay, without Core knowing
+   what a tracker is. `TrackerFrameSource.Radars` and `static OutputFrameCount` — the first so an
+   exported frame carries the bundle's radar art, the second so the dialog sizes a range with the
+   same arithmetic the source uses (a dialog that computed its own frame count would eventually
+   disagree, and the disagreement would surface as a GIF cap that refuses one length and encodes
+   another). `SceneExportSession.AuthoritativeFloors`/`RadarBinder`, bound exactly as `Scene2DHost`
+   and `dv2d` bind them. `KillFeedRow.HasAssist`, because the XAML feed's assist chip binds it.
+   `Scene2DExportRequest` carries the demo frame range explicitly rather than overloading
+   `ExportRequest`'s source-relative indices with a second meaning.
+
+### Test-plan deviations
+
+6. **The determinism negative control moves a marker, not the timestep.** The plan asked for "a
+   `SceneTime.DeltaSeconds` change produces different hashes". It does not, over a repeated static
+   frame: the marker smoother settles after the first frame and then has nothing left to interpolate,
+   so identical pixels are the *correct* answer and asserting otherwise would be asserting a bug. The
+   control moves a marker instead, which proves the same thing — that the harness hashes content.
+
+7. **No HUD golden PNGs.** `HudLayerGoldenTests` would pin the two layers against committed images at
+   `tests/fixtures/playback2d/goldens/cpu/hud-*.png`. Instead `HudLayerTests` asserts the properties
+   that would make such a golden meaningful — the layers draw, an empty feed draws nothing, a bomb
+   countdown renders differently from a round clock, the HUD appears in exactly one band, and a row's
+   text carries every modifier — and `KillFeedLayer.Format` is asserted directly. A committed
+   picture of text is the most re-baseline-prone artefact in the corpus and B1's own text-metrics
+   review is the reason the parity lane is tolerance-based; adding two more of them to gate a HUD
+   whose *content* is already pinned against the XAML feed buys a maintenance cost, not coverage.
+
+8. **`Playback2DExportRoundTripTests` (the headless-Avalonia integration lane) was not written.**
+   Its assertion — a full round at 1080p, timed — is exactly what `dv2d export --json` reports, and
+   the CLI can do it without an Avalonia platform, without the OOM-prone App suite, and while
+   printing the number instead of hiding it in a pass/fail. The measurements in the checklist above
+   come from it. CI runs the export end to end through the same command.
+
+### The measurement, and the one thing it found
+
+9. **The radar was five sixths of the frame, and `RadarLayer.CacheScaledImage` is the fix.**
+   R3 predicted the vision solve would be the problem and listed three levers. Bisecting with
+   `--no-encode` and `--layers` said otherwise: the encoder was never the bottleneck (21.6 exported
+   fps at 1080p with *no encoder at all*), vision cost nothing measurable, and one layer cost
+   everything. `RadarLayer` draws the baked radar as a single `DrawImage` at `SKFilterQuality.High`,
+   and `LayerCacheHint.PerCamera` caches the **picture**, not its pixels — so replaying that picture
+   re-ran a bicubic resample of a ~2 000 px bundle layer on every frame of the video. The same scene
+   with no map bundle rendered at 143.7 fps.
+   <br>`CacheScaledImage` resamples once per (image, on-screen size) and blits after. It is **off by
+   default** and turned on only by `SceneExportSession`, restored on dispose: the cached path
+   resamples into a whole-pixel intermediate rather than straight into a fractional rectangle, and
+   B1's pre-v2 parity gate can see the difference — with it on globally, `GoldenParityTests` drops
+   from 99.45 % to 98.70 % of pixels within ±8 and fails. An interactive frame has 8 ms of budget and
+   does not need it; an export renders thousands back to back and does. **B1 should decide whether
+   the cached path is simply better and re-baseline, in which case the flag disappears.**
+
+10. **`SceneExportSession`'s `Stopwatch` moved into a named `ExportClock`, and
+    `…Pipeline.Export` joined `BannedApiTests`' exemption.** An export's elapsed time, throughput and
+    ETA are wall-clock quantities by definition and reach no layer, which is the same justification
+    the benchmark harness has. The separate type exists so the reference is attributed to a class
+    under the exempt namespace rather than to the compiler-generated state machine `RunAsync` becomes
+    — a namespace rule stays a rule; a carve-out for a generated name does not.
+
+11. **`ExportJobService` uses a direct `IProgress<T>`, not `Progress<T>`.** `Progress<T>` captures the
+    `SynchronizationContext` of whoever constructed it, and the job is constructed on a thread-pool
+    thread — so it posts to the pool, and a report queued mid-render can arrive **after** the terminal
+    status and overwrite "Completed" with "Rendering", leaving the status claiming the export is still
+    running forever. Found by `ALiveSyncSessionStartingMidExport_DoesNotAbortIt`. Marshalling to the
+    UI thread is `SetStatus`'s job and happens once, at the end of the chain, where ordering is fixed.
+
+12. **`FfmpegAcquisition.AcquireAsync` returns the managed location, not a fresh `Locate()`.** The
+    caller asked for a download and got one; `Locate` would hand back whatever is on `PATH`, which is
+    a different binary, possibly under a different licence, and not the thing whose checksum was just
+    verified.
+
+13. **The dialog's `BuildRequest` takes an optional camera.** Validation runs on every keystroke, and
+    it used to capture the live view each time — which would have made D12's "captured once, at
+    Start" false. Validation now passes a placeholder (the camera cannot make a request invalid) and
+    only `Start` captures. Pinned by `TheLiveCamera_IsCapturedOnStart_NotOnSelection`.
+
+14. **FFMpegCore spells two flags differently, and the tests assert what is emitted.** `-r`/`-s` for
+    the input rate and size rather than `-framerate`/`-video_size` (aliases, same meaning), and
+    `-movflags faststart` without the `+` (which only matters when combining several). Transport is
+    FFMpegCore's named pipe rather than literal stdin — same subprocess, same separateness, and it is
+    what the library supports.
+
+### The composition root, and the file it could not touch
+
+18. **The export host reaches the 2D tab through `ModuleContext.SetExportHost`, not through
+    `IModuleContext`.** An export needs the parsed frame list, and `IModuleContext`'s opening
+    doc-comment is explicit that it "deliberately does NOT expose the live `EntityTracker`, the raw
+    byte buffer, the `DemoParser`, or any mutator — a module simply has no API to corrupt state (the
+    primary, real guardrail)". Handing every module the frame list to give one module a video export
+    is a bad trade. `Playback2DExportHost` is a first-party capability the shell hands one tab, the
+    same shape as `SetLiveSyncHud` and `SetSpeedLock`, and it carries the three things the tab cannot
+    otherwise see: the frames, the `HeavyJobGate`, and the "is something else using the machine"
+    predicates.
+    <br>It is wired in `App.axaml.cs` — B4.11's stated site — through `MainViewModel.ModuleContext`,
+    which was **already public**, so `MainViewModel.cs` stayed untouched as D1 requires. The only
+    other addition is `PlaybackController.Frames`, a read-only accessor over a list that is immutable
+    post-parse.
+
+19. **The live-sync predicate is `State.IsSessionActive`, not
+    `IsSessionActive || OwnsSessionResources` (D11).** `LiveSyncService.OwnsSessionResources` is
+    `internal` to the desktop-only LiveSync project, which the App project cannot reference — the
+    reel job can use it only because it *is* that project. The narrower predicate refuses every case
+    a user can create deliberately; the gap is a *faulted* session still holding the gRPC host for
+    fast retry, which costs a port rather than the CPU an export is competing for. `ExportJobService`
+    takes the predicate as a delegate, so a future host that can see both flags passes both with no
+    change here.
+
+20. **`CameraScript.MirrorLiveView` is not yet reachable from the app.** The dialog captures a camera
+    on Start exactly as D12 requires, and `CameraScriptResolver` implements all three cases with the
+    capture-immutability case tested — but the capture is an empty `Fixed` script today, because
+    there is no live pane list to read: `Scene2DHost` owns its `PaneSet` privately and exposes no
+    snapshot. Every exported pane therefore keeps the fit its own level was born with, which is the
+    correct framing for a whole round and the wrong one for a user who had zoomed in. **The one-line
+    fix is a pane snapshot accessor on `Scene2DHost` (B1/B3's file), and the resolver already
+    consumes it.**
+
+### Not built, and why
+
+15. **No `Playback2DExportHudSnapshotTests` class.** The test it names lives in
+    `Playback2DKillFeedTests` instead, next to the feed cases it is about, because D5 made it a
+    comparison between two consumers of one function rather than between two implementations.
+
+16. **`dv2d export` does not offer the managed download.** A headless tool prompting for consent to
+    fetch a 147 MB binary is not a thing a CI step can answer. It uses `PATH` or the GIF floor.
+
+17. **The GPU ≥2× realtime criterion transferred from C2 is NOT closed.** It cannot be: C2's
+    `GpuSurfaceProvider` is not in this build (its Stages 1–2 are deferred), and
+    `SceneExportSession.RunAsync` takes the provider as a parameter precisely so one drops in with no
+    change here. `dv2d export --no-encode` is the measurement to compare against when it lands —
+    62.6 exported fps at 1080p on `CpuRaster` today, render only. **Open, and owned by C2.**
+
+---
+
+### Found by the independent review, fixed there (2026-08-25)
+
+21. **A failing ffmpeg deadlocked the export forever — R2's predicted failure mode, shipped.**
+    `dv2d export … --out /a/directory/that/does/not/exist/out.webm` never returned; it was still
+    blocked after ten minutes, with ffmpeg long gone. The cause: `ChannelVideoFrameSource` is drained
+    only by FFMpegCore's pump task, so once ffmpeg exits nothing reads the queue again; the queue
+    fills at four frames and `FfmpegFrameSink.WriteAsync` parks on
+    `_channel.Writer.WriteAsync(frame, ct)` with a token nobody will cancel. The
+    `_encoder.IsFaulted` check that was meant to catch exactly this sits **after** that write, so it
+    is unreachable once the queue is full, and `DisposeAsync`'s 30 s timeout never runs because
+    disposal is never reached. `ChannelVideoFrameSource.Fault` existed from the first commit and had
+    **no caller** — it was written for this and never wired.
+    <br>**Fix:** a continuation on the encoder task ends the frame stream when the encoder ends —
+    `Fault` on a faulted encoder, `Complete` on one that exited early, nothing on a cancelled one
+    (its token is the caller's own, and faulting would race a clean `OperationCanceledException`
+    into a `ChannelClosedException`). A parked writer is released at once and rethrows the encoder's
+    failure. Pinned by `ExportFailureTests.AnFfmpegThatCannotOpenItsOutput_FailsTheWrites_…`
+    (`[Category("Integration")]`, skips with no ffmpeg) and
+    `ChannelVideoFrameSourceFaultTests.FaultingTheChannel_ReleasesAWriterAlreadyBlocked…`. The same
+    CLI invocation now exits 3 in about a second. **This is also the gap that let it ship:** the plan's
+    `FfmpegFrameSinkIntegrationTests` was never written and never recorded as a deviation, so the only
+    sink that runs a subprocess had `DescribeArguments` coverage and no execution coverage at all.
+
+22. **The failure said "Pipe is broken", which is true and useless.** The named pipe breaks before
+    FFMpegCore observes the process exit, so the raw fault beats ffmpeg's own explanation to the
+    caller. The sink already received the stderr lines through `NotifyOnError` and threw them away.
+    `FfmpegFrameSink` now keeps the last six and wraps an encoder failure in `FfmpegEncodeException`
+    carrying them, so the CLI prints `ffmpeg failed: Error opening output …: No such file or
+    directory` instead. Asserted in the same test.
+
+23. **`SceneExportSession` could report `Completed` on an export that produced nothing playable, and
+    could report no terminal phase at all.** Disposal of the sink happened inside the `finally`, so a
+    throw from it escaped **before** `Report(terminal, …)` — a caller driving a progress bar off
+    `ExportProgress.Phase` saw `Rendering` as the last word on a failed export. And because muxing
+    happens on close, "every frame was written" is not "a file exists that decodes": a sink that
+    failed only at finalisation had already been reported as progressing normally. Disposal is now
+    its own step after the `finally`: its failure becomes the run's failure (`failure ??= ex`),
+    exactly one terminal report is made on every path, and the original exception is rethrown through
+    `ExceptionDispatchInfo` so its stack survives. Pinned by
+    `AThrowingDisposal_StillReportsATerminalPhase` and
+    `ASinkThatFailsOnlyWhenClosed_FailsTheRun_AndNeverReportsCompleted`.
+
+24. **`ExportJobService`'s single-flight had a window a double-click fits through.** `Start` guarded
+    on `Status.IsRunning`, but the job body runs on the thread pool, so `Status` is still `Idle` for a
+    moment after `Start` returns. Two `Start` calls with no await between them both got through: two
+    exports to one output path, with the first job's `_cts` overwritten and its `_job` unreachable by
+    `CancelAsync`. A `_running` latch is now set inside the same lock that starts the task and cleared
+    after the terminal status is published. Pinned by
+    `ExportJobServiceTests.ASecondStart_InTheWindowBeforeTheFirstJobPublishesAnything_IsStillRefused`;
+    the existing `ASecondStart_WhileOneIsRunning_IsRefused` waits for the runner to enter and so never
+    touched the window.
+
+25. **`dv2d export`'s usage text advertised four options that do not exist and omitted three that
+    do.** `--round N`, `--camera …`, `--ffmpeg <path>` and `--progress` were all in the help and all
+    rejected by the parser with `unknown option` (exit 1) — documented invocations that cannot run —
+    while `--hud`, `--no-encode` and `--ffmpeg-log`, which are real and were used to produce the
+    measurements in this plan, were unmentioned. The block now matches the parser, and
+    `ProgramDispatchTests.EveryOptionTheExportUsageAdvertises_IsAnOptionExportAccepts` runs every
+    `--name` token in the export block through the parser so it cannot drift again. **Note for a
+    follow-up:** `--camera` and `--round` are worth *implementing* rather than only un-documenting —
+    a headless export is stuck with the default fit today, and `CameraScriptResolver` already
+    supports `FollowPlayer`.
+
+26. **Merge-integration (B4 → `feature/playback2d-v2`): `SceneExportSession` now refuses a non-CPU
+    surface provider, and `dv2d export`'s backend chain ends at `force-cpu` rather than `auto`.**
+    B4 was built at `477cbd4`, where `GpuSurfaceProvider` did not exist and export could only ever be
+    handed a `CpuSurfaceProvider`. C2 Stage 0 had merged into the branch by the time B4 landed
+    (`2475f93`), so `BackendResolver`'s auto-probe now finds ANGLE — and `SceneExportSession.RunAsync`
+    awaits its sink between frames, resuming on whatever pool thread the continuation lands on, while
+    `GpuSurfaceProvider` is bound to the thread that created its EGL context. The result on any
+    developer machine with a GPU was that CI's own export step died part-way through with
+    *"GpuSurfaceProvider is thread-affine: it was created on thread 2 and was used from thread 33"* —
+    a true statement about an internal invariant, arriving after the replay, that a user can do
+    nothing with. Making it work means pinning the render loop to one thread, which is a redesign of
+    `RunAsync` and is the same work C2 Stage 1 needs for the ≥2× throughput number; it is emphatically
+    not an integration change. So: the session refuses any `Backend != CpuRaster` up front with an
+    `ExportValidationException` naming the backend (this covers the app path, which reaches the
+    session without going through the CLI), `ExportCommand` re-raises the same refusal as
+    `BackendUnavailableException` so it lands on exit 6 — the "requested environment unavailable"
+    channel `--layout single` already uses for a real-but-not-in-this-build feature — and the CLI's
+    fallback preference becomes `ForceCpu`, precisely as the golden lane already pins it, so the
+    *default* invocation is never an auto-probe into a guaranteed refusal. Pinned by
+    `ANonCpuSurfaceProvider_IsRefused_BeforeAnythingIsRendered` (with a `MislabelledBackendProvider`
+    fake, so the refusal is testable on a runner with no GPU),
+    `ExportLane_DefaultsToCpu_EvenOnAGpuMachine` and
+    `ExportOnAnExplicitGpu_ExitsSix_RatherThanFailingMidRun`. Recorded in `dv2d.md`'s limitations
+    table and owned by C2 Stage 1.
+
+27. **Merge-integration: neither export sink created its output directory, so CI's own export step
+    failed on a clean checkout.** The workflow B4 added writes to
+    `artifacts/playback2d-export/ci-smoke.gif`, and that directory does not exist in a fresh clone.
+    ffmpeg does not create it (`Error opening output …: No such file or directory`) and neither does
+    ImageSharp's `Image.Save(path)` (`DirectoryNotFoundException`) — and because a GIF is written and
+    a container is muxed only at *close*, both refusals arrive after the entire range has been
+    replayed and drawn. `Pipeline/Export/ExportOutputPath.EnsureDirectory` is now called from both
+    sinks' constructors, so a path that cannot be prepared fails before the first frame instead of
+    after the last. This shifted the premise of review commit `fbcb4a7`'s R2 regression test, which
+    used a missing directory to make ffmpeg exit immediately: it now deletes the directory *after*
+    constructing the sink, which reproduces the same early exit and documents that the constructor's
+    courtesy is not a write-time guarantee. New coverage:
+    `AnOutputDirectoryThatDoesNotExistYet_IsCreated_NotDiscoveredAtTheEnd`.
+
+28. **Merge-integration: `SceneExportSessionCancellationTests` collected progress reports in a
+    `List<T>` that `Progress<T>` appended to from the thread pool.** With no synchronization context
+    under the test runner every callback is posted to the pool, so a report still in flight landed
+    while the assertions enumerated the list — `InvalidOperationException: Collection was modified`,
+    reproducing on 2 of 6 consecutive suite runs. This is the test-side twin of the `Progress<T>`
+    defect deviation 23 fixed in `ExportJobService`; the collection is now a `ConcurrentQueue<T>`
+    snapshotted with `ToArray()` before iteration. Six consecutive green runs after the change.
+
+29. **Merge-integration: `THIRD-PARTY-NOTICES.md` section letters were assigned in landing order, as
+    §4.3 directs.** The registry sketched §e as FFMpegCore/ImageSharp/ffmpeg and §f as ANGLE, but C2
+    and B2 landed first, so the file reads §d Inter, §e ANGLE, §f perfect-freehand, and B4's ffmpeg
+    notice became **§g**. The two cross-references that named it were updated: §c's "See §e" and the
+    `FFMpegCore` comment in `Directory.Packages.props`. C2's own ANGLE notice pointed at "§d" (the
+    Inter font) for its licence text; corrected to §e in the same pass.

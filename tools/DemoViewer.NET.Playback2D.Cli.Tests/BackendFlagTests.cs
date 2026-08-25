@@ -2,6 +2,7 @@
 
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Playback2D.Cli;
+using TUnit.Core.Exceptions;
 
 #endregion
 
@@ -189,6 +190,66 @@ public class BackendFlagTests
 
         await Assert.That(run.ExitCode).IsEqualTo(0);
         await Assert.That(payload["backend"]!.GetValue<string>()).IsEqualTo("CpuRaster");
+    }
+
+    /// <summary>
+    ///     <c>export</c> pins CPU too, and for a harder reason than the golden lane's.
+    ///     <para>
+    ///         <c>SceneExportSession</c> awaits its sink between frames, so the loop resumes on
+    ///         whatever pool thread the continuation lands on, while C2's <c>GpuSurfaceProvider</c> is
+    ///         bound to the thread that created its EGL context. An auto-probe that finds ANGLE
+    ///         therefore hands the session a provider it refuses — so auto-probing here is
+    ///         auto-probing into a guaranteed refusal. B4 shipped before C2 Stage 0 merged, when export
+    ///         could only ever see the CPU provider; this is the seam the two phases left between them,
+    ///         found by running CI's own export step after the merge. C2 Stage 1 owns making it work.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task ExportLane_DefaultsToCpu_EvenOnAGpuMachine()
+    {
+        string demo = Dv2d.RequireDemo();
+        string output = Path.Combine(Path.GetTempPath(), $"dv2d-export-cpu-{Guid.NewGuid():N}.gif");
+
+        try
+        {
+            CliRun run = Dv2d.Subprocess(new Dictionary<string, string?> { [BackendVariable] = null },
+                "export", "--demo", demo, "--from", "0", "--to", "2", "--format", "gif", "--fps", "20",
+                "--size", "64x64", "--out", output, "--json");
+
+            await Assert.That(run.ExitCode).IsEqualTo(0);
+            await Assert.That(run.Json()["backend"]!.GetValue<string>()).IsEqualTo("CpuRaster");
+        }
+        finally
+        {
+            if (File.Exists(output))
+            {
+                File.Delete(output);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     And an explicit <c>--gpu</c> export refuses in the environment channel, not the crash one.
+    ///     Exit 6 is what a lane reads as "this machine/build cannot do that"; exit 3 would say the run
+    ///     broke. On a machine with no GPU the request degrades to CPU and simply succeeds, which is the
+    ///     same answer by a different road.
+    /// </summary>
+    [Test]
+    public async Task ExportOnAnExplicitGpu_ExitsSix_RatherThanFailingMidRun()
+    {
+        if (!GpuAvailableHere())
+        {
+            throw new SkipTestException("no GPU backend here; --gpu degrades to CPU and export succeeds");
+        }
+
+        string demo = Dv2d.RequireDemo();
+        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?> { [BackendVariable] = null },
+            "export", "--demo", demo, "--from", "0", "--to", "2", "--format", "gif", "--fps", "20",
+            "--size", "64x64", "--gpu",
+            "--out", Path.Combine(Path.GetTempPath(), $"dv2d-export-gpu-{Guid.NewGuid():N}.gif"));
+
+        await Assert.That(run.ExitCode).IsEqualTo(6);
+        await Assert.That(run.StdErr).Contains("C2 Stage 1");
     }
 
     [Test]

@@ -99,6 +99,23 @@ jobs:
           --budget-bytes-per-frame 4096
           --report-dir artifacts/bench-reports
 
+      # ── B4: the export seam, end to end ─────────────────────────────────────────────────────────
+      # No new TEST step is added — B4's suites live in the Playback2D.Tests project the job already
+      # runs, and its allocation cases carry [Category=Budget] like everyone else's. This is the one
+      # thing a unit test cannot cover: a real demo, parsed, replayed through a PRIVATE tracker, drawn
+      # through the pane pipeline, and written to a file that decodes.
+      #
+      # GIF on purpose. The runner has no ffmpeg, so this exercises the bottom rung of the ladder — the
+      # managed ImageSharp floor — which is precisely the path that must never rot, because it is what a
+      # user with no ffmpeg gets. If ffmpeg is ever installed on the runner, add a --format webm run
+      # beside this one rather than replacing it.
+      - name: Export a clip (no ffmpeg — the managed GIF floor)
+        run: >
+          dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --
+          export --demo assets/tour/sample-de_nuke.dem --from t0 --to t320
+          --format gif --fps 10 --size 320x180 --json
+          --out artifacts/playback2d-export/ci-smoke.gif
+
       - name: Upload render diffs + bench report
         if: always()
         uses: actions/upload-artifact@v4
@@ -107,6 +124,7 @@ jobs:
           path: |
             artifacts/playback2d-goldens/
             artifacts/bench-reports/
+            artifacts/playback2d-export/
           if-no-files-found: ignore
 
   # B1's lane. Split from the correctness suite because it measures rather than asserts behaviour: a

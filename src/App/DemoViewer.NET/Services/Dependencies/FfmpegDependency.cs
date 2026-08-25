@@ -1,3 +1,9 @@
+#region
+
+using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
+
+#endregion
+
 namespace DemoViewer.NET.Services.Dependencies;
 
 /// <summary>
@@ -24,60 +30,26 @@ public static class FfmpegDependency
     public static string? ManagedDirectory =>
         AppPaths.ConfigRoot is { } root ? Path.Combine(root, "tools", "ffmpeg") : null;
 
-    /// <summary>Locates ffmpeg (and implicitly ffprobe, installed alongside). Never throws.</summary>
+    /// <summary>
+    ///     Locates ffmpeg (and implicitly ffprobe, installed alongside). Never throws.
+    ///     <para>
+    ///         <b>The scan itself lives in
+    ///         <see cref="DemoViewer.NET.Playback2D.Pipeline.Ffmpeg.FfmpegLocator" /></b> (B4 D14): the
+    ///         2D-export path needs the same resolution headlessly, where <see cref="AppPaths" /> does
+    ///         not exist. This method stays as the App-facing shim so
+    ///         <see cref="FfmpegStatus" />/<see cref="FfmpegSource" /> and this namespace are unchanged
+    ///         for the reel dialog, <c>App.axaml.cs</c> and <c>CsvgWebHost</c>.
+    ///     </para>
+    /// </summary>
     public static FfmpegStatus Locate()
     {
-        if (OperatingSystem.IsBrowser())
+        FfmpegLocation located = FfmpegLocator.Locate(ManagedDirectory);
+        return new FfmpegStatus(located.Found, located.Directory, located.Origin switch
         {
-            return new FfmpegStatus(false, null, FfmpegSource.None);
-        }
-
-        string exe = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
-
-        // PATH first — an install the user already has (or manages via a package manager) always
-        // wins, matching what CSVG resolves when no BinaryDirectory is configured.
-        string? pathDir = FindOnPath(exe);
-        if (pathDir is not null)
-        {
-            return new FfmpegStatus(true, pathDir, FfmpegSource.SystemPath);
-        }
-
-        string? managed = ManagedDirectory;
-        if (managed is not null && File.Exists(Path.Combine(managed, exe)))
-        {
-            return new FfmpegStatus(true, managed, FfmpegSource.Managed);
-        }
-
-        return new FfmpegStatus(false, null, FfmpegSource.None);
-    }
-
-    // A filesystem scan of PATH rather than launching "ffmpeg -version": the check runs from UI
-    // pre-flights, and spawning processes for presence checks is slower and noisier than stat'ing
-    // a handful of directories.
-    private static string? FindOnPath(string exeName)
-    {
-        string? path = Environment.GetEnvironmentVariable("PATH");
-        if (string.IsNullOrEmpty(path))
-        {
-            return null;
-        }
-
-        foreach (string dir in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
-        {
-            try
-            {
-                if (File.Exists(Path.Combine(dir.Trim(), exeName)))
-                {
-                    return dir.Trim();
-                }
-            }
-            catch
-            {
-                // An unparseable PATH entry (illegal chars) must not sink the whole scan.
-            }
-        }
-
-        return null;
+            FfmpegOrigin.SystemPath => FfmpegSource.SystemPath,
+            FfmpegOrigin.Managed => FfmpegSource.Managed,
+            _ => FfmpegSource.None
+        });
     }
 }
 

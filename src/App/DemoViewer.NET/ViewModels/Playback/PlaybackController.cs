@@ -79,6 +79,17 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     /// <summary>Total frames in the loaded demo, 0 when none loaded.</summary>
     public int TotalFrames => _frames?.Count ?? 0;
 
+    /// <summary>
+    ///     The loaded demo's frame list, or null when none is loaded.
+    ///     <para>
+    ///         Read-only and immutable post-parse, which is what makes a second reader safe: B4's video
+    ///         export walks this same list with its own private <c>EntityTracker</c> while this
+    ///         controller's tracker walks it for the playhead. Handing it out is deliberately narrower
+    ///         than exposing the tracker — a caller can read frames, not mutate decode state.
+    ///     </para>
+    /// </summary>
+    public IReadOnlyList<DemoFrame>? Frames => _frames;
+
     /// <summary>True once a demo is loaded and has at least one frame.</summary>
     public bool HasDemo => TotalFrames > 0;
 

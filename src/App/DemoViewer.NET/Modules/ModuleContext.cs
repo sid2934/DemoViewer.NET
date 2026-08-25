@@ -254,6 +254,21 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     public void SetFeatures(IModuleFeatureGate? features) => Features = features;
 
     /// <summary>
+    ///     The 2D tab's video-export host, or null when this build has none (browser, tests, designer) —
+    ///     in which case the tab's Export affordance stays hidden rather than half-wired.
+    ///     <para>
+    ///         Deliberately NOT on <see cref="IModuleContext" />: that interface exposes no tracker, no
+    ///         raw buffer and no parser, and an export needs the frame list. It is a first-party
+    ///         capability the shell hands one tab explicitly, exactly like <see cref="SetLiveSyncHud" />.
+    ///     </para>
+    /// </summary>
+    public Playback2D.Playback2DExportHost? ExportHost { get; private set; }
+
+    /// <summary>Wires the export host once at composition (mirrors <see cref="SetLiveSyncHud" />).</summary>
+    /// <param name="host">The host, or null for a build with no export.</param>
+    public void SetExportHost(Playback2D.Playback2DExportHost? host) => ExportHost = host;
+
+    /// <summary>
     ///     Sets the shared game-clock calibration on demo load (mirrors <see cref="SetRoster" />). The
     ///     host computes <c>clockBase</c> once via <see cref="GameClock.ComputeClockBase" /> — it owns
     ///     the frame history + the precomputed <c>round_freeze_end</c> frames a seeking module lacks.

@@ -102,6 +102,18 @@ public sealed class HeadlessSceneRenderer : IDisposable
     /// </summary>
     public LevelCrossingTracker Crossings { get; } = new();
 
+    /// <summary>
+    ///     A policy that owns every pane's camera, applied inside <see cref="Advance" /> after
+    ///     reconciliation and before the submission snapshot — the general form of <see cref="Camera" />,
+    ///     added by B4 for export camera scripts (per-level transforms, a follow target that steps).
+    ///     <para>
+    ///         Null by default, so B1's own construction sites and <c>dv2d</c> are unchanged. When both
+    ///         this and <see cref="Camera" /> are set, the pin runs first and the policy has the last
+    ///         word.
+    ///     </para>
+    /// </summary>
+    public IPaneCameraPolicy? CameraPolicy { get; set; }
+
     /// <summary>The arranged panes.</summary>
     public PaneSet Panes { get; }
 
@@ -210,6 +222,10 @@ public sealed class HeadlessSceneRenderer : IDisposable
         {
             SetAllCameras(pinned);
         }
+
+        // Same window as the pin, for the same reason: a camera written after CopySnapshots below is one
+        // frame late, and one written before Reconcile is thrown away by it.
+        CameraPolicy?.Apply(Panes, frame, in time);
 
         Panes.SyncCameraEpochs();
         keepArmed |= _compositor.Advance(in time, frame);

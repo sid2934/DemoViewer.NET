@@ -3,6 +3,7 @@
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Export;
 
 #endregion
 
@@ -25,9 +26,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Frames;
 ///         session) that must not silently take a 100× cost.
 ///     </para>
 /// </summary>
-// B4 adds ": ISceneFrameSource" to this declaration when that interface lands; the four members it
-// names — FrameCount, TimeAt, FrameAt and Dispose — are already exactly these.
-public sealed class TrackerFrameSource : IDisposable
+public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSource, IDisposable
 {
     private readonly SceneFrameBuilder _builder;
     private readonly Func<EntityTracker> _createTracker;
@@ -88,9 +87,38 @@ public sealed class TrackerFrameSource : IDisposable
         _throwOnNonSequentialAccess = throwOnNonSequentialAccess;
         _startTick = frames[startFrame].ServerTick;
 
-        double ticksPerOutputFrame = _speed * _tickRate / _fps;
-        long tickSpan = frames[endFrame].ServerTick - _startTick;
-        FrameCount = tickSpan <= 0 || ticksPerOutputFrame <= 0
+        FrameCount = OutputFrameCount(frames, startFrame, endFrame, fps, speed, _tickRate);
+    }
+
+    /// <summary>
+    ///     How many output frames a demo range produces at a given rate — the same arithmetic the
+    ///     constructor uses, exposed so a caller can size an <c>ExportRequest</c> without building a
+    ///     source first. A dialog that computed its own frame count would eventually disagree with the
+    ///     source, and the disagreement would show up as a GIF cap that refuses one length and encodes
+    ///     another.
+    /// </summary>
+    /// <param name="frames">The parsed frame list.</param>
+    /// <param name="startFrame">First demo frame, inclusive.</param>
+    /// <param name="endFrame">Last demo frame, inclusive.</param>
+    /// <param name="fps">Output frame rate.</param>
+    /// <param name="speed">Playback-rate multiplier.</param>
+    /// <param name="tickRate">Demo tick rate; values ≤ 0 are treated as 64.</param>
+    public static int OutputFrameCount(IReadOnlyList<DemoFrame> frames, int startFrame, int endFrame,
+        int fps, double speed, int tickRate)
+    {
+        ArgumentNullException.ThrowIfNull(frames);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fps);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(speed);
+
+        if (frames.Count == 0 || startFrame < 0 || endFrame < startFrame || endFrame >= frames.Count)
+        {
+            return 0;
+        }
+
+        int rate = tickRate > 0 ? tickRate : 64;
+        double ticksPerOutputFrame = speed * rate / fps;
+        long tickSpan = frames[endFrame].ServerTick - frames[startFrame].ServerTick;
+        return tickSpan <= 0 || ticksPerOutputFrame <= 0
             ? 1
             : 1 + (int)Math.Floor(tickSpan / ticksPerOutputFrame);
     }
@@ -103,6 +131,9 @@ public sealed class TrackerFrameSource : IDisposable
 
     /// <summary>True once <see cref="Prepare" /> has seeded the tracker.</summary>
     public bool IsPrepared => _tracker is not null;
+
+    /// <inheritdoc />
+    public bool NeedsPreparation => _tracker is null;
 
     /// <summary>Drops the private tracker. Idempotent.</summary>
     public void Dispose()
@@ -201,7 +232,8 @@ public sealed class TrackerFrameSource : IDisposable
             CurtimeSeconds = _frames[demoIndex].ServerTick / (double)_tickRate,
             LabelForSlot = _snapshot.LabelForSlot,
             SteamIdForSlot = _snapshot.SteamIdForSlot,
-            MapName = MapName
+            MapName = MapName,
+            Radars = Radars
         };
 
         return _builder.Build(in input);
@@ -209,6 +241,13 @@ public sealed class TrackerFrameSource : IDisposable
 
     /// <summary>The map name stamped onto every built frame. Set before the first <see cref="FrameAt" />.</summary>
     public string? MapName { get; set; }
+
+    /// <summary>
+    ///     The decoded radar art stamped onto every built frame, from a loaded map bundle. Set before the
+    ///     first <see cref="FrameAt" />; leaving it null renders the synthetic grid instead of the map
+    ///     image, which is what a demo-backed render looks like with no assets on disk.
+    /// </summary>
+    public IReadOnlyList<MapRadarImage>? Radars { get; set; }
 
     /// <summary>The demo frame index one output frame maps to.</summary>
     /// <param name="frameIndex">Source-relative output frame index, 0-based.</param>

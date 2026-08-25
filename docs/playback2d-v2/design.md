@@ -446,6 +446,12 @@ Rules locked in by the review:
   seeks (extract it from `MainViewModel`'s wiring rather than paying a from-zero replay to reach
   `StartFrame`; exact type boundary to be confirmed at implementation — the review flagged that one
   proposal misnamed it).
+  **Correction (B4):** there is nothing to extract. The seek core is the package type
+  `CS2DemoKit.Parser.EntityTracking.EntitySeekService`; `MainViewModel` owns only an *instance* of it,
+  and `MainViewModel.CreateTracker` is UI/debugger-specific and must never back an export.
+  `TrackerFrameSource` builds its own service over `() => new EntityTracker()` and accepts one
+  from-zero replay to reach `StartFrame` — no checkpoint cache exists to reuse. See
+  `plans/B4-export.md` D1/D2.
 - Fixed timestep `dt = 1/fps` through the same layer stack (`RenderPurpose.Export`), rendering to an
   `SKSurface` from the provider, `ReadPixels` → sink. Determinism is guaranteed by §5.1, verified by
   golden tests.
@@ -710,6 +716,9 @@ lands first and independently; every B phase ships behind its gate.
 
 1. Exact extraction boundary of the checkpoint-replay seek core out of `MainViewModel` (the review
    found proposals disagreed on its current shape/name — confirm at implementation start).
+   **Resolved (B4):** the core is `CS2DemoKit.Parser.EntityTracking.EntitySeekService` — a package
+   type, already standalone. `MainViewModel` owns only an instance, and was not modified by B4.
+   See `plans/B4-export.md` D1.
 2. Windowless GPU backend choice (ANGLE/EGL vs native GL vs SkiaSharp Vulkan) — resolved by the
    time-boxed C2 spike; macOS Metal support is a separate later decision.
 3. ~~Whether `AnnotationTrack` envelope drag-editing lands in B2 or B3 (UX dependency on timeline).~~

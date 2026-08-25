@@ -32,12 +32,13 @@ internal static class Program
                    [--strict-backend]
                    [--json] [--quiet] [--diag-assemblies]
 
-          export   --demo <path> (--from N --to N | --round N)
+          export   --demo <path> [--from N|tN] [--to N|tN]   default whole demo
                    [--out <file>] [--format webm|mp4|gif]   default webm
                    [--fps N] [--size WxH] [--speed X]
-                   [--layers ...] [--camera ...] [--assets <dir>]
-                   [--ffmpeg <path>] [--cpu | --gpu | --backend <name>] [--strict-backend]
-                   [--json] [--progress]
+                   [--layers a,b] [--assets <dir>] [--no-radar]
+                   [--hud] [--no-encode] [--ffmpeg-log]
+                   [--cpu | --gpu | --backend <name>] [--strict-backend]
+                   [--json]
 
           bench    (--fixture <path> | --name <corpusEntry> | --demo <path> [--from N])
                    [--frames N]             default 2000

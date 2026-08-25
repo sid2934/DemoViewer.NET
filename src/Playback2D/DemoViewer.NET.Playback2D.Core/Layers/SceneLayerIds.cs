@@ -29,4 +29,14 @@ public static class SceneLayerIds
 
     /// <summary>User ink: dry, animated and wet annotation strokes (B2).</summary>
     public const string Annotations = "playback2d.annotations";
+
+    /// <summary>
+    ///     Round number, score and the main countdown, burned into an export (B4 D15). Deliberately
+    ///     un-prefixed: it is a HUD layer, not a 2D-playback overlay, and the same id names it in
+    ///     <c>dv2d render --layers</c> and in a saved export preset.
+    /// </summary>
+    public const string HudClock = "hud.clock";
+
+    /// <summary>The kill feed, burned into an export (B4 D15).</summary>
+    public const string HudKillFeed = "hud.killfeed";
 }

@@ -50,6 +50,7 @@ public sealed class HeavyJobGate : IDisposable
 
     private readonly object _sync = new();
     private bool _disposed;
+    private int _exportSessions;
     private int _held;
     private int _interactivePending;
     private int _maxConcurrency = 1;
@@ -92,6 +93,23 @@ public sealed class HeavyJobGate : IDisposable
         }
     }
 
+    /// <summary>
+    ///     True while a 2D video export owns the machine's spare CPU. Background parses pause for its
+    ///     duration; an interactive demo load does NOT (plan B4 D10 — an export is CPU-bound, not
+    ///     multi-GB-RAM-bound, so making a user wait to open a demo would be a UX regression bought with
+    ///     nothing).
+    /// </summary>
+    public bool IsExportActive
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _exportSessions > 0;
+            }
+        }
+    }
+
     /// <summary>True while an interactive job is waiting or holding — background workers yield.</summary>
     public bool IsInteractivePending
     {
@@ -118,9 +136,9 @@ public sealed class HeavyJobGate : IDisposable
 
     /// <summary>
     ///     Non-blocking peek used by the queue pump as its budget check: <c>true</c> when a
-    ///     background parse could START right now (a free slot, no interactive pending, no reel). The
-    ///     authoritative gate check still happens in <see cref="AcquireBackgroundAsync" /> — this
-    ///     only spares the pump from spawning a worker that would immediately poll-block.
+    ///     background parse could START right now (a free slot, no interactive pending, no reel, no
+    ///     export). The authoritative gate check still happens in <see cref="AcquireBackgroundAsync" /> —
+    ///     this only spares the pump from spawning a worker that would immediately poll-block.
     /// </summary>
     public bool CanStartBackground
     {
@@ -128,7 +146,8 @@ public sealed class HeavyJobGate : IDisposable
         {
             lock (_sync)
             {
-                return !_disposed && _reelSessions == 0 && _interactivePending == 0 && _held < _maxConcurrency;
+                return !_disposed && _reelSessions == 0 && _exportSessions == 0 &&
+                       _interactivePending == 0 && _held < _maxConcurrency;
             }
         }
     }
@@ -203,7 +222,7 @@ public sealed class HeavyJobGate : IDisposable
 
     /// <summary>
     ///     Acquires the gate for a background job (a queue worker). Yields rather than queues: while
-    ///     an interactive job is pending or a reel session is active or every slot is held, the
+    ///     an interactive job is pending or a reel or export session is active or every slot is held, the
     ///     caller keeps polling — so a background worker drains one demo at a time and steps aside at
     ///     the next demo boundary.
     /// </summary>
@@ -214,7 +233,8 @@ public sealed class HeavyJobGate : IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             lock (_sync)
             {
-                if (_reelSessions == 0 && _interactivePending == 0 && _held < _maxConcurrency)
+                if (_reelSessions == 0 && _exportSessions == 0 && _interactivePending == 0 &&
+                    _held < _maxConcurrency)
                 {
                     _held++;
                     return new Releaser(ReleaseHeld);
@@ -232,10 +252,18 @@ public sealed class HeavyJobGate : IDisposable
     ///     already mid-demo when the reel started. No hold is kept after the drain (a reel doesn't
     ///     parse). Dispose to end.
     /// </summary>
+    /// <exception cref="ExportInProgressException">A 2D video export is rendering (symmetric refusal).</exception>
     public async Task<IDisposable> EnterReelSessionAsync(CancellationToken cancellationToken = default)
     {
         lock (_sync)
         {
+            // Symmetric with EnterExportSessionAsync's reel refusal: whichever heavy renderer got there
+            // first keeps the machine, and the second one is told so instead of quietly interleaving.
+            if (_exportSessions > 0)
+            {
+                throw new ExportInProgressException();
+            }
+
             _reelSessions++;
         }
 
@@ -274,6 +302,47 @@ public sealed class HeavyJobGate : IDisposable
         });
     }
 
+    /// <summary>
+    ///     Marks a 2D-export session for its whole duration.
+    ///     <para>
+    ///         Deliberately <b>not</b> an interactive or a background slot (plan B4 D10). An export is
+    ///         CPU-bound and holds one extra <c>EntityTracker</c>, not a multi-gigabyte parse: taking an
+    ///         interactive slot would block the user's next demo open for the whole render, and taking a
+    ///         background one would queue it behind — and then in front of — the user's own work.
+    ///     </para>
+    ///     <para>
+    ///         What it does instead: background parses pause for its duration (they would steal the CPU a
+    ///         realtime-target encode needs), interactive loads are untouched, and a reel start is
+    ///         refused. Unlike a reel session it does NOT drain in-flight parses — an export can share a
+    ///         machine with a parse that is already running; it only declines to let a new one start.
+    ///     </para>
+    ///     Dispose to end.
+    /// </summary>
+    /// <param name="cancellationToken">Unused today; present so the shape matches the reel session's.</param>
+    /// <exception cref="ReelInProgressException">A reel session is active.</exception>
+    public Task<IDisposable> EnterExportSessionAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sync)
+        {
+            if (_reelSessions > 0)
+            {
+                throw new ReelInProgressException();
+            }
+
+            _exportSessions++;
+        }
+
+        return Task.FromResult<IDisposable>(new Releaser(() =>
+        {
+            lock (_sync)
+            {
+                _exportSessions--;
+            }
+        }));
+    }
+
     private void ReleaseHeld()
     {
         lock (_sync)
@@ -302,3 +371,11 @@ public sealed class HeavyJobGate : IDisposable
 /// </summary>
 public sealed class ReelInProgressException() : InvalidOperationException(
     "A highlight reel is being generated — try again when it finishes.");
+
+/// <summary>
+///     A heavy job was refused because a 2D video export is rendering. The message is the user-facing
+///     copy. Symmetric with <see cref="ReelInProgressException" />: the two renderers refuse each other,
+///     rather than sharing a machine neither can then meet its frame budget on.
+/// </summary>
+public sealed class ExportInProgressException() : InvalidOperationException(
+    "A 2D video export is rendering — try again when it finishes.");
