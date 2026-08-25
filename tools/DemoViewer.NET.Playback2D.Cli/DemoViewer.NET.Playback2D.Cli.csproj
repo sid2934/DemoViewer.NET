@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      dv2d — headless Playback2D render / export / bench (docs/playback2d-v2/design.md §4, §5.8).
+      HARD CONSTRAINT: this tool loads ZERO Avalonia assemblies. It references Pipeline only, and
+      NoAvaloniaArchitectureTests asserts the deps graph and the runtime loaded-assembly set. Do not
+      add an Avalonia package here, and do not reference src/App/*.
+    -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <AssemblyName>dv2d</AssemblyName>
+        <RootNamespace>DemoViewer.NET.Playback2D.Cli</RootNamespace>
+        <LangVersion>latest</LangVersion>
+        <!-- A demo replay holds raw bytes + ParsedDemo + a private EntityTracker; the same
+             single-demo-at-a-time posture as DemoTrimmer. -->
+        <ServerGarbageCollection>false</ServerGarbageCollection>
+        <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+        <!-- Deterministic render output is a contract (design §5.1): no tiered-JIT-shaped drift in
+             the golden lane. Cheap for a short-lived tool. -->
+        <TieredCompilationQuickJitForLoops>false</TieredCompilationQuickJitForLoops>
+        <InvariantGlobalization>true</InvariantGlobalization>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference
+                Include="..\..\src\Playback2D\DemoViewer.NET.Playback2D.Pipeline\DemoViewer.NET.Playback2D.Pipeline.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Native Skia: the app gets libSkiaSharp via Avalonia.Skia, which this tool must not
+             reference — so the RID-specific native assets are declared here explicitly. The
+             SkiaSharp and NativeAssets.Linux PackageVersion entries are B0's (C1 correction 4);
+             this project only adds the Win32/macOS ones. -->
+        <PackageReference Include="SkiaSharp"/>
+        <PackageReference Include="SkiaSharp.NativeAssets.Win32"/>
+        <PackageReference Include="SkiaSharp.NativeAssets.Linux"/>
+        <PackageReference Include="SkiaSharp.NativeAssets.macOS"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Cli.Tests"/>
+    </ItemGroup>
+
+</Project>

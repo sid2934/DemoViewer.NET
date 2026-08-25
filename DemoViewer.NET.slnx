@@ -46,5 +46,8 @@
         <Project Path="tools/DemoViewer.NET.DemoTrimmer.Tests/DemoViewer.NET.DemoTrimmer.Tests.csproj"/>
         <Project Path="tools/DemoViewer.NET.AssetBaker/DemoViewer.NET.AssetBaker.csproj"/>
         <Project Path="tools/EntityMicroBench/EntityMicroBench.csproj"/>
+        <Project Path="tools/DemoViewer.NET.Playback2D.Cli/DemoViewer.NET.Playback2D.Cli.csproj"/>
+        <Project
+                Path="tools/DemoViewer.NET.Playback2D.Cli.Tests/DemoViewer.NET.Playback2D.Cli.Tests.csproj"/>
     </Folder>
 </Solution>
