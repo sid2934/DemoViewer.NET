@@ -100,12 +100,13 @@ public class ProgramDispatchTests
     }
 
     [Test]
-    public async Task StrictGpu_ExitsSix()
+    public async Task Probe_IsDispatched()
     {
-        string fixturePath = Path.Combine(Dv2d.CorpusDirectory, "scenes", "synthetic-empty.scene.json");
-        CliRun run = Dv2d.InProcess("render", "--fixture", fixturePath, "--gpu", "--strict-backend");
+        // The exit-code half of `probe` is BackendFlagTests' subject; this is Main's dispatch table.
+        CliRun run = Dv2d.InProcess("probe");
 
-        await Assert.That(run.ExitCode).IsEqualTo(6);
+        await Assert.That(run.ExitCode).IsEqualTo(0);
+        await Assert.That(run.StdOut).Contains("backend=");
     }
 
     [Test]

@@ -86,48 +86,84 @@ public class NoAvaloniaArchitectureTests
         throw new JsonException("the subprocess emitted no loaded_assemblies event:\n" + stderr);
     }
 
+    /// <summary>
+    ///     Asserts that no Avalonia-named package in the deps graph contributes a <b>managed assembly</b>.
+    ///     <para>
+    ///         The rule is "zero Avalonia assemblies", not "no package whose id starts with Avalonia": as
+    ///         of C2 this tool references <c>Avalonia.Angle.Windows.Natives</c> for <c>av_libglesv2.dll</c>,
+    ///         which ships only <c>runtimeTargets</c> of <c>assetType: native</c> and therefore cannot be
+    ///         loaded as an assembly, referenced at compile time, or drag Avalonia's graph in. Classifying
+    ///         structurally — rather than adding a by-name allowlist — keeps the assertion sharp: the day
+    ///         somebody references <c>Avalonia.Skia</c>, its <c>compile</c>/<c>runtime</c> entries put it
+    ///         straight back on the offender list.
+    ///     </para>
+    /// </summary>
+    /// <param name="path">The deps.json to scan.</param>
     private static async Task AssertDepsJsonIsAvaloniaFree(string path)
     {
         await Assert.That(File.Exists(path)).IsTrue();
 
         JsonNode deps = JsonNode.Parse(File.ReadAllText(path))!;
+
+        // "targets" is what would actually be loaded, and it is the only half that says WHAT a package
+        // contributes. Classify there first, then use the verdict to read "libraries" (restore's flat
+        // list, which carries no asset information at all).
+        HashSet<string> nativeOnly = new(StringComparer.OrdinalIgnoreCase);
         List<string> offenders = [];
 
-        // Both halves matter: "libraries" is what restore resolved, "targets" is what would actually be
-        // loaded. A package can appear in one and not the other.
-        foreach (string section in new[] { "libraries", "targets" })
+        foreach (KeyValuePair<string, JsonNode?> target in AsObject(deps["targets"]))
         {
-            Collect(deps[section], offenders);
+            foreach (KeyValuePair<string, JsonNode?> package in AsObject(target.Value))
+            {
+                if (!package.Key.StartsWith("Avalonia", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (ContributesManagedAssemblies(package.Value))
+                {
+                    offenders.Add($"targets/{target.Key}/{package.Key}");
+                }
+                else
+                {
+                    nativeOnly.Add(package.Key);
+                }
+            }
+        }
+
+        foreach (KeyValuePair<string, JsonNode?> library in AsObject(deps["libraries"]))
+        {
+            if (library.Key.StartsWith("Avalonia", StringComparison.OrdinalIgnoreCase) &&
+                !nativeOnly.Contains(library.Key))
+            {
+                offenders.Add($"libraries/{library.Key}");
+            }
         }
 
         await Assert.That(offenders).IsEmpty();
     }
 
-    private static void Collect(JsonNode? node, List<string> offenders)
+    /// <summary>Whether a deps.json package entry contributes anything loadable as managed code.</summary>
+    /// <param name="package">The package's entry under a target.</param>
+    private static bool ContributesManagedAssemblies(JsonNode? package)
     {
-        switch (node)
+        JsonObject entry = AsObject(package);
+
+        // "runtime" = assemblies copied to the output; "compile" = reference assemblies. Either one
+        // means managed code. "dependencies" is not evidence on its own — a native package can depend
+        // on another native package.
+        if (entry.ContainsKey("runtime") || entry.ContainsKey("compile"))
         {
-            case JsonObject o:
-                foreach (KeyValuePair<string, JsonNode?> pair in o)
-                {
-                    if (pair.Key.StartsWith("Avalonia", StringComparison.OrdinalIgnoreCase))
-                    {
-                        offenders.Add(pair.Key);
-                    }
-
-                    Collect(pair.Value, offenders);
-                }
-
-                break;
-            case JsonArray a:
-                foreach (JsonNode? item in a)
-                {
-                    Collect(item, offenders);
-                }
-
-                break;
+            return true;
         }
+
+        // RID-specific assets: managed ones carry assetType "runtime", natives carry "native".
+        return AsObject(entry["runtimeTargets"]).Any(static asset =>
+            !string.Equals(AsObject(asset.Value)["assetType"]?.GetValue<string>(), "native",
+                StringComparison.OrdinalIgnoreCase));
     }
+
+    private static JsonObject AsObject(JsonNode? node) => node as JsonObject ?? [];
 
     private static async Task AssertClosureIsAvaloniaFree(SysAssembly root)
     {

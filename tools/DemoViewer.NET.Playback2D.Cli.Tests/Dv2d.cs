@@ -92,7 +92,21 @@ internal static class Dv2d
 
     /// <summary>Runs the built <c>dv2d</c> executable as a child process.</summary>
     /// <param name="args">The arguments, without the executable name.</param>
-    public static CliRun Subprocess(params string[] args)
+    public static CliRun Subprocess(params string[] args) => Subprocess(null, args);
+
+    /// <summary>
+    ///     Runs the built <c>dv2d</c> executable as a child process with extra environment variables.
+    ///     <para>
+    ///         A subprocess is not a convenience for the backend cases, it is a requirement:
+    ///         <c>RenderSurfaceProviderFactory</c> caches its probe for the life of the process and its
+    ///         <c>ResetForTests</c> is internal to Core, so an in-process run would answer every later
+    ///         case from whichever environment happened to probe first.
+    ///     </para>
+    /// </summary>
+    /// <param name="environment">Variables to set (or clear, with a null value) for the child.</param>
+    /// <param name="args">The arguments, without the executable name.</param>
+    public static CliRun Subprocess(IReadOnlyDictionary<string, string?>? environment,
+        params string[] args)
     {
         (string fileName, IReadOnlyList<string> prefix) = LaunchTarget();
 
@@ -106,6 +120,23 @@ internal static class Dv2d
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
+
+        if (environment is not null)
+        {
+            foreach ((string name, string? value) in environment)
+            {
+                // Remove rather than set-to-null: on Unix an empty string is a SET variable, and
+                // "DV2D_RENDER_BACKEND=" would parse as unrecognised rather than absent.
+                if (value is null)
+                {
+                    info.Environment.Remove(name);
+                }
+                else
+                {
+                    info.Environment[name] = value;
+                }
+            }
+        }
 
         foreach (string argument in prefix)
         {

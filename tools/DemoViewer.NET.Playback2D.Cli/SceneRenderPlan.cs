@@ -99,15 +99,20 @@ internal sealed class SceneRenderPlan : IDisposable
     ///     one image against a differently-named other. Leaving the option unconsumed turns it into the
     ///     usage error it is.
     /// </param>
+    /// <param name="defaultBackend">
+    ///     What "no backend was requested" means. <c>Auto</c> everywhere except the golden lane — see
+    ///     <see cref="BackendResolver.Resolve" />.
+    /// </param>
     public static SceneRenderPlan Build(CliArgs args, SKSizeI defaultSize, string? mapName,
-        IReadOnlyList<string>? entryLayers = null, bool allowSizeOverride = true)
+        IReadOnlyList<string>? entryLayers = null, bool allowSizeOverride = true,
+        RenderBackendPreference defaultBackend = RenderBackendPreference.Auto)
     {
         ArgumentNullException.ThrowIfNull(args);
 
         SKSizeI size = allowSizeOverride ? args.Size("size", defaultSize) : defaultSize;
         RequireSingleLevelLayout(args);
 
-        ResolvedBackend backend = BackendResolver.Resolve(args);
+        ResolvedBackend backend = BackendResolver.Resolve(args, defaultBackend);
         AssetsRoot assets = AssetsRootResolver.Resolve(args);
 
         IReadOnlyList<string>? include = args.List("layers") ?? entryLayers;

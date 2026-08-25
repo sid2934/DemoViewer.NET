@@ -15,7 +15,7 @@ internal static class Program
 {
     /// <summary>The verbs the usage text lists, and the only ones <see cref="Main" /> dispatches.</summary>
     public static readonly IReadOnlyList<string> Verbs =
-        ["render", "export", "bench", "golden", "fixture"];
+        ["render", "export", "bench", "golden", "fixture", "probe"];
 
     /// <summary>The usage text, printed on no args, <c>--help</c>, and every usage error.</summary>
     public const string Usage = """
@@ -28,26 +28,29 @@ internal static class Program
                    [--camera fit-map|fit-alive|follow:<steamId>|fixed:<x>,<y>,<zoom>]
                    [--layout stacked|single] [--level <levelId>]
                    [--assets <dir>] [--no-radar]
-                   [--cpu | --gpu] [--strict-backend]
+                   [--cpu | --gpu | --backend <auto|cpu|gpu|angle|gl|force-gpu>]
+                   [--strict-backend]
                    [--json] [--quiet] [--diag-assemblies]
 
           export   --demo <path> (--from N --to N | --round N)
                    [--out <file>] [--format webm|mp4|gif]   default webm
                    [--fps N] [--size WxH] [--speed X]
                    [--layers ...] [--camera ...] [--assets <dir>]
-                   [--ffmpeg <path>] [--cpu | --gpu] [--json] [--progress]
+                   [--ffmpeg <path>] [--cpu | --gpu | --backend <name>] [--strict-backend]
+                   [--json] [--progress]
 
           bench    (--fixture <path> | --name <corpusEntry> | --demo <path> [--from N])
                    [--frames N]             default 2000
                    [--warmup N]             default 128
                    [--size WxH] [--layers ...] [--assets <dir>]
-                   [--cpu | --gpu]
+                   [--cpu | --gpu | --backend <name>] [--strict-backend]
                    [--gate] [--budget-scale X] [--budget-p99-ms X]
                    [--budget-advance-p99-ms X] [--budget-bytes-per-frame N]
                    [--report-dir <dir>] [--json]
 
           golden   verify | update
-                   [--corpus <dir>] [--name <fixture>] [--cpu | --gpu]
+                   [--corpus <dir>] [--name <fixture>]
+                   [--cpu | --gpu | --backend <name>] [--strict-backend]
                    [--tolerance byte-exact|perceptual] [--diff-dir <dir>] [--json]
 
           fixture  capture --demo <path> (--tick N | --frame N) --name <id>
@@ -55,6 +58,16 @@ internal static class Program
                            [--annotations <path>] [--layers ...] [--json]
                    list   [--corpus <dir>] [--json]
                    verify [--corpus <dir>] [--json]
+
+          probe    [--json] [--require-gpu] [--require-hardware] [--quiet]
+                   reports the render-surface backend this machine provides, and why.
+                   A CPU answer is not an error (exit 0); --require-gpu makes it exit 6,
+                   and --require-hardware additionally rejects WARP / llvmpipe.
+
+        backend selection (design §5.8): --cpu | --gpu | --backend <name>, then
+                    DV2D_RENDER_BACKEND, then an auto-probe. --strict-backend turns a
+                    GPU request into force-gpu, so a lane fails rather than silently
+                    measuring software rendering. dv2d reads no AppSettings (§7.7).
 
         exit codes: 0 ok · 1 usage · 2 missing input · 3 runtime failure
                     4 GATE FAILURE (golden mismatch / budget exceeded) · 5 cancelled
@@ -145,6 +158,7 @@ internal static class Program
         "bench" => BenchCommand.Run(args),
         "golden" => GoldenCommand.Run(args),
         "fixture" => FixtureCommand.Run(args),
+        "probe" => ProbeCommand.Run(args),
         "export" => ExportCommand.RunAsync(args, ct).GetAwaiter().GetResult(),
         _ => throw new CliUsageException($"unknown command '{args.Verb}'.")
     };

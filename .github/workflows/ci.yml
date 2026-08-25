@@ -186,6 +186,16 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1 libegl1 libgles2 libgl1 libglx-mesa0 mesa-utils
 
+      # What this runner actually resolved to, in the log, before any test runs. Exit 0 either way —
+      # the value is GL_RENDERER: a lane that thought it was on ANGLE and is really on WARP is
+      # otherwise invisible until somebody wonders why the numbers moved (C2.7).
+      - name: Report the render backend
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          GALLIUM_DRIVER: llvmpipe
+        run: >
+          dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli -- probe --json
+
       - name: Render-backend tests (CPU contract + cross-backend parity)
         env:
           LIBGL_ALWAYS_SOFTWARE: '1'
@@ -220,6 +230,14 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+
+      # Fail here, in one line, if this self-hosted runner has lost its GPU — rather than three
+      # minutes later inside a suite. --require-hardware additionally rejects WARP/llvmpipe: this is
+      # the only lane whose numbers are meant to mean something, and a software rasterizer's do not.
+      - name: Require a real GPU
+        run: >
+          dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --
+          probe --json --require-gpu --require-hardware
 
       # force-gpu, so the lane FAILS rather than silently skipping if the runner lost its GPU. That is
       # the whole reason RenderBackendPreference.ForceGpu exists.

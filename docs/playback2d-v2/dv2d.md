@@ -42,7 +42,8 @@ dv2d render   --fixture <path> | --demo <path> (--tick N | --frame N)
               [--camera fit-map|fit-alive|follow:<steamId>|fixed:<x>,<y>,<zoom>]
               [--layout stacked|single] [--level <levelId>]
               [--assets <dir>] [--no-radar]
-              [--cpu | --gpu] [--strict-backend]
+              [--cpu | --gpu | --backend <auto|cpu|gpu|angle|gl|force-gpu>]
+              [--strict-backend]
               [--json] [--quiet] [--diag-assemblies]
 ```
 
@@ -61,7 +62,8 @@ dv2d render   --fixture <path> | --demo <path> (--tick N | --frame N)
 
 ```
 dv2d golden   verify | update
-              [--corpus <dir>] [--name <fixture>] [--cpu | --gpu]
+              [--corpus <dir>] [--name <fixture>]
+              [--cpu | --gpu | --backend <name>] [--strict-backend]
               [--tolerance byte-exact|perceptual] [--diff-dir <dir>] [--json]
 ```
 
@@ -85,7 +87,7 @@ dv2d bench    (--fixture <path> | --name <corpusEntry> | --demo <path> [--from N
               [--frames N]               default 2000
               [--warmup N]               default 128
               [--size WxH] [--layers ...] [--assets <dir>]
-              [--cpu | --gpu]
+              [--cpu | --gpu | --backend <name>] [--strict-backend]
               [--gate] [--budget-scale X] [--budget-p99-ms X]
               [--budget-advance-p99-ms X] [--budget-bytes-per-frame N]
               [--report-dir <dir>] [--json]
@@ -121,6 +123,34 @@ and a generated note — edit those by hand afterwards; the manifest is a review
 come back byte-identically — a fixture that reads but does not write back identically is a fixture
 whose next `capture` would silently drop data.
 
+### `dv2d probe`
+
+```
+dv2d probe    [--json] [--require-gpu] [--require-hardware] [--quiet]
+```
+
+Reports which render-surface backend this machine can provide, and why:
+
+```
+$ dv2d probe
+[render] backend=Angle gpuAvailable=True reason=angle-d3d11 \
+  renderer='ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti SUPER Direct3D11 vs_5_0 ps_5_0)' \
+  vendor='Google Inc. (NVIDIA)' version='OpenGL ES 3.0 (ANGLE 2.1.27952)' probe=187ms
+```
+
+A CPU answer is **not** an error — the CPU provider is the contract baseline and the GPU is
+opportunistic (design §10 risk 7) — so the command exits 0 either way. Two flags turn it into a gate:
+
+- `--require-gpu` exits **6** when no GPU backend can be stood up.
+- `--require-hardware` additionally exits 6 when the backend is a known software rasterizer (WARP,
+  llvmpipe, SwiftShader). That is the distinction a throughput lane needs and a correctness lane must
+  not make: a WARP run genuinely exercises the GPU code path, it just measures nothing.
+
+`probe` asks `RenderSurfaceProviderFactory.Probe()`, **not** `Create` — it reports what the machine
+can do, unfiltered by preference. Under `DV2D_RENDER_BACKEND=cpu` the payload therefore says
+`"reason": "forced-cpu"` with `"forced_cpu": true`, which is the fact somebody debugging a slow CI
+lane actually needs.
+
 ### `dv2d export`
 
 **Deferred to B4.** The verb exists and is documented, and exits **6** naming what is missing
@@ -141,7 +171,7 @@ already ships, in `DemoViewer.NET.Playback2D.Pipeline.Frames`.
 | 3 | runtime failure (decode / render / encode threw) |
 | **4** | **gate failure** — a golden mismatched or a budget was exceeded |
 | 5 | cancelled (Ctrl+C) |
-| 6 | the requested environment is unavailable (`--gpu` under `--strict-backend`, `--layout single` before B3, `export` before B4) |
+| 6 | the requested environment is unavailable (`--gpu` under `--strict-backend`, `probe --require-gpu` with no GPU, `--layout single` before B3, `export` before B4) |
 
 **4 is the only code CI should read as "the change is bad."** Everything else means "the run is
 broken", and conflating the two is how a golden regression becomes a green build.
@@ -168,9 +198,27 @@ against re-baked radar art.
 
 ## Render backend
 
-Precedence: explicit argument → `--cpu`/`--gpu` → `DV2D_RENDER_BACKEND` (`auto|cpu|gpu`) →
-auto-probe. C2 owns `GpuSurfaceProvider`; until it lands, `--gpu` degrades to CPU **with a printed
-reason**, or fails with exit 6 under `--strict-backend`.
+Precedence (design §5.8, plans/C2-gpu-provider.md §2.5):
+
+1. `--cpu` / `--gpu` / `--backend <auto|cpu|gpu|angle|gl|force-gpu>` — mutually exclusive; `angle`
+   and `gl` are accepted aliases for `gpu` (which GL stack gets used is the probe's decision).
+2. `DV2D_RENDER_BACKEND`, same grammar. Unlike the library — which treats an unrecognised value as
+   "unset" — **`dv2d` rejects a typo with exit 1**: a lane that set `DV2D_RENDER_BACKEND=gpuu` would
+   otherwise measure the CPU path and report a green budget.
+3. auto-probe.
+
+`AppSettings.Playback2D.RenderBackend` is deliberately **not** consulted: a headless tool reads no UI
+state (design §7.7). An explicit flag outranks the environment in both directions — `--backend
+force-gpu` reaches the hardware even inside a `DV2D_RENDER_BACKEND=cpu` shell.
+
+`--gpu` degrades to CPU **with a printed reason** when no GPU backend exists. `--strict-backend`
+upgrades that request to `force-gpu`, so it fails with exit 6 instead — which is what stops a CI lane
+going green having quietly measured software rendering. Every `--json` payload echoes both the
+resolved `backend` and the requested `backend_requested`.
+
+Windows gets ANGLE over D3D11 (`av_libglesv2.dll`, shipped by `Avalonia.Angle.Windows.Natives` —
+`dv2d` references it directly, since it has no Avalonia to inherit it from); Linux gets EGL,
+surfaceless first so containers work; macOS is deferred. Run `dv2d probe` to see which.
 
 ## SkiaSharp version policy
 
@@ -201,6 +249,12 @@ With `--json`, **stdout carries exactly one JSON object** and every human line m
  "map":"de_mirage","map_version":"1efb9403","tick":21120,"frame_index":21152,
  "layers":["playback2d.debuggrid"],"png_sha256":"…","png_bytes":4576,
  "parse_ms":0,"elapsed_ms":103.1}
+
+// probe
+{"schema_version":1,"command":"probe","ok":true,"backend":"Angle","gpu_available":true,
+ "reason":"angle-d3d11","renderer":"ANGLE (NVIDIA, … Direct3D11 vs_5_0 ps_5_0)",
+ "vendor":"Google Inc. (NVIDIA)","version":"OpenGL ES 3.0 (ANGLE 2.1.27952)",
+ "software_renderer":false,"forced_cpu":false,"duration_ms":174.777}
 
 // bench
 {"schema_version":1,"command":"bench","ok":true,"backend":"CpuRaster",
@@ -272,7 +326,7 @@ These are phase boundaries, not bugs. Each is an honest failure rather than a si
 | Flag / feature | State | Owner |
 |---|---|---|
 | `--layout single`, `--level` | exit 6 — `MapSpace`/`StackedLayout` landed with B1, so `--layout stacked` is a real multi-pane render; the single-level policy is still B3's | B3 |
-| `--gpu` | degrades to CPU with a reason; exit 6 under `--strict-backend` | C2 |
+| `--gpu` on macOS | always degrades to CPU (`macos-deferred`); ANGLE/EGL ships for Windows and Linux only | C2 Stage 1 |
 | `export` | exit 6 | B4 |
 | The layer set | one smoke layer (`playback2d.debuggrid`); `SceneLayerCatalog` is the single place the real seven register | B1 |
 | A scene with no players and no map bundle | derives no floor band, so it gets no pane and renders background only (`synthetic-empty`, marked `pending` in the manifest) | B1, B3 |

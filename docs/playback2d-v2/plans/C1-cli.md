@@ -515,7 +515,8 @@ dv2d render   --fixture <path> | --demo <path> (--tick N | --frame N)
               [--camera fit-map|fit-alive|follow:<steamId>|fixed:<x>,<y>,<zoom>]
               [--layout stacked|single] [--level <levelId>]
               [--assets <dir>] [--no-radar]
-              [--cpu | --gpu] [--strict-backend]
+              [--cpu | --gpu | --backend <auto|cpu|gpu|angle|gl|force-gpu>]
+              [--strict-backend]
               [--json] [--quiet] [--diag-assemblies]
 
 dv2d export   --demo <path> (--from N --to N | --round N)
@@ -523,19 +524,21 @@ dv2d export   --demo <path> (--from N --to N | --round N)
               [--fps N]                  default: 60   (64 = tick-native)
               [--size WxH] [--speed X]
               [--layers ...] [--camera ...] [--assets <dir>]
-              [--ffmpeg <path>] [--cpu | --gpu] [--json] [--progress]
+              [--ffmpeg <path>] [--cpu | --gpu | --backend <name>] [--strict-backend]
+              [--json] [--progress]
 
 dv2d bench    (--fixture <path> | --name <corpusEntry> | --demo <path> [--from N])
               [--frames N]               default: 2000
               [--warmup N]               default: 128
               [--size WxH] [--layers ...] [--assets <dir>]
-              [--cpu | --gpu]
+              [--cpu | --gpu | --backend <name>] [--strict-backend]
               [--gate] [--budget-scale X] [--budget-p99-ms X]
               [--budget-advance-p99-ms X] [--budget-bytes-per-frame N]
               [--report-dir <dir>] [--json]
 
 dv2d golden   verify | update
-              [--corpus <dir>] [--name <fixture>] [--cpu | --gpu]
+              [--corpus <dir>] [--name <fixture>]
+              [--cpu | --gpu | --backend <name>] [--strict-backend]
               [--tolerance byte-exact|perceptual] [--diff-dir <dir>] [--json]
 
 dv2d fixture  capture --demo <path> (--tick N | --frame N) --name <id>
@@ -543,6 +546,11 @@ dv2d fixture  capture --demo <path> (--tick N | --frame N) --name <id>
                       [--annotations <path>] [--layers ...] [--json]
               list   [--corpus <dir>] [--json]
               verify [--corpus <dir>] [--json]       # schema round-trip, no rendering
+
+dv2d probe    [--json] [--require-gpu] [--require-hardware] [--quiet]
+              # C2-owned surface addition (C2.7, plans/C2-gpu-provider.md §6.4), landed at
+              # the C2 merge. Reports the render-surface backend and why; exit 0 on a CPU
+              # answer, exit 6 under --require-gpu / --require-hardware.
 ```
 
 ### JSON output schemas (stdout with `--json`; `schema_version: 1`)

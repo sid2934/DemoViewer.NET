@@ -30,6 +30,7 @@ public class JsonContractTests
         yield return () => ("fixture-list", ["fixture", "list", "--corpus", Dv2d.CorpusDirectory, "--json"]);
         yield return () => ("fixture-verify",
             ["fixture", "verify", "--corpus", Dv2d.CorpusDirectory, "--json"]);
+        yield return () => ("probe", ["probe", "--json"]);
     }
 
     [Test]

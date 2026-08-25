@@ -2,6 +2,7 @@
 
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Goldens;
 
@@ -70,8 +71,13 @@ internal static class GoldenCommand
                     continue;
                 }
 
+                // defaultBackend: ForceCpu. The committed corpus is goldens/cpu/ and CPU is
+                // authoritative (00-overview.md §3.9), so an unqualified `dv2d golden verify` must not
+                // auto-probe onto a GPU and report a rasterizer difference as a pixel regression.
+                // --gpu / --backend / DV2D_RENDER_BACKEND still override, for the parity lane.
                 using SceneRenderPlan plan = SceneRenderPlan.Build(args, entry.Size, entry.MapName,
-                    entry.Layers, allowSizeOverride: false);
+                    entry.Layers, allowSizeOverride: false,
+                    defaultBackend: RenderBackendPreference.ForceCpu);
                 backend ??= plan.Backend;
 
                 // A re-baked radar silently changes every pixel under it. Refuse rather than diff.

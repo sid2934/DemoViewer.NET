@@ -1314,7 +1314,8 @@ Ticked where Stage 0 closes the item; every unticked line names what it waits on
       reason + `GL_RENDERER`.
 - [x] Probe order matches §5.8 for the implemented candidates; macOS → CPU (`macos-deferred`), browser →
       CPU (`browser`), anything failed → CPU with the reason logged. W2/L2 are deviation 18.
-- [ ] `dv2d --gpu`/`--cpu`/`--backend` on `render`/`export`/`bench` — **C1** (deviation 2).
+- [x] `dv2d --gpu`/`--cpu`/`--backend` on `render`/`export`/`bench` — landed at the C2 merge, once C1
+      was in the tree (deviation 21). Also on `golden`, which defaults to CPU (deviation 25).
 - [x] `DV2D_RENDER_BACKEND` is honoured with the §2.5 precedence; an unrecognised value falls back to
       `Auto` without failing the run.
 - [ ] Export-dialog advanced option + `SettingsService.WriteInMemory` key — **B2/B4** (deviation 3).
@@ -1332,14 +1333,105 @@ Ticked where Stage 0 closes the item; every unticked line names what it waits on
       deviation 7).
 - [x] 20 consecutive create → render → readback → dispose cycles at 1080p are stable, and
       create-after-dispose works.
-- [ ] `dv2d probe --json` / `--require-gpu` — **C1** (deviation 2).
-- [x] `THIRD-PARTY-NOTICES.md` carries the full ANGLE BSD-3-Clause text (as §d — deviation 16);
-      `av_libglesv2.dll` confirmed present in the Playback2D test project's
-      `runtimes/win-x64/native` output and loadable from a project with no Avalonia reference.
-      A `dotnet publish -r win-x64 --self-contained` check of the Desktop head and `dv2d` is **not**
-      done — `dv2d` does not exist yet.
+- [x] `dv2d probe --json` / `--require-gpu` — landed at the C2 merge (deviations 21-24), plus
+      `--require-hardware`. Exit 6 rather than §6.4's 1; keys are snake_case per the tool's contract.
+- [x] `THIRD-PARTY-NOTICES.md` carries the full ANGLE BSD-3-Clause text (as **§e** after the merge
+      renumber — deviations 16 and 30); `av_libglesv2.dll` confirmed present in the Playback2D test
+      project's `runtimes/win-x64/native` output and loadable from a project with no Avalonia
+      reference, and `dv2d` now carries the `PackageReference` itself (deviation 21), verified by
+      `dv2d probe` reporting `backend=Angle` from a process with no Avalonia loaded. A
+      `dotnet publish -r win-x64 --self-contained` check of both heads is still **not** done.
 - [x] `Directory.Packages.props` pins `Avalonia.Angle.Windows.Natives` to Avalonia's exact version with
       the coherence comment.
 - [ ] The `render-backends` CI job is green on both runners — **written, unverified**: it cannot be
       observed until the branch reaches a PR.
 - [ ] `docs/playback2d-v2/c2-backend-decision.md` — **Stage 1** (deviation 1).
+
+### Deviations landed at the C2 merge (integration, 2026-08-25)
+
+C1 landed on `feature/playback2d-v2` before C2 merged, so **C2.7 — the seam the implementation report
+left open — was completed against the merged tree** rather than deferred. Numbering continues from 20.
+
+21. **C2.7 landed in full: `--backend` on every render verb, and `dv2d probe`.** `BackendResolver`
+    no longer constructs `CpuSurfaceProvider` directly; every path goes through
+    `RenderSurfaceProviderFactory.Create`. Added `--backend <auto|cpu|gpu|angle|gl|force-gpu>` to
+    `render` / `export` / `bench` / `golden` alongside the existing `--cpu` / `--gpu`, and the new
+    `probe` verb (§6.4). `Program.Verbs` gains `probe`, so the usage-parity test covers it. Files:
+    `tools/DemoViewer.NET.Playback2D.Cli/{BackendResolver,ProbeCommand,Program,GoldenCommand,
+    SceneRenderPlan}.cs`, `docs/playback2d-v2/dv2d.md`, `plans/C1-cli.md` (per correction 9).
+
+22. **`--require-gpu` exits 6, not 1.** §6.4 wrote "exit 1"; C1's exit-code table — pinned by
+    `ProgramDispatchTests.ExitCodeTable_IsTheDocumentedOne` and read by CI — reserves 1 for usage
+    errors and 6 for "the requested environment is unavailable", which is exactly what this is.
+    Using 1 would make a missing GPU indistinguishable from a typo'd flag.
+
+23. **`probe --json` keys are `snake_case`, not §6.4's camelCase.** `JsonContractTests` asserts
+    snake_case across every payload the tool emits, so `gpuAvailable`/`durationMs` became
+    `gpu_available`/`duration_ms`. Two fields were added beyond the sketch: `software_renderer`
+    (from `RenderSurfaceProbe.IsSoftwareRenderer`) and `forced_cpu`, which distinguishes "there is no
+    GPU here" from "`DV2D_RENDER_BACKEND` told me not to look" — the single most confusing state a CI
+    log can be in. `probe` is registered in `JsonContractTests.JsonCommands`.
+
+24. **`--require-hardware` added beyond §6.4.** `--require-gpu` is satisfied by WARP or llvmpipe,
+    which is correct for the parity lanes — a software rasterizer genuinely exercises the GPU code
+    path. It is wrong for the throughput lane, whose numbers are meaningless there. Rather than make
+    `--require-gpu` stricter and break the hosted matrix, the stricter assertion is its own flag, and
+    the self-hosted `render-backends-gpu` job uses both.
+
+25. **`dv2d golden` defaults to the CPU provider instead of auto-probing.** This is a behaviour
+    change C2.7 forced and the plan did not anticipate: once `auto` can actually resolve to a GPU,
+    an unqualified `dv2d golden verify` on any developer machine with one renders on the GPU and
+    compares against the byte-exact `goldens/cpu/` corpus — reporting a rasterizer difference as
+    **exit 4, "the change is bad"**. Caught by six pre-existing golden tests going red at the merge.
+    `BackendResolver.Resolve`/`Preference` and `SceneRenderPlan.Build` gained a `fallback`/
+    `defaultBackend` parameter (default `Auto`); `GoldenCommand` passes `ForceCpu`. Only the bottom
+    rung changes — `--gpu`, `--backend`, an explicit `--backend auto` and `DV2D_RENDER_BACKEND` all
+    still win, so the parity lane can still point `golden` at a GPU deliberately. CPU remains
+    authoritative (00-overview.md §3.9). Pinned by
+    `BackendFlagTests.GoldenLane_DefaultsToCpu_EvenOnAGpuMachine`.
+
+26. **`dv2d` rejects an unrecognised `DV2D_RENDER_BACKEND` with exit 1.**
+    `RenderBackendPreferenceParser` treats a typo as "unset" and resolves to `Auto`, which is right
+    for a library and wrong for a tool: a lane that set `DV2D_RENDER_BACKEND=gpuu` would measure the
+    CPU path and report a green budget. The library's behaviour is unchanged; only the CLI validates.
+
+27. **`NoAvaloniaArchitectureTests`' deps.json scan is now structural.** The ANGLE
+    `PackageReference` C2.9 requires on the CLI (`av_libglesv2.dll`; `dv2d` has no Avalonia to
+    inherit it from) put a package id beginning with "Avalonia" into `dv2d.deps.json`, and both
+    deps.json prongs failed on the name prefix alone. The rule is "zero Avalonia **assemblies**", so
+    the scan now classifies each Avalonia-named package by what it contributes — flagging it only
+    when it has a `runtime`/`compile` entry or a non-`native` `runtimeTargets` asset. A structural
+    check rather than a by-name allowlist: an `Avalonia.Skia` reference lands straight back on the
+    offender list. The subprocess prong (`RealRenderSubprocess_LoadsSkiaSharp_AndNoAvalonia`), which
+    is the real guarantee, was green throughout and is untouched. This is integrator correction 6
+    applied to C1's test as well as B0's.
+
+28. **`ProgramDispatchTests.StrictGpu_ExitsSix` was replaced.** It asserted exit 6 unconditionally,
+    which was true only while `--gpu` had nothing to resolve to; on a GPU machine `--gpu
+    --strict-backend` now correctly exits 0. It became `Probe_IsDispatched` (dispatch-table
+    coverage), and the hardware-aware version lives in
+    `BackendFlagTests.StrictBackend_TurnsAGpuRequestIntoAHardFailure_WhenThereIsNoGpu`, which reads
+    the machine's real capability from a clean `dv2d probe --json` child first.
+
+29. **The backend cases run as subprocesses, and `Dv2d.Subprocess` gained an environment overload.**
+    `RenderSurfaceProviderFactory` caches its probe per process and `ResetForTests` is `internal` to
+    Core (visible to the Playback2D suite, not to the CLI suite), so an in-process case would be
+    answered by whichever environment probed first — a test that passes alone and lies in a suite.
+
+30. **Merge-conflict resolutions** (recorded here because they change files C2 authored):
+    `THIRD-PARTY-NOTICES.md` ANGLE moved from §d to **§e** — B1 landed the Inter font at §d first, and
+    §4.3 says append in landing order and renumber at the merge (this supersedes deviation 16);
+    `GoldenComparison` keeps C2's four new members *and* B1's `GoldenDeltaProfile`; C2's three
+    `dotnet test` invocations in `ci.yml` were rewritten to the merged tree's direct-execution form
+    with `Category!=Budget` (the Budget category did not exist on C2's base, and a timing lane must
+    not run inside a correctness matrix).
+
+31. **Two `dv2d probe` steps added to C2's CI lanes.** `render-backends` prints `probe --json` before
+    its suites, so `GL_RENDERER` is in the log and a lane that thought it was on ANGLE and is really
+    on WARP is visible. `render-backends-gpu` runs `probe --require-gpu --require-hardware` first, so
+    a self-hosted runner that lost its GPU fails in one line instead of three minutes into a suite.
+
+**Still open after this merge:** C2.8 (App setting + export-dialog combo) remains blocked on B2's
+`Playback2DSettings` and B4's dialog — unchanged. Stage 1 (`c2-backend-decision.md`) and Stage 2
+(C2.11–C2.13) remain deferred per coordinator decision 2, and C2.12 still owes a re-measurement of
+the provisional `OutlierChannelDelta = 48` (deviation 11).
