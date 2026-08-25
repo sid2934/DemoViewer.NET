@@ -158,4 +158,61 @@ public class SceneCompositorTests
         await Assert.That(b.Disposed).IsTrue();
         await Assert.That(compositor.Layers.Count).IsEqualTo(0);
     }
+
+    /// <summary>
+    ///     An owned resource is disposed <b>after</b> every layer, and only once. The ordering is the
+    ///     whole point: a shared <c>TextBlobCache</c> is shared precisely because a layer is still
+    ///     drawing with it right up to its own <c>Dispose</c>.
+    /// </summary>
+    [Test]
+    public async Task AddOwned_DisposesAfterEveryLayer_AndOnlyOnce()
+    {
+        List<string> order = [];
+        SceneCompositor compositor = new();
+        compositor.Add(new RecordingLayer("a")
+        {
+            OnDispose = () => order.Add("layer a")
+        });
+        compositor.Add(new RecordingLayer("b")
+        {
+            OnDispose = () => order.Add("layer b")
+        });
+
+        int ownedDisposals = 0;
+        compositor.AddOwned(new CallbackDisposable(() =>
+        {
+            ownedDisposals++;
+            order.Add("owned");
+        }));
+
+        compositor.Dispose();
+        compositor.Dispose();
+
+        Console.WriteLine($"[compositor] teardown order: {string.Join(" -> ", order)}");
+        await Assert.That(string.Join(",", order)).IsEqualTo("layer a,layer b,owned");
+        await Assert.That(ownedDisposals).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task AddOwned_Null_Throws()
+    {
+        using SceneCompositor compositor = new();
+
+        ArgumentNullException? thrown = null;
+        try
+        {
+            compositor.AddOwned(null!);
+        }
+        catch (ArgumentNullException ex)
+        {
+            thrown = ex;
+        }
+
+        await Assert.That(thrown).IsNotNull();
+    }
+
+    private sealed class CallbackDisposable(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
+    }
 }
