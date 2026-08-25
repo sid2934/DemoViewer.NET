@@ -1276,6 +1276,17 @@ list above.
     run**, leaving the worktree dirty with a content-free diff. Reproduced at `f6ae1ab`, so it is B1's,
     not B3's — recorded here only so the next phase does not re-diagnose it or commit the noise.
 
+20. **B3's two new goldens were unmaintainable through the path their own error message names.**
+    `LevelGoldenTests` tells the reader "Regenerate deliberately with
+    `scripts/update-playback2d-goldens.sh`", but that script runs only `SceneGoldenTests`,
+    `BudgetFixtureCorpusTests` and `Playback2DGoldenCaptureTests` — so `nuke-single-upper` and
+    `nuke-multilevel-noradar` would never be rewritten by it, and a deliberate visual change to the
+    single-pane path would leave whoever made it with a failing gate and a script that does nothing.
+    **Fixed:** a third step running `LevelGoldenTests`, placed *after* the demo-derived capture, because
+    both goldens are rendered from the `nuke-multilevel` scene that step produces — regenerating them
+    first would re-baseline them against the previous capture. Verified by deleting
+    `nuke-single-upper@900x900.png` and regenerating it: byte-identical to the committed file.
+
 **Reviewer verification not turned into new tests** (all clean): the `nuke-multilevel` parity gate is
 unmoved at 99.68 % within ±8 after all four fixes; `[budget] allocation 0 B/frame` and
 `advance p99 0.002 ms` / `render p99 2.007 ms` are unchanged; `StackedRender_IsByteIdentical_AfterASingleModeRoundTrip`
