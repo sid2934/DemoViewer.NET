@@ -50,6 +50,22 @@
                 <ComboBox ItemsSource="{Binding AvailableFps}" SelectedItem="{Binding SelectedFps}"
                           HorizontalAlignment="Stretch" />
             </StackPanel>
+            <!-- P2 D3. An intent, not a codec setting: every rung maps the three ids onto its own rate
+                 and speed controls, so "standard" means the same thing off NVENC and off libvpx. -->
+            <StackPanel Spacing="3" Width="110">
+                <TextBlock Text="Quality" Foreground="{DynamicResource TextDim}" FontSize="11" />
+                <ComboBox ItemsSource="{Binding Qualities}" SelectedItem="{Binding SelectedQuality}"
+                          HorizontalAlignment="Stretch" />
+            </StackPanel>
+            <!-- P2 D4. `auto` walks the format's ladder and lands on tuned software where no hardware
+                 verifies; naming a rung is taken literally and refused if this machine cannot run it,
+                 which is why the default is not a name. The list is re-built when the format changes,
+                 because the WebM and MP4 ladders share no rung names. -->
+            <StackPanel Spacing="3" Width="150">
+                <TextBlock Text="Encoder" Foreground="{DynamicResource TextDim}" FontSize="11" />
+                <ComboBox ItemsSource="{Binding AvailableEncoders}" SelectedItem="{Binding SelectedEncoder}"
+                          HorizontalAlignment="Stretch" />
+            </StackPanel>
         </WrapPanel>
 
         <!-- Size -->
