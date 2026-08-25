@@ -1,5 +1,6 @@
 #region
 
+using System.Diagnostics;
 using System.Globalization;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Compositing;
@@ -229,6 +230,14 @@ public class ScenePerfRecorderTests
         for (int i = 0; i < 4; i++)
         {
             recorder.BeginStage(PerfStage.Render);
+
+            // A stage with LITERALLY nothing in it can measure zero ticks on a fast machine, and the
+            // share assertion below is then 0/0 — which the recorder correctly reports as 0 % and which
+            // fails a test whose subject is not the clock's resolution. Burning one tick makes the
+            // arithmetic non-degenerate without making the test slow: this is ~100 ns, against the
+            // Thread.Sleep(12) the wraparound case above needs.
+            BurnOneTick();
+
             recorder.EndStage(PerfStage.Render);
             recorder.EndFrame();
         }
@@ -243,6 +252,16 @@ public class ScenePerfRecorderTests
 
         // And the share arithmetic stays honest: one stage, the whole frame.
         await Assert.That(report.Find("render", PerfRowKind.Stage)!.SharePct).IsBetween(99.0, 101.0);
+    }
+
+    /// <summary>Spins until the stopwatch has actually advanced, so a measured region is never 0 ticks.</summary>
+    private static void BurnOneTick()
+    {
+        long start = Stopwatch.GetTimestamp();
+        while (Stopwatch.GetTimestamp() - start < 2)
+        {
+            Thread.SpinWait(1);
+        }
     }
 
     private static double MedianFrameMs(SceneFixture fixture, bool capture)
