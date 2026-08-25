@@ -1515,3 +1515,22 @@ Written at implementation time. Everything not listed here was built as the plan
     `ExportInitialFitTests`, including the negative control (flag off → the placeholder framing
     survives, which is the shipped bug) and the explicit-camera-wins case. Every committed golden is
     unchanged: they pin `Camera`, which is applied after the fit.
+
+    **Which half does the work, established by reverting each one separately against a real export**
+    (`--from 60000 --to 62000`, 1280×720, de_inferno). Both changes are load-bearing, on disjoint
+    cases, and neither is redundant:
+
+    - Reverting *only* `AutoFitOnFirstMapBounds` left a mid-range export **correctly framed**. On a
+      range that starts mid-match the tracker is seeded past the point where `CCSGameRulesProxy`
+      published `m_vMinimapMins/Maxs`, so output frame 0 already carries `NetworkedBounds` and the
+      panes are *born* fitted to it inside `Reconcile`. The birth-extent change alone fixes that case.
+    - Reverting the birth extent as well (back to `ObservedBounds`) reproduced the shipped bug in
+      full: `ObservedBounds` at output frame 0 is a tight box round wherever the ten players happen to
+      be standing, so the map was blown up and spilled off all four edges.
+    - The flag is what covers the other case — a range that *starts* at frame 0, where no extent
+      exists yet. The pane is already born on the placeholder before any frame is read, and
+      `Reconcile` never re-frames a surviving pane, so only `FitAll` can move it. Measured on a
+      whole-demo export: frame 0 is placeholder-framed, frame 1 onward is the fitted framing, and it
+      never moves again (content box `x 168..468, y 6..319` at 640×360, identical from frame 1 to
+      frame 300). `dv2d.md`'s `export` section now says this out loud, because "the first frame of a
+      whole-demo export is composed differently from the rest" is a thing a caller can see.
