@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Playback2D.Core.Levels;
 using SkiaSharp;
 
 #endregion
@@ -36,15 +37,41 @@ public readonly record struct SceneRenderContext(
     ScenePalette Palette,
     float RenderScaling)
 {
+    /// <summary>
+    ///     The pane being drawn, as captured at submission. Added by B1 (integrator correction 2);
+    ///     default before the compositor's multi-pane path fills it.
+    /// </summary>
+    public LevelPaneSnapshot Pane { get; init; }
+
+    /// <summary>
+    ///     The level set this pane belongs to, or null on a context built without one (B0's fixtures,
+    ///     a single-level render). Needed because <see cref="LevelIndexFor" /> must reproduce
+    ///     <c>FloorSplitter.SliceIndexFor</c>'s nearest-band fallback, which a lone Z band cannot.
+    /// </summary>
+    public MapSpace? Levels { get; init; }
+
     /// <summary>True when this pane shows every level at once, so no Z filtering applies.</summary>
     public bool IsSingleLevel => LevelIndex < 0;
 
     /// <summary>
-    ///     Whether world content at <paramref name="worldZ" /> belongs in this pane. Always true on a
-    ///     single-level pane. The band is half-open at the top so a value exactly on a boundary lands in
-    ///     exactly one pane.
+    ///     The level index a world Z belongs on. On a single-level pane this is the
+    ///     <see cref="LevelIndex" /> sentinel itself, so the caller's equality test passes for every Z —
+    ///     the pre-v2 <c>sliceIndex &lt; 0</c> rule, encoded once (parity invariant 1).
     /// </summary>
     /// <param name="worldZ">The content's world Z.</param>
-    public bool BelongsHere(double worldZ) =>
-        IsSingleLevel || (worldZ >= LevelMinZ && worldZ < LevelMaxZ);
+    public int LevelIndexFor(double worldZ) =>
+        IsSingleLevel ? LevelIndex : Levels?.LevelIndexFor(worldZ) ?? LevelIndex;
+
+    /// <summary>
+    ///     Whether world content at <paramref name="worldZ" /> belongs in this pane.
+    ///     <para>
+    ///         <b>This is an assignment test, not a band test.</b> The pre-v2 filter is
+    ///         <c>_floors.SliceIndexFor(z) == sliceIndex</c>, and <c>SliceIndexFor</c> snaps a Z that
+    ///         falls in a gap — or above the highest band — to the <i>nearest</i> band. A plain
+    ///         <c>z ∈ [min, max)</c> test would make a player on a ramp, or a grenade arcing above the
+    ///         map, belong to no pane at all and simply vanish. Parity invariant 1.
+    ///     </para>
+    /// </summary>
+    /// <param name="worldZ">The content's world Z.</param>
+    public bool BelongsHere(double worldZ) => IsSingleLevel || LevelIndexFor(worldZ) == LevelIndex;
 }
