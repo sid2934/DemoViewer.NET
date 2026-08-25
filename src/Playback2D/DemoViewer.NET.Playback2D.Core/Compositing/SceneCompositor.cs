@@ -235,7 +235,12 @@ public sealed class SceneCompositor : IDisposable
             return;
         }
 
-        bool single = panes.Count == 1;
+        // "One pane" and "one level" were the same statement until B3: the pre-v2 control drew every
+        // player regardless of Z when there was a single band, and that is parity invariant 1. Under
+        // SingleLayout a single pane shows ONE of several levels, and drawing the other floor's players
+        // into it would be the very confusion the mode exists to remove — so the sentinel is now
+        // "a lone pane over a map that has no other floor".
+        bool single = panes.Count == 1 && (submission.Levels?.Levels.Count ?? 1) <= 1;
 
         // 2. Panes.
         for (int i = 0; i < panes.Count; i++)

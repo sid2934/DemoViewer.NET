@@ -10,10 +10,10 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The three radar-binding rules, against a decision table taken from the pre-v2
-///     <c>ResolveRadarImage</c> (viewport lines 1096-1115). The binder is evaluated once per level-set
-///     rebuild rather than once per band per frame, so the rules had to be restated as a batch — which
-///     is exactly the kind of restatement that quietly changes behaviour if nothing pins it.
+///     Radar binding, by Z-band <b>overlap</b> (B3 T5). The pre-v2 <c>ResolveRadarImage</c> (viewport
+///     lines 1096-1115) index-matched sorted layers to sorted bands only when the counts happened to be
+///     equal and otherwise handed every band the highest-altitude picture; these cases pin the
+///     replacement, including the two shapes the old rule got wrong.
 /// </summary>
 public class MapRadarBindingTests
 {
@@ -45,24 +45,31 @@ public class MapRadarBindingTests
     }
 
     [Test]
-    public async Task LayerCountEqualsBandCount_IndexMatchesByAscendingZ()
+    public async Task OneLayerPerBand_BindsEachToTheLayerItSharesItselfWith()
     {
-        // Deliberately supplied out of Z order: the pre-v2 code sorted before indexing, and a binder
-        // that trusted file order would put the upper floor's picture under the lower floor.
+        // Deliberately supplied out of Z order: a binder that trusted file order would put the upper
+        // floor's picture under the lower floor.
         MapRadarBinder binder = new(Asset(
             [new RadarLayerDto(100, 400, "upper.png"), new RadarLayerDto(-400, 100, "lower.png")],
             ["upper.png", "lower.png"]));
 
         List<SKImage?> images = [];
         List<string?> names = [];
-        RadarBindingQuality quality = binder.Bind(Bands(2), images, names);
+        RadarBindingQuality quality = binder.Bind(
+            [new FloorSlice(-400, 0), new FloorSlice(100, 400)], images, names);
 
         await Assert.That(string.Join(",", names)).IsEqualTo("lower.png,upper.png");
         await Assert.That(quality).IsEqualTo(RadarBindingQuality.Exact);
     }
 
+    /// <summary>
+    ///     <b>The direct replacement for the count-match rule.</b> Three floors, two radar layers: the
+    ///     pre-v2 code gave every band the upper picture, putting the top floor's radar under the
+    ///     basement. Overlap answers correctly, and the shape is ordinary — Nuke ships two layers and
+    ///     the histogram can find three bands.
+    /// </summary>
     [Test]
-    public async Task CountsDisagree_EveryLevelGetsTheHighestLayer_AndIsFlaggedDegraded()
+    public async Task BindsByOverlap_NotByCount()
     {
         MapRadarBinder binder = new(Asset(
             [new RadarLayerDto(-400, 100, "lower.png"), new RadarLayerDto(100, 400, "upper.png")],
@@ -72,8 +79,53 @@ public class MapRadarBindingTests
         List<string?> names = [];
         RadarBindingQuality quality = binder.Bind(Bands(3), images, names);
 
-        await Assert.That(string.Join(",", names)).IsEqualTo("upper.png,upper.png,upper.png");
+        // Bands(3) = [-400,-208], [-144,48], [112,304].
+        await Assert.That(string.Join(",", names)).IsEqualTo("lower.png,lower.png,upper.png");
+        await Assert.That(quality).IsEqualTo(RadarBindingQuality.Exact);
+    }
+
+    [Test]
+    public async Task NoOverlap_LeavesHasRadarFalse()
+    {
+        // A single layer high above every band: nothing overlaps, so nothing binds — and the level says
+        // so rather than silently showing a picture of the wrong storey.
+        MapRadarBinder binder = new(Asset(
+            [new RadarLayerDto(4000, 5000, "sky.png")], ["sky.png"]));
+
+        List<SKImage?> images = [];
+        List<string?> names = [];
+        RadarBindingQuality quality = binder.Bind(Bands(2), images, names);
+
         await Assert.That(quality).IsEqualTo(RadarBindingQuality.Degraded);
+        await Assert.That(names.TrueForAll(n => n is null)).IsTrue();
+
+        MapSpace space = new();
+        space.Rebuild(Bands(2), images, quality, names);
+        await Assert.That(space.Levels[0].HasRadar).IsFalse();
+        await Assert.That(space.Levels[1].HasRadar).IsFalse();
+    }
+
+    /// <summary>
+    ///     de_nuke's real bundle: two half-space nav floors and two radar layers meeting at Z -495. The
+    ///     binding must be lower→lower, upper→upper, or B1's <c>nuke-multilevel</c> golden changes.
+    /// </summary>
+    [Test]
+    public async Task NukeBundleShape_BindsLowerToLowerAndUpperToUpper()
+    {
+        MapRadarBinder binder = new(Asset(
+            [
+                new RadarLayerDto(-495, 10000, "de_nuke.png"),
+                new RadarLayerDto(-10000, -495, "de_nuke_lower.png")
+            ],
+            ["de_nuke.png", "de_nuke_lower.png"]));
+
+        List<SKImage?> images = [];
+        List<string?> names = [];
+        RadarBindingQuality quality = binder.Bind(
+            [new FloorSlice(-100000, -528), new FloorSlice(-528, 100000)], images, names);
+
+        await Assert.That(string.Join(",", names)).IsEqualTo("de_nuke_lower.png,de_nuke.png");
+        await Assert.That(quality).IsEqualTo(RadarBindingQuality.Exact);
     }
 
     [Test]

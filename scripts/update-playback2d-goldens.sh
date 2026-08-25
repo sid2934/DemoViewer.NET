@@ -48,5 +48,13 @@ echo "[goldens] demo-derived (headless Avalonia; skips without a demo)"
 dotnet run --project src/App/DemoViewer.NET.App.Tests -c "$CONFIG" \
   -- --treenode-filter "/*/*/Playback2DGoldenCaptureTests/*"
 
+# 3. The level family (B3): nuke-single-upper and nuke-multilevel-noradar are rendered from the SAME
+#    nuke-multilevel scene captured in step 2 — one floor at full height, and the same scene with no
+#    radar bound — so they have to be regenerated AFTER it or they would be re-baselined against the
+#    previous capture. Direct execution: no demo needed, only the committed scene and the de_nuke bundle.
+echo "[goldens] levels (direct execution)"
+dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c "$CONFIG" \
+  -- --treenode-filter "/*/*/LevelGoldenTests/*"
+
 echo "[goldens] done — review the diff before committing:"
 echo "          git status --short tests/fixtures/playback2d"

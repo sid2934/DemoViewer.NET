@@ -25,6 +25,7 @@ public partial class Playback2DView : UserControl
     private readonly TextBlock? _mapApproxNote;
     private readonly TextBlock? _modeLabel;
     private readonly MenuFlyout? _modeMenuFlyout;
+    private readonly ILevelSurface? _levelSurface;
     private readonly IPlayback2DSurface? _surface;
     private Playback2DTabViewModel? _boundViewModel;
 
@@ -39,6 +40,7 @@ public partial class Playback2DView : UserControl
             ? new Playback2DViewport()
             : new Scene2DHost();
         _surface = (IPlayback2DSurface)surface;
+        _levelSurface = surface as ILevelSurface;
         if (this.FindControl<ContentControl>("ViewportHost") is { } slot)
         {
             slot.Content = surface;
@@ -95,6 +97,7 @@ public partial class Playback2DView : UserControl
             _boundViewModel.FollowSlotChanged -= OnFollowSlotChanged;
             _boundViewModel.FitRequested -= OnFitRequested;
             _boundViewModel.Annotations.ToolSelected -= OnToolSelected;
+            _boundViewModel.LevelStrip.Bind(null);
         }
 
         _boundViewModel = DataContext as Playback2DTabViewModel;
@@ -108,6 +111,10 @@ public partial class Playback2DView : UserControl
             // wire between them, and it exists here because the router is the surface's, not the VM's.
             _boundViewModel.Annotations.ToolSelected += OnToolSelected;
             OnToolSelected(_boundViewModel.Annotations.ActiveTool);
+
+            // The strip drives the v2 host only. Under the legacy escape hatch there is no level
+            // identity to drive, so the strip stays unbound and collapsed.
+            _boundViewModel.LevelStrip.Bind(_levelSurface);
 
             // The View is DESTROYED on deactivation and rebuilt from the descriptor's ViewFactory on every
             // activation, while the tab VM is cached (WorkspaceTabDescriptor.Activate / .Deactivate). The

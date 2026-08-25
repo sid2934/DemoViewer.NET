@@ -94,6 +94,14 @@ public sealed class HeadlessSceneRenderer : IDisposable
     /// </summary>
     public ViewportTransform? Camera { get; set; }
 
+    /// <summary>
+    ///     Which entities changed floor this frame. Updated inside <see cref="Advance" />, after the
+    ///     level set is current and before the layers advance, so anything holding per-entity temporal
+    ///     state can drop it in the same frame the crossing happened. Wire it to a
+    ///     <c>MarkerSmoother.LevelCrossings</c> to get the snap.
+    /// </summary>
+    public LevelCrossingTracker Crossings { get; } = new();
+
     /// <summary>The arranged panes.</summary>
     public PaneSet Panes { get; }
 
@@ -173,10 +181,22 @@ public sealed class HeadlessSceneRenderer : IDisposable
         if (Levels.Update(frame))
         {
             _compositor.InvalidateCaches();
+
+            // Every cached assignment describes bands that no longer exist. Re-resolving from scratch
+            // is also what stops a rebuild from reporting a phantom crossing for an entity that merely
+            // got re-keyed (B3 remap algorithm, step 10).
+            Crossings.Reset();
+        }
+
+        if (time.IsDiscontinuity)
+        {
+            Crossings.Reset();
         }
 
         SKSize host = new(_size.Width, _size.Height);
         Panes.Reconcile(Levels.Space, DisplayMode, host, frame.Map.ObservedBounds);
+
+        UpdateCrossings(frame);
 
         bool keepArmed = false;
         if (AdvanceCameras)
@@ -193,6 +213,9 @@ public sealed class HeadlessSceneRenderer : IDisposable
 
         Panes.SyncCameraEpochs();
         keepArmed |= _compositor.Advance(in time, frame);
+
+        // A crossing is true for exactly one frame, and every layer that cares has now advanced.
+        Crossings.EndFrame();
 
         Panes.CopySnapshots(_snapshots);
         LastSubmission = new SceneSubmission(
@@ -313,6 +336,23 @@ public sealed class HeadlessSceneRenderer : IDisposable
         Advance(frame, in time);
         Render();
         return SnapshotPng();
+    }
+
+    // Indexed, allocation-free: a dictionary write over an existing key and one level resolution per
+    // marker. The §6 budget is zero bytes per steady-state frame and this runs inside it.
+    private void UpdateCrossings(Scene2DFrame frame)
+    {
+        MapSpace space = Levels.Space;
+        if (space.Levels.Count < 2)
+        {
+            return;
+        }
+
+        IReadOnlyList<PlayerMarker> markers = frame.Markers;
+        for (int i = 0; i < markers.Count; i++)
+        {
+            Crossings.Update(markers[i].Slot, markers[i].WorldZ, space);
+        }
     }
 
     private SKSurface EnsureSurface() => _surface ??= _surfaces.CreateSurface(_size);

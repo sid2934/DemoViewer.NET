@@ -72,6 +72,10 @@ internal sealed class SceneStage : IDisposable
             Size = size,
             Purpose = RenderPurpose.Export
         };
+
+        // Exactly as Scene2DHost wires it (B3 T3), so the level-crossing snap and its per-frame cost
+        // are inside the allocation and budget gates rather than beside them.
+        Smoother.LevelCrossings = Renderer.Crossings;
     }
 
     public SceneCompositor Compositor => _compositor;
@@ -100,7 +104,13 @@ internal sealed class SceneStage : IDisposable
     ///     map has no bundle, which leaves the scene on its grid fallback.
     /// </summary>
     /// <param name="mapName">e.g. <c>de_nuke</c>.</param>
-    public bool TryBindMap(string? mapName)
+    /// <param name="bindRadar">
+    ///     False loads the bundle's floors but binds no radar images, which is how the
+    ///     <c>nuke-multilevel-noradar</c> corpus entry pins the visible no-radar state — a map whose
+    ///     bundle has floors but no usable pictures is a real shape, and the canvas must fall through to
+    ///     the grid rather than draw nothing.
+    /// </param>
+    public bool TryBindMap(string? mapName, bool bindRadar = true)
     {
         if (string.IsNullOrEmpty(mapName))
         {
@@ -114,7 +124,7 @@ internal sealed class SceneStage : IDisposable
         }
 
         Renderer.Levels.SetAuthoritativeFloors(MapAsset.Floors);
-        Renderer.Levels.RadarBinder = new MapRadarBinder(MapAsset);
+        Renderer.Levels.RadarBinder = bindRadar ? new MapRadarBinder(MapAsset) : null;
         Radar.RadarBoundsOverride = MapAssetPipeline.RadarBounds(MapAsset);
         return true;
     }

@@ -1,3 +1,9 @@
+#region
+
+using DemoViewer.NET.Playback2D.Core.Levels;
+
+#endregion
+
 namespace DemoViewer.NET.Playback2D.Core;
 
 /// <summary>Reads a slot's smoothed draw position. Implemented by <see cref="MarkerSmoother" />.</summary>
@@ -38,6 +44,17 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
 
     /// <summary>How many slots are currently tracked.</summary>
     public int Count => _smoothed.Count;
+
+    /// <summary>
+    ///     The level-crossing source, when the owner keeps one. A slot that changed floor on this frame
+    ///     <b>snaps</b> instead of gliding — the same code path as the teleport rule below, deliberately
+    ///     rather than a second snap mechanism, so there is one answer to "why did that dot jump".
+    ///     <para>
+    ///         Null leaves the smoothing exactly as B1 shipped it, which is what every golden and the
+    ///         determinism gate were captured against.
+    ///     </para>
+    /// </summary>
+    public LevelCrossingTracker? LevelCrossings { get; set; }
 
     /// <summary>Whether the last <see cref="Advance" /> left anything still gliding.</summary>
     public bool AnyMoving { get; private set; }
@@ -91,6 +108,7 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
 
         float t = (float)(1 - Math.Exp(-LerpResponse * dt));
         bool anyMoving = false;
+        LevelCrossingTracker? crossings = LevelCrossings;
         _liveSlots.Clear();
 
         for (int i = 0; i < markers.Count; i++)
@@ -99,11 +117,15 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
             _liveSlots.Add(m.Slot);
             float tx = m.WorldX, ty = m.WorldY;
 
-            if (isDiscontinuity)
+            if (isDiscontinuity || crossings?.Crossed(m.Slot) == true)
             {
                 // A seek: every dot teleports. This is a superset of the distance rule below — a short
                 // seek can move a player less than the teleport threshold, and gliding across that gap
                 // draws motion that never happened.
+                //
+                // A level crossing is the same shape of event on one slot: the player left this floor,
+                // and a dot that glides to its new position paints a streak across a map it never
+                // walked (design §5.3).
                 _smoothed[m.Slot] = (tx, ty);
                 continue;
             }

@@ -1035,35 +1035,296 @@ additions.
 
 **From the design (§7.3 / §5.3 / risk 5):**
 
-- [ ] `SingleLayout` implements `ILevelLayoutPolicy` and renders exactly one pane; `StackedLayout`'s
-      output is byte-identical to B1's golden (no regression to the existing view).
-- [ ] A level strip offers **manual pick** of any level, in the viewport, without overlapping the
-      timeline, kill feed, transport bar, or overlay toggles.
-- [ ] **AutoFollow** switches the displayed level to the followed player's level via
+- [x] `SingleLayout` implements `ILevelLayoutPolicy` and renders exactly one pane; the stacked render is
+      **byte-identical after a Stacked → Single → Stacked round trip**
+      (`LevelGoldenTests.StackedRender_IsByteIdentical_AfterASingleModeRoundTrip`), and B1's
+      `nuke-multilevel` parity gate is unmoved (99.68 % within ±8 — the same number B1 recorded).
+- [x] A level strip offers **manual pick** of any level, in the viewport, without overlapping the
+      timeline, kill feed, transport bar, or overlay toggles
+      (`Strip_DoesNotOverlap_TimelineOrKillFeed` at 1100×650 and 700×420).
+- [x] **AutoFollow** switches the displayed level to the followed player's level via
       `MapSpace.LevelFor(z)` with hysteresis; gated by `playback2d.levels.auto`.
-- [ ] Hysteresis is a documented, tested formula (`SpatialBand` + 0.35 s dwell), frame-rate
-      independent, bypassed on `IsDiscontinuity`.
-- [ ] `MapSpace` **rebuilds** on `FloorSplitter` change with **quantized-`ZMin`** level ids that are
-      **stable across boundary drift** (`Nuke_LevelIds_AreStable_AcrossTheWholeDemo` passes).
-- [ ] Panes are remapped on rebuild **by id**, preserving pan/zoom/manual-override; a newly-appeared
-      level is Fit, never inherits another level's camera.
-- [ ] Annotation `SpaceRef.World(LevelMinZ)` anchors are remapped on rebuild, without polluting undo.
-- [ ] Trail and marker-smoothing buffers **reset on level crossing** (no streak across the map).
-- [ ] Radar is bound **explicitly per level** at (re)build; a level with no radar shows a **visible**
-      no-radar state in the strip and falls back to the grid on the canvas.
-- [ ] `ResolveRadarImage` and its per-band LINQ no longer exist anywhere in the render path.
-- [ ] `AnnotationTrack` markers carry **drag handles** that edit `TimeEnvelope`, one undo entry per
-      drag, Esc bails without an entry.
+- [x] Hysteresis is a documented, tested formula (`SpatialBand` + 0.35 s dwell), frame-rate
+      independent (`Dwell_IsFrameRateIndependent` at dt = 1/30 and 1/144), bypassed on
+      `IsDiscontinuity`.
+- [x] `MapSpace` **rebuilds** with **quantized-`ZMin`** ids that are **stable across boundary drift** —
+      `Nuke_LevelIds_AreStable_AcrossTheWholeDemo` passes, and it fails if the bands do *not* drift, so
+      it cannot pass vacuously.
+- [x] Panes are remapped on rebuild **by id**, preserving pan/zoom/manual-override; a newly-appeared
+      level is Fit, never inherits another level's camera (`CameraSurvives_LevelInsertedBelow`).
+- [ ] Annotation `SpaceRef.World(LevelMinZ)` anchors are remapped on rebuild, without polluting undo —
+      **blocked on B2** (deviation 6). `LevelSetChange.TryRemapAnchor` is implemented and tested; only
+      the `AnnotationLevelRemapper` that drives it is missing.
+- [x] Marker-smoothing buffers **reset on level crossing** (no streak across the map). Trail buffers do
+      **not** — see deviation 3 for why that is the right answer rather than a gap.
+- [x] Radar is bound **explicitly per level** at (re)build, by Z-band overlap; a level with no radar
+      shows a **visible** no-radar state in the strip and falls back to the grid on the canvas
+      (`nuke-multilevel-noradar` golden).
+- [x] `ResolveRadarImage` and its per-band LINQ no longer exist in the **v2** render path (B1 already
+      replaced it with `MapRadarBinder`; B3 replaced the count-match rule inside it). The pre-v2
+      `Playback2DViewport.ResolveRadarImage` still exists behind the legacy escape hatch — deviation 4.
+- [ ] `AnnotationTrack` markers carry **drag handles** — **blocked on B2** (deviation 6). The Core half
+      that needs no annotation types (`TickAxis`) is shipped.
 
 **Additional (this plan):**
 
-- [ ] Core additions have **zero Avalonia references** (B0's architecture test still green).
-- [ ] Zero steady-state allocations added to the per-frame path (512-frame allocation assertion green).
-- [ ] `Playback2D:LevelDisplayMode` + `Playback2D:AutoFollowLevel` are in
-      `SettingsService.WriteInMemory` (WASM persistence).
-- [ ] `playback2d.levels.auto` registered in `FeatureCatalog` with `ParentId = "tab.playback2d"`, no
-      group-leader ordering disturbed.
-- [ ] Single-level maps show **no** new chrome.
-- [ ] `dotnet build DemoViewer.NET.slnx -c Release` clean (warnings-as-errors, code style enforced).
-- [ ] `scripts/test-app-suite.sh -c Release` green; Core test project green; real-demo tests skip
-      cleanly (not fail) when the Nuke demo is absent.
+- [x] Core additions have **zero Avalonia references** (`ArchitectureTests` green).
+- [x] Zero steady-state allocations added to the per-frame path — the 512-frame budget assertion is
+      **0 B/frame** with the crossing tracker wired into `SceneStage` exactly as `Scene2DHost` wires it,
+      and `LevelSelection.Update`, `LevelCrossingTracker.Update` and single-mode `PaneSet.Reconcile`
+      each carry their own zero-allocation case.
+- [x] `Playback2D:LevelDisplayMode` + **`Playback2D:AutoLevelFollow`** (correction 9's name, not the
+      body's `AutoFollowLevel`) are in `SettingsService.WriteInMemory`.
+- [x] `playback2d.levels.auto` registered in `FeatureCatalog` with `ParentId = "tab.playback2d"`, as the
+      third row of the contiguous v2 block, no group leader disturbed.
+- [x] Single-level maps show **no** new chrome (`Strip_IsCollapsed_OnSingleLevelMap`).
+- [x] `dotnet build DemoViewer.NET.slnx -c Release` clean.
+- [x] Playback2D suite green (226/226); the App suite's level, scene-host, settings and gate classes
+      green; real-demo tests skip cleanly when a demo is absent. See deviation 8 for the pre-existing
+      Windows failures the batch runner reports and deviation 9 for the batch runner itself.
+
+---
+
+## Implementation notes (deviations)
+
+Written at implementation time. Everything not listed here was built as the plan and the
+`Integrator corrections` block specify.
+
+### The quantum mints identity; it does not move bands
+
+1. **`MapLevel.ZMin`/`ZMax` stay RAW — quantization is applied to the id key only.** The plan's remap
+   algorithm step 1 quantizes the band itself, and `MapLevel.ZMin`'s doc comment said "quantized to
+   `MapSpace.LevelQuantum`". Doing that would change **level assignment**: de_nuke's baked nav floors
+   are `[-100000, -528]` and `[-528, 100000]`, and `Q(-528) = -512`, so a player standing at Z −520
+   would move from the upper floor to the lower one. B1's parity invariant 1 is that
+   `MapSpace.LevelIndexFor` answers exactly what `FloorSplitter.SliceIndexFor` answers — it is pinned by
+   `MapSpaceTests.LevelIndexFor_MatchesFloorSplitter_OverAZTable` and it is what every golden contains.
+   Design §5.3 asks for "stable **quantized-`ZMin` level ids**", which is about identity, not geometry,
+   and identity is exactly what `IdForZMin` + overlap-carry provide. Pinned by
+   `MapSpaceRemapTests.RebuiltBands_KeepTheirRawZ_SoAssignmentIsUnchanged`.
+
+2. **`LevelHysteresisOptions` is a sealed record CLASS, not a `readonly record struct`.** The plan
+   writes it as a record struct whose primary-constructor parameters all have defaults. That does not
+   work: `new LevelHysteresisOptions()` on a record struct takes the implicit parameterless struct
+   constructor and **zero-initializes**, so every caller silently gets `MinBand 0, DwellSeconds 0` — no
+   hysteresis at all, and no error anywhere. It was caught by six failing tests on the first run.
+   `Default` is a cached single instance, so the per-frame `SpatialBand` call still allocates nothing.
+
+### Where the plan's mechanism did not fit the code it landed on
+
+3. **Grenade-trail point buffers are NOT truncated on a crossing** (T3's second bullet). The trail
+   buffer lives in `SceneFrameBuilder` and its points are *samples of an actual flight path*, not
+   smoothed state — a nade thrown from Nuke upper to lower genuinely occupies both bands, and B1's
+   parity invariant 4 draws the crossing segment on both, deliberately. Truncating the buffer at the
+   crossing would delete the arc the split-drawing exists to show and would move the
+   `nuke-multilevel` golden. The defect design §5.3 names — the streak across the map — is
+   *interpolation* across a floor change, and the only interpolated per-entity state in the scene is
+   `MarkerSmoother`, which now snaps. `LevelCrossingTracker` is exposed on `SceneRenderContext` for
+   B2's entity-anchored annotations, which *do* hold temporal state.
+
+4. **The pre-v2 `Playback2DViewport.ResolveRadarImage` is left in place.** T5 says it must "no longer
+   exist anywhere in the render path"; it does not exist in the **v2** path (B1 replaced it with
+   `MapRadarBinder`, and B3 replaced the count-match rule inside that). Deleting it from the legacy
+   control would break the `DV_PLAYBACK2D_RENDERER=legacy` escape hatch, whose entire purpose is to be
+   a working A/B against v2 for one release. It goes when the control does, in B5.
+
+5. **`SceneRenderContext.LevelCrossings` is not propagated through `SceneSubmission`.** The registry
+   requires the context member and it is there, but the submission crosses to Avalonia's render thread
+   and `LevelCrossingTracker` is mutable UI-thread state — publishing it would be a data race for no
+   gain, because `EndFrame()` has already cleared the per-frame set by the time `Render` runs. The
+   production consumer is `MarkerSmoother.LevelCrossings`, read during `Advance` where crossings are
+   live; the context member serves UI-thread callers that build a context directly (B2's hit-testing,
+   tests).
+
+### Blocked on B2, which has not landed
+
+6. **T8 (`AnnotationLevelRemapper`) and the annotation half of T9 (`EnvelopeHitTest`,
+   `EnvelopeDragSession`, `AnnotationTrackInteraction`) are not built.** They take `AnnotationElement`,
+   `TimeEnvelope`, `DocDelta` and `AnnotationDocument.ApplyMigration`, none of which exist on this
+   branch — there is no `Annotations` namespace anywhere in the tree. What B3 *could* land without
+   them is landed: `LevelSetChange.TryRemapAnchor` implements the plan's four-rule rebase and is
+   directly tested, and `TickAxis` ships with correction 6's domain warning on it. B2's implementer
+   inherits a remap function that already works and a `MapSpace.QuantizeZ` to stamp anchors with.
+
+### Additive API on B1's contracts
+
+7. **`ILevelLayoutPolicy` gains a defaulted `int Revision => 0`.** `PaneSet.Reconcile` early-outs on the
+   level-set version, the display mode and the host size — none of which move when the strip picks
+   another floor, so without this a `SingleLayout` whose `ActiveLevelId` changed would never be asked
+   to arrange again. `StackedLayout` takes the default, which is correct for a policy that is a pure
+   function of its arguments. `PaneSet` also compares against the pane count the policy *last produced*
+   rather than `space.Levels.Count`, which is no longer the same number under `Single`.
+   <br>`SceneCompositor`'s "one pane means every level" sentinel became "a lone pane over a map with no
+   other floor" for the same reason: under `SingleLayout` a single pane shows one of several levels, and
+   the old rule would have drawn the other floor's players into it.
+   <br>`ILevelSurface` (App) is a **new** interface rather than members on `IPlayback2DSurface`: the
+   pre-v2 viewport has no level identity to honour, so stubbing them there would let the strip appear
+   over a surface that cannot obey it.
+
+### Test-environment notes
+
+8. **Six App-suite failures on Windows are pre-existing, not B3's.** Verified by running the same
+   classes at `f6ae1ab` in a scratch worktree: `DiagnosticsFileLogTests` ×3 (the temp directory is named
+   from TUnit's `TestId`, which contains a `:` — illegal in a Windows path),
+   `LibraryShellTests.SettingsBacked_AddRemoveFolder_WritesThroughToSettingsJson`, and
+   `DemoLibraryServiceTests.Scan_DeduplicatesSameFile_AcrossSymlinkedFolders` (symlink creation needs
+   elevation). `DemoProcessingQueueTests.QueuePath_PersistsCache_SoSecondLaunchDoesNotReparse` fails
+   only inside a large batch and passes standalone on **both** `f6ae1ab` and this branch — an
+   order-dependent flake, unrelated.
+
+9. **`scripts/test-app-suite.sh` cannot run under bash.** Its shebang is `#!/bin/zsh` and its batch
+   partition indexes `CLASSES` from 1, which is a zsh array convention; under bash the loop reads one
+   past the end and `set -u` aborts the third batch (`CLASSES[$i]: unbound variable`), after silently
+   skipping the first class. B3 ran all three batches by reproducing the partition with 0-based
+   indexing. Not fixed here — it is not this phase's file and the fix is a one-line index change
+   somebody should make deliberately.
+
+### Carry-forward status (B0/B1 reviews)
+
+10. **`duel-mirage-b` and `fitmap-mirage-eco` are still uncaptured**, exactly as B1 deviation 16 and 19
+    record: both need a de_mirage demo and the only demo in the tree is
+    `assets/tour/sample-de_nuke.dem`. Both skip cleanly. `mirage-single-level` is likewise absent, so
+    B3's "strip hidden on a single-level map" case is covered by `Strip_IsCollapsed_OnSingleLevelMap`
+    (headless, synthetic) and `Dust2_StaysSingleLevel_StripHidden` (skips without a dust2 demo)
+    instead of by a mirage fixture. **Not a B3 blocker; still open for whoever stages a mirage demo.**
+
+11. **B1 deviation 27 (`MapSpace.LevelFor` returns `MapLevel?` where registry §3.4 says `MapLevel`) is
+    adopted, not narrowed.** Both overloads stay nullable: an empty `MapSpace` is representable — it is
+    the state before the first push — and every call site already handles null. `LevelSelection`,
+    `LevelHysteresis` and `LevelCrossingTracker` all treat "no levels yet" as "do nothing", which is
+    what keeps the first frame of a demo from inventing a floor.
+
+12. **B1 deviation 28 (`SceneCompositor.Add`/`Remove` are outside the gate) is untouched.** B3 registers
+    no layers at runtime, so it is still not triggered. It remains B2's to take the gate around
+    registration.
+
+### Review findings (independent reviewer, on top of the implementation)
+
+Four defects found by review, each pinned by a test that fails without the fix. Numbering continues the
+list above.
+
+13. **`LevelSetChange.TryRemapAnchor` sank every upper-floor anchor onto the floor below.** The plan's
+    remap algorithm step 8 orders the rules *containment → identity → nearest*, and the implementation
+    followed it. But real band lists are **contiguous** — `FloorSplitter` emits slice N's `MaxZ` as slice
+    N+1's `MinZ` (`:375,381`), and de_nuke's baked bundle publishes `[-100000..-528]`/`[-528..100000]` —
+    so an anchor stamped with a level's `ZMin` sits exactly on a shared boundary, which
+    `MapLevel.Contains` answers **true** for on both sides. The containment scan takes the first match,
+    which is the band *below*. Worse, once the boundary drifts (which `Nuke_LevelIds_AreStable…` proves
+    it does, `drifted-while-retained=4`), containment beat identity even for a level whose id was
+    carried: bands `[0,640]/[640,1280]` → `[0,704]/[704,1280]` rebased the upper level's anchor `640`
+    to `0`. The plan's own tests missed it because both anchor fixtures use *non-contiguous* bands
+    (`[0,640]` + `[1280,1920]`), the one shape real maps never have.
+    <br>**Fixed:** identity first, then half-open containment (a shared boundary belongs to the band
+    **above** — an anchor is a band's lower bound, never its top), then nearest centre. This inverts the
+    plan's step 8, deliberately: identity-before-geometry is what design §5.3 asks for and what the rest
+    of B3 already does. Pinned by `MapSpaceRemapTests.TryRemapAnchor_OnContiguousBands_FollowsTheIdentity_NotTheBandBelow`
+    and `…_OnASharedBoundary_PrefersTheBandAbove`. B2 inherits the corrected function.
+
+14. **`LevelHysteresisOptions`' three spatial knobs were wired to nothing.** `LevelHysteresis.Update`
+    delegated the sticky band to `MapSpace.LevelFor(z, previous)`, which has no options parameter and
+    reads `LevelHysteresisOptions.Default`. Since `Default` is a get-only static, *passing* an options
+    instance is the only way to retune — and doing so silently changed only `DwellSeconds`, leaving
+    `MinBand`, `MaxBand` and `BandFractionOfSpan` inert. That is exactly the mitigation plan risk R4
+    claims ("all four constants live in `LevelHysteresisOptions`, so retuning is a one-line change"),
+    so the risk was unmitigated as shipped. No test caught it because every test constructs `new()`.
+    <br>**Fixed:** `Update` resolves statelessly and applies `SpatialBand` with **its own** `_options`.
+    `MapSpace.LevelFor(z, previous)` keeps `Default`, which is correct for its option-less production
+    caller (`LevelCrossingTracker`), and now says so. Pinned by
+    `LevelHysteresisTests.Options_ReachTheSpatialBand_NotJustTheDwell`.
+
+15. **`LevelLayouts.Parse` let an undefined `LevelDisplayMode` out.** `Enum.TryParse` accepts any number
+    inside the underlying type's range, so a hand-edited `Playback2D:LevelDisplayMode` of `"7"` returned
+    `(LevelDisplayMode)7` — which `LevelLayouts.For` throws `NotSupportedException` on, the exact "a typo
+    must not stop the tab from opening" case the method's own doc comment promises to absorb. Not
+    reachable to a crash today (the App maps anything-but-`Single` to `Stacked` before `For` is called),
+    but `For` and `Parse` are exported to B4 and C1. **Fixed** with `Enum.IsDefined`; pinned in
+    `SingleLayoutTests.LevelLayouts_For_ReturnsThePolicyAndRefusesTheReservedMode`.
+
+16. **`MapSpace.Rebuild` was not idempotent for a degenerate band.** `Rebuild` widens a zero-width band
+    to one quantum, but `IsUnchanged` compared against the **raw** `MaxZ`, so the same malformed band
+    list fed twice never matched and rebuilt every call — raising `LevelSetChanged`, dropping every
+    picture cache and re-arranging every pane, on every frame. `MapSpaceFactory.SameBands` shields the
+    production path, so the exposure is direct `Rebuild` callers (B4's export replay, `dv2d`), but
+    "idempotent" is the contract T1 states. **Fixed** by comparing against the normalized max; pinned by
+    `MapSpaceRemapTests.Rebuild_IsIdempotent_ForADegenerateBand`.
+
+17. **`Nuke_AutoFollow_SwitchCount_IsBounded` could not fail in the direction that matters.** It follows
+    the first live slot it meets — slot 2 on this capture — and asserts only an upper bound on switches.
+    Slot 2's Z bottoms out at −640, and the spatial band on de_nuke's baked floors is 128u, so it never
+    clears −656: the test observes **zero** switches and a chooser hard-wired to never switch would pass
+    it. Reviewer verification of the real demo through both floors found 8 of 10 players do traverse
+    (Z down to −776), producing 16 genuine transitions. Added
+    `Nuke_AutoFollow_SwitchesToTheFloorThePlayerIsOn_Deterministically`, which drives every player's own
+    Z track through `LevelHysteresis` and asserts (a) floors are genuinely traversed, (b) every switch
+    lands on a level that **contains** the player at that frame, and (c) two independent replays of the
+    same track agree exactly. No production defect was found behind it — the chooser is correct; the
+    gate was not.
+
+18. **Nothing exercised the follow → level → pane seam end to end.** `LevelSelectionTests` pins the
+    decision in isolation with a hand-built `Scene2DFrame`; `ManualPick_SwitchesPane_AndDisablesAuto`
+    pins the strip but never follows anybody, so `Scene2DHost`'s one line joining them —
+    `_levelSelection.FollowedSlot = _mode == CameraMode.FollowPlayer && _followSlot >= 0 ? … : null` —
+    had no coverage at all, and a chooser wired to a slot that is never assigned is indistinguishable
+    from one whose dwell has not elapsed. Verified by hand through the real wiring (VM follow funnel →
+    host → selection → `SingleLayout.ActiveLevelId` → the arranged pane) and found **correct**; landed as
+    `Playback2DLevelStripTests.AutoFollow_ShowsTheFollowedPlayersFloor_AndAManualPickOverridesUntilReleased`,
+    which also covers "a manual pick holds against the followed player" and "re-arming AUTO releases it".
+    It pushes frames until the outcome holds rather than a fixed count, because the dwell is scene time
+    and the host's `dt` comes from the headless animation clock.
+
+19. **`tests/fixtures/playback2d/scenes/nuke-multilevel.scene.json` is rewritten with CRLF by every test
+    run**, leaving the worktree dirty with a content-free diff. Reproduced at `f6ae1ab`, so it is B1's,
+    not B3's — recorded here only so the next phase does not re-diagnose it or commit the noise.
+
+20. **B3's two new goldens were unmaintainable through the path their own error message names.**
+    `LevelGoldenTests` tells the reader "Regenerate deliberately with
+    `scripts/update-playback2d-goldens.sh`", but that script runs only `SceneGoldenTests`,
+    `BudgetFixtureCorpusTests` and `Playback2DGoldenCaptureTests` — so `nuke-single-upper` and
+    `nuke-multilevel-noradar` would never be rewritten by it, and a deliberate visual change to the
+    single-pane path would leave whoever made it with a failing gate and a script that does nothing.
+    **Fixed:** a third step running `LevelGoldenTests`, placed *after* the demo-derived capture, because
+    both goldens are rendered from the `nuke-multilevel` scene that step produces — regenerating them
+    first would re-baseline them against the previous capture. Verified by deleting
+    `nuke-single-upper@900x900.png` and regenerating it: byte-identical to the committed file.
+
+**Reviewer verification not turned into new tests** (all clean): the `nuke-multilevel` parity gate is
+unmoved at 99.68 % within ±8 after all four fixes; `[budget] allocation 0 B/frame` and
+`advance p99 0.002 ms` / `render p99 2.007 ms` are unchanged; `StackedRender_IsByteIdentical_AfterASingleModeRoundTrip`
+still byte-matches; manual selection holds across rebuilds (`LevelSelection.Update`'s `Manual` branch
+only re-picks when the pinned level is gone) and across the level-set-changed handler; `ViewportTransform
+.WithViewport` preserves centre, scale, zoom and pan, so a mid-demo rebuild re-viewports without moving
+the camera; `MapRadarBinder` binds de_nuke's two baked floors to `de_nuke_lower.png`/`de_nuke.png` by
+overlap (scores 0.997 / 1.000) and reports `Exact`.
+
+21. **Merge into `feature/playback2d-v2` (integration record).** Merged at `742b7ca`, which already
+    carried B2, C1 and C2 — none of which existed at B3's diff base `f6ae1ab`. Six files conflicted
+    (`AppSettings.cs`, `SettingsService.cs`, `Playback2DTabViewModel.cs`, `Scene2DHost.cs`,
+    `Playback2DView.axaml.cs`, `HeadlessSceneRenderer.cs`); **every one was add/add and every one was
+    resolved by keeping both sides**, ordered per §3.10 where the registry fixes an order
+    (`Playback2DSettings` annotation properties before `LevelDisplayMode`/`AutoLevelFollow`; the same
+    order in `WriteInMemory`). No side's behaviour was dropped. Three consequences worth naming:
+
+    - **`Scene2DHost`'s rebuild branch now runs all three actions**: B2's
+      `_annotationLayer?.InvalidateLevels()` alongside B3's `_crossings.Reset()` and
+      `_panes.RetainUnarranged(...)`. The two phases wrote the same `if (_levels.Update(frame))` body
+      independently; they compose, and dropping either would silently half-invalidate a rebuild.
+    - **`HeadlessSceneRenderer` keeps C1's convenience members and B3's `Crossings`.** The C1 merge
+      (correction 24) had already folded the CLI facade into this class; B3's crossing tracker is
+      additive to it, and `UpdateCrossings` sits beside `RenderPng`/`RenderInto` rather than replacing
+      any of them.
+    - **T8 is no longer blocked.** Deviation 6 recorded T8 (`AnnotationLevelRemapper`) and T9's
+      annotation half as blocked on B2; **B2 has now landed**, so `AnnotationDocument.ApplyMigration`
+      and `DocDelta` exist in the merged tree alongside B3's `LevelSetChange.TryRemapAnchor` and
+      `TickAxis`. Both halves are shipped and independently tested, and **nothing wires them together**:
+      on a `MapSpace` rebuild, annotation anchors are still not rebased. This is now an ordinary
+      unblocked task on B2's acceptance checklist, not a dependency wait.
+
+    **`dv2d bench`'s allocation assertion is a pre-existing C1 carry-forward, not a B3 regression.**
+    `BenchAllocationTests.SmallestDrawingFixture_AllocatesNothingPerFrame` reports 3336 B/frame both
+    before and after the merge — byte-identical, and reproduced by running `dv2d bench` directly at
+    `742b7ca` (`synthetic-tenplayers` 3336 B, `full-scene-budget` 6224 B, same numbers on both sides).
+    Temporarily removing B3's `UpdateCrossings` call does not move it. The test's own doc comment names
+    the owner: it is `[Category("Budget")]`, excluded from the correctness lane, and marked "expected to
+    fail until `SceneLayerCatalog` registers B1's seven layers (C1 risk R6 / deviation 14)". B3's own
+    allocation gate — the same `ScenePipelineBenchmark` driven through `SceneStage` with the crossing
+    tracker wired exactly as `Scene2DHost` wires it — still measures **0 B/frame** at 1920x1080.

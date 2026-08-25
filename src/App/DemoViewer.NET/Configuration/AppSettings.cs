@@ -437,4 +437,20 @@ public sealed class Playback2DSettings
 
     /// <summary>Recently used ink colours, newest first, as <c>#AARRGGBB</c>. Flattened as indexed keys.</summary>
     public string[] AnnotationRecentColors { get; set; } = [];
+
+    // ── Levels (B3). Registry §3.10 names: LevelDisplayMode, AutoLevelFollow.
+
+    /// <summary>
+    ///     How the map's floors are laid out: <c>Stacked</c> (every floor as a band, the pre-v2 view) or
+    ///     <c>Single</c> (one floor filling the viewport). A string rather than the enum so an unknown
+    ///     value in a hand-edited settings file degrades to the default instead of failing the bind;
+    ///     <c>LevelLayouts.Parse</c> is the one place that reads it.
+    /// </summary>
+    public string LevelDisplayMode { get; set; } = "Stacked";
+
+    /// <summary>
+    ///     Whether the shown floor tracks the followed player. Gated by <c>playback2d.levels.auto</c> —
+    ///     with the gate off this is not consulted, and the AUTO chip is not offered.
+    /// </summary>
+    public bool AutoLevelFollow { get; set; } = true;
 }

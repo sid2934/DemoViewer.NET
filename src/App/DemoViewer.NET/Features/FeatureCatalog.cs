@@ -152,6 +152,11 @@ public static class FeatureCatalog
             "Scrubbable round / kill / bomb timeline under the 2D playback view.",
             "tab.playback2d", null, false, Defaults(true, true, true)),
         new(
+            "playback2d.levels.auto", FeatureScope.SubFeature, "Auto level switching",
+            "On a multi-floor map, show the floor the followed player is on (with hysteresis). " +
+            "Manual floor picking and the level strip stay available with this off.",
+            "tab.playback2d", null, false, Defaults(true, true, true)),
+        new(
             "playback2d.follow", FeatureScope.SubFeature, "Follow player",
             "Select a player card to follow them in the 2D camera (and in CS2 while Live Sync is active).",
             "tab.playback2d", null, false, Defaults(true, true, true)),

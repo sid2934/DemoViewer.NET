@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using Microsoft.Extensions.DependencyInjection;
 
 #endregion
@@ -31,6 +32,39 @@ public interface IPlayback2DSurface
 
     /// <summary>Re-frames to the observed extent and clears manual overrides.</summary>
     void FitToExtent();
+}
+
+/// <summary>
+///     The level half of the viewport contract: what the level strip drives and reads.
+///     <para>
+///         Deliberately <b>separate</b> from <see cref="IPlayback2DSurface" /> and implemented only by
+///         the v2 host. The pre-v2 <c>Playback2DViewport</c> has no level identity at all — its cameras
+///         are keyed by array index, which is the defect B3 exists to fix — so giving it stub members
+///         would let the strip appear over a surface that cannot honour a single one of them. Under the
+///         legacy escape hatch the strip simply does not bind, exactly as it does not on a
+///         single-floor map.
+///     </para>
+/// </summary>
+public interface ILevelSurface
+{
+    /// <summary>The resolved level set. Live — subscribe to <see cref="LevelStateChanged" />.</summary>
+    MapSpace Levels { get; }
+
+    /// <summary>Stacked bands, or one pane showing <see cref="ActiveLevelId" />.</summary>
+    LevelDisplayMode DisplayMode { get; set; }
+
+    /// <summary>Whether the shown level tracks the followed player.</summary>
+    bool AutoLevelFollow { get; set; }
+
+    /// <summary>The level a single-pane layout is showing.</summary>
+    MapLevelId ActiveLevelId { get; }
+
+    /// <summary>Pins a level, switching to a single pane and turning AutoFollow off.</summary>
+    /// <param name="id">The level to show.</param>
+    void PickLevel(MapLevelId id);
+
+    /// <summary>Raised when the level set, the active level or the display mode changed.</summary>
+    event Action? LevelStateChanged;
 }
 
 /// <summary>

@@ -14,6 +14,7 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
+using DemoViewer.NET.Modules.Playback2D.Levels;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Input;
@@ -334,6 +335,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // The timeline never moves the clock: it asks, and the shared clock decides (so LiveSync's
         // SyncStateObserver keeps seeing every seek).
         Timeline.SeekRequested += OnTimelineSeekRequested;
+
+        LoadLevelSettings();
+        LevelStrip.SettingsChanged += SaveLevelSettings;
     }
 
     private readonly AnnotationSessionController _annotationController;
@@ -398,6 +402,19 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     /// <summary>The scrub / rounds / markers chrome docked under the viewport.</summary>
     public Playback2DTimelineViewModel Timeline { get; } = new();
+
+    /// <summary>
+    ///     The floor picker in the viewport's right-centre gutter. Collapsed entirely on a single-floor
+    ///     map, which is most of them.
+    /// </summary>
+    public LevelStripViewModel LevelStrip { get; } = new();
+
+    /// <summary>
+    ///     Whether the <c>playback2d.levels.auto</c> feature is on. Fail-open, live — see
+    ///     <see cref="IsTimelineEnabled" />. It gates <b>AutoFollow only</b>: manual floor picking and
+    ///     the strip itself ship with the tab (plan D8).
+    /// </summary>
+    public bool IsAutoLevelEnabled => _features?.IsEnabled("playback2d.levels.auto") ?? true;
 
     /// <summary>
     ///     Whether the <c>playback2d.timeline</c> feature is on. Fails OPEN on a null projection (matching the
@@ -910,7 +927,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         OnPropertyChanged(nameof(IsFollowEnabled));
         OnPropertyChanged(nameof(IsAnnotationsEnabled));
         OnPropertyChanged(nameof(AnnotationSession));
+        OnPropertyChanged(nameof(IsAutoLevelEnabled));
         Timeline.IsVisible = IsTimelineEnabled && (_context?.HasDemo ?? false);
+        LevelStrip.IsAutoAvailable = IsAutoLevelEnabled;
 
         if (!IsFollowEnabled && FollowedSlot >= 0)
         {
@@ -1041,6 +1060,57 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         int FadeOutTicks,
         int HoldTicks,
         bool AnchorToEntities);
+
+    // Settings reach the tab through the container rather than the constructor, because the module
+    // descriptor's ViewModelFactory is a bare new() by contract (A1) and a headless test builds this
+    // with no container at all. A missing service means the defaults, exactly as Playback2DRenderer
+    // resolves its own escape hatch.
+    private static SettingsService? Settings()
+    {
+        try
+        {
+            return App.Services?.GetService<SettingsService>();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private void LoadLevelSettings()
+    {
+        if (Settings()?.Current.Playback2D is not { } saved)
+        {
+            return;
+        }
+
+        LevelStrip.ApplySettings(LevelLayouts.Parse(saved.LevelDisplayMode), saved.AutoLevelFollow);
+    }
+
+    private void SaveLevelSettings()
+    {
+        SettingsService? settings = Settings();
+        if (settings is null)
+        {
+            return;
+        }
+
+        LevelDisplayMode mode = LevelStrip.DisplayMode;
+        bool auto = LevelStrip.IsAutoEnabled;
+
+        try
+        {
+            settings.Write(s =>
+            {
+                s.Playback2D.LevelDisplayMode = mode.ToString();
+                s.Playback2D.AutoLevelFollow = auto;
+            });
+        }
+        catch (Exception)
+        {
+            // A read-only config directory must never take the tab down over a view preference.
+        }
+    }
 
     private void OnTimelineSeekRequested(int frameIndex) => _context?.RequestSeekToFrame(frameIndex);
 

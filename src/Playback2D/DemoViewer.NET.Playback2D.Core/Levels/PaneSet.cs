@@ -25,8 +25,15 @@ namespace DemoViewer.NET.Playback2D.Core.Levels;
 public sealed class PaneSet
 {
     private readonly List<LevelPane> _panes = [];
+
+    // Camera state for levels that exist but are not currently arranged — everything but the active
+    // level under SingleLayout. Dropped only when the level is genuinely Removed, so a Stacked ⇄ Single
+    // round trip gives the user back the pan and zoom they had on each floor.
+    private readonly Dictionary<MapLevelId, LevelPane> _retained = [];
     private readonly List<LevelPane> _scratch = [];
     private SKSize _host;
+    private int _lastArrangedCount = -1;
+    private int _lastPolicyRevision = -1;
     private int _lastVersion = -1;
     private LevelDisplayMode _mode = LevelDisplayMode.Stacked;
     private ILevelLayoutPolicy _policy;
@@ -59,6 +66,8 @@ public sealed class PaneSet
 
             _policy = value;
             _lastVersion = -1;
+            _lastPolicyRevision = -1;
+            _lastArrangedCount = -1;
         }
     }
 
@@ -77,9 +86,10 @@ public sealed class PaneSet
 
         bool sameShape = _lastVersion == space.Version
                          && _mode == mode
+                         && _lastPolicyRevision == _policy.Revision
                          && Math.Abs(_host.Width - host.Width) <= 0.5f
                          && Math.Abs(_host.Height - host.Height) <= 0.5f
-                         && _panes.Count == Math.Max(0, space.Levels.Count);
+                         && _panes.Count == _lastArrangedCount;
         if (sameShape)
         {
             return false;
@@ -91,7 +101,7 @@ public sealed class PaneSet
         for (int i = 0; i < arranged.Count; i++)
         {
             LevelPane fresh = arranged[i];
-            LevelPane? existing = FindById(fresh.Level.Id);
+            LevelPane? existing = FindById(fresh.Level.Id) ?? TakeRetained(fresh.Level.Id);
 
             if (existing is null)
             {
@@ -124,14 +134,104 @@ public sealed class PaneSet
             _scratch.Add(existing);
         }
 
+        // A pane the policy did not arrange this time is NOT thrown away: under SingleLayout every
+        // floor but one is unarranged on every frame, and dropping its camera would reset the user's
+        // pan each time they flicked between floors.
+        for (int i = 0; i < _panes.Count; i++)
+        {
+            LevelPane pane = _panes[i];
+            if (!_scratch.Contains(pane))
+            {
+                _retained[pane.LevelId] = pane;
+            }
+        }
+
         _panes.Clear();
         _panes.AddRange(_scratch);
         _scratch.Clear();
 
         _lastVersion = space.Version;
+        _lastPolicyRevision = _policy.Revision;
+        _lastArrangedCount = _panes.Count;
         _mode = mode;
         _host = host;
         return true;
+    }
+
+    /// <summary>
+    ///     Drops the state of every level the rebuild <b>removed</b>, arranged or retained. Everything
+    ///     else survives — that is the whole difference between "this floor is not on screen right now"
+    ///     and "this floor no longer exists".
+    /// </summary>
+    /// <param name="change">The rebuild's outcome, from <c>MapSpace.LastChange</c>.</param>
+    public void RetainUnarranged(LevelSetChange change)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+
+        IReadOnlyList<MapLevelId> removed = change.Removed;
+        for (int i = 0; i < removed.Count; i++)
+        {
+            _retained.Remove(removed[i]);
+            for (int p = _panes.Count - 1; p >= 0; p--)
+            {
+                if (_panes[p].LevelId == removed[i])
+                {
+                    _panes.RemoveAt(p);
+                }
+            }
+        }
+
+        if (removed.Count > 0)
+        {
+            _lastArrangedCount = -1; // force the next Reconcile to re-arrange
+        }
+    }
+
+    /// <summary>
+    ///     Re-arms every camera, arranged or retained: the "Fit" command must reach the floor the user
+    ///     is not looking at, or flicking to it afterwards would show a stale manual pan.
+    /// </summary>
+    public void ResetAll()
+    {
+        ClearManualOverrides();
+        foreach (LevelPane pane in _retained.Values)
+        {
+            pane.Camera.ManualOverride = false;
+        }
+    }
+
+    /// <summary>The camera for a level, whether or not it is currently arranged.</summary>
+    /// <param name="id">A level id.</param>
+    /// <param name="camera">The camera, or <c>default</c>.</param>
+    public bool TryGetCamera(MapLevelId id, out SliceCamera camera)
+    {
+        if (FindById(id) is { } live)
+        {
+            camera = live.Camera;
+            return true;
+        }
+
+        if (_retained.TryGetValue(id, out LevelPane? held))
+        {
+            camera = held.Camera;
+            return true;
+        }
+
+        camera = default;
+        return false;
+    }
+
+    /// <summary>How many levels have camera state held while unarranged. Diagnostics and tests.</summary>
+    public int RetainedCount => _retained.Count;
+
+    private LevelPane? TakeRetained(MapLevelId id)
+    {
+        if (!_retained.Remove(id, out LevelPane? pane))
+        {
+            return null;
+        }
+
+        return pane;
     }
 
     /// <summary>
@@ -249,11 +349,14 @@ public sealed class PaneSet
         return null;
     }
 
-    /// <summary>Drops every pane. For a demo unload.</summary>
+    /// <summary>Drops every pane, arranged and retained. For a demo unload.</summary>
     public void Clear()
     {
         _panes.Clear();
+        _retained.Clear();
         _lastVersion = -1;
+        _lastPolicyRevision = -1;
+        _lastArrangedCount = -1;
     }
 
     private LevelPane? FindByIndex(int levelIndex)

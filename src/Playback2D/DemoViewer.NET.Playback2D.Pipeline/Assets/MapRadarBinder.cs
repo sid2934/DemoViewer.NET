@@ -12,12 +12,15 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
 ///     Decides which baked radar image belongs to which floor band. Replaces the pre-v2
 ///     <c>Playback2DViewport.ResolveRadarImage</c> (lines 1096-1115), and is evaluated <b>once per
 ///     level-set rebuild</b> instead of once per band per frame — the old version ran an
-///     <c>OrderBy</c> + <c>ToList</c> + <c>First</c> inside the render loop (plan §4 T15 item 6).
+///     <c>OrderBy</c> + <c>ToList</c> + <c>First</c> inside the render loop.
 ///     <para>
-///         The three rules are the pre-v2 decisions, preserved exactly, plus one addition: when the
-///         counts disagree the binding is reported <see cref="RadarBindingQuality.Degraded" /> so the UI
-///         can say "no radar for this level" rather than silently showing the upper floor's picture on
-///         the lower floor and letting the user conclude the alignment is broken.
+///         <b>Binding is by Z-band overlap, not by count.</b> <c>RadarLayerDto</c> has carried
+///         <c>MinZ</c>/<c>MaxZ</c> all along; the pre-v2 code index-matched sorted layers to sorted
+///         bands only when the two counts happened to be equal, and otherwise handed <i>every</i> band
+///         the highest-altitude picture. Three floors and two radar layers — an ordinary shape — put the
+///         upper floor's image under the basement, silently. Overlap answers correctly for every shape,
+///         and when a band overlaps nothing its level keeps <c>HasRadar == false</c> and the strip says
+///         so (B3 plan T5).
 ///     </para>
 /// </summary>
 public sealed class MapRadarBinder : ILevelRadarBinder
@@ -56,31 +59,48 @@ public sealed class MapRadarBinder : ILevelRadarBinder
             return RadarBindingQuality.None;
         }
 
-        // Rule 1 — no layer metadata at all: every level gets the primary image, or none. (1100-1101)
+        // Rule 1 — no layer metadata at all: one picture is the whole map, so every level gets it. The
+        // single-radar case is the overwhelming majority of maps and it is CORRECT there, which is why
+        // a lone level reports Exact; several levels sharing one image is the honest Degraded.
         if (_ascending.Count == 0)
         {
             string? primary = _asset.Bundle.RadarImages is { Count: > 0 } all ? all[0] : null;
             Fill(bands.Count, primary, images, names);
-            return primary is null ? RadarBindingQuality.None : RadarBindingQuality.Degraded;
-        }
-
-        // Rule 2 — one layer per band: index-match by ascending Z. (1107-1111)
-        if (_ascending.Count == bands.Count)
-        {
-            for (int i = 0; i < bands.Count; i++)
+            if (primary is null)
             {
-                string image = _ascending[i].Image;
-                images.Add(Resolve(image));
-                names.Add(image);
+                return RadarBindingQuality.None;
             }
 
-            return RadarBindingQuality.Exact;
+            return bands.Count <= 1 ? RadarBindingQuality.Exact : RadarBindingQuality.Degraded;
         }
 
-        // Rule 3 — counts disagree: every level shows the highest-altitude image, and says so. (1114)
-        string top = _ascending[^1].Image;
-        Fill(bands.Count, top, images, names);
-        return RadarBindingQuality.Degraded;
+        // Rule 2 — bind each band to the layer it shares the most of itself with. Any positive overlap
+        // qualifies (a thin band inside a tall layer is a perfect match, not a weak one); ties go to the
+        // lower layer, because _ascending is sorted and the comparison is strict.
+        bool everyBandBound = true;
+        for (int i = 0; i < bands.Count; i++)
+        {
+            FloorSlice band = bands[i];
+            string? best = null;
+            double bestScore = 0;
+
+            for (int layer = 0; layer < _ascending.Count; layer++)
+            {
+                RadarLayerDto candidate = _ascending[layer];
+                double score = MapSpace.OverlapScore(band.MinZ, band.MaxZ, candidate.MinZ, candidate.MaxZ);
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    best = candidate.Image;
+                }
+            }
+
+            images.Add(Resolve(best));
+            names.Add(best);
+            everyBandBound &= best is not null;
+        }
+
+        return everyBandBound ? RadarBindingQuality.Exact : RadarBindingQuality.Degraded;
     }
 
     private void Fill(int count, string? image, List<SKImage?> images, List<string?> names)

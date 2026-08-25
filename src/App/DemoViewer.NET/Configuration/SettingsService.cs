@@ -453,7 +453,11 @@ public sealed class SettingsService
             new KeyValuePair<string, string?>("Playback2D:AnnotationAnchorToEntities",
                 settings.Playback2D.AnnotationAnchorToEntities ? "true" : "false"),
             new KeyValuePair<string, string?>("Playback2D:AnnotationAutoSave",
-                settings.Playback2D.AnnotationAutoSave ? "true" : "false")
+                settings.Playback2D.AnnotationAutoSave ? "true" : "false"),
+            new KeyValuePair<string, string?>("Playback2D:LevelDisplayMode",
+                settings.Playback2D.LevelDisplayMode),
+            new KeyValuePair<string, string?>("Playback2D:AutoLevelFollow",
+                settings.Playback2D.AutoLevelFollow ? "true" : "false")
         };
 
         for (int i = 0; i < settings.Playback2D.AnnotationRecentColors.Length; i++)
