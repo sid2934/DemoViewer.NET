@@ -277,6 +277,12 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
     [RelayCommand]
     private void RecheckFfmpeg()
     {
+        // Also forget which encoders the OLD ffmpeg had. Normally the two agree by accident — a newly
+        // installed ffmpeg lives in a directory the probe has never asked about, and the cache is keyed
+        // by directory — but a user who swapped the binary in place for an NVENC-capable build would
+        // otherwise be told, from cache, that their new build cannot do what it plainly can.
+        EncoderProbeCache.Shared.Clear();
+
         RefreshFfmpegStatus();
         UpdateValidation();
     }
