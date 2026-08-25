@@ -335,10 +335,151 @@ and answering them early would be guessing.
 
 ## 8. What it measured
 
-*(filled in after implementation — see the commit that lands the numbers)*
+Same box as P1 §7, same range, same everything: `export --demo match730_…117.dem --from 72000
+--to 79680 --size 1280x720 --fps 60 --hud --perf`, CPU raster, 7 201 frames of a two-minute
+de_inferno mid-match range. The `old-default` row is the **pre-P2 binary** (`78cd116`) built from a
+throwaway worktree and run back-to-back with the rest, so it is an A/B on one machine state rather
+than a number remembered from an earlier session.
+
+### 8.1 The condition — and why it is the interesting one
+
+**A copy of CS2 was running on this machine for every row below, holding 70–99 % of the GPU and
+about 3.7 CPU cores.** That was discovered mid-campaign (`nvidia-smi` said 100 % / 250 W while our
+own export was the only thing we had started; the Windows GPU-engine counter named `cs2.exe` at
+85 %), and the first instinct was to throw the numbers away.
+
+That would have been the wrong call, because **this is what the product does.** DemoViewer is a CS2
+demo viewer; a user exporting a clip has, very often, just come out of the game. So the contended
+machine is recorded deliberately, and the honest caveats are recorded with it:
+
+- **NVENC is not immune to 3D load.** It is separate silicon, and `utilization.encoder` stayed at
+  0 % for CS2 — but frame submission goes through the same GPU scheduler, and it starves. The
+  isolated 900-frame `av1_nvenc` bench that ran at **561–657 fps** on the quiet machine ran at
+  **52, 110, 53, 88, 96 and 305 fps** on the busy one. Same command, same file, six runs.
+- **Run-to-run spread is therefore wide.** `h264_nvenc` at standard measured 86.1, 146.5 and
+  166.4 fps across three runs; `av1_nvenc` at standard measured 177.0, 140.7 and 143.4. The table
+  quotes the first run of each; treat the hardware rows as ±25 % rather than as three significant
+  figures.
+- **The ranking is stable even so**, and the ranking is what the phase is about.
+
+### 8.2 The ladder table
+
+Stage columns are p50 ms. SSIM is each output against `sw-best` over all 7 201 frames — a *relative*
+figure, anchored on the rung measured at 0.99986 against its true source in §D3, not an absolute
+one. Bitrate is `ffprobe`'s.
+
+| run | encoder | quality | fps | ×realtime | frame p50 | source | render | readback | encode | encode p99 | size | bitrate | SSIM |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| **old default** | `libvpx-vp9` *untuned* | — | 68.6 | 1.10× | 13.99 | 0.33 | 4.08 | 2.09 | **7.49** | 12.6 | 2.64 MB | 176 kbps | 0.99983 |
+| sw draft | `libvpx-vp9` | draft | 144.9 | 2.40× | 6.39 | 0.32 | 3.45 | 1.75 | 0.79 | 2.0 | 2.85 MB | 190 kbps | 0.99839 |
+| **sw standard** | `libvpx-vp9` | standard | **120.7** | **2.00×** | 8.15 | 0.33 | 3.48 | 1.75 | 2.84 | 3.1 | 3.00 MB | 200 kbps | 0.99914 |
+| sw best | `libvpx-vp9` | best | 86.2 | 1.40× | 10.92 | 0.36 | 3.83 | 2.00 | 4.60 | 10.2 | 2.72 MB | 181 kbps | *(ref)* |
+| av1 draft | `av1_nvenc` | draft | **205.4** | **3.20×** | 4.34 | 0.26 | 2.61 | 1.29 | 0.15 | 0.2 | 1.79 MB | 119 kbps | 0.99531 |
+| **av1 standard** | `av1_nvenc` | standard | **177.0** | **2.80×** | 5.15 | 0.31 | 2.99 | 1.65 | **0.16** | 0.2 | 3.08 MB | 205 kbps | 0.99857 |
+| av1 best | `av1_nvenc` | best | 160.9 | 2.60× | 5.40 | 0.32 | 3.04 | 1.72 | 0.17 | 3.0 | 4.76 MB | 317 kbps | 0.99914 |
+| x264 standard | `libx264` | standard | 124.4 | 2.00× | 8.07 | 0.34 | 3.42 | 1.73 | 2.82 | 3.3 | 1.45 MB | **97 kbps** | 0.99841 |
+| h264 standard | `h264_nvenc` | standard | 86–166 | 1.4–2.7× | 7.23 | 0.33 | 3.17 | 1.77 | 1.31 | 170.9 | 3.98 MB | 265 kbps | — |
+| h264 best | `h264_nvenc` | best | 129.4 | 2.00× | 7.02 | 0.33 | 3.21 | 1.76 | 1.58 | 3.2 | 5.88 MB | 392 kbps | 0.99925 |
+| `--no-encode` | `HashingFrameSink` | — | 145.9 | 2.40× | 6.49 | 0.23 | 3.01 | 1.69 | 1.53 | 1.7 | — | — | — |
+
+### 8.3 What the table says
+
+**The headline: 1.10× → 2.80× realtime**, on the same range, same size, same layers, same machine
+state. A 45-minute match that took 41 minutes to export takes about 16.
+
+**The software default alone is worth 1.76×** (68.6 → 120.7 fps) and needs no GPU at all. That is the
+`-deadline`/`-cpu-used` defect being paid back, and it is the number every CI runner and every
+GPU-less laptop gets. It costs 14 % more bits (176 → 200 kbps) and 0.0007 of relative SSIM.
+
+**`av1_nvenc` makes the encoder disappear from the frame.** The encode stage — time the render loop
+sits blocked on the sink — goes from 7.49 ms (54 % of the frame, P1's headline) to **0.16 ms, 3 %**.
+It is now *cheaper than SHA-256'ing the frame*: the `--no-encode` row's `HashingFrameSink` costs
+1.53 ms, ten times what handing the same frame to NVENC costs. "No encoder" is no longer the fast
+path, which is a sentence P1 could not have written.
+
+**P1's second-order finding is confirmed and then fixed.** P1 measured the same frames rastering
+49 % slower with libvpx beside them. Here: render p50 **4.08 ms under untuned libvpx → 2.99 ms under
+`av1_nvenc`** (−27 %), and readback 2.09 → 1.65 ms (−21 %). Nothing about the renderer changed. The
+encoder simply stopped taking its cores, and it gave back more than its own stage was worth.
+
+**The bottleneck has moved.** The frame is now render 58 % + readback 32 % + source 6 %; encode is
+3 %. Any further export work is renderer work — P1's radar blit and the `ReadPixels` — not encoder
+work. That is a different phase.
+
+**Hardware costs bits, and that is the trade.** `av1_nvenc` at standard spends 205 kbps for 0.99857;
+`libx264` at standard spends **97 kbps for 0.99841** — half the bits at the same quality, because a
+fixed-function encoder is less efficient than a software one that can search. Both are tiny at 720p60
+(a 2-minute clip is 1.5–3 MB), so the ladder still prefers speed. A user who wants the smallest file
+rather than the fastest export has `--encoder software` and always will.
+
+### 8.4 Visual spot-check
+
+The same frame (t = 60 s) decoded out of five outputs and looked at: `av1_nvenc` standard,
+`av1_nvenc` draft, `h264_nvenc` best, `libvpx-vp9` standard and `libx264` standard. All five render
+the HUD line "Round 11  T 6 : 4 CT" crisply, both player clusters with their four-character name
+labels legible, and the map geometry sharp. `av1_nvenc` draft (119 kbps, the cheapest rung on the
+board) shows faint blocking in the large flat dark areas of the map interior and is otherwise
+indistinguishable; nothing a coach would be reading is degraded on any rung.
+
+Full-file decode verification: `ffmpeg -v error -i … -f null -` over the complete
+`av1_nvenc` and `h264_nvenc` outputs reports **no errors on any of the 7 201 frames**, and `ffprobe`
+reads `codec_name=av1 profile=Main pix_fmt=yuv420p 1280x720 60/1` inside `format_name=matroska,webm`
+and `codec_name=h264 profile=Main nb_frames=7201` inside `mov,mp4`. AV1-in-WebM is a real WebM.
+
+### 8.5 D7 resolved: the NV12 conversion is **not** implemented
+
+The pre-measurement said `swscale` was not on the critical path; the post-measurement says our side
+of the pipe is not either, and a conversion would make things worse. Three numbers:
+
+| thing | cost per 720p frame |
+|---|---|
+| what we pay today — one 3.5 MB memcpy into the sink's pooled buffer | **0.123 ms** (29.9 GB/s) |
+| BGRA→NV12, scalar | 1.835 ms |
+| BGRA→NV12, 128-bit SIMD luma + scalar chroma | 1.871 ms |
+| what it would save ffmpeg (`rgba` vs `nv12` input, same 450 frames) | 0.05–0.08 ms, **already overlapped** |
+
+The memcpy figure is corroborated in-pipeline: with `av1_nvenc` the whole `encode` stage — that copy
+plus the channel hand-off — measures 0.15–0.18 ms p50, which is the micro-benchmark plus change.
+
+So converting on our side would put **+1.7 ms of new work on the render thread** (a thread whose
+whole frame is 4.3–5.4 ms) to remove 0.06 ms from a process that is not the bottleneck: an export
+roughly 30 % slower. Even a properly de-interleaved SIMD version four times faster than the one
+benchmarked would still cost ~0.45 ms against the 0.123 ms it replaces. **Not implemented, and the
+measurement is why.**
+
+The same discipline settles read-back double-buffering: the read-back is already overlapped with
+ffmpeg by the capacity-4 bounded channel, and what a second buffer would remove is the same 0.123 ms
+copy. It would need an `IFrameSink` rent/commit API — a Core contract change (registry §3.8) — to buy
+2 % of a frame. Not implemented.
+
+### 8.6 The probe's own cost
+
+`encoder_probe_ms` measures the whole ladder walk. `--encoder auto` on this machine: **1 303 ms** the
+first time (one `ffmpeg -encoders` listing plus one two-frame test encode, both cached afterwards);
+`--encoder software`: **1.6 ms**, because it probes nothing. Against a 40-second export that is 3 %
+paid once, and against the several-minute full-match export it is meant for, nothing. On a GPU-less
+runner the walk is one listing plus zero test encodes, because software rungs are trusted from it.
 
 ---
 
 ## 9. Deviations from the surrounding plans
 
-*(filled in as they occur)*
+1. **`EncoderProbeResult` carries no duration.** The design sketched one. `BannedApiTests` bans
+   `System.Diagnostics.Stopwatch` in Pipeline outside `…Benchmarking` and `…Export`, and the right
+   response to a determinism gate catching a diagnostic clock is to remove the clock, not to widen the
+   exemption — its own doc comment says the exemptions are narrow on purpose. The whole ladder walk is
+   timed by the front end instead and reported as `encoder_probe_ms`, which is the number a user wants
+   anyway.
+2. **`FfmpegSinkOptions.Crf` and `.H264Preset` are removed rather than deprecated.** With a ladder they
+   are a second way to say the same thing, and the losing one would drift. Three call sites moved.
+3. **The plan said "`av1_qsv` → `av1_amf`" for WebM; both shipped, neither verified on this hardware.**
+   `av1_qsv` fails MFX session creation (no Intel device) and `av1_amf` fails component creation (the
+   Radeon iGPU has no AV1 block). `h264_amf` *does* verify here, so the AMF rung is exercised on the
+   MP4 ladder at least. This is the case the probe exists for, and shipping the rungs behind it is
+   safe by construction.
+4. **`EncoderUnavailableException` maps to exit 6, not 3.** It joins `--gpu` and `--layout single`:
+   nothing about the request is wrong, the machine cannot answer it. A CI lane treating exit 3 as
+   "the change is broken" must not see a missing driver as one.
+5. **Measured under GPU contention.** See §8.1. The pre-P2 baseline binary was built from a detached
+   `git worktree` under the scratchpad purely so the A/B ran back-to-back on one machine state; the
+   worktree is removed afterwards and nothing was developed in it.

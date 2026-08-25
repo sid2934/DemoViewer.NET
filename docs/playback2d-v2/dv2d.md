@@ -173,6 +173,8 @@ dv2d export --demo match.dem --from t12000 --to t20000 \
 | `--fps` | 60 (20 for gif) | Must be one the format supports — GIF is 10/20/25/50 |
 | `--speed` | `1` | Playback-rate multiplier; fixes the timestep at `speed / fps` |
 | `--size` | `1920x1080` | Even in both axes for `webm`/`mp4` |
+| `--encoder` | `auto` | `auto` · `software` · a ladder rung's ffmpeg name — see [Encoder ladder](#encoder-ladder---encoder---quality) |
+| `--quality` | `standard` | `draft` · `standard` · `best` |
 | `--layers` | the seven scene layers | Bare or prefixed ids; the HUD is opt-in |
 | `--hud` | off | Adds `hud.clock` and `hud.killfeed`. The clock is the exported frame's own round, score and countdown; the kill feed draws no rows here — see limitations |
 | `--out` | `dv2d-export.<format>` | Output path |
@@ -198,6 +200,44 @@ a whole-demo export is composed differently from the rest.
 
 `--no-encode` is the diagnostic that separates "the renderer is slow" from "libvpx is slow", and it
 is what a GPU backend should be compared against — a GPU cannot make an encoder quicker.
+
+#### Encoder ladder — `--encoder` / `--quality`
+
+Each video format has an ordered list of encoders, best first, and `auto` takes the first rung this
+machine can **actually run**:
+
+| Format | Ladder |
+|---|---|
+| `webm` | `av1_nvenc` → `av1_qsv` → `av1_amf` → `libvpx-vp9` |
+| `mp4` | `h264_nvenc` → `h264_qsv` → `h264_amf` → `libx264` |
+| `gif` | none — the palettegen/paletteuse chain *is* the encoder |
+
+AV1 on the WebM rungs rather than HEVC because HEVC cannot go in a WebM at all and AV1 can: a
+hardware WebM export is still a `.webm`, with the same extension and the same saved defaults.
+
+**"Actually run" means a two-frame test encode, not a listing.** `ffmpeg -encoders` describes the
+*build*; whether the machine has the silicon and a working driver is a different question, and the
+answers disagree constantly. On the box this was developed on, `av1_qsv`, `h264_qsv` and `av1_amf`
+are all listed and all fail — `av1_amf` on the same GPU where `h264_amf` works, because that Radeon
+has an H.264 encode block and no AV1 one. The probe costs one short ffmpeg per hardware rung, once
+per process, and is skipped for software rungs (a listed `libvpx-vp9` is a working one).
+
+- `--encoder auto` — walk the ladder. **Never fails for an environment reason**: a machine with no
+  working hardware encoder lands on tuned software, which is a completely normal export.
+- `--encoder software` — skip the hardware rungs and probe nothing. The machine-independent answer,
+  for a bisect or a like-for-like comparison.
+- `--encoder <name>` — taken literally. If it does not verify the export is **refused** (exit 6)
+  with ffmpeg's own explanation, rather than quietly encoded with something else.
+
+`--quality` is an intent, mapped per encoder onto that encoder's own rate and speed controls, so
+`standard` means the same thing on NVENC and on libvpx even though the flags share no spelling.
+
+The chosen rung, the reason, the exact arguments and every rejected rung are in `--json`
+(`video_encoder`, `video_encoder_kind`, `video_codec`, `encoder_reason`, `encoder_arguments`,
+`quality`, `encoder_probe_ms`, `encoder_attempts`) and on the human output. That matters because a
+**hardware encoder is not bit-reproducible** — two runs, or two driver versions, can differ — so the
+file's bytes are a function of the machine and the machine's answer is written down. The determinism
+gate is unaffected: it hashes pre-encode RGBA frames, which no encoder touches.
 
 `--perf` is what turns the single `realtime_ratio` this command reports into the five costs that
 produce it — the tracker decode, the advance, the raster, the read-back, and how long the loop sat
@@ -394,6 +434,18 @@ With `--json`, **stdout carries exactly one JSON object** and every human line m
              "samples":7201,"total_ms":24083.3,"share_pct":22.2,
              "cache":{"replayed":7200,"recorded":1,"uncached":0,"hit_rate":0.9999}}, …],
   "slowest":[{"name":"encode","kind":"stage","total_ms":58628.9,"share_pct":54.0}, …]}}
+
+// export — "encoder" says WHICH PROGRAM encodes; the video_* keys say which codec inside it, and why
+{"schema_version":1,"command":"export","ok":true,"out":"round-7.webm","format":"webm",
+ "width":1280,"height":720,"fps":60,"speed":1,"frames":7201,
+ "frames_per_second":184.6,"demo_seconds":120.0,"realtime_ratio":2.95,
+ "backend":"CpuRaster","encoder":"ffmpeg","ffmpeg_origin":"SystemPath",
+ "video_encoder":"av1_nvenc","video_encoder_kind":"nvenc","video_codec":"av1",
+ "encoder_reason":"the best rung verified first time",
+ "encoder_arguments":"-preset p4 -rc vbr -cq 34 -b:v 0 -bf 3 -rc-lookahead 8",
+ "quality":"standard","encoder_probe_ms":1302.6,
+ "encoder_attempts":[{"encoder":"av1_nvenc","works":true,"detail":"verified"}],
+ "layers":[…],"parse_ms":510.1,"elapsed_ms":40921.3}
 
 // golden verify
 {"schema_version":1,"command":"golden","action":"verify","ok":false,"backend":"CpuRaster",

@@ -16,7 +16,10 @@ accepts is a request the CLI accepts, and neither can produce a file the other w
   watching (or scrubbing, or annotating) while it renders.
 - **A fixed timestep.** Every frame advances by exactly `speed / fps` seconds, whatever the machine
   is doing. Two exports of the same request produce the same pixels — that is asserted, on frame
-  hashes rather than on encoded bytes, because video encoders are not bit-reproducible.
+  hashes rather than on encoded bytes, because video encoders are not bit-reproducible. That is
+  doubly true of a hardware encoder — two runs on the same card, or the same card on two driver
+  versions, can produce different bytes from identical frames — which is why the encoder that
+  produced a file is recorded alongside it.
 - **The window's picture.** Levels, panes, radar art and the camera all come from the same code the
   on-screen host uses. A two-floor Nuke export has two bands, because the app draws two bands.
 
@@ -26,9 +29,13 @@ accepts is a request the CLI accepts, and neither can produce a file the other w
 
 | Format | Codec | Needs | Notes |
 |---|---|---|---|
-| **WebM** (default) | VP9 (`libvpx-vp9`, CRF) | ffmpeg | Present in **LGPL** ffmpeg builds, which is why it is the default |
-| **MP4** | H.264 (`libx264`, CRF, faststart) | a **GPL** ffmpeg | Not in LGPL builds; the dialog says so rather than failing at encode time |
+| **WebM** (default) | AV1 on a GPU, else VP9 (`libvpx-vp9`) | ffmpeg | VP9 is present in **LGPL** ffmpeg builds, which is why WebM is the default |
+| **MP4** | H.264 — on a GPU, else `libx264` | a **GPL** ffmpeg for `libx264` | Not in LGPL builds; the dialog says so rather than failing at encode time |
 | **GIF** | palettegen / paletteuse, or ImageSharp | nothing | The only format that works with no ffmpeg at all |
+
+**AV1 in a WebM is still a WebM.** The container has carried AV1 since 2018, so a hardware WebM
+export keeps the same extension, the same saved default and the same players. It is also why the
+hardware rung is AV1 and not HEVC — HEVC cannot go in a WebM at all.
 
 **Frame rates.** Video accepts 24, 25, 30, 50, 60 and 64. GIF accepts **10, 20, 25 and 50** only: a
 GIF frame delay is a whole number of centiseconds, so anything that does not divide 100 would be
@@ -45,25 +52,63 @@ request is refused up front — you never render two thousand frames into a fail
 
 ---
 
+## Encoder and quality
+
+Every video format has an ordered list of encoders, best first, and DemoViewer takes the first one
+this machine can **actually run**:
+
+| Format | Ladder |
+|---|---|
+| WebM | `av1_nvenc` → `av1_qsv` → `av1_amf` → `libvpx-vp9` |
+| MP4 | `h264_nvenc` → `h264_qsv` → `h264_amf` → `libx264` |
+
+"Actually run" means a two-frame test encode, not a menu entry. `ffmpeg -encoders` describes the
+*build*; whether the machine has the silicon and a working driver is a different question, and they
+disagree constantly — on one development box three of the six listed hardware encoders fail, and one
+of them fails on the same GPU where its sibling works. The check costs about a second, once per
+session, and is skipped entirely for the software encoders.
+
+**A machine with no working hardware encoder is not a degraded machine.** It lands on tuned software,
+which is a completely normal export — and is still substantially faster than DemoViewer used to be
+(see below).
+
+**Quality** is `draft`, `standard` (the default) or `best`. It is an intent, translated per encoder,
+so `standard` means the same thing on a GPU and on a CPU even though the two share no settings.
+
+`dv2d export` exposes both as `--encoder` and `--quality`; the app remembers your choice. Naming a
+specific encoder is taken literally — if it does not work here the export is refused and says why,
+rather than quietly using something else.
+
+---
+
 ## Speed
 
-Measured on `assets/tour/sample-de_nuke.dem`, WebM/VP9, CPU rasteriser, the shipped layer set:
+Measured over a busy two-minute mid-match range at 1280×720, 60 fps, HUD on, CPU rasteriser, on an
+RTX 4070 Ti SUPER — **with CS2 running and using most of the GPU**, which is the realistic case for
+this app and which slows the hardware rows by a good margin:
 
-| Size | fps | Exported frames/s | vs realtime |
-|---|---|---|---|
-| 1280×720 | 60 | 109.8 | **1.83×** |
-| 1920×1080 | 60 | 58.4 | 0.97× |
-| 1920×1080 | 30 | 53.0 | **1.77×** |
+| Encoder | Quality | Exported frames/s | vs realtime | 2-minute clip |
+|---|---|---:|---:|---:|
+| `libvpx-vp9`, *as it was before* | — | 68.6 | 1.10× | 2.64 MB |
+| `libvpx-vp9` | standard | 120.7 | **2.00×** | 3.00 MB |
+| `av1_nvenc` | standard | 177.0 | **2.80×** | 3.08 MB |
+| `av1_nvenc` | draft | 205.4 | **3.20×** | 1.79 MB |
+| `libx264` | standard | 124.4 | 2.00× | 1.45 MB |
 
-**720p is the default preset** because it is the one that finishes faster than the clip plays on a
-CPU. 1080p is one click away and perfectly usable — it just takes about as long as watching it.
-A GPU backend (C2) is where 1080p60 gets its headroom.
+A 45-minute match that used to take about 41 minutes to export takes about 16.
 
-Two levers if an export is slower than you want:
+Two thirds of that is free: the software encoder was being run at libvpx's slowest setting by
+accident, and simply telling it how fast to go is worth 1.76× on its own, with no GPU involved.
 
-- **Vision cones are off by default.** Solving line of sight is the most expensive thing in a frame.
-- **The radar is the next biggest cost.** It is a full-frame image composite; nothing to turn off,
-  but it is why output size dominates the number above.
+**720p is still the default preset.** 1080p is one click away.
+
+Levers if an export is slower than you want, in order:
+
+- **Try `draft`.** On a GPU it is the fastest and the *smallest*.
+- **Vision cones are off by default.** Solving line of sight is expensive.
+- **The radar is now the single biggest cost in a frame** — with a hardware encoder the encode is
+  about 3 % of the work and the drawing is nearly all of it. Nothing to turn off; it is why output
+  size dominates the numbers above.
 
 ---
 
