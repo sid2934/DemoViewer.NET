@@ -178,6 +178,42 @@ capture requires a demo and therefore **skips in CI**.
 (B1). B0 ships a single-pane `Render` overload; B1 adds a pane-list overload rather than changing this
 signature.
 
+**D11 — the SkiaSharp-on-WASM spike PASSES** (`plans/00-overview.md` coordinator decision 1, run
+2026-08-24 on branch `spike/wasm-skia-b0`, commit `4fd0596`, **not merged**).
+
+An offscreen raster `SKSurface` — create → `Clear` → `DrawRect` → `Snapshot` → `Encode(Png)` →
+`PeekPixels().GetPixelColor` — runs correctly in Chrome under the .NET WASM runtime:
+
+```
+[wasm-skia-spike] OK size=64x48 pngBytes=228 pixel=#ffff0000
+```
+
+So `CpuSurfaceProvider` is viable on the Browser head; **B5's WASM matrix needs no degradation
+clause**, and B1 may design `Scene2DHost` on the assumption that the offscreen provider exists
+everywhere. Three findings go with it, all recorded because B5 owns the WASM lane:
+
+1. **`WasmBuildNative=true` is required**, and this is **pre-existing, not caused by B0.** Before
+   any B0 change the Browser build already warned that its `@(NativeFileReference)` set — which
+   already contained `skiasharp.nativeassets.webassembly 2.88.9`'s `libSkiaSharp.a`, brought in by
+   `Avalonia.Browser` — is not linked unless `WasmBuildNative` or `RunAOTCompilation` is true.
+   Without the relink the head fails at boot with `System.DllNotFoundException: libSkiaSharp` from
+   `SkiaSharp.SKImageInfo..cctor()` **whether or not** anything references SkiaSharp directly:
+   Avalonia's own browser renderer needs the same native at the same version. Adding SkiaSharp to
+   Core therefore adds **no new** native requirement to WASM. `dotnet build
+   src/App/DemoViewer.NET.Browser` still *succeeds* in this state — the failure is at runtime — so
+   B5's `wasm-build` job must set `WasmBuildNative=true` or it verifies nothing.
+2. **The `wasm-tools` workload manifest must match the SDK's runtime pack.** Installing the newest
+   manifest (10.0.111 against SDK runtime 10.0.103) relinked against a `System.Private.CoreLib` the
+   runtime rejected ("Your mono runtime and class libraries are out of sync"). `dotnet workload
+   install wasm-tools --version 10.0.103` fixed it. Pin this in CI.
+3. **Two unrelated browser-runtime failures observed after the spike line, for B5 to triage** (both
+   independent of Skia and of B0): `HTMLCanvasElement.getContext returned null` for render modes 3
+   and 2 — expected under headless Chrome with `--disable-gpu` — and an app-level
+   `JsonSerializerIsReflectionDisabled` during boot, which is reflection-based `System.Text.Json`
+   meeting WASM trimming. Separately, `WasmAppHost`'s dev server 404s on `.pdb` assets its own boot
+   manifest lists, aborting mono startup; `<DebugType>none</DebugType>` (or publishing) works around
+   it.
+
 **D10 — SkiaSharp is pinned to exactly `2.88.9`.** That is what `Avalonia.Skia 11.3.12` resolves today
 (verified in `artifacts/obj/DemoViewer.NET.App.Tests/project.assets.json:1025`). In B1 the on-screen
 path takes Avalonia's `ISkiaSharpApiLeaseFeature`, which hands back *Avalonia's* `SKCanvas` — a
