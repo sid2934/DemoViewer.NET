@@ -484,6 +484,58 @@ public class FfmpegEncoderProbeTests
     }
 
     [Test]
+    public async Task ACancelledListing_IsNotRemembered()
+    {
+        string? folder = RequireFfmpeg();
+        FfmpegEncoderProbe probe = new();
+
+        using CancellationTokenSource cancelled = new();
+        cancelled.Cancel();
+
+        // A cancelled walk says so. It does NOT come back with an empty listing, which is
+        // indistinguishable from "this build carries no encoders" and is the shape that used to get
+        // remembered — EncoderProbeCache already refuses to cache a cancelled RESULT for exactly this
+        // reason, and the listing underneath it has to agree.
+        Assert.Throws<OperationCanceledException>(() => probe.ListEncoders(folder, cancelled.Token));
+
+        // The app holds ONE EncoderProbeCache for a whole session. If the cancelled read had stuck,
+        // every later export in that session would be told every rung was "not built into this ffmpeg"
+        // and would drop to the software floor — silently, permanently, and triggered by nothing more
+        // exotic than a user pressing Cancel while the ladder was being walked.
+        IReadOnlySet<string> afterwards = probe.ListEncoders(folder, CancellationToken.None);
+
+        await Assert.That(afterwards).Contains("libvpx-vp9");
+        await Assert.That(afterwards).Contains("libx264");
+    }
+
+    [Test]
+    public async Task ACancelledProbe_DoesNotSitOutTheTimeout()
+    {
+        string? folder = RequireFfmpeg();
+        FfmpegEncoderProbe probe = new();
+
+        using CancellationTokenSource cancelled = new();
+        await cancelled.CancelAsync();
+
+        long startedMs = Environment.TickCount64;
+        try
+        {
+            probe.Verify("libvpx-vp9", folder, false, cancelled.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // The expected answer.
+        }
+
+        long elapsedMs = Environment.TickCount64 - startedMs;
+
+        // Handing the token to the stream reads instead of to the process abandoned ffmpeg's pipes
+        // while it was still writing, which blocks the child on a full buffer until the 20 s timeout
+        // kills it. A user who cancels an export waits for the render loop to notice, not for that.
+        await Assert.That(elapsedMs).IsLessThan((long)FfmpegEncoderProbe.Timeout.TotalMilliseconds / 4);
+    }
+
+    [Test]
     public async Task ANonexistentFfmpeg_IsUnavailable_NotAnException()
     {
         FfmpegEncoderProbe probe = new();

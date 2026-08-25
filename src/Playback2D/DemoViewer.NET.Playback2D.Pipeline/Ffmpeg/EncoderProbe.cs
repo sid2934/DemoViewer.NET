@@ -124,16 +124,39 @@ public sealed class FfmpegEncoderProbe : IEncoderProbe
     /// </summary>
     /// <param name="binaryFolder">Where ffmpeg lives, or null to use <c>PATH</c>.</param>
     /// <param name="ct">Cancels the listing.</param>
-    public IReadOnlySet<string> ListEncoders(string? binaryFolder, CancellationToken ct) =>
-        _listings.GetOrAdd(binaryFolder ?? string.Empty, _ => ReadListing(binaryFolder, ct));
+    public IReadOnlySet<string> ListEncoders(string? binaryFolder, CancellationToken ct)
+    {
+        string key = binaryFolder ?? string.Empty;
+
+        if (_listings.TryGetValue(key, out IReadOnlySet<string>? cached))
+        {
+            return cached;
+        }
+
+        HashSet<string> read = ReadListing(binaryFolder, ct);
+
+        // <b>Only a listing that named something is a fact about the build.</b> An empty one means the
+        // read did not happen — a token tripped mid-walk, a killed process, an ffmpeg caught mid
+        // reinstall — and those are facts about a moment, not about a machine. Remembering one would
+        // answer every later question with "not built into this ffmpeg", which walks the whole ladder
+        // into the software floor; and because the app holds ONE cache for the session, it would stay
+        // that way until the user happened to press Re-check. EncoderProbeCache already refuses to
+        // remember a cancelled RESULT for this exact reason, and the listing underneath it must agree.
+        if (read.Count > 0)
+        {
+            _listings[key] = read;
+        }
+
+        return read;
+    }
 
     /// <summary>
     ///     Forgets the cached <c>-encoders</c> listings, so the next question re-reads them.
     ///     <para>
-    ///         An empty listing is cached like any other answer — "this ffmpeg carries nothing" is a fact
-    ///         about a build. It stops being one when the build changes underneath us, which is exactly
-    ///         what the export dialog's Re-check button means, so <see cref="EncoderProbeCache.Clear" />
-    ///         reaches through to this.
+    ///         Only non-empty listings are ever held (see <see cref="ListEncoders" />), so this is about
+    ///         a build that changed underneath us rather than one that failed to be read — which is
+    ///         exactly what the export dialog's Re-check button means, so
+    ///         <see cref="EncoderProbeCache.Clear" /> reaches through to this.
     ///     </para>
     /// </summary>
     public void ClearListings() => _listings.Clear();
@@ -254,14 +277,25 @@ public sealed class FfmpegEncoderProbe : IEncoderProbe
             info.ArgumentList.Add(argument);
         }
 
+        // Nothing to learn from a walk that has already been abandoned, and starting a process here
+        // would only be something to kill on the next line.
+        ct.ThrowIfCancellationRequested();
+
         try
         {
             using Process process = Process.Start(info) ?? throw new FileNotFoundException(executable);
 
+            // Cancellation ENDS THE CHILD; it does not stop us reading it. Handing the token to the two
+            // reads below instead would abandon the pipes while ffmpeg was still writing to them, and a
+            // full pipe buffer blocks the child forever — so a cancelled probe would sit out the whole
+            // 20 s timeout before reporting a failure nobody was waiting for any more.
+            using CancellationTokenRegistration kill =
+                ct.Register(static state => TryKill((Process)state!), process);
+
             // Both streams are read before the wait: a full pipe buffer on either one deadlocks the
             // child, and `-encoders` writes several kilobytes.
-            Task<string> stdout = process.StandardOutput.ReadToEndAsync(ct);
-            Task<string> stderr = process.StandardError.ReadToEndAsync(ct);
+            Task<string> stdout = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+            Task<string> stderr = process.StandardError.ReadToEndAsync(CancellationToken.None);
 
             if (stdin is not null)
             {
@@ -285,6 +319,10 @@ public sealed class FfmpegEncoderProbe : IEncoderProbe
                     string.Create(CultureInfo.InvariantCulture,
                         $"the probe did not finish within {Timeout.TotalSeconds:F0} s"));
             }
+
+            // A process we killed ourselves exits non-zero, and reporting that as "this encoder does not
+            // work here" would turn a cancellation into a machine fact. Say what actually happened.
+            ct.ThrowIfCancellationRequested();
 
             return (process.ExitCode, SafeResult(stdout), SafeResult(stderr));
         }
