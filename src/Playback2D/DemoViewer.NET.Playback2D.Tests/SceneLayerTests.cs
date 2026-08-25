@@ -165,6 +165,67 @@ public class SceneLayerTests
             .IsGreaterThan(CountColour(labelled, ScenePalette.Dark.TeamT));
     }
 
+    /// <summary>
+    ///     <b>The initials must land on the disc, not beside it.</b> Rendering the same marker with and
+    ///     without labels and diffing the two frames gives an exact glyph-ink mask; its bounding box has
+    ///     to be centred on the disc.
+    ///     <para>
+    ///         This is the regression gate for the measurement bug that shipped with B1:
+    ///         <c>ShapedText.Bounds</c> was <c>SKTextBlob.Bounds</c>, which Skia computes conservatively
+    ///         from the font's <i>global</i> glyph box rather than from the run, so its <c>MidX</c> was
+    ///         a constant ~0.37 em to the left of the real ink centre and every label drew 4-6 px left of
+    ///         its 9 px disc. Cheap to state, invisible to a perceptual golden that tolerates glyph
+    ///         differences, and exactly the kind of thing a pixel count cannot see.
+    ///     </para>
+    ///     <para>
+    ///         Four labels of very different widths, because a fix that centred the ink box per string
+    ///         would also pass on one of them — and the disc is drawn <b>off</b> the pane's midpoint, so
+    ///         an error that happens to cancel at the centre still shows.
+    ///     </para>
+    /// </summary>
+    /// <param name="label">The initials to draw.</param>
+    [Test]
+    [Arguments("AA")]
+    [Arguments("WW")]
+    [Arguments("7")]
+    [Arguments("10")]
+    public async Task MarkerLayer_LabelInk_IsCentredOnTheDisc(string label)
+    {
+        const float worldX = 120f, worldY = -260f;
+        Scene2DFrame frame = new()
+        {
+            Markers = [new PlayerMarker(0, 2, worldX, worldY, 0, 0, RingState.Team, 1, label, true)]
+        };
+
+        ViewportTransform camera = ViewportTransform.Fit(_size.Width, _size.Height,
+            -500, -500, 500, 500);
+        (double discX, double discY) = camera.WorldToScreen(worldX, worldY);
+
+        using MarkerLayer withLabels = new();
+        using MarkerLayer withoutLabels = new()
+        {
+            DrawLabels = false
+        };
+
+        SKColor[] labelled = Render(withLabels, frame, null, camera);
+        SKColor[] bare = Render(withoutLabels, frame, null, camera);
+
+        (int minX, int minY, int maxX, int maxY, int inkPixels) = DiffBounds(labelled, bare);
+        await Assert.That(inkPixels).IsGreaterThan(0);
+
+        // +1 because the box spans whole pixels: columns [minX, maxX] cover [minX, maxX+1).
+        float inkCentreX = (minX + maxX + 1) / 2f;
+        float inkCentreY = (minY + maxY + 1) / 2f;
+
+        Console.WriteLine($"[markers] \"{label}\" disc=({discX:F2},{discY:F2}) " +
+                          $"ink=[{minX}..{maxX}]x[{minY}..{maxY}] ({inkPixels} px) " +
+                          $"centre=({inkCentreX:F2},{inkCentreY:F2}) " +
+                          $"offset=({inkCentreX - discX:F2},{inkCentreY - discY:F2})");
+
+        await Assert.That(inkCentreX).IsEqualTo((float)discX).Within(1f);
+        await Assert.That(inkCentreY).IsEqualTo((float)discY).Within(1f);
+    }
+
     /// <summary>Parity invariant 8: below half a degree the arc collapses and is skipped entirely.</summary>
     [Test]
     [Arguments(0.0, false)]
@@ -313,6 +374,35 @@ public class SceneLayerTests
         }
 
         return count;
+    }
+
+    /// <summary>
+    ///     The bounding box of the pixels where two renders of the same scene disagree — an exact mask
+    ///     of whatever the second render left out.
+    /// </summary>
+    /// <param name="a">One render.</param>
+    /// <param name="b">The same render with one thing turned off.</param>
+    private static (int MinX, int MinY, int MaxX, int MaxY, int Count) DiffBounds(
+        SKColor[] a, SKColor[] b)
+    {
+        int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue, count = 0;
+        for (int i = 0; i < a.Length; i++)
+        {
+            if (a[i] == b[i])
+            {
+                continue;
+            }
+
+            int x = i % _size.Width;
+            int y = i / _size.Width;
+            minX = Math.Min(minX, x);
+            minY = Math.Min(minY, y);
+            maxX = Math.Max(maxX, x);
+            maxY = Math.Max(maxY, y);
+            count++;
+        }
+
+        return count == 0 ? (0, 0, 0, 0, 0) : (minX, minY, maxX, maxY, count);
     }
 
     private static int Count(SKColor[] pixels, Func<SKColor, bool> predicate)

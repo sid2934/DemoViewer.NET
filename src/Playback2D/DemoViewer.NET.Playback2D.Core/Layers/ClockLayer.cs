@@ -107,27 +107,34 @@ public sealed class ClockLayer : ISceneLayer
             return;
         }
 
+        // ShapedText.Width is the ADVANCE and Height is one LINE BOX, so the panel is derived from the
+        // text's layout box rather than from a rectangle that happens to contain its pixels. Padding is
+        // written as three terms that add up to the panel height, so the box cannot drift out of
+        // agreement with the two lines it wraps.
+        float padY = _style.MarginPx * 0.6f;
+        float lineGap = _style.MarginPx * 0.5f;
+
         float centreX = ctx.PaneBounds.MidX;
-        float panelW = Math.Max(scoreShaped.Width, countdownShaped.Width) + _style.MarginPx * 2;
-        float panelH = scoreShaped.Height + countdownShaped.Height + _style.MarginPx * 2.2f;
+        float panelW = Math.Max(scoreShaped.Width, countdownShaped.Width) + (_style.MarginPx * 2);
+        float panelH = padY + scoreShaped.Height + lineGap + countdownShaped.Height + padY;
         float panelTop = _style.MarginPx * 0.5f;
 
         _paint.Color = new SKColor(_style.PanelArgb);
         canvas.DrawRoundRect(
-            new SKRect(centreX - panelW / 2, panelTop, centreX + panelW / 2, panelTop + panelH),
+            new SKRect(centreX - (panelW / 2), panelTop, centreX + (panelW / 2), panelTop + panelH),
             4f, 4f, _paint);
 
         _paint.Color = new SKColor(_style.TextArgb);
         (float sx, float sy) = scoreShaped.OriginForTopLeft(
-            centreX - scoreShaped.Width / 2, panelTop + _style.MarginPx * 0.6f);
+            centreX - (scoreShaped.Width / 2), panelTop + padY);
         canvas.DrawText(scoreShaped.Blob, sx, sy, _paint);
 
         // A ticking C4 owns the main countdown and is drawn in the bomb colour, because "0:34" meaning
         // "the round ends" and "0:34" meaning "the site goes up" are not the same number.
         _paint.Color = _snapshot.BombTicking ? ctx.Palette.BombDetonation : new SKColor(_style.TextArgb);
         (float cx, float cy) = countdownShaped.OriginForTopLeft(
-            centreX - countdownShaped.Width / 2,
-            panelTop + _style.MarginPx * 0.6f + scoreShaped.Height + _style.MarginPx * 0.5f);
+            centreX - (countdownShaped.Width / 2),
+            panelTop + padY + scoreShaped.Height + lineGap);
         canvas.DrawText(countdownShaped.Blob, cx, cy, _paint);
     }
 

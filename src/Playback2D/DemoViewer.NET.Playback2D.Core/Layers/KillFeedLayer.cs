@@ -113,9 +113,13 @@ public sealed class KillFeedLayer : ISceneLayer
             float padX = _style.MarginPx * 0.55f;
             float padY = _style.MarginPx * 0.3f;
 
+            // Both rectangles are laid out from the same numbers: shaped.Width is the ADVANCE, so the
+            // row's advance box runs [right - Width - padX, right - padX] and the panel adds padX on
+            // each side of it; shaped.Height is one LINE BOX, so every row is the same height whether
+            // or not it happens to contain a descender.
             _paint.Color = new SKColor(_style.PanelArgb);
             canvas.DrawRoundRect(
-                new SKRect(right - shaped.Width - padX * 2, y - padY,
+                new SKRect(right - shaped.Width - (padX * 2), y - padY,
                     right, y + shaped.Height + padY),
                 3f, 3f, _paint);
 
