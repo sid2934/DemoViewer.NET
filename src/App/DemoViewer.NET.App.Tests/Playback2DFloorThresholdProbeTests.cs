@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Playback2D.Core;
 using System.Globalization;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;

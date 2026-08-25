@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core;
 
 #endregion
 

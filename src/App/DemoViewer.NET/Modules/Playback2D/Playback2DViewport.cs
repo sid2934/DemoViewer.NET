@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Playback2D.Core;
 using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;

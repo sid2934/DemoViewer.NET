@@ -1,20 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!--
-      The stable third-party reference target for workspace modules. Deliberately
-      MINIMAL: it references only Avalonia (the ViewFactory yields a Control) and has NO Parser /
-      EntityTracking / Analysis reference — the read surface is pure interfaces. The concrete join
-      logic (PawnLookup, PositionUtil, ModuleContext) lives in the App project, which DOES reference
-      Analysis. Keeping abstractions clean is what makes it a versionable SDK target.
+      The stable third-party reference target for workspace modules. Deliberately MINIMAL: it has NO
+      package reference at all — no Avalonia, no Parser / EntityTracking / Analysis — because the read
+      surface is pure interfaces. The concrete join logic (PawnLookup, PositionUtil, ModuleContext)
+      lives in the App project, which DOES reference Analysis. Keeping abstractions clean is what makes
+      it a versionable SDK target.
+
+      The two Avalonia-shaped members of the contract (WorkspaceTabDescriptor, IWorkspaceModule) live in
+      the sibling DemoViewer.NET.Modules.Abstractions.Ui project, which keeps THIS namespace. That split
+      is what lets DemoViewer.NET.Playback2D.Pipeline consume IPlaybackSnapshot / IPlayerState /
+      IReadOnlyEntityView while staying Avalonia-free (docs/playback2d-v2/plans/
+      B0-core-pipeline-foundations.md decision D1), and it is enforced by an architecture test.
     -->
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
     </PropertyGroup>
-
-    <ItemGroup>
-        <PackageReference Include="Avalonia"/>
-    </ItemGroup>
 
 </Project>

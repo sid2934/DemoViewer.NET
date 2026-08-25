@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Playback2D.Core;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;

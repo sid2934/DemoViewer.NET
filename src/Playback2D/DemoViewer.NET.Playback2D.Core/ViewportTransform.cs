@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Modules.Playback2D;
+namespace DemoViewer.NET.Playback2D.Core;
 
 /// <summary>
 ///     The world↔screen affine transform for the 2D viewport. Pure, allocation-free, and free of

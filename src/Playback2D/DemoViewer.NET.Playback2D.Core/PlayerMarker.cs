@@ -1,6 +1,4 @@
-using DemoViewer.NET.Modules.Abstractions;
-
-namespace DemoViewer.NET.Modules.Playback2D;
+namespace DemoViewer.NET.Playback2D.Core;
 
 /// <summary>The event-driven ring state of a marker, highest precedence first.</summary>
 public enum RingState
@@ -23,7 +21,7 @@ public enum RingState
 
 /// <summary>
 ///     A copied-out, immutable snapshot of one player's draw state at the current tick. Built INSIDE
-///     the <c>Advanced</c> callback from the transient/pooled <see cref="IPlayerState" />
+///     the <c>Advanced</c> callback from the transient/pooled <c>IPlayerState</c>
 ///     (scalars only — never retain the pooled entity), then handed to the custom-drawn viewport. Plain
 ///     value type: no Avalonia dependency, trivially testable.
 /// </summary>
@@ -41,4 +39,8 @@ public readonly record struct PlayerMarker(
     // Eye pitch + duck amount — carried for the 3D line-of-sight ("Vision") overlay (eye height + view
     // frustum). Trailing optional so pre-vision constructions and tests are unaffected.
     float PitchDegrees = 0,
-    float DuckAmount = 0);
+    float DuckAmount = 0,
+    // SteamId is the ONE non-verbatim addition made when this type moved to Core (B0 correction 4):
+    // design §5.4 anchors annotations by SteamId because SLOTS RECYCLE, and B4's
+    // CameraScript.FollowPlayer(steamId) needs the same join. 0 = unresolved.
+    ulong SteamId = 0);

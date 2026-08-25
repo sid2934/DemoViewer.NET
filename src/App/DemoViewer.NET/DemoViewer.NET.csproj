@@ -48,6 +48,12 @@
 
     <ItemGroup>
         <ProjectReference Include="..\DemoViewer.NET.Modules.Abstractions\DemoViewer.NET.Modules.Abstractions.csproj"/>
+        <!-- The Avalonia-shaped half of the module contract (WorkspaceTabDescriptor / IWorkspaceModule).
+             Same namespace as the project above — see its csproj for why the split exists. -->
+        <ProjectReference
+                Include="..\DemoViewer.NET.Modules.Abstractions.Ui\DemoViewer.NET.Modules.Abstractions.Ui.csproj"/>
+        <ProjectReference
+                Include="..\..\Playback2D\DemoViewer.NET.Playback2D.Core\DemoViewer.NET.Playback2D.Core.csproj"/>
         <PackageReference Include="CS2DemoKit.Parser"/>
         <PackageReference Include="CS2DemoKit.Analysis"/>
         <ProjectReference Include="..\..\Visualization\DemoViewer.NET.Visualization\DemoViewer.NET.Visualization.csproj"/>

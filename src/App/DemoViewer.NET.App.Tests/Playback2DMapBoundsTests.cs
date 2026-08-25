@@ -5,6 +5,7 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Playback;
 

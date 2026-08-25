@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Modules.Playback2D;
+namespace DemoViewer.NET.Playback2D.Core;
 
 /// <summary>
 ///     Draw-state for the planted-C4 timer ring (A4 overlay). Present only while a live ticking

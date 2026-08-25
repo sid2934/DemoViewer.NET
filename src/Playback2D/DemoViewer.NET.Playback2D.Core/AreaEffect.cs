@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Modules.Playback2D;
+namespace DemoViewer.NET.Playback2D.Core;
 
 /// <summary>The kind of grenade area effect drawn on the viewport (A4).</summary>
 public enum AreaEffectKind

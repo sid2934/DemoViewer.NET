@@ -17,7 +17,8 @@ public enum ModuleLogLevel
 }
 
 /// <summary>
-///     The creation-time surface handed to <see cref="IWorkspaceModule.CreateTabs" />. Kept
+///     The creation-time surface handed to <c>IWorkspaceModule.CreateTabs</c> (that contract lives in the
+///     sibling …Modules.Abstractions.Ui assembly, so it cannot be crefed from here). Kept
 ///     separate from <see cref="IModuleContext" /> so the creation-time surface (context, capability
 ///     query, logging) is distinct from the runtime surface (clock + state).
 /// </summary>
