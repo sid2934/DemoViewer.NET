@@ -60,6 +60,16 @@ public sealed class ScenePipelineBenchmark
     /// <summary>Authoritative floor bands for the run's map, when it has them.</summary>
     public IReadOnlyList<FloorSlice>? AuthoritativeFloors { get; set; }
 
+    /// <summary>
+    ///     A camera to pin every pane to, instead of fitting the first frame's observed extent.
+    ///     <para>
+    ///         <c>dv2d bench</c> sets it so the benchmark draws the <b>same picture</b> the golden for that
+    ///         corpus entry was captured at — otherwise the two commands measure and verify different
+    ///         framings of one scene, and a "bench is slower" report could just be a wider camera.
+    ///     </para>
+    /// </summary>
+    public ViewportTransform? Camera { get; set; }
+
     /// <summary>Runs the benchmark.</summary>
     /// <param name="source">Frames to replay; wrapped modulo its length when the request wants more.</param>
     /// <param name="request">What to measure.</param>
@@ -81,7 +91,10 @@ public sealed class ScenePipelineBenchmark
         {
             Size = request.Size,
             Purpose = RenderPurpose.Export,
-            AdvanceCameras = true
+            // A pinned camera is data, not a target: advancing rigs on top of it would drift the framing
+            // across the measured window and make the render times depend on where the lerp got to.
+            AdvanceCameras = Camera is null,
+            Camera = Camera
         };
         renderer.Levels.SetAuthoritativeFloors(AuthoritativeFloors);
         renderer.Levels.RadarBinder = RadarBinder;
@@ -93,7 +106,7 @@ public sealed class ScenePipelineBenchmark
         for (int i = 0; i < request.WarmupFrames; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Step(renderer, source, i, dt);
+            Step(renderer, source, i, dt, fitFirstFrame: Camera is null);
         }
 
         double[] advanceMs = new double[request.Frames];
@@ -107,6 +120,9 @@ public sealed class ScenePipelineBenchmark
         GC.Collect();
 
         long allocatedBefore = request.MeasureAllocations ? GC.GetAllocatedBytesForCurrentThread() : 0;
+        int gen0Before = GC.CollectionCount(0);
+        int gen1Before = GC.CollectionCount(1);
+        int gen2Before = GC.CollectionCount(2);
         Stopwatch clock = new();
 
         for (int i = 0; i < request.Frames; i++)
@@ -149,10 +165,14 @@ public sealed class ScenePipelineBenchmark
             FrameTimeStats.From(totalMs),
             request.Frames > 0 ? allocated / request.Frames : 0,
             allocated,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            GC.CollectionCount(0) - gen0Before,
+            GC.CollectionCount(1) - gen1Before,
+            GC.CollectionCount(2) - gen2Before);
     }
 
-    private static void Step(HeadlessSceneRenderer renderer, ISceneFrameSource source, int i, double dt)
+    private static void Step(HeadlessSceneRenderer renderer, ISceneFrameSource source, int i, double dt,
+        bool fitFirstFrame)
     {
         int index = i % source.FrameCount;
         Scene2DFrame frame = source.FrameAt(index);
@@ -162,7 +182,7 @@ public sealed class ScenePipelineBenchmark
         };
 
         renderer.Advance(frame, in time);
-        if (i == 0)
+        if (i == 0 && fitFirstFrame)
         {
             renderer.FitAll(frame);
         }

@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "default_budget": {
+    "render_p99_ms": 8.0,
+    "advance_p99_ms": 2.0,
+    "bytes_per_frame": 0
+  },
+  "entries": [
+    {
+      "name": "synthetic-empty",
+      "scene": "scenes/synthetic-empty.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": null,
+      "map_version": null,
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": true,
+      "notes": "The degenerate case: no markers, no utility, nothing planted. PENDING since the C1 merge: dv2d now renders through B1's HeadlessSceneRenderer, whose panes come from derived floor bands, and a frame with no players and no map bundle derives none - so this entry draws background only, while B0's committed golden came from the single-pane SceneRenderer path (which src/Playback2D/.../SceneGoldenTests still pins byte-exact). B1/B3 own the question of whether an empty level set should lay out one whole-host pane; re-enable this entry when it is answered."
+    },
+    {
+      "name": "synthetic-tenplayers",
+      "scene": "scenes/synthetic-tenplayers.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": null,
+      "map_version": null,
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "Ten markers over +/-2000u, both teams, one Dead and one Blinded ring."
+    },
+    {
+      "name": "synthetic-utility",
+      "scene": "scenes/synthetic-utility.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": null,
+      "map_version": null,
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "Two smokes, six fire cells, two 40-point trails, a bomb at 0.42 with a defuse in progress."
+    },
+    {
+      "name": "fitmap-mirage-eco",
+      "scene": "scenes/fitmap-mirage-eco.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": "de_mirage",
+      "map_version": "1efb9403",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "Markers only, framed on the whole map: the fit-map camera baseline."
+    },
+    {
+      "name": "duel-mirage-b",
+      "scene": "scenes/duel-mirage-b.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": "de_mirage",
+      "map_version": "1efb9403",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "Markers + trails + vision + smoke + kill feed on Mirage B. The CI budget gate benches this one."
+    },
+    {
+      "name": "bomb-planted-inferno",
+      "scene": "scenes/bomb-planted-inferno.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": "de_inferno",
+      "map_version": "3cff1c4e",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "Ticking bomb mid-defuse with fire cells and a populated kill feed: the bomb-ring and clock-HUD fixture."
+    },
+    {
+      "name": "nuke-single-upper",
+      "scene": "scenes/nuke-single-upper.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": "de_nuke",
+      "map_version": "075a27b3",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8,
+        "advance_p99_ms": 2,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "Captured from assets/tour/sample-de_nuke.dem by 'dv2d fixture capture --tick 9694 --camera fit-alive'. Re-capture with --level once B3 ships the level pick; that is a reviewed 'golden update' commit."
+    },
+    {
+      "name": "nuke-multilevel",
+      "scene": "scenes/nuke-multilevel.scene.json",
+      "size": {
+        "width": 900,
+        "height": 900
+      },
+      "map": "de_nuke",
+      "map_version": "075a27b3",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": true,
+      "notes": "PENDING for dv2d: this pair is B1's PARITY corpus \u2014 its golden was captured from the pre-v2 control's two-pane stacked layout (camera viewport 900x450 inside a 900x900 image), which needs B1's PaneSet and B3's MapSpace to reproduce. B1 clears 'pending' when the compositor can render it."
+    },
+    {
+      "name": "annotated-mirage-b",
+      "scene": "scenes/annotated-mirage-b.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": "de_mirage",
+      "map_version": "1efb9403",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": true,
+      "notes": "PENDING for B2: duel-mirage-b plus an AnnotationDocument with one static and one time-anchored stroke. B2 authors scenes/annotated-mirage-b.scene.json and annotations/annotated-mirage-b.dvann.json, then clears 'pending'."
+    },
+    {
+      "name": "full-scene-budget",
+      "scene": "scenes/full-scene-budget.scene.json",
+      "size": {
+        "width": 1920,
+        "height": 1080
+      },
+      "map": "de_mirage",
+      "map_version": "1efb9403",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": true,
+      "notes": "PENDING for B1: the worst-case 1080p scene with all seven layers lit, which is what design 6's 8 ms render budget is actually stated against. B1 authors it once the layer stack exists."
+    }
+  ]
+}

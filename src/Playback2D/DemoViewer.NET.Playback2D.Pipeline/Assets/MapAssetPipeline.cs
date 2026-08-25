@@ -105,6 +105,63 @@ public static class MapAssetPipeline
         return dir is null ? null : TryLoadFromDirectory(dir);
     }
 
+    /// <summary>
+    ///     Loads a map's bundle from an <b>explicit</b> assets root — the entry point <c>dv2d</c> needs.
+    ///     <para>
+    ///         Explicit-root is the whole point of the overload:
+    ///         <see cref="MapAssetBundleReader.FindBundleDirectory" /> walks up from
+    ///         <see cref="AppContext.BaseDirectory" />, which is the wrong answer for a tool that was told
+    ///         where the art lives (<c>--assets</c> / <c>DV2D_ASSETS</c>).
+    ///     </para>
+    /// </summary>
+    /// <param name="assetsRoot">The directory holding one subdirectory per map.</param>
+    /// <param name="mapName">The map, e.g. <c>de_nuke</c>.</param>
+    public static LoadedMapAsset? TryLoad(string? assetsRoot, string? mapName)
+    {
+        if (string.IsNullOrWhiteSpace(assetsRoot) || string.IsNullOrWhiteSpace(mapName))
+        {
+            return null;
+        }
+
+        return TryLoadFromDirectory(Path.Combine(assetsRoot, mapName));
+    }
+
+    /// <summary>
+    ///     Reads just the bundle's <c>mapVersion</c> — the cheap call a fixture capture and a
+    ///     <c>golden verify</c> staleness check both need, with no image decode. Null when there is no
+    ///     readable bundle.
+    /// </summary>
+    /// <param name="assetsRoot">The directory holding one subdirectory per map.</param>
+    /// <param name="mapName">The map, e.g. <c>de_nuke</c>.</param>
+    public static string? TryReadMapVersion(string? assetsRoot, string? mapName)
+    {
+        if (string.IsNullOrWhiteSpace(assetsRoot) || string.IsNullOrWhiteSpace(mapName))
+        {
+            return null;
+        }
+
+        return MapAssetBundleReader.TryRead(Path.Combine(assetsRoot, mapName))?.MapVersion;
+    }
+
+    /// <summary>
+    ///     The walk-up fallback: the first <c>assets/</c> directory at or above the process base
+    ///     directory. Only used when neither <c>--assets</c> nor <c>DV2D_ASSETS</c> was given.
+    /// </summary>
+    public static string? TryLocateAssetsRoot()
+    {
+        DirectoryInfo? dir = new(AppContext.BaseDirectory);
+        for (int depth = 0; depth < 10 && dir is not null; depth++, dir = dir.Parent)
+        {
+            string candidate = Path.Combine(dir.FullName, "assets");
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>Loads a bundle from an explicit directory. Null-graceful.</summary>
     /// <param name="dir">The bundle directory.</param>
     public static LoadedMapAsset? TryLoadFromDirectory(string dir)

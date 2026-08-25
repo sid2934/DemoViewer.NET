@@ -179,8 +179,11 @@ public enum RenderBackend { CpuRaster, OpenGl, Angle, Vulkan }   // Vulkan decla
 public interface IRenderSurfaceProvider : IDisposable            // design §5.8 verbatim
 { RenderBackend Backend { get; } SKSurface CreateSurface(SKSizeI size); void Flush(SKSurface s); }
 ```
-`CpuSurfaceProvider` (B0) · `SceneRenderer` (B0; C1's `HeadlessSceneRenderer` is a Pipeline facade
-over it, **not** a second render path) · `RenderBackendPreference`, `RenderSurfaceProbe`,
+`CpuSurfaceProvider` (B0) · `SceneRenderer` (B0) · `HeadlessSceneRenderer` (`…Pipeline.Headless`) —
+**one** headless entry point, **not** a second render path; **owned by B1 as of correction 24**, which
+is the multi-pane form (`SceneCompositor` + `IRenderSurfaceProvider` + `ILevelLayoutPolicy` +
+`ScenePalette`, deriving levels and drawing a `SceneSubmission`). C1's single-pane facade over
+`SceneRenderer` is withdrawn; `dv2d`'s convenience members live on B1's class · `RenderBackendPreference`, `RenderSurfaceProbe`,
 `RenderBackendPreferenceParser`, `RenderSurfaceProviderFactory`, `GpuSurfaceProvider` (C2).
 Precedence: explicit argument → CLI flag → `DV2D_RENDER_BACKEND` → `AppSettings.Playback2D
 .RenderBackend` → auto-probe. B1's on-screen CPU fallback draws into a locked `WriteableBitmap`
@@ -357,6 +360,9 @@ signature fixes listed.
 | 21 | A1, B2, B4, B5 | `ContractVersion 1.2.0` bumped once, by A1 | A1, B2 and B5 each bumped it to the same value. |
 | 22 | B3 (inline) | `TickAxis` documented as drag-math only; timeline layout stays on A1's frame-index mapping | B3's tick axis would have silently disagreed with A1's control geometry. |
 | 23 | C2 (inline) | Namespace `…Core.Rendering` confirmed for the provider family; B5's `Core/Surfaces/` path corrected | Two homes for `RenderSurfaceProviderFactory`. |
+| 24 | §3.7 (inline), B1, C1 | `HeadlessSceneRenderer` reassigned **C1 → B1**: one class, B1's multi-pane body, with C1's CLI conveniences (`Camera`, `RenderInto`, `RenderPng`, `Backend`, `Compositor`) as wrappers on it | Both phases shipped the type; B1's is what C1's own deviation (1) said B1 would produce, and it is the only one that knows about levels. Resolved at the C1 merge — see C1-cli.md deviation 21. |
+| 25 | §3.9 (inline), B1, C1 | `MapAssetPipeline`/`LoadedMapAsset` confirmed **B1's** (the App consumes it); C1's `LoadedMapAssets` withdrawn, its explicit-root `TryLoad(assetsRoot, mapName)` / `TryReadMapVersion` / `TryLocateAssetsRoot` added to B1's class | Add/add collision at the C1 merge; a headless tool told where the art lives must not walk up from `AppContext.BaseDirectory`. C1-cli.md deviation 22. |
+| 26 | B1, C1 | Bench harness unification (correction 8) **executed**: `BenchCommand.Measure` and the CLI's `FrameTimeStats`/`BenchResult` deleted; `dv2d bench` calls `ScenePipelineBenchmark.Run`. B1's harness gains a settable `Camera` and GC collection counts on `BenchmarkReport` (both defaulted) | The seam C1 deviation (7) left for the merge. C1-cli.md deviation 23. |
 
 **Design-doc follow-ups** (one-line edits, owned by the phase that lands first — no plan is blocked
 on them): §12 Q1 → resolved (B4 D1); §12 Q2 → C2's decision doc; §12 Q3 → resolved as B3 (drag

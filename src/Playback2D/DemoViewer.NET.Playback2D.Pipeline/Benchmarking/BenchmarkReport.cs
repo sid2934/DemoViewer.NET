@@ -84,6 +84,9 @@ public readonly record struct FrameTimeStats(
 /// <param name="AllocatedBytesPerFrame">Steady-state managed allocation per frame. The budget is 0.</param>
 /// <param name="AllocatedBytesTotal">Total managed allocation across the measured frames.</param>
 /// <param name="RunUtc">When the run finished.</param>
+/// <param name="Gen0Collections">Gen-0 collections inside the measured window.</param>
+/// <param name="Gen1Collections">Gen-1 collections inside the measured window.</param>
+/// <param name="Gen2Collections">Gen-2 collections inside the measured window.</param>
 public sealed record BenchmarkReport(
     string Id,
     int Frames,
@@ -94,7 +97,10 @@ public sealed record BenchmarkReport(
     FrameTimeStats Total,
     long AllocatedBytesPerFrame,
     long AllocatedBytesTotal,
-    DateTimeOffset RunUtc)
+    DateTimeOffset RunUtc,
+    int Gen0Collections = 0,
+    int Gen1Collections = 0,
+    int Gen2Collections = 0)
 {
     private static readonly JsonSerializerOptions _json = new()
     {
@@ -139,6 +145,9 @@ public sealed record BenchmarkReport(
             AllocatedBytesPerFrame = r.AllocatedBytesPerFrame;
             AllocatedBytesTotal = r.AllocatedBytesTotal;
             RunUtc = r.RunUtc;
+            Gen0Collections = r.Gen0Collections;
+            Gen1Collections = r.Gen1Collections;
+            Gen2Collections = r.Gen2Collections;
         }
 
         public string Id { get; }
@@ -152,6 +161,9 @@ public sealed record BenchmarkReport(
         public long AllocatedBytesPerFrame { get; }
         public long AllocatedBytesTotal { get; }
         public DateTimeOffset RunUtc { get; }
+        public int Gen0Collections { get; }
+        public int Gen1Collections { get; }
+        public int Gen2Collections { get; }
     }
 }
 

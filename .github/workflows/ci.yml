@@ -61,6 +61,52 @@ jobs:
         run: dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
              -- --treenode-filter "/*/*/*/*[Category!=Budget]"
 
+      # ── C1: the dv2d tool ────────────────────────────────────────────────────────────────────────
+      - name: Build dv2d
+        run: dotnet build tools/DemoViewer.NET.Playback2D.Cli -c Release
+
+      # Direct execution, like the suite above. Category!=Budget excludes the allocation assertions,
+      # which belong in the `playback2d-budget` lane below for the same reason B1's do: an allocation
+      # figure must never flap a required check. Demo-dependent cases skip themselves — the runner has
+      # the committed assets/tour sample, so most of them actually run.
+      - name: dv2d unit + architecture tests
+        run: >
+          dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli.Tests
+          --treenode-filter "/*/*/*/*[Category!=Budget]"
+
+      # Goldens: fixture-only (no .dem is needed), CPU provider is the authoritative baseline.
+      # Exit 4 here means a pixel regression, and nothing else does.
+      - name: Golden images
+        run: >
+          dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --
+          golden verify --cpu --json --diff-dir artifacts/playback2d-goldens
+
+      # Budget gate. DV2D_BUDGET_SCALE relaxes the design §6 time budgets for a shared runner; the
+      # allocation budget is never scaled, so it is passed explicitly at today's measured ceiling
+      # instead (~2.8 KB/frame). The allocation is B0's smoke layer building its three SKPaints inside
+      # Render: B1's seven layers are allocation-clean, but `SceneLayerCatalog` still registers only
+      # `playback2d.debuggrid`. TODO: drop --budget-bytes-per-frame entirely in the PR that registers
+      # the real layers there, and walk DV2D_BUDGET_SCALE back toward 1.0 once ~20 runs of
+      # bench-reports exist.
+      - name: Frame-budget gate
+        env:
+          DV2D_BUDGET_SCALE: '2.0'
+        run: >
+          dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --
+          bench --name duel-mirage-b --frames 512 --cpu --gate --json
+          --budget-bytes-per-frame 4096
+          --report-dir artifacts/bench-reports
+
+      - name: Upload render diffs + bench report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playback2d-artifacts
+          path: |
+            artifacts/playback2d-goldens/
+            artifacts/bench-reports/
+          if-no-files-found: ignore
+
   # B1's lane. Split from the correctness suite because it measures rather than asserts behaviour: a
   # timing failure here means "look at the machine or the change", not "the scene is wrong", and mixing
   # the two makes people ignore both.

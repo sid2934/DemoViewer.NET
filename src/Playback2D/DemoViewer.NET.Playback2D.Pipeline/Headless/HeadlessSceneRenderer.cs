@@ -26,6 +26,14 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Headless;
 ///         budget is measured on this class and allocating a full-frame surface per iteration would be
 ///         measuring the allocator.
 ///     </para>
+///     <para>
+///         <b>C1 merge:</b> the CLI's single-pane facade of the same name was withdrawn into this class
+///         (merge note 1). C1 deviation (1) predicted exactly that — "B1 adds the layout/map parameters
+///         when it lands those types" — so the convenience members <c>dv2d</c> was written against
+///         (<see cref="Camera" />, <see cref="RenderPng" />, <see cref="RenderInto" />, the
+///         <see cref="Backend" /> passthrough) sit here as thin wrappers over the pane pipeline rather
+///         than as a second, level-blind render path.
+///     </para>
 /// </summary>
 public sealed class HeadlessSceneRenderer : IDisposable
 {
@@ -55,8 +63,36 @@ public sealed class HeadlessSceneRenderer : IDisposable
         Palette = palette;
     }
 
+    /// <summary>
+    ///     Convenience constructor for a headless consumer that has no opinion about pane layout: the
+    ///     pre-v2 stacked bands and the dark palette. What <c>dv2d</c> builds.
+    /// </summary>
+    /// <param name="surfaces">Where surfaces come from. Not owned.</param>
+    /// <param name="compositor">The layer stack. Not owned.</param>
+    public HeadlessSceneRenderer(IRenderSurfaceProvider surfaces, SceneCompositor compositor)
+        : this(compositor, surfaces, new StackedLayout(), ScenePalette.Dark)
+    {
+    }
+
     /// <summary>The level derivation. Set its <c>RadarBinder</c> to draw baked radar images.</summary>
     public MapSpaceFactory Levels { get; } = new();
+
+    /// <summary>The layer stack being drawn. Not owned.</summary>
+    public SceneCompositor Compositor => _compositor;
+
+    /// <summary>The backend the underlying provider hands out.</summary>
+    public RenderBackend Backend => _surfaces.Backend;
+
+    /// <summary>
+    ///     A camera to pin every pane to, re-applied after each <see cref="Advance" />.
+    ///     <para>
+    ///         Null — the default — leaves the panes wherever <see cref="SetAllCameras" /> or
+    ///         <see cref="FitAll" /> put them. Setting it is how a caller that renders a scene <i>once</i>
+    ///         (a golden, a <c>dv2d render</c>) gets a camera that survives the pane reconciliation the
+    ///         first advance performs, without the advance-set-advance dance a stateful caller does.
+    ///     </para>
+    /// </summary>
+    public ViewportTransform? Camera { get; set; }
 
     /// <summary>The arranged panes.</summary>
     public PaneSet Panes { get; }
@@ -148,6 +184,13 @@ public sealed class HeadlessSceneRenderer : IDisposable
             keepArmed = Core.Cameras.CameraAdvancer.Advance(Panes, frame, in time);
         }
 
+        // After reconciliation, so a pinned camera survives the pane set being (re)built by this very
+        // call. Idempotent — SetAllCameras only writes Current/ManualOverride/epoch.
+        if (Camera is { } pinned)
+        {
+            SetAllCameras(pinned);
+        }
+
         Panes.SyncCameraEpochs();
         keepArmed |= _compositor.Advance(in time, frame);
 
@@ -199,6 +242,77 @@ public sealed class HeadlessSceneRenderer : IDisposable
         using SKImage image = EnsureSurface().Snapshot();
         using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
         return data.ToArray();
+    }
+
+    /// <summary>
+    ///     Draws the last submission into a surface the <b>caller</b> owns, rather than the cached one.
+    ///     What a benchmark that wants to hold its own surface across a run uses; the pixels are the
+    ///     same ones <see cref="Render()" /> produces.
+    /// </summary>
+    /// <param name="surface">The destination surface.</param>
+    public void Render(SKSurface surface)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        surface.Canvas.Clear(Palette.Background);
+        _compositor.Render(surface.Canvas, LastSubmission);
+        _surfaces.Flush(surface);
+    }
+
+    /// <summary>
+    ///     Advance + render into a caller-owned surface, against an <b>explicit</b> clock.
+    ///     <para>
+    ///         The injected clock is the whole determinism contract (design §5.1): motion is a function of
+    ///         <see cref="SceneTime" />, never of a wall clock, and on the demo path the frame's own
+    ///         <c>Time</c> and the source's <c>TimeAt</c> are not the same value —
+    ///         <c>TrackerFrameSource.TimeAt</c> derives <c>DeltaSeconds</c> from fps/speed and authors
+    ///         <c>IsDiscontinuity</c>. A render stamped from the frame would silently discard what the
+    ///         caller injected (C1 deviation 18).
+    ///     </para>
+    /// </summary>
+    /// <param name="surface">The destination surface.</param>
+    /// <param name="frame">The frame to draw.</param>
+    /// <param name="time">The frame's injected clock.</param>
+    /// <param name="purpose">Why this scene is being rendered.</param>
+    public void RenderInto(SKSurface surface, Scene2DFrame frame, in SceneTime time,
+        RenderPurpose purpose = RenderPurpose.Export)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+
+        // The caller's surface is the host: without this the pane layout would be arranged over a 0x0
+        // host and draw nothing into a perfectly valid surface.
+        SKRectI clip = surface.Canvas.DeviceClipBounds;
+        Size = new SKSizeI(clip.Width, clip.Height);
+        Purpose = purpose;
+        Advance(frame, in time);
+        Render(surface);
+    }
+
+    /// <summary>Advance + render at a given size; the caller disposes the returned image.</summary>
+    /// <param name="frame">The frame to draw.</param>
+    /// <param name="time">The frame's injected clock.</param>
+    /// <param name="size">Pixel size of the output.</param>
+    /// <param name="purpose">Why this scene is being rendered.</param>
+    public SKImage Render(Scene2DFrame frame, in SceneTime time, SKSizeI size,
+        RenderPurpose purpose = RenderPurpose.Export)
+    {
+        Size = size;
+        Purpose = purpose;
+        return RenderFrame(frame, in time);
+    }
+
+    /// <summary>Advance + render at a given size, encoded as PNG.</summary>
+    /// <param name="frame">The frame to draw.</param>
+    /// <param name="time">The frame's injected clock.</param>
+    /// <param name="size">Pixel size of the output.</param>
+    /// <param name="purpose">Why this scene is being rendered.</param>
+    public byte[] RenderPng(Scene2DFrame frame, in SceneTime time, SKSizeI size,
+        RenderPurpose purpose = RenderPurpose.Export)
+    {
+        Size = size;
+        Purpose = purpose;
+        Advance(frame, in time);
+        Render();
+        return SnapshotPng();
     }
 
     private SKSurface EnsureSurface() => _surface ??= _surfaces.CreateSurface(_size);

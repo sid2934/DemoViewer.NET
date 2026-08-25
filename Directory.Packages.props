@@ -33,6 +33,11 @@
              would silently re-baseline every golden. The CI job installs its one system dependency:
              `sudo apt-get install -y libfontconfig1`. -->
         <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="2.88.9"/>
+        <!-- Native Skia for the dv2d CLI (tools/DemoViewer.NET.Playback2D.Cli), which has no Avalonia
+             to bring the natives along. Derived pins exactly like the two above: they move with
+             SkiaSharp, which moves with Avalonia. -->
+        <PackageVersion Include="SkiaSharp.NativeAssets.Win32" Version="2.88.9"/>
+        <PackageVersion Include="SkiaSharp.NativeAssets.macOS" Version="2.88.9"/>
         <PackageVersion Include="Msagl" Version="1.2.1"/>
         <PackageVersion Include="YamlDotNet" Version="16.3.0"/>
         <!--

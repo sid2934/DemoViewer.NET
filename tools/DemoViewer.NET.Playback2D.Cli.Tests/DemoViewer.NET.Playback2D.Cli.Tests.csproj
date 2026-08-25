@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The dv2d suite. Direct execution (TUnit's own host): no Avalonia platform, no HeadlessSession,
+      no dispatcher — and NoAvaloniaArchitectureTests asserts that, for this assembly, for the CLI, and
+      for Core/Pipeline, from both the deps graph and the runtime loaded-assembly set of a real dv2d
+      subprocess. Do not add an Avalonia package here; it would make the assertion vacuous.
+    -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <AssemblyName>DemoViewer.NET.Playback2D.Cli.Tests</AssemblyName>
+        <RootNamespace>DemoViewer.NET.Playback2D.Cli.Tests</RootNamespace>
+        <!-- CA1707: test method names conventionally use underscores (e.g. Method_Condition_Expected) -->
+        <NoWarn>$(NoWarn);CA1707</NoWarn>
+        <ServerGarbageCollection>false</ServerGarbageCollection>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="TUnit"/>
+        <PackageReference Include="SkiaSharp"/>
+        <!-- Native Skia for Linux CI runners; a no-op elsewhere. -->
+        <PackageReference Include="SkiaSharp.NativeAssets.Linux"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../DemoViewer.NET.Playback2D.Cli/DemoViewer.NET.Playback2D.Cli.csproj"/>
+        <!-- TestSupport is Avalonia-free (TUnit + CS2DemoKit.Parser only), so it is safe for the
+             direct-execution lane, and it gives DemoTestHelper's skip-on-missing-demo behaviour. -->
+        <ProjectReference
+                Include="../../src/Testing/DemoViewer.NET.TestSupport/DemoViewer.NET.TestSupport.csproj"/>
+    </ItemGroup>
+
+</Project>
