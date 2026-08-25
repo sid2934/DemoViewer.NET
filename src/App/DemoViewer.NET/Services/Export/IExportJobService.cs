@@ -54,13 +54,24 @@ public interface IExportJobService
 ///     range silently becomes the wrong length.
 /// </param>
 /// <param name="DemoEndFrame">Last demo frame index, inclusive.</param>
+/// <param name="EncoderOverride">
+///     <c>auto</c> (the default), <c>software</c>, or an <c>EncoderLadder</c> rung's ffmpeg name — plan
+///     P2 D4. It rides the request rather than the runner so two exports in one process can disagree,
+///     which is the per-session shape the plan's §7 export node needs.
+/// </param>
+/// <param name="Quality">
+///     <c>draft</c>, <c>standard</c> (the default) or <c>best</c>. A string for the same reason the
+///     setting is one: an unknown value degrades to the default rather than throwing.
+/// </param>
 public sealed record Scene2DExportRequest(
     ExportRequest Core,
     string OutputPath,
     string DemoPath,
     bool AllowFfmpegDownload,
     int DemoStartFrame = 0,
-    int DemoEndFrame = 0);
+    int DemoEndFrame = 0,
+    string? EncoderOverride = null,
+    string? Quality = null);
 
 /// <summary>A point-in-time export status. The chip and the flyout render from this.</summary>
 /// <param name="Phase">Where the export is.</param>

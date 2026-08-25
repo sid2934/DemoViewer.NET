@@ -78,10 +78,16 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
     private string _outputPath = string.Empty;
 
     [ObservableProperty]
+    private string _selectedEncoder = EncoderLadder.Auto;
+
+    [ObservableProperty]
     private string _selectedFormat = ExportFormats.WebM;
 
     [ObservableProperty]
     private int _selectedFps = 60;
+
+    [ObservableProperty]
+    private string _selectedQuality = ExportQualities.Standard;
 
     [ObservableProperty]
     private ExportRangeOption? _selectedRange;
@@ -135,6 +141,8 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
 
         Playback2DSettings seed = defaults ?? new Playback2DSettings();
         _selectedFormat = Normalize(seed.ExportFormatId);
+        _selectedQuality = ExportQualities.ToId(ExportQualities.ParseOrDefault(seed.ExportQuality));
+        _selectedEncoder = NormalizeEncoder(_selectedFormat, seed.ExportEncoder);
         _includeHud = seed.ExportIncludeHud;
         _includeAnnotations = seed.ExportIncludeAnnotations;
         _selectedSize = SizePresets.FirstOrDefault(s => s.Width == seed.ExportWidth && s.Height == seed.ExportHeight)
@@ -144,6 +152,7 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
         _outputPath = BuildDefaultPath(seed);
 
         RebuildFps(seed.ExportFps);
+        RebuildEncoders(_selectedEncoder);
         RefreshFfmpegStatus();
         UpdateValidation();
     }
@@ -163,6 +172,24 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
 
     /// <summary>The container formats, in dialog order.</summary>
     public static IReadOnlyList<string> Formats => ExportFormats.All;
+
+    /// <summary>
+    ///     The quality rungs, fastest first — plan P2 D3. They are an intent, not a codec setting: every
+    ///     encoder maps the three onto its own rate and speed controls, so "standard" means the same thing
+    ///     whether the file is coming off NVENC or off libvpx.
+    /// </summary>
+    public static IReadOnlyList<string> Qualities => ExportQualities.All;
+
+    /// <summary>
+    ///     What <c>--encoder</c> may be for the selected format: <c>auto</c>, <c>software</c>, then each
+    ///     ladder rung by name. Re-listed when the format changes, because the two ladders share no rungs.
+    ///     <para>
+    ///         <b><c>auto</c> is the only entry that cannot fail for an environment reason.</b> Naming a
+    ///         rung is taken literally and refused if this machine cannot run it (plan D4) — which is the
+    ///         honest behaviour, and the reason the default is not a name.
+    ///     </para>
+    /// </summary>
+    public ObservableCollection<string> AvailableEncoders { get; } = [];
 
     /// <summary>The ranges the user may export.</summary>
     public ObservableCollection<ExportRangeOption> Ranges { get; }
@@ -228,7 +255,8 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
         {
             ExportRequest core = BuildRequest(range);
             _job.Start(new Scene2DExportRequest(core, OutputPath, string.Empty,
-                AllowFfmpegDownload && CanOfferFfmpegDownload, range.StartFrame, range.EndFrame));
+                AllowFfmpegDownload && CanOfferFfmpegDownload, range.StartFrame, range.EndFrame,
+                SelectedEncoder, SelectedQuality));
 
             PersistDefaults();
             StartRequested?.Invoke();
@@ -330,11 +358,18 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
             settings.Playback2D.ExportOutputDirectory = Path.GetDirectoryName(OutputPath) ?? string.Empty;
             settings.Playback2D.ExportIncludeHud = IncludeHud;
             settings.Playback2D.ExportIncludeAnnotations = IncludeAnnotations;
+            settings.Playback2D.ExportEncoder = SelectedEncoder;
+            settings.Playback2D.ExportQuality = SelectedQuality;
         });
 
     partial void OnSelectedFormatChanged(string value)
     {
         RebuildFps(SelectedFps);
+
+        // The two video ladders share no rung names, so a saved `av1_nvenc` must not survive a switch to
+        // MP4 as a value the selector would then refuse. It degrades to `auto`, which is what the user
+        // meant by picking a hardware rung in the first place.
+        RebuildEncoders(SelectedEncoder);
         UpdateValidation();
     }
 
@@ -377,6 +412,41 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
         SelectedFps = AvailableFps.Contains(preferred)
             ? preferred
             : AvailableFps.OrderBy(f => Math.Abs(f - preferred)).First();
+    }
+
+    private void RebuildEncoders(string preferred)
+    {
+        AvailableEncoders.Clear();
+        AvailableEncoders.Add(EncoderLadder.Auto);
+        AvailableEncoders.Add(EncoderLadder.Software);
+        foreach (VideoEncoder rung in EncoderLadder.For(SelectedFormat))
+        {
+            if (rung.IsHardware)
+            {
+                // The software rung is already offered as `software`, and listing it twice under two
+                // names would make the same choice look like two.
+                AvailableEncoders.Add(rung.Name);
+            }
+        }
+
+        SelectedEncoder = AvailableEncoders.Contains(preferred) ? preferred : EncoderLadder.Auto;
+    }
+
+    // A hand-edited settings file, or a rung that belongs to the other format's ladder: either way the
+    // safe answer is `auto`, which is the one value that can never fail for an environment reason.
+    private static string NormalizeEncoder(string formatId, string? requested)
+    {
+        if (string.IsNullOrWhiteSpace(requested))
+        {
+            return EncoderLadder.Auto;
+        }
+
+        string trimmed = requested.Trim().ToLowerInvariant();
+        return string.Equals(trimmed, EncoderLadder.Auto, StringComparison.Ordinal) ||
+               string.Equals(trimmed, EncoderLadder.Software, StringComparison.Ordinal) ||
+               EncoderLadder.Find(formatId, trimmed) is not null
+            ? trimmed
+            : EncoderLadder.Auto;
     }
 
     private void RefreshFfmpegStatus() =>

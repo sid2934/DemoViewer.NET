@@ -38,6 +38,7 @@ public sealed class SceneExportRunner : IExportRunner
     private readonly Func<string?> _managedFfmpegDirectory;
     private readonly Func<Scene2DExportRequest, ExportSceneSetup?> _setup;
     private readonly Func<IRenderSurfaceProvider> _surfaces;
+    private readonly EncoderSelector _encoders;
 
     /// <summary>Creates the runner.</summary>
     /// <param name="setup">Captures the live tab's state for one export. Null means "no demo loaded".</param>
@@ -51,12 +52,19 @@ public sealed class SceneExportRunner : IExportRunner
     ///     rung is skipped entirely, which is the correct behaviour for a headless caller.
     /// </param>
     /// <param name="log">Optional line sink; ffmpeg's stderr flows through it.</param>
+    /// <param name="encoderProbe">
+    ///     How <c>EncoderLadder</c> rungs are verified (plan P2 D1). Defaults to
+    ///     <c>EncoderProbeCache.Shared</c>, so an app session pays for one two-frame test encode per
+    ///     encoder rather than one per export. The seam is here so a test can drive the fallback path
+    ///     without a GPU, a driver or a subprocess.
+    /// </param>
     public SceneExportRunner(
         Func<Scene2DExportRequest, ExportSceneSetup?> setup,
         Func<IRenderSurfaceProvider>? surfaces = null,
         Func<string?>? managedFfmpegDirectory = null,
         Func<FfmpegDownloadOffer, string, CancellationToken, Task<bool>>? consent = null,
-        Action<string>? log = null)
+        Action<string>? log = null,
+        IEncoderProbe? encoderProbe = null)
     {
         ArgumentNullException.ThrowIfNull(setup);
         _setup = setup;
@@ -64,6 +72,7 @@ public sealed class SceneExportRunner : IExportRunner
         _managedFfmpegDirectory = managedFfmpegDirectory ?? (static () => FfmpegDependency.ManagedDirectory);
         _consent = consent;
         _log = log;
+        _encoders = new EncoderSelector(encoderProbe);
     }
 
     /// <summary>The message shown when a video format was asked for and no ffmpeg exists.</summary>
@@ -87,6 +96,19 @@ public sealed class SceneExportRunner : IExportRunner
         if (!ffmpeg.Found && !gif)
         {
             throw new ExportRefusedException(NoFfmpegRefusal);
+        }
+
+        // BEFORE the replay: the ladder walk spawns one short ffmpeg per hardware rung, and a refusal
+        // ("you asked for h264_nvenc and this driver cannot run it") has to arrive before the export
+        // spends a minute seeking rather than after it spends ten encoding into a pipe (plan P2 D1).
+        EncoderSelection? encoder = gif && !ffmpeg.Found
+            ? null
+            : _encoders.Select(request.Core.FormatId, request.EncoderOverride,
+                ExportQualities.ParseOrDefault(request.Quality), ffmpeg.Directory, ct);
+
+        if (encoder is not null)
+        {
+            _log?.Invoke("video encoder: " + encoder.Describe());
         }
 
         using TrackerFrameSource source = BuildSource(request, setup);
@@ -113,7 +135,7 @@ public sealed class SceneExportRunner : IExportRunner
             RadarBinder = setup.MapAssets is null ? null : new MapRadarBinder(setup.MapAssets)
         };
 
-        IFrameSink sink = BuildSink(request, core, ffmpeg);
+        IFrameSink sink = BuildSink(request, core, ffmpeg, encoder);
         await session.RunAsync(core, source, sink, surfaces, progress, ct).ConfigureAwait(false);
     }
 
@@ -173,7 +195,8 @@ public sealed class SceneExportRunner : IExportRunner
         return SceneLayerCatalog.CreateSceneStack(include, null, setup.Vision, hud);
     }
 
-    private IFrameSink BuildSink(Scene2DExportRequest request, ExportRequest core, FfmpegLocation ffmpeg)
+    private IFrameSink BuildSink(Scene2DExportRequest request, ExportRequest core, FfmpegLocation ffmpeg,
+        EncoderSelection? encoder)
     {
         if (!ffmpeg.Found)
         {
@@ -188,6 +211,7 @@ public sealed class SceneExportRunner : IExportRunner
             core.Size.Height,
             core.Fps,
             ffmpeg.Directory,
+            encoder,
             Log: _log));
     }
 }

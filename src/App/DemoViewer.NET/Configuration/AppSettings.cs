@@ -504,4 +504,28 @@ public sealed class Playback2DSettings
 
     /// <summary>Whether B2's annotation layer is burned into the video.</summary>
     public bool ExportIncludeAnnotations { get; set; } = true;
+
+    // ---------------- Encoder selection (P2) ----------------
+    // Registry §3.10's last two export rows. Both are flattened into SettingsService.WriteInMemory with
+    // the rest of the section; both are persisted keys.
+
+    /// <summary>
+    ///     Which encoder an export uses: <c>auto</c> (default), <c>software</c>, or an
+    ///     <c>EncoderLadder</c> rung's ffmpeg name.
+    ///     <para>
+    ///         <b><c>auto</c> is the only value that cannot fail for an environment reason.</b> It walks
+    ///         the format's ladder and takes the best rung this machine verifies, which on a box with no
+    ///         working hardware encoder is tuned software — a completely normal export. A named rung is
+    ///         taken literally and refused if it does not verify (plan P2 D4), so it is stored here only
+    ///         because a user who has one good card and knows it should not have to re-pick every time.
+    ///     </para>
+    /// </summary>
+    public string ExportEncoder { get; set; } = "auto";
+
+    /// <summary>
+    ///     How much an export spends per frame: <c>draft</c>, <c>standard</c> (default) or <c>best</c>.
+    ///     A string rather than the enum, for the same reason <see cref="LevelDisplayMode" /> is: an
+    ///     unknown value in a hand-edited file degrades to the default instead of failing the bind.
+    /// </summary>
+    public string ExportQuality { get; set; } = "standard";
 }

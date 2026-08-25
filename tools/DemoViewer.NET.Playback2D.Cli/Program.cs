@@ -1,6 +1,7 @@
 #region
 
 using System.Text.Json;
+using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 
 #endregion
 
@@ -35,6 +36,8 @@ internal static class Program
           export   --demo <path> [--from N|tN] [--to N|tN]   default whole demo
                    [--out <file>] [--format webm|mp4|gif]   default webm
                    [--fps N] [--size WxH] [--speed X]
+                   [--encoder auto|software|<name>]         default auto
+                   [--quality draft|standard|best]          default standard
                    [--layers a,b] [--assets <dir>] [--no-radar]
                    [--hud] [--no-encode] [--ffmpeg-log] [--perf]
                    [--cpu | --gpu | --backend <name>] [--strict-backend]
@@ -69,6 +72,14 @@ internal static class Program
                     per-layer and per-stage breakdown to bench and export: p50/p99/total/share
                     per stage and per layer, picture-cache hit rates, the uncapped render-only
                     fps, and a slowest-first ranking. Off by default and free when off.
+
+        --encoder   auto walks the per-format ladder and takes the best rung this
+                    machine can actually run, verified by a two-frame test encode
+                    (webm: av1_nvenc, av1_qsv, av1_amf, libvpx-vp9 · mp4:
+                    h264_nvenc, h264_qsv, h264_amf, libx264). `software` skips the
+                    hardware rungs. Naming a rung takes it literally: if it does not
+                    verify the export is refused (exit 6) rather than substituted.
+                    The chosen rung, why, and every rejected one are in --json.
 
         backend selection (design §5.8): --cpu | --gpu | --backend <name>, then
                     DV2D_RENDER_BACKEND, then an auto-probe. --strict-backend turns a
@@ -132,6 +143,14 @@ internal static class Program
         }
         catch (BackendUnavailableException e)
         {
+            ConsoleOut.Error(e.Message);
+            return ExitCode.EnvironmentUnavailable.ToInt();
+        }
+        catch (EncoderUnavailableException e)
+        {
+            // Exit 6, not 3, and for the same reason --gpu gets 6: nothing about the request is wrong.
+            // `--encoder h264_nvenc` is a perfectly valid thing to ask for; this machine's driver is what
+            // cannot answer. A CI lane that treats 3 as "the change is broken" must not see this as one.
             ConsoleOut.Error(e.Message);
             return ExitCode.EnvironmentUnavailable.ToInt();
         }

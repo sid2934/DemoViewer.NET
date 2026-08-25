@@ -480,7 +480,11 @@ public sealed class SettingsService
             new KeyValuePair<string, string?>("Playback2D:ExportIncludeHud",
                 settings.Playback2D.ExportIncludeHud ? "true" : "false"),
             new KeyValuePair<string, string?>("Playback2D:ExportIncludeAnnotations",
-                settings.Playback2D.ExportIncludeAnnotations ? "true" : "false")
+                settings.Playback2D.ExportIncludeAnnotations ? "true" : "false"),
+            new KeyValuePair<string, string?>("Playback2D:ExportEncoder",
+                settings.Playback2D.ExportEncoder),
+            new KeyValuePair<string, string?>("Playback2D:ExportQuality",
+                settings.Playback2D.ExportQuality)
         };
 
         for (int i = 0; i < settings.Playback2D.AnnotationRecentColors.Length; i++)

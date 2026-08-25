@@ -41,6 +41,12 @@ public class Playback2DAnnotationSettingsTests
             await Assert.That(prefs.AnnotationAnchorToEntities).IsFalse();
             await Assert.That(prefs.AnnotationAutoSave).IsTrue();
             await Assert.That(prefs.AnnotationRecentColors).IsEmpty();
+
+            // P2. `auto` is the only encoder value that cannot fail for an environment reason — it walks
+            // the ladder and lands on tuned software where no hardware verifies — so it is the only one
+            // that can be a default. `standard` is the product goal: decent bitrate, quick encoding.
+            await Assert.That(prefs.ExportEncoder).IsEqualTo("auto");
+            await Assert.That(prefs.ExportQuality).IsEqualTo("standard");
         }
         finally
         {
@@ -107,6 +113,8 @@ public class Playback2DAnnotationSettingsTests
         s.Playback2D.AnnotationAnchorToEntities = true;
         s.Playback2D.AnnotationAutoSave = false;
         s.Playback2D.AnnotationRecentColors = ["#FF112233", "#FF445566"];
+        s.Playback2D.ExportEncoder = "av1_nvenc";
+        s.Playback2D.ExportQuality = "best";
     }
 
     private static async Task AssertMutated(Playback2DSettings prefs)
@@ -123,6 +131,11 @@ public class Playback2DAnnotationSettingsTests
         await Assert.That(prefs.AnnotationAutoSave).IsFalse();
         await Assert.That(prefs.AnnotationRecentColors.Length).IsEqualTo(2);
         await Assert.That(prefs.AnnotationRecentColors[1]).IsEqualTo("#FF445566");
+
+        // P2's two keys, through the same fileless path as the rest: a Playback2D property missing from
+        // SettingsService.WriteInMemory binds fine, writes fine, and forgets itself on the next reload.
+        await Assert.That(prefs.ExportEncoder).IsEqualTo("av1_nvenc");
+        await Assert.That(prefs.ExportQuality).IsEqualTo("best");
     }
 
     private static string NewTempDir()

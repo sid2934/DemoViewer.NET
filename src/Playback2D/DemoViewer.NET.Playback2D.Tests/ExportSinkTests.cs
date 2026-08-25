@@ -48,9 +48,16 @@ public class FfmpegArgumentTests
 
         await Assert.That(arguments).Contains("-c:v libvpx-vp9");
         await Assert.That(arguments).Contains("-b:v 0"); // without it, -crf is ignored and VP9 goes CBR
-        await Assert.That(arguments).Contains("-crf 30");
+        await Assert.That(arguments).Contains("-crf 32");
         await Assert.That(arguments).Contains("-pix_fmt yuv420p");
         await Assert.That(arguments).Contains("-row-mt 1");
+
+        // P2: the pair that was MISSING before, which is why this rung ran at libvpx's slowest setting.
+        // -row-mt alone only tells libvpx it may thread within a tile; -deadline/-cpu-used is the actual
+        // speed control, and unset means "spend everything". 97 fps → 526 fps on the plan's D3 bench, for
+        // 15 % more bits and an SSIM still above 0.999.
+        await Assert.That(arguments).Contains("-deadline realtime");
+        await Assert.That(arguments).Contains("-cpu-used 5");
     }
 
     [Test]
@@ -59,7 +66,11 @@ public class FfmpegArgumentTests
         string arguments = FfmpegFrameSink.DescribeArguments(Options(ExportFormats.Mp4));
 
         await Assert.That(arguments).Contains("-c:v libx264");
-        await Assert.That(arguments).Contains("-preset medium");
+
+        // P2: `-preset medium -crf 30` was beaten on BOTH axes by this — faster and a higher SSIM. CRF 30
+        // on x264 throws the quality away before the preset can spend any effort on it.
+        await Assert.That(arguments).Contains("-preset veryfast");
+        await Assert.That(arguments).Contains("-crf 21");
 
         // FFMpegCore spells it without the leading '+'. Same flag, same effect (the '+' only matters when
         // several movflags are being combined), and asserting on what is actually emitted beats asserting

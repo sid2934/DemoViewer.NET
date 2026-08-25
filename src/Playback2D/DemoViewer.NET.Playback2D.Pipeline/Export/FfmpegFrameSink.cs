@@ -3,6 +3,7 @@
 using System.Globalization;
 using ChannelClosedException = System.Threading.Channels.ChannelClosedException;
 using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using FFMpegCore;
 using FFMpegCore.Enums;
 using FFMpegCore.Pipes;
@@ -22,8 +23,16 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 ///     <c>PATH</c>. Passed <b>per invocation</b>, never through <c>GlobalFFOptions</c> — that is
 ///     process-global mutable state, and a CLI export and an in-app export must be able to disagree.
 /// </param>
-/// <param name="Crf">Constant-rate factor. 30 is a good VP9 default; 20 suits H.264.</param>
-/// <param name="H264Preset">x264 speed preset. Ignored for the other formats.</param>
+/// <param name="Encoder">
+///     Which rung of the <see cref="Ffmpeg.EncoderLadder" /> encodes, and at what quality — plan
+///     <c>P2-export-throughput</c>. Null means the format's software rung at
+///     <see cref="ExportQuality.Standard" />, so a sink is constructible without a probe ever running.
+///     <para>
+///         It is a <b>value carried per sink</b>, never a process-global: two exports in one process may
+///         be encoding on two different rungs at once (plan D5). This is the same argument that already
+///         keeps <c>BinaryFolder</c> off <c>GlobalFFOptions</c>.
+///     </para>
+/// </param>
 /// <param name="DeletePartialOnCancel">Remove a half-written file when the export is cancelled.</param>
 /// <param name="Log">Optional line sink for ffmpeg's stderr.</param>
 public sealed record FfmpegSinkOptions(
@@ -33,10 +42,14 @@ public sealed record FfmpegSinkOptions(
     int Height,
     int Fps,
     string? BinaryFolder = null,
-    int Crf = 30,
-    string H264Preset = "medium",
+    EncoderSelection? Encoder = null,
     bool DeletePartialOnCancel = true,
-    Action<string>? Log = null);
+    Action<string>? Log = null)
+{
+    /// <summary>The selection, resolved. Never null — see <see cref="Encoder" />.</summary>
+    public EncoderSelection ResolvedEncoder =>
+        Encoder ?? EncoderSelection.SoftwareDefault(FormatId);
+}
 
 /// <summary>
 ///     Encodes rendered frames by piping raw RGBA to an <b>ffmpeg subprocess</b>.
@@ -298,34 +311,34 @@ public sealed class FfmpegFrameSink : IFrameSink
 
     private static void Configure(FFMpegArgumentOptions arguments, FfmpegSinkOptions options)
     {
-        switch (options.FormatId)
+        if (string.Equals(options.FormatId, ExportFormats.Gif, StringComparison.Ordinal))
         {
-            case ExportFormats.Mp4:
-                arguments
-                    .WithVideoCodec("libx264")
-                    .WithCustomArgument($"-preset {options.H264Preset}")
-                    .WithConstantRateFactor(options.Crf)
-                    .ForcePixelFormat("yuv420p")
-                    .WithFastStart();
-                break;
+            // Plan B4 D6: the standard SINGLE-input equivalent of the two-pass palettegen/paletteuse
+            // recipe. A literal two-pass would need the input twice, and over a pipe that means
+            // spilling a multi-gigabyte rawvideo temp file. There is no -c:v here and no ladder rung
+            // to choose — the filter chain IS the encoder.
+            arguments
+                .WithCustomArgument(GifFilter(options))
+                .Loop(0)
+                .DisableChannel(Channel.Audio);
+            return;
+        }
 
-            case ExportFormats.Gif:
-                // Plan D6: the standard SINGLE-input equivalent of the two-pass palettegen/paletteuse
-                // recipe. A literal two-pass would need the input twice, and over a pipe that means
-                // spilling a multi-gigabyte rawvideo temp file.
-                arguments
-                    .WithCustomArgument(GifFilter(options))
-                    .Loop(0);
-                break;
+        // Everything else is one rung of the ladder plus the arguments its quality maps to. The codec,
+        // the rate control and the speed control all come from ONE place (P2 D2/D3), so a sink cannot
+        // disagree with what `export --json` says it used.
+        EncoderSelection selection = options.ResolvedEncoder;
 
-            default:
-                arguments
-                    .WithVideoCodec("libvpx-vp9")
-                    .WithCustomArgument("-b:v 0")
-                    .WithConstantRateFactor(options.Crf)
-                    .ForcePixelFormat("yuv420p")
-                    .WithCustomArgument("-row-mt 1");
-                break;
+        arguments
+            .WithVideoCodec(selection.Encoder.Name)
+            .WithCustomArgument(selection.Arguments)
+            .ForcePixelFormat(selection.Encoder.PixelFormat);
+
+        if (string.Equals(options.FormatId, ExportFormats.Mp4, StringComparison.Ordinal))
+        {
+            // Moves the moov atom to the front so the file starts playing before it has all downloaded.
+            // A container property, not an encoder one, which is why it survives the rung swap.
+            arguments.WithFastStart();
         }
 
         // Every invocation, every format: this pipeline has no audio to carry, and letting ffmpeg guess

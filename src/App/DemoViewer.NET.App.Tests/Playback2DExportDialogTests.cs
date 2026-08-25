@@ -6,6 +6,7 @@ using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
+using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.ViewModels.Playback2D;
 
 #endregion
@@ -154,6 +155,121 @@ public class Playback2DExportDialogTests
         await Assert.That(vm.ResolvedSize.Height).IsEqualTo(720);
     }
 
+    [Test]
+    public async Task TheDefaultEncoder_IsAuto_AtStandardQuality()
+    {
+        Playback2DExportDialogViewModel vm = Dialog();
+
+        // P2 D4. `auto` is the only value that cannot fail for an environment reason: it walks the
+        // ladder and lands on tuned software where no hardware verifies. A named rung is taken literally
+        // and refused if this machine cannot run it, which is honest but is not a default.
+        await Assert.That(vm.SelectedEncoder).IsEqualTo(EncoderLadder.Auto);
+        await Assert.That(vm.SelectedQuality).IsEqualTo(ExportQualities.Standard);
+    }
+
+    [Test]
+    public async Task TheEncoderList_TracksTheFormatsLadder()
+    {
+        Playback2DExportDialogViewModel vm = Dialog();
+
+        await Assert.That(vm.AvailableEncoders).Contains("av1_nvenc");
+        await Assert.That(vm.AvailableEncoders.Contains("h264_nvenc")).IsFalse();
+
+        vm.SelectedFormat = ExportFormats.Mp4;
+
+        await Assert.That(vm.AvailableEncoders).Contains("h264_nvenc");
+        await Assert.That(vm.AvailableEncoders.Contains("av1_nvenc")).IsFalse();
+
+        // Every list offers the two format-independent answers, and offers the software rung ONLY under
+        // that name — listing libvpx-vp9 as well would make one choice look like two.
+        await Assert.That(vm.AvailableEncoders).Contains(EncoderLadder.Auto);
+        await Assert.That(vm.AvailableEncoders).Contains(EncoderLadder.Software);
+        await Assert.That(vm.AvailableEncoders.Contains("libx264")).IsFalse();
+    }
+
+    [Test]
+    public async Task ChangingFormat_DropsARungTheNewLadderDoesNotHave()
+    {
+        Playback2DExportDialogViewModel vm = Dialog();
+        vm.SelectedEncoder = "av1_nvenc";
+
+        vm.SelectedFormat = ExportFormats.Mp4;
+
+        // The two ladders share no rung names, so a carried-over av1_nvenc would be a value the selector
+        // then refuses — an export that fails because the user changed container. It degrades to `auto`,
+        // which is what picking a hardware rung meant in the first place.
+        await Assert.That(vm.SelectedEncoder).IsEqualTo(EncoderLadder.Auto);
+    }
+
+    [Test]
+    public async Task ASavedRungFromTheOtherLadder_SeedsAsAuto()
+    {
+        Playback2DExportDialogViewModel vm = new(
+            [new ExportRangeOption("Current round", 100, 400)],
+            new Playback2DSettings { ExportFormatId = ExportFormats.WebM, ExportEncoder = "h264_nvenc" },
+            job: null,
+            ffmpegLocator: () => new FfmpegLocation(true, "/usr/bin", FfmpegOrigin.SystemPath),
+            fileExists: _ => false);
+
+        // A hand-edited settings file is the other way this happens, and it must not throw at startup.
+        await Assert.That(vm.SelectedEncoder).IsEqualTo(EncoderLadder.Auto);
+    }
+
+    [Test]
+    public async Task AnUnknownSavedQuality_SeedsAsStandard()
+    {
+        Playback2DExportDialogViewModel vm = new(
+            [new ExportRangeOption("Current round", 100, 400)],
+            new Playback2DSettings { ExportQuality = "insane" },
+            job: null,
+            ffmpegLocator: () => new FfmpegLocation(true, "/usr/bin", FfmpegOrigin.SystemPath),
+            fileExists: _ => false);
+
+        await Assert.That(vm.SelectedQuality).IsEqualTo(ExportQualities.Standard);
+    }
+
+    [Test]
+    public async Task Start_PersistsTheEncoderAndQuality()
+    {
+        AppSettings persisted = new();
+        Playback2DExportDialogViewModel vm = new(
+            [new ExportRangeOption("Current round", 100, 400)],
+            new Playback2DSettings(),
+            new StubExportJobService(),
+            ffmpegLocator: () => new FfmpegLocation(true, "/usr/bin", FfmpegOrigin.SystemPath),
+            persistDefaults: mutate => mutate(persisted),
+            fileExists: _ => false);
+
+        vm.SelectedQuality = ExportQualities.Best;
+        vm.SelectedEncoder = "av1_nvenc";
+        vm.StartCommand.Execute(null);
+
+        await Assert.That(persisted.Playback2D.ExportQuality).IsEqualTo(ExportQualities.Best);
+        await Assert.That(persisted.Playback2D.ExportEncoder).IsEqualTo("av1_nvenc");
+    }
+
+    [Test]
+    public async Task Start_CarriesTheChoicesOntoTheRequest()
+    {
+        StubExportJobService job = new();
+        Playback2DExportDialogViewModel vm = new(
+            [new ExportRangeOption("Current round", 100, 400)],
+            new Playback2DSettings(),
+            job,
+            ffmpegLocator: () => new FfmpegLocation(true, "/usr/bin", FfmpegOrigin.SystemPath),
+            fileExists: _ => false);
+
+        vm.SelectedQuality = ExportQualities.Draft;
+        vm.SelectedEncoder = EncoderLadder.Software;
+        vm.StartCommand.Execute(null);
+
+        // They ride the REQUEST, not the runner — plan D5's per-session shape, and what lets two exports
+        // in one process disagree about which rung they are on.
+        await Assert.That(job.Started).IsNotNull();
+        await Assert.That(job.Started!.Quality).IsEqualTo(ExportQualities.Draft);
+        await Assert.That(job.Started.EncoderOverride).IsEqualTo(EncoderLadder.Software);
+    }
+
     private static Playback2DExportDialogViewModel Dialog(
         IReadOnlyList<ExportRangeOption>? ranges = null,
         Func<FfmpegLocation>? ffmpeg = null,
@@ -169,6 +285,24 @@ public class Playback2DExportDialogTests
             isLiveSyncSessionActive: liveSync,
             persistDefaults: null,
             fileExists: _ => false);
+
+    /// <summary>Records the one request the dialog hands off, and nothing else.</summary>
+    private sealed class StubExportJobService : IExportJobService
+    {
+        public Scene2DExportRequest? Started { get; private set; }
+
+        public ExportJobStatus Status => ExportJobStatus.Idle;
+
+        public event EventHandler<ExportJobStatus>? StatusChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public void Start(Scene2DExportRequest request) => Started = request;
+
+        public Task CancelAsync() => Task.CompletedTask;
+    }
 }
 
 /// <summary>

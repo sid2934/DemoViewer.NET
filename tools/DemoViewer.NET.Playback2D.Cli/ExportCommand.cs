@@ -66,6 +66,19 @@ internal static class ExportCommand
         bool hud = args.Flag("hud");
         bool ffmpegLog = args.Flag("ffmpeg-log");
 
+        // P2: which rung of the encoder ladder, and how much to spend per frame. `auto` walks the
+        // ladder; `software` skips the hardware rungs (the machine-independent answer a bisect wants);
+        // a rung's own name is taken literally and refused if it does not verify.
+        string encoderRequest = args.String("encoder") ?? EncoderLadder.Auto;
+        string? qualityRequest = args.String("quality");
+        if (qualityRequest is not null && !ExportQualities.TryParse(qualityRequest, out _))
+        {
+            throw new CliUsageException(
+                $"--quality expects one of: {string.Join(", ", ExportQualities.All)}, got '{qualityRequest}'.");
+        }
+
+        ExportQuality quality = ExportQualities.ParseOrDefault(qualityRequest);
+
         // Renders and reads back every frame but encodes nothing. The only way to answer "is the RENDERER
         // fast enough" separately from "is libvpx fast enough" — and the measurement C2 compares a GPU
         // provider against, since a GPU cannot make an encoder quicker.
@@ -132,6 +145,30 @@ internal static class ExportCommand
                 "Install ffmpeg, or export GIF.");
         }
 
+        // The ladder walk (P2 D1), BEFORE the range is rendered: one test encode per hardware rung,
+        // cached for the life of this process. A refusal here — `--encoder h264_nvenc` on a machine
+        // whose driver cannot run it — must arrive now, not after two minutes of frames have gone into
+        // a pipe. Skipped entirely when nothing will be encoded.
+        EncoderSelection? encoder;
+        long probeStarted = Stopwatch.GetTimestamp();
+        try
+        {
+            encoder = noEncode || (gif && !ffmpeg.Found)
+                ? null
+                : new EncoderSelector(new EncoderProbeCache())
+                    .Select(format, encoderRequest, quality, ffmpeg.Directory, ct);
+        }
+        catch
+        {
+            backend.Provider.Dispose();
+            mapAssets?.Dispose();
+            throw;
+        }
+
+        // Timed HERE and not inside the probe: Pipeline is banned from Stopwatch outside two namespaces
+        // (BannedApiTests), and one number for the whole walk is the number a user cares about anyway.
+        double probeMs = encoder is null ? 0 : Stopwatch.GetElapsedTime(probeStarted).TotalMilliseconds;
+
         using SceneCompositor compositor = SceneLayerCatalog.CreateSceneStack(
             [.. request.LayerIds], null, null, hudData);
 
@@ -152,7 +189,7 @@ internal static class ExportCommand
             : gif && !ffmpeg.Found
                 ? new ManagedGifSink(outPath, fps)
                 : new FfmpegFrameSink(new FfmpegSinkOptions(outPath, format, size.Width, size.Height, fps,
-                    ffmpeg.Directory, Log: ffmpegLog ? ConsoleOut.Info : null));
+                    ffmpeg.Directory, encoder, Log: ffmpegLog ? ConsoleOut.Info : null));
 
         ExportProgress last = default;
         Progress<ExportProgress> progress = new(p => last = p);
@@ -193,6 +230,21 @@ internal static class ExportCommand
                 ["backend"] = backend.Backend.ToString(),
                 ["encoder"] = noEncode ? "none" : ffmpeg.Found ? "ffmpeg" : "imagesharp-gif",
                 ["ffmpeg_origin"] = ffmpeg.Origin.ToString(),
+
+                // Additive (P2 D4). `encoder` above keeps its old meaning — WHICH PROGRAM encodes — and
+                // these say which codec inside it, chosen how. A hardware encoder is not bit-reproducible
+                // (plan D6), so the file's bytes are a function of this machine: writing the machine's
+                // answer down is what makes a file comparable to another one later.
+                ["video_encoder"] = encoder?.Encoder.Name,
+                ["video_encoder_kind"] = encoder is null
+                    ? null
+                    : encoder.Encoder.Acceleration.ToString().ToLowerInvariant(),
+                ["video_codec"] = encoder?.Encoder.Codec,
+                ["encoder_reason"] = encoder?.Reason,
+                ["encoder_arguments"] = encoder?.Arguments,
+                ["quality"] = encoder is null ? null : ExportQualities.ToId(encoder.Quality),
+                ["encoder_probe_ms"] = RenderCommand.Round(probeMs),
+                ["encoder_attempts"] = ToAttempts(encoder),
                 ["layers"] = RenderCommand.ToArray(request.LayerIds),
                 ["parse_ms"] = RenderCommand.Round(parseMs),
                 ["elapsed_ms"] = RenderCommand.Round(elapsedMs)
@@ -215,6 +267,22 @@ internal static class ExportCommand
                 $"elapsed {elapsedMs:F0} ms (parse {parseMs:F0} ms)  render {last.FramesPerSecond:F1} fps  " +
                 $"{realtimeRatio:F2}x realtime  encoder={(noEncode ? "none" : ffmpeg.Found ? "ffmpeg" : "imagesharp-gif")}"));
 
+            if (encoder is not null)
+            {
+                // The chosen rung AND why, on one line: "it picked the fast one" and "it fell back
+                // because your driver said no" are different facts and a user needs to be able to tell
+                // them apart without re-running with --json.
+                ConsoleOut.Info(string.Create(CultureInfo.InvariantCulture,
+                    $"video encoder: {encoder.Describe()}  (probe {probeMs:F0} ms)"));
+                foreach (EncoderProbeResult attempt in encoder.Attempts)
+                {
+                    if (!attempt.Works)
+                    {
+                        ConsoleOut.Info("  rejected " + attempt.Describe());
+                    }
+                }
+            }
+
             if (perfReport is not null)
             {
                 PerfOutput.WriteHuman(perfReport);
@@ -222,6 +290,30 @@ internal static class ExportCommand
         }
 
         return ExitCode.Success;
+    }
+
+    // Every rung the ladder walked, in the order it walked them — the losers included. A report that
+    // showed only the winner could not distinguish "there was no GPU" from "the GPU said no", and those
+    // send a user to two different places.
+    private static JsonArray? ToAttempts(EncoderSelection? encoder)
+    {
+        if (encoder is null)
+        {
+            return null;
+        }
+
+        JsonArray array = [];
+        foreach (EncoderProbeResult attempt in encoder.Attempts)
+        {
+            array.Add(new JsonObject
+            {
+                ["encoder"] = attempt.Encoder,
+                ["works"] = attempt.Works,
+                ["detail"] = attempt.Detail
+            });
+        }
+
+        return array;
     }
 
     // 20 for GIF because a GIF frame delay is a whole number of centiseconds and 20 divides 100; 60 for
