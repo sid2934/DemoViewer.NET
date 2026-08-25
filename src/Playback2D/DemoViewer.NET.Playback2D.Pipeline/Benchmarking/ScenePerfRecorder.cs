@@ -266,6 +266,13 @@ public sealed class ScenePerfRecorder : ISceneProfiler
     ///         frames and the measured window — the one the §6 bytes/frame gate reads — only ever writes
     ///         into arrays that already exist.
     ///     </para>
+    ///     <para>
+    ///         The <c>touched</c> flags are part of "every counter" and are cleared with the rest. They
+    ///         are what decides whether a row exists at all, so leaving them set would carry a slot that
+    ///         only the warmup ever exercised into the report as a row of zeros — reading as "measured and
+    ///         free" when the truth is "not measured". Absent, not zero, is the honest answer, and it is
+    ///         the same rule the stage rows already follow: a stage a harness never drives does not appear.
+    ///     </para>
     /// </summary>
     public void Reset()
     {
@@ -273,6 +280,7 @@ public sealed class ScenePerfRecorder : ISceneProfiler
         Array.Clear(_layerAccum);
         Array.Clear(_layerCount);
         Array.Clear(_layerHead);
+        Array.Clear(_layerTouched);
         Array.Clear(_cacheReplayed);
         Array.Clear(_cacheRecorded);
         Array.Clear(_cacheUncached);
@@ -280,6 +288,7 @@ public sealed class ScenePerfRecorder : ISceneProfiler
         Array.Clear(_stageAccum);
         Array.Clear(_stageCount);
         Array.Clear(_stageHead);
+        Array.Clear(_stageTouched);
 
         _totalCount = 0;
         _totalHead = 0;

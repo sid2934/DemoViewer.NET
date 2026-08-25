@@ -156,7 +156,7 @@ those two stacks are not yet the same one.
 | `BudgetTests.FullScene_FrameTimes_AreWithinBudget` | passes unchanged against `BudgetPolicy.Ci` |
 | `TextBlobCacheTests` allocation gate | untouched |
 | CLI Budget lane | unchanged (the one documented `SmallestDrawingFixture_AllocatesNothingPerFrame` failure stays exactly as documented) |
-| new `ScenePerfRecorderTests` | recorder detached → 0 B over 512 frames **and** the recorder observed nothing; recorder attached → 0 B/frame steady-state after warmup |
+| new `ScenePerfRecorderTests` | recorder detached → 0 B over 512 frames **and** the recorder observed nothing; recorder attached → 0 B/frame steady-state after warmup; the ring evicts onto its newest frames when it wraps (§9.2); `Reset()` retires rows nothing touched afterwards (§9.1) |
 
 ## 6. Deviations from the surrounding plans
 
@@ -237,3 +237,65 @@ caches the resample but the blit itself is still per frame), and the read-back.
    which no longer flips anything on its own. Corrected in that doc; `dv2d` honours both spellings.
    `RuntimeEnvInfo` and the Desktop/AnalysisBench comments still carry the old name — app-side, out of
    scope here.
+
+---
+
+## 9. Review fixes (2026-08-25)
+
+Adversarial review of the two P1 commits against `a556ec1`. The default path, the enabled-path
+arithmetic and the §7 bottleneck analysis all held up under independent re-measurement (below); two
+defects in `ScenePerfRecorder` did not.
+
+### 9.1 `Reset()` did not retire the rows it zeroed
+
+`Reset()` cleared every sample, counter and head but left `_layerTouched` / `_stageTouched` set. Those
+flags are what decide whether a row exists at all, so a slot that only the **warmup** ever exercised
+survived the reset — and, because `EndFrame()` pushes every touched accumulator whether or not it moved,
+went on pushing a zero into its ring for every measured frame. The report then carried a row of zeros
+for something that was never measured, which reads as "measured and free" when the truth is "not
+measured". That is the inverse of the rule the stage rows already follow, and which
+`PerfFlagTests.Bench_Perf_BreaksTheFrameDownByStageAndLayer` states outright: *a stage nobody measured
+would read as "free" rather than "absent"*.
+
+Not reachable from either CLI command today — both drive the same stack across warmup and measurement —
+but `Reset()` is public API and its own summary promised to zero "every counter". Both flag arrays are
+now cleared with the rest.
+
+### 9.2 The ring's wraparound arm was never executed
+
+`Stats` picks the live window with `start = count == _capacity ? head : 0`. The arithmetic is right, but
+nothing reached the wrapped arm: `bench` sizes the ring to `--frames`, `export` sizes it to the range,
+and every test sized it above the frames it drove. So the one branch that only a capture outliving its
+own history can take — which is what a long `export --perf` becomes past `DefaultCapacity` — shipped
+unexecuted. `RingWrapsOntoTheNewestFrames_NotTheOldest` now drives four slow frames then eight fast ones
+through a ring of four and asserts the slow samples are gone: 4 samples of 12 frames, max 0.000 ms.
+
+### 9.3 What re-measurement confirmed
+
+**Default path unpaid.** Budget lane A/B on one box, base worktree vs `HEAD`, alternating:
+
+| | `a556ec1` | with P1 |
+|---|---|---|
+| render p50 | 2.132, 2.151 | 2.191, 2.286, 2.195 |
+| render p99 | 3.610, 3.828 | 3.712, 4.310, 3.748 |
+| advance p99 | 0.018, 0.016 | 0.015, 0.015, 0.016 |
+| allocation | 0 B/frame | 0 B/frame |
+
+The +2.6 % on render p50 sits inside `HEAD`'s own 4.3 % run-to-run spread, against 7× budget headroom.
+Allocation is unchanged at exactly zero, warm and steady, flag off **and on**.
+
+**Enabled-path arithmetic.** Independent `export --no-encode --perf` over the §7 inferno range: stage
+p50s sum to 6.287 ms against a captured frame p50 of 6.297 — a residual of **0.16 %**. Stage shares sum
+to 100.0 %. Render-phase layer totals leave 7.4 % of the render stage unattributed, which is the clear,
+the pane setup and the flush — outside the layers by construction, and correctly not charged to one.
+
+**§7 reproduces.** vp9: encode 56.3 / render 27.4 / readback 13.5 / source 2.6 / advance 0.1 % against
+the recorded 54.0 / 27.9 / 14.9 / 3.0 / 0.1 — same ranking, within ~2 points. The radar ablation
+cross-check reproduces harder than recorded: render stage p50 −1.809 ms against the radar layer row's
+−1.783 ms, agreeing to **1.5 %**. §8.1 reproduces exactly — `bench --perf` on a demo reports one layer,
+`playback2d.debuggrid`.
+
+One footnote on the ablation: `--no-radar` does not remove the radar layer, it removes the *art*. The
+layer still draws (0.725 ms p50) and its draw count rises from 7 201 to 11 643 over the same 7 201
+frames — it is being drawn into a second pane on some frames. That does not disturb the §7 conclusion,
+which rests on the stage-vs-layer delta agreeing, but it means "no radar" is not "no radar layer".

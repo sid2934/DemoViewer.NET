@@ -162,6 +162,89 @@ public class ScenePerfRecorderTests
         await Assert.That(detached).IsLessThanOrEqualTo((attached * 2.0) + 0.5);
     }
 
+    /// <summary>
+    ///     The ring wraps, and the live window is the <b>newest</b> capacity frames rather than the
+    ///     oldest. Nothing else exercises this: every other capture in the suite and both CLI commands
+    ///     size the ring to the run, so the <c>start = head</c> arm of the window arithmetic is only ever
+    ///     reached by a capture that outlives its own history — which is exactly what a long
+    ///     <c>export --perf</c> is once a run exceeds the ring.
+    /// </summary>
+    [Test]
+    public async Task RingWrapsOntoTheNewestFrames_NotTheOldest()
+    {
+        ScenePerfRecorder recorder = new(4);
+
+        // Four slow frames, then eight fast ones. After twelve pushes into a ring of four, the live
+        // window is frames 9-12 — every slow sample must have been evicted.
+        for (int i = 0; i < 12; i++)
+        {
+            recorder.BeginStage(PerfStage.Render);
+            if (i < 4)
+            {
+                Thread.Sleep(12);
+            }
+
+            recorder.EndStage(PerfStage.Render);
+            recorder.EndFrame();
+        }
+
+        PerfReport report = recorder.Snapshot();
+        PerfRow render = report.Find("render", PerfRowKind.Stage)!;
+
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"[perf] wrapped ring: {render.Samples} samples of {report.Frames} frames, " +
+            $"max={render.Times.MaxMs:F3} ms"));
+
+        // Frames counts every frame closed; Samples is the ring's live window and is capped at capacity.
+        await Assert.That(report.Frames).IsEqualTo(12);
+        await Assert.That(render.Samples).IsEqualTo(4);
+
+        // The load-bearing assertion. If the window started at 0 instead of head, a 12 ms sleep would be
+        // in it; the margin is wide because Sleep only has a floor, never a ceiling.
+        await Assert.That(render.Times.MaxMs).IsLessThan(5.0);
+    }
+
+    /// <summary>
+    ///     <see cref="ScenePerfRecorder.Reset" /> retires the rows as well as the samples. A slot only the
+    ///     warmup ever touched must vanish from the report rather than survive as a row of zeros, which
+    ///     would read as "measured and free" when the truth is "not measured at all".
+    /// </summary>
+    [Test]
+    public async Task Reset_RetiresRowsNothingTouchedAfterwards()
+    {
+        ScenePerfRecorder recorder = new(16);
+
+        // A "warmup" that drives two stages and a layer.
+        recorder.BeginStage(PerfStage.Source);
+        recorder.EndStage(PerfStage.Source);
+        recorder.BeginStage(PerfStage.Render);
+        recorder.BeginLayer(0, "warmup.only", LayerPhase.Render);
+        recorder.EndLayer(0, LayerPhase.Render);
+        recorder.EndStage(PerfStage.Render);
+        recorder.EndFrame();
+
+        recorder.Reset();
+
+        // The measured window drives only Render, and no layer at all.
+        for (int i = 0; i < 4; i++)
+        {
+            recorder.BeginStage(PerfStage.Render);
+            recorder.EndStage(PerfStage.Render);
+            recorder.EndFrame();
+        }
+
+        PerfReport report = recorder.Snapshot();
+
+        await Assert.That(report.Frames).IsEqualTo(4);
+        await Assert.That(report.Layers).IsEmpty();
+        await Assert.That(report.Stages.Count).IsEqualTo(1);
+        await Assert.That(report.Stages[0].Name).IsEqualTo("render");
+        await Assert.That(report.Find("render", PerfRowKind.Stage)!.Samples).IsEqualTo(4);
+
+        // And the share arithmetic stays honest: one stage, the whole frame.
+        await Assert.That(report.Find("render", PerfRowKind.Stage)!.SharePct).IsBetween(99.0, 101.0);
+    }
+
     private static double MedianFrameMs(SceneFixture fixture, bool capture)
     {
         using SceneStage stage = new(_size);
