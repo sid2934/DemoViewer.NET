@@ -188,6 +188,15 @@ public sealed class SceneExportSession
                 Purpose = RenderPurpose.Export,
                 CameraPolicy = resolver,
 
+                // The offscreen twin of the host's one-shot fit. An export's panes are born fitted to
+                // WorldBounds.Default (±3000) because Reconcile runs before any frame has been read, and
+                // with AdvanceCameras off and — in both front ends — an empty default camera script,
+                // NOTHING re-framed them afterwards. Every export was framed by a placeholder.
+                //
+                // The policy still has the last word: a user who pinned a camera or asked for "mirror
+                // the live view" gets theirs applied after this, on the same frame.
+                AutoFitOnFirstMapBounds = true,
+
                 // The script owns the cameras outright; letting the rigs step them as well would be two
                 // hands on the same wheel.
                 AdvanceCameras = false

@@ -97,7 +97,6 @@ internal static class ExportCommand
             mapAssets = MapAssetPipeline.TryLoad(root, demo.MapName);
         }
 
-        IHudDataSource? hudData = hud ? BuildHud(tickRate) : null;
         ExportRequest request = new(
             0,
             0, // re-stamped below from the source's own frame count
@@ -116,6 +115,9 @@ internal static class ExportCommand
         };
 
         request = request with { EndFrame = Math.Max(0, source.FrameCount - 1) };
+
+        // AFTER the source exists, because the clock reads the source. See BuildHud.
+        IHudDataSource? hudData = hud ? BuildHud(source, tickRate) : null;
 
         FfmpegLocation ffmpeg = FfmpegLocator.Locate(null);
         bool gif = string.Equals(format, ExportFormats.Gif, StringComparison.Ordinal);
@@ -267,9 +269,21 @@ internal static class ExportCommand
         return ids;
     }
 
-    // A headless clock with no game-rules read: the CLI has no event timeline, so the HUD it draws is the
-    // frame's own GameInfo, projected once per tick. --hud on the CLI is a layout/perf check, not a
-    // substitute for the app's kill feed, and saying so beats inventing rows.
-    private static TimelineHudDataSource BuildHud(int tickRate) =>
-        new TimelineHudDataSource([], tickRate, static _ => ClockReading.Unknown);
+    // The clock is the SOURCE's own game info — the round and the score SceneFrameBuilder read off
+    // CCSGameRulesProxy and the two CCSTeam entities for the frame being drawn. It used to be a constant
+    // ClockReading.Unknown, which renders "Round —  T 0 : 0 CT" over every frame of every CLI export,
+    // however far into the match the range was.
+    //
+    // Reading it through the source is what keeps the clock a pure function of the frame:
+    // SceneExportSession calls FrameAt immediately before Advance, and ClockLayer asks during Advance,
+    // so LastGameInfo is the drawn frame's. Capturing a SceneGameInfo VALUE here instead would freeze
+    // the scoreboard at frame 0 — which is the app-side half of this same bug.
+    //
+    // The kill feed is still empty, and that is the CLI's remaining gap: kill rows come from a parsed
+    // event timeline the app builds from AllGameEvents, and the CLI has no equivalent. --hud on the CLI
+    // draws a true clock over an empty feed; inventing rows would be worse than the absence.
+    // Internal, not private: the closure IS the bug. A test that rebuilt an equivalent delegate would
+    // have passed against the broken constant too.
+    internal static TimelineHudDataSource BuildHud(TrackerFrameSource source, int tickRate) =>
+        new([], tickRate, _ => ClockReading.From(source.LastGameInfo));
 }

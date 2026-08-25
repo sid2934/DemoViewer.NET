@@ -236,8 +236,30 @@ public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSour
             Radars = Radars
         };
 
-        return _builder.Build(in input);
+        Scene2DFrame built = _builder.Build(in input);
+        LastGameInfo = built.GameInfo;
+        return built;
     }
+
+    /// <summary>
+    ///     The round/score state of the frame <see cref="FrameAt" /> built most recently, or
+    ///     <see cref="SceneGameInfo.Empty" /> before the first one.
+    ///     <para>
+    ///         It exists because a HUD clock is a <b>function of tick</b>
+    ///         (<c>IHudDataSource</c>), and an export's only reader of game rules is this source: a front
+    ///         end that closed over its own live frame instead would burn a frozen scoreboard into the
+    ///         video (the app), or none at all (the CLI). Both did.
+    ///     </para>
+    ///     <para>
+    ///         <b>Reading it from a clock delegate is ordered correctly by construction.</b>
+    ///         <c>SceneExportSession.RunAsync</c> is strictly <c>TimeAt</c> → <c>FrameAt</c> →
+    ///         <c>Advance</c> → <c>Render</c> for each output frame, and <c>ClockLayer</c> asks its data
+    ///         source during <c>Advance</c> — so the last frame built here is always the frame being
+    ///         drawn. A caller that renders out of that order gets the previous frame's scoreboard, which
+    ///         is why this is a property on the source rather than a hidden global.
+    ///     </para>
+    /// </summary>
+    public SceneGameInfo LastGameInfo { get; private set; } = SceneGameInfo.Empty;
 
     /// <summary>The map name stamped onto every built frame. Set before the first <see cref="FrameAt" />.</summary>
     public string? MapName { get; set; }

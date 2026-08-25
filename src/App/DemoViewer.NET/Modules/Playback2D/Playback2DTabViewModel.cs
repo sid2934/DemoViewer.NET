@@ -17,6 +17,7 @@ using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Modules.Playback2D.Levels;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Core.Hud;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
@@ -413,9 +414,16 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         MapAsset);
 
     // The exported HUD reads the SAME pre-built kill timeline the XAML feed windows, and the same
-    // SceneGameInfo the panel binds — which is what makes design risk 8 (dual-HUD drift) impossible.
-    private TimelineHudDataSource BuildExportHud() =>
-        new(_allKills, _tickRate, _ => ClockReading.From(_frame.GameInfo));
+    // SceneGameInfo projection the panel binds — which is what makes design risk 8 (dual-HUD drift)
+    // impossible.
+    //
+    // The clock reads the EXPORT's frame source, not this tab's `_frame`. Closing over `_frame` looked
+    // like "the same SceneGameInfo the panel binds", and it was — for the one instant Start was pressed.
+    // Every frame of the video then carried that scoreboard, and if the user resumed playback while the
+    // export ran, the burnt-in round drifted with the live viewport instead of with the video. The kill
+    // timeline is safe to capture because it is the whole demo's, windowed by tick inside the source.
+    internal Func<TrackerFrameSource, IHudDataSource> BuildExportHud() =>
+        src => new TimelineHudDataSource(_allKills, _tickRate, _ => ClockReading.From(src.LastGameInfo));
 
     /// <summary>
     ///     The live surface's camera capture, supplied by the View when it binds (and cleared when it

@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Playback2D.Core.Hud;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
@@ -97,7 +98,11 @@ public sealed class SceneExportRunner : IExportRunner
             EndFrame = Math.Max(0, source.FrameCount - 1)
         };
 
-        using SceneCompositor compositor = BuildCompositor(core, setup);
+        // After BuildSource, because the HUD's clock reads the source's own last-built frame — the whole
+        // point of the factory (see ExportSceneSetup.Hud).
+        IHudDataSource? hud = setup.Hud?.Invoke(source);
+
+        using SceneCompositor compositor = BuildCompositor(core, setup, hud);
         using IRenderSurfaceProvider surfaces = _surfaces();
 
         SceneExportSession session = new(compositor)
@@ -160,11 +165,12 @@ public sealed class SceneExportRunner : IExportRunner
         return source;
     }
 
-    private static SceneCompositor BuildCompositor(ExportRequest core, ExportSceneSetup setup)
+    private static SceneCompositor BuildCompositor(ExportRequest core, ExportSceneSetup setup,
+        IHudDataSource? hud)
     {
         // Empty LayerIds means "the scene, no HUD" — CreateSceneStack's own null-include behaviour.
         IReadOnlyList<string>? include = core.LayerIds.Count == 0 ? null : [.. core.LayerIds];
-        return SceneLayerCatalog.CreateSceneStack(include, null, setup.Vision, setup.Hud);
+        return SceneLayerCatalog.CreateSceneStack(include, null, setup.Vision, hud);
     }
 
     private IFrameSink BuildSink(Scene2DExportRequest request, ExportRequest core, FfmpegLocation ffmpeg)
