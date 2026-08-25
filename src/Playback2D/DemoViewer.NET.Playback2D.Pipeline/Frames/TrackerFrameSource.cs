@@ -3,6 +3,7 @@
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Export;
 
 #endregion
 
@@ -25,9 +26,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Frames;
 ///         session) that must not silently take a 100× cost.
 ///     </para>
 /// </summary>
-// B4 adds ": ISceneFrameSource" to this declaration when that interface lands; the four members it
-// names — FrameCount, TimeAt, FrameAt and Dispose — are already exactly these.
-public sealed class TrackerFrameSource : IDisposable
+public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSource, IDisposable
 {
     private readonly SceneFrameBuilder _builder;
     private readonly Func<EntityTracker> _createTracker;
@@ -103,6 +102,9 @@ public sealed class TrackerFrameSource : IDisposable
 
     /// <summary>True once <see cref="Prepare" /> has seeded the tracker.</summary>
     public bool IsPrepared => _tracker is not null;
+
+    /// <inheritdoc />
+    public bool NeedsPreparation => _tracker is null;
 
     /// <summary>Drops the private tracker. Idempotent.</summary>
     public void Dispose()

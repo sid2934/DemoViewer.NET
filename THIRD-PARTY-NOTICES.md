@@ -60,6 +60,16 @@ This project depends on the following NuGet packages, each under its own license
 via NuGet and not reproduced here: Google.Protobuf, Snappier, YamlDotNet,
 Microsoft.Extensions.Logging.Abstractions, CS2OpenDev.Sdk.
 
+Two of them carry terms worth stating outright because the 2D-playback video export depends on
+them:
+
+- **FFMpegCore** (MIT) — a managed argument builder and process wrapper. It links no ffmpeg code;
+  it starts ffmpeg as a **separate program** and pipes raw frames to its standard input. See §e.
+- **SixLabors.ImageSharp** (Six Labors Split License 1.0) — used only by `ManagedGifSink`, the
+  no-ffmpeg GIF floor. The split license grants Apache-2.0 terms to open-source projects, which
+  this repository is (MIT — see `LICENSE`). A closed-source redistribution of this code would need
+  a commercial Six Labors license; record that before any such change.
+
 ## d. Inter font (SIL Open Font License 1.1)
 
 `src/Playback2D/DemoViewer.NET.Playback2D.Core/Assets/Inter-Regular.ttf` is the Inter Regular
@@ -75,3 +85,30 @@ scene renders in the same face as the rest of the application.
 
 The OFL requires that the font not be sold by itself, that this notice accompany it, and that any
 modified version be renamed. This project redistributes it unmodified.
+
+## e. ffmpeg (not redistributed)
+
+DemoViewer **ships no ffmpeg binary and links no ffmpeg code**. The 2D-playback video export
+(`docs/playback2d-v2/export.md`) invokes `ffmpeg` as a **separate program**, writing raw RGBA
+frames to its standard input over a pipe and reading nothing back but its exit status. Under the
+FSF's own reading, two programs communicating over a pipe are separate works, which is what keeps
+this repository's MIT licence unaffected by ffmpeg's GPL/LGPL terms whichever build a user has
+installed.
+
+ffmpeg is resolved in this order:
+
+1. an `ffmpeg` already on the user's `PATH` — whatever they installed, under whatever licence that
+   build carries;
+2. an optional, explicitly consented in-app download of a **pinned LGPL-2.1 build** produced by the
+   [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) project, verified against a pinned
+   SHA-256 and extracted under `<config>/tools/ffmpeg`. The consent sheet displays the `LICENSE.txt`
+   found inside that archive and links the build's source before anything is written to disk;
+3. no ffmpeg at all — export falls back to `ManagedGifSink`, which uses ImageSharp (§c) and
+   produces GIF only.
+
+Because the downloaded build is LGPL, it contains no H.264 encoder: MP4/H.264 export requires a
+GPL ffmpeg the user installed themselves, and the export dialog says so rather than failing at
+encode time. WebM/VP9 — the default format — is present in the LGPL build.
+
+ffmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg project. This project is
+unaffiliated with it.

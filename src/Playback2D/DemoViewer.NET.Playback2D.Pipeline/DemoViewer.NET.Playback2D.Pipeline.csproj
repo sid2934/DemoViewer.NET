@@ -15,6 +15,12 @@
     <ItemGroup>
         <PackageReference Include="CS2DemoKit.Parser"/>
         <PackageReference Include="CS2DemoKit.Analysis"/>
+        <!-- B4 export sinks. FFMpegCore only builds arguments and pipes rawvideo to an ffmpeg
+             SUBPROCESS; ImageSharp is the no-ffmpeg GIF floor. Both are managed-only, so the Browser
+             head still restores and publishes — nothing calls System.Diagnostics.Process unless a
+             sink is constructed, and playback2d.export is gated off on browser. -->
+        <PackageReference Include="FFMpegCore"/>
+        <PackageReference Include="SixLabors.ImageSharp"/>
     </ItemGroup>
 
     <ItemGroup>

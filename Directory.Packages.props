@@ -38,6 +38,17 @@
              SkiaSharp, which moves with Avalonia. -->
         <PackageVersion Include="SkiaSharp.NativeAssets.Win32" Version="2.88.9"/>
         <PackageVersion Include="SkiaSharp.NativeAssets.macOS" Version="2.88.9"/>
+        <!-- 2D-playback video export (docs/playback2d-v2/design.md §5.7). FFMpegCore is MIT and only
+             BUILDS ARGUMENTS and pipes rawvideo to an ffmpeg SUBPROCESS — no ffmpeg code is linked, which
+             is what keeps the GPL/LGPL posture clean (FSF "separate programs"). We never ship an ffmpeg
+             binary; see THIRD-PARTY-NOTICES.md §e. Xabe.FFmpeg is CC BY-NC-SA and must never be added.
+             5.4.0 is the newest stable 5.x, confirmed with `dotnet package search` at implementation. -->
+        <PackageVersion Include="FFMpegCore" Version="5.4.0"/>
+        <!-- The no-ffmpeg GIF floor (ManagedGifSink). Six Labors Split License 1.0: Apache-2.0 terms for
+             open-source projects, which this repository is (MIT, see LICENSE). A downstream closed-source
+             redistribution would need a commercial Six Labors license — record that before any such change.
+             Deliberately held on the 3.1.x line: do NOT move to 4.x without re-reading the license terms. -->
+        <PackageVersion Include="SixLabors.ImageSharp" Version="3.1.12"/>
         <PackageVersion Include="Msagl" Version="1.2.1"/>
         <PackageVersion Include="YamlDotNet" Version="16.3.0"/>
         <!--

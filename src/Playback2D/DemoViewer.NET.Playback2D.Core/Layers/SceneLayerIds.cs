@@ -26,4 +26,14 @@ public static class SceneLayerIds
 
     /// <summary>Per-band floor caption.</summary>
     public const string FloorLabel = "playback2d.floorlabel";
+
+    /// <summary>
+    ///     Round number, score and the main countdown, burned into an export (B4 D15). Deliberately
+    ///     un-prefixed: it is a HUD layer, not a 2D-playback overlay, and the same id names it in
+    ///     <c>dv2d render --layers</c> and in a saved export preset.
+    /// </summary>
+    public const string HudClock = "hud.clock";
+
+    /// <summary>The kill feed, burned into an export (B4 D15).</summary>
+    public const string HudKillFeed = "hud.killfeed";
 }
