@@ -743,11 +743,43 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         if (value is null)
         {
+            // A ListBox that is re-templating writes a transient null back through the two-way binding
+            // before it re-reads the VM — and the view IS rebuilt on every tab activation. Dropping the
+            // retained follow (and re-fitting the camera) on that would lose VM state to a view lifecycle
+            // event, so a null only clears once the followed row has actually gone from the roster.
+            if (FollowedSlot >= 0 && RowForSlot(FollowedSlot) is { } stillPresent)
+            {
+                _inFollowFunnel = true;
+                try
+                {
+                    SelectedPlayer = stillPresent;
+                }
+                finally
+                {
+                    _inFollowFunnel = false;
+                }
+
+                return;
+            }
+
             ClearFollow();
             return;
         }
 
         FollowPlayer(value.Slot);
+    }
+
+    private PlayerAttributes? RowForSlot(int slot)
+    {
+        foreach (PlayerAttributes row in Attributes)
+        {
+            if (row.Slot == slot)
+            {
+                return row;
+            }
+        }
+
+        return null;
     }
 
     private void OnFeaturesChanged() => RefreshGates();
@@ -769,6 +801,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // The floating overlay's status readout moved into the timeline footer; mirror it so the one Status
     // string still drives it.
     partial void OnStatusChanged(string value) => Timeline.StatusText = value;
+
+    // Same mirror for the speed-lock hint: a refused ↑/↓ is CONSUMED (so it never falls through to the card
+    // list), which leaves the user with a dead key and no reason unless the footer says one.
+    partial void OnSpeedLockNoteChanged(string value) => Timeline.SpeedLockNote = value;
 
     // A NEW demo was loaded while this tab is active — the roster / map / entities changed under us with no
     // Advanced push (LoadDemo resets the clock silently). Full resync so the map image, marker labels,

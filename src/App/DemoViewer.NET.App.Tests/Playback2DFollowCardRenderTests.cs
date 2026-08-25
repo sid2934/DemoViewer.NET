@@ -48,6 +48,36 @@ public class Playback2DFollowCardRenderTests
     }
 
     [Test]
+    public async Task RebuiltView_ReprojectsTheRetainedFollowOntoTheFreshViewport()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            // WorkspaceTabDescriptor DESTROYS the view on deactivation and rebuilds it from ViewFactory on
+            // the next activation, keeping the cached VM. Without a re-projection the followed card and the
+            // "requested" chip come back while the new viewport sits in Fit — the follow would look live and
+            // be dead.
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            ctx.Push(1, 2);
+            (Window _, Playback2DView first) = Playback2DTimelineHarness.Show(vm);
+
+            ListBox cards = first.GetVisualDescendants().OfType<ListBox>().First();
+            cards.SelectedItem = vm.Attributes.First(a => a.Slot == 2);
+            Playback2DTimelineHarness.Pump();
+            await Assert.That(vm.FollowedSlot).IsEqualTo(2);
+
+            // The rebuild: a brand-new view over the SAME cached view-model.
+            (Window _, Playback2DView second) = Playback2DTimelineHarness.Show(vm);
+            Playback2DViewport viewport = Playback2DTimelineHarness.Viewport(second);
+
+            Console.WriteLine($"[follow-rebind] vm={vm.FollowedSlot} viewport={viewport.FollowSlot}");
+            await Assert.That(viewport.FollowSlot).IsEqualTo(2);
+            await Assert.That(viewport.Mode).IsEqualTo(CameraMode.FollowPlayer);
+            await Assert.That(vm.FollowedSlot).IsEqualTo(2);
+            await Assert.That(vm.Attributes.Count(a => a.IsFollowed)).IsEqualTo(1);
+        });
+    }
+
+    [Test]
     public async Task CardList_IsDisabledWhenTheFollowGateIsOff()
     {
         await HeadlessSession.RunOnUi(async () =>

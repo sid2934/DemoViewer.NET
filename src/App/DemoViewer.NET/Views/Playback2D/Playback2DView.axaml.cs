@@ -85,6 +85,16 @@ public partial class Playback2DView : UserControl
         {
             _boundViewModel.FollowSlotChanged += OnFollowSlotChanged;
             _boundViewModel.FitRequested += OnFitRequested;
+
+            // The View is DESTROYED on deactivation and rebuilt from the descriptor's ViewFactory on every
+            // activation, while the tab VM is cached (WorkspaceTabDescriptor.Activate / .Deactivate). The
+            // follow target therefore survives in the VM — card highlight, "requested" chip, FollowStatus —
+            // over a fresh viewport that defaults to Fit. Re-projecting it here is what makes the VM the
+            // single source of truth rather than half of one.
+            if (_boundViewModel.FollowedSlot >= 0)
+            {
+                OnFollowSlotChanged(_boundViewModel.FollowedSlot);
+            }
         }
     }
 

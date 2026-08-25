@@ -86,6 +86,15 @@ public class Playback2DActionDispatchTests
 
         await Assert.That(ctx.Speeds).IsEmpty();
         await Assert.That(vm.SpeedLockNote).IsNotEmpty();
+
+        // The key is CONSUMED (it must not fall through to the card list), so the note has to reach the
+        // footer or the user is left with a dead key and no reason.
+        await Assert.That(vm.Timeline.SpeedLockNote).IsEqualTo(vm.SpeedLockNote);
+
+        // ...and it clears again the moment the lock lifts.
+        ctx.IsSpeedLocked = false;
+        vm.ExecuteAction(Playback2DAction.SpeedUp);
+        await Assert.That(vm.Timeline.SpeedLockNote).IsEqualTo("");
     }
 
     [Test]

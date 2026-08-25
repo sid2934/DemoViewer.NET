@@ -109,6 +109,39 @@ public class Playback2DFollowFunnelTests
     }
 
     [Test]
+    public async Task StraySelectionNull_KeepsARetainedFollow()
+    {
+        // The view is rebuilt on every tab activation, and its ListBox writes a transient null back through
+        // the two-way SelectedItem binding while it re-templates. That must not silently drop follow state
+        // the VM is holding across the deactivation.
+        (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DActionDispatchTests.Activated();
+        vm.NotifyFollowSlotChanged(1);
+
+        bool refit = false;
+        vm.FitRequested += () => refit = true;
+
+        vm.SelectedPlayer = null;
+
+        await Assert.That(vm.FollowedSlot).IsEqualTo(1);
+        await Assert.That(vm.SelectedPlayer?.Slot).IsEqualTo(1);
+        await Assert.That(vm.Attributes.Count(a => a.IsFollowed)).IsEqualTo(1);
+        await Assert.That(refit).IsFalse();
+    }
+
+    [Test]
+    public async Task SelectionNull_AfterTheRowLeavesTheRoster_ClearsTheFollow()
+    {
+        (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DActionDispatchTests.Activated();
+        vm.NotifyFollowSlotChanged(1);
+
+        vm.Attributes.Clear();
+        vm.SelectedPlayer = null;
+
+        await Assert.That(vm.FollowedSlot).IsEqualTo(-1);
+        await Assert.That(vm.SelectedPlayer).IsNull();
+    }
+
+    [Test]
     public async Task GateTurningOff_ClearsAnExistingFollow()
     {
         (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActionDispatchTests.Activated();

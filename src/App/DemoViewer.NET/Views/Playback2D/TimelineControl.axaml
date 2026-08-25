@@ -82,7 +82,7 @@
             </Panel>
 
             <!-- ── Footer ──────────────────────────────────────────────────────────────── -->
-            <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,*,Auto" >
+            <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" >
                 <TextBlock Grid.Column="0" Text="{Binding CurrentRoundLabel}" VerticalAlignment="Center"
                            Margin="0,0,10,0" MinWidth="18"
                            Foreground="{DynamicResource Pb2dTextBright}"
@@ -92,18 +92,33 @@
                            Margin="0,0,10,0"
                            Foreground="{DynamicResource Pb2dTextMid}"
                            FontFamily="Consolas,Menlo,monospace" FontSize="10" />
-                <TextBlock Grid.Column="2" Text="{Binding FollowStatus}" VerticalAlignment="Center"
+
+                <!-- Where a click would land, while the pointer is over the bar. Blank otherwise, so the
+                     footer does not jitter during playback. -->
+                <TextBlock Grid.Column="2" x:Name="HoverReadout" Text="{Binding HoverText}"
+                           VerticalAlignment="Center" Margin="0,0,10,0"
+                           Foreground="{DynamicResource Pb2dTextBright}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+                <TextBlock Grid.Column="3" Text="{Binding FollowStatus}" VerticalAlignment="Center"
                            Margin="0,0,10,0"
                            Foreground="{DynamicResource Pb2dPositive}"
                            FontFamily="Consolas,Menlo,monospace" FontSize="10" />
-                <TextBlock Grid.Column="3" Text="{Binding StatusText}" VerticalAlignment="Center"
+
+                <!-- Why a speed key did nothing. A consumed-but-refused key with no explanation reads as a
+                     bug; Live Sync pinning the speed is a state the user can act on. -->
+                <TextBlock Grid.Column="4" x:Name="SpeedLockNote" Text="{Binding SpeedLockNote}"
+                           VerticalAlignment="Center" Margin="0,0,10,0"
+                           IsVisible="{Binding SpeedLockNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                           Foreground="{DynamicResource Pb2dMapApprox}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+                <TextBlock Grid.Column="5" Text="{Binding StatusText}" VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource Pb2dTextDim}"
                            FontFamily="Consolas,Menlo,monospace" FontSize="10" />
 
                 <!-- Per-track toggles. A track the demo cannot feed shows no checkbox at all, rather than a
                      dead one (design §7.6: markers only for events the demo has). -->
-                <ItemsControl Grid.Column="4" ItemsSource="{Binding Tracks}">
+                <ItemsControl Grid.Column="6" ItemsSource="{Binding Tracks}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel Orientation="Horizontal" Spacing="8" />

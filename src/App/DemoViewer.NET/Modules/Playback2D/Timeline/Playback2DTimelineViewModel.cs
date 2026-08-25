@@ -72,6 +72,10 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject
     [ObservableProperty]
     private string _positionText = "";
 
+    /// <summary>Why a speed key was refused, or "" — mirrored from the tab so the footer can say it.</summary>
+    [ObservableProperty]
+    private string _speedLockNote = "";
+
     [ObservableProperty]
     private string _statusText = "";
 

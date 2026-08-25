@@ -1305,3 +1305,49 @@ All additive; nothing specified was removed.
     — requires the symlink privilege, `SettingsBacked_AddRemoveFolder_WritesThroughToSettingsJson`,
     `DemoProcessingQueueTests.QueuePath_PersistsCache_SoSecondLaunchDoesNotReparse`). Verified against a
     stashed tree; untouched.
+
+---
+
+## Review findings (A1 sign-off)
+
+Three defects found in review and fixed on this branch. All three are the same shape: state the VM holds
+correctly never reaches the surface that was supposed to show it.
+
+**R-1 — a retained follow did not survive tab deactivation (functional).** `WorkspaceTabDescriptor`
+DESTROYS the View on deactivation and rebuilds it from `ViewFactory` on the next activation, keeping the
+cached VM. `Playback2DView.BindViewModel` re-aimed its subscriptions but never re-projected the VM's
+current `FollowedSlot`, so after a tab switch the followed card stayed highlighted and the footer still
+said *"following X · requested"* over a fresh viewport sitting in `Fit`. The follow looked live and was
+dead. `BindViewModel` now replays `OnFollowSlotChanged(FollowedSlot)` on bind. Regression test:
+`Playback2DFollowCardRenderTests.RebuiltView_ReprojectsTheRetainedFollowOntoTheFreshViewport` (fails
+without the fix: `vm=2 viewport=-1`).
+
+**R-2 — a re-templating `ListBox` silently cleared the follow (functional).** The two-way
+`SelectedItem` binding writes a transient `null` while the list re-templates — which happens on every
+view rebuild. `OnSelectedPlayerChanged(null)` took that for a user deselect and ran `ClearFollow()`,
+dropping `FollowedSlot`, the row flags and the camera in one go. A null now clears only once the followed
+row has actually left `Attributes`; otherwise the funnel re-asserts the selection. Regression tests:
+`Playback2DFollowFunnelTests.StraySelectionNull_KeepsARetainedFollow` and
+`.SelectionNull_AfterTheRowLeavesTheRoster_ClearsTheFollow`.
+
+**R-3 — `HoverText` and `SpeedLockNote` were computed but never displayed (missing T8 / T11
+affordance).** `Playback2DTimelineViewModel.UpdateHover`/`ClearHover` and the tab's `SpeedLockNote` were
+both set, tested and bound to nothing. The speed one matters: a refused `↑`/`↓` is deliberately CONSUMED
+(deviation 5) so it cannot fall through to the card list, which leaves a dead key with no reason unless
+the footer says one. Both now have a footer column; `SpeedLockNote` is mirrored onto the timeline VM the
+same way `Status` and `FollowStatus` already were. Tests:
+`Playback2DTimelineScrubTests.HoverOverScrubBar_ShowsTheTargetFrameInTheFooter` and the extended
+`Playback2DActionDispatchTests.SpeedUp_WhenLocked_DoesNotRequestSpeed`.
+
+**Verified, not taken on trust:** `dotnet build DemoViewer.NET.slnx` — 0 errors, 1 pre-existing WASM
+workload warning. A1 set — 87 total / 84 passed / 3 skipped (the real-demo class; no `.dem` staged).
+Full App suite — 794 total / 692 passed / 96 skipped / 6 failed, the same 6 environmental failures
+recorded in deviation 21, none in a subsystem A1 touches.
+
+**Audited clean:** every keymap action routes through `IModuleContext.Request*` or an existing
+`PlaybackController` command (nothing bypasses `SyncStateObserver`); `ShellReservedGestures` matches
+`MainView.axaml`'s 14 accelerators exactly and no 2D binding collides with them; the timeline's axis is
+frame index throughout and every seek exits via `RequestSeekToFrame`; rounds key on `round_freeze_end` in
+both `RoundTrack` and the `Q`/`E` event filter, off one shared constant; the two catalog ids match the
+strings `IsTimelineEnabled`/`IsFollowEnabled` read; `OnAdvanced`'s added work is a binary search plus
+property sets on the existing per-push string path — no new per-frame allocation class.

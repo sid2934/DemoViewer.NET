@@ -48,6 +48,37 @@ public class Playback2DTimelineScrubTests
     }
 
     [Test]
+    public async Task HoverOverScrubBar_ShowsTheTargetFrameInTheFooter()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
+            TimelineControl timeline = Playback2DTimelineHarness.Timeline(view);
+            Panel bar = Playback2DTimelineHarness.ScrubBar(timeline);
+
+            double width = bar.Bounds.Width;
+            Point at = Playback2DTimelineHarness.ToWindow(bar, window, width / 4, bar.Bounds.Height / 2);
+            window.MouseMove(at);
+            Playback2DTimelineHarness.Pump();
+
+            int expected = vm.Timeline.FrameIndexAt(width / 4);
+            TextBlock readout = timeline.FindControl<TextBlock>("HoverReadout")
+                                ?? throw new InvalidOperationException("hover readout not found");
+
+            Console.WriteLine($"[hover] text=\"{readout.Text}\" expected={expected}");
+
+            // A hover readout the VM computes but the footer never shows is the same as no hover readout.
+            await Assert.That(vm.Timeline.HoverText)
+                .Contains(expected.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            await Assert.That(readout.Text).IsEqualTo(vm.Timeline.HoverText);
+
+            // Hover is a read: it must never move the clock.
+            await Assert.That(ctx.SeekFrames.Count).IsEqualTo(0);
+        });
+    }
+
+    [Test]
     public async Task PointerDragAcrossScrubBar_PushesMonotonicallyIncreasingFrames()
     {
         await HeadlessSession.RunOnUi(async () =>
