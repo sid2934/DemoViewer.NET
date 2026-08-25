@@ -75,3 +75,44 @@ scene renders in the same face as the rest of the application.
 
 The OFL requires that the font not be sold by itself, that this notice accompany it, and that any
 modified version be renamed. This project redistributes it unmodified.
+
+## e. perfect-freehand (MIT)
+
+Two files in the Playback2D core assembly ship code adapted from
+[perfect-freehand](https://github.com/steveruizok/perfect-freehand) v1.2.2, an MIT-licensed
+pressure-sensitive stroke outliner by Steve Ruiz. The adaptation is a direct C# port of
+`packages/perfect-freehand/src/getStrokePoints.ts` and
+`packages/perfect-freehand/src/getStrokeOutlinePoints.ts`:
+
+- `src/Playback2D/DemoViewer.NET.Playback2D.Core/Ink/FreehandOutline.cs`
+- `src/Playback2D/DemoViewer.NET.Playback2D.Core/Ink/FreehandOptions.cs`
+
+Both files carry a header comment pointing at this section. The port is pinned against reference
+vectors generated from the upstream package and committed under
+`tests/fixtures/playback2d/freehand/`.
+
+The upstream license text, reproduced in full:
+
+```text
+MIT License
+
+Copyright (c) 2021 Stephen Ruiz Ltd
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
