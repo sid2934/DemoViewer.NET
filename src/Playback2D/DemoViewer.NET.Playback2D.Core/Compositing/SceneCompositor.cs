@@ -158,6 +158,11 @@ public sealed class SceneCompositor : IDisposable
     /// <param name="frame">The frame being advanced to.</param>
     public bool Advance(in SceneTime time, Scene2DFrame frame)
     {
+        if (_disposed)
+        {
+            return false;
+        }
+
         bool keepArmed = false;
         foreach (ISceneLayer layer in _layers)
         {
@@ -182,6 +187,13 @@ public sealed class SceneCompositor : IDisposable
 
         _layersRendered = 0;
         _panesRendered = 0;
+
+        if (_disposed)
+        {
+            PublishStats();
+            return;
+        }
+
         RenderPane(canvas, in ctx);
         _panesRendered = 1;
         PublishStats();
@@ -200,6 +212,16 @@ public sealed class SceneCompositor : IDisposable
 
         _layersRendered = 0;
         _panesRendered = 0;
+
+        // A frame already queued on the render thread when the host tore down arrives here AFTER
+        // Dispose. The gate serializes the two but does not order them, and _background/_divider are
+        // compositor-owned SKPaints whose native handles are gone by then — writing through one is an
+        // access violation, not an exception. Drop the frame instead; there is nothing left to draw.
+        if (_disposed)
+        {
+            PublishStats();
+            return;
+        }
 
         // 1. Background. The pre-v2 control filled the whole control before laying out bands, so a
         //    fractional-pixel seam between bands shows the background rather than stale pixels.

@@ -1,5 +1,6 @@
 #region
 
+using System.Diagnostics.CodeAnalysis;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -41,19 +42,17 @@ namespace DemoViewer.NET.Modules.Playback2D;
 /// </summary>
 public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
 {
-    private readonly BombLayer _bombLayer;
-    private readonly SceneCompositor _compositor;
-    private readonly FloorLabelLayer _floorLabelLayer;
     private readonly SceneRenderGate _gate = new();
     private readonly PanZoomGesture _gesture = new();
     private readonly MapSpaceFactory _levels = new();
-    private readonly MarkerLayer _markerLayer;
     private readonly PaneSet _panes;
-    private readonly RadarLayer _radarLayer;
     private readonly List<LevelPaneSnapshot> _snapshots = new(4);
     private readonly MarkerSmoother _smoother = new();
-    private readonly TextBlobCache _text = new();
-    private readonly VisionLayer _visionLayer;
+
+    private SceneCompositor _compositor;
+    private RadarLayer _radarLayer;
+    private VisionLayer _visionLayer;
+    private TextBlobCache _text;
 
     private WriteableBitmap? _fallbackBitmap;
     private int _followSlot = -1;
@@ -81,12 +80,25 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         ClipToBounds = true;
 
         _panes = new PaneSet(new StackedLayout());
+        BuildScene();
+    }
+
+    /// <summary>
+    ///     Builds the text cache, the seven layers and the compositor over them.
+    ///     <para>
+    ///         Separate from the constructor because the host <i>releases</i> all of it on detach and
+    ///         has to be able to build it again on a re-attach: Avalonia detaches and re-attaches the
+    ///         same control on a re-parent, a re-template and a presenter recycling its content, and a
+    ///         host that could only be born once renders nothing for the rest of the session.
+    ///     </para>
+    /// </summary>
+    [MemberNotNull(nameof(_compositor), nameof(_radarLayer), nameof(_visionLayer), nameof(_text))]
+    private void BuildScene()
+    {
+        _text = new TextBlobCache();
         _radarLayer = new RadarLayer();
-        _markerLayer = new MarkerLayer(_smoother, _text);
         _visionLayer = new VisionLayer(
             new VisibilityEngineSolver(() => _vm?.VisionEngine, _smoother), _smoother);
-        _bombLayer = new BombLayer();
-        _floorLabelLayer = new FloorLabelLayer(_text);
 
         _compositor = new SceneCompositor
         {
@@ -96,9 +108,13 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
         _compositor.Add(new TrailLayer());
         _compositor.Add(new AreaEffectLayer());
         _compositor.Add(_visionLayer);
-        _compositor.Add(_markerLayer);
-        _compositor.Add(_bombLayer);
-        _compositor.Add(_floorLabelLayer);
+        _compositor.Add(new MarkerLayer(_smoother, _text));
+        _compositor.Add(new BombLayer());
+        _compositor.Add(new FloorLabelLayer(_text));
+
+        // The map bundle is re-pulled on the next SyncFromViewModel, so the fresh radar layer is bound.
+        _boundAsset = null;
+        _released = false;
     }
 
     /// <summary>
@@ -250,6 +266,14 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+
+        // A re-attach of a host that was released on a previous detach. Rebuild before anything below
+        // touches the compositor — RefreshPalette invalidates its caches on the very next line.
+        if (_released)
+        {
+            BuildScene();
+        }
+
         RefreshPalette();
         ActualThemeVariantChanged += OnThemeVariantChanged;
         AttachVm(DataContext as Playback2DTabViewModel);

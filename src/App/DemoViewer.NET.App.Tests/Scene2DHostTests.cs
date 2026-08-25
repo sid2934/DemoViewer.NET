@@ -339,6 +339,56 @@ public class Scene2DHostTests
         });
     }
 
+    /// <summary>
+    ///     A control that is detached and re-attached must still draw.
+    ///     <para>
+    ///         The v2 host disposes its compositor from <c>OnDetachedFromVisualTree</c>, which is right —
+    ///         a tab activation builds a fresh view, and leaking a compositor's SKPaints, SKPaths and
+    ///         recorded pictures per activation is a native-memory climb. But detach is not only
+    ///         teardown: Avalonia detaches and re-attaches on a re-parent, a re-template, and a
+    ///         presenter recycling its content, and the pre-v2 <c>Playback2DViewport</c> survives all
+    ///         three. A host that releases on the first detach and never revives renders a blank surface
+    ///         for the rest of the session, with no exception to point at it.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task Host_SurvivesDetachAndReattach_AndStillRenders()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+            ctx.PushMarkers((0, 2, -800f, 600f, 64f, 90f), (1, 3, 900f, -500f, 64f, 270f));
+
+            (Window window, Playback2DView view) =
+                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
+            host.FitToExtent();
+            Playback2DTimelineHarness.Pump();
+
+            ContentControl slot = view.FindControl<ContentControl>("ViewportHost")!;
+
+            // Re-parent: out of the tree and back into it, the same instance.
+            slot.Content = null;
+            Playback2DTimelineHarness.Pump();
+            slot.Content = host;
+            Playback2DTimelineHarness.Pump();
+
+            host.FitToExtent();
+            ctx.PushMarkers((0, 2, -700f, 500f, 64f, 90f), (1, 3, 800f, -400f, 64f, 270f));
+            Playback2DTimelineHarness.Pump();
+
+            // Asserted on the compositor's own counters, NOT on captured pixels: the headless surface
+            // retains the last frame that actually drew, so a host that has stopped rendering entirely
+            // still captures the picture it painted before the detach. The counters cannot lie about it.
+            Console.WriteLine($"[reattach] panes={host.Compositor.Stats.PanesRendered} " +
+                              $"layers={host.Compositor.Stats.LayersRendered}");
+
+            await Assert.That(host.Compositor.Stats.PanesRendered).IsGreaterThan(0)
+                .Because("a re-attached host must draw the scene again, not a dead surface");
+            await Assert.That(host.Compositor.Stats.LayersRendered).IsGreaterThan(0);
+        });
+    }
+
     // Exercised only through the interface: the view drives whichever surface is mounted this way, so
     // a member that quietly stopped being part of the contract would break the tab, not this test.
     private static CameraMode DriveThroughTheContract(IPlayback2DSurface surface)

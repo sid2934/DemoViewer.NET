@@ -1536,6 +1536,44 @@ Written at implementation time. Everything not listed here was built as the plan
     by `MarkerSmoothingTests.Advance_OnceSettled_ReportsNothingMoving_ForeverAfter` and
     `Scene2DHostTests.AnimationLoop_StopsRearmingOnceEverythingHasSettled`.
 
+### Independent review (post-implementation)
+
+Found by the B1 reviewer against the eight implementation commits, each fixed on the same branch
+with a regression test that fails without the fix.
+
+25. **`SceneCompositor.Render`/`Advance` after `Dispose` was an access violation, not a no-op.**
+    `Scene2DHost` hands the shared compositor to a `SceneDrawOperation` that runs on Avalonia's
+    render thread, and disposes that same compositor from `OnDetachedFromVisualTree` on the UI
+    thread when the tab deactivates. §5.8's render gate serializes the two but does **not order**
+    them: a frame already queued when the tab closes reaches `Render` after `Dispose`. The
+    background fill and the band divider are compositor-owned `SKPaint`s, so the queued frame writes
+    through freed native handles — reproduced as a hard `0xC0000005` in
+    `SkiaApi.sk_paint_set_color`, which takes the process with it rather than raising. Both `Render`
+    overloads and `Advance` now drop the frame when `_disposed`. Pinned by
+    `CompositorLifetimeTests.Render_AfterDispose_IsANoOp_NotAUseAfterFree` and
+    `.Advance_AfterDispose_IsANoOp_AndDoesNotReArmTheLoop`.
+
+26. **`Scene2DHost` released on detach and never revived, so a re-attach rendered nothing.**
+    Disposing the compositor from `OnDetachedFromVisualTree` is right — `WorkspaceTabDescriptor`
+    builds a fresh view per activation, and leaking a compositor's `SKPaint`s, `SKPath`s and
+    recorded pictures per activation is a native-memory climb. But detach is not only teardown:
+    Avalonia detaches and re-attaches the *same* control on a re-parent, a re-template, and a
+    presenter recycling its content, and the pre-v2 `Playback2DViewport` survives all three. The
+    released host set `_released` permanently, so every later frame advanced and rendered into a
+    disposed compositor: with fix 25 in place that is a silently blank surface with no exception to
+    point at; without it, the same access violation. Layer and text-cache construction moved out of
+    the constructor into `BuildScene()`, which `OnAttachedToVisualTree` calls when `_released` —
+    before `RefreshPalette`, which touches the caches on the next line. Pinned by
+    `Scene2DHostTests.Host_SurvivesDetachAndReattach_AndStillRenders`, which asserts on
+    `Compositor.Stats` rather than captured pixels because the headless surface retains the last
+    frame that actually drew and would report a dead host as healthy.
+
+27. **`MapSpace.LevelFor` returns `MapLevel?`, where registry §3.4 says `MapLevel`.** Not changed —
+    the nullable return is the correct answer for an empty level set and every call site already
+    handles it — but recorded here because §3.4 is the canonical registry and B3 consumes both
+    overloads. B3 should either adopt the nullable shape or make an empty `MapSpace`
+    unrepresentable; it must not silently narrow it.
+
 ### Not built, and why
 
 21. **`SpriteAtlas` / `SceneRenderOptions.UseSprites` (decision D-12) is not built.** D-12 already says
