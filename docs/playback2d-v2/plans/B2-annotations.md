@@ -1221,3 +1221,12 @@ Written at implementation time. Everything not listed here was built as the plan
     a sidecar already exists — erasing the last stroke must still clear the file. Pinned by
     `Playback2DAnnotationPersistenceTests.Controller_AttachingToADemoWithNoAnnotations_WritesNothing`
     and `.Controller_ErasingTheLastStroke_StillClearsAnExistingSidecar`.
+
+26. **`AnnotationNukeLevelTests` added, over the real two-floor Nuke frame.** The plan's fixture list asks
+    for "a `SceneFixture` JSON with two levels"; B1's `nuke-multilevel` capture already is one, so the
+    level-anchoring rule is proved against the bands `MapSpaceFactory` actually derives
+    (`-1562:[-100000..-528]` and `-8:[-528..100000]`) rather than only against a synthetic band list.
+    `SceneStage` gained a `params ISceneLayer[] extra` so the ink layer is exercised over the SAME seven
+    layers the app ships. Ink is measured as a delta against a render with an empty document, inside each
+    pane's real rectangle — Nuke's lower floor already carries red team discs, and an absolute red count
+    would be measuring the markers.

@@ -26,8 +26,19 @@ internal sealed class SceneStage : IDisposable
     private readonly CpuSurfaceProvider _provider = new();
     private readonly TextBlobCache _text = new();
 
+    /// <summary>Builds the production layer stack over a CPU surface.</summary>
+    /// <param name="size">Surface size.</param>
+    /// <param name="vision">Vision solver, or null for none.</param>
+    /// <param name="palette">Palette; dark when null.</param>
+    /// <param name="options">Compositor caching policy.</param>
+    /// <param name="reverseRegistration">Registers the layers backwards, to prove sort order wins.</param>
+    /// <param name="extra">
+    ///     Additional layers registered alongside the seven. B2's ink layer needs a session, so it cannot
+    ///     be one of the fixed seven — but it must still be exercised over the SAME stack the app ships.
+    /// </param>
     public SceneStage(SKSizeI size, IVisionSolver? vision = null, ScenePalette? palette = null,
-        SceneCompositorOptions? options = null, bool reverseRegistration = false)
+        SceneCompositorOptions? options = null, bool reverseRegistration = false,
+        params ISceneLayer[] extra)
     {
         Smoother = new MarkerSmoother();
         Radar = new RadarLayer();
@@ -46,6 +57,11 @@ internal sealed class SceneStage : IDisposable
 
         _compositor = new SceneCompositor(options);
         foreach (ISceneLayer layer in layers)
+        {
+            _compositor.Add(layer);
+        }
+
+        foreach (ISceneLayer layer in extra ?? [])
         {
             _compositor.Add(layer);
         }
