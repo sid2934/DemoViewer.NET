@@ -154,6 +154,37 @@ public class LevelHysteresisTests
         await Assert.That(space.LevelFor(100, null)!.Id).IsEqualTo(space.Levels[1].Id);
     }
 
+    /// <summary>
+    ///     Plan risk R4's mitigation is "all four constants live in <c>LevelHysteresisOptions</c>, so
+    ///     retuning is a one-line change with no API break". <c>Default</c> is a get-only static, so the
+    ///     only way to retune is to <i>pass</i> an options instance — which therefore has to reach the
+    ///     spatial band, not just the dwell.
+    /// </summary>
+    [Test]
+    public async Task Options_ReachTheSpatialBand_NotJustTheDwell()
+    {
+        MapSpace space = Two(-640, 0, 0, 640);
+        MapLevelId lower = space.Levels[0].Id;
+        MapLevelId upper = space.Levels[1].Id;
+
+        // No band and no dwell: the chooser must track the raw boundary exactly.
+        LevelHysteresis loose = new(new LevelHysteresisOptions(0, 0, 0, 0));
+        SceneTime time = Time(Dt);
+
+        loose.Update(in time, -300, space);
+        await Assert.That(loose.Current).IsEqualTo(lower);
+
+        loose.Update(in time, 10, space);
+        await Assert.That(loose.Current).IsEqualTo(upper)
+            .Because("a zero band and zero dwell must not still hold the old level for 128u");
+
+        // And the default band DOES hold at the same Z, so the case above is the options talking.
+        LevelHysteresis tuned = new();
+        tuned.Update(in time, -300, space);
+        tuned.Update(in time, 10, space);
+        await Assert.That(tuned.Current).IsEqualTo(lower);
+    }
+
     private static void Advance(LevelHysteresis hysteresis, MapSpace space, double z, double seconds,
         double dt)
     {

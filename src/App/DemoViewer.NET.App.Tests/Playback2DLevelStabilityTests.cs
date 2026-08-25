@@ -238,6 +238,121 @@ public class Playback2DLevelStabilityTests
         await Assert.That(switches).IsLessThanOrEqualTo(naiveSwitches);
     }
 
+    /// <summary>
+    ///     <b>The positive half of AutoFollow, on real data.</b>
+    ///     <see cref="Nuke_AutoFollow_SwitchCount_IsBounded" /> follows the first live slot it meets and
+    ///     bounds the switch count from above — on this capture that slot never clears the spatial band,
+    ///     so it observes zero switches and cannot tell a working chooser from one that never switches at
+    ///     all. This drives every player's own Z track through the chooser and asserts the other
+    ///     direction: floors are genuinely traversed, each switch lands on a level that <i>contains</i>
+    ///     the player at the frame it happened, and two independent replays of the same track agree
+    ///     exactly (the dwell is scene-time driven, so it must be reproducible).
+    /// </summary>
+    [Test]
+    public async Task Nuke_AutoFollow_SwitchesToTheFloorThePlayerIsOn_Deterministically()
+    {
+        MapSpace space = new();
+        space.Rebuild(BakedNukeFloors());
+        await Assert.That(space.Levels).HasCount().EqualTo(2);
+
+        Dictionary<int, List<(int Frame, double Z)>> tracks = ZTracks(ResolveNuke());
+        int traversed = 0;
+        int transitions = 0;
+
+        foreach (int slot in tracks.Keys.Order())
+        {
+            List<(int Frame, double Z)> track = tracks[slot];
+            List<(int Frame, MapLevelId Id)> first = ChooseAlong(track, space);
+            List<(int Frame, MapLevelId Id)> second = ChooseAlong(track, space);
+
+            await Assert.That(first.SequenceEqual(second)).IsTrue()
+                .Because($"slot {slot}'s level track must be reproducible");
+
+            if (first.Count > 0)
+            {
+                traversed++;
+                transitions += first.Count;
+            }
+
+            foreach ((int frame, MapLevelId id) in first)
+            {
+                MapLevel? landed = space.ById(id);
+                await Assert.That(landed).IsNotNull();
+
+                double z = track.First(t => t.Frame == frame).Z;
+                await Assert.That(landed!.Contains(z)).IsTrue()
+                    .Because($"slot {slot} switched to {id} at f{frame} with z={z:F0}");
+            }
+        }
+
+        Console.WriteLine($"[autofollow-nuke-positive] players={tracks.Count} " +
+                          $"traversed={traversed} transitions={transitions}");
+
+        await Assert.That(traversed).IsGreaterThan(0)
+            .Because("this capture takes players to both floors — a chooser that never switches is broken");
+    }
+
+    // The chooser's answer along one player's Z track, as (frame, new level) transitions.
+    private static List<(int Frame, MapLevelId Id)> ChooseAlong(List<(int Frame, double Z)> track,
+        MapSpace space)
+    {
+        LevelHysteresis hysteresis = new();
+        SceneTime time = new(0, 0, 0, ObserveStride / 64.0, false);
+        List<(int, MapLevelId)> switches = [];
+        MapLevelId last = MapLevelId.None;
+
+        foreach ((int frame, double z) in track)
+        {
+            MapLevelId chosen = hysteresis.Update(in time, z, space);
+            if (!last.IsNone && chosen != last)
+            {
+                switches.Add((frame, chosen));
+            }
+
+            last = chosen;
+        }
+
+        return switches;
+    }
+
+    // Per-slot world-Z samples at the observation stride, keyed by demo frame index.
+    private static Dictionary<int, List<(int Frame, double Z)>> ZTracks(string path)
+    {
+        ParsedDemo demo = DemoTestHelper.GetOrParse(path);
+        IReadOnlyList<DemoFrame> frames = demo.Frames;
+        Dictionary<int, List<(int, double)>> tracks = [];
+        EntityTracker tracker = new();
+
+        int cap = Math.Min(frames.Count, 130_000);
+        for (int f = 0; f < cap; f++)
+        {
+            tracker.AdvanceOneFrame(frames[f]);
+            if (f % ObserveStride != 0)
+            {
+                continue;
+            }
+
+            int frameIndex = f;
+            PawnLookup.ForEachLivePawn(tracker, (slot, pawn) =>
+            {
+                if (PositionUtil.CellToWorld(pawn) is not { } p)
+                {
+                    return;
+                }
+
+                if (!tracks.TryGetValue(slot, out List<(int, double)>? list))
+                {
+                    list = [];
+                    tracks[slot] = list;
+                }
+
+                list.Add((frameIndex, p.Z));
+            });
+        }
+
+        return tracks;
+    }
+
     /// <summary>A single-floor map must produce no level chrome at all (plan D9).</summary>
     [Test]
     public async Task Dust2_StaysSingleLevel_StripHidden()

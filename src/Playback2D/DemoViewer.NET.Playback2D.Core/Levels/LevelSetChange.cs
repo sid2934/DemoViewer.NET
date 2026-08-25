@@ -39,11 +39,20 @@ public sealed record LevelSetChange(
     public IReadOnlyList<(MapLevelId Id, double ZMin)> LevelsBefore { get; init; } = [];
 
     /// <summary>
-    ///     Rebases a <c>SpaceRef.World(LevelMinZ)</c> annotation anchor onto the new level set, by the
-    ///     four rules in the B3 plan's remap algorithm (step 8): the containing level wins; else the
-    ///     level that inherited the old band's identity; else the nearest band centre — which mirrors
-    ///     <see cref="FloorSplitter.SliceIndexFor" />'s own fallback, so an anchor can never end up
-    ///     belonging to no level at all.
+    ///     Rebases a <c>SpaceRef.World(LevelMinZ)</c> annotation anchor onto the new level set: the level
+    ///     that inherited the old band's <b>identity</b> wins; else the level whose band owns the Z; else
+    ///     the nearest band centre — which mirrors <see cref="FloorSplitter.SliceIndexFor" />'s own
+    ///     fallback, so an anchor can never end up belonging to no level at all.
+    ///     <para>
+    ///         <b>Identity before geometry</b>, which inverts the B3 plan's step 8 (see plan deviation
+    ///         13). Real band lists are <i>contiguous</i> — <c>FloorSplitter</c> emits slice N's
+    ///         <c>MaxZ</c> as slice N+1's <c>MinZ</c>, and de_nuke's baked bundle publishes
+    ///         <c>[-100000..-528]</c>/<c>[-528..100000]</c> — so an anchor stamped with a level's
+    ///         <c>ZMin</c> sits exactly on a shared boundary, which <see cref="MapLevel.Contains" />
+    ///         answers true for on <i>both</i> sides. Letting containment win therefore sank every
+    ///         upper-floor anchor onto the floor below on the first rebuild that moved the boundary —
+    ///         and moving that boundary is precisely what the histogram does all demo long.
+    ///     </para>
     /// </summary>
     /// <param name="oldLevelMinZ">The anchor's stored level lower Z.</param>
     /// <param name="newLevelMinZ">The lower Z to store instead.</param>
@@ -58,17 +67,9 @@ public sealed record LevelSetChange(
             return false;
         }
 
-        // a. A level that contains the old anchor Z keeps it where the user put it.
-        for (int i = 0; i < after.Count; i++)
-        {
-            if (after[i].Contains(oldLevelMinZ))
-            {
-                newLevelMinZ = after[i].ZMin;
-                return true;
-            }
-        }
-
-        // b. The band that WAS at this Z survived under its own identity — follow it.
+        // a. The anchor names a band that existed before this rebuild. If that band's level survived —
+        //    which overlap-carry makes the common case — its identity IS the answer, wherever the
+        //    boundary drifted to.
         for (int i = 0; i < LevelsBefore.Count; i++)
         {
             (MapLevelId id, double zMin) = LevelsBefore[i];
@@ -84,6 +85,27 @@ public sealed record LevelSetChange(
                     newLevelMinZ = after[j].ZMin;
                     return true;
                 }
+            }
+        }
+
+        // b. Otherwise the level whose band owns the Z. Half-open, so a value sitting on a shared
+        //    boundary belongs to the band ABOVE it — an anchor is a band's LOWER bound, never its top.
+        for (int i = 0; i < after.Count; i++)
+        {
+            if (oldLevelMinZ >= after[i].ZMin && oldLevelMinZ < after[i].ZMax)
+            {
+                newLevelMinZ = after[i].ZMin;
+                return true;
+            }
+        }
+
+        // b'. The very top of the highest band has no band above it to belong to.
+        for (int i = 0; i < after.Count; i++)
+        {
+            if (after[i].Contains(oldLevelMinZ))
+            {
+                newLevelMinZ = after[i].ZMin;
+                return true;
             }
         }
 

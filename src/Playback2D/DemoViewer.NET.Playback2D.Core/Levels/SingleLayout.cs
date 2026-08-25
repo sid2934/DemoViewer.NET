@@ -98,8 +98,16 @@ public static class LevelLayouts
     ///     must not stop the tab from opening.
     /// </summary>
     /// <param name="value">The persisted string, or null.</param>
+    /// <remarks>
+    ///     <see cref="Enum.TryParse{TEnum}(string,bool,out TEnum)" /> accepts any <i>number</i> inside the
+    ///     underlying type's range, so <c>"7"</c> parses to an undefined <see cref="LevelDisplayMode" />
+    ///     that <see cref="For" /> then throws on. <see cref="Enum.IsDefined{TEnum}(TEnum)" /> is what
+    ///     makes the fallback actually cover a hand-edited settings file.
+    /// </remarks>
     public static LevelDisplayMode Parse(string? value) =>
-        Enum.TryParse(value, true, out LevelDisplayMode mode) && mode != LevelDisplayMode.SideBySide
+        Enum.TryParse(value, true, out LevelDisplayMode mode)
+        && Enum.IsDefined(mode)
+        && mode != LevelDisplayMode.SideBySide
             ? mode
             : LevelDisplayMode.Stacked;
 }

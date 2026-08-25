@@ -170,6 +170,75 @@ public class MapSpaceRemapTests
         await Assert.That(moved).IsEqualTo(320);
     }
 
+    /// <summary>
+    ///     <b>The anchor case the non-contiguous fixtures above cannot reach.</b> Real band lists touch:
+    ///     <c>FloorSplitter</c> emits slice N's <c>MaxZ</c> as slice N+1's <c>MinZ</c>, and de_nuke's baked
+    ///     bundle publishes <c>[-100000..-528]</c> / <c>[-528..100000]</c>. An anchor stamped with the
+    ///     upper level's <c>ZMin</c> therefore sits exactly on the shared boundary, and the boundary is
+    ///     the thing that drifts — the same drift <see cref="BoundaryDrift_OneBucket_PreservesIds" />
+    ///     celebrates surviving. The anchor must follow the identity it named, not the geometry that
+    ///     moved out from under it.
+    /// </summary>
+    [Test]
+    public async Task TryRemapAnchor_OnContiguousBands_FollowsTheIdentity_NotTheBandBelow()
+    {
+        MapSpace space = new();
+        space.Rebuild([new FloorSlice(0, 640), new FloorSlice(640, 1280)]);
+        MapLevelId upper = space.Levels[1].Id;
+
+        // The boundary drifts UP one bucket, exactly as the histogram does all demo long. Both ids hold.
+        LevelSetChange change = space.Rebuild([new FloorSlice(0, 704), new FloorSlice(704, 1280)]);
+        await Assert.That(space.Levels[1].Id).IsEqualTo(upper);
+
+        await Assert.That(change.TryRemapAnchor(640, out double rebased)).IsTrue();
+        await Assert.That(rebased).IsEqualTo(704)
+            .Because("an anchor on the upper floor must stay on the upper floor");
+    }
+
+    /// <summary>
+    ///     A band's lower Z is its own, not its neighbour's upper edge. With contiguous bands both
+    ///     <c>Contains</c> the shared value, so the tie must break upward or every boundary anchor sinks
+    ///     one floor on the first rebuild that touches it.
+    /// </summary>
+    [Test]
+    public async Task TryRemapAnchor_OnASharedBoundary_PrefersTheBandAbove()
+    {
+        MapSpace space = new();
+        space.Rebuild([new FloorSlice(0, 640), new FloorSlice(640, 1280)]);
+
+        // Only the TOP of the upper band moves, so the anchor's own level is untouched and its identity
+        // is not in LevelsBefore's way — this isolates the containment tie-break.
+        LevelSetChange change = space.Rebuild([new FloorSlice(0, 640), new FloorSlice(640, 1344)]);
+
+        await Assert.That(change.TryRemapAnchor(640, out double rebased)).IsTrue();
+        await Assert.That(rebased).IsEqualTo(640);
+
+        // And the lower band's own ZMin still resolves to the lower band.
+        await Assert.That(change.TryRemapAnchor(0, out double lower)).IsTrue();
+        await Assert.That(lower).IsEqualTo(0);
+    }
+
+    /// <summary>
+    ///     A malformed authoritative bundle can publish a zero-width band; <c>Rebuild</c> widens it so
+    ///     nothing downstream divides by a zero span. The <i>same</i> list fed again must still be a
+    ///     no-op — otherwise every frame that re-derives the levels raises
+    ///     <c>LevelSetChanged</c>, and every frame drops the compositor's picture caches with it.
+    /// </summary>
+    [Test]
+    public async Task Rebuild_IsIdempotent_ForADegenerateBand()
+    {
+        MapSpace space = new();
+        int raised = 0;
+        space.Rebuild([new FloorSlice(0, 0), new FloorSlice(640, 1280)]);
+        space.LevelSetChanged += () => raised++;
+
+        LevelSetChange again = space.Rebuild([new FloorSlice(0, 0), new FloorSlice(640, 1280)]);
+
+        await Assert.That(again.IsEmpty).IsTrue();
+        await Assert.That(raised).IsEqualTo(0);
+        await Assert.That(space.Levels[0].Span).IsGreaterThan(0);
+    }
+
     [Test]
     public async Task Names_ReorderFreely_ButIdsDoNot()
     {

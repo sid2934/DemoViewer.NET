@@ -143,6 +143,12 @@ public sealed class MapSpace
     ///         <see cref="LevelHysteresis" />, which is what AutoFollow's <i>view</i> decision uses.
     ///     </para>
     ///     <para>
+    ///         <b>The band comes from <see cref="LevelHysteresisOptions.Default" />.</b> This overload
+    ///         has no options parameter (registry §3.4) and its production caller —
+    ///         <see cref="LevelCrossingTracker" /> — has none to give. A caller that carries its own
+    ///         tuning applies the band itself; <see cref="LevelHysteresis.Update" /> does exactly that.
+    ///     </para>
+    ///     <para>
     ///         <b>Drawing does not go through here.</b> <c>SceneRenderContext.BelongsHere</c> uses the
     ///         stateless <see cref="LevelIndexFor" />, because a pane filter that depended on call order
     ///         would make a golden depend on how many frames preceded it.
@@ -257,7 +263,7 @@ public sealed class MapSpace
         for (int i = 0; i < newCount; i++)
         {
             minZ[i] = bands[i].MinZ;
-            maxZ[i] = bands[i].MaxZ > bands[i].MinZ ? bands[i].MaxZ : bands[i].MinZ + LevelQuantum;
+            maxZ[i] = NormalizedMax(bands[i]);
         }
 
         // 2-3. Score every (old, new) pair by shared fraction of the thinner band, then match greedily
@@ -419,6 +425,11 @@ public sealed class MapSpace
         return new MapLevelId(key);
     }
 
+    // A degenerate band can only come from a malformed authoritative bundle; widening it by one quantum
+    // keeps every downstream Span > 0 rather than dividing by zero later.
+    private static double NormalizedMax(FloorSlice band) =>
+        band.MaxZ > band.MinZ ? band.MaxZ : band.MinZ + LevelQuantum;
+
     private static bool IsStaged(List<MapLevel> staged, int key)
     {
         for (int i = 0; i < staged.Count; i++)
@@ -450,7 +461,12 @@ public sealed class MapSpace
         {
             MapLevel level = _levels[i];
             FloorSlice band = bands[i];
-            if (Math.Abs(level.ZMin - band.MinZ) > 1e-3 || Math.Abs(level.ZMax - band.MaxZ) > 1e-3)
+
+            // Against the NORMALIZED max, not the raw one: Rebuild widens a degenerate band, so
+            // comparing raw would find the widened level "different" from the band it was built from
+            // and rebuild — raising LevelSetChanged and dropping every picture cache — on every call.
+            if (Math.Abs(level.ZMin - band.MinZ) > 1e-3 ||
+                Math.Abs(level.ZMax - NormalizedMax(band)) > 1e-3)
             {
                 return false;
             }

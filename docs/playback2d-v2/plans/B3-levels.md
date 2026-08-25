@@ -1197,3 +1197,74 @@ Written at implementation time. Everything not listed here was built as the plan
 12. **B1 deviation 28 (`SceneCompositor.Add`/`Remove` are outside the gate) is untouched.** B3 registers
     no layers at runtime, so it is still not triggered. It remains B2's to take the gate around
     registration.
+
+### Review findings (independent reviewer, on top of the implementation)
+
+Four defects found by review, each pinned by a test that fails without the fix. Numbering continues the
+list above.
+
+13. **`LevelSetChange.TryRemapAnchor` sank every upper-floor anchor onto the floor below.** The plan's
+    remap algorithm step 8 orders the rules *containment → identity → nearest*, and the implementation
+    followed it. But real band lists are **contiguous** — `FloorSplitter` emits slice N's `MaxZ` as slice
+    N+1's `MinZ` (`:375,381`), and de_nuke's baked bundle publishes `[-100000..-528]`/`[-528..100000]` —
+    so an anchor stamped with a level's `ZMin` sits exactly on a shared boundary, which
+    `MapLevel.Contains` answers **true** for on both sides. The containment scan takes the first match,
+    which is the band *below*. Worse, once the boundary drifts (which `Nuke_LevelIds_AreStable…` proves
+    it does, `drifted-while-retained=4`), containment beat identity even for a level whose id was
+    carried: bands `[0,640]/[640,1280]` → `[0,704]/[704,1280]` rebased the upper level's anchor `640`
+    to `0`. The plan's own tests missed it because both anchor fixtures use *non-contiguous* bands
+    (`[0,640]` + `[1280,1920]`), the one shape real maps never have.
+    <br>**Fixed:** identity first, then half-open containment (a shared boundary belongs to the band
+    **above** — an anchor is a band's lower bound, never its top), then nearest centre. This inverts the
+    plan's step 8, deliberately: identity-before-geometry is what design §5.3 asks for and what the rest
+    of B3 already does. Pinned by `MapSpaceRemapTests.TryRemapAnchor_OnContiguousBands_FollowsTheIdentity_NotTheBandBelow`
+    and `…_OnASharedBoundary_PrefersTheBandAbove`. B2 inherits the corrected function.
+
+14. **`LevelHysteresisOptions`' three spatial knobs were wired to nothing.** `LevelHysteresis.Update`
+    delegated the sticky band to `MapSpace.LevelFor(z, previous)`, which has no options parameter and
+    reads `LevelHysteresisOptions.Default`. Since `Default` is a get-only static, *passing* an options
+    instance is the only way to retune — and doing so silently changed only `DwellSeconds`, leaving
+    `MinBand`, `MaxBand` and `BandFractionOfSpan` inert. That is exactly the mitigation plan risk R4
+    claims ("all four constants live in `LevelHysteresisOptions`, so retuning is a one-line change"),
+    so the risk was unmitigated as shipped. No test caught it because every test constructs `new()`.
+    <br>**Fixed:** `Update` resolves statelessly and applies `SpatialBand` with **its own** `_options`.
+    `MapSpace.LevelFor(z, previous)` keeps `Default`, which is correct for its option-less production
+    caller (`LevelCrossingTracker`), and now says so. Pinned by
+    `LevelHysteresisTests.Options_ReachTheSpatialBand_NotJustTheDwell`.
+
+15. **`LevelLayouts.Parse` let an undefined `LevelDisplayMode` out.** `Enum.TryParse` accepts any number
+    inside the underlying type's range, so a hand-edited `Playback2D:LevelDisplayMode` of `"7"` returned
+    `(LevelDisplayMode)7` — which `LevelLayouts.For` throws `NotSupportedException` on, the exact "a typo
+    must not stop the tab from opening" case the method's own doc comment promises to absorb. Not
+    reachable to a crash today (the App maps anything-but-`Single` to `Stacked` before `For` is called),
+    but `For` and `Parse` are exported to B4 and C1. **Fixed** with `Enum.IsDefined`; pinned in
+    `SingleLayoutTests.LevelLayouts_For_ReturnsThePolicyAndRefusesTheReservedMode`.
+
+16. **`MapSpace.Rebuild` was not idempotent for a degenerate band.** `Rebuild` widens a zero-width band
+    to one quantum, but `IsUnchanged` compared against the **raw** `MaxZ`, so the same malformed band
+    list fed twice never matched and rebuilt every call — raising `LevelSetChanged`, dropping every
+    picture cache and re-arranging every pane, on every frame. `MapSpaceFactory.SameBands` shields the
+    production path, so the exposure is direct `Rebuild` callers (B4's export replay, `dv2d`), but
+    "idempotent" is the contract T1 states. **Fixed** by comparing against the normalized max; pinned by
+    `MapSpaceRemapTests.Rebuild_IsIdempotent_ForADegenerateBand`.
+
+17. **`Nuke_AutoFollow_SwitchCount_IsBounded` could not fail in the direction that matters.** It follows
+    the first live slot it meets — slot 2 on this capture — and asserts only an upper bound on switches.
+    Slot 2's Z bottoms out at −640, and the spatial band on de_nuke's baked floors is 128u, so it never
+    clears −656: the test observes **zero** switches and a chooser hard-wired to never switch would pass
+    it. Reviewer verification of the real demo through both floors found 8 of 10 players do traverse
+    (Z down to −776), producing 16 genuine transitions. Added
+    `Nuke_AutoFollow_SwitchesToTheFloorThePlayerIsOn_Deterministically`, which drives every player's own
+    Z track through `LevelHysteresis` and asserts (a) floors are genuinely traversed, (b) every switch
+    lands on a level that **contains** the player at that frame, and (c) two independent replays of the
+    same track agree exactly. No production defect was found behind it — the chooser is correct; the
+    gate was not.
+
+**Reviewer verification not turned into new tests** (all clean): the `nuke-multilevel` parity gate is
+unmoved at 99.68 % within ±8 after all four fixes; `[budget] allocation 0 B/frame` and
+`advance p99 0.002 ms` / `render p99 2.007 ms` are unchanged; `StackedRender_IsByteIdentical_AfterASingleModeRoundTrip`
+still byte-matches; manual selection holds across rebuilds (`LevelSelection.Update`'s `Manual` branch
+only re-picks when the pinned level is gone) and across the level-set-changed handler; `ViewportTransform
+.WithViewport` preserves centre, scale, zoom and pan, so a mid-demo rebuild re-viewports without moving
+the camera; `MapRadarBinder` binds de_nuke's two baked floors to `de_nuke_lower.png`/`de_nuke.png` by
+overlap (scores 0.997 / 1.000) and reports `Exact`.

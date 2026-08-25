@@ -107,10 +107,24 @@ public sealed class LevelHysteresis
             return Current;
         }
 
-        MapLevel? resolved = space.LevelFor(worldZ, Current.IsNone ? null : Current);
+        // The sticky band is applied HERE rather than through MapSpace.LevelFor(z, previous), because
+        // that overload has no options parameter and must answer for the option-less callers (the
+        // per-entity crossing tracker) from LevelHysteresisOptions.Default. Delegating to it would make
+        // MinBand / MaxBand / BandFractionOfSpan dead knobs on a caller-supplied options instance —
+        // and Default is get-only, so passing one is the only way to retune at all (plan risk R4).
+        MapLevel? resolved = space.LevelFor(worldZ);
         if (resolved is null)
         {
             return Current;
+        }
+
+        if (!Current.IsNone && resolved.Id != Current && space.ById(Current) is { } held)
+        {
+            double band = SpatialBand(held, resolved, _options);
+            if (MapSpace.DistanceOutside(held, worldZ) <= band)
+            {
+                resolved = held;
+            }
         }
 
         if (Current.IsNone || time.IsDiscontinuity)

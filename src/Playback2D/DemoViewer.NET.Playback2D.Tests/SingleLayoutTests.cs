@@ -252,6 +252,14 @@ public class PaneSetLevelRetentionTests
         await Assert.That(LevelLayouts.Parse("nonsense")).IsEqualTo(LevelDisplayMode.Stacked);
         await Assert.That(LevelLayouts.Parse(null)).IsEqualTo(LevelDisplayMode.Stacked);
         await Assert.That(LevelLayouts.Parse("SideBySide")).IsEqualTo(LevelDisplayMode.Stacked);
+
+        // Enum.TryParse accepts any NUMBER inside the underlying type's range, so a hand-edited
+        // settings file saying "7" would otherwise yield an undefined LevelDisplayMode that
+        // LevelLayouts.For throws on — the exact "a typo must not stop the tab opening" case this
+        // method exists for.
+        await Assert.That(LevelLayouts.Parse("7")).IsEqualTo(LevelDisplayMode.Stacked);
+        await Assert.That(LevelLayouts.Parse("-1")).IsEqualTo(LevelDisplayMode.Stacked);
+        await Assert.That(LevelLayouts.Parse("2")).IsEqualTo(LevelDisplayMode.Stacked);
     }
 
     private static MapSpace Three()
