@@ -1,16 +1,17 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core;
 using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia;
 using CS2DemoKit.Analysis.Visibility;
+using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Theming;
 
 #endregion

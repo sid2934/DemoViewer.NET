@@ -1,11 +1,12 @@
 #region
 
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
-using DemoViewer.NET.Modules.Playback2D;
+using Avalonia;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
+using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Views.Playback2D;
 
 #endregion

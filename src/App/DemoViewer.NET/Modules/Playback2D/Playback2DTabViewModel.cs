@@ -1,19 +1,21 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Pipeline;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Numerics;
 using Avalonia.Threading;
+using CS2DemoKit.Analysis.PlayerStats;
+using CS2DemoKit.Analysis.Visibility;
+using CS2DemoKit.Parser.EntityTracking;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using CS2DemoKit.Analysis.PlayerStats;
-using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
+using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services;
-using CS2DemoKit.Analysis.Visibility;
 
 #endregion
 

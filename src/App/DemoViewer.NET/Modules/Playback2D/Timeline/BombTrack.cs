@@ -1,3 +1,9 @@
+#region
+
+using DemoViewer.NET.Playback2D.Core.Timeline;
+
+#endregion
+
 namespace DemoViewer.NET.Modules.Playback2D.Timeline;
 
 /// <summary>
