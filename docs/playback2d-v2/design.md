@@ -1,6 +1,6 @@
 # Playback2D v2 — Architecture & Feature Design
 
-**Status:** Proposed (design review) · **Branch:** `feature/playback2d-v2` · **Date:** 2026-08-24
+**Status:** Proposed (design review, revision 2) · **Branch:** `feature/playback2d-v2` · **Date:** 2026-08-24
 
 This document is the design for the 2D playback window rework: drawable annotations (static and
 time-anchored), video export of the 2D playback, a proper multi-level map model, follow-player,
@@ -11,6 +11,11 @@ research passes (competitor tools, annotation data models, Avalonia rendering op
 tech, replay-viewer prior art), three independent architecture proposals (evolutionary /
 clean-core compositor / plugin-first), and a two-judge scoring panel. Section 3 records the
 decision; the rest is the synthesized design.
+
+**Revision 2** deepens the host-independent core: an explicit performance budget pinned to the
+64-tick rate (§6), CPU/GPU render-surface providers usable with no UI window (§5.8), a parser-side
+`Pipeline` assembly and a `dv2d` CLI tool for headless rendering/export/benchmarking (§4), and a
+test/iteration story that executes directly against the core (§11).
 
 ---
 
@@ -30,8 +35,16 @@ Target features:
 5. **Polished controls & keybinds** — pause/play, seek, speed, tool shortcuts.
 6. **Scrubbable timeline** — bottom-of-window timeline with round bands and event markers.
 
-Plus two cross-cutting requirements: **per-feature enable/disable** and **long-term extensibility**
-with bounded maintenance cost. The Browser/WASM target must degrade gracefully and explicitly.
+Plus three cross-cutting requirements:
+
+- **Per-feature enable/disable** and **long-term extensibility** with bounded maintenance cost.
+- **Performance floor: sustained 64 scene-frames per second** (matching CS2's 64-tick rate at 1×)
+  with headroom above it, so the render pipeline is never the reason a LiveSync-synced session
+  drops or coalesces visual frames (§6).
+- **Headless operation:** the rendering core must run with no UI window — from CLI tools, CI, and
+  tests — with GPU acceleration when available and a CPU path always (§5.8).
+
+The Browser/WASM target must degrade gracefully and explicitly.
 
 ### 1.1 Competitive landscape (researched 2026-08)
 
@@ -95,7 +108,7 @@ with Z-filtering.
   `HeadlessSession`), `RenderTargetBitmap` via `GraphScreenshot`, a located `FfmpegDependency`, and
   the in-engine reel pipeline (`ReelJobService`, Windows-only, occupies the CS2 session).
 - Known hot-path debt: per-frame `FormattedText`/`Pen`/`StreamGeometry` allocations and a per-band
-  LINQ in radar resolution — tolerable at UI rate, hostile at export rate.
+  LINQ in radar resolution — tolerable at UI rate, hostile at export rate and at a 64 fps floor.
 
 ---
 
@@ -127,12 +140,16 @@ discipline, grafting the plugin-first plan's timeline/caching/persistence ideas.
   an `SKSurface`. One draw path → pixel-identical screen, export, and test output, background-thread
   geometry building (Avalonia geometry is UI-thread-bound; Skia isn't), `SKPicture` caching, and it
   runs under the compositor on every platform including browser.
+- **The core is a complete headless runtime, not just a drawing library.** Every consumer — the
+  Avalonia host, the export service, CLI tools, CI, and tests — drives the same compositor through
+  the same surface-provider seam (§5.8). No consumer requires an Avalonia platform, a window, or a
+  dispatcher; GPU acceleration is an opportunistic upgrade behind the seam, never a requirement.
 - `CompositionCustomVisual` is rejected: it bypasses hit-testing, needs cross-thread messaging, has
   an open Decorator-hosting bug (#19436), and its off-UI-thread benefit evaporates on
   single-threaded WASM. The layer contract (pure `Draw(SKCanvas)`) keeps it available as a future
   desktop-only promotion if UI-thread jank ever demands it.
-- A CPU `SKSurface` → `WriteableBitmap` fallback path is always built (used when the Skia lease is
-  unavailable) and doubles as the headless golden-test path, so it can't rot.
+- A CPU `SKSurface` path is always built (the contract baseline and the golden-test path, so it
+  can't rot); on screen it feeds a `WriteableBitmap` when the Skia lease is unavailable.
 - The proven value types survive: `ViewportTransform` and `SliceCamera` move to the core
   **verbatim** (including per-slice `ManualOverride` semantics); `FloorSplitter` survives as the
   floor-detection authority; the VM data pipeline, XAML HUD chrome, module registration, and all
@@ -142,8 +159,15 @@ discipline, grafting the plugin-first plan's timeline/caching/persistence ideas.
 
 ## 4. Component map
 
-New project **`DemoViewer.NET.Playback2D.Core`** — references SkiaSharp only. No Avalonia, no
-parser, no Modules.Abstractions. Enforced by an architecture test (§10).
+Two new library projects and one CLI tool, layered so nothing above Core is required to render:
+
+- **`DemoViewer.NET.Playback2D.Core`** — references SkiaSharp only. No Avalonia, no parser, no
+  Modules.Abstractions. Enforced by an architecture test (§11).
+- **`DemoViewer.NET.Playback2D.Pipeline`** — references Core + the parser packages (CS2DemoKit).
+  Still no Avalonia. Owns the demo-domain adaptation: frame building, private checkpoint-replay
+  frame sources, map/radar asset decode to `SKImage`, annotation sidecar I/O, and the encoder sinks.
+- **`tools/DemoViewer.NET.Playback2D.Cli`** (`dv2d`) — references Pipeline. Headless rendering,
+  export, and benchmarking from the command line; no UI window ever.
 
 ```
 ┌────────────────────── DemoViewer.NET.Playback2D.Core ──────────────────────┐
@@ -157,23 +181,35 @@ parser, no Modules.Abstractions. Enforced by an architecture test (§10).
 │ ICameraRig:  FitMapRig, FitAliveRig, FollowPlayerRig, ManualRig            │
 │ AnnotationDocument (elements, deltas, gesture marks, sidecar DTO)          │
 │ ITimelineTrack / TimelineMarker                                            │
+│ IRenderSurfaceProvider ── CpuSurfaceProvider (always) | GPU providers      │
 │ SceneExportSession ── ISceneFrameSource, IFrameSink, CameraScript          │
 └────────────────────────────────────────────────────────────────────────────┘
-              ▲ consumed by
-┌──────────────────────── App (Modules/Playback2D + services) ───────────────┐
-│ Playback2DTabViewModel (kept) ── SceneFrameBuilder (extracted BuildFrame)  │
-│ Scene2DHost : Control (~300 loc)  ICustomDrawOperation + lease, RAF loop,  │
-│                                   InputToolRouter (PanZoom | Draw | Erase) │
-│ TimelineControl : XAML  (rounds band + scrub + tracks)                     │
-│ TrackerFrameSource (private checkpoint replay → Scene2DFrame)              │
-│ FfmpegFrameSink / ManagedGifSink / (later) WebCodecsSink; export dialog    │
-│ Playback2DKeymap; selectable player cards; XAML HUD (kept)                 │
+              ▲
+┌───────────────────── DemoViewer.NET.Playback2D.Pipeline ───────────────────┐
+│ SceneFrameBuilder       (extracted from the VM's BuildFrame)               │
+│ TrackerFrameSource      (private checkpoint replay → Scene2DFrame)         │
+│ MapAssetPipeline        (radar decode → SKImage; MapSpace factory)         │
+│ AnnotationStore         (sidecar / app-data persistence)                   │
+│ FfmpegFrameSink / ManagedGifSink / (later) WebCodecsSink                   │
+│ SceneFixture            (JSON scene + annotation fixtures for tests/CLI)   │
 └────────────────────────────────────────────────────────────────────────────┘
+        ▲                                   ▲
+┌──── App (Modules/Playback2D) ────┐   ┌── tools/…Playback2D.Cli (dv2d) ──┐
+│ Playback2DTabViewModel (kept)    │   │ dv2d render   single frame → png │
+│ Scene2DHost : Control (~300 loc) │   │ dv2d export   range → webm/mp4/  │
+│   ICustomDrawOperation + lease,  │   │               gif (same sinks)   │
+│   RAF loop, InputToolRouter      │   │ dv2d bench    frame-time p50/p95/│
+│ TimelineControl : XAML           │   │               p99 vs budget      │
+│ Export dialog; Playback2DKeymap; │   │ --gpu | --cpu backend override   │
+│ selectable cards; XAML HUD (kept)│   └──────────────────────────────────┘
+└──────────────────────────────────┘
 ```
 
-Dependency direction is strictly downward: the module adapts `IPlaybackSnapshot`/tracker state into
+Dependency direction is strictly downward: Pipeline adapts `IPlaybackSnapshot`/tracker state into
 `Scene2DFrame`; Core turns `Scene2DFrame` into pixels. The on-screen control, the video exporter,
-and future highlight generation are three thin consumers of the same core.
+the CLI, and future highlight generation are four thin consumers of the same core. The CLI is also
+the foundation for batch/cloud highlight rendering later — it is the export session with argument
+parsing, nothing more.
 
 ---
 
@@ -226,7 +262,8 @@ transfers, `DrawingContext` calls become `SKCanvas` calls. Layer z-order is one 
 
 Text goes through a keyed `SKTextBlob`/`SKFont` cache (no per-frame `FormattedText`); marker/weapon
 glyphs become GPU-resident `SKImage` sprites; dry annotation ink and radar are `SKPicture`-cached
-per `LayerCacheHint`; the per-frame path is allocation-free.
+per `LayerCacheHint`; the per-frame path is allocation-free (§6 makes this a hard budget, not a
+guideline).
 
 ### 5.3 Cameras, levels, panes
 
@@ -320,12 +357,13 @@ Notes locked in by the review:
   `FromTick = CurrentTick`; anchored elements appear as markers on the timeline with drag handles to
   edit their envelope; per-element visibility mode (Always / Default fade / Custom), Kinovea-style
   style-stickiness (last used style becomes the default).
-- **Persistence:** JSON sidecar `<demo>.dvann.json` when the demo's directory is writable, else
-  app-data keyed by demo hash. Versioned schema, tolerant reader, unknown fields preserved. The file
-  records **demo identity (hash) and clock identity (DV frame clock)** so a re-parse with different
-  frame segmentation can detect rather than silently corrupt anchored strokes. Tool prefs (color,
-  width, last tool) go in a new binder-safe `Playback2DSettings` on `AppSettings` — and must be
-  added to `SettingsService.WriteInMemory` or WASM writes silently vanish.
+- **Persistence** (Pipeline's `AnnotationStore`): JSON sidecar `<demo>.dvann.json` when the demo's
+  directory is writable, else app-data keyed by demo hash. Versioned schema, tolerant reader,
+  unknown fields preserved. The file records **demo identity (hash) and clock identity (DV frame
+  clock)** so a re-parse with different frame segmentation can detect rather than silently corrupt
+  anchored strokes. Tool prefs (color, width, last tool) go in a new binder-safe
+  `Playback2DSettings` on `AppSettings` — and must be added to `SettingsService.WriteInMemory` or
+  WASM writes silently vanish.
 
 ### 5.5 Input tools
 
@@ -369,7 +407,7 @@ debounce + latest-wins coalescing absorb drag bursts, and LiveSync's 140 ms sett
 seek pipeline absorb them downstream — raw pushes are safe. `SeekToTick`'s linear scan becomes a
 binary search. **Expectation set by the review:** on long demos, drag-scrub over the debounced
 checkpoint replay will feel coarse; a checkpoint-density/near-playhead cache improvement should be
-expected to pull forward into the timeline phase rather than deferred (§9 risk 4).
+expected to pull forward into the timeline phase rather than deferred (§10 risk 4).
 
 ### 5.7 Export pipeline
 
@@ -395,6 +433,7 @@ public sealed record CameraScript;   // Fixed(transform) | FollowPlayer(steamId)
 public sealed class SceneExportSession
 {
     public Task RunAsync(ExportRequest req, ISceneFrameSource src, IFrameSink sink,
+        IRenderSurfaceProvider surfaces,            // CPU or GPU — §5.8
         IProgress<ExportProgress> progress, CancellationToken ct);
 }
 ```
@@ -402,22 +441,26 @@ public sealed class SceneExportSession
 Rules locked in by the review:
 
 - **Export never touches the shared app clock.** `RequestSeekToFrame` moves every module and any
-  LiveSync session. `TrackerFrameSource` owns a **private** tracker replay on a background thread,
-  reusing the shared checkpoint-replay seek core that already backs discrete seeks (extract it from
-  `MainViewModel`'s wiring rather than paying a from-zero replay to reach `StartFrame`; exact type
-  boundary to be confirmed at implementation — the review flagged that one proposal misnamed it).
+  LiveSync session. `TrackerFrameSource` (Pipeline) owns a **private** tracker replay on a
+  background thread, reusing the shared checkpoint-replay seek core that already backs discrete
+  seeks (extract it from `MainViewModel`'s wiring rather than paying a from-zero replay to reach
+  `StartFrame`; exact type boundary to be confirmed at implementation — the review flagged that one
+  proposal misnamed it).
 - Fixed timestep `dt = 1/fps` through the same layer stack (`RenderPurpose.Export`), rendering to an
-  `SKSurface`, `ReadPixels` → sink. Determinism is guaranteed by §5.1, verified by golden tests.
+  `SKSurface` from the provider, `ReadPixels` → sink. Determinism is guaranteed by §5.1, verified by
+  golden tests.
 - Export enables two Core HUD layers (`ClockLayer`, `KillFeedLayer` — cheap `SKTextBlob` draws fed
   by the same pre-built kill timeline as the XAML HUD) so clips look complete without capturing
   XAML. Snapshot tests pin export-HUD rows to the same VM data to prevent dual-HUD drift.
-- **Interlock:** runs under `HeavyJobGate` and **refuses to start** while a LiveSync session or reel
-  job is active (SyncEngine has no pause semantics; refusal is specifiable today).
+- **Interlock:** in-app export runs under `HeavyJobGate` and **refuses to start** while a LiveSync
+  session or reel job is active (SyncEngine has no pause semantics; refusal is specifiable today).
+  The CLI has no such constraint — it owns its whole process.
 - **Sinks and formats:** `FfmpegFrameSink` via FFMpegCore (MIT) piping rawvideo RGBA over stdin to
   an ffmpeg **subprocess** — the FSF "separate programs" posture keeps GPL clean. Defaults:
   **WebM/VP9** (`-c:v libvpx-vp9 -pix_fmt yuv420p -an`, present even in LGPL builds), MP4/H.264
   (`libx264 -crf`, needs GPL build) for compatibility, GIF via two-pass `palettegen`/`paletteuse`.
-  Presets 720p/1080p/map-native × 30/60 fps. Progress is frames-done based, cancel kills ffmpeg.
+  Presets 720p/1080p/map-native × 30/60/64 fps (64 = native tick rate, 1:1 frame-per-tick clips).
+  Progress is frames-done based, cancel kills ffmpeg.
 - **ffmpeg acquisition ladder:** `FfmpegDependency.Locate()` (existing) → download-on-demand pinned
   BtbN build with license text shown and source link → `ManagedGifSink` (ImageSharp, Apache-2.0 for
   OSS) as the no-ffmpeg floor. Never Xabe.FFmpeg (CC BY-NC-SA). Settings mirror `HighlightsSettings`.
@@ -425,11 +468,101 @@ Rules locked in by the review:
   WebCodecs + webm-muxer backend plugs in later (same WebM/VP9 output on both targets by design);
   a chunked ImageSharp GIF encode is the browser stretch goal after desktop ships.
 
+### 5.8 Render surface providers — headless and GPU-accelerated paths
+
+The seam that makes Core a runtime instead of a library. Every offscreen consumer (export, CLI,
+tests, thumbnails; on-screen fallback when the lease is absent) obtains surfaces through it:
+
+```csharp
+public enum RenderBackend { CpuRaster, OpenGl, Angle, Vulkan }
+
+public interface IRenderSurfaceProvider : IDisposable
+{
+    RenderBackend Backend { get; }
+    SKSurface CreateSurface(SKSizeI size);          // RGBA8888, premul
+    void Flush(SKSurface surface);                  // GPU: GRContext.Flush + submit; CPU: no-op
+}
+```
+
+- **`CpuSurfaceProvider`** — `SKSurface.Create(SKImageInfo)` raster. Always available, zero native
+  dependencies beyond SkiaSharp, runs anywhere including CI containers and WASM. It is the
+  **contract baseline**: golden images are authored on it, and every feature must be correct
+  (not necessarily fastest) on it.
+- **`GpuSurfaceProvider`** — a windowless `GRContext`-backed provider for desktop/CLI/CI-with-GPU.
+  Probe order (first success wins, chosen once per process, logged):
+  1. **Windows:** ANGLE over D3D11 via EGL pbuffer/surfaceless (ships with predictable behavior
+     across driver zoos; Avalonia itself uses ANGLE on Windows, so the native bits are familiar
+     territory), falling back to a hidden-context WGL path.
+  2. **Linux:** EGL surfaceless / GBM context (works on headless boxes with a GPU and in
+     GPU-enabled containers).
+  3. **macOS:** CPU initially; a Metal-backed `GRContext` is a later, isolated addition.
+  4. **Anywhere probing fails:** `CpuSurfaceProvider`, with the reason logged once.
+  The probe result is overridable everywhere it matters: `dv2d --gpu | --cpu`, an export-dialog
+  advanced option, and an env var for CI. The exact windowless-context stack (ANGLE binaries vs a
+  thin Silk.NET/OpenTK EGL binding vs SkiaSharp's Vulkan backend) is a **time-boxed spike at the
+  start of phase C2** — the provider interface is the commitment; the winning backend is not.
+- **Backend equivalence policy:** CPU goldens are authoritative. The GPU path is validated by
+  perceptual diff (per-channel tolerance + SSIM-style threshold), not byte equality — AA and
+  rounding legitimately differ between raster and GPU. A CI job with GPU runners runs the
+  perceptual suite; the byte-exact suite runs everywhere on CPU.
+- **On screen** the interactive path keeps using Avalonia's Skia lease (already GPU-composited);
+  providers are for surfaces *we* own. The two paths share all layer code, so a bug is visible in
+  both or in neither.
+
+**Why this matters beyond export:** `dv2d render` gives a sub-second edit-render-look loop for
+visual design work (render one tick of a fixture scene to PNG, no app launch); `dv2d bench` gives
+CI-enforceable frame-time numbers on both backends; and a future cloud highlight service is
+`SceneExportSession` + `GpuSurfaceProvider` on a Linux box — all three fall out of this seam.
+
 ---
 
-## 6. Feature designs
+## 6. Performance targets and budget
 
-### 6.1 Annotations
+The floor is set by the demo, not by the display: CS2 demos tick at 64 Hz, and a LiveSync-synced
+session must play back in real time without the renderer forcing dropped or coalesced frames.
+
+**Targets (baseline hardware: mid-tier laptop, integrated GPU, 1080p viewport):**
+
+| Metric | Floor | Target |
+|---|---|---|
+| Sustained scene-frame rate at 1× | **64 fps** (15.6 ms period) | 120+ fps headroom |
+| `Advance` (all layers, UI thread) | ≤ 2 ms | ≤ 1 ms |
+| `Render` (all panes, full scene: 10 players, trails, vision cones, area effects, annotations) | ≤ 8 ms | ≤ 4 ms |
+| Steady-state allocations per frame | **0 bytes** (post-warmup) | 0 bytes |
+| Export throughput, 1080p CPU | ≥ realtime (64 fps) | — |
+| Export throughput, 1080p GPU | — | ≥ 2× realtime |
+
+Clarifications so the numbers mean one thing:
+
+- **"No skipping" means the render pipeline is never the bottleneck.** At 1× on a ≥64 Hz display,
+  every tick renders. On a 60 Hz display, the compositor's refresh — not our frame time — is the
+  only coalescing that occurs. During LiveSync the servo can bend playback to 1.5× (≈96 decoded
+  ticks/sec); decode is sub-millisecond per frame (`AdvanceOneFrame`), and display coalescing to
+  refresh at >1× speeds is by design — the budget guarantees the *renderer* always keeps up.
+- **The budget is why the allocation discipline is a contract, not advice.** The known hot-path debt
+  (per-frame `FormattedText`/`Pen`/`StreamGeometry`, per-band LINQ) is eliminated during the port,
+  and the GC must be silent during playback — a gen-0 pause is a dropped frame at 64 fps.
+- **Vision overlay is the budget's biggest single consumer** (26 raycasts × alive players + pairwise
+  sightlines per frame). It ports as-is first; if it threatens the floor on baseline hardware, its
+  `Advance` moves off the UI thread (compute into the next frame's snapshot — the layer contract
+  already permits this) before any visual degradation is considered.
+
+**Enforcement (all in CI, all runnable locally):**
+
+- `dv2d bench --demo <fixture> --frames 2000 [--gpu|--cpu]` — plays a standard fixture demo through
+  the full compositor headlessly and reports frame-time p50/p95/p99 and allocated bytes/frame.
+  CI gates on p99 ≤ budget (CPU runner always; GPU runner where available).
+- BenchmarkDotNet micro-benchmarks for the hottest layers (markers, vision, annotation replay) —
+  the repo's `bench-reports/` + `tools/EntityMicroBench` precedent extends to render layers.
+- Allocation assertion: `GC.GetAllocatedBytesForCurrentThread()` measured across a 512-frame
+  headless run after warmup must be zero (test fails on any steady-state allocation).
+- A WASM frame-budget smoke test (relaxed budget, CPU path) keeps the browser target honest.
+
+---
+
+## 7. Feature designs
+
+### 7.1 Annotations
 `Draw`/`Erase` tools + `AnnotationDocument` + wet/dry `AnnotationLayer`; color/width picker as XAML
 chrome writing `AnnotationStyle` defaults into `Playback2DSettings`. Static = `TimeEnvelope.Static`;
 dynamic = stamped at `CurrentTick` with configurable envelope, editable on the timeline. Shape kit
@@ -437,18 +570,19 @@ from v1 schema (Freehand first; Line/Arrow/Rect/Ellipse/Text follow without sche
 `Kind` exists from day one). Entity-anchored elements give tracked telestration no video tool can
 match. Undo/redo: gesture marks, squash-to-mark, `BailToMark` on Esc.
 
-### 6.2 Video export
+### 7.2 Video export
 Export dialog builds `ExportRequest` (range from timeline selection or current round; camera
-Fixed/Follow/Mirror; layer toggles — annotations/vision/HUD on or off per export). Runs per §5.7.
-Later highlight generation = a `CameraScript` emitter over `GetEventTimeline` ranges + the same
-session; zero new rendering work.
+Fixed/Follow/Mirror; layer toggles — annotations/vision/HUD on or off per export). Runs per §5.7 on
+a provider from §5.8 (GPU when probed, CPU otherwise). The same request shape is scriptable from the
+CLI: `dv2d export`. Later highlight generation = a `CameraScript` emitter over `GetEventTimeline`
+ranges + the same session; zero new rendering work.
 
-### 6.3 Multi-level maps
+### 7.3 Multi-level maps
 `MapSpace` + `ILevelLayoutPolicy`. `StackedLayout` preserves today's all-floors view; `SingleLayout`
 adds a level strip (manual pick) and **AutoFollow** — switch to the followed player's level via
 `LevelFor(z)` with hysteresis. Explicit per-level radar binding with a visible no-radar state.
 
-### 6.4 Follow-player
+### 7.4 Follow-player
 The Attributes `ItemsControl` becomes selectable; selection sets `FollowedSlot` on the VM, which
 (a) drives `FollowPlayerRig` (deadzone + exponential settle) and auto level switching, and
 (b) calls the existing `NotifyFollowSlotChanged` → `NotifySpectateTarget` → LiveSync
@@ -456,7 +590,7 @@ The Attributes `ItemsControl` becomes selectable; selection sets `FollowedSlot` 
 name-based targeting keeps its known rename limitation until `SpectateBySteamId` is consumed
 upstream — surface SteamId through the chain when that capability reports true.
 
-### 6.5 Keybinds
+### 7.5 Keybinds
 Declarative `Playback2DKeymap` (action → gesture table, conflict-checked at registration,
 future-rebindable), bound on the focusable host: Space play/pause, ←/→ step, ↑/↓ speed, Q/E round
 nav, F follow-cycle, D draw, E erase, Esc exit/bail, Ctrl+Z / Ctrl+Shift+Z / Ctrl+X (CS:DM parity).
@@ -464,97 +598,120 @@ All playback mutations route through `PlaybackController` commands / capability-
 `IModuleContext.Request*` — the exact surfaces `SyncStateObserver` observes; a parallel path would
 silently bypass LiveSync. Must not collide with shell bindings (Ctrl+1..9, Ctrl+P/O/B/W).
 
-### 6.6 Timeline
+### 7.6 Timeline
 Per §5.6. Feature-gated chrome; markers only for events the demo has (`AvailableEventNames`).
 
-### 6.7 Feature gates
+### 7.7 Feature gates
 New `FeatureCatalog` entries, all `SubFeature` with `ParentId "tab.playback2d"` (cascade off with
 the tab, per-category defaults, user-overridable): `playback2d.annotations`, `playback2d.timeline`,
 `playback2d.levels.auto`, `playback2d.follow`, `playback2d.export` (additionally AND
 `!OperatingSystem.IsBrowser()`, like `chrome.livesync`). A gated-off feature's layers are skipped by
 the compositor and its tools/chrome hidden. **Ids are persisted keys — chosen once, never renamed.**
 `TabId "playback2d.viewport"` and `"tab.playback2d"` stay stable; bump `Playback2DModule.
-ContractVersion` for any additive context consumption.
+ContractVersion` for any additive context consumption. Feature gates govern the app; the CLI takes
+explicit flags instead (a headless tool shouldn't read UI feature state).
 
 ---
 
-## 7. WASM statement (explicit)
+## 8. WASM statement (explicit)
 
 Works fully in browser: core rendering (custom op under the browser compositor, WebGL2→WebGL1→
 software chain), annotations **in-session only**, levels, 2D follow, keybinds, timeline. Degraded or
 absent: annotation persistence (no filesystem — stated in UI as session-only), video export (gated
 off; WebCodecs sink later, chunked GIF as stretch), LiveSync/in-engine follow (hooks unset, already
-null-tolerated). The allocation-free render path is what keeps the single thread honest. Any new
-persisted settings keys must be added to `SettingsService.WriteInMemory`.
+null-tolerated), `GpuSurfaceProvider` (browser surfaces belong to Avalonia's compositor; the CPU
+provider is the only offscreen path there). The allocation-free render path is what keeps the single
+thread honest. Any new persisted settings keys must be added to `SettingsService.WriteInMemory`.
 
 ---
 
-## 8. Migration plan
+## 9. Migration plan
 
 **Kept as-is:** `ViewportTransform`, `SliceCamera`, `FloorSplitter` internals, `VisibilityAnalyzer`
-/ vision BVH, `MapAssetLoader` (decode retargeted `Bitmap`→`SKImage`), the entire VM data pipeline
-(`OnAdvanced` copy-out, kill timeline, bomb/clock derivation, ring tracker, map-asset lifecycle),
-XAML HUD, module registration/lifecycle, all of LiveSync, `PlaybackController`.
+/ vision BVH, `MapAssetLoader` decode logic (retargeted `Bitmap`→`SKImage`, moved to Pipeline), the
+entire VM data pipeline (`OnAdvanced` copy-out, kill timeline, bomb/clock derivation, ring tracker,
+map-asset lifecycle), XAML HUD, module registration/lifecycle, all of LiveSync, `PlaybackController`.
 **Ported mechanically:** every `DrawSection` helper's math into `ISceneLayer.Render`.
-**Extracted:** `BuildFrame` → `SceneFrameBuilder`; the checkpoint-replay seek core out of
+**Extracted:** `BuildFrame` → `SceneFrameBuilder` (Pipeline); the checkpoint-replay seek core out of
 `MainViewModel` wiring. **Rewritten:** the viewport control shell (input, band arithmetic,
 invalidation) → `Scene2DHost` + compositor; `ResolveRadarImage` → `MapSpace`.
 **Deleted:** nothing user-visible until parity is proven — the old control is retained one release
 behind an internal toggle.
 
-Two parallel tracks so the port is never a visible-progress desert:
+Three tracks. A ships user-visible wins immediately on the current control; B is the core port;
+C builds the headless/CLI/GPU surface on top of B and can run in parallel with B2–B4.
 
 | Track | Phase | Content | Exit criterion | Effort |
 |---|---|---|---|---|
 | **A (UX, on the *current* control — renderer-independent)** | A1 | `TimelineControl` + round/kill/bomb tracks; keymap + keybinds; selectable player cards → follow + spectate; binary-search `SeekToTick` | Scrub + keys + follow-by-card shipped | 1.5 wk |
-| **B (core)** | B0 | Core project; move structs; `SceneFrameBuilder` extraction; golden-image headless tests pinning current output | Frames buildable without VM; goldens green | 1.5 wk |
-| | B1 | Port 7 layers to `SKCanvas`; `Scene2DHost` + draw op + CPU fallback; `MapSpace`/panes replicating stacked bands; deterministic-time plumbing | Pixel-parity (± reviewed text metrics) vs B0 goldens; old control behind toggle | 3 wk |
+| **B (core)** | B0 | Core + Pipeline projects; move structs; `SceneFrameBuilder` + `CpuSurfaceProvider` + scene fixtures; golden-image tests pinning current output | Frames render to PNG with **zero Avalonia dependencies**; goldens green | 2 wk |
+| | B1 | Port 7 layers to `SKCanvas`; `Scene2DHost` + draw op + CPU fallback; `MapSpace`/panes replicating stacked bands; deterministic-time plumbing; allocation cleanup; `dv2d bench` harness + budget gates in CI | Pixel-parity (± reviewed text metrics) vs B0 goldens; p99 ≤ budget on CPU baseline; old control behind toggle | 3 wk |
 | | B2 | Annotations: document + deltas + undo, Draw/Erase tools, wet/dry layer, color picker, envelopes + timeline markers, sidecar + app-data persistence | Draw/erase/undo survive seek, zoom, level switch, tab deactivate | 2.5 wk |
 | | B3 | Levels: `SingleLayout`, level strip, AutoFollow + hysteresis, buffer resets; `AnnotationTrack` time-edit handles | Levels shipped | 1 wk |
-| | B4 | Export: seek-core extraction, `SceneExportSession`, ffmpeg sink + GIF floor, dialog, settings, gates, HUD layers + snapshot tests | 1080p round export ≥ realtime speed on desktop; cancel-safe; refuses under LiveSync | 2 wk |
+| | B4 | Export: seek-core extraction, `SceneExportSession`, ffmpeg sink + GIF floor, dialog, settings, gates, HUD layers + snapshot tests | 1080p round export ≥ realtime on CPU; cancel-safe; refuses under LiveSync | 2 wk |
 | | B5 | Polish: WASM verification pass, feature-flag audit, keybind conflict audit, docs, old-control removal (next release) | Release | 1 wk |
+| **C (headless/CLI/GPU — parallel with B2–B4)** | C1 | `dv2d` tool: `render` (single frame → PNG from demo or fixture), `export` (CLI front-end to the session), `bench` promoted from harness to command; fixture library for design iteration | A designer/dev renders any tick to PNG in <1 s without launching the app; CI uses `dv2d` for goldens + budgets | 1 wk |
+| | C2 | `GpuSurfaceProvider`: time-boxed backend spike (ANGLE/EGL vs native GL vs Vulkan), probe + override flags, perceptual-diff validation vs CPU goldens, GPU lane in CI where runners allow | GPU export ≥ 2× realtime at 1080p on a baseline dGPU/iGPU; CPU parity within perceptual tolerance | 1.5 wk |
 
-**Honest total: ~12.5 person-weeks** (the review explicitly corrected more optimistic estimates).
-Track A lands first and independently; every B phase ships behind its gate.
+**Honest total: ~15.5 person-weeks** (~12.5 on the A+B critical path; C overlaps B2–B4). Track A
+lands first and independently; every B phase ships behind its gate.
 
 ---
 
-## 9. Risk register
+## 10. Risk register
 
 | # | Risk | L | I | Mitigation |
 |---|---|---|---|---|
-| 1 | Port regresses visuals (esp. text metrics vs `FormattedText`) | H | M | B0 goldens gate B1 on the existing headless harness; old control retained one release behind toggle; text differences reviewed, not auto-failed |
-| 2 | Render-thread races against layer caches | M | H | Advance/Render purity split; render gate; ops consume immutable snapshots; SDK has no VM references; stress test in CI |
+| 1 | Port regresses visuals (esp. text metrics vs `FormattedText`) | H | M | B0 goldens gate B1 on the CPU provider; old control retained one release behind toggle; text differences reviewed, not auto-failed |
+| 2 | Render-thread races against layer caches | M | H | Advance/Render purity split; render gate; ops consume immutable snapshots; Core has no VM references; stress test in CI |
 | 3 | Export nondeterminism (wall-clock leak) | L | H | Banned-API architecture test in Core; all motion consumes injected `SceneTime`; golden export frames |
 | 4 | Scrub feel limited by debounced checkpoint re-seek on long demos | M | M | Ships with debounce + latest-wins; checkpoint-density/near-playhead cache expected to pull into Track A follow-up — treated as likely, not optional |
 | 5 | Level set shifts under floor-tagged annotations (`FloorSplitter` keeps learning) | H | L | `ZMin`-keyed level identity; `MapSpace` rebuild event remaps panes + annotations; never store slice index |
-| 6 | Dual HUD drift (XAML live vs Skia export) | M | L | Export HUD minimal, fed by identical VM data; snapshot tests |
-| 7 | ffmpeg licensing/distribution missteps | L | M | Subprocess-only (FSF separate-programs); WebM/LGPL default; license text + source link on download; never Xabe |
-| 8 | Export while LiveSync active corrupts sync | L | H | Private tracker + `HeavyJobGate` + hard refusal while a sync session or reel job is active |
-| 9 | Skia lease unavailable / API drift | M | M | CPU `SKSurface`→`WriteableBitmap` fallback always built = headless test path, can't rot |
-| 10 | Entity-anchored strokes break on roster reseed / slot recycling | M | M | Anchor by SteamId, resolve per frame; hide while unresolvable; `Playback2DRosterReseedTests` pattern extended |
-| 11 | WASM perf (single thread) | M | M | Allocation-free path, `SKPicture` caches, frame-budget test; export absent |
-| 12 | Undo scope creep | L | M | History lives only in `AnnotationDocument`; camera/playback/selection excluded by contract |
+| 6 | 64 fps floor missed on baseline hardware (vision overlay dominant) | M | M | Budget gates in CI from B1 (`dv2d bench` p99); allocation-zero contract; vision `Advance` moves off UI thread before any visual degradation; GPU path adds headroom |
+| 7 | Windowless GPU context flaky across drivers/CI | M | M | CPU provider is the contract baseline — GPU is opportunistic; ANGLE-first probe order; `--cpu` override everywhere; perceptual-diff (not byte) parity policy; C2 spike is time-boxed |
+| 8 | Dual HUD drift (XAML live vs Skia export) | M | L | Export HUD minimal, fed by identical VM data; snapshot tests |
+| 9 | ffmpeg licensing/distribution missteps | L | M | Subprocess-only (FSF separate-programs); WebM/LGPL default; license text + source link on download; never Xabe |
+| 10 | Export while LiveSync active corrupts sync | L | H | Private tracker + `HeavyJobGate` + hard refusal while a sync session or reel job is active (in-app; CLI owns its process) |
+| 11 | Entity-anchored strokes break on roster reseed / slot recycling | M | M | Anchor by SteamId, resolve per frame; hide while unresolvable; `Playback2DRosterReseedTests` pattern extended |
+| 12 | WASM perf (single thread) | M | M | Allocation-free path, `SKPicture` caches, frame-budget smoke test; export absent |
+| 13 | Undo scope creep | L | M | History lives only in `AnnotationDocument`; camera/playback/selection excluded by contract |
 
 ---
 
-## 10. Enforcement & testing
+## 11. Enforcement, testing, and the iteration loop
 
-- **Architecture test:** Core assembly references no Avalonia/parser types; no
-  `DateTime.Now`/`UtcNow`/`Stopwatch`/`Random` usage (banned-API scan).
-- **Golden-image tests:** existing headless Skia harness (`HeadlessSession`/`ZRadarRenderTests`
-  pattern) pins B0 output; B1 must match; export frames get their own goldens (they share the CPU
-  fallback path, so they run in CI without a GPU).
-- **Determinism test:** two export runs of the same request produce byte-identical frame hashes.
+- **Architecture tests:** Core references only SkiaSharp; Pipeline references Core + parser but no
+  Avalonia; no `DateTime.Now`/`UtcNow`/`Stopwatch`/`Random` in Core (banned-API scan).
+- **Direct-execution tests (no Avalonia platform at all):** scene-level unit/integration tests
+  construct `Scene2DFrame`s (or load `SceneFixture` JSON), run the compositor against the
+  `CpuSurfaceProvider`, and assert on pixels or geometry — no `HeadlessSession`, no window, no
+  dispatcher. This is strictly faster and less flaky than the current headless-Avalonia harness,
+  which remains only for tests that genuinely exercise the Avalonia host (`Scene2DHost` input,
+  lease path, XAML HUD).
+- **Golden-image tests:** CPU-provider goldens pin B0 output; B1 must match; export frames get
+  their own goldens. GPU output is validated against the same goldens by perceptual diff (§5.8).
+- **Determinism test:** two export runs of the same request produce byte-identical frame hashes
+  (per backend).
+- **Performance gates:** `dv2d bench` p50/p95/p99 vs the §6 budget on the CPU lane in every CI run,
+  GPU lane where runners allow; zero-allocation assertion over a 512-frame run; BenchmarkDotNet
+  micro-benches for hot layers reported to `bench-reports/`.
+- **The design-iteration loop:** `SceneFixture` files (a serialized `Scene2DFrame` + optional
+  annotation document + camera) live under `tests/fixtures/playback2d/`. `dv2d render --fixture
+  duel-mirage-b.json --out /tmp/f.png` re-renders in well under a second — tweaking a marker style,
+  a cone fill, or an ink outline becomes edit → render → look, with no app launch and no demo
+  parse. The same fixtures are the golden-test corpus, so iteration and regression coverage are the
+  same artifact.
 - **Behavioral tests carried forward:** interpolation snap/glide/prune, roster reseed, seek-push
   coalescing, floor validation probes — all keep passing against the new host.
 - **Snapshot tests:** export HUD rows vs XAML HUD data; annotation schema round-trip with unknown
   fields preserved.
 
-## 11. Open questions
+## 12. Open questions
 
 1. Exact extraction boundary of the checkpoint-replay seek core out of `MainViewModel` (the review
    found proposals disagreed on its current shape/name — confirm at implementation start).
-2. Whether `AnnotationTrack` envelope drag-editing lands in B2 or B3 (UX dependency on timeline).
-3. WebCodecs sink priority for WASM export — after desktop ships, gauge demand.
-4. Voice-audio sync (CS:DM's beloved feature) — natural future track/layer; out of scope here.
+2. Windowless GPU backend choice (ANGLE/EGL vs native GL vs SkiaSharp Vulkan) — resolved by the
+   time-boxed C2 spike; macOS Metal support is a separate later decision.
+3. Whether `AnnotationTrack` envelope drag-editing lands in B2 or B3 (UX dependency on timeline).
+4. WebCodecs sink priority for WASM export — after desktop ships, gauge demand.
+5. Voice-audio sync (CS:DM's beloved feature) — natural future track/layer; out of scope here.
