@@ -919,3 +919,133 @@ Additions:
 13. - [ ] Solution builds clean under `TreatWarningsAsErrors` with the new projects in the slnx, and
           `dotnet build src/App/DemoViewer.NET.Desktop -c Release` (the existing CI job) still passes
           with the new CPM entries.
+
+---
+
+## Implementation notes (deviations)
+
+Recorded per the phase ground rules. Every item is a deviation from the plan body or from the §3
+registry, with why. Nothing here was decided silently.
+
+1. **`HeadlessSceneRenderer`'s constructor drops `ILevelLayoutPolicy` and `MapSpace?`.**
+   The contract in *Public API contracts* is
+   `(IRenderSurfaceProvider, SceneCompositor, ILevelLayoutPolicy, MapSpace?)`, but **neither of those
+   two types exists at this commit** — B1 declares `MapSpace`/`ILevelLayoutPolicy` (registry §3.4) and
+   B0 shipped neither. As-built:
+   `HeadlessSceneRenderer(IRenderSurfaceProvider surfaces, SceneCompositor compositor,
+   bool ownsCompositor = false, bool ownsProvider = false)` plus settable `Camera`
+   (`ViewportTransform`) and `Palette` (`ScenePalette`) — a render context needs a transform and a
+   palette, and the sketched signature supplied neither. **B1 adds the layout/map parameters** when it
+   lands those types; the single-pane body is already isolated in `ContextFor`.
+
+2. **`--layout single` and `--level` exit 6 rather than rendering one pane.**
+   Same cause as (1). Accepting the flags and quietly rendering a single all-levels pane would produce
+   a golden captured "with `--level 1`" that in fact shows every level — the worst available outcome.
+   `SceneRenderPlan.RequireSingleLevelLayout` makes it an honest `ExitCode.EnvironmentUnavailable`
+   with the owning phase named. B1/B3 replace that method.
+
+3. **`TrackerFrameSource` does not declare `: ISceneFrameSource`.**
+   That interface is B4's (registry §3.8) and does not exist yet. The four members it names —
+   `FrameCount`, `TimeAt`, `FrameAt`, `Dispose` — are implemented with exactly the merged signature,
+   so **B4 adds the interface to the declaration and nothing else changes**. A comment on the type
+   says so.
+
+4. **C1 lands `TrackerSceneSnapshot` (`Pipeline/Frames/`), which registry §3.8 assigns to B4.**
+   `render --demo` and `fixture capture` cannot build a `Scene2DFrame` from an `EntityTracker` without
+   it, and B4 has not started. It is exactly the described shape: a pooled, re-aimed
+   `PawnLookup.ForEachLivePawn` join presenting `IReadOnlyList<IPlayerState>` +
+   `IReadOnlyEntityView`, mirroring the App's `ModuleContext` join field for field. Landing it here
+   rather than writing a throwaway avoids two competing adapters. **B4 consumes it as-is**; if B4
+   needs more (kill-feed injection, follow-slot plumbing), it extends this type.
+
+5. **C1 lands `MapAssetPipeline` + `LoadedMapAssets` (`Pipeline/Assets/`), listed in the plan's
+   Dependencies table as B0's.** B0 did not ship it. The explicit-root entry point the plan specifies
+   is honoured — `TryLoad(string assetsRoot, string mapName)` — but it returns a Pipeline
+   `LoadedMapAssets` (decoded `MapRadarImage` list + floors + bounds + `mapVersion`) rather than
+   `MapSpace?`, because `MapSpace` does not exist (see 1). `TryReadMapVersion` and
+   `TryLocateAssetsRoot` are additions the fixture/golden staleness check needs.
+
+6. **`SceneLayerCatalog` (`Pipeline/Headless/`) is new and unlisted.**
+   The CLI reads no feature gate (design §7.7), so the set of layers a render *can* contain has to be
+   enumerable from Pipeline. Today it registers B0's `DebugGridLayer` (which is `internal` to Core
+   with `InternalsVisibleTo` for Pipeline — no visibility was widened). **This is the single place B1
+   registers the real seven layers**; `--layers radar,markers` starts working with no CLI change.
+   `--layers` accepts bare or `playback2d.`-prefixed ids and always reports the prefixed form.
+
+7. **The bench measurement loop lives in `BenchCommand.Measure`, not in
+   `Pipeline.Benchmarking.ScenePipelineBenchmark`.** Registry §3.9 assigns the harness to B1 but pins
+   only the type *names*, not a single member signature — insufficient to compile a wrapper against —
+   and B1 is being built concurrently in another tree, so declaring those types here would guarantee a
+   merge collision. The plan's own T8 anticipates this ("if B1 has not landed, implement the loop
+   against `HeadlessSceneRenderer` directly and hand it to B1 to absorb"). The loop is marked as a
+   seam in the class doc-comment. **Merge action for B1: move
+   `Measure`/`FrameTimeStats`/`BenchResult` into `ScenePipelineBenchmark`/`BenchmarkReport`/
+   `FrameTimeStats` and have `BenchCommand` call it. The JSON shape and the gate stay here.**
+   `dv2d bench --gate` is fully functional in the meantime, which is what CI needs.
+
+8. **`dv2d export` is deferred (T11, risk R4) — exit 6 with a message naming the missing B4 types.**
+   No second encoder path was stubbed, per the plan's explicit instruction. `ExportCommand`'s
+   doc-comment spells out the body B4 fills in.
+
+9. **`--gpu` degrades to CPU with a printed reason instead of failing, unless `--strict-backend`.**
+   `BackendResolver` implements the §5.8 precedence ladder minus its `AppSettings` rung (a headless
+   tool reads no UI state, §7.7). **C2 replaces the single construction site with
+   `RenderSurfaceProviderFactory`.**
+
+10. **`golden verify` defaults to `perceptual`, not byte-exact.** The plan calls byte-exact the CPU
+    policy, but B0 had already committed its CPU goldens at `DefaultPerceptual` and documented why
+    (corpus README: "CPU rasterisation of anti-aliased edges can differ by a least-significant bit
+    between SIMD paths"). Rather than override that with a flag, tolerance became **per-entry
+    manifest data** (`"tolerance": "byte-exact" | "perceptual"`, default perceptual) with
+    `--tolerance` overriding globally. An entry opts into byte-exact once B1's embedded typeface makes
+    it safe. *Measured, for the record:* `dv2d` reproduces B0's three committed synthetic goldens
+    **byte-identically** (maxDelta 0, 0.0000% of pixels) — `golden update` left them unmodified in
+    git.
+
+11. **`GoldenCorpusEntry` gains `Tolerance`, `Notes`, `SceneRelativePath` and `CorpusDirectory` as
+    init-only properties.** The positional record signature from the plan is unchanged (so the
+    constructor is exactly as specified); the extra state is what `GoldenPath` and the manifest writer
+    need. `GoldenCorpus.Upsert` is an addition `fixture capture` requires.
+
+12. **`GoldenComparerTests` was not duplicated.** B0 already ships `GoldenImageComparerTests` in
+    `src/Playback2D/DemoViewer.NET.Playback2D.Tests` for the comparator it owns (correction 2c). C1's
+    test project covers `GoldenCorpus` instead (`GoldenCorpusTests`). One comparator, one test class.
+
+13. **The T6 font-determinism spike was not run.** It is time-boxed to compare a *text* draw across
+    Windows and the ubuntu CI image, and **no layer in this build draws text** — B0's smoke layer
+    deliberately does not, and B1's text layers have not landed. Running it would measure nothing.
+    The requirement it exists to file is already recorded on B1 (correction 3), and the corpus already
+    defaults to `perceptual` (see 10), which is the documented fallback. **B1 runs the spike when it
+    adds the first text layer.**
+
+14. **CI's budget gate passes `--budget-bytes-per-frame 4096`.** Design §6's allocation budget is 0
+    and the manifest says 0, but today's smoke layer allocates its `SKPaint`s inside `Render`
+    (measured: ~2.7 KB/frame), exactly as risk R6 predicted. The gate therefore runs against a stated
+    temporary ceiling rather than being switched off. `BenchAllocationTests` ships
+    `[Category("Budget")]` and the CI test step filters `Category!=Budget`. **The PR that closes B1's
+    allocation cleanup drops both the flag and the filter** — that is written in the workflow comment
+    and in `dv2d.md`.
+
+15. **Corpus contents differ from T5's six-fixture list.** Committed and green: `synthetic-empty`,
+    `synthetic-tenplayers`, `synthetic-utility` (B0's), plus C1's `fitmap-mirage-eco`,
+    `duel-mirage-b`, `bomb-planted-inferno` (hand-authored on real map coordinates and keyed to the
+    committed bundles) and `nuke-single-upper` (captured from `assets/tour/sample-de_nuke.dem` by
+    `dv2d fixture capture`). Seven scenes, seven CPU goldens. Registered but `pending`:
+    `nuke-multilevel` (B1's parity pair — its golden came from the pre-v2 control's two-pane
+    900x450-in-900x900 layout and cannot be reproduced single-pane), `annotated-mirage-b` (B2's
+    document), `full-scene-budget` (B1's worst-case 1080p bench scene). `pending` entries are skipped
+    by `golden verify` and `fixture verify`, and may have no scene file at all — documented in the
+    corpus README.
+
+16. **`RenderPurpose.Export` is used for every CLI render.** The sketched defaults say `Thumbnail`; a
+    headless tool is not drawing thumbnails, and one value across `render`/`golden`/`bench` is what
+    keeps a golden and a bench run drawing the same thing. No current layer reads `Purpose`, so this
+    changes no pixels today. **B1: if a layer starts branching on `Purpose`, the goldens re-baseline
+    once, deliberately.**
+
+17. **`Program.Main` maps `ArgumentException` to exit 3 (runtime failure).** The plan's table has no
+    row for it. Unknown-layer errors are converted to `CliUsageException` (exit 1) at the call site so
+    the common case still lands on the documented code.
+
+**Not implemented, with reasons:** `dv2d export` (8 — blocked on B4); the T6 spike (13 — nothing to
+measure yet); `--layout` / `--level` (2 — blocked on B1/B3); GPU rendering (9 — C2 owns it).
