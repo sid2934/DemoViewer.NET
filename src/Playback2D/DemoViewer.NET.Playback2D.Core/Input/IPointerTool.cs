@@ -184,6 +184,24 @@ public interface IToolServices
     bool TryResolveEntityAnchor(LevelPane pane, SKPoint world, float worldRadius,
         out ulong steamId, out float dx, out float dy);
 
+    /// <summary>
+    ///     Where an existing element's stored samples are actually DRAWN in this pane, as a world-space
+    ///     offset — the same resolution <c>AnnotationLayer</c> performs every frame.
+    ///     <para>
+    ///         Returns false when the element does not render in this pane at all: a
+    ///         <see cref="SpaceRef.World" /> anchored to another floor, or a
+    ///         <see cref="SpaceRef.Entity" /> whose player is absent or dead. That is what stops the
+    ///         eraser from deleting a callout the user cannot see — on a stacked map both floors are on
+    ///         screen at once, and the same world XY exists in both.
+    ///     </para>
+    /// </summary>
+    /// <param name="pane">The pane the pointer is in.</param>
+    /// <param name="element">The element being tested.</param>
+    /// <param name="offsetX">World X offset applied to the element's samples when drawn here.</param>
+    /// <param name="offsetY">World Y offset applied to the element's samples when drawn here.</param>
+    bool TryResolveDrawOffset(LevelPane pane, AnnotationElement element,
+        out float offsetX, out float offsetY);
+
     /// <summary>Asks the host to repaint. Coalesced by the host; safe to call per sample.</summary>
     void RequestRender();
 }

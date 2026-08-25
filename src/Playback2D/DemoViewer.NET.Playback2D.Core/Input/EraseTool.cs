@@ -60,7 +60,11 @@ public sealed class EraseTool : IPointerTool
     {
         ArgumentNullException.ThrowIfNull(s);
 
-        EraseAt(in e, s);
+        if (_gesture is not null)
+        {
+            EraseAt(in e, s);
+        }
+
         CloseGesture();
         _erased.Clear();
         s.RequestRender();
@@ -77,12 +81,44 @@ public sealed class EraseTool : IPointerTool
         s.RequestRender();
     }
 
+    // Only what the pane under the pointer actually DRAWS, at the position it draws it. Testing the
+    // whole document against the raw stored samples erased the other floor's callout from a band it was
+    // never visible in, could not reach an entity-anchored stroke where the user could see it, and
+    // deleted strokes their envelope had faded out entirely. Topmost-first: the document draws
+    // oldest-first, so the LAST element is the one the user means.
     private void EraseAt(in ToolPointerEvent e, IToolServices s)
     {
+        if (e.Pane is not { } pane)
+        {
+            return;
+        }
+
         AnnotationSession session = s.Session;
-        int count = AnnotationHitTester.HitTestAll(session.Document, e.World.X, e.World.Y,
-            session.EraserWorldRadius, _hits);
-        if (count == 0)
+        int tick = s.CurrentTick;
+        float radius = session.EraserWorldRadius;
+
+        _hits.Clear();
+        IReadOnlyList<AnnotationElement> elements = session.Document.Elements;
+        for (int i = elements.Count - 1; i >= 0; i--)
+        {
+            AnnotationElement element = elements[i];
+            if (element.Time.OpacityAt(tick) * element.Style.Opacity <= 0.001)
+            {
+                continue;
+            }
+
+            if (!s.TryResolveDrawOffset(pane, element, out float offsetX, out float offsetY))
+            {
+                continue;
+            }
+
+            if (AnnotationHitTester.HitTest(element, e.World.X - offsetX, e.World.Y - offsetY, radius))
+            {
+                _hits.Add(element.Id);
+            }
+        }
+
+        if (_hits.Count == 0)
         {
             return;
         }

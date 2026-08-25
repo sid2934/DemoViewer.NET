@@ -102,5 +102,49 @@ internal sealed class FakeToolServices : IToolServices
         return found;
     }
 
+    public bool TryResolveDrawOffset(LevelPane pane, AnnotationElement element,
+        out float offsetX, out float offsetY)
+    {
+        ArgumentNullException.ThrowIfNull(pane);
+        ArgumentNullException.ThrowIfNull(element);
+
+        offsetX = 0;
+        offsetY = 0;
+
+        switch (element.Space)
+        {
+            case SpaceRef.World world:
+                return pane.Space is not { Levels.Count: > 1 }
+                       || MapSpace.IdForZMin(world.LevelMinZ) == pane.LevelId;
+
+            case SpaceRef.Entity entity:
+            {
+                for (int i = 0; i < Markers.Count; i++)
+                {
+                    PlayerMarker marker = Markers[i];
+                    if (marker.SteamId != entity.SteamId || entity.SteamId == 0)
+                    {
+                        continue;
+                    }
+
+                    if (!marker.IsAlive)
+                    {
+                        return false;
+                    }
+
+                    InkPoint origin = element.Points.Count > 0 ? element.Points[0] : default;
+                    offsetX = marker.WorldX + entity.Dx - origin.X;
+                    offsetY = marker.WorldY + entity.Dy - origin.Y;
+                    return true;
+                }
+
+                return false;
+            }
+
+            default:
+                return false;
+        }
+    }
+
     public void RequestRender() => RenderRequests++;
 }

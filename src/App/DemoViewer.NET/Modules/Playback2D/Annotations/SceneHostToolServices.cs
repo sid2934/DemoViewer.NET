@@ -115,6 +115,66 @@ internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession 
         return found;
     }
 
+    /// <summary>
+    ///     Mirrors <c>AnnotationLayer</c>'s per-frame anchor resolution, so what the eraser can touch is
+    ///     exactly what the pane draws: a world anchor belongs to one level, and an entity anchor rides
+    ///     its player's live marker (hidden while absent or dead, §5.4).
+    /// </summary>
+    /// <param name="pane">The pane the pointer is in.</param>
+    /// <param name="element">The element being tested.</param>
+    /// <param name="offsetX">World X offset applied to the element's samples when drawn here.</param>
+    /// <param name="offsetY">World Y offset applied to the element's samples when drawn here.</param>
+    public bool TryResolveDrawOffset(LevelPane pane, AnnotationElement element,
+        out float offsetX, out float offsetY)
+    {
+        ArgumentNullException.ThrowIfNull(pane);
+        ArgumentNullException.ThrowIfNull(element);
+
+        offsetX = 0;
+        offsetY = 0;
+
+        switch (element.Space)
+        {
+            case SpaceRef.World world:
+                return pane.Space is not { Levels.Count: > 1 }
+                       || MapSpace.IdForZMin(world.LevelMinZ) == pane.LevelId;
+
+            case SpaceRef.Entity entity:
+            {
+                IReadOnlyList<PlayerMarker> markers = host.CurrentSceneFrame.Markers;
+                for (int i = 0; i < markers.Count; i++)
+                {
+                    PlayerMarker marker = markers[i];
+                    if (marker.SteamId != entity.SteamId || entity.SteamId == 0)
+                    {
+                        continue;
+                    }
+
+                    if (!marker.IsAlive)
+                    {
+                        return false;
+                    }
+
+                    if (pane.Space is { Levels.Count: > 1 } space
+                        && space.LevelIndexFor(marker.WorldZ) != pane.LevelIndex)
+                    {
+                        return false;
+                    }
+
+                    InkPoint origin = element.Points.Count > 0 ? element.Points[0] : default;
+                    offsetX = marker.WorldX + entity.Dx - origin.X;
+                    offsetY = marker.WorldY + entity.Dy - origin.Y;
+                    return true;
+                }
+
+                return false;
+            }
+
+            default:
+                return false;
+        }
+    }
+
     /// <inheritdoc />
     public void RequestRender() => host.RequestToolRender();
 }

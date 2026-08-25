@@ -37,6 +37,13 @@ public sealed class AnnotationSessionController : IDisposable
     private readonly AnnotationStore? _store;
     private readonly Lock _saveGate = new();
 
+    // Saves are SERIALIZED. Cancelling the debounce does not stop a save already inside the store's
+    // write, so a flush-on-deactivate immediately after a stroke could run concurrently with it: both
+    // wrote the same "<path>.tmp" and then raced to File.Move it, which can leave the OLDER snapshot on
+    // disk with nothing scheduled to correct it. Taking the snapshot inside this gate makes the last
+    // writer the newest one, by construction.
+    private readonly SemaphoreSlim _saveSerializer = new(1, 1);
+
     private bool _attached;
     private ClockIdentity _clock = ClockIdentity.Unknown;
     private CancellationTokenSource? _debounce;
@@ -44,6 +51,7 @@ public sealed class AnnotationSessionController : IDisposable
     private string? _demoPath;
     private bool _disposed;
     private IModuleFeatureGate? _features;
+    private int _lastSavedVersion = -1;
     private bool _loading;
 
     /// <summary>Creates a controller. Every dependency is optional so a headless test needs no container.</summary>
@@ -395,39 +403,68 @@ public sealed class AnnotationSessionController : IDisposable
             return;
         }
 
-        // Snapshot the elements on the calling thread: the document is UI-thread state, and handing the
-        // live list to an async write would race the next stroke.
+        // Snapshot the elements before waiting for the gate: the document is UI-thread state, and
+        // handing the live list to an async write would race the next stroke. The version stamp taken
+        // with it is what lets a slower writer stand down instead of putting a stale document on disk.
         AnnotationElement[] elements = [.. Session.Document.Elements];
+        int version = Session.Document.Version;
         string demoPath = _demoPath;
         ClockIdentity clock = _clock;
 
-        // Nothing to say, and nothing already on disk to correct: opening a demo must not litter a
-        // .dvann.json beside it. An EXISTING sidecar is still rewritten when the last stroke is erased —
-        // that is the user clearing their annotations, and it has to stick.
-        string? target = _store.ResolvePath(demoPath);
-        if (elements.Length == 0 && (target is null || !File.Exists(target)))
+        try
+        {
+            await _saveSerializer.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException)
         {
             return;
         }
 
-        DemoIdentity demo;
-        lock (_saveGate)
+        try
         {
-            _demo ??= AnnotationStore.IdentityFor(demoPath);
-            demo = _demo;
-        }
+            if (_disposed || version < _lastSavedVersion)
+            {
+                return; // a newer snapshot already reached the disk; this one would undo it
+            }
 
-        bool saved = await _store.SaveAsync(demoPath, demo, clock, elements, ct).ConfigureAwait(false);
-        if (ct.IsCancellationRequested)
+            // Nothing to say, and nothing already on disk to correct: opening a demo must not litter a
+            // .dvann.json beside it. An EXISTING sidecar is still rewritten when the last stroke is
+            // erased — that is the user clearing their annotations, and it has to stick.
+            string? target = _store.ResolvePath(demoPath);
+            if (elements.Length == 0 && (target is null || !File.Exists(target)))
+            {
+                return;
+            }
+
+            DemoIdentity demo;
+            lock (_saveGate)
+            {
+                _demo ??= AnnotationStore.IdentityFor(demoPath);
+                demo = _demo;
+            }
+
+            bool saved = await _store.SaveAsync(demoPath, demo, clock, elements, ct)
+                .ConfigureAwait(false);
+            if (ct.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (saved)
+            {
+                _lastSavedVersion = version;
+            }
+
+            SaveCount++;
+            StatusText = saved
+                ? "saved to " + (_store.ResolvePath(demoPath) ?? "?")
+                : "annotations could not be saved — session only";
+            StateChanged?.Invoke();
+        }
+        finally
         {
-            return;
+            _saveSerializer.Release();
         }
-
-        SaveCount++;
-        StatusText = saved
-            ? "saved to " + (_store.ResolvePath(demoPath) ?? "?")
-            : "annotations could not be saved — session only";
-        StateChanged?.Invoke();
     }
 
     private void CancelDebounce()

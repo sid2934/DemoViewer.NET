@@ -169,10 +169,19 @@ public sealed class AnnotationDocument
         }
     }
 
-    /// <summary>Undoes the newest history entry. Returns false when there is nothing to undo.</summary>
+    /// <summary>
+    ///     Undoes the newest history entry. Returns false when there is nothing to undo, <b>or while a
+    ///     gesture is open</b>.
+    ///     <para>
+    ///         Ctrl+Z is reachable from the keyboard while the pointer is captured mid-stroke. Undoing
+    ///         there popped the PREVIOUS entry, and the in-flight stroke's own <see cref="Apply" /> then
+    ///         cleared the redo stack — leaving the earlier stroke deleted with no way back. The open
+    ///         gesture is the user's current intent; history editing waits for it to finish.
+    ///     </para>
+    /// </summary>
     public bool Undo()
     {
-        if (_undo.Count == 0)
+        if (_gesture is not null || _undo.Count == 0)
         {
             return false;
         }
@@ -190,10 +199,13 @@ public sealed class AnnotationDocument
         return true;
     }
 
-    /// <summary>Redoes the newest undone entry. Returns false when there is nothing to redo.</summary>
+    /// <summary>
+    ///     Redoes the newest undone entry. Returns false when there is nothing to redo, or while a
+    ///     gesture is open (see <see cref="Undo" />).
+    /// </summary>
     public bool Redo()
     {
-        if (_redo.Count == 0)
+        if (_gesture is not null || _redo.Count == 0)
         {
             return false;
         }

@@ -456,9 +456,14 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
             IReadOnlyList<PointerPoint>? points = e.GetIntermediatePoints(this);
             if (points is not null)
             {
-                // Avalonia hands these back NEWEST-first; the ink wants oldest-first, and the primary
-                // point is appended by the tool after them. Skip index 0, which is this event's own.
-                for (int i = points.Count - 1; i >= 1; i--)
+                // Avalonia (11.3.12) returns the sub-frame history OLDEST-FIRST and appends THIS
+                // event's own point LAST — GetIntermediatePoints is literally
+                // "previous raw points ++ GetCurrentPoint". The ink wants oldest-first and the tool
+                // appends the primary point itself, so the list is walked forwards and the TRAILING
+                // entry is dropped. Walking it backwards folded every fast drag back on itself and
+                // duplicated the primary sample; pinned by
+                // Playback2DAnnotationHostTests.CoalescedSamples_ReachTheInk_OldestFirst_AndOnlyOnce.
+                for (int i = 0; i < points.Count - 1; i++)
                 {
                     PointerPoint point = points[i];
                     (double wx, double wy) = pane.Camera.Current.ScreenToWorld(

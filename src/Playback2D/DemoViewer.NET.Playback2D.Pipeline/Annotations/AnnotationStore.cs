@@ -41,6 +41,13 @@ public sealed class AnnotationStore
 
     private readonly string? _appDataRoot;
     private readonly Func<string, string> _demoKeyResolver;
+
+    // Every dictionary below is reached from BOTH the UI thread (ResolvePath, for the panel's status
+    // line) and a thread-pool thread (the debounced autosave, and LoadAsync's continuation). A plain
+    // Dictionary read racing a write does not merely lose an entry — it can spin forever inside bucket
+    // traversal — so all three live behind one gate. They are touched once per demo, never per frame.
+    private readonly Lock _state = new();
+
     private readonly Dictionary<string, bool> _writableByDirectory = new(StringComparer.OrdinalIgnoreCase);
 
     // Unknown JSON preserved from the last load of a given path, re-emitted on the next save so a v2
@@ -227,8 +234,11 @@ public sealed class AnnotationStore
             }
         }
 
-        _rootExtras[path] = dto.Extra ?? [];
-        _elementExtras[path] = elementExtras;
+        lock (_state)
+        {
+            _rootExtras[path] = dto.Extra ?? [];
+            _elementExtras[path] = elementExtras;
+        }
 
         return new AnnotationLoadResult(elements, location, path, false, clockMismatch, dto.SchemaVersion);
     }
@@ -255,9 +265,13 @@ public sealed class AnnotationStore
             return false;
         }
 
-        _rootExtras.TryGetValue(path, out Dictionary<string, JsonElement>? rootExtra);
-        _elementExtras.TryGetValue(path,
-            out Dictionary<Guid, Dictionary<string, JsonElement>>? elementExtras);
+        Dictionary<string, JsonElement>? rootExtra;
+        Dictionary<Guid, Dictionary<string, JsonElement>>? elementExtras;
+        lock (_state)
+        {
+            _rootExtras.TryGetValue(path, out rootExtra);
+            _elementExtras.TryGetValue(path, out elementExtras);
+        }
 
         AnnotationDocumentDto dto = new()
         {
@@ -360,8 +374,11 @@ public sealed class AnnotationStore
 
     private void Forget(string path)
     {
-        _rootExtras.Remove(path);
-        _elementExtras.Remove(path);
+        lock (_state)
+        {
+            _rootExtras.Remove(path);
+            _elementExtras.Remove(path);
+        }
     }
 
     // Probe once per directory per session and cache: probing on every save is slow on a network share,
@@ -373,13 +390,23 @@ public sealed class AnnotationStore
             return false;
         }
 
-        if (_writableByDirectory.TryGetValue(directory, out bool cached))
+        lock (_state)
         {
-            return cached;
+            if (_writableByDirectory.TryGetValue(directory, out bool cached))
+            {
+                return cached;
+            }
         }
 
+        // Probe OUTSIDE the gate: a create+delete on a dead network share can block for seconds, and
+        // holding the lock across it would stall the UI thread's status line behind an autosave.
+        // A concurrent duplicate probe is harmless — same answer, one extra temp file.
         bool writable = Probe(directory);
-        _writableByDirectory[directory] = writable;
+        lock (_state)
+        {
+            _writableByDirectory[directory] = writable;
+        }
+
         return writable;
     }
 

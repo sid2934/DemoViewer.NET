@@ -272,6 +272,165 @@ public class Playback2DAnnotationHostTests
         });
     }
 
+    /// <summary>
+    ///     <b>Coalesced pointer samples must reach the ink oldest-first, exactly once.</b>
+    ///     <para>
+    ///         Headless <c>MouseMove</c> carries no sub-frame history, so nothing else in this suite ever
+    ///         exercises the coalescing path — but a real 1000 Hz digitiser (and a plain mouse on a 60 Hz
+    ///         surface) delivers a dozen points per event. Avalonia 11.3.12's
+    ///         <c>GetIntermediatePoints</c> returns them OLDEST-FIRST with THIS event's own point
+    ///         appended LAST; consuming that list backwards, or keeping the trailing entry, folds the
+    ///         stroke back on itself on every fast drag.
+    ///     </para>
+    ///     <para>
+    ///         The event is built through the internal constructor by reflection precisely so this test
+    ///         pins Avalonia's real contract: an upstream flip in ordering fails here rather than
+    ///         shipping as a zig-zag nobody can reproduce.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task CoalescedSamples_ReachTheInk_OldestFirst_AndOnlyOnce()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Fixture f = Fixture.Create();
+            f.Vm.Annotations.SelectTool(ToolKind.Draw);
+            Playback2DTimelineHarness.Pump();
+
+            f.Window.MouseDown(f.HostPoint(200, 300), MouseButton.Left);
+            Playback2DTimelineHarness.Pump();
+            await Assert.That(f.Vm.Annotations.Session.Wet.IsActive).IsTrue();
+
+            // Three sub-frame samples between the press and this move, in the order they happened.
+            f.Host.RaiseEvent(PointerMoveWithHistory(f, [220, 240, 260], primary: 280, y: 300));
+            Playback2DTimelineHarness.Pump();
+
+            IReadOnlyList<InkPoint> samples = f.Vm.Annotations.Session.Wet.Points;
+            string xs = string.Join(",", samples.Select(p => p.X.ToString("F0",
+                System.Globalization.CultureInfo.InvariantCulture)));
+            Console.WriteLine($"[coalesced] world x = {xs}");
+
+            await Assert.That(samples.Count).IsEqualTo(5)
+                .Because("press + three coalesced + the primary point, with nothing duplicated");
+
+            for (int i = 1; i < samples.Count; i++)
+            {
+                await Assert.That(samples[i].X).IsGreaterThan(samples[i - 1].X)
+                    .Because("the pointer only ever moved right, so the ink must too");
+            }
+        });
+    }
+
+    // A real PointerMovedEvent carrying previous raw points. The 9-argument constructor is internal to
+    // Avalonia, so it is reached by reflection rather than re-implemented.
+    private static PointerEventArgs PointerMoveWithHistory(Fixture f, double[] historyX, double primary,
+        double y)
+    {
+        Type rawPoint = typeof(PointerPoint).Assembly.GetType("Avalonia.Input.Raw.RawPointerPoint")!;
+        Type listType = typeof(List<>).MakeGenericType(rawPoint);
+        System.Collections.IList history = (System.Collections.IList)Activator.CreateInstance(listType)!;
+        System.Reflection.PropertyInfo position = rawPoint.GetProperty("Position")!;
+
+        foreach (double x in historyX)
+        {
+            object point = Activator.CreateInstance(rawPoint)!;
+            position.SetValue(point, f.HostPoint(x, y));
+            history.Add(point);
+        }
+
+        Type readOnlyList = typeof(IReadOnlyList<>).MakeGenericType(rawPoint);
+        Type lazyType = typeof(Lazy<>).MakeGenericType(readOnlyList);
+        object lazy = Activator.CreateInstance(lazyType,
+            [Delegate.CreateDelegate(typeof(Func<>).MakeGenericType(readOnlyList), history,
+                listType.GetMethod("AsReadOnly")!)])!;
+
+        System.Reflection.ConstructorInfo ctor = typeof(PointerEventArgs)
+            .GetConstructors(System.Reflection.BindingFlags.Public
+                             | System.Reflection.BindingFlags.NonPublic
+                             | System.Reflection.BindingFlags.Instance)
+            .Single(c => c.GetParameters().Length == 9);
+
+        return (PointerEventArgs)ctor.Invoke([
+            InputElement.PointerMovedEvent, f.Host,
+            new Avalonia.Input.Pointer(1, PointerType.Mouse, isPrimary: true), f.Window,
+            f.HostPoint(primary, y), 0UL,
+            new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.Other),
+            KeyModifiers.None, lazy
+        ]);
+    }
+
+    /// <summary>
+    ///     Ctrl+X is bound while the pointer is captured mid-stroke, and "clear all" opens a gesture of
+    ///     its own — which <c>AnnotationDocument</c> refuses to nest, by design. The toolbar must stand
+    ///     down there rather than throw <c>InvalidOperationException</c> out of a key handler.
+    /// </summary>
+    [Test]
+    public async Task ClearAll_MidStroke_StandsDown_InsteadOfThrowing()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Fixture f = Fixture.Create();
+            f.DrawStroke();
+            await Assert.That(f.Document.Elements.Count).IsEqualTo(1);
+
+            f.FocusForKeys();
+            f.Window.MouseDown(f.HostPoint(200, 260), MouseButton.Left);
+            f.Window.MouseMove(f.HostPoint(240, 270));
+            Playback2DTimelineHarness.Pump();
+            await Assert.That(f.Vm.Annotations.Session.Wet.IsActive).IsTrue();
+
+            f.Vm.ExecuteAction(Playback2DAction.ClearAnnotations);
+            f.Vm.Annotations.PinToNowCommand.Execute(null);
+
+            f.Window.MouseUp(f.HostPoint(240, 270), MouseButton.Left);
+            Playback2DTimelineHarness.Pump();
+
+            await Assert.That(f.Document.Elements.Count).IsEqualTo(2)
+                .Because("the stroke in flight still commits; the clear was declined, not half-applied");
+            await Assert.That(f.Document.UndoDepth).IsEqualTo(2);
+        });
+    }
+
+    /// <summary>
+    ///     <b>Entity anchoring has to work against the frames the APP builds</b>, not only against
+    ///     hand-made ones. <c>PlayerMarker.SteamId</c> is the whole join key (design §5.4: slots recycle),
+    ///     and both halves of the feature short-circuit on zero — the tool refuses to capture an anchor,
+    ///     and the layer refuses to resolve one. A scene frame built without a slot→SteamId resolver
+    ///     therefore makes tracked telestration silently unreachable in the running app while every
+    ///     direct-execution test, which injects its own markers, stays green.
+    /// </summary>
+    [Test]
+    public async Task EntityAnchor_IsCapturedFromARealSceneFrame()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Fixture f = Fixture.Create();
+
+            ulong expected = f.Ctx.Roster.Single(p => p.Slot == 1).SteamId;
+            await Assert.That(expected).IsNotEqualTo(0ul);
+            await Assert.That(f.Host.CurrentSceneFrame.Markers.Select(m => m.SteamId))
+                .Contains(expected)
+                .Because("the scene builder must be told how to turn a roster slot into a SteamId");
+
+            PlayerMarker marker = f.Host.CurrentSceneFrame.Markers.Single(m => m.SteamId == expected);
+
+            f.Vm.Annotations.AnchorToEntities = true;
+            f.Vm.Annotations.SelectTool(ToolKind.Draw);
+            Playback2DTimelineHarness.Pump();
+
+            Point on = f.WorldToWindow(marker.WorldX, marker.WorldY);
+            f.Window.MouseDown(on, MouseButton.Left);
+            f.Window.MouseMove(new Point(on.X + 8, on.Y + 4));
+            f.Window.MouseUp(new Point(on.X + 8, on.Y + 4), MouseButton.Left);
+            Playback2DTimelineHarness.Pump();
+
+            await Assert.That(f.Document.Elements.Count).IsEqualTo(1);
+            await Assert.That(f.Document.Elements[0].Space).IsTypeOf<SpaceRef.Entity>();
+            await Assert.That(((SpaceRef.Entity)f.Document.Elements[0].Space).SteamId)
+                .IsEqualTo(expected);
+        });
+    }
+
     /// <summary>The ink actually reaches the surface — a captured frame, for eyeball review too.</summary>
     [Test]
     public async Task DrawnStroke_RendersOnTheSurface()

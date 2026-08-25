@@ -109,6 +109,83 @@ public class EraseToolTests
         await Assert.That(h.Document.UndoDepth).IsEqualTo(0);
     }
 
+    /// <summary>
+    ///     The eraser may only remove what the pane it is dragging in actually DRAWS. A stacked Nuke has
+    ///     both floors on screen at once and the same world XY in both, so a hit-test that ignores the
+    ///     pane's level deletes the other floor's callout from a band where it was never visible.
+    /// </summary>
+    [Test]
+    public async Task EraserOnOneFloor_LeavesTheOtherFloorsInkAlone()
+    {
+        (MapSpace space, PaneSet panes) = AnnotationFakes.Panes(new SKSize(600, 400),
+            new FloorSlice(-448, -384), new FloorSlice(-384, -128));
+
+        AnnotationDocument document = new();
+        AnnotationSession session = new(document) { EraserWorldRadius = 20f };
+        FakeToolServices services = new(session, panes);
+        EraseTool tool = new();
+
+        AnnotationElement lower = AnnotationFakes.Stroke(
+            space: new SpaceRef.World(MapSpace.QuantizeZ(-448)), x: 0, y: 0);
+        AnnotationElement upper = AnnotationFakes.Stroke(
+            space: new SpaceRef.World(MapSpace.QuantizeZ(-384)), x: 0, y: 0);
+        document.Reset([lower, upper]);
+
+        LevelPane lowerPane = panes.Panes[space.IndexOf(MapSpace.IdForZMin(MapSpace.QuantizeZ(-448)))];
+
+        tool.OnPressed(AnnotationFakes.Press(lowerPane, new SKPoint(0, 0)), services);
+        tool.OnReleased(AnnotationFakes.Press(lowerPane, new SKPoint(0, 0)), services);
+
+        await Assert.That(document.Elements.Count).IsEqualTo(1)
+            .Because("only the stroke the lower pane draws is erasable from the lower pane");
+        await Assert.That(document.Elements[0].Id).IsEqualTo(upper.Id);
+    }
+
+    /// <summary>
+    ///     An entity-anchored stroke is DRAWN at <c>marker + offset</c>, not at the coordinates it was
+    ///     authored with. The eraser has to test the same place, or a telestration is un-erasable where
+    ///     the user can see it and silently erasable where they cannot.
+    /// </summary>
+    [Test]
+    public async Task EntityAnchored_IsErasedWhereItIsDrawn_NotWhereItWasAuthored()
+    {
+        Harness h = new();
+        AnnotationElement stroke = AnnotationFakes.Stroke(
+            space: new SpaceRef.Entity(7ul, 0, 0), x: 0, y: 0);
+        h.Document.Reset([stroke]);
+
+        // The player has since walked to (500, 0), so the stroke is drawn there.
+        h.Services.Markers.Add(AnnotationFakes.Marker(7ul, 500, 0));
+
+        h.Press(0, 0);
+        h.Release(0, 0);
+        await Assert.That(h.Document.Elements.Count).IsEqualTo(1)
+            .Because("the authored coordinates are not where the stroke is any more");
+
+        h.Press(500, 0);
+        h.Release(500, 0);
+        await Assert.That(h.Document.Elements).IsEmpty()
+            .Because("the eraser must hit the stroke where the player is now");
+    }
+
+    /// <summary>You cannot erase what the envelope is not showing you.</summary>
+    [Test]
+    public async Task StrokeOutsideItsEnvelope_IsNotErased()
+    {
+        Harness h = new();
+        h.Services.CurrentTick = 5000;
+        h.Document.Reset([
+            AnnotationFakes.Stroke(time: new TimeEnvelope(100, 200, 0, 0), x: 0, y: 0)
+        ]);
+
+        h.Press(0, 0);
+        h.Release(0, 0);
+
+        await Assert.That(h.Document.Elements.Count).IsEqualTo(1)
+            .Because("at tick 5000 the stroke is invisible; erasing it would delete something unseen");
+        await Assert.That(h.Document.UndoDepth).IsEqualTo(0);
+    }
+
     private sealed class Harness
     {
         public Harness()

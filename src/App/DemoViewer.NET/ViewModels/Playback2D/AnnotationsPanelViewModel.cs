@@ -190,12 +190,17 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     /// <summary>
     ///     Clears every annotation as ONE undo entry — a mis-clicked "clear all" that could not be undone
     ///     would be the single most destructive button on the surface.
+    ///     <para>
+    ///         Declined while a gesture is in flight. Ctrl+X is bound with the pointer captured mid-stroke,
+    ///         and gestures deliberately do not nest — so opening one here threw
+    ///         <c>InvalidOperationException</c> straight out of a key handler.
+    ///     </para>
     /// </summary>
     [RelayCommand]
     private void ClearAll()
     {
         AnnotationDocument document = _controller.Document;
-        if (document.Elements.Count == 0)
+        if (document.Elements.Count == 0 || document.IsGestureOpen)
         {
             return;
         }
@@ -223,8 +228,10 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
         int tick = _currentTick();
         Visibility = EnvelopeMode.Fade;
 
+        // Re-timing an element mid-gesture would fold the edit into the in-flight stroke's undo entry,
+        // so one Ctrl+Z would take both. The default above still changes; the retro-pin waits.
         AnnotationDocument document = _controller.Document;
-        if (document.Elements.Count == 0)
+        if (document.Elements.Count == 0 || document.IsGestureOpen)
         {
             return;
         }

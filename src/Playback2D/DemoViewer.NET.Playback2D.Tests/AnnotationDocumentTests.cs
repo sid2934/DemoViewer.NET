@@ -29,6 +29,38 @@ public class AnnotationDocumentTests
         await Assert.That(doc.UndoDepth).IsEqualTo(1);
     }
 
+    /// <summary>
+    ///     Ctrl+Z is reachable from the keyboard while the pointer is captured mid-stroke. Undoing there
+    ///     used to pop the PREVIOUS entry, and then the stroke's own <see cref="AnnotationDocument.Apply" />
+    ///     cleared the redo stack — so the earlier stroke was gone with no way back. The open gesture is
+    ///     the user's current intent; history editing waits for it to finish.
+    /// </summary>
+    [Test]
+    public async Task Undo_DuringAnOpenGesture_IsRefused_AndLosesNothing()
+    {
+        AnnotationDocument doc = new();
+        AnnotationElement first = AnnotationFakes.Stroke();
+        doc.Apply(new DocDelta.Add(first, 0));
+
+        using (doc.BeginGesture("draw"))
+        {
+            await Assert.That(doc.Undo()).IsFalse();
+            await Assert.That(doc.Redo()).IsFalse();
+            doc.Apply(new DocDelta.Add(AnnotationFakes.Stroke(x: 500), 1));
+        }
+
+        await Assert.That(doc.Elements.Count).IsEqualTo(2);
+        await Assert.That(doc.UndoDepth).IsEqualTo(2);
+
+        await Assert.That(doc.Undo()).IsTrue();
+        await Assert.That(doc.Undo()).IsTrue();
+        await Assert.That(doc.Elements).IsEmpty();
+
+        await Assert.That(doc.Redo()).IsTrue();
+        await Assert.That(doc.Elements[0]).IsEqualTo(first)
+            .Because("nothing the open gesture did may destroy an earlier stroke's history");
+    }
+
     [Test]
     public async Task Gesture_ManyDeltas_SquashToOneUndoEntry()
     {

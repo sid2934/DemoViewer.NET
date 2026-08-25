@@ -1239,3 +1239,85 @@ Written at implementation time. Everything not listed here was built as the plan
     the UI context, and the payload is a small JSON file: the same trade
     `SettingsService.SaveSession` already makes on this thread. `FlushAsync` is still there for callers
     that have somewhere to await.
+
+### Review findings (independent reviewer, on top of `c82d516`)
+
+Six defects found by adversarial review, each pinned by a regression test that fails without the fix.
+
+28. **Coalesced pointer samples reached the ink BACKWARDS, with the oldest dropped and the primary one
+    duplicated.** `Scene2DHost.Translate` walked `GetIntermediatePoints` from the end, on the belief that
+    Avalonia returns it newest-first. It does not: verified against Avalonia 11.3.12 (a
+    `PointerEventArgs` built with three known previous points), `GetIntermediatePoints` is literally
+    *previous raw points ++ `GetCurrentPoint`* — **oldest-first, with THIS event's own point LAST**. The
+    shipped loop therefore emitted `[current, p₍n−1₎ … p₁]` and dropped `p₀`, and `DrawTool` then appended
+    the primary point again: every sub-frame batch zig-zagged and duplicated a sample. Invisible to the
+    whole suite, because headless `MouseMove` carries no sub-frame history — but a real 1000 Hz digitiser,
+    or a plain mouse on a 60 Hz surface, hits it on every fast drag. The plan's S1 spike is what this was
+    meant to settle. Fixed by walking forwards and dropping the trailing entry; pinned by
+    `Playback2DAnnotationHostTests.CoalescedSamples_ReachTheInk_OldestFirst_AndOnlyOnce`, which builds a
+    real event with history through Avalonia's internal constructor so an upstream ordering flip fails
+    here rather than shipping.
+
+29. **The eraser hit-tested the WHOLE document at the RAW stored coordinates.** `EraseTool` called
+    `AnnotationHitTester.HitTestAll`, which knows nothing about panes, levels or the clock. Three separate
+    consequences, all silent data loss: on a stacked two-floor map (Nuke — the phase's own fixture) both
+    panes show the same world XY, so erasing on the lower floor deleted the upper floor's callout from a
+    band it was never drawn in; an entity-anchored stroke is DRAWN at `marker + offset` but was TESTED at
+    its authoring coordinates, making it un-erasable where the user can see it and erasable at a phantom
+    location; and a stroke its envelope had faded to nothing was still erasable. `IToolServices` gains
+    **`TryResolveDrawOffset(LevelPane, AnnotationElement, out float, out float)`** — the same resolution
+    `AnnotationLayer` performs per frame, returning false when the element does not render in this pane at
+    all — and `EraseTool` now walks the elements topmost-first, skips anything the envelope has hidden,
+    and tests at `world − offset`. Pinned by `EraseToolTests.EraserOnOneFloor_LeavesTheOtherFloorsInkAlone`,
+    `.EntityAnchored_IsErasedWhereItIsDrawn_NotWhereItWasAuthored` and `.StrokeOutsideItsEnvelope_IsNotErased`.
+    *Carry-forward:* the offset rule now exists twice (layer + services). B3 should hoist it into one Core
+    helper before the level work makes them drift.
+
+30. **`Undo` during an open gesture destroyed the previous stroke, unrecoverably.** Ctrl+Z is bound
+    `Always` and the pointer being captured does not stop a key from arriving. Undoing mid-stroke popped
+    the PREVIOUS entry onto the redo stack; the in-flight stroke's own `Apply` then cleared that redo
+    stack on the next sample — leaving the earlier stroke deleted with no way back. `Undo`/`Redo` now
+    return false while `IsGestureOpen`: the gesture is the user's current intent, and history editing
+    waits for it to finish. Pinned by `AnnotationDocumentTests.Undo_DuringAnOpenGesture_IsRefused_AndLosesNothing`.
+
+31. **Ctrl+X mid-stroke threw `InvalidOperationException` out of a key handler.** "Clear all" opens a
+    gesture of its own, and gestures deliberately do not nest (D4) — so the guard that makes nesting a bug
+    detector became a crash on a bound keystroke. `ClearAll` and `PinToNow` now stand down while a gesture
+    is in flight. Pinned by `Playback2DAnnotationHostTests.ClearAll_MidStroke_StandsDown_InsteadOfThrowing`.
+
+32. **Entity-anchored ink could not work in the running app at all: `SceneFrameInput.SteamIdForSlot` was
+    never supplied.** Correction 4 added the resolver to the builder for exactly this feature, but
+    `Playback2DTabViewModel.BuildFrame` never passed one, so every real `PlayerMarker.SteamId` was 0 — and
+    both halves of the feature treat 0 as unresolvable, so the tool would not capture an anchor and the
+    layer would not draw one. Every direct-execution test stayed green because they all inject their own
+    markers. The roster already carries `PlayerRosterEntry.SteamId`; it is now cached slot-keyed in
+    `SeedRosterDisplay` alongside the name and handed to the builder. Pinned by
+    `Playback2DAnnotationHostTests.EntityAnchor_IsCapturedFromARealSceneFrame`, which asserts against the
+    frame the app itself builds.
+
+33. **Persistence: two threads, one dictionary, and one temp-file name.** `AnnotationStore`'s
+    writable-directory probe cache and its unknown-JSON memo are plain `Dictionary` instances reached from
+    both the UI thread (`ResolvePath`, for the panel's status line) and the thread pool (the debounced
+    autosave, `LoadAsync`'s continuation) — a read racing a write there can spin forever inside bucket
+    traversal, not merely lose an entry. They are now behind one `Lock`, with the probe itself left outside
+    it so a dead network share cannot stall the UI thread. Separately, cancelling the debounce does not
+    stop a save already inside the store's write, so a flush-on-deactivate immediately after a stroke could
+    run concurrently with it: both wrote the same `<path>.tmp` and raced to `File.Move` it, which can leave
+    the OLDER snapshot on disk with nothing scheduled to correct it. `AnnotationSessionController` now
+    serializes saves and stamps each snapshot with the document `Version`, so a slower writer stands down
+    instead of overwriting a newer document.
+
+**Verified, no change needed:** envelope opacity is frame-exact at both ramp edges and at zero-length
+fades; strokes on the wrong level do not render (`AnnotationNukeLevelTests`, real two-floor Nuke bands
+`-1562:[-100000..-528]` / `-8:[-528..100000]`); the ink layer allocates 0 B/frame steady-state when idle
+(second window 0 B over 512 Advance+Render frames) and the B1 budget lane is unchanged at 0 B/frame;
+`BailToMark` mid-gesture rolls back every delta with no undo entry, for both tools.
+
+**Carry-forwards for later phases**
+
+- **C1/B4:** entity anchoring is proved against synthetic frames and against ONE real Nuke frame; there is
+  no multi-frame real-demo seek test, because B2 has no `TrackerFrameSource` yet. Add one when C1 lands.
+- **B5:** the App builds `AnnotationStore` with the DEFAULT demo-key resolver, so the first autosave of a
+  session streams a full SHA-256 of the `.dem`. It is off the UI thread, so D11's hard rule holds, but D11
+  also asked the App to pass `DemoLibraryService`'s cached `(size, mtime)` hash and it does not.
+- **B3:** see 29 — one Core helper for the draw offset, consumed by both the layer and the tool services.

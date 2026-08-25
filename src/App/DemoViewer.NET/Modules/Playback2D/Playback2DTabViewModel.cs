@@ -97,6 +97,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     // Slot → display name from the stable roster. Rebuilt on activation.
     private readonly Dictionary<int, string> _nameBySlot = new();
+    private readonly Dictionary<int, ulong> _steamIdBySlot = new();
 
     private IModuleContext? _context;
 
@@ -1105,6 +1106,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private void SeedRosterDisplay()
     {
         _nameBySlot.Clear();
+        _steamIdBySlot.Clear();
         _attrsBySlot.Clear();
         Attributes.Clear();
 
@@ -1119,6 +1121,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         foreach (PlayerRosterEntry entry in _context.Players.OrderBy(p => p.Slot))
         {
             _nameBySlot[entry.Slot] = entry.Name;
+            _steamIdBySlot[entry.Slot] = entry.SteamId;
             PlayerAttributes attrs = new(entry.Slot)
             {
                 Name = entry.Name
@@ -1411,6 +1414,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             TickRate = _tickRate,
             CurtimeSeconds = _context?.CurtimeSeconds(tick) ?? tick / (double)(_tickRate > 0 ? _tickRate : 64),
             LabelForSlot = LabelFor,
+            SteamIdForSlot = SteamIdFor,
             MapName = _context?.MapName,
             KillFeed = _killRows,
             Radars = _radars,
@@ -1678,6 +1682,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     // Short marker label: player number (slot+1) if no name, else two-initials from the roster name.
+    // Slot → SteamId for the scene's markers. B2's entity-anchored ink joins on the SteamId and nothing
+    // else, because roster SLOTS RECYCLE across a demo (design §5.4) — and both halves of that feature
+    // treat 0 as "unresolvable", so without this the anchor can neither be captured nor drawn.
+    private ulong SteamIdFor(int slot) =>
+        _steamIdBySlot.TryGetValue(slot, out ulong steamId) ? steamId : 0;
+
     private string LabelFor(int slot)
     {
         if (_nameBySlot.TryGetValue(slot, out string? name) && !string.IsNullOrWhiteSpace(name))
