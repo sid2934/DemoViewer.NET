@@ -59,3 +59,19 @@ unaffiliated with Valve. No game assets are redistributed in the packages.
 This project depends on the following NuGet packages, each under its own license, resolved
 via NuGet and not reproduced here: Google.Protobuf, Snappier, YamlDotNet,
 Microsoft.Extensions.Logging.Abstractions, CS2OpenDev.Sdk.
+
+## d. Inter font (SIL Open Font License 1.1)
+
+`src/Playback2D/DemoViewer.NET.Playback2D.Core/Assets/Inter-Regular.ttf` is the Inter Regular
+typeface by Rasmus Andersson (<https://rsms.me/inter/>), redistributed under the
+[SIL Open Font License, Version 1.1](https://openfontlicense.org/). It is embedded in the
+Playback2D core assembly and used by `TextBlobCache` to draw scene labels.
+
+An embedded face is a correctness requirement, not a preference: the golden-image lane must
+rasterise identically on a developer's Windows machine and on the Linux CI runner, and
+`SKTypeface.Default` / a family-name lookup resolve to different fonts on each. The bytes were
+extracted from the `Avalonia.Fonts.Inter` package this repository already depends on, so the
+scene renders in the same face as the rest of the application.
+
+The OFL requires that the font not be sold by itself, that this notice accompany it, and that any
+modified version be renamed. This project redistributes it unmodified.

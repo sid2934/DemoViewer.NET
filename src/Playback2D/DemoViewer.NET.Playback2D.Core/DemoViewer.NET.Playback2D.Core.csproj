@@ -18,6 +18,17 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!--
+          The scene's typeface, embedded rather than resolved from the host (integrator correction 6).
+          SKTypeface.Default is "Segoe UI" on Windows and something else entirely on the ubuntu golden
+          lane, so a system face makes every text-bearing golden machine-specific. Licence notice:
+          THIRD-PARTY-NOTICES.md §d (SIL OFL 1.1).
+        -->
+        <EmbeddedResource Include="Assets\Inter-Regular.ttf"
+                          LogicalName="DemoViewer.NET.Playback2D.Core.Assets.Inter-Regular.ttf"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Pipeline"/>
         <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Tests"/>
     </ItemGroup>
