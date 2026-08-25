@@ -6,6 +6,7 @@
              xmlns:p2d="using:DemoViewer.NET.Modules.Playback2D"
              xmlns:controls="using:DemoViewer.NET.Controls"
              xmlns:tl="using:DemoViewer.NET.Views.Playback2D"
+             xmlns:scene="using:DemoViewer.NET.Playback2D.Core"
              controls:TutorialAnchor.Target="PlaybackTab"
              mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="650"
              x:Class="DemoViewer.NET.Views.Playback2D.Playback2DView"
@@ -181,7 +182,10 @@
                               HorizontalAlignment="Right"
                               IsVisible="{Binding ShowKillFeed}">
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:KillFeedEntry">
+                        <!-- Bound straight to the Core row record (B4 D5): the App's parallel KillFeedEntry
+                             is gone, so this feed and the exported hud.killfeed layer read the same rows
+                             produced by the same KillFeedTimeline.Window call. -->
+                        <DataTemplate x:DataType="scene:KillFeedRow">
                             <!-- Distinctly DARKER than the viewport background (Pb2dKillFeedBg, an opaque
                              near-black) so the strip reads as a HUD overlay over grid/markers, not
                              blended-in floating text. -->
@@ -189,7 +193,7 @@
                                     Margin="0,0,0,4"
                                     BorderBrush="{DynamicResource Pb2dKillFeedBorder}" BorderThickness="1">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
-                                    <TextBlock Text="{Binding KillerName}"
+                                    <TextBlock Text="{Binding Attacker}"
                                                Foreground="{DynamicResource Pb2dTextBrightest}"
                                                FontFamily="Consolas,Menlo,monospace" FontSize="11"
                                                VerticalAlignment="Center" />
@@ -198,29 +202,29 @@
                                                VerticalAlignment="Center" IsVisible="{Binding HasAssist}"
                                                ToolTip.Tip="assist">
                                         <Run Text="+" Foreground="{DynamicResource Pb2dTextDim}" />
-                                        <Run Text="{Binding AssisterName}" />
+                                        <Run Text="{Binding Assister}" />
                                     </TextBlock>
                                     <TextBlock Text="⚡" Foreground="{DynamicResource Pb2dFlashAssist}" FontSize="10"
                                                VerticalAlignment="Center"
-                                               IsVisible="{Binding IsFlashAssist}" ToolTip.Tip="flash assist" />
+                                               IsVisible="{Binding AssistedFlash}" ToolTip.Tip="flash assist" />
                                     <TextBlock Text="{Binding Weapon}" Foreground="{DynamicResource Pb2dPositive}"
                                                FontFamily="Consolas,Menlo,monospace" FontSize="11"
                                                VerticalAlignment="Center" />
                                     <TextBlock Text="HS" Foreground="{DynamicResource Pb2dHeadshot}" FontSize="10"
                                                FontWeight="Bold"
-                                               VerticalAlignment="Center" IsVisible="{Binding IsHeadshot}"
+                                               VerticalAlignment="Center" IsVisible="{Binding Headshot}"
                                                ToolTip.Tip="headshot" />
                                     <TextBlock Text="WB" Foreground="{DynamicResource Pb2dWallbang}" FontSize="10"
                                                FontWeight="Bold"
-                                               VerticalAlignment="Center" IsVisible="{Binding IsWallbang}"
+                                               VerticalAlignment="Center" IsVisible="{Binding Penetrated}"
                                                ToolTip.Tip="wallbang (penetration)" />
                                     <TextBlock Text="NS" Foreground="{DynamicResource Pb2dNoScope}" FontSize="10"
                                                FontWeight="Bold"
-                                               VerticalAlignment="Center" IsVisible="{Binding IsNoScope}"
+                                               VerticalAlignment="Center" IsVisible="{Binding NoScope}"
                                                ToolTip.Tip="no-scope" />
                                     <TextBlock Text="≈" Foreground="{DynamicResource Pb2dTextMid}" FontSize="12"
                                                VerticalAlignment="Center"
-                                               IsVisible="{Binding IsThroughSmoke}" ToolTip.Tip="through smoke" />
+                                               IsVisible="{Binding ThroughSmoke}" ToolTip.Tip="through smoke" />
                                     <TextBlock Text="✱" Foreground="{DynamicResource Pb2dGlyphBlind}" FontSize="11"
                                                VerticalAlignment="Center"
                                                IsVisible="{Binding AttackerBlind}" ToolTip.Tip="killer was blind" />
@@ -229,7 +233,7 @@
                                                IsVisible="{Binding AttackerInAir}" ToolTip.Tip="killer airborne" />
                                     <TextBlock Text="→" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11"
                                                VerticalAlignment="Center" />
-                                    <TextBlock Text="{Binding VictimName}"
+                                    <TextBlock Text="{Binding Victim}"
                                                Foreground="{DynamicResource Pb2dTextBright}"
                                                FontFamily="Consolas,Menlo,monospace" FontSize="11"
                                                VerticalAlignment="Center" />

@@ -151,6 +151,13 @@ public static class FeatureCatalog
             "playback2d.follow", FeatureScope.SubFeature, "Follow player",
             "Select a player card to follow them in the 2D camera (and in CS2 while Live Sync is active).",
             "tab.playback2d", null, false, Defaults(true, true, true)),
+        // Desktop only: an export writes a file and drives an ffmpeg subprocess, and the WASM head has
+        // neither. That AND lives in exactly ONE place — ShellModuleFeatureGate.DesktopOnlyIds — which is
+        // the same treatment chrome.livesync gets. Only the ID is a persisted key.
+        new(
+            "playback2d.export", FeatureScope.SubFeature, "Video export",
+            "Render the 2D playback to webm/mp4/gif. Desktop only.",
+            "tab.playback2d", null, false, Defaults(true, true, true)),
 
         // ---------------- CHROME (global; no ParentId → never cascaded) ----------------
         new(

@@ -1,7 +1,10 @@
 #region
 
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Core.Hud;
 using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D.Core.Vision;
 
 #endregion
 
@@ -118,8 +121,123 @@ public static class SceneLayerCatalog
     public static string Normalize(string id)
     {
         ArgumentNullException.ThrowIfNull(id);
-        return id.StartsWith(IdPrefix, StringComparison.Ordinal) ? id : IdPrefix + id;
+
+        // Any id that already carries a namespace is left alone. B4's HUD ids are "hud.clock" /
+        // "hud.killfeed" — deliberately not playback2d-prefixed, because they are HUD layers rather
+        // than 2D-playback overlays — and blindly prepending would invent "playback2d.hud.clock".
+        return id.Contains('.', StringComparison.Ordinal) ? id : IdPrefix + id;
     }
+
+    /// <summary>
+    ///     The ids <see cref="CreateSceneStack" /> can register: B1's seven scene layers plus B4's two
+    ///     opt-in HUD layers, in draw order.
+    /// </summary>
+    public static IReadOnlyList<string> SceneStackIds { get; } =
+    [
+        SceneLayerIds.Radar,
+        SceneLayerIds.Trails,
+        SceneLayerIds.AreaEffects,
+        SceneLayerIds.Vision,
+        SceneLayerIds.Markers,
+        SceneLayerIds.Bomb,
+        SceneLayerIds.FloorLabel,
+        SceneLayerIds.HudClock,
+        SceneLayerIds.HudKillFeed
+    ];
+
+    /// <summary>
+    ///     Builds the <b>full v2 scene stack</b> — what the window draws, plus the export HUD.
+    ///     <para>
+    ///         <b>Why this is a second entry point and not a bigger <see cref="Create" />.</b> Adding
+    ///         these to <see cref="_registrations" /> would change what <c>Create()</c> returns with no
+    ///         arguments, and that is what <c>dv2d render</c> and every committed CPU golden are built on:
+    ///         every golden in the corpus would move in a commit that is about video export. B1 folds the
+    ///         two tables together in the PR that re-baselines the corpus deliberately; until then this is
+    ///         the stack an export and <c>dv2d export</c> ask for by name.
+    ///     </para>
+    ///     <para>
+    ///         The two HUD layers are registered only when <paramref name="hud" /> is supplied and only
+    ///         when named in <paramref name="include" /> — an export never burns in a scoreboard by
+    ///         accident (<c>SceneExportSession.OptInLayerIds</c> enforces the same rule on the request).
+    ///     </para>
+    /// </summary>
+    /// <param name="include">Ids to register; null registers the seven scene layers and no HUD.</param>
+    /// <param name="exclude">Ids to subtract.</param>
+    /// <param name="vision">The line-of-sight solver, or null to draw no cones (the layer handles it).</param>
+    /// <param name="hud">The tick → HUD state function; null leaves the HUD layers unregistered.</param>
+    /// <param name="smoother">Shared marker smoothing; a private one when null.</param>
+    /// <exception cref="ArgumentException">An id is not in <see cref="SceneStackIds" />.</exception>
+    public static SceneCompositor CreateSceneStack(IReadOnlyList<string>? include = null,
+        IReadOnlyList<string>? exclude = null, IVisionSolver? vision = null, IHudDataSource? hud = null,
+        MarkerSmoother? smoother = null)
+    {
+        HashSet<string>? wanted = include is null
+            ? null
+            : new HashSet<string>(include.Select(Normalize), StringComparer.Ordinal);
+        HashSet<string> unwanted = exclude is null
+            ? []
+            : new HashSet<string>(exclude.Select(Normalize), StringComparer.Ordinal);
+
+        if (wanted is not null)
+        {
+            string[] unknown = [.. wanted.Where(id => !SceneStackIds.Contains(id, StringComparer.Ordinal))];
+            if (unknown.Length > 0)
+            {
+                throw new ArgumentException(
+                    $"unknown layer id(s): {string.Join(", ", unknown)}. " +
+                    $"Known: {string.Join(", ", SceneStackIds)}", nameof(include));
+            }
+        }
+
+        MarkerSmoother shared = smoother ?? new MarkerSmoother();
+        SceneCompositor compositor = new();
+
+        try
+        {
+            foreach (string id in SceneStackIds)
+            {
+                if (unwanted.Contains(id))
+                {
+                    continue;
+                }
+
+                // Null include = "the scene", not "everything": the HUD is opt-in by name.
+                bool isHud = id is SceneLayerIds.HudClock or SceneLayerIds.HudKillFeed;
+                if (wanted is null ? isHud : !wanted.Contains(id))
+                {
+                    continue;
+                }
+
+                if (isHud && hud is null)
+                {
+                    continue; // asked for, but nothing to feed it — draw nothing rather than an empty box.
+                }
+
+                compositor.Add(BuildLayer(id, vision, hud, shared));
+            }
+        }
+        catch
+        {
+            compositor.Dispose();
+            throw;
+        }
+
+        return compositor;
+    }
+
+    private static ISceneLayer BuildLayer(string id, IVisionSolver? vision, IHudDataSource? hud,
+        MarkerSmoother smoother) => id switch
+    {
+        SceneLayerIds.Radar => new RadarLayer(),
+        SceneLayerIds.Trails => new TrailLayer(),
+        SceneLayerIds.AreaEffects => new AreaEffectLayer(),
+        SceneLayerIds.Vision => new VisionLayer(vision, smoother),
+        SceneLayerIds.Markers => new MarkerLayer(smoother),
+        SceneLayerIds.Bomb => new BombLayer(),
+        SceneLayerIds.FloorLabel => new FloorLabelLayer(),
+        SceneLayerIds.HudClock => new ClockLayer(hud!),
+        _ => new KillFeedLayer(hud!)
+    };
 
     private sealed record Registration(string Id, Func<ISceneLayer> Create);
 }

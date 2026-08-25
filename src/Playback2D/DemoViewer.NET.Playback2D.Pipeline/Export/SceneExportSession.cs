@@ -73,6 +73,16 @@ public sealed class SceneExportSession
     public LevelDisplayMode DisplayMode { get; set; } = LevelDisplayMode.Stacked;
 
     /// <summary>
+    ///     The map bundle's nav-derived floor bands, when there is one. Bound exactly as
+    ///     <c>Scene2DHost</c> and <c>dv2d</c> bind them: without it the export derives its levels from the
+    ///     Z histogram alone, and a two-floor Nuke video would not have the bands the window shows.
+    /// </summary>
+    public IReadOnlyList<FloorSlice>? AuthoritativeFloors { get; set; }
+
+    /// <summary>The binder that gives each floor band its radar image, or null with no bundle.</summary>
+    public ILevelRadarBinder? RadarBinder { get; set; }
+
+    /// <summary>
     ///     The layers that are off unless <see cref="ExportRequest.LayerIds" /> names them explicitly.
     ///     Both HUD layers: an export that silently burned in a scoreboard would be a surprise.
     /// </summary>
@@ -151,6 +161,9 @@ public sealed class SceneExportSession
                 // hands on the same wheel.
                 AdvanceCameras = false
             };
+
+            renderer.Levels.SetAuthoritativeFloors(AuthoritativeFloors);
+            renderer.Levels.RadarBinder = RadarBinder;
 
             surface = surfaces.CreateSurface(req.Size);
             SKImageInfo readInfo = new(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);

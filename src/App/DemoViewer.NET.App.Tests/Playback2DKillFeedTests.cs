@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core;
 
 #endregion
 
@@ -28,18 +29,18 @@ public class Playback2DKillFeedTests
         ctx.Push(2, 1100);
         await Assert.That(vm.KillFeed.Count).IsEqualTo(2);
 
-        KillFeedEntry first = vm.KillFeed[0];
+        KillFeedRow first = vm.KillFeed[0];
         await Assert.That(first.Tick).IsEqualTo(1000);
-        await Assert.That(first.KillerName).IsEqualTo("Neo");
-        await Assert.That(first.VictimName).IsEqualTo("Smith");
+        await Assert.That(first.Attacker).IsEqualTo("Neo");
+        await Assert.That(first.Victim).IsEqualTo("Smith");
         await Assert.That(first.Weapon).IsEqualTo("ak47");
-        await Assert.That(first.IsHeadshot).IsTrue();
+        await Assert.That(first.Headshot).IsTrue();
 
-        KillFeedEntry second = vm.KillFeed[1];
-        await Assert.That(second.IsWallbang).IsTrue(); // Penetrated > 0
+        KillFeedRow second = vm.KillFeed[1];
+        await Assert.That(second.Penetrated).IsTrue(); // Penetrated > 0
         await Assert.That(second.HasAssist).IsTrue();
-        await Assert.That(second.AssisterName).IsEqualTo("Neo");
-        await Assert.That(second.IsFlashAssist).IsTrue();
+        await Assert.That(second.Assister).IsEqualTo("Neo");
+        await Assert.That(second.AssistedFlash).IsTrue();
     }
 
     [Test]

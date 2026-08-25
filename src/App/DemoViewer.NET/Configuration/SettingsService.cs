@@ -433,8 +433,25 @@ public sealed class SettingsService
                 settings.ProcessingQueue.MaxConcurrency.ToString(CultureInfo.InvariantCulture)),
             // Playback2D: every property of the section is flattened here. On WASM there is no file,
             // so a key missing from this list is a setting that silently forgets itself on reload.
+            // The export keys are included DELIBERATELY, even though playback2d.export is gated off on
+            // browser (B5 D3 overrides B4's original "exclude them" call): a desktop user's default
+            // format and output folder are written through the same code path, and an exclusion list
+            // that has to be kept in step with a feature gate is a bug waiting for the gate to move.
             new KeyValuePair<string, string?>("Playback2D:LegacyViewport",
-                settings.Playback2D.LegacyViewport ? "true" : "false")
+                settings.Playback2D.LegacyViewport ? "true" : "false"),
+            new KeyValuePair<string, string?>("Playback2D:ExportFormatId", settings.Playback2D.ExportFormatId),
+            new KeyValuePair<string, string?>("Playback2D:ExportFps",
+                settings.Playback2D.ExportFps.ToString(CultureInfo.InvariantCulture)),
+            new KeyValuePair<string, string?>("Playback2D:ExportWidth",
+                settings.Playback2D.ExportWidth.ToString(CultureInfo.InvariantCulture)),
+            new KeyValuePair<string, string?>("Playback2D:ExportHeight",
+                settings.Playback2D.ExportHeight.ToString(CultureInfo.InvariantCulture)),
+            new KeyValuePair<string, string?>("Playback2D:ExportOutputDirectory",
+                settings.Playback2D.ExportOutputDirectory),
+            new KeyValuePair<string, string?>("Playback2D:ExportIncludeHud",
+                settings.Playback2D.ExportIncludeHud ? "true" : "false"),
+            new KeyValuePair<string, string?>("Playback2D:ExportIncludeAnnotations",
+                settings.Playback2D.ExportIncludeAnnotations ? "true" : "false")
         };
 
         for (int i = 0; i < settings.Library.Folders.Length; i++)

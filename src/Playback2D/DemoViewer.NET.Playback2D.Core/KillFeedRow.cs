@@ -6,8 +6,9 @@ namespace DemoViewer.NET.Playback2D.Core;
 ///     <para>
 ///         This is the <b>one</b> declaration of the row shape: B4's <c>KillFeedTimeline.Window</c> and
 ///         its HUD layer operate on this record and must not redeclare it in Pipeline (registry
-///         correction 5). The App's <c>KillFeedEntry</c> stays separate because XAML DataTemplates bind
-///         to it; the view-model maps one to the other.
+///         correction 5). B4 also deleted the App's parallel <c>KillFeedEntry</c> and pointed the XAML
+///         feed's <c>DataTemplate</c> straight at this record (D5), so there is now exactly one row shape
+///         between the window, the view and the exported HUD.
 ///     </para>
 /// </summary>
 /// <param name="Tick">The DV frame clock the kill happened on.</param>
@@ -34,4 +35,8 @@ public readonly record struct KillFeedRow(
     bool ThroughSmoke,
     bool AttackerBlind,
     bool AttackerInAir,
-    bool AssistedFlash);
+    bool AssistedFlash)
+{
+    /// <summary>True when the kill had an assister — drives the "+name" chip's visibility in the XAML feed.</summary>
+    public bool HasAssist => !string.IsNullOrEmpty(Assister);
+}
