@@ -27,7 +27,10 @@ public sealed class Playback2DModule : IWorkspaceModule
     public string DisplayName => "2D Playback";
 
     // 1.1: consumes IModuleContext.MapName (additive) to select baked map assets.
-    public Version ContractVersion => new(1, 1, 0);
+    // 1.2: consumes the Playback2D v2 additive seams — TotalFrames, FrameIndexAtTick, EventFrames,
+    //      IsSpeedLocked, RequestSpeed and Features (the module feature-gate projection). One bump for the
+    //      whole v2 release; later phases consume the same six members without bumping again.
+    public Version ContractVersion => new(1, 2, 0);
 
     public IEnumerable<WorkspaceTabDescriptor> CreateTabs(IModuleHost host)
     {

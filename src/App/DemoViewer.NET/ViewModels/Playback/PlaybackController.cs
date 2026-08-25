@@ -272,21 +272,45 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
         NotifyFrameChanged?.Invoke(frameIndex);
     }
 
-    /// <summary>Selects the first frame whose server tick is at or after <paramref name="tick" />.</summary>
-    public void SeekToTick(int tick)
+    /// <summary>
+    ///     The frame index of the FIRST frame whose <c>ServerTick</c> is at or after
+    ///     <paramref name="tick" />, or -1 when no demo is loaded or every frame precedes it. O(log n)
+    ///     binary search (std lower_bound) over the frame list, which is tick-ordered by construction —
+    ///     the same invariant <c>TickBoundaries.FrameIndices</c> and the previous linear scan relied on.
+    ///     Pure: it moves nothing. The 2D timeline uses it to place tick-stamped event markers on the
+    ///     frame-index axis.
+    /// </summary>
+    public int FrameIndexAtTick(int tick)
     {
         if (_frames is not { } f)
         {
-            return;
+            return -1;
         }
 
-        for (int i = 0; i < f.Count; i++)
+        int lo = 0, hi = f.Count;
+        while (lo < hi)
         {
-            if (f[i].ServerTick >= tick)
+            int mid = lo + (hi - lo >> 1);
+            if (f[mid].ServerTick < tick)
             {
-                SeekToFrame(i);
-                return;
+                lo = mid + 1;
             }
+            else
+            {
+                hi = mid;
+            }
+        }
+
+        return lo < f.Count ? lo : -1;
+    }
+
+    /// <summary>Selects the first frame whose server tick is at or after <paramref name="tick" />.</summary>
+    public void SeekToTick(int tick)
+    {
+        int index = FrameIndexAtTick(tick);
+        if (index >= 0)
+        {
+            SeekToFrame(index);
         }
     }
 

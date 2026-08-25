@@ -71,6 +71,10 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     // Stable identity roster (slot / steamID / name, NO team).
     private List<PlayerRosterEntry> _roster = new();
 
+    // The host's speed-lock predicate (a Live Sync session without the plugin's timescale capability).
+    // Wired once by the shell via SetSpeedLock, exactly like SetLiveSyncHud. Null → never locked.
+    private Func<bool>? _speedLocked;
+
     public ModuleContext(
         PlaybackController controller,
         Func<string?> demoPath,
@@ -115,6 +119,31 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     public void RequestSeekToTick(int tick) => _controller.SeekToTick(tick);
     public void RequestPlay() => _controller.Play();
     public void RequestPause() => _controller.Pause();
+
+    // ── Timeline / transport seams (Playback2D v2 A1) ──
+    public int TotalFrames => _controller.TotalFrames;
+    public int FrameIndexAtTick(int tick) => _controller.FrameIndexAtTick(tick);
+
+    public IReadOnlyList<int> EventFrames(string eventName) =>
+        _navigator is not null && eventName is not null
+        && _navigator.EventBoundaryFramesByName.TryGetValue(eventName, out int[]? frames)
+            ? frames
+            : Array.Empty<int>();
+
+    public bool IsSpeedLocked => _speedLocked?.Invoke() ?? false;
+
+    // Clamp-free: the controller clamps in OnSpeedChanged. A locked session refuses outright rather than
+    // letting a module keystroke desync a Synced game.
+    public void RequestSpeed(double speed)
+    {
+        if (!IsSpeedLocked)
+        {
+            _controller.Speed = speed;
+        }
+    }
+
+    /// <inheritdoc />
+    public IModuleFeatureGate? Features { get; private set; }
 
     // Phase E forward-nav — delegate to the shell-owned navigator (the seek lands on the shared clock and
     // re-publishes to every module). null navigator (test harness) → empty set / no-op.
@@ -213,6 +242,16 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     ///     gate + session state through <see cref="ILiveSyncHudState.IsActive" />, so this is never cleared.
     /// </summary>
     public void SetLiveSyncHud(ILiveSyncHudState? hud) => LiveSyncHud = hud;
+
+    /// <summary>
+    ///     Wires the host's speed-lock predicate (mirrors <see cref="SetLiveSyncHud" />). A module's speed
+    ///     keys must honour the SAME lock the NavStrip speed ComboBox binds its <c>IsEnabled</c> to — a
+    ///     parallel path would let a keypress desync a Synced session.
+    /// </summary>
+    public void SetSpeedLock(Func<bool>? isLocked) => _speedLocked = isLocked;
+
+    /// <summary>Sets the shell's feature projection once at composition (mirrors <see cref="SetLiveSyncHud" />).</summary>
+    public void SetFeatures(IModuleFeatureGate? features) => Features = features;
 
     /// <summary>
     ///     Sets the shared game-clock calibration on demo load (mirrors <see cref="SetRoster" />). The

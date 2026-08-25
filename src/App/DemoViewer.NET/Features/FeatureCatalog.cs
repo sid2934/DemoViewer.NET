@@ -138,6 +138,20 @@ public static class FeatureCatalog
             "tab.analysis", GroupGraphDebug, false,
             Defaults(false, false, true)),
 
+        // ---------------- 2D PLAYBACK v2 SUB-FEATURES ----------------
+        // One contiguous block so the rows read as one group in Settings. Every entry keeps GroupId = null,
+        // so the parserDeepDive / graphDebug leader-lock ordering above is untouched. Later v2 phases insert
+        // their own rows HERE (final order: annotations · timeline · levels.auto · follow · export) — the ids
+        // are persisted override keys and must never be renamed.
+        new(
+            "playback2d.timeline", FeatureScope.SubFeature, "Playback timeline",
+            "Scrubbable round / kill / bomb timeline under the 2D playback view.",
+            "tab.playback2d", null, false, Defaults(true, true, true)),
+        new(
+            "playback2d.follow", FeatureScope.SubFeature, "Follow player",
+            "Select a player card to follow them in the 2D camera (and in CS2 while Live Sync is active).",
+            "tab.playback2d", null, false, Defaults(true, true, true)),
+
         // ---------------- CHROME (global; no ParentId → never cascaded) ----------------
         new(
             "chrome.debugger", FeatureScope.Chrome, "Debugger rail",

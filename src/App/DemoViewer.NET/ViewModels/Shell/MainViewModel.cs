@@ -325,6 +325,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly string? _tourSamplePath;
     private ModuleContext? _moduleContext;
 
+    // The module-facing feature projection handed to _moduleContext. Held so its gate subscription is
+    // detached on shell teardown (it outlives no tab; the shell owns it).
+    private ShellModuleFeatureGate? _moduleFeatures;
+
     // Keyed by game-event userid; built from PlayerConnectEvent (more reliable than binary string-table parsing in CS2).
     // Populated by PlayerSnapshotBuilder.BuildNameLookups on file load — primary
     // for nameByUserId is parsed.Players (string-table), secondary is PlayerConnectEvents.
@@ -1906,6 +1910,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _library.Dispose();
         SelectedTab?.Deactivate();
         _moduleContext?.Dispose();
+        _moduleFeatures?.Dispose();
         Playback.Dispose();
         // Detach the STATIC unknown-message-type handler — otherwise this VM is pinned for the
         // process lifetime and a subsequent shell would leak alongside it.
@@ -2168,6 +2173,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             Playback,
             () => _loadedDemoPath,
             Navigator); // Phase E: modules drive "jump to next event of my type" through the shared navigator
+
+        // The 2D tab's ↑/↓ speed keys must honour the same Live Sync speed lock the NavStrip speed
+        // ComboBox binds its IsEnabled to (IsPlaybackSpeedLocked) — a parallel path would let a keypress
+        // desync a Synced session.
+        _moduleContext.SetSpeedLock(() => IsPlaybackSpeedLocked);
+
+        // The module-facing feature projection (the ONE gate seam a module reads). Wired here rather than
+        // in the composition root because _moduleContext is shell-private; the shell already holds the gate.
+        _moduleFeatures = new ShellModuleFeatureGate(_gate);
+        _moduleContext.SetFeatures(_moduleFeatures);
 
         // Ensure the built-in tabs are registered (idempotent by Id) even if the composition root
         // passed a registry without them, so the shell always has its four tabs.

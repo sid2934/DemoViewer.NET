@@ -161,4 +161,46 @@ public interface IModuleContext
     ///     / test doubles that don't expose a demo.
     /// </summary>
     IReadOnlyList<GameEventView> GetEventTimeline(string eventName) => Array.Empty<GameEventView>();
+
+    // ── Timeline / transport seams (Playback2D v2 A1) ──
+    // All additive with default implementations, so every existing host and hand-rolled test double keeps
+    // compiling untouched.
+
+    /// <summary>Total frames in the loaded demo, 0 when none. The timeline's x-axis domain.</summary>
+    int TotalFrames => 0;
+
+    /// <summary>
+    ///     First frame index at/after <paramref name="tick" />, or -1 when unknown / past the end.
+    ///     Binary search on the host; the seam that lets a module place tick-stamped events on the
+    ///     frame-index movement axis without re-scanning frames.
+    /// </summary>
+    int FrameIndexAtTick(int tick) => -1;
+
+    /// <summary>
+    ///     Sorted, de-duplicated FRAME indices carrying <paramref name="eventName" /> — the module-facing
+    ///     projection of the shell's SemanticNavigator index (the same array its Next/Prev use). Empty
+    ///     when the demo lacks the event or the host exposes no navigator.
+    /// </summary>
+    IReadOnlyList<int> EventFrames(string eventName) => Array.Empty<int>();
+
+    /// <summary>
+    ///     True while playback speed is pinned by the host (a Live Sync session without the plugin's
+    ///     timescale capability). A module surfaces the lock rather than fighting it.
+    /// </summary>
+    bool IsSpeedLocked => false;
+
+    /// <summary>
+    ///     Requests a playback-speed change (capability-gated; clamped host-side to [0.25, 8]).
+    ///     No-op while <see cref="IsSpeedLocked" />.
+    /// </summary>
+    void RequestSpeed(double speed)
+    {
+    }
+
+    /// <summary>
+    ///     The live feature-gate projection, or <c>null</c> for a host / test double that does not
+    ///     gate. <b>Null fails OPEN.</b> The shell folds platform ANDs (desktop-only ids) in on its
+    ///     side, so a module never re-derives them.
+    /// </summary>
+    IModuleFeatureGate? Features => null;
 }
