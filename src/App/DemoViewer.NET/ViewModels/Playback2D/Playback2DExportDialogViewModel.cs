@@ -138,7 +138,7 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
         _includeHud = seed.ExportIncludeHud;
         _includeAnnotations = seed.ExportIncludeAnnotations;
         _selectedSize = SizePresets.FirstOrDefault(s => s.Width == seed.ExportWidth && s.Height == seed.ExportHeight)
-                        ?? SizePresets[1];
+                        ?? SizePresets[0];
         _customWidthText = seed.ExportWidth.ToString(CultureInfo.InvariantCulture);
         _customHeightText = seed.ExportHeight.ToString(CultureInfo.InvariantCulture);
         _outputPath = BuildDefaultPath(seed);
@@ -148,7 +148,11 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
         UpdateValidation();
     }
 
-    /// <summary>The output size presets. All even, so no preset can trip the yuv420p rule.</summary>
+    /// <summary>
+    ///     The output size presets. All even, so no preset can trip the yuv420p rule. 720p leads because
+    ///     it is the one that exports faster than the clip plays on a CPU — see
+    ///     <see cref="Playback2DSettings.ExportWidth" /> for the measurement.
+    /// </summary>
     public static IReadOnlyList<ExportSizeOption> SizePresets { get; } =
     [
         new("720p (1280×720)", 1280, 720),

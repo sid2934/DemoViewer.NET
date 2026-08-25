@@ -412,11 +412,20 @@ public sealed class Playback2DSettings
     /// <summary>Default export frame rate. Must be one of the format's supported values.</summary>
     public int ExportFps { get; set; } = 60;
 
-    /// <summary>Default export width in pixels. Even, for the yuv420p formats.</summary>
-    public int ExportWidth { get; set; } = 1920;
+    /// <summary>
+    ///     Default export width in pixels. Even, for the yuv420p formats.
+    ///     <para>
+    ///         <b>720p, not 1080p</b> — B4 risk R3's third lever, taken on measurement. On
+    ///         <c>assets/tour/sample-de_nuke.dem</c> with the shipped layer set and WebM/VP9, a CPU export
+    ///         runs at 109.8 fps at 1280×720 (1.83× realtime at 60 fps) and 58.4 fps at 1920×1080
+    ///         (0.97×). 1080p is still one click away and still perfectly usable; it is simply not a
+    ///         default that can promise "faster than watching it".
+    ///     </para>
+    /// </summary>
+    public int ExportWidth { get; set; } = 1280;
 
-    /// <summary>Default export height in pixels. Even, for the yuv420p formats.</summary>
-    public int ExportHeight { get; set; } = 1080;
+    /// <summary>Default export height in pixels. Even, for the yuv420p formats. See <see cref="ExportWidth" />.</summary>
+    public int ExportHeight { get; set; } = 720;
 
     /// <summary>Where exports are written. Empty means the user's Videos folder.</summary>
     public string ExportOutputDirectory { get; set; } = string.Empty;

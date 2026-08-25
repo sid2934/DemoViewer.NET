@@ -118,12 +118,27 @@ public class ProgramDispatchTests
         await Assert.That(run.StdErr).Contains("level model");
     }
 
+    /// <summary>
+    ///     B4 landed, so <c>export</c> is a real verb. It now fails the way every other command does when
+    ///     the demo is missing — a runtime failure naming the file — rather than the exit 6 that used to
+    ///     mean "this verb does not exist yet". Replacing the assertion rather than deleting the case
+    ///     keeps the dispatch path covered.
+    /// </summary>
     [Test]
-    public async Task Export_IsDeferredToB4_WithExitSix()
+    public async Task Export_WithAMissingDemo_FailsNamingTheFile()
     {
         CliRun run = Dv2d.InProcess("export", "--demo", "whatever.dem", "--from", "0", "--to", "10");
 
-        await Assert.That(run.ExitCode).IsEqualTo(6);
-        await Assert.That(run.StdErr).Contains("B4 export session");
+        await Assert.That(run.ExitCode).IsNotEqualTo(0);
+        await Assert.That(run.StdErr).Contains("whatever.dem");
+    }
+
+    [Test]
+    public async Task Export_WithoutADemo_IsAUsageError()
+    {
+        CliRun run = Dv2d.InProcess("export");
+
+        await Assert.That(run.ExitCode).IsEqualTo(1);
+        await Assert.That(run.StdErr).Contains("--demo");
     }
 }

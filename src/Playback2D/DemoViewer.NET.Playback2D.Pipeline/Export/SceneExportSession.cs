@@ -1,7 +1,6 @@
 #region
 
 using System.Buffers;
-using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using DemoViewer.NET.Playback2D.Core;
@@ -83,6 +82,15 @@ public sealed class SceneExportSession
     public ILevelRadarBinder? RadarBinder { get; set; }
 
     /// <summary>
+    ///     Whether the radar image is resampled once and blitted thereafter, rather than re-resampled per
+    ///     frame. On for an export, and the single biggest thing between this loop and its ≥ realtime
+    ///     budget — see <c>RadarLayer.CacheScaledImage</c> for the measurement and for what it costs
+    ///     (a sub-pixel difference against the pre-v2 parity reference, which is why the flag is off
+    ///     everywhere else). Turn it off to render an export through exactly the window's draw path.
+    /// </summary>
+    public bool CacheRadarResample { get; set; } = true;
+
+    /// <summary>
     ///     The layers that are off unless <see cref="ExportRequest.LayerIds" /> names them explicitly.
     ///     Both HUD layers: an export that silently burned in a scoreboard would be a surprise.
     /// </summary>
@@ -126,11 +134,11 @@ public sealed class SceneExportSession
         long stride = (long)width * 4;
         int bytes = checked((int)(stride * height));
 
-        Stopwatch clock = Stopwatch.StartNew();
+        ExportClock clock = ExportClock.Start();
         int done = 0;
         Exception? failure = null;
 
-        LayerEnabledScope layers = new(_compositor, req.LayerIds);
+        LayerEnabledScope layers = new(_compositor, req.LayerIds, CacheRadarResample);
         byte[] buffer = ArrayPool<byte>.Shared.Rent(bytes);
         SKSurface? surface = null;
 
@@ -309,7 +317,7 @@ public sealed class SceneExportSession
     }
 
     private static void Report(IProgress<ExportProgress>? progress, ExportPhase phase, int done, int total,
-        Stopwatch clock, string? detail)
+        ExportClock clock, string? detail)
     {
         if (progress is null)
         {
@@ -357,8 +365,11 @@ public sealed class SceneExportSession
     {
         private readonly SceneCompositor _compositor;
         private readonly bool[] _previous;
+        private readonly RadarLayer? _radar;
+        private readonly bool _radarCacheWas;
 
-        public LayerEnabledScope(SceneCompositor compositor, IReadOnlySet<string> requested)
+        public LayerEnabledScope(SceneCompositor compositor, IReadOnlySet<string> requested,
+            bool cacheRadarResample)
         {
             _compositor = compositor;
             IReadOnlyList<ISceneLayer> layers = compositor.Layers;
@@ -373,6 +384,19 @@ public sealed class SceneExportSession
                     ? requested.Contains(layer.Id)
                     : layer.IsEnabled && !OptInLayerIds.Contains(layer.Id);
             }
+
+            // Measured on assets/tour/sample-de_nuke.dem at 1920x1080: 21.4 -> 58.3 exported frames per
+            // second. The radar is ONE DrawImage, but at SKFilterQuality.High of a ~2000 px bundle layer,
+            // and LayerCacheHint.PerCamera caches the picture rather than its pixels — so the bicubic
+            // resample was re-run for every frame of the video. Restored on dispose because the flag
+            // costs pre-v2 parity (see RadarLayer.CacheScaledImage) and the caller's compositor may be
+            // the window's.
+            _radar = compositor.Find(SceneLayerIds.Radar) as RadarLayer;
+            _radarCacheWas = _radar?.CacheScaledImage ?? false;
+            if (_radar is not null)
+            {
+                _radar.CacheScaledImage = cacheRadarResample;
+            }
         }
 
         public void Dispose()
@@ -381,6 +405,11 @@ public sealed class SceneExportSession
             for (int i = 0; i < layers.Count && i < _previous.Length; i++)
             {
                 layers[i].IsEnabled = _previous[i];
+            }
+
+            if (_radar is not null)
+            {
+                _radar.CacheScaledImage = _radarCacheWas;
             }
         }
     }

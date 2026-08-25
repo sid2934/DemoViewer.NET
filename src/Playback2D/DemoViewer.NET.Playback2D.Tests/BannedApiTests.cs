@@ -45,7 +45,13 @@ public class BannedApiTests
     /// </summary>
     private static readonly string[] _exemptNamespacePrefixes =
     [
-        "DemoViewer.NET.Playback2D.Pipeline.Benchmarking."
+        "DemoViewer.NET.Playback2D.Pipeline.Benchmarking.",
+
+        // B4: SceneExportSession's progress report carries elapsed time, throughput and an ETA. Those are
+        // wall-clock quantities by definition — a progress bar measuring scene time would be useless —
+        // and none of them reaches a layer: frames advance on the injected SceneTime, which is what
+        // ExportDeterminismTests pins.
+        "DemoViewer.NET.Playback2D.Pipeline.Export."
     ];
 
     [Test]
@@ -67,8 +73,10 @@ public class BannedApiTests
     }
 
     /// <summary>
-    ///     The exemption is narrow on purpose: drop it, and the benchmark harness is the only thing that
-    ///     trips the scan. If this ever finds nothing, the harness has stopped timing anything.
+    ///     The exemptions are narrow on purpose: drop them, and the benchmark harness and the export
+    ///     session's progress clock are the ONLY things that trip the scan. If this ever finds nothing,
+    ///     the harness has stopped timing anything; if it finds something outside those two namespaces,
+    ///     the exemption has silently widened to cover a real leak.
     /// </summary>
     [Test]
     public async Task TheBenchmarkExemption_IsActuallyLoadBearing()
@@ -77,8 +85,20 @@ public class BannedApiTests
         Console.WriteLine($"[banned] without the exemption: {string.Join(", ", unexempted)}");
 
         await Assert.That(unexempted).IsNotEmpty();
-        await Assert.That(unexempted.TrueForAll(o =>
-            o.StartsWith(_exemptNamespacePrefixes[0], StringComparison.Ordinal))).IsTrue();
+        await Assert.That(unexempted.TrueForAll(IsExempt)).IsTrue();
+    }
+
+    private static bool IsExempt(string offender)
+    {
+        foreach (string prefix in _exemptNamespacePrefixes)
+        {
+            if (offender.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void Report(List<string> offenders)

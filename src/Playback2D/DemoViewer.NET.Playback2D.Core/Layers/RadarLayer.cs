@@ -20,9 +20,17 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 /// </summary>
 public sealed class RadarLayer : ISceneLayer
 {
+    /// <summary>Above this edge length the resample is an upscale, and caching it would waste memory.</summary>
+    private const int MaxScaledEdge = 8192;
+
     private readonly SKPaint _image;
     private readonly SKPaint _major;
     private readonly SKPaint _minor;
+    private readonly SKPaint _resample;
+    private SKImage? _scaled;
+    private SKImage? _scaledFrom;
+    private int _scaledHeight;
+    private int _scaledWidth;
     private bool _useRadarImage = true;
 
     /// <summary>Creates the layer.</summary>
@@ -38,6 +46,15 @@ public sealed class RadarLayer : ISceneLayer
             // four (93.1% of pixels within ±1, versus 78.9% for Medium/Low and 76.5% for None), which
             // says Avalonia's DrawImage resamples the same way. Changing it re-baselines every radar
             // golden — see docs/playback2d-v2/plans/B1-text-metrics-review.md.
+            FilterQuality = SKFilterQuality.High,
+            IsAntialias = true
+        };
+
+        // The resample into the cached image. Opaque white and full alpha, because the opacity in _image
+        // must be applied ONCE, at the final draw — baking it in here and multiplying again there would
+        // render the radar at 0.81 opacity instead of 0.9.
+        _resample = new SKPaint
+        {
             FilterQuality = SKFilterQuality.High,
             IsAntialias = true
         };
@@ -80,6 +97,30 @@ public sealed class RadarLayer : ISceneLayer
     /// </summary>
     public WorldBounds? RadarBoundsOverride { get; set; }
 
+    /// <summary>
+    ///     Whether the resampled radar is cached at its on-screen size instead of being re-resampled on
+    ///     every draw.
+    ///     <para>
+    ///         <b>Off by default, and turned on only by <c>SceneExportSession</c>.</b> The cached path
+    ///         resamples into a whole-pixel intermediate and then blits, where the direct path resamples
+    ///         once into a fractional rectangle — mathematically close, but not identical, and B1's
+    ///         pre-v2 parity gate measures exactly that difference (it drops from 99.45 % to 98.70 % of
+    ///         pixels within ±8 with the cache on). An interactive frame has 8 ms of budget and does not
+    ///         need it; an export renders thousands of frames back to back and does. So the trade is
+    ///         taken where it pays and declined where it would move a golden.
+    ///     </para>
+    ///     <para>
+    ///         <b>Why it exists (B4 measurement).</b> The radar is one <c>DrawImage</c> of a ~2 000 px
+    ///         bundle layer at <see cref="SKFilterQuality.High" />, and <c>LayerCacheHint.PerCamera</c>
+    ///         caches the <i>picture</i>, not its pixels — so replaying that picture re-runs the bicubic
+    ///         resample every single frame. Measured on <c>assets/tour/sample-de_nuke.dem</c> at 1920×1080
+    ///         with <c>dv2d export --no-encode</c>: <b>21.8 fps with the bundle, 143.7 fps without it</b>.
+    ///         One layer was five sixths of the frame. Caching the resample makes the export path meet its
+    ///         budget and costs one image per pane per camera epoch.
+    ///     </para>
+    /// </summary>
+    public bool CacheScaledImage { get; set; }
+
     /// <inheritdoc />
     public string Id => SceneLayerIds.Radar;
 
@@ -120,6 +161,10 @@ public sealed class RadarLayer : ISceneLayer
         _image.Dispose();
         _minor.Dispose();
         _major.Dispose();
+        _resample.Dispose();
+        _scaled?.Dispose();
+        _scaled = null;
+        _scaledFrom = null;
     }
 
     // Placed via the bundle's world bounds through the shared transform. The overview txt's rotate and
@@ -142,8 +187,69 @@ public sealed class RadarLayer : ISceneLayer
         // under a world matrix (risk R4 never arises).
         (double x0, double y0) = ctx.Transform.WorldToScreen(bounds.MinX, bounds.MaxY);
         (double x1, double y1) = ctx.Transform.WorldToScreen(bounds.MaxX, bounds.MinY);
-        canvas.DrawImage(image, new SKRect((float)x0, (float)y0, (float)x1, (float)y1), _image);
+        SKRect destination = new((float)x0, (float)y0, (float)x1, (float)y1);
+
+        if (!CacheScaledImage)
+        {
+            canvas.DrawImage(image, destination, _image);
+            return true;
+        }
+
+        SKImage scaled = ScaledFor(image, destination);
+        if (scaled.Width == (int)MathF.Round(destination.Width) &&
+            scaled.Height == (int)MathF.Round(destination.Height))
+        {
+            // 1:1. Drawing by ORIGIN rather than into a rectangle is what makes it a blit: a destination
+            // rectangle whose width is 1234.7 against a 1235 px image is still a resample, and a resample
+            // is the whole cost this cache exists to remove.
+            canvas.DrawImage(scaled, destination.Left, destination.Top, _image);
+            return true;
+        }
+
+        canvas.DrawImage(scaled, destination, _image);
         return true;
+    }
+
+    /// <summary>
+    ///     The radar, already resampled to <paramref name="destination" />'s size. The subsequent draw is
+    ///     then a 1:1 blit, which <see cref="SKFilterQuality.High" /> short-circuits.
+    ///     <para>
+    ///         Keyed on the source image identity and the destination size rounded to whole pixels: a
+    ///         camera that has not moved re-uses the resample, and one that has pays for it once. Sizes
+    ///         are quantised because a sub-pixel change in the destination is invisible and re-resampling
+    ///         for it would defeat the cache during a pan.
+    ///     </para>
+    /// </summary>
+    private SKImage ScaledFor(SKImage source, SKRect destination)
+    {
+        int width = Math.Max(1, (int)MathF.Round(destination.Width));
+        int height = Math.Max(1, (int)MathF.Round(destination.Height));
+
+        if (_scaled is not null && ReferenceEquals(_scaledFrom, source) &&
+            _scaledWidth == width && _scaledHeight == height)
+        {
+            return _scaled;
+        }
+
+        // An oversized target would cost more than it saves: at that point the source is already smaller
+        // than the destination and the resample is an upscale Skia does cheaply.
+        if (width > MaxScaledEdge || height > MaxScaledEdge)
+        {
+            return source;
+        }
+
+        _scaled?.Dispose();
+
+        using SKSurface surface = SKSurface.Create(
+            new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        surface.Canvas.Clear(SKColors.Transparent);
+        surface.Canvas.DrawImage(source, new SKRect(0, 0, width, height), _resample);
+
+        _scaled = surface.Snapshot();
+        _scaledFrom = source;
+        _scaledWidth = width;
+        _scaledHeight = height;
+        return _scaled;
     }
 
     private WorldBounds? ResolveBounds(in SceneRenderContext ctx)
