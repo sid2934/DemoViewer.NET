@@ -7,6 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Hud;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Vision;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Playback2D.Pipeline.Frames;
 
 #endregion
 
@@ -44,7 +45,18 @@ public interface IExportRunner
 /// <param name="Palette">Resolved theme colours, so the video matches what the user is looking at.</param>
 /// <param name="DisplayMode">Stacked or single-level, mirroring the live host.</param>
 /// <param name="Vision">The line-of-sight solver, or null to export without cones.</param>
-/// <param name="Hud">The tick → HUD state function, or null to export without the HUD layers.</param>
+/// <param name="Hud">
+///     Builds the tick → HUD state function <b>over the export's own frame source</b>, or null to export
+///     without the HUD layers.
+///     <para>
+///         A factory rather than a value, because the clock half of the HUD has to read the frame the
+///         export is drawing. Handing over a finished <c>IHudDataSource</c> meant the only thing a tab
+///         could close over was its <i>live viewport's</i> frame — so every frame of the video carried
+///         the scoreboard as it stood when Start was pressed, and moved if the user resumed playback
+///         while it rendered. The frame source is the export's private tracker; nothing else on this
+///         record can answer "what round is this frame".
+///     </para>
+/// </param>
 /// <param name="MapAssets">The decoded map bundle, for radar art and authoritative floors. Not owned.</param>
 public sealed record ExportSceneSetup(
     IReadOnlyList<DemoFrame> Frames,
@@ -53,5 +65,5 @@ public sealed record ExportSceneSetup(
     ScenePalette Palette,
     LevelDisplayMode DisplayMode,
     IVisionSolver? Vision,
-    IHudDataSource? Hud,
+    Func<TrackerFrameSource, IHudDataSource>? Hud,
     LoadedMapAsset? MapAssets);

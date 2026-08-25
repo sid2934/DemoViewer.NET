@@ -172,10 +172,26 @@ dv2d export --demo match.dem --from t12000 --to t20000 \
 | `--speed` | `1` | Playback-rate multiplier; fixes the timestep at `speed / fps` |
 | `--size` | `1920x1080` | Even in both axes for `webm`/`mp4` |
 | `--layers` | the seven scene layers | Bare or prefixed ids; the HUD is opt-in |
-| `--hud` | off | Adds `hud.clock` and `hud.killfeed` |
+| `--hud` | off | Adds `hud.clock` and `hud.killfeed`. The clock is the exported frame's own round, score and countdown; the kill feed draws no rows here — see limitations |
 | `--out` | `dv2d-export.<format>` | Output path |
 | `--no-encode` | off | Render and read back every frame, encode nothing |
 | `--ffmpeg-log` | off | Echo ffmpeg's stderr |
+
+`export` has no `--camera`: it frames the map. Each pane is fitted once, on the first frame that
+carries a world extent, to the map's networked bounds (falling back to the observed extent) — the
+offscreen twin of the window's one-shot fit. It happens once rather than per frame, so the framing
+does not creep as players wander, and a caller that supplies a camera script through the API still
+overrides it.
+
+Two mechanisms produce that one framing, and which of them does the work depends on where the range
+starts. A range that starts mid-match is already past the point where `CCSGameRulesProxy` published
+`m_vMinimapMins/Maxs`, so output frame 0 already carries the networked extent and every pane is
+**born** fitted to it during pane reconciliation — the whole video, first frame included, is framed
+correctly. A range that starts at frame 0 begins in the ticks before that entity exists: those frames
+have no extent to fit, so they are drawn on the ±3000 placeholder and the panes **snap** onto the map
+on the first frame that does carry one, normally frame 1. The snap happens at most once per export —
+there is no way to frame a map the demo has not described yet — but it is why the very first frame of
+a whole-demo export is composed differently from the rest.
 
 `--no-encode` is the diagnostic that separates "the renderer is slow" from "libvpx is slow", and it
 is what a GPU backend should be compared against — a GPU cannot make an encoder quicker.
@@ -358,3 +374,4 @@ These are phase boundaries, not bugs. Each is an honest failure rather than a si
 | The `render`/`golden`/`bench` layer set | one smoke layer (`playback2d.debuggrid`); `SceneLayerCatalog.Create` is the single place the real seven register. `export` already draws them, through `SceneLayerCatalog.CreateSceneStack` — a second entry point on purpose, because growing `Create`'s default set moves every committed golden | B1 |
 | A scene with no players and no map bundle | derives no floor band, so it gets no pane and renders background only (`synthetic-empty`, marked `pending` in the manifest) | B1, B3 |
 | Byte-exact goldens | the corpus defaults to `perceptual`; CPU rasterisation of anti-aliased edges can differ by a least-significant bit between SIMD paths | B1 (embedded typeface), C2 (SSIM) |
+| `export --hud`'s kill feed | draws **no rows**. The clock half is real — the round, score and countdown come off the frame the export is drawing, through `TrackerFrameSource.LastGameInfo` — but kill rows come from a parsed `player_death` timeline the app builds off `AllGameEvents`, and `dv2d` has no equivalent. An empty feed beats invented rows | B4 |

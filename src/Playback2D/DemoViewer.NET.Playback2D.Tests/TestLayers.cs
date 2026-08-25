@@ -58,3 +58,45 @@ internal sealed class RecordingLayer : ISceneLayer
         OnDispose?.Invoke();
     }
 }
+
+/// <summary>
+///     Records the camera every pane was drawn with, frame by frame.
+///     <para>
+///         The only way to see what an export actually framed: <c>SceneExportSession</c> builds its
+///         <c>HeadlessSceneRenderer</c> internally, so the pane cameras are unreachable from outside — but
+///         every one of them arrives here as <c>SceneRenderContext.Transform</c>, which is the exact value
+///         the pixels were produced from.
+///     </para>
+/// </summary>
+internal sealed class CameraProbeLayer : ISceneLayer
+{
+    private readonly List<List<ViewportTransform>> _byFrame = [];
+
+    /// <summary>One entry per <see cref="Advance" />, holding that frame's pane cameras in draw order.</summary>
+    public IReadOnlyList<IReadOnlyList<ViewportTransform>> Frames => _byFrame;
+
+    public string Id => "test.camera-probe";
+    public LayerSlot Slot => LayerSlot.World;
+    public int Order => 0;
+    public LayerCacheHint Cache => LayerCacheHint.Dynamic;
+    public bool IsEnabled { get; set; } = true;
+    public int ContentVersion => 0;
+
+    public bool Advance(in SceneTime time, Scene2DFrame frame)
+    {
+        _byFrame.Add([]);
+        return false;
+    }
+
+    public void Render(SKCanvas canvas, SceneRenderContext ctx)
+    {
+        if (_byFrame.Count > 0)
+        {
+            _byFrame[^1].Add(ctx.Transform);
+        }
+    }
+
+    public void Dispose()
+    {
+    }
+}

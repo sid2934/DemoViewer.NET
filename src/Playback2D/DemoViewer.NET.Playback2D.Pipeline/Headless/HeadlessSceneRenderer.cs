@@ -41,6 +41,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     private readonly List<LevelPaneSnapshot> _snapshots = new(4);
     private readonly IRenderSurfaceProvider _surfaces;
     private bool _disposed;
+    private bool _initialFitApplied;
     private SKSizeI _size;
     private long _submissionId;
     private SKSurface? _surface;
@@ -113,6 +114,27 @@ public sealed class HeadlessSceneRenderer : IDisposable
     ///     </para>
     /// </summary>
     public IPaneCameraPolicy? CameraPolicy { get; set; }
+
+    /// <summary>
+    ///     Whether the first <see cref="Advance" /> that carries real map extent re-fits every pane to it.
+    ///     <para>
+    ///         Off by default, because a golden and a single-frame <c>dv2d render</c> supply their camera
+    ///         as data and a fit would overwrite it. On for an export — the offscreen twin of the host's
+    ///         one-shot fit (<c>Scene2DHost</c>: "one-shot auto-fit once real positions exist").
+    ///     </para>
+    ///     <para>
+    ///         Without it an export is framed by <c>WorldBounds.Default</c> — the ±3000 placeholder every
+    ///         pane is <i>born</i> fitted to in <c>PaneSet.Reconcile</c>, before any frame has been read.
+    ///         Nothing else in the export path ever re-frames: the camera script is empty in both front
+    ///         ends unless the user pinned one, and <c>AdvanceCameras</c> is off so no rig runs. The map
+    ///         landed wherever ±3000 put it, which on de_inferno is a corner of the frame.
+    ///     </para>
+    ///     <para>
+    ///         It runs BEFORE <see cref="Camera" /> and <see cref="CameraPolicy" />, so an explicit camera
+    ///         still has the last word — a mirrored live view is not overruled by a fit.
+    ///     </para>
+    /// </summary>
+    public bool AutoFitOnFirstMapBounds { get; set; }
 
     /// <summary>The arranged panes.</summary>
     public PaneSet Panes { get; }
@@ -206,7 +228,24 @@ public sealed class HeadlessSceneRenderer : IDisposable
         }
 
         SKSize host = new(_size.Width, _size.Height);
-        Panes.Reconcile(Levels.Space, DisplayMode, host, frame.Map.ObservedBounds);
+
+        // The networked extent when the demo published one, which it does from the first world update:
+        // it is the map's real playable rectangle, while ObservedBounds is only as wide as the players
+        // have wandered so far and starts at the WorldBounds.Default placeholder. A level that is BORN
+        // mid-export (a player takes the lift on Nuke) is fitted to this too, rather than to a rectangle
+        // that has nothing to do with the map.
+        WorldBounds extent = frame.Map.NetworkedBounds ?? frame.Map.ObservedBounds;
+        Panes.Reconcile(Levels.Space, DisplayMode, host, extent);
+
+        // The one-shot fit, before the pin and the policy so an explicit camera still wins. "Real map
+        // extent" is either a networked rectangle or at least one marker to have observed; a pane fitted
+        // to the placeholder before either exists would be fitted to nothing.
+        if (AutoFitOnFirstMapBounds && !_initialFitApplied &&
+            (frame.Map.NetworkedBounds is not null || frame.Markers.Count > 0))
+        {
+            Panes.FitAll(extent);
+            _initialFitApplied = true;
+        }
 
         UpdateCrossings(frame);
 
