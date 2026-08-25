@@ -27,6 +27,13 @@ cd "$ROOT" || exit 2
 echo "[batch-runner] building $CONFIG..."
 dotnet build "$PROJ" -c "$CONFIG" -v q --nologo || exit 2
 
+# The Playback2D direct-execution suite runs FIRST and UNBATCHED: it loads no Avalonia platform and
+# holds no ParsedDemo, so it is neither slow nor a memory-pressure risk — and it is the fastest signal
+# that the scene core is broken, which is worth having before the heavy batches start.
+PB2D_PROJ="$ROOT/src/Playback2D/DemoViewer.NET.Playback2D.Tests"
+echo "[batch-runner] playback2d core+pipeline (direct execution)"
+dotnet run --project "$PB2D_PROJ" -c "$CONFIG" || exit 1
+
 # Discover test classes from SOURCE (files bearing [Test]); '--list-tests' prints bare
 # method names, so it can't provide class names. Helper classes caught by the grep are
 # harmless (they match zero tests in the filter). The audit below catches discovery GAPS:

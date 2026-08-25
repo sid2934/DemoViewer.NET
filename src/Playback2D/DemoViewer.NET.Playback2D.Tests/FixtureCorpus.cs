@@ -35,26 +35,25 @@ internal static class FixtureCorpus
     public static SceneFixture Load(string name) =>
         SceneFixture.Load(Path.Combine(Root, "scenes", name + ".scene.json"));
 
+    // The REPO copy wins over the copied-beside one. Golden regeneration writes through this path, and a
+    // golden written into artifacts/bin is a golden nobody can commit.
     private static string ResolveRoot()
     {
-        string beside = Path.Combine(AppContext.BaseDirectory, "fixtures");
-        if (Directory.Exists(Path.Combine(beside, "scenes")))
-        {
-            return beside;
-        }
-
         DirectoryInfo? dir = new(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            string candidate = Path.Combine(dir.FullName, "tests", "fixtures", "playback2d");
-            if (Directory.Exists(Path.Combine(candidate, "scenes")))
+            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
             {
-                return candidate;
+                string candidate = Path.Combine(dir.FullName, "tests", "fixtures", "playback2d");
+                if (Directory.Exists(Path.Combine(candidate, "scenes")))
+                {
+                    return candidate;
+                }
             }
 
             dir = dir.Parent;
         }
 
-        return beside;
+        return Path.Combine(AppContext.BaseDirectory, "fixtures");
     }
 }

@@ -21,7 +21,9 @@ This is the canonical layout for every phase. There is no `tests/goldens/`, no `
 ## Two families
 
 **Synthetic** — hand-authored JSON, no demo required. These drive the direct-execution smoke tests
-and run everywhere, CI included. They are edited like any other source file.
+and run everywhere, CI included. They are edited like any other source file, and each has a committed
+`goldens/cpu/<name>@640x360.png` produced by `SceneGoldenTests` — a CPU-provider render of B0's own
+loop (palette, transform, compositor, fixture format). Those are **not** the B1 parity corpus.
 
 | Fixture | What it is for |
 |---|---|
@@ -32,7 +34,13 @@ and run everywhere, CI included. They are edited like any other source file.
 **Demo-derived** — a fixture and its golden PNG captured in **one** headless push, so the JSON and
 the image describe the same world state. That pairing is the whole point of the B1 parity gate: B1
 must re-render the `.scene.json` and match the `.png` the pre-v2 control produced. Capture needs a
-demo, so these cases skip when one is not staged (see `DemoTestHelper` for the search order).
+demo, so these cases skip when one is not staged (see `DemoTestHelper` for the search order) — and
+they are **not committed yet** for exactly that reason. Stage a demo and run the script below before
+B1 starts, or B1's exit criterion has nothing to compare against.
+
+Note on tolerance. The demo-derived goldens are compared at `GoldenTolerance.DefaultPerceptual`
+because the pre-v2 control draws a floor label with `FormattedText`, and headless Skia text metrics
+differ across operating systems (design risk 1: text differences are reviewed, not auto-failed).
 
 ## Regenerating
 

@@ -1,9 +1,13 @@
 # Build verification (docs/distribution/build-and-packaging-plan.md §8 — "CI is DIY").
 # Scoped deliberately: builds the Desktop head, which pulls in the CS2DemoKit packages and the
-# LiveSync engine. It does NOT build the Browser/WASM head (needs the wasm-tools workload) nor run
-# the App UI suite (single-process, OOM-prone — must be batched via scripts/test-app-suite.sh;
-# wiring that into CI is a follow-up). The parser and analysis suites moved out with the libraries
-# and now run in the CS2DemoKit repo's own CI.
+# LiveSync engine, and runs the Playback2D core+pipeline suite (direct execution: no Avalonia
+# platform, no demo, no GPU — see docs/playback2d-v2/design.md §11).
+#
+# It does NOT build the Browser/WASM head (needs the wasm-tools workload — B5 adds that job), nor
+# run the App UI suite (single-process, OOM-prone — must be batched via scripts/test-app-suite.sh),
+# nor capture Playback2D goldens from a demo (the runner has no demo files, so those cases would
+# report as skipped noise). The parser and analysis suites moved out with the libraries and now run
+# in the CS2DemoKit repo's own CI.
 name: ci
 
 on:
@@ -32,3 +36,26 @@ jobs:
 
       - name: Build Desktop head (Release)
         run: dotnet build src/App/DemoViewer.NET.Desktop -c Release
+
+  # The job the rest of the Playback2D track extends: B1 adds a `playback2d-budget` lane beside it,
+  # C1 appends its CLI tests plus `dv2d golden verify --cpu` and `dv2d bench --gate`, and C2 adds the
+  # `render-backends` matrix. Nobody adds a SECOND core/pipeline test invocation.
+  playback2d-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # Nerdbank.GitVersioning needs full history
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # SkiaSharp.NativeAssets.Linux links fontconfig. The full package is used rather than
+      # …NoDependencies because B1 draws text and C1's goldens contain it, and swapping the native
+      # later would silently re-baseline every golden.
+      - name: Install native deps
+        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+
+      - name: Playback2D core + pipeline tests (direct execution, no Avalonia)
+        run: dotnet test src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
