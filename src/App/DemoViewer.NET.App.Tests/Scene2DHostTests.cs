@@ -52,6 +52,37 @@ public class Scene2DHostTests
     }
 
     /// <summary>
+    ///     The environment variable is the CI and bisecting path, and it outranks the setting. It is an
+    ///     env var rather than a <c>FeatureCatalog</c> id on purpose (plan decision D-9): catalog ids are
+    ///     permanent persisted keys and this toggle is deleted with the old control in B5.
+    /// </summary>
+    [Test]
+    public async Task EnvironmentVariable_SelectsTheSurface_AndOutranksTheSetting()
+    {
+        string? original = Environment.GetEnvironmentVariable(Playback2DRenderer.EnvironmentVariable);
+        try
+        {
+            Environment.SetEnvironmentVariable(Playback2DRenderer.EnvironmentVariable, "legacy");
+            Playback2DRenderer.ResetForTest(null); // clear the pin so the variable is re-read
+            await Assert.That(Playback2DRenderer.Selected).IsEqualTo(Playback2DRendererKind.Legacy);
+
+            Environment.SetEnvironmentVariable(Playback2DRenderer.EnvironmentVariable, "scene");
+            Playback2DRenderer.ResetForTest(null);
+            await Assert.That(Playback2DRenderer.Selected).IsEqualTo(Playback2DRendererKind.Scene);
+
+            Environment.SetEnvironmentVariable(Playback2DRenderer.EnvironmentVariable, null);
+            Playback2DRenderer.ResetForTest(null);
+            await Assert.That(Playback2DRenderer.Selected).IsEqualTo(Playback2DRendererKind.Scene)
+                .Because("the v2 host is the default when nothing overrides it");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(Playback2DRenderer.EnvironmentVariable, original);
+            Playback2DRenderer.ResetForTest(null);
+        }
+    }
+
+    /// <summary>
     ///     Both surfaces satisfy <see cref="IPlayback2DSurface" />, so the mode menu, the follow funnel
     ///     and the Fit button drive either one. If this ever fails, the toggle has stopped being a
     ///     toggle and become a fork.
