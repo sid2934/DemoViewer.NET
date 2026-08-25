@@ -452,7 +452,44 @@ ffmpeg by the capacity-4 bounded channel, and what a second buffer would remove 
 copy. It would need an `IFrameSink` rent/commit API — a Core contract change (registry §3.8) — to buy
 2 % of a frame. Not implemented.
 
-### 8.6 The probe's own cost
+### 8.6 The shipped default, with no flags at all
+
+Everything above names its rung explicitly. This is what a user actually gets — `dv2d export --demo …
+--from 72000 --to 79680 --size 1280x720 --fps 60 --hud`, nothing else:
+
+```
+video_encoder      av1_nvenc (nvenc, av1) at standard
+encoder_reason     the best rung verified first time
+encoder_arguments  -preset p4 -rc vbr -cq 34 -b:v 0 -bf 3 -rc-lookahead 8
+encoder_probe_ms   1331.9
+                   157.2 fps · 2.50× realtime · frame p50 5.47 ms
+                   source 0.30 · render 3.16 · readback 1.76 · encode 0.17
+```
+
+**2.50× against the old default's 1.10×**, with no flag, no configuration and no reading.
+
+### 8.7 How much the CS2 contention actually cost
+
+One calibration point makes the §8.1 caveat quantitative. The `old-default` run exists twice: once on
+the quiet machine before CS2 was launched, and once inside the matrix with it running.
+
+| | quiet | with CS2 | delta |
+|---|---:|---:|---:|
+| old default (`libvpx-vp9`, all CPU) | 71.4 fps / 1.20× | 68.6 fps / 1.10× | **−3.9 %** |
+
+So **the software rows are barely affected** — CS2 takes about 3.7 of 32 logical cores and the export
+does not miss them. Every software comparison in §8.2, including the 1.76× that the
+`-deadline`/`-cpu-used` fix is worth, is therefore solid.
+
+The hardware rows are the uncertain ones, and the uncertainty has a floor rather than being open-ended:
+this pipeline needs roughly **180 encoded frames per second**, and a *contended* NVENC still delivered
+that (the encode stage measured 0.15–0.18 ms p50 throughout). The export is render-bound in every
+hardware row — render + readback are 84 % of the frame — so a quiet GPU cannot move the total by much
+more than the render and readback stages themselves would gain from having CS2's cores back. The
+honest statement is: **2.5–2.8× realtime measured under contention, and a quiet machine is not slower
+than that.**
+
+### 8.8 The probe's own cost
 
 `encoder_probe_ms` measures the whole ladder walk. `--encoder auto` on this machine: **1 303 ms** the
 first time (one `ffmpeg -encoders` listing plus one two-frame test encode, both cached afterwards);
