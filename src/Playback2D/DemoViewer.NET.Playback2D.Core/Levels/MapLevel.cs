@@ -7,26 +7,6 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Core.Levels;
 
 /// <summary>
-///     A level's stable identity, minted from its quantized lower Z (<see cref="MapSpace.QuantizeZ" />).
-///     <para>
-///         <b>Never a level INDEX.</b> Design risk 5 is the confusion between "the third band from the
-///         bottom" and "the band that is Nuke's lower floor": insert a basement and every index shifts
-///         while every identity holds. Panes, cameras, picture caches and (from B2) annotations are all
-///         keyed on this, so making it a distinct struct means the compiler rejects the mix-up that
-///         would otherwise silently repaint one floor with another's camera.
-///     </para>
-/// </summary>
-/// <param name="Key">The quantized lower Z. Opaque — compare it, never do arithmetic on it.</param>
-public readonly record struct MapLevelId(int Key)
-{
-    /// <summary>The "no level" sentinel. Distinct from every real id, including a level at Z 0.</summary>
-    public static MapLevelId None => new(int.MinValue);
-
-    /// <summary>Whether this is <see cref="None" />.</summary>
-    public bool IsNone => Key == int.MinValue;
-}
-
-/// <summary>
 ///     One rendered floor of a map: a Z band, a display name, and the radar image bound to it.
 ///     <para>
 ///         A <b>class</b>, not a record struct, because <see cref="Radar" /> is rebound in place when a
@@ -43,10 +23,18 @@ public sealed class MapLevel
     /// <summary>Display name. May reorder across rebuilds — never key anything on it.</summary>
     public required string Name { get; init; }
 
-    /// <summary>Lower world Z of the band.</summary>
+    /// <summary>
+    ///     Lower world Z of the band, exactly as <see cref="FloorSplitter" /> emitted it.
+    ///     <para>
+    ///         <b>Not quantized.</b> Quantization mints <see cref="Id" />; the band itself stays raw so
+    ///         <see cref="MapSpace.LevelIndexFor" /> keeps answering exactly what
+    ///         <see cref="FloorSplitter.SliceIndexFor" /> answers (B1 parity invariant 1). See B3 plan
+    ///         deviation 1.
+    ///     </para>
+    /// </summary>
     public required double ZMin { get; init; }
 
-    /// <summary>Upper world Z of the band.</summary>
+    /// <summary>Upper world Z of the band; always greater than <see cref="ZMin" />.</summary>
     public required double ZMax { get; init; }
 
     /// <summary>The radar image bound to this level, or null when the map has none for it.</summary>
@@ -73,33 +61,18 @@ public sealed class MapLevel
     public bool Contains(double z) => z >= ZMin && z <= ZMax;
 }
 
-/// <summary>How confidently radar images were matched to levels (plan §4 T5's three rules).</summary>
+/// <summary>How confidently radar images were matched to levels (plan §4 T5's rules).</summary>
 public enum RadarBindingQuality
 {
     /// <summary>No radar layers at all, or none bound.</summary>
     None,
 
-    /// <summary>One radar layer per level, matched by ascending Z.</summary>
+    /// <summary>Every level bound a radar image by Z-band overlap.</summary>
     Exact,
 
-    /// <summary>Counts disagreed — every level shows the highest-altitude image. The UI should say so.</summary>
+    /// <summary>
+    ///     Some level could not be bound by overlap, or several levels share one image because the
+    ///     bundle publishes no per-layer Z metadata. The UI should say so.
+    /// </summary>
     Degraded
-}
-
-/// <summary>
-///     What one <see cref="MapSpace.Rebuild" /> did to the level set. <c>PaneSet</c> reconciles against
-///     it, and B3's hysteresis and level-crossing buffers key off the added/removed ids.
-/// </summary>
-/// <param name="Changed">False when the rebuild was a no-op (an identical band list).</param>
-/// <param name="Added">Ids present after the rebuild but not before.</param>
-/// <param name="Removed">Ids present before but not after.</param>
-/// <param name="Retained">Ids present in both — the ones whose panes keep their camera.</param>
-public sealed record LevelSetChange(
-    bool Changed,
-    IReadOnlyList<MapLevelId> Added,
-    IReadOnlyList<MapLevelId> Removed,
-    IReadOnlyList<MapLevelId> Retained)
-{
-    /// <summary>The "nothing happened" result. Shared, so an idempotent rebuild allocates nothing.</summary>
-    public static readonly LevelSetChange None = new(false, [], [], []);
 }

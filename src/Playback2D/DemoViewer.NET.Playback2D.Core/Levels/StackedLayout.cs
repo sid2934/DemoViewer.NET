@@ -33,6 +33,18 @@ public enum LevelDisplayMode
 /// </summary>
 public interface ILevelLayoutPolicy
 {
+    /// <summary>
+    ///     Bumped whenever the policy would arrange the same level set differently — B3's
+    ///     <see cref="SingleLayout" /> changing which level it shows, and nothing else today.
+    ///     <para>
+    ///         <see cref="PaneSet.Reconcile" /> early-outs on the level-set version, the mode and the
+    ///         host size, so without this a policy whose <i>own</i> state changed would never be asked
+    ///         again. The default is a constant, which is exactly right for a policy that is a pure
+    ///         function of its arguments.
+    ///     </para>
+    /// </summary>
+    int Revision => 0;
+
     /// <summary>Arranges the space's levels over a host surface.</summary>
     /// <param name="space">The level set.</param>
     /// <param name="mode">The requested display mode.</param>

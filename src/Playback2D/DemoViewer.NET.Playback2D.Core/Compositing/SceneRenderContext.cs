@@ -50,6 +50,20 @@ public readonly record struct SceneRenderContext(
     /// </summary>
     public MapSpace? Levels { get; init; }
 
+    /// <summary>
+    ///     Which entities changed level on this frame, when the frame owner keeps a tracker. Added by
+    ///     B3; null on a context built without one.
+    ///     <para>
+    ///         For layers holding <i>per-entity temporal state</i> — B1's marker smoothing (which reads
+    ///         it through <c>MarkerSmoother.LevelCrossings</c> rather than here, because it mutates in
+    ///         <c>Advance</c> where there is no context) and, from B2, entity-anchored annotations. A
+    ///         layer whose content is a pure function of the frame does not need it: grenade trails carry
+    ///         their own per-point Z and are split across bands at draw time by
+    ///         <c>TrailGeometry.FloorSegmentRuns</c>.
+    ///     </para>
+    /// </summary>
+    public LevelCrossingTracker? LevelCrossings { get; init; }
+
     /// <summary>True when this pane shows every level at once, so no Z filtering applies.</summary>
     public bool IsSingleLevel => LevelIndex < 0;
 
