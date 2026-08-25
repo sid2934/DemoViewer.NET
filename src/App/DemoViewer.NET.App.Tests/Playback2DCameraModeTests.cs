@@ -20,7 +20,8 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Headless render gates for the four camera modes. Each mode (Fit / Alive / Map / Follow) is set
 ///     on the viewport and the View is rendered to a Skia frame, asserting it is NON-BLANK — the smooth
-///     modes' CONVERGENCE is unit-tested purely in <see cref="SliceCameraTests" />, so here we only confirm
+///     modes' CONVERGENCE is unit-tested purely in <c>SliceCameraTests</c> (which moved to the
+///     direct-execution Playback2D suite in B0), so here we only confirm
 ///     each mode renders without crashing through the render loop (the split: pure math tests the
 ///     lerp, render tests confirm a mode draws). Fully synthetic / deterministic (no demo / no async), the
 ///     same practice as <see cref="Playback2DHeadlessSmokeTests" />.

@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The direct-execution suite for Core AND Pipeline (design §11): no Avalonia platform, no window,
+      no dispatcher, no demo. It is the CI gate, and SceneSmokeRenderTests asserts that no assembly
+      named Avalonia* is even loaded — which is why this project deliberately does NOT reference
+      DemoViewer.NET.TestSupport (that would drag the App graph, and Avalonia with it, into the process).
+    -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>DemoViewer.NET.Playback2DTests</RootNamespace>
+        <!-- CA1707: test method names conventionally use underscores (e.g. Method_Condition_Expected) -->
+        <NoWarn>$(NoWarn);CA1707</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="TUnit"/>
+        <!-- Native Skia for Linux CI runners; a harmless no-op elsewhere (SkiaSharp resolves the
+             platform native it actually needs at load time). -->
+        <PackageReference Include="SkiaSharp.NativeAssets.Linux"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference
+                Include="..\DemoViewer.NET.Playback2D.Core\DemoViewer.NET.Playback2D.Core.csproj"/>
+        <ProjectReference
+                Include="..\DemoViewer.NET.Playback2D.Pipeline\DemoViewer.NET.Playback2D.Pipeline.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\..\..\tests\fixtures\playback2d\**\*.json" LinkBase="fixtures"
+              CopyToOutputDirectory="PreserveNewest"/>
+    </ItemGroup>
+
+</Project>

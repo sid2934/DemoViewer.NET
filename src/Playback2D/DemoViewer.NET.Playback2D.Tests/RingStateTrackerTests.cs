@@ -1,11 +1,11 @@
 #region
 
-using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Pipeline;
 
 #endregion
 
-namespace DemoViewer.NET.AppTests;
+namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     Gates for the event-driven ring-colour state machine + per-slot delta cache. Pure /

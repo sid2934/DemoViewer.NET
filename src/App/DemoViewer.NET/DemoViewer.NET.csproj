@@ -54,6 +54,8 @@
                 Include="..\DemoViewer.NET.Modules.Abstractions.Ui\DemoViewer.NET.Modules.Abstractions.Ui.csproj"/>
         <ProjectReference
                 Include="..\..\Playback2D\DemoViewer.NET.Playback2D.Core\DemoViewer.NET.Playback2D.Core.csproj"/>
+        <ProjectReference
+                Include="..\..\Playback2D\DemoViewer.NET.Playback2D.Pipeline\DemoViewer.NET.Playback2D.Pipeline.csproj"/>
         <PackageReference Include="CS2DemoKit.Parser"/>
         <PackageReference Include="CS2DemoKit.Analysis"/>
         <ProjectReference Include="..\..\Visualization\DemoViewer.NET.Visualization\DemoViewer.NET.Visualization.csproj"/>

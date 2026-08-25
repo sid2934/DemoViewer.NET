@@ -4,7 +4,7 @@ using DemoViewer.NET.Playback2D.Core;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Playback2D;
+namespace DemoViewer.NET.Playback2D.Pipeline;
 
 /// <summary>
 ///     The event-driven ring-colour state machine for player markers. Pure and

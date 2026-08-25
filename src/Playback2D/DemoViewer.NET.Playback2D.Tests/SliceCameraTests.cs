@@ -1,11 +1,10 @@
 #region
 
-using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core;
 
 #endregion
 
-namespace DemoViewer.NET.AppTests;
+namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     Pure-math gates for the per-slice camera: the render-frame lerp toward a target, settle

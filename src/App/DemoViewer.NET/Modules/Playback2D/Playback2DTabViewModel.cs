@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Pipeline;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Numerics;
@@ -29,24 +30,9 @@ namespace DemoViewer.NET.Modules.Playback2D;
 /// </summary>
 public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspaceTabViewModel
 {
-    private const float SmokeRadiusWorld = 144; // the standard CS2 smoke radius (fixed)
-    private const float FireCellRadiusWorld = 28; // per inferno fire cell; the cells cluster into the shape
-    private const int MaxInfernoCells = 64; // m_firePositions / m_bFireIsBurning are [64] arrays
-    private const int TrailFadeSeconds = 2; // a trail fades over this long (game time) after its nade lands
-    private const int TrailJumpThreshold = 64; // |frameΔ| beyond this = a seek (clear trails); a normal push ≪ this
-    private const int MaxTrailPoints = 256; // defensive per-trail cap (a flight is ~1-3s ≈ 60-180 samples)
-
-    // Fallback round length (mp_roundtime 1:55) used only when m_iRoundTime is absent. Normally the
-    // networked m_pGameRules.m_iRoundTime is read directly (#4).
-    private const double FallbackRoundSeconds = 115;
-
-    // Default C4 timer (mp_c4timer) used for the detonation-ring fraction when m_flTimerLength is absent.
-    private const float DefaultC4Timer = 40;
-
     // The inventory array slots scanned per player: the dotted bracket-indexed paths are built ONCE
     // here, not per-frame, so the per-tick grenade loop allocates no path strings.
     private const int MyWeaponsSlots = 64;
-    private const int MaxMinimapSections = 8; // engine array is fixed; scan a small bounded count.
     private const int KillFeedWindowSeconds = 8; // a kill stays visible this long (game time) after it happens
     private const int MaxKillFeedRows = 6;
 
@@ -54,13 +40,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // kills. The filter is matched against the host's demo-derived event set, so the buttons only show when
     // the demo actually carries player_death (asset/demo-independent — no hardcoded assumption it exists).
     private const string KillEventName = "player_death";
-
-    // The grenade-projectile classes whose flight paths get a trail (all derive from CBaseCSGrenadeProjectile,
-    // all carry CBodyComponent cell coords). Built once (static) so the per-frame scan allocates no strings.
-    private static readonly string[] _grenadeProjectileClasses =
-    {
-        "CHEGrenadeProjectile", "CFlashbangProjectile", "CSmokeGrenadeProjectile", "CMolotovProjectile", "CDecoyProjectile"
-    };
 
     private static readonly string[] _myWeaponsPaths = BuildMyWeaponsPaths();
     private static readonly Comparison<KillFeedEntry> _byTick = (a, b) => a.Tick.CompareTo(b.Tick);
@@ -89,43 +68,24 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // roster arrives after activation (#2, names depend on it). _killWindow is reusable render scratch.
     private readonly List<KillFeedEntry> _allKills = new();
 
-    // Grenade area effects (A4): active smoke clouds + burning inferno cells, rebuilt each push. Read by the
-    // custom-drawn viewport. World positions are networked directly (no cell reconstruction).
-    private readonly List<AreaEffect> _areaEffects = new(32);
-
     // Attributes panel: one row per roster slot, updated in place each push (no list rebuild).
     private readonly Dictionary<int, PlayerAttributes> _attrsBySlot = new();
     private readonly List<KillFeedEntry> _killWindow = new(16);
 
-    // Last-known world position per slot, updated each frame a player has a live pawn. When a pawn
-    // orphans on death (no live position) we hold a gray marker here until respawn (standard death
-    // marker). Cleared with the ring cache on backward seek / re-activation.
-    private readonly Dictionary<int, (float X, float Y, float Z)> _lastKnownPos = new(16);
+    // The scene half of a push: every marker / area-effect / trail / bomb / game-info read moved into
+    // SceneFrameBuilder in B0. The VM keeps only panel state and re-publishes the built frame's contents
+    // through the properties the XAML and the viewport already bind to.
+    private readonly SceneFrameBuilder _frameBuilder = new();
 
-    // Marker draw-state, rebuilt each push from copied-out scalars. The viewport reads this list; it is
-    // never the pooled PlayerState (which is invalid after the callback returns).
-    private readonly List<PlayerMarker> _markers = new(16);
+    // The kill window projected onto the Core row type, refreshed only when the visible slice changes,
+    // so the per-push builder input costs no allocation.
+    private readonly List<KillFeedRow> _killRows = new(MaxKillFeedRows);
+
+    private Scene2DFrame _frame = Scene2DFrame.Empty;
 
     // Slot → display name from the stable roster. Rebuilt on activation.
     private readonly Dictionary<int, string> _nameBySlot = new();
 
-    // Event-driven ring state machine + per-slot delta cache. Reset on backward seek.
-    private readonly RingStateTracker _ringTracker = new();
-
-    // Grenade flight trails (A4): per-projectile flight paths, LIVE-accumulated keyed by the projectile's
-    // Serial (entity index gets reused on detonation — Serial survives it; the facade exposes no index/handle
-    // anyway). Serial is a per-index reuse counter so two simultaneously-live projectiles could in theory
-    // share one — but a probe over the whole reference demo (87k frames, up to 8 grenades aloft at once,
-    // 25k multi-grenade frames) found ZERO collisions: CS2 hands out serials from a rising pool, so live
-    // projectiles never share one. Tick-stamped, faded out after the projectile stops moving, then pruned;
-    // CLEARED wholesale on a discontinuous frame jump (OnAdvanced) so a polyline
-    // never streaks from a pre-seek point to a post-seek point. A FORWARD-PLAY artifact: a trail seeked-into
-    // shows the arc from the seek point forward, which is incomplete, not wrong (unlike the kill feed, where a
-    // mis-timed discrete event WAS a bug) — so render-skip loss here is purely cosmetic. _trailViews is the
-    // reusable draw-state the viewport reads (the dict's live trails by reference, ≥2 points, not yet faded).
-    private readonly Dictionary<int, GrenadeTrail> _trails = new(16);
-    private readonly List<int> _trailsToPrune = new(8);
-    private readonly List<GrenadeTrail> _trailViews = new(16);
     private IModuleContext? _context;
 
     // The shell's feature projection, captured at activation so deactivation unsubscribes the SAME
@@ -172,8 +132,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     [ObservableProperty]
     private bool _isLiveSyncHudWorking;
 
-    private int _lastFrameIndex = -1;
-
     // Identity of the last-published visible slice (count + boundary ticks) so an unchanged window doesn't
     // churn the ObservableCollection every push (the slice changes only when the playhead crosses a kill's
     // tick or its expiry — rare relative to ~60 pushes/sec).
@@ -207,17 +165,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // The map's REAL networked world-space X/Y bounds (the radar bounding box), read ONCE from the game-rules
     // entity: CCSGameRulesProxy.m_pGameRules.m_vMinimapMins / m_vMinimapMaxs (Vector3). Lets Map mode frame
     // the ACTUAL playable-map extent instead of the observed-positions approximation. Null until read.
-
-    // Rounds completed so far (m_totalRoundsPlayed), cached ONCE per frame by UpdateGameInfo so the per-player
-    // ADR computation in UpdateAttributes (O(players), no rules OfClass walk) reuses it. -1 = unknown.
-    private int _roundsPlayed = -1;
-
-    // The map's REAL networked Z-floor boundaries (#1 bonus), read ONCE from the game-rules entity:
-    // CCSGameRulesProxy.m_pGameRules.m_MinimapVerticalSectionHeights[0..N]. Null until read; once populated
-    // the viewport's FloorSplitter uses these EXACT thresholds instead of the histogram heuristic. Sentinel
-    // (3.4e38) / unused-0 trailing slots are dropped here so the splitter receives only real boundaries.
-    private double[]? _sectionHeights;
-    private bool _sectionHeightsRead;
 
     // Count of roster entries last seeded into the display state (#2). -1 = never seeded. BuildFrame re-seeds
     // when the live roster count differs (empty→populated), so a roster set after activation still shows.
@@ -266,14 +213,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     this to split floors EXACTLY on maps that publish them (Nuke / Vertigo), falling back to a histogram
     ///     heuristic otherwise. Read once per demo; cleared on backward seek only if it had never resolved.
     /// </summary>
-    public IReadOnlyList<double>? SectionHeights => _sectionHeights;
+    public IReadOnlyList<double>? SectionHeights => _frame.Map.SectionHeights;
 
     /// <summary>
     ///     The map's networked world-space X/Y bounds (radar bounding box), or null until read / absent. The
     ///     2D viewport's Map mode frames these EXACT playable-map bounds when present, falling back to the
     ///     all-demo observed-extent approximation otherwise. Static per map, so read once.
     /// </summary>
-    public (double MinX, double MinY, double MaxX, double MaxY)? MapBounds { get; private set; }
+    public (double MinX, double MinY, double MaxX, double MaxY)? MapBounds =>
+        _frame.Map.NetworkedBounds is { } b ? (b.MinX, b.MinY, b.MaxX, b.MaxY) : null;
 
     /// <summary>
     ///     The bundle's nav-derived floor bands for the current map, or null when no baked bundle is available
@@ -308,19 +256,25 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public GameInfo GameInfo { get; } = new();
 
     /// <summary>The current frame's marker draw-state. Read by the custom-drawn viewport.</summary>
-    public IReadOnlyList<PlayerMarker> Markers => _markers;
+    public IReadOnlyList<PlayerMarker> Markers => _frame.Markers;
 
     /// <summary>Active smoke clouds + burning inferno cells (A4), drawn under the markers by the viewport.</summary>
-    public IReadOnlyList<AreaEffect> AreaEffects => _areaEffects;
+    public IReadOnlyList<AreaEffect> AreaEffects => _frame.AreaEffects;
 
     /// <summary>Grenade flight trails (A4), drawn as fading comet lines beneath the markers by the viewport.</summary>
-    public IReadOnlyList<GrenadeTrail> GrenadeTrails => _trailViews;
+    public IReadOnlyList<GrenadeTrail> GrenadeTrails => _frame.Trails;
 
     /// <summary>
     ///     The planted-C4 timer-ring draw-state (A4), or null when no live ticking bomb. Read by the
     ///     custom-drawn viewport.
     /// </summary>
-    public BombMarker? Bomb { get; private set; }
+    public BombMarker? Bomb => _frame.Bomb;
+
+    /// <summary>
+    ///     The scene state the last push produced. B1's <c>Scene2DHost</c> submits this, and B0's golden
+    ///     capture pairs it with the captured PNG. Valid until the next push — see <see cref="Scene2DFrame" />.
+    /// </summary>
+    public Scene2DFrame CurrentFrame => _frame;
 
     /// <summary>
     ///     The in-match players the Follow-Player camera mode can track (#2), ordered by team then slot.
@@ -829,16 +783,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // AFTER activation (host order), BuildFrame re-seeds on the empty→populated transition too (#2).
         SeedRosterDisplay();
 
-        // Reset the ring delta cache so a resync never flashes off a stale prior sample.
-        _ringTracker.Reset();
-        _lastKnownPos.Clear();
-        _trails.Clear(); // fresh trails on (re)sync — never glide a line in from a prior demo/position
-        _sectionHeights = null;
-        _sectionHeightsRead = false;
-        _lastFrameIndex = _context.CurrentFrameIndex;
+        // Drop every per-demo cache the builder holds — ring deltas, death-marker positions, trails and
+        // the once-per-demo section-height read — so nothing glides in from a prior demo or position.
+        _frameBuilder.Reset();
         _tickRate = _context.TickRate > 0 ? _context.TickRate : 64;
-        BuildFrame(_context.CurrentPlayers, _context.Entities, _context.CurrentFrameIndex, _context.CurrentTick);
         UpdateKillFeedWindow(_context.CurrentTick); // show the kills around the resync position immediately
+        BuildFrame(_context.CurrentPlayers, _context.Entities, _context.CurrentFrameIndex, _context.CurrentTick);
 
         // Activation and DemoReset are exactly the two moments the demo's event set can change, so the
         // timeline is rebuilt here and nowhere else. A fresh adapter drops the previous demo's per-name cache.
@@ -1006,30 +956,16 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     {
         PushCount++;
 
-        // Backward seek (or round-reset jump) → clear the delta cache so health/shots deltas don't
-        // false-flash off a stale prior sample. The kill feed needs NO special handling — its
-        // tick-window filter (below) naturally shows the right kills for the new position.
-        if (snapshot.FrameIndex < _lastFrameIndex)
-        {
-            _ringTracker.Reset();
-            _lastKnownPos.Clear();
-        }
-
-        // A4 grenade trails: clear on ANY discontinuous frame jump (forward OR backward beyond a normal
-        // push) — the live-accumulate teleport guard, mirroring marker-snap. Without it a forward seek into a
-        // grenade's flight draws a polyline streaking from the pre-seek point to the post-seek point. Normal
-        // playback advances ≪ TrailJumpThreshold frames per push even at high speed, so this fires only on a
-        // real seek. UpdateTrajectories re-seeds the (now empty) trail with the post-jump position next.
-        if (_lastFrameIndex >= 0 && Math.Abs(snapshot.FrameIndex - _lastFrameIndex) > TrailJumpThreshold)
-        {
-            _trails.Clear();
-        }
-
-        _lastFrameIndex = snapshot.FrameIndex;
-        BuildFrame(snapshot.Players, snapshot.Entities, snapshot.FrameIndex, snapshot.Tick);
+        // The kill window is refreshed BEFORE the frame is built so the built frame carries this tick's
+        // rows (B4's HUD layer reads Scene2DFrame.KillFeed). It is a pure filter over the pre-built
+        // timeline, so the order is free of side effects.
         UpdateKillFeedWindow(snapshot.Tick);
+
+        // Seek detection (backward → drop the ring delta + death-marker caches; any large jump → drop the
+        // live-accumulated trails) now lives in SceneFrameBuilder, which owns the frame delta.
+        BuildFrame(snapshot.Players, snapshot.Entities, snapshot.FrameIndex, snapshot.Tick);
         Status = $"2D Playback — active · frame {snapshot.FrameIndex} · " +
-                 $"{_markers.Count} players · {PushCount} pushes";
+                 $"{_frame.Markers.Count} players · {PushCount} pushes";
 
         // The playhead follows the shared clock's push — never a private timer — so it tracks play, step,
         // NavStrip nav, palette jumps and LiveSync-driven seeks alike. A binary search and two sets.
@@ -1108,9 +1044,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
 
         KillFeed.Clear();
+        _killRows.Clear();
         for (int i = start; i < _killWindow.Count; i++)
         {
-            KillFeed.Add(_killWindow[i]);
+            KillFeedEntry k = _killWindow[i];
+            KillFeed.Add(k);
+            _killRows.Add(new KillFeedRow(k.Tick, k.KillerName, k.AssisterName, k.VictimName, k.Weapon,
+                k.IsHeadshot, k.IsWallbang, k.IsNoScope, k.IsThroughSmoke, k.AttackerBlind, k.AttackerInAir,
+                k.IsFlashAssist));
         }
 
         _lastKillCount = count;
@@ -1133,11 +1074,13 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private static bool ReadBool(GameEventView ev, string key) =>
         ev.Fields.TryGetValue(key, out object? v) && v is bool b && b;
 
-    // Copies out the scalars the viewport + attributes panel need from the transient/pooled PlayerState
-    // list (lifetime rule: read inside the callback, copy to value types, never retain the pooled
-    // instance). Per-player cost is O(players) via the allocation-free indexer — never
-    // EntityState.Fields. The one-hop weapon resolves obey the clobber rule: read each resolved entity's scalar
-    // BEFORE the next ResolveHandle.
+    // Builds one push: seed the roster display if it arrived late, run the ATTRIBUTES pass over the
+    // players (panel state — stays here), then hand the same tick to SceneFrameBuilder for the SCENE
+    // state and copy the results onto the bound surface.
+    //
+    // Two passes over `players` on purpose. Before B0 a single loop interleaved the panel read with
+    // marker construction; splitting panel from scene is the whole point of the extraction, and
+    // players.Count is ~10, so the second pass is free. Do not "optimise" them back together.
     private void BuildFrame(IReadOnlyList<IPlayerState> players, IReadOnlyEntityView entities, int frameIndex,
         int tick)
     {
@@ -1149,17 +1092,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             SeedRosterDisplay();
         }
 
-        _markers.Clear();
-
-        // Game-info: read ONCE per frame from CCSGameRulesProxy + CCSTeam (NOT per-player).
-        UpdateGameInfo(entities, tick);
-
-        // Grenade area effects (A4): active smokes + burning inferno cells (once per frame, not per-player).
-        UpdateAreaEffects(entities);
-
-        // Grenade flight trails (A4): live-accumulate each in-flight projectile's path (once per frame).
-        UpdateTrajectories(entities, tick);
-
         // Mark all attribute rows not-live; live players below flip themselves back. A player who left
         // (disconnect / pre-spawn) thus resets to placeholders instead of showing stale state.
         foreach (PlayerAttributes row in Attributes)
@@ -1167,525 +1099,54 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             row.HasLivePawn = false;
         }
 
+        SceneFrameInput input = new()
+        {
+            Players = players,
+            Entities = entities,
+            FrameIndex = frameIndex,
+            Tick = tick,
+            TickRate = _tickRate,
+            CurtimeSeconds = _context?.CurtimeSeconds(tick) ?? tick / (double)(_tickRate > 0 ? _tickRate : 64),
+            LabelForSlot = LabelFor,
+            MapName = _context?.MapName,
+            KillFeed = _killRows,
+            FollowSlot = FollowedSlot
+        };
+
+        _frame = _frameBuilder.Build(in input);
+        PublishGameInfo(_frame.GameInfo);
+
         foreach (IPlayerState p in players)
         {
             IReadOnlyEntity? pawn = p.Pawn;
             bool hasPawn = p.HasLivePawn && pawn is not null;
-
-            // Copy out the ring-state inputs — all null/seen-tolerant.
             int health = ReadInt(pawn, "m_iHealth", hasPawn ? 100 : 0);
-            int shotsFired = ReadInt(pawn, "m_iShotsFired", 0);
-            float flash = ReadFloat(pawn, "m_flFlashDuration", 0);
             bool alive = hasPawn && IsAlive(pawn);
 
             // Attributes for EVERY roster player — a dead/orphaned player keeps its controller-sourced
             // stats (K/D/A, cash, score) and grays out, instead of vanishing from the panel.
-            UpdateAttributes(p, entities, health, alive);
-
-            if (p.WorldPosition is { } pos)
-            {
-                // Live pawn: remember the spot, draw the marker (the ring goes gray when dead).
-                _lastKnownPos[p.Slot] = (pos.X, pos.Y, pos.Z);
-
-                float yaw = 0, pitch = 0;
-                if (pawn is not null && pawn.TryGet("m_angEyeAngles", out Vector3 eye))
-                {
-                    pitch = eye.X; // pitch = .X, yaw = .Y, roll = .Z
-                    yaw = eye.Y;
-                }
-
-                float duck = ReadFloat(pawn, "m_pMovementServices.m_flDuckAmount", 0);
-
-                (RingState ring, double ringAlpha) =
-                    _ringTracker.Evaluate(p.Slot, frameIndex, alive, flash, health, shotsFired);
-
-                _markers.Add(new PlayerMarker(
-                    p.Slot,
-                    p.Team,
-                    pos.X,
-                    pos.Y,
-                    pos.Z,
-                    yaw,
-                    ring,
-                    ringAlpha,
-                    LabelFor(p.Slot),
-                    alive,
-                    pitch,
-                    duck));
-            }
-            else if (!alive && _lastKnownPos.TryGetValue(p.Slot, out (float X, float Y, float Z) last))
-            {
-                // Dead pawn has orphaned (no live position this tick) — hold a gray marker at the death
-                // spot with the correct roster label until the player respawns (standard death marker).
-                _markers.Add(new PlayerMarker(
-                    p.Slot,
-                    p.Team,
-                    last.X,
-                    last.Y,
-                    last.Z,
-                    0,
-                    RingState.Dead,
-                    1.0,
-                    LabelFor(p.Slot),
-                    false));
-            }
+            UpdateAttributes(p, entities, health, alive, _frame.GameInfo.RoundsPlayed);
         }
     }
 
-    // Round-level game info, read ONCE per frame (NOT per-player). OfClass allocates a fresh facade
-    // per element — acceptable for this once-per-frame read, never in the per-player hot loop.
-    // Paths verified against a real demo (GameInfoFieldProbeTests): CCSGameRulesProxy.m_pGameRules.* and
-    // CCSTeam.m_iScore filtered by m_iTeamNum (2=T, 3=CT).
-    private void UpdateGameInfo(IReadOnlyEntityView entities, int tick)
+    // Copies the built frame's round state onto the bound ObservableObject. RoundNumber is the one
+    // reshape: the scene carries it as an int (0 = unknown) and the panel shows a string.
+    private void PublishGameInfo(SceneGameInfo info)
     {
-        IReadOnlyEntity? rules = null;
-        foreach (IReadOnlyEntity e in entities.OfClass("CCSGameRulesProxy"))
-        {
-            rules = e; // there is exactly one CCSGameRulesProxy per match (FreezePeriodProvider)
-            break;
-        }
-
-        if (rules is not null)
-        {
-            // #1 bonus: read the map's real Z-floor boundaries ONCE (they're static per map). Additive — does
-            // not touch the round/bomb timer logic below.
-            ReadSectionHeightsOnce(rules);
-
-            // #2: read the map's REAL world-space X/Y bounds ONCE so Map mode frames the actual playable map
-            // (radar bounding box) instead of the observed-positions approximation.
-            ReadMapBoundsOnce(rules);
-
-            bool warmup = ReadBool(rules, "m_pGameRules.m_bWarmupPeriod");
-            bool freeze = ReadBool(rules, "m_pGameRules.m_bFreezePeriod");
-            bool planted = ReadBool(rules, "m_pGameRules.m_bBombPlanted");
-            bool defused = ReadBool(rules, "m_pGameRules.m_bBombDefused");
-            bool dropped = ReadBool(rules, "m_pGameRules.m_bBombDropped");
-
-            GameInfo.Phase = warmup ? "Warmup" : freeze ? "Freeze" : "Live";
-
-            GameInfo.BombState = defused ? "Defused"
-                : planted ? "Planted"
-                : dropped ? "Dropped"
-                : "—";
-
-            int rounds = ReadIntOr(rules, "m_pGameRules.m_totalRoundsPlayed", -1);
-            _roundsPlayed = rounds; // cached for per-player ADR (UpdateAttributes); -1 = unknown
-            GameInfo.RoundNumber = rounds >= 0
-                ? (rounds + 1).ToString(CultureInfo.InvariantCulture)
-                : "—";
-
-            // Bomb/round main countdown. Priority (#5 over #4): a LIVE ticking CPlantedC4 replaces the
-            // round clock with the C4 detonation countdown; otherwise the freeze state, otherwise the
-            // round clock. The detonation timer is driven off the ENTITY (m_bBombTicking / m_flC4Blow),
-            // not m_pGameRules.m_bBombPlanted — the entity carries the absolute blow time.
-            if (UpdateBombTimers(entities, tick))
-            {
-                // Detonation countdown owns the main timer this frame; defuse second-timer set inside.
-            }
-            else if (freeze)
-            {
-                GameInfo.RoundSeconds = double.NaN;
-                GameInfo.RoundTime = "freeze";
-            }
-            else if (rules.TryGet("m_pGameRules.m_fRoundStartTime", out float roundStart))
-            {
-                // Round time remaining = m_fRoundStartTime + m_iRoundTime − correctedCurtime(tick) (#4).
-                // The round length is the NETWORKED m_iRoundTime (115 on the verified demo), not an
-                // assumed convar; correctedCurtime is the host's offset-corrected game clock
-                // (IModuleContext.CurtimeSeconds) aligning the demo curtime to the round-start time base.
-                double roundLen = ReadIntOr(rules, "m_pGameRules.m_iRoundTime", 0);
-                if (roundLen <= 0)
-                {
-                    roundLen = FallbackRoundSeconds;
-                }
-
-                double remaining = roundStart + roundLen - CorrectedCurtime(tick);
-                GameInfo.RoundSeconds = remaining;
-                GameInfo.RoundTime = remaining > 0 ? FormatClock(remaining) : "0:00";
-            }
-        }
-
-        // Team score: CCSTeam.m_iScore filtered by m_iTeamNum (2=T, 3=CT).
-        foreach (IReadOnlyEntity team in entities.OfClass("CCSTeam"))
-        {
-            int num = ReadIntOr(team, "m_iTeamNum", -1);
-            int score = ReadIntOr(team, "m_iScore", 0);
-            if (num == 2)
-            {
-                GameInfo.TScore = score;
-            }
-            else if (num == 3)
-            {
-                GameInfo.CtScore = score;
-            }
-        }
-    }
-
-    // #1 bonus: reads CCSGameRulesProxy.m_pGameRules.m_MinimapVerticalSectionHeights[0..N] ONCE — the map's
-    // real Z-floor boundaries (e.g. Nuke [1.81, 51.54, 287.0, 376.0]). The engine array is fixed-size; we
-    // scan a bounded count and stop at the first sentinel (3.4e38 ≈ float.MaxValue) or non-ascending value
-    // (an unused trailing 0 slot). A map without floor sections publishes ≤1 usable value → null (the
-    // viewport then uses its histogram heuristic). Static per map, so reading once is correct.
-    // #2: reads CCSGameRulesProxy.m_pGameRules.m_vMinimapMins / m_vMinimapMaxs (Vector3 world-space radar
-    // bounding box) ONCE — the REAL playable-map X/Y extent (verified on the pro demo: X[-2573..2043]
-    // Y[-1497..3358], with players comfortably inside). Lets Map mode frame the actual map. Static per map.
-    private void ReadMapBoundsOnce(IReadOnlyEntity rules)
-    {
-        if (MapBounds is not null)
-        {
-            return;
-        }
-
-        if (rules.TryGet("m_pGameRules.m_vMinimapMins", out Vector3 mins) &&
-            rules.TryGet("m_pGameRules.m_vMinimapMaxs", out Vector3 maxs) &&
-            maxs.X > mins.X && maxs.Y > mins.Y)
-        {
-            MapBounds = (mins.X, mins.Y, maxs.X, maxs.Y);
-        }
-    }
-
-    private void ReadSectionHeightsOnce(IReadOnlyEntity rules)
-    {
-        if (_sectionHeightsRead)
-        {
-            return;
-        }
-
-        List<double> kept = new(MaxMinimapSections);
-        for (int i = 0; i < MaxMinimapSections; i++)
-        {
-            if (!rules.TryGet($"m_pGameRules.m_MinimapVerticalSectionHeights[{i}]", out float h))
-            {
-                break; // field unseen at this index — end of the published array for this map.
-            }
-
-            if (h >= 3.0e38f) // engine "unused section" sentinel
-            {
-                break;
-            }
-
-            if (kept.Count > 0 && h <= kept[^1])
-            {
-                break; // not strictly ascending → trailing unused slot.
-            }
-
-            kept.Add(h);
-        }
-
-        // Two or more boundaries describe a real multi-floor map; fewer ⇒ leave null and let the histogram run.
-        _sectionHeights = kept.Count >= 2 ? kept.ToArray() : null;
-
-        // Only latch "read" once the field actually resolved (≥1 value seen); otherwise the array hasn't been
-        // networked yet this frame and we retry next frame (the entity may not yet be fully decoded on seek).
-        if (kept.Count >= 1)
-        {
-            _sectionHeightsRead = true;
-        }
-    }
-
-    // #5: bomb plant/defuse + C4 detonation timers. Finds a live ticking CPlantedC4 (entity-driven —
-    // m_bBombTicking, NOT m_pGameRules.m_bBombPlanted, which lags the entity) and, when present, replaces
-    // the main countdown with the detonation remaining (m_flC4Blow − correctedCurtime). During a
-    // defuse-in-progress (m_bBeingDefused) the SECOND timer shows the defuse-completion remaining
-    // (m_flDefuseCountDown − correctedCurtime), so the panel shows the defuse-vs-detonation race. The
-    // defuse length (m_flDefuseLength) already encodes kit (5s) vs no-kit (10s); the defuser's
-    // m_bHasDefuser only labels it. Returns true iff a ticking C4 owns the main timer this frame; clears
-    // all bomb/defuse state and returns false otherwise (so the round clock / freeze branch runs).
-    // A4 grenade area effects: active smoke clouds + burning inferno cells. Once per frame (OfClass allocates
-    // a facade per element — acceptable for a handful of live grenades, never the per-player hot loop). World
-    // positions are networked directly: smoke centre = m_vSmokeDetonationPos (once m_nSmokeEffectTickBegin>0,
-    // i.e. detonated/billowing, not the still-flying projectile); fire cells = m_firePositions[i] for the
-    // m_fireCount active cells where m_bFireIsBurning[i].
-    private void UpdateAreaEffects(IReadOnlyEntityView entities)
-    {
-        _areaEffects.Clear();
-
-        foreach (IReadOnlyEntity smoke in entities.OfClass("CSmokeGrenadeProjectile"))
-        {
-            if (ReadIntOr(smoke, "m_nSmokeEffectTickBegin", 0) <= 0)
-            {
-                continue; // still a flying projectile, not yet a billowing cloud
-            }
-
-            if (smoke.TryGet("m_vSmokeDetonationPos", out Vector3 pos) && (pos.X != 0 || pos.Y != 0))
-            {
-                _areaEffects.Add(new AreaEffect(AreaEffectKind.Smoke, pos.X, pos.Y, pos.Z, SmokeRadiusWorld));
-            }
-        }
-
-        foreach (IReadOnlyEntity inferno in entities.OfClass("CInferno"))
-        {
-            int count = Math.Min(ReadIntOr(inferno, "m_fireCount", 0), MaxInfernoCells);
-            for (int i = 0; i < count; i++)
-            {
-                if (!ReadBool(inferno, $"m_bFireIsBurning[{i}]"))
-                {
-                    continue;
-                }
-
-                if (inferno.TryGet($"m_firePositions[{i}]", out Vector3 cell) && (cell.X != 0 || cell.Y != 0))
-                {
-                    _areaEffects.Add(new AreaEffect(
-                        AreaEffectKind.Fire, cell.X, cell.Y, cell.Z, FireCellRadiusWorld));
-                }
-            }
-        }
-    }
-
-    // Grenade flight trails: LIVE-accumulate each in-flight projectile's reconstructed world position into
-    // its Serial-keyed trail, then fade/prune trails whose projectile has detonated. Once per frame
-    // (OfClass allocates a facade per element — a handful of grenades in flight, acceptable once-per-frame,
-    // never the per-player hot loop). Projectile positions are NOT host-joined (the host only joins player
-    // positions), so they're reconstructed from CBodyComponent cells via the oracle-pinned ReconstructWorld —
-    // the same path the planted-C4 ring uses. The discontinuous-jump clear lives in OnAdvanced (it owns the
-    // frame delta); this method only grows + ages trails monotonically with the forward playhead.
-    private void UpdateTrajectories(IReadOnlyEntityView entities, int tick)
-    {
-        // 1) Sample every in-flight grenade projectile into its trail. Append only when advancing past the
-        //    last sample AND the projectile actually moved, so a paused/coalesced re-push (same tick) or a
-        //    small backward micro-step doesn't pile points or kink the line backward.
-        foreach (string cls in _grenadeProjectileClasses)
-        {
-            foreach (IReadOnlyEntity proj in entities.OfClass(cls))
-            {
-                if (ReconstructWorld(proj) is not { } pos)
-                {
-                    continue; // cells not yet networked — skip until the projectile is positioned
-                }
-
-                if (!_trails.TryGetValue(proj.Serial, out GrenadeTrail? trail))
-                {
-                    trail = new GrenadeTrail
-                    {
-                        Kind = KindForClass(cls)
-                    };
-                    _trails[proj.Serial] = trail;
-                }
-
-                // Append only when the projectile actually MOVED (guards a stationary/landed projectile or a
-                // duplicate same-tick push from piling points) AND we're advancing past its last move (so a
-                // backward micro-step doesn't kink the line backward). LastTick tracks the last MOVE, not the
-                // last sighting — so a landed-but-still-alive smoke/decoy fades instead of holding forever.
-                bool moved = trail.Points.Count == 0 || !SamePoint(trail.Points[^1], pos);
-                bool advancing = trail.Points.Count == 0 || tick > trail.LastTick;
-                if (moved && advancing)
-                {
-                    if (trail.Points.Count >= MaxTrailPoints)
-                    {
-                        trail.Points.RemoveAt(0);
-                    }
-
-                    trail.Points.Add(new GrenadeTrailPoint(pos.X, pos.Y, pos.Z));
-                    trail.LastTick = tick;
-                }
-            }
-        }
-
-        // 2) Fade by time-since-last-MOVE: a trail still moving (or whose playhead stepped back to/before its
-        //    last move) holds full opacity; one that has stopped (detonated, despawned, or just landed and
-        //    sitting there) fades over the window and is pruned. Rebuild the draw-state from the survivors
-        //    (≥2 points to be a visible line).
-        int fadeTicks = TrailFadeSeconds * Math.Max(1, _tickRate);
-        _trailViews.Clear();
-        _trailsToPrune.Clear();
-
-        foreach (KeyValuePair<int, GrenadeTrail> kv in _trails)
-        {
-            GrenadeTrail t = kv.Value;
-            int age = tick - t.LastTick;
-
-            if (age <= 0)
-            {
-                t.Alpha = 1.0; // moving this frame, or the playhead stepped back to/before its last move → hold
-            }
-            else
-            {
-                t.Alpha = fadeTicks > 0 ? Math.Clamp(1.0 - age / (double)fadeTicks, 0, 1) : 0;
-                if (t.Alpha <= 0.0)
-                {
-                    _trailsToPrune.Add(kv.Key); // faded out — pruned (a persistent projectile re-seeds cleanly)
-                    continue;
-                }
-            }
-
-            if (t.Points.Count >= 2)
-            {
-                _trailViews.Add(t);
-            }
-        }
-
-        foreach (int key in _trailsToPrune)
-        {
-            _trails.Remove(key);
-        }
-    }
-
-    private static GrenadeKind KindForClass(string cls) => cls switch
-    {
-        "CHEGrenadeProjectile" => GrenadeKind.He,
-        "CFlashbangProjectile" => GrenadeKind.Flash,
-        "CSmokeGrenadeProjectile" => GrenadeKind.Smoke,
-        "CMolotovProjectile" => GrenadeKind.Molotov,
-        "CDecoyProjectile" => GrenadeKind.Decoy,
-        _ => GrenadeKind.He
-    };
-
-    // Two samples are the "same" point (skip the append) when within half a world unit on each axis — guards
-    // a stationary/landed projectile or a duplicate same-tick push from piling coincident points.
-    private static bool SamePoint(GrenadeTrailPoint a, (float X, float Y, float Z) b) =>
-        Math.Abs(a.X - b.X) < 0.5f && Math.Abs(a.Y - b.Y) < 0.5f && Math.Abs(a.Z - b.Z) < 0.5f;
-
-    private bool UpdateBombTimers(IReadOnlyEntityView entities, int tick)
-    {
-        IReadOnlyEntity? c4 = null;
-        foreach (IReadOnlyEntity e in entities.OfClass("CPlantedC4"))
-        {
-            if (ReadBool(e, "m_bBombTicking") && !ReadBool(e, "m_bBombDefused"))
-            {
-                c4 = e;
-                break;
-            }
-        }
-
-        if (c4 is null || !c4.TryGet("m_flC4Blow", out float blow) || blow <= 0)
-        {
-            ClearBombTimers();
-            return false;
-        }
-
-        double now = CorrectedCurtime(tick);
-
-        // Main countdown → C4 detonation remaining.
-        double detonation = blow - now;
-        GameInfo.BombTicking = true;
-        GameInfo.RoundSeconds = detonation;
-        GameInfo.RoundTime = detonation > 0 ? FormatClock(detonation) : "0:00";
-
-        // Detonation ring fraction (remaining / total bomb timer; m_flTimerLength is mp_c4timer, ~40s).
-        float timerLength = ReadFloat(c4, "m_flTimerLength", DefaultC4Timer);
-        double detonationFraction = Math.Clamp(detonation / Math.Max(1.0, timerLength), 0, 1);
-        bool beingDefused = false;
-        double defuseFraction = 0;
-
-        // Second timer → defuse-in-progress (the defuse-vs-detonation race).
-        if (ReadBool(c4, "m_bBeingDefused")
-            && c4.TryGet("m_flDefuseCountDown", out float defuseCd) && defuseCd > 0)
-        {
-            double defuseRemain = defuseCd - now;
-            float defuseLen = ReadFloat(c4, "m_flDefuseLength", 0);
-            GameInfo.DefuseInProgress = true;
-            GameInfo.DefuseSeconds = defuseRemain;
-            GameInfo.DefuseTime = defuseRemain > 0 ? FormatClock(defuseRemain) : "0:00";
-            // m_flDefuseLength is 5 with a kit, 10 without — surface that as a label.
-            GameInfo.DefuseKitNote = defuseLen > 0 && defuseLen <= 6 ? "with kit" : "no kit";
-
-            beingDefused = true;
-            defuseFraction = defuseLen > 0 ? Math.Clamp(defuseRemain / defuseLen, 0, 1) : 0;
-        }
-        else
-        {
-            ClearDefuseTimer();
-        }
-
-        // Bomb ring draw-state — only when its world position reconstructs (CPlantedC4 cell coords, same
-        // encoding as pawns). Null position → no ring (game-info timer still shows).
-        Bomb = ReconstructWorld(c4) is { } pos
-            ? new BombMarker(pos.X, pos.Y, pos.Z, detonationFraction, beingDefused, defuseFraction)
-            : null;
-
-        return true;
-    }
-
-    // Reconstructs a non-player entity's world position from its CBodyComponent cell coords, reusing the
-    // oracle-pinned PositionUtil.Axis formula (the load-bearing constant stays in one place). The module
-    // reads the fields off the read-only facade (the host only joins PLAYER positions; the C4 has none).
-    private static (float X, float Y, float Z)? ReconstructWorld(IReadOnlyEntity e)
-    {
-        if (TryCell(e["CBodyComponent.m_cellX"], out int cx) &&
-            TryCell(e["CBodyComponent.m_cellY"], out int cy) &&
-            TryCell(e["CBodyComponent.m_cellZ"], out int cz) &&
-            TryOffset(e["CBodyComponent.m_vecX"], out float ox) &&
-            TryOffset(e["CBodyComponent.m_vecY"], out float oy) &&
-            TryOffset(e["CBodyComponent.m_vecZ"], out float oz))
-        {
-            return (PositionUtil.Axis(cx, ox), PositionUtil.Axis(cy, oy), PositionUtil.Axis(cz, oz));
-        }
-
-        return null;
-    }
-
-    private static bool TryCell(object? v, out int cell)
-    {
-        switch (v)
-        {
-            case ushort u:
-                cell = u;
-                return true;
-            case short s:
-                cell = s;
-                return true;
-            case int i:
-                cell = i;
-                return true;
-            case uint u:
-                cell = (int)u;
-                return true;
-            case long l:
-                cell = (int)l;
-                return true;
-            case byte b:
-                cell = b;
-                return true;
-            default:
-                cell = 0;
-                return false;
-        }
-    }
-
-    private static bool TryOffset(object? v, out float offset)
-    {
-        switch (v)
-        {
-            case float f:
-                offset = f;
-                return true;
-            case double d:
-                offset = (float)d;
-                return true;
-            case int i:
-                offset = i;
-                return true;
-            default:
-                offset = 0;
-                return false;
-        }
-    }
-
-    private void ClearBombTimers()
-    {
-        GameInfo.BombTicking = false;
-        Bomb = null;
-        ClearDefuseTimer();
-    }
-
-    private void ClearDefuseTimer()
-    {
-        GameInfo.DefuseInProgress = false;
-        GameInfo.DefuseSeconds = double.NaN;
-        GameInfo.DefuseTime = "—";
-        GameInfo.DefuseKitNote = "—";
-    }
-
-    // The host's offset-corrected game clock (#4): aligns the demo curtime to the entity time base that
-    // m_fRoundStartTime / m_flC4Blow stamp against. The host computes the offset once at load (it owns the
-    // frame history a seeking module lacks). Falls back to the naive reading if the context is absent.
-    private double CorrectedCurtime(int tick) =>
-        _context?.CurtimeSeconds(tick) ?? tick / (double)(_tickRate > 0 ? _tickRate : 64);
-
-    private static string FormatClock(double seconds)
-    {
-        int s = (int)Math.Round(seconds);
-        return $"{s / 60}:{s % 60:D2}";
+        GameInfo.Phase = info.Phase;
+        GameInfo.BombState = info.BombState;
+        GameInfo.RoundNumber = info.RoundNumber > 0
+            ? info.RoundNumber.ToString(CultureInfo.InvariantCulture)
+            : "—";
+        GameInfo.RoundSeconds = info.RoundSeconds;
+        GameInfo.RoundTime = info.RoundTime;
+        GameInfo.BombTicking = info.BombTicking;
+        GameInfo.DefuseInProgress = info.DefuseInProgress;
+        GameInfo.DefuseKitNote = info.DefuseKitNote;
+        GameInfo.DefuseSeconds = info.DefuseSeconds;
+        GameInfo.DefuseTime = info.DefuseTime;
+        GameInfo.TScore = info.TScore;
+        GameInfo.CtScore = info.CtScore;
     }
 
     private static int ReadIntOr(IReadOnlyEntity entity, string path, int fallback)
@@ -1706,7 +1167,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // Updates one player's attributes row in place. The weapon resolves walk the clobber
     // hazard — ResolveHandle returns a SHARED pooled facade, so each resolved entity's class is read
     // IMMEDIATELY, before the next resolve.
-    private void UpdateAttributes(IPlayerState p, IReadOnlyEntityView entities, int health, bool alive)
+    private void UpdateAttributes(IPlayerState p, IReadOnlyEntityView entities, int health, bool alive,
+        int roundsPlayed)
     {
         if (!_attrsBySlot.TryGetValue(p.Slot, out PlayerAttributes? a))
         {
@@ -1742,7 +1204,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         // Match-total damage + ADR (average damage per round). m_iDamage is networked alongside K/D/A under
         // the action-tracking service. ADR = total damage / rounds played, denominator = m_totalRoundsPlayed
-        // (cached once per frame by UpdateGameInfo). Floored at 1 round so the opening round (0
+        // (carried on the built frame as SceneGameInfo.RoundsPlayed). Floored at 1 round so the opening round (0
         // completed) shows damage/1 instead of dividing by zero; reduces to total-damage/total-rounds at game
         // end. Mid-round it reads slightly high (the live round's damage over a not-yet-incremented
         // denominator) then normalizes at round end — the standard live-scoreboard ADR behaviour.
@@ -1754,7 +1216,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         else
         {
             int damage = ReadIntOr(ctrl, "m_pActionTrackingServices.m_iDamage", 0);
-            int denom = Math.Max(1, _roundsPlayed);
+            int denom = Math.Max(1, roundsPlayed);
             a.Damage = damage.ToString(CultureInfo.InvariantCulture);
             a.Adr = ((int)Math.Round((double)damage / denom)).ToString(CultureInfo.InvariantCulture);
         }

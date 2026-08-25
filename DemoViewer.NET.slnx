@@ -25,6 +25,9 @@
     </Folder>
     <Folder Name="/src/Playback2D/">
         <Project Path="src/Playback2D/DemoViewer.NET.Playback2D.Core/DemoViewer.NET.Playback2D.Core.csproj"/>
+        <Project
+                Path="src/Playback2D/DemoViewer.NET.Playback2D.Pipeline/DemoViewer.NET.Playback2D.Pipeline.csproj"/>
+        <Project Path="src/Playback2D/DemoViewer.NET.Playback2D.Tests/DemoViewer.NET.Playback2D.Tests.csproj"/>
     </Folder>
     <Folder Name="/src/Testing/">
         <Project Path="src/Testing/DemoViewer.NET.TestSupport/DemoViewer.NET.TestSupport.csproj"/>
