@@ -493,6 +493,38 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   AND has-demo into `IsVisible`; because the row is `Auto`-sized, an off gate leaves no layout hole.
 - **Focus.** `Focusable="False"` — the control must never steal the keymap's focus target.
 
+<a id="playback2d-hud-corners"></a>
+### The 2D viewport's HUD corners — who owns which pixels (Playback2D v2, A4/B2/B3/B4)
+Everything floating over the 2D canvas lives in **one grid cell** of `Playback2DView.axaml`'s left column,
+as a plain sibling of everything else in it. There is no z-manager and nothing clips: two overlays that
+claim the same alignment simply overlap, and the **later sibling wins both the paint and the hit test** —
+silently, because the XAML reads as two independent corner widgets. The allocation is therefore a
+contract, not a convention:
+
+| Slot | Owner | Interactive? |
+|---|---|---|
+| **Top-left** | `TopLeftHud` — one `StackPanel`: A4's `OverlayToggles` strip, then B2's `AnnotationToolbarHost` under it | yes |
+| **Top-right** | `HudStack` — live-sync dot ([`Ellipse.pb2dDot`](#pb2d-hud-dot)) over the A4 kill feed | **no** (`IsHitTestVisible=False`) |
+| **Bottom-left** | `TransportBar` — camera-mode `SplitButton`, mode label, kill nav | yes |
+| **Bottom-right** | `ExportButton` (B4) | yes |
+| **Right centre** | `LevelStrip` (B3), vertical margins clearing the kill feed and the transport bar | yes |
+| **Bottom edge** | [`TimelineControl`](#timelinecontrol) — its own `Auto` grid row, not an overlay | yes |
+
+- **A second widget in an occupied slot joins that slot's stack; it does not float in the same corner.**
+  B2 mounted the annotation toolbar as its own top-left `Border` and A4's strip covered its entire tool row
+  (485×40 px), leaving Pan/Draw/Erase unclickable. Within a stack the **always-present** member goes first,
+  so a feature gate flipping cannot shove it around, and each member is `HorizontalAlignment=Left` so the
+  narrower one is not padded out to the wider one's width. The stack itself carries no `Background`, so its
+  gaps stay transparent to viewport pan/draw gestures.
+- **A gated overlay's `IsVisible` belongs on the MOUNTED element**, not only inside the control. A control
+  that collapses its own inner `Border` still contributes the mount's margin to the stack.
+- **Overlays reflow rather than clip.** The viewport column is ~500 px wide on an 820 px window; a fixed
+  row wider than that runs under the splitter and the roster panel (later siblings, so they cover it and
+  take its clicks). The annotation toolbar's tool row is a `WrapPanel`, per [D35](#library-toolbar-reflow).
+- **Pinned by** `Playback2DHudLayoutTests` — pairwise non-overlap of the interactive overlays, per-tool
+  `InputHitTest` reachability, gate-flip stability, and column containment at 1400/1000/820 px. Geometry is
+  the assertion; a container-shape test passes on the broken tree.
+
 <a id="playback2d-keybinds"></a>
 ### Playback2D keymap (`Modules/Playback2D/Playback2DKeymap.cs`)
 Declarative action→gesture table, conflict-checked in its own static constructor against itself AND

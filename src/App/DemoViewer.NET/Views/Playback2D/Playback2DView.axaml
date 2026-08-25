@@ -103,15 +103,9 @@
                  satisfy IPlayback2DSurface, so everything below drives either one. -->
             <ContentControl Grid.Row="0" x:Name="ViewportHost" />
 
-            <!-- Annotation toolbar (top-left), mirroring the transport overlay's chrome in the opposite
-                 corner. Hidden entirely when the playback2d.annotations feature is off — the gate must
-                 remove the surface, not merely disable it. -->
-            <tl:AnnotationToolbar Grid.Row="0" x:Name="AnnotationToolbarHost"
-                                  HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10"
-                                  DataContext="{Binding Annotations}" />
-
             <!-- Transport / status overlay (bottom-left). -->
-            <Border Grid.Row="0" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+            <Border Grid.Row="0" x:Name="TransportBar"
+                    HorizontalAlignment="Left" VerticalAlignment="Bottom"
                     Margin="10" Padding="8,4"
                     Background="{DynamicResource Pb2dOverlayBg}" CornerRadius="4">
                 <StackPanel Orientation="Horizontal" Spacing="10">
@@ -253,28 +247,54 @@
                 </ItemsControl>
             </StackPanel>
 
-            <!-- Overlay-visibility toggles (A4): each viewport sub-overlay can be turned off independently.
-                 Top-left (the conventional layer-toggle corner), clear of the kill feed (top-right) and the
-                 transport/status bar (bottom-left). Interactive, so NOT IsHitTestVisible=False. -->
-            <Border Grid.Row="0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10" Padding="8,4"
-                    Background="{DynamicResource Pb2dOverlayBg}" CornerRadius="4">
-                <StackPanel Orientation="Horizontal" Spacing="9">
-                    <TextBlock Text="overlays" Foreground="{DynamicResource Pb2dTextDim}" VerticalAlignment="Center"
-                               FontFamily="Consolas,Menlo,monospace" FontSize="10" />
-                    <CheckBox Content="Radar" FontSize="11" IsChecked="{Binding ShowRadar}"
-                              ToolTip.Tip="Baked map radar background (falls back to grid when unavailable)" />
-                    <CheckBox Content="Trails" FontSize="11" IsChecked="{Binding ShowTrails}"
-                              ToolTip.Tip="Grenade flight trails" />
-                    <CheckBox Content="Smoke/Fire" FontSize="11" IsChecked="{Binding ShowAreaEffects}"
-                              ToolTip.Tip="Smoke clouds + molotov/incendiary fire" />
-                    <CheckBox Content="Bomb" FontSize="11" IsChecked="{Binding ShowBombRing}"
-                              ToolTip.Tip="Planted-C4 timer ring" />
-                    <CheckBox Content="Kills" FontSize="11" IsChecked="{Binding ShowKillFeed}"
-                              ToolTip.Tip="Kill feed" />
-                    <CheckBox Content="Vision" FontSize="11" IsChecked="{Binding ShowVision}"
-                              ToolTip.Tip="3D line-of-sight: draws a sightline from each player to every enemy they can currently see (recomputed from map collision)" />
-                </StackPanel>
-            </Border>
+            <!-- Top-left HUD column. Both interactive left-hand overlays live here and are STACKED rather
+                 than free-floating: every overlay in this grid cell is a sibling of every other one, so two
+                 of them claiming HorizontalAlignment=Left + VerticalAlignment=Top means the later sibling
+                 silently paints over the earlier one AND wins its hit tests. B2 mounted the annotation
+                 toolbar in this exact corner and A4's toggle strip covered its whole tool row (485×40 px of
+                 it), leaving the Pan/Draw/Erase buttons unclickable.
+                 Order is deliberate: the ALWAYS-PRESENT toggle strip is first, so flipping the
+                 playback2d.annotations gate cannot shove it around, and each child is Left-aligned so the
+                 narrower strip does not inherit the toolbar's width as dead translucent chrome. The panel
+                 has no Background, so the gap between the two borders — and the ragged right edge beside
+                 the narrower one — still passes pan/draw gestures through to the canvas. -->
+            <StackPanel Grid.Row="0" x:Name="TopLeftHud"
+                        HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
+
+                <!-- Overlay-visibility toggles (A4): each viewport sub-overlay can be turned off
+                     independently. Clear of the kill feed (top-right) and the transport/status bar
+                     (bottom-left). Interactive, so NOT IsHitTestVisible=False. -->
+                <Border x:Name="OverlayToggles" Padding="8,4" HorizontalAlignment="Left"
+                        Background="{DynamicResource Pb2dOverlayBg}" CornerRadius="4">
+                    <StackPanel Orientation="Horizontal" Spacing="9">
+                        <TextBlock Text="overlays" Foreground="{DynamicResource Pb2dTextDim}"
+                                   VerticalAlignment="Center"
+                                   FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+                        <CheckBox Content="Radar" FontSize="11" IsChecked="{Binding ShowRadar}"
+                                  ToolTip.Tip="Baked map radar background (falls back to grid when unavailable)" />
+                        <CheckBox Content="Trails" FontSize="11" IsChecked="{Binding ShowTrails}"
+                                  ToolTip.Tip="Grenade flight trails" />
+                        <CheckBox Content="Smoke/Fire" FontSize="11" IsChecked="{Binding ShowAreaEffects}"
+                                  ToolTip.Tip="Smoke clouds + molotov/incendiary fire" />
+                        <CheckBox Content="Bomb" FontSize="11" IsChecked="{Binding ShowBombRing}"
+                                  ToolTip.Tip="Planted-C4 timer ring" />
+                        <CheckBox Content="Kills" FontSize="11" IsChecked="{Binding ShowKillFeed}"
+                                  ToolTip.Tip="Kill feed" />
+                        <CheckBox Content="Vision" FontSize="11" IsChecked="{Binding ShowVision}"
+                                  ToolTip.Tip="3D line-of-sight: draws a sightline from each player to every enemy they can currently see (recomputed from map collision)" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Annotation toolbar (B2), UNDER the toggle strip, mirroring the transport overlay's
+                     chrome. Its own IsVisible carries the playback2d.annotations gate: the gate must REMOVE
+                     the surface, and a merely-collapsed inner Border would still contribute this element's
+                     top margin to the stack. The binding resolves against this element's own DataContext
+                     (Annotations), the same source the control's inner gate reads. -->
+                <tl:AnnotationToolbar x:Name="AnnotationToolbarHost" Margin="0,6,0,0"
+                                      HorizontalAlignment="Left"
+                                      DataContext="{Binding Annotations}"
+                                      IsVisible="{Binding IsEnabled}" />
+            </StackPanel>
 
             <!-- Level strip (B3). Right-CENTRE gutter: the four corners are taken (overlays top-left,
                  live-sync + kill feed top-right, transport bottom-left, timeline the whole bottom edge),
@@ -348,7 +368,8 @@
             <!-- Video export (B4). Hidden — not disabled — when the feature is off, when no demo is
                  loaded, or on a build with no export host (browser, tests, designer): a dead button that
                  explains nothing is worse than no button. -->
-            <Button Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="10"
+            <Button Grid.Row="0" x:Name="ExportButton"
+                    HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="10"
                     Padding="10,4" FontSize="11" Content="Export video…"
                     Command="{Binding OpenExportCommand}" IsVisible="{Binding CanExport}"
                     ToolTip.Tip="Render this view to a video file. Runs in the background — you can keep watching." />

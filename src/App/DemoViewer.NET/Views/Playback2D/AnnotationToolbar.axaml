@@ -8,15 +8,25 @@
              x:DataType="vm:AnnotationsPanelViewModel">
 
     <!-- The annotation toolbar: tool picker, ink style, envelope defaults, undo/redo.
-         Chrome mirrors the transport overlay in the opposite corner (Pb2dOverlayBg on a 4px radius),
-         so the two read as one HUD rather than two unrelated widgets. -->
+         Chrome mirrors the transport overlay's (Pb2dOverlayBg on a 4px radius), so the HUD's furniture
+         reads as one system rather than a pile of unrelated widgets. It is mounted in Playback2DView's
+         TopLeftHud stack, UNDER A4's overlay-toggle strip — see design-system "The 2D viewport's HUD
+         corners": that cell has no z-manager, so a second free-floating top-left widget just covers the
+         first one. -->
     <!-- Gated off, the whole toolbar is REMOVED, not merely disabled: a disabled draw button still says
          "this app can draw here", which is the opposite of what the gate means. The binding lives here
          rather than on the mounting element so it evaluates against this control's own DataContext. -->
     <Border Background="{DynamicResource Pb2dOverlayBg}" CornerRadius="4" Padding="8,4"
             IsVisible="{Binding IsEnabled}">
         <StackPanel Orientation="Vertical" Spacing="4">
-            <StackPanel Orientation="Horizontal" Spacing="6">
+
+            <!-- A WrapPanel, not a horizontal StackPanel: the row's natural width is ~775 px and the 2D
+                 viewport column is narrower than that on any window under ~1100 px. Nothing in the viewport
+                 cell clips, so a fixed row simply ran the trailing controls (Track player, undo/redo/clear)
+                 out of the column and under the roster panel — a later sibling, so it painted over them and
+                 took their clicks. Reflowing instead of clipping is the same call design-system D35 made for
+                 the Library filter toolbar. -->
+            <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="4">
 
                 <!-- Tools. ToggleButtons rather than RadioButtons: the same key that selects a tool
                      toggles back to pan, and a RadioButton group cannot express "none of us". -->
@@ -76,7 +86,7 @@
                 <Button x:Name="ClearAllButton" Content="Clear" Padding="8,2"
                         Command="{Binding ClearAllCommand}"
                         ToolTip.Tip="Clear every annotation (Ctrl+X) — one undo entry" />
-            </StackPanel>
+            </WrapPanel>
 
             <!-- Persistence + identity status. One line, always honest about where the ink lives. -->
             <StackPanel Orientation="Horizontal" Spacing="6">
