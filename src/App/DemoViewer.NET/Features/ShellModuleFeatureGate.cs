@@ -20,11 +20,26 @@ namespace DemoViewer.NET.Features;
 public sealed class ShellModuleFeatureGate : IModuleFeatureGate, IDisposable
 {
     private readonly IFeatureGate? _gate;
+    private readonly Func<bool> _isBrowser;
 
     /// <summary>Wraps the shell gate; a null gate fails open for every id.</summary>
-    public ShellModuleFeatureGate(IFeatureGate? gate)
+    public ShellModuleFeatureGate(IFeatureGate? gate) : this(gate, OperatingSystem.IsBrowser)
     {
+    }
+
+    /// <summary>
+    ///     Test seam: the browser predicate is injected so the WASM branch of
+    ///     <see cref="DesktopOnlyIds" /> can be exercised on a desktop runner. <c>OperatingSystem
+    ///     .IsBrowser()</c> is an intrinsic the JIT folds to a constant, so there is no faking it from
+    ///     outside — and a desktop-only gate that is never proved to close is a gate nobody has tested.
+    /// </summary>
+    /// <param name="gate">The shell gate to project. Null fails open.</param>
+    /// <param name="isBrowser">Whether the host is the WASM head.</param>
+    internal ShellModuleFeatureGate(IFeatureGate? gate, Func<bool> isBrowser)
+    {
+        ArgumentNullException.ThrowIfNull(isBrowser);
         _gate = gate;
+        _isBrowser = isBrowser;
         if (_gate is not null)
         {
             _gate.Changed += OnGateChanged;
@@ -62,7 +77,7 @@ public sealed class ShellModuleFeatureGate : IModuleFeatureGate, IDisposable
             return true;
         }
 
-        if (DesktopOnlyIds.Contains(featureId) && OperatingSystem.IsBrowser())
+        if (DesktopOnlyIds.Contains(featureId) && _isBrowser())
         {
             return false;
         }

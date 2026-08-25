@@ -172,6 +172,33 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    ///     Applies persisted track visibility without echoing it straight back out as a change to save.
+    ///     The owner calls this once, at construction, from <c>AppSettings.Playback2D.TimelineShow*</c>.
+    /// </summary>
+    /// <param name="trackId">The track to set. Unknown ids are ignored.</param>
+    /// <param name="enabled">Whether the track draws.</param>
+    public void RestoreTrackEnabled(string trackId, bool enabled)
+    {
+        _suppressTrackVisibilityChanged = true;
+        try
+        {
+            SetTrackEnabled(trackId, enabled);
+        }
+        finally
+        {
+            _suppressTrackVisibilityChanged = false;
+        }
+    }
+
+    /// <summary>
+    ///     Raised after a USER change to a track's visibility has been applied and rebuilt. Not raised by
+    ///     <see cref="RestoreTrackEnabled" />, and never by an availability change.
+    /// </summary>
+    public event Action? TrackVisibilityChanged;
+
+    private bool _suppressTrackVisibilityChanged;
+
     /// <summary>The playhead's left offset as a margin — the item layer positions by margin, not by Canvas.</summary>
     public Thickness PlayheadOffset => new(PlayheadX, 0, 0, 0);
 
@@ -268,9 +295,19 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject
 
     private void OnToggleChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(TimelineTrackToggle.IsEnabled))
+        if (e.PropertyName != nameof(TimelineTrackToggle.IsEnabled))
         {
-            Rebuild(_data);
+            return;
+        }
+
+        Rebuild(_data);
+
+        // Raised AFTER the rebuild so a handler that persists the new state reads a settled view-model.
+        // Deliberately not raised for IsAvailable: availability is a property of the demo, not a choice
+        // the user made, and persisting it would turn "this demo has no bomb" into a stored preference.
+        if (!_suppressTrackVisibilityChanged)
+        {
+            TrackVisibilityChanged?.Invoke();
         }
     }
 

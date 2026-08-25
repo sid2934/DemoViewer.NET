@@ -181,6 +181,58 @@ public class TimelineLayoutTests
         await Assert.That(vm.Tracks[0].IsAvailable).IsTrue();
     }
 
+    /// <summary>
+    ///     A USER toggle announces itself so the owner can persist it (B5: the
+    ///     <c>Playback2D:TimelineShow*</c> keys). Restoring a persisted value must NOT announce — otherwise
+    ///     construction writes settings on every launch, and a read-only config dir turns startup into a
+    ///     swallowed exception per tab open.
+    /// </summary>
+    [Test]
+    public async Task TrackVisibilityChanged_FiresForAUserToggle_NotForARestore()
+    {
+        Playback2DTimelineViewModel vm = new();
+        vm.RegisterTrack(new KillTrack());
+        vm.Rebuild(new FakeTimelineData(1000));
+
+        int announced = 0;
+        vm.TrackVisibilityChanged += () => announced++;
+
+        vm.RestoreTrackEnabled("kill", false);
+        await Assert.That(announced).IsEqualTo(0)
+            .Because("restoring a persisted value is not a new choice to persist");
+        await Assert.That(vm.Tracks[0].IsEnabled).IsFalse();
+
+        vm.SetTrackEnabled("kill", true);
+        await Assert.That(announced).IsEqualTo(1);
+
+        // Idempotent: setting the value it already has changes nothing and announces nothing.
+        vm.SetTrackEnabled("kill", true);
+        await Assert.That(announced).IsEqualTo(1);
+    }
+
+    /// <summary>
+    ///     Availability is a property of the DEMO, not a user choice, so a rebuild that flips it must not
+    ///     look like a preference change — persisting "this demo has no bomb" would carry to the next one.
+    /// </summary>
+    [Test]
+    public async Task AvailabilityChange_DoesNotAnnounceAVisibilityChange()
+    {
+        Playback2DTimelineViewModel vm = new();
+        vm.RegisterTrack(new BombTrack());
+
+        int announced = 0;
+        vm.TrackVisibilityChanged += () => announced++;
+
+        FakeTimelineData withBomb = new(1000);
+        withBomb.Events["bomb_planted"] = [TimelineTrackTests.Record(10, 100)];
+        vm.Rebuild(withBomb);
+        await Assert.That(vm.Tracks[0].IsAvailable).IsTrue();
+
+        vm.Rebuild(new FakeTimelineData(1000));
+        await Assert.That(vm.Tracks[0].IsAvailable).IsFalse();
+        await Assert.That(announced).IsEqualTo(0);
+    }
+
     private static Playback2DTimelineViewModel Sized(int totalFrames, double pixelWidth)
     {
         Playback2DTimelineViewModel vm = new();

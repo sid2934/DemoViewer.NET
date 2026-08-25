@@ -492,6 +492,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         LoadLevelSettings();
         LevelStrip.SettingsChanged += SaveLevelSettings;
+
+        LoadTimelineSettings();
+        Timeline.TrackVisibilityChanged += SaveTimelineSettings;
     }
 
     private readonly AnnotationSessionController _annotationController;
@@ -548,6 +551,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// </summary>
     public void Dispose()
     {
+        Timeline.TrackVisibilityChanged -= SaveTimelineSettings;
+        LevelStrip.SettingsChanged -= SaveLevelSettings;
         _annotationController.Flush();
         Annotations.Dispose();
         _annotationTrack.Dispose();
@@ -1264,6 +1269,62 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         {
             // A read-only config directory must never take the tab down over a view preference.
         }
+    }
+
+    // The ROUND track has no persisted key on purpose: it is the timeline's spine (the band strip and the
+    // "round N" footer label both come off it), so a stored "off" would read as a broken control on the
+    // next launch. The three optional tracks are the ones registry §3.10 names.
+    private void LoadTimelineSettings()
+    {
+        if (Settings()?.Current.Playback2D is not { } saved)
+        {
+            return;
+        }
+
+        Timeline.RestoreTrackEnabled("kill", saved.TimelineShowKills);
+        Timeline.RestoreTrackEnabled("bomb", saved.TimelineShowBomb);
+        Timeline.RestoreTrackEnabled(AnnotationTrack.TrackId, saved.TimelineShowAnnotations);
+    }
+
+    private void SaveTimelineSettings()
+    {
+        SettingsService? settings = Settings();
+        if (settings is null)
+        {
+            return;
+        }
+
+        bool kills = IsTrackEnabled("kill");
+        bool bomb = IsTrackEnabled("bomb");
+        bool annotations = IsTrackEnabled(AnnotationTrack.TrackId);
+
+        try
+        {
+            settings.Write(s =>
+            {
+                s.Playback2D.TimelineShowKills = kills;
+                s.Playback2D.TimelineShowBomb = bomb;
+                s.Playback2D.TimelineShowAnnotations = annotations;
+            });
+        }
+        catch (Exception)
+        {
+            // A read-only config directory must never take the tab down over a view preference — the
+            // same trade SaveLevelSettings makes.
+        }
+    }
+
+    private bool IsTrackEnabled(string trackId)
+    {
+        foreach (TimelineTrackToggle toggle in Timeline.Tracks)
+        {
+            if (string.Equals(toggle.Id, trackId, StringComparison.Ordinal))
+            {
+                return toggle.IsEnabled;
+            }
+        }
+
+        return true;
     }
 
     private void OnTimelineSeekRequested(int frameIndex) => _context?.RequestSeekToFrame(frameIndex);

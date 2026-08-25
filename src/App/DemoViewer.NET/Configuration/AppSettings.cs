@@ -454,6 +454,22 @@ public sealed class Playback2DSettings
     /// </summary>
     public bool AutoLevelFollow { get; set; } = true;
 
+    // ── Timeline track visibility (A1's footer check-boxes; persisted by B5) ────────────────────────
+    // Registry §3.10 lists these three keys. A1 shipped the toggles as SESSION state, so a user who
+    // turned kill markers off got them back on the next launch — the B5 settings audit is the phase
+    // that notices. They are per-TRACK and not per-feature: playback2d.timeline decides whether the
+    // control exists at all, these decide which bands and glyphs it draws. The annotation track has
+    // its own row because a coach who never draws still wants kills.
+
+    /// <summary>Whether the timeline draws the kill track's markers.</summary>
+    public bool TimelineShowKills { get; set; } = true;
+
+    /// <summary>Whether the timeline draws the bomb track's plant / defuse / explode markers.</summary>
+    public bool TimelineShowBomb { get; set; } = true;
+
+    /// <summary>Whether the timeline draws the annotation track's markers.</summary>
+    public bool TimelineShowAnnotations { get; set; } = true;
+
     // ---------------- Video export (B4) ----------------
     // Flat, not a nested Playback2DExportSettings: registry §3.10 / B5 D3 fixed ONE flat class for the
     // whole module, and every key below is flattened into SettingsService.WriteInMemory alongside the
