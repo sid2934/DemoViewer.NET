@@ -461,6 +461,70 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
     dep policy if a repo-wide icon system is adopted — not for the NavStrip, which ships **text-forward**
     (chevrons + the `TargetSummary` word) by deliberate, self-documenting preference.
 
+<a id="timelinecontrol"></a>
+### TimelineControl — the 2D playback timeline (Playback2D v2, phase A1)
+- **Files:** `Views/Playback2D/TimelineControl.axaml(.cs)`. **DataContext:**
+  `Modules/Playback2D/Timeline/Playback2DTimelineViewModel`. Docked as an `Auto` row under the viewport
+  in `Playback2DView.axaml`'s left cell; the viewport keeps the `*` row.
+- **Palette rule:** tokens come exclusively from the walled-off `Pb2d*` HUD ramp (see §1's Playback2D
+  palette), never the app-chrome ramp — this is HUD furniture over the 2D canvas, and the two ramps must
+  not be mixed inside the viewport column.
+- **Three rows.**
+  1. **Rounds band (18 px)** — one `Border` per `TimelineBand`, labelled with the round number (`wu` for
+     the pre-first-freeze-end warmup band). Won-by tint comes from `round_end`'s winner; a demo without
+     `round_end` renders neutral. Clicking a band seeks to its FIRST frame, not to the pixel under the
+     cursor.
+  2. **Scrub bar (22 px)** — a track rule, one glyph per `TimelineMarker` (`×` kill · `◆` plant ·
+     `✂` defuse · `✸` explode), and the playhead. Press seeks; press-and-drag scrubs continuously.
+  3. **Footer (18 px)** — the current round label, `frame N / M · tick T`, the follow status, the
+     `Status` readout **moved here from the floating bottom-left overlay**, and one `CheckBox` per
+     available track.
+- **Layout model.** The item layers are plain `Panel`s and every band/marker positions itself with a left
+  `Margin` from its own view-model — no attached property is set on a generated container, which is what
+  keeps the templates free of `ContentPresenter` styling. The x-axis domain is **frame index**;
+  tick-stamped events are converted once at build time via `IModuleContext.FrameIndexAtTick`.
+- **Brushes are immutable.** `TimelineMarkerViewModel.Brush` / `TimelineBandViewModel.Brush` are
+  `ImmutableSolidColorBrush` resolved through `ThemeColors.Get` — a `SolidColorBrush` is an
+  `AvaloniaObject` whose constructor asserts UI-thread affinity, which would make the pure layout math
+  untestable.
+- **Density.** Two markers of one track landing within 2 px fold into a single visual whose tooltip
+  carries the count (`3 kills`), so a 90 k-frame demo does not realize hundreds of glyphs.
+- **Gating.** `playback2d.timeline` (`SubFeature`, parent `tab.playback2d`). The view-model folds the gate
+  AND has-demo into `IsVisible`; because the row is `Auto`-sized, an off gate leaves no layout hole.
+- **Focus.** `Focusable="False"` — the control must never steal the keymap's focus target.
+
+<a id="playback2d-keybinds"></a>
+### Playback2D keymap (`Modules/Playback2D/Playback2DKeymap.cs`)
+Declarative action→gesture table, conflict-checked in its own static constructor against itself AND
+against `MainView.axaml`'s shell accelerators (`Ctrl+P/O/W/B/,` and `Ctrl+1..9`); a duplicate throws at
+first touch instead of silently shadowing a key. Bound on `Playback2DView` with a **tunneling** KeyDown
+handler so transport keys beat whatever inside the playback surface has focus, and skipped while a text
+input has focus. Every mutation routes through `PlaybackController` commands or capability-gated
+`IModuleContext.Request*` — the surfaces LiveSync's `SyncStateObserver` observes.
+
+| Gesture | Action | Notes |
+|---|---|---|
+| `Space` | Play / pause | |
+| `←` / `→` | Step one frame | |
+| `↑` / `↓` | Speed ladder `0.25 · 0.5 · 1 · 2 · 4 · 8` | Inert (with a footer note) while Live Sync pins the speed |
+| `Q` / `E` | Previous / next round | Rounds open at `round_freeze_end`, not `round_start` |
+| `Shift+Q` / `Shift+E` | Previous / next kill | |
+| `F` / `Shift+F` | Cycle the follow target | |
+| `Esc` | Clear follow + re-fit the camera | |
+
+**Reserved** (declared so the conflict checker guards them, unbound until a later phase): `Home` fit ·
+`D` draw · `X` erase · `Ctrl+Z` undo · `Ctrl+Shift+Z` redo · `Ctrl+X` clear annotations ·
+`Space`/`Esc` at `WhenToolActive` scope (hold-to-pan / cancel gesture), which SHADOW their always-scoped
+siblings while a pointer tool is active. `X` (not `E`) is erase: `E` is round navigation, and the CS:DM
+parity key list does not include `E`.
+
+**Follow-by-card.** The right-hand attributes panel is a `ListBox` whose containers are stripped of Fluent
+chrome (`Padding=0`, transparent, `Focusable=False`). Selecting a card runs the single follow funnel
+(`Playback2DTabViewModel.NotifyFollowSlotChanged`), which marks exactly one card (`Border.playerCard.followed`
+→ `Pb2dPositive` outline + a `⦿ requested` chip), mirrors the slot onto `Playback2DViewport.FollowSlot`, and
+calls `IModuleContext.NotifySpectateTarget`. The wording is **"requested"**, never "confirmed" — CS2
+spectating has no readback. Gated by `playback2d.follow`.
+
 ### BinaryPane
 - **File:** `Controls/BinaryPane.axaml` (+ `.axaml.cs`). **DataContext:** `HarvestHexViewModel`.
 - **Purpose:** the single adopted hex viewer — offset gutter, 2×8 byte cells, ASCII gutter, multi-range

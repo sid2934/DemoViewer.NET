@@ -1204,3 +1204,104 @@ additions.
 - [ ] No new persisted settings keys (D11) — nothing to add to `SettingsService.WriteInMemory`.
 - [ ] Scrub latency on the reference demo measured and recorded in the PR (R2 input for the A2
       decision).
+
+---
+
+## Implementation notes (deviations)
+
+Everything in the ordered work breakdown (T1-T16) shipped. The list below is what differs from the plan
+body as written, and why.
+
+### Wiring / placement
+
+1. **`SetFeatures` and `SetSpeedLock` are wired in `MainViewModel.BuildWorkspaceTabs`, not `App.axaml.cs`.**
+   Integrator correction 2 says "next to the existing `SetLiveSyncHud` wiring" — that call site is
+   `MainViewModel.cs:1930`, not `App.axaml.cs`; `_moduleContext` is shell-private and the composition root
+   has no `ctx` handle to call `SetFeatures` on. Both calls therefore sit immediately after the
+   `new ModuleContext(...)` in `BuildWorkspaceTabs`, which is also where the plan's own T2 puts
+   `SetSpeedLock`. The shell already holds the `IFeatureGate`, so `ShellModuleFeatureGate` is constructed
+   there and disposed in `MainViewModel.Dispose`. Everything else in correction 2 is unchanged:
+   `Playback2DModule` and `Playback2DTabViewModel` keep parameterless constructors, and no `IFeatureGate`
+   is injected anywhere.
+
+2. **Item layers are `Panel` + left `Margin`, not `Canvas` + `Canvas.Left` (T8).** Avalonia wraps templated
+   items in a generated `ContentPresenter`, so `Canvas.Left` inside a `DataTemplate` positions nothing; the
+   documented alternative is a container-targeting `Style`/`ControlTheme` with its own `x:DataType`.
+   Positioning each band/marker by its own `Margin` inside a plain `Panel` needs no container styling at
+   all, which is both smaller and less fragile under compiled bindings. `TimelineBandViewModel` /
+   `TimelineMarkerViewModel` therefore expose a `Thickness Offset` alongside the specified `X`, and the
+   view-model exposes `Thickness PlayheadOffset` alongside `PlayheadX`.
+
+### Additions to §4.3 (`Playback2DTimelineViewModel`)
+
+All additive; nothing specified was removed.
+
+3. **`RequestSeekToFrame(int)`** — a round band must seek to its FIRST frame, which cannot round-trip
+   through `RequestSeek(double)`'s pixel mapping without an off-by-one.
+4. **`PositionText`** — the footer's `frame N / M · tick T` readout (T8 specifies the readout but §4.3
+   listed no property for it).
+5. **Hover is `HoverText` + `UpdateHover(double)` / `ClearHover()`**, not the `HoverFrameIndex` T8 names.
+   The control needs a rendered string, and the frame index is already reachable through `FrameIndexAt`.
+6. **`TimelineTrackToggle.IsAvailable` is settable** (`[ObservableProperty]`). §4.3 declares `{ get; }`,
+   but availability is per-demo and `Rebuild` has to refresh it.
+7. **`TimelineMarkerViewModel` / `TimelineBandViewModel` are plain sealed classes**, not
+   `partial : ObservableObject`. Every value is fixed at construction and the collections are rebuilt on
+   layout, so there is nothing for change notification to carry.
+8. **Brushes are `ImmutableSolidColorBrush` behind a `Dispatcher.UIThread.CheckAccess()` guard.**
+   `SolidColorBrush` derives from `AvaloniaObject`, whose constructor calls `VerifyAccess()` — building
+   one off the UI thread throws once a headless application exists, which made the whole layout suite
+   fail when run alongside the UI tests. `Application.ActualThemeVariant` has the same affinity, hence the
+   guard before the `ThemeColors.Get` lookup, falling back to the dark-theme literal.
+
+### Behaviour
+
+9. **`RoundTrack` emits low-alpha team ARGB constants for the won-by tint** (mirroring `Pb2dTeamT` /
+   `Pb2dTeamCt`), with `0` meaning "host default". D4 requires the track to distinguish T from CT while
+   D1 forbids brushes in the folder, and `uint` ARGB is the only channel the contract offers. The constants
+   are the dark-palette values; a band wash is the one place that small a theme mismatch is acceptable.
+10. **`SpeedUp` / `SpeedDown` return `true` while `IsSpeedLocked`** (setting `SpeedLockNote`) rather than
+    `false`. T11's false-list is "no context, no demo, gate off, reserved action"; a locked speed is a
+    deliberate refusal, and returning `false` would leave the key unhandled and let `↑`/`↓` fall through
+    to the player-card list — exactly what D12 exists to prevent.
+11. **`FollowStatus` is mirrored onto `Timeline.FollowStatus`, and `Status` onto `Timeline.StatusText`.**
+    D14 moves the status readout into the timeline footer; mirroring keeps the tab's single `Status` string
+    authoritative instead of splitting it.
+12. **`Playback2DView.axaml.cs`'s `FollowSlot(int, string)` became `FollowSlot(int)`.** The display name is
+    now resolved inside the `FollowSlotChanged` handler, so the menu pick and the card pick produce
+    identical mode-label state through one path.
+13. **`ITimelineTrack.MarkersChanged` carries `#pragma warning disable CS0067`** in the three A1 tracks.
+    The event is declared-but-never-raised by design (round/kill/bomb data is fixed after parse) and
+    `TreatWarningsAsErrors` would otherwise reject it. B2's `AnnotationTrack` raises it for real.
+
+### Tests
+
+14. **`Playback2DKeymapTests.TryResolve_ToolActive_PrefersToolScopedBinding` asserts the shadow, not a
+    hit.** Every tool-scoped binding is reserved in A1, so the observable proof of the scope mechanism is
+    that `Space` resolves to `TogglePlay` with `toolActive: false` and resolves to nothing with
+    `toolActive: true`. That is the behaviour B2 depends on.
+15. **`ArrowKeys_DoNotChangeListBoxSelection` sets `cards.Focusable = true` first.** The shipped list is
+    not focusable (its containers are `Focusable=False`), so without this the test would pass vacuously —
+    the assertion is made to hold for the worst case rather than for the case the template prevents.
+16. **`Timeline_HiddenWhenFeatureGateOff` asserts the viewport reclaims the row's height** rather than
+    `timeline.Bounds.Height == 0`: Avalonia leaves the last measured bounds on a collapsed control, and
+    "no layout hole" is the property that actually matters.
+17. **Two tests were added beyond §5's list:** `Playback2DKeybindConflictTests
+    .ShellReservedGestures_MatchesMainViewAxaml` (the keymap's own copy of the shell list is what its
+    static ctor checks against, so the two drifting apart would quietly weaken the guarantee), and
+    `Playback2DKeymapTests.FindConflicts_DetectsADuplicateGestureAndAShellCollision` (without it the
+    clean-table assertion is vacuous).
+18. **T16's optional doc-row-count test was skipped**, per the plan's own "skip if it feels precious".
+
+### Not done
+
+19. **`Playback2DTimelineRealDemoTests` skipped in this tree** — `demos/` holds only a `.dem.info`
+    sidecar, no `.dem`, so `DemoTestHelper.RequireDemo()` raises `SkipTestException`. The three cases
+    (including the `FrameIndexAtTick` vs linear-scan oracle that closes R4) are written and compile; they
+    need a staged demo to run.
+20. **R2's scrub-latency measurement was not taken**, for the same reason — it needs the reference demo.
+    The A2 decision it feeds therefore stays open.
+21. **Six App-suite tests fail on this machine and were failing before this branch's changes**
+    (`DiagnosticsFileLogTests` ×3, `DemoLibraryServiceTests.Scan_DeduplicatesSameFile_AcrossSymlinkedFolders`
+    — requires the symlink privilege, `SettingsBacked_AddRemoveFolder_WritesThroughToSettingsJson`,
+    `DemoProcessingQueueTests.QueuePath_PersistsCache_SoSecondLaunchDoesNotReparse`). Verified against a
+    stashed tree; untouched.
