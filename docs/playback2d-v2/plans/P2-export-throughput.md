@@ -94,6 +94,24 @@ The cache holds *environment* facts, so `EncoderProbeCache.Shared` exists as a c
 selection is not cached and not global**: `EncoderSelection` is a value handed to one sink, which is
 what D5 needs.
 
+**Only an answer is remembered — a cancellation is not one** (found in review). `EncoderProbeCache`
+already declined to memoise a cancelled *result*; the `-encoders` listing underneath it did not, and
+an empty listing is indistinguishable from "this build carries no encoders". Cancelling an export
+while the ladder was being walked therefore poisoned the one cache an app session has: every later
+export was told every rung was "not built into this ffmpeg" and dropped to the software floor —
+silently, permanently, until the user happened to press Re-check. Two rules now:
+
+- **An empty listing is never memoised.** A listing that named something is a fact about a build; an
+  empty one is a fact about a moment.
+- **Cancellation kills the child, and is never handed to the stream reads.** Handing the token to
+  `ReadToEndAsync` abandoned ffmpeg's pipes while it was still writing, so the child blocked on a
+  full buffer and the "cancelled" probe sat out the entire 20 s timeout. The token now terminates the
+  process and the reads end with it; the probe throws `OperationCanceledException` rather than
+  reporting a machine fact it never learned.
+
+Both are covered by `FfmpegEncoderProbeTests.ACancelledListing_IsNotRemembered` and
+`…ACancelledProbe_DoesNotSitOutTheTimeout`.
+
 ### D2 — The ladders
 
 Per output format, best-first. `--encoder auto` (the default) walks it and takes the first rung that
@@ -248,7 +266,7 @@ App and CLI additions:
 | `dv2d export` | `--encoder <name\|auto\|software>`, `--quality <draft\|standard\|best>` |
 | `export --json` | additive `video_encoder`, `video_encoder_kind`, `encoder_reason`, `quality`, `encoder_attempts` |
 | `Playback2DSettings` | `ExportEncoder` (default `auto`), `ExportQuality` (default `standard`) — both flattened into `SettingsService.WriteInMemory`, per registry §3.10 |
-| export dialog | a quality picker, settings-backed; the encoder override rides the setting |
+| export dialog | a quality picker and an encoder picker, both settings-backed, beside Format and Frame rate |
 | `Scene2DExportRequest` | trailing `EncoderOverride`/`Quality` params, defaulted |
 
 ---
@@ -336,10 +354,15 @@ and answering them early would be guessing.
 ## 8. What it measured
 
 Same box as P1 §7, same range, same everything: `export --demo match730_…117.dem --from 72000
---to 79680 --size 1280x720 --fps 60 --hud --perf`, CPU raster, 7 201 frames of a two-minute
-de_inferno mid-match range. The `old-default` row is the **pre-P2 binary** (`78cd116`) built from a
-throwaway worktree and run back-to-back with the rest, so it is an A/B on one machine state rather
-than a number remembered from an earlier session.
+--to 79680 --size 1280x720 --fps 60 --hud --perf`, CPU raster, a two-minute mid-match range. The
+`old-default` row is the **pre-P2 binary** (`78cd116`) built from a throwaway worktree and run
+back-to-back with the rest, so it is an A/B on one machine state rather than a number remembered from
+an earlier session.
+
+> **Map label corrected in review.** This range was described as de_inferno here and in P1 §7.
+> `dv2d render --demo match730_…117.dem --frame 72000 --json` reports `"map": "de_mirage"`, and so
+> does the other demo in that folder (`…_408.dem`). The range and the numbers are unaffected; only
+> the label was wrong. §8.7 re-measures it and says which of the numbers survive.
 
 ### 8.1 The condition — and why it is the interesting one
 
@@ -386,6 +409,13 @@ one. Bitrate is `ffprobe`'s.
 
 **The headline: 1.10× → 2.80× realtime**, on the same range, same size, same layers, same machine
 state. A 45-minute match that took 41 minutes to export takes about 16.
+
+> **Scope, added in review (§8.7).** That multiple holds *while the encoder is the frame* — which is
+> what P1 measured and what every row above was taken in, with the radar layer costing ~1.5 ms. It is
+> not a promise about every machine: an independent re-run found the same range rendering its radar at
+> **11.8 ms** per frame, and at that price the encoder is 4 % of the frame and none of the rungs below
+> move the total at all. **What P2 changes is the encoder's share of the frame; whether that shows up
+> as end-to-end throughput depends on the renderer.** §8.7 has both regimes measured.
 
 **The software default alone is worth 1.76×** (68.6 → 120.7 fps) and needs no GPU at all. That is the
 `-deadline`/`-cpu-used` defect being paid back, and it is the number every CI runner and every
@@ -466,7 +496,83 @@ encoder_probe_ms   1331.9
                    source 0.30 · render 3.16 · readback 1.76 · encode 0.17
 ```
 
-**2.50× against the old default's 1.10×**, with no flag, no configuration and no reading.
+**2.50× against the old default's 1.10×**, with no flag, no configuration and no reading — in the
+regime §8.3's scope note describes, and measured under the CS2 contention §8.1 records.
+
+### 8.7 Independent re-measurement (adversarial review)
+
+Re-run on the same box against the same demo and range, on a **quiet machine** (CS2 had exited;
+`nvidia-smi` 0 %, CPU 2–7 %), with the `78cd116` binary rebuilt in a fresh worktree and interleaved
+first *and* last so drift would show. Two regimes, because the review found they disagree.
+
+**Regime A — the shipped default, radar on.** 1 714 frames, `--hud`, CPU raster.
+
+| case | encoder | fps | ×rt | render p50 | encode p50 |
+|---|---|---:|---:|---:|---:|
+| old default | `libvpx-vp9` untuned | 62.3 | 1.04× | 12.60 | 0.16 |
+| sw standard | `libvpx-vp9` | 60.2 | 1.00× | 12.21 | 2.34 |
+| **auto** | **`av1_nvenc`** | **64.8** | **1.08×** | 12.14 | 0.67 |
+| av1 standard | `av1_nvenc` | 62.0 | 1.03× | 12.25 | 0.72 |
+| old default (again) | `libvpx-vp9` untuned | 59.8 | 1.00× | 12.60 | 1.00 |
+
+**Every row is 1.0×, before and after.** The radar layer alone measures **11.84 ms p50** (picture
+cache `hit_rate 1.00`, 1 713 replays — the cache is working; the replay is simply that expensive on
+a CPU raster), which is 84 % of the frame. The encode column is not an encoder cost in this regime at
+all: it is back-pressure on the capacity-4 channel, and against a 12 ms renderer no encoder here ever
+fills it, which is why the column is non-monotonic noise that ranks *untuned* libvpx fastest.
+
+**Regime B — `--no-radar`, where the encoder is the frame again.** 6 843 frames, full range. This
+reproduces P1 §7's condition: `--no-encode --no-radar` render was 1.311 ms there and is 1.5–1.7 ms
+here, so the non-radar pipeline agrees closely with what P1 measured.
+
+| case | encoder | fps | ×rt | frame p50 | render | readback | encode | kbps |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| **old default** | `libvpx-vp9` untuned | 99.8 | 1.66× | 9.54 | 1.74 | 1.82 | **5.75** | 131 |
+| sw draft | `libvpx-vp9` | 205.3 | 3.42× | 5.64 | 1.63 | 1.24 | 2.70 | 192 |
+| **sw standard** | `libvpx-vp9` | **184.0** | **3.07×** | 5.82 | 1.62 | 1.31 | 2.84 | 186 |
+| sw best | `libvpx-vp9` | 124.1 | 2.07× | 7.48 | 1.87 | 1.82 | 3.40 | 134 |
+| av1 draft | `av1_nvenc` | 201.6 | 3.36× | 5.50 | 1.52 | 1.22 | 2.72 | 105 |
+| **av1 standard** | `av1_nvenc` | **199.7** | **3.33×** | 5.55 | 1.57 | 1.21 | 2.73 | 147 |
+| av1 best | `av1_nvenc` | 201.3 | 3.36× | 5.55 | 1.53 | 1.22 | 2.77 | 223 |
+| x264 standard | `libx264` | 194.4 | 3.24× | 5.70 | 1.62 | 1.23 | 2.79 | **93** |
+| **h264 standard** | `h264_nvenc` | **224.5** | **3.74×** | 3.11 | 1.55 | 1.21 | **0.13** | 184 |
+| old default (again) | `libvpx-vp9` untuned | 99.9 | 1.66× | 9.54 | 1.73 | 1.86 | 5.65 | 131 |
+
+The two `old-default` runs agree to 0.1 fps, so the spread here is real signal.
+
+**What survives.**
+
+- **The VP9 defect and its repair are exactly as claimed.** 99.8 → 184.0 fps, **1.84×**, on the CPU
+  alone (the plan claimed 1.76×). No GPU-less user is slower than before; every one of them is nearly
+  twice as fast, and even `best` (124.1) beats the old default.
+- **`av1_nvenc` is 2.00× the old default** (99.8 → 199.7), and `h264_nvenc` is **2.25×**. The plan's
+  2.5–2.8× is the same finding measured from a lower base.
+- **"ffmpeg steals from the renderer" reproduces**, smaller: render 1.74 → 1.57 (−10 %) and readback
+  1.82 → 1.21 (−33 %) moving from untuned libvpx to `av1_nvenc`.
+- **Hardware costs bits**, as claimed: `libx264` standard spends 93 kbps where `av1_nvenc` spends 147
+  for a comparable picture.
+
+**What does not.**
+
+- **The absolute end-to-end multiple is a property of the renderer, not of this phase.** With the
+  radar drawing, P2 moves nothing; the "45 min → 16 min" arithmetic needs the radar blit fixed first.
+  That is renderer work, which §8.3 already identifies as the next phase — it is simply a
+  *precondition* for the headline rather than a consequence of it.
+- **`av1_nvenc` standard leaves ~12 % on the table against `h264_nvenc` standard** (199.7 vs 224.5
+  fps) and shows a 2.73 ms encode stage where h264 shows 0.13. `-rc-lookahead 8 -bf 3` makes NVENC
+  hold frames before it emits any, and a capacity-4 channel is narrower than that look-ahead, so the
+  render loop waits on the reorder delay. Not a defect — the file is smaller and cleaner for it — but
+  a capacity worth revisiting if the renderer ever stops being the bottleneck.
+
+**Visual check, independently.** Frames pulled at t = 20 s from `av1_nvenc` draft/standard/best and
+`libvpx-vp9` standard, cropped to the marker cluster and magnified 4× nearest-neighbour: `RS`, `BA`,
+`YU`, `NE`, `ÅN` and the `♥B` bomb-carrier glyph are legible on all four, diacritic included. Draft
+shows mild ringing around the marker discs; standard and best are clean. **`standard` meets the
+"decent bitrate" bar.**
+
+**Container check, independently.** `ffmpeg -v error -f null -` over the complete outputs: zero
+errors. `ffprobe`: `av1 / Main / yuv420p / 1280x720 / 60-1` in `matroska,webm`; `vp9 / Profile 0` in
+`matroska,webm`; `h264 / Main / nb_frames=6843` in `mov,mp4`. AV1-in-WebM is a real WebM.
 
 ### 8.7 How much the CS2 contention actually cost
 
