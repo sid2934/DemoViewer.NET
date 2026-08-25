@@ -150,6 +150,49 @@ public readonly record struct ScenePalette(
         SKColor.Parse("#666666"),
         SceneStrokeWidths.Default);
 
+    /// <summary>
+    ///     The Light-variant values from the app's theme dictionary (<c>Styles/DarkPalette.axaml</c>'s
+    ///     Light bundle), colour for colour and in the same order as <see cref="Dark" />.
+    ///     <para>
+    ///         Added in B1 because the pre-v2 golden corpus was captured under the headless app's Light
+    ///         variant, and a headless re-render has no theme system to ask. Without this, the parity
+    ///         gate would be comparing two different colour schemes and calling the result a regression.
+    ///     </para>
+    /// </summary>
+    public static readonly ScenePalette Light = new(
+        SKColor.Parse("#E7E9ED"),
+        SKColor.Parse("#D2D7DE"),
+        SKColor.Parse("#BFC5CE"),
+        SKColor.Parse("#5A626C"),
+        SKColor.Parse("#C9821C"),
+        SKColor.Parse("#2F73BE"),
+        SKColor.Parse("#6E7178"),
+        SKColor.Parse("#80C9821C"),
+        SKColor.Parse("#802F73BE"),
+        SKColor.Parse("#42C9821C"),
+        SKColor.Parse("#422F73BE"),
+        SKColor.Parse("#386E7178"),
+        SKColor.Parse("#E0A800"),
+        SKColor.Parse("#D32F2F"),
+        SKColor.Parse("#5C6BC0"),
+        SKColor.Parse("#AAB0B7"),
+        SKColor.Parse("#E0322A"),
+        SKColor.Parse("#40202020"),
+        SKColor.Parse("#E0322A"),
+        SKColor.Parse("#2F73BE"),
+        SKColor.Parse("#6C6F757F"),
+        SKColor.Parse("#8A565C66"),
+        SKColor.Parse("#82E85D18"),
+        SKColor.Parse("#D32F2F"),
+        SKColor.Parse("#D69A00"),
+        SKColor.Parse("#78909C"),
+        SKColor.Parse("#E64A19"),
+        SKColor.Parse("#43A047"),
+        SKColor.Parse("#A66A15"),
+        SKColor.Parse("#285F9E"),
+        SKColor.Parse("#8A8F96"),
+        SceneStrokeWidths.Default);
+
     /// <summary>The team-coloured marker fill for a CS2 team number (2 = T, 3 = CT).</summary>
     public SKColor TeamFill(int team) => team switch
     {

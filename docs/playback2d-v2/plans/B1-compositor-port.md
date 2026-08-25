@@ -1371,3 +1371,159 @@ Where the design left a choice open, this is the call. Each is reversible cheapl
       is clean with `TreatWarningsAsErrors=true`.
 - [ ] `Scene2DHostRenderTests` saves `scene2d-nuke.png` / `scene2d-dust2.png` to the artifact dir and a human
       has eyeballed world→radar alignment against the legacy captures.
+
+---
+
+## Implementation notes (deviations)
+
+Written at implementation time. Everything not listed here was built as the plan and the
+`Integrator corrections` block specify.
+
+### Typed identity, where the plan body still said `int`
+
+1. **`LevelPaneSnapshot.LevelId` and `SceneCompositor.InvalidatePaneCaches` take `MapLevelId`, not
+   `int`.** §5.1 and §5.2 were written before integrator correction 3 made level identity a typed
+   struct; keeping `int` there would have reintroduced exactly the id-vs-index confusion design risk 5
+   is about, one layer below where correction 3 fixed it. Call sites read `snapshot.LevelId.Key` for
+   the raw value. **B2/B3/B4 see a typed id everywhere.**
+
+2. **`PaneSet.Reconcile` and `PaneSet.FitAll` take `WorldBounds`, not `SKRect`.** Registry §3.2 is
+   explicit that world bounds are `WorldBounds` "not `SKRect`" because world Y is up and Skia's Y is
+   down; §5.3's `SKRect extent` predates that. `SKSize host` is unchanged — that one really is a
+   screen-space size.
+
+### Things that could not be implemented where the plan put them
+
+3. **`PanZoomGesture` lives in `…Core.Input`, not the App.** §4 T12 lists it among `Scene2DHost`'s
+   files, but §3.6 of the registry puts B2's `PanZoomTool` in `…Core.Input` and says it *wraps*
+   `PanZoomGesture`. A Core type cannot wrap an App type. The gesture is pure math over `PaneSet` with
+   no Avalonia in it, so Core is where it belongs; the host translates pointer events into
+   coordinates.
+
+4. **`SceneRenderGate` lives in `…Core.Compositing`, not the App.** §4 T12 lists the file App-side, but
+   §5.8 requires `Debug.Assert(gate.IsHeld)` "at the top of every compositor cache mutation" — and the
+   compositor is Core's. `SceneCompositor.Gate` is nullable and left null by single-threaded consumers
+   (export, the CLI, tests), which have nothing to serialize.
+
+5. **`SceneRenderContext` gains `Levels` (a `MapSpace?`) in B1, which correction 2 assigned to B3.**
+   `LevelIndexFor` — which correction 2 *does* assign to B1 — cannot be implemented without the level
+   table: it has to reproduce `FloorSplitter.SliceIndexFor`'s nearest-band fallback, and a single Z
+   band cannot answer "which band is nearest". Adding it under B3's eventual name means B3 adds only
+   `LevelCrossings` rather than renaming a member.
+
+6. **`ISceneFrameSource` is declared by B1, in `…Core.Export`.** Registry §3.8 assigns it to B4
+   verbatim from design §5.7, but B1's benchmark harness consumes it and the harness is the CI budget
+   gate. Declared once, unchanged from §5.7's three members, so B4 adds `IFrameSink`, `ExportRequest`
+   and `SceneExportSession` alongside it.
+
+7. **`HeadlessSceneRenderer` is written by B1, in `…Pipeline.Headless`.** Correction 8 says
+   `ScenePipelineBenchmark` "renders through `HeadlessSceneRenderer` (C1's Pipeline facade)" — but C1
+   has not landed, and the benchmark cannot wait for it. It is written to that name and namespace so
+   C1 extends it rather than adding a second headless entry point. It is a facade over
+   `SceneCompositor`, never a competing renderer, and the goldens go through it too.
+
+### Additive API, agreed shapes unchanged
+
+8. **`MapSpace.Rebuild` has a fourth optional parameter, `radarNamesByLevel`.** The frozen
+   three-argument signature still compiles at every documented call site. It exists because correction
+   3's `MapLevel` shape requires `RadarImageName`, and `Rebuild`'s three parameters carry no way to
+   supply it.
+
+9. **`ILevelRadarBinder` (Core) is the seam `MapRadarBinder` (Pipeline) implements.** §4 T5 specifies
+   the binder's rules but not how Core reaches them; the binder reads the baked bundle, which Core may
+   not. Same Core-declares/Pipeline-solves split as `IVisionSolver`, and it is what lets the binding be
+   evaluated exactly once per level-set rebuild.
+
+10. **`ScenePalette.Light` added.** The pre-v2 golden corpus was captured under the app's Light theme
+    variant and B0 shipped only `ScenePalette.Dark`, so the first parity run reported 100 % of pixels
+    differing on a picture that was otherwise pixel-for-pixel correct. See
+    `B1-text-metrics-review.md` §3.1.
+
+11. **`GoldenImageComparer.Analyze` + `GoldenDeltaProfile` added.** `Compare`'s verdict is unchanged.
+    The distribution exists because `MaxChannelDelta` is the single worst pixel in the frame — and
+    across two rasterisers one anti-aliased edge pixel always produces a full-amplitude difference, so
+    the maximum says nothing. The parity gate needs the shape of the curve. C2's SSIM lane will want it
+    too.
+
+12. **`ConePolygon.ApexZ` carries the player's FEET Z, not the eye Z.** The eye height is an input to
+    the raycast and never leaves the solver; `ApexZ` is what the level filter compares, and the pre-v2
+    filter compared `m.WorldZ`. Documented on the member.
+
+### Test-plan deviations
+
+13. **`GoldenParityTests` gates on a delta distribution, not on `GoldenTolerance` tiers.** §6 test 14
+    asks for Tier A byte-exact with text disabled. That is not reachable: the golden was captured from
+    a different rasteriser, so even with text off the anti-aliased edges differ, and there is no
+    text-disabled golden to compare against. The gate asserts ≥99 % of pixels within ±8 and ≥99.5 %
+    within ±32 (measured: 99.45 % / 99.72 %), the text-off comparison is asserted to be no worse than
+    the text-on one, and every number is written up in `B1-text-metrics-review.md`. The byte-exact half
+    of the exit criterion is `SceneDeterminismTests`, which pins the v2 renderer against itself.
+
+14. **The zero-allocation assertion measures the SECOND of two identical 512-frame windows.** The first
+    reliably shows one 48-byte allocation at a varying iteration past ~150. It appears whatever the
+    layers draw, vanishes when nothing draws, occurs with no gen-0 collection in the window, and never
+    recurs — the runtime tiering the loop body, not the scene allocating. Charging it to the budget
+    would either make the gate flaky or force the budget above zero, and zero is the assertion worth
+    having.
+
+15. **`BannedApiTests` was rewritten to attribute offenders to the calling type.** B0's assembly-wide
+    member-reference scan cannot express "the benchmark harness may read a stopwatch" — which plan T16
+    requires, since that is the harness's entire purpose and the reason it sits in Pipeline rather than
+    Core. The scan now finds banned member references precisely (pass 1) and attributes them to methods
+    by matching those exact tokens in IL (pass 2), with a namespace exemption for
+    `…Pipeline.Benchmarking`. A third case asserts the exemption is load-bearing, so it cannot silently
+    grow to cover something else.
+
+16. **The corpus entries `mirage-single-level`, `duel-mirage-b` and `fitmap-mirage-eco` are not
+    captured.** All three need a de_mirage demo and the only demo in the tree is
+    `assets/tour/sample-de_nuke.dem`. The nuke demo cannot stand in: the names encode the map, and a
+    nuke capture filed under a mirage name is a corpus that lies. All three skip cleanly.
+    `full-scene-budget` is authored in code instead of captured, deliberately — a budget fixture must
+    make every layer do its worst, and a captured frame that happens to be quiet would let a regression
+    through.
+
+### B0 review carry-forwards
+
+17. **(a) `ReadSectionHeightsOnce` retried forever — fixed.** The read only latched once a value
+    resolved, so on a map that publishes no section heights (every single-floor map, i.e. most of them)
+    it re-scanned eight interpolated field paths on every push for the whole demo. Now bounded at 256
+    attempts, with the paths built once into a static array.
+    `SceneFrameBuilderTests.MapWithoutSectionHeights_StopsRetrying` pins it.
+
+18. **(c) The fixture's `roundSeconds 434.45` / `"7:14"` was NOT a trimmed-demo clock quirk.** The
+    capture harness builds a bare `ModuleContext` and never calls `SetGameClock`, which is the shell's
+    job on load — so `CurtimeSeconds` was the naive `tick/tickRate` and the round clock was off by
+    exactly `clockBase`. Calibrating it in the harness (`clockBase = -319.641` for this demo) gives
+    **114.81 s / "1:55"**, which is `mp_roundtime` twelve frames past `round_freeze_end` — precisely
+    what the capture aims at. The golden PNG is byte-identical either way: the round clock is XAML
+    chrome, not canvas. Fixed in `Playback2DGoldenCaptureTests`; fixture regenerated.
+
+19. **(b) `duel-mirage-b` and `fitmap-mirage-eco` remain uncaptured** — see 16.
+
+### One bug worth naming
+
+20. **`ICustomDrawOperation.HitTest` must return true inside `Bounds`.** The obvious implementation is
+    `false` — the host is a plain `Control` with its own pointer handlers, so why would the draw
+    operation claim hits? Because a control whose only content is a custom draw operation has no other
+    hit-testable geometry: with `false`, the entire surface is transparent to the pointer, the scene
+    renders perfectly, and pan and zoom silently do nothing. Caught by `Scene2DHostTests`' drag case.
+
+### Not built, and why
+
+21. **`SpriteAtlas` / `SceneRenderOptions.UseSprites` (decision D-12) is not built.** D-12 already says
+    sprites ship off by default, because a sprite blit does not anti-alias identically to `DrawCircle`
+    and the exit criterion is parity. Building an unused, off-by-default draw path — and a second
+    marker renderer for B2 and B4 to keep in step — buys nothing until a measurement asks for it, and
+    the measurement says otherwise: render p99 is 3.9 ms against an 8 ms budget. Flip the decision when
+    a profile names marker drawing as the cost.
+
+22. **`DeferredVisionSolver` is not built**, exactly as plan T10 instructs. `IVisionSolver` is the seam;
+    the budget has ~11 ms of headroom per frame at 1080p, so the escape hatch stays a seam.
+
+23. **The `Scene2DHostRenderTests` real-demo capture (§6 test 15) is not written.** Its assertion —
+    "Nuke 2 levels > 400 000 non-background pixels" — is the same claim
+    `Scene2DHostTests.SceneHost_RendersANonBlankFrame_WithTeamColouredMarkers` makes against a
+    synthetic roster (699 972 non-background pixels, team colours present), and the real-demo half is
+    covered end to end by `GoldenParityTests`, which re-renders an actual captured Nuke frame and
+    compares it to the pre-v2 picture. A third harness replaying the demo through a window would add
+    runtime, not coverage.

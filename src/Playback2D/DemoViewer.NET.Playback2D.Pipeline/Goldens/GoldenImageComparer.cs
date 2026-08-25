@@ -142,6 +142,69 @@ public static class GoldenImageComparer
         return data.ToArray();
     }
 
+    /// <summary>
+    ///     The full per-pixel delta distribution, rather than the pass/fail verdict
+    ///     <see cref="Compare" /> gives.
+    ///     <para>
+    ///         <b>Why a distribution is the right tool for a cross-renderer comparison.</b>
+    ///         <see cref="GoldenComparison.MaxChannelDelta" /> is the worst single pixel in the frame, and
+    ///         a single anti-aliased edge pixel whose sub-pixel coverage rounds the other way produces a
+    ///         full-amplitude difference — so on two different rasterisers the maximum is always large and
+    ///         says nothing. <see cref="GoldenComparison.MismatchedFraction" /> counts any difference at
+    ///         all, including ±1, so it is always large too. What actually distinguishes "the same picture"
+    ///         from "a regression" is the shape of the curve: how much of the frame is within a delta a
+    ///         human could see. B1's parity gate is written against that, and C2's SSIM lane will want it
+    ///         too.
+    ///     </para>
+    ///     <para>Returns null when either image cannot be decoded or the sizes disagree.</para>
+    /// </summary>
+    /// <param name="expectedPng">The committed golden.</param>
+    /// <param name="actualPng">The freshly captured image.</param>
+    public static GoldenDeltaProfile? Analyze(ReadOnlySpan<byte> expectedPng, ReadOnlySpan<byte> actualPng)
+    {
+        using SKBitmap? expected = Decode(expectedPng);
+        using SKBitmap? actual = Decode(actualPng);
+
+        if (expected is null || actual is null ||
+            expected.Width != actual.Width || expected.Height != actual.Height)
+        {
+            return null;
+        }
+
+        long[] histogram = new long[256];
+        int maxDelta = 0, maxAlphaDelta = 0, maxX = 0, maxY = 0;
+
+        for (int y = 0; y < expected.Height; y++)
+        {
+            for (int x = 0; x < expected.Width; x++)
+            {
+                SKColor e = expected.GetPixel(x, y);
+                SKColor a = actual.GetPixel(x, y);
+
+                int delta = Math.Max(Math.Abs(e.Red - a.Red),
+                    Math.Max(Math.Abs(e.Green - a.Green), Math.Abs(e.Blue - a.Blue)));
+                histogram[delta]++;
+                maxAlphaDelta = Math.Max(maxAlphaDelta, Math.Abs(e.Alpha - a.Alpha));
+
+                if (delta > maxDelta)
+                {
+                    maxDelta = delta;
+                    maxX = x;
+                    maxY = y;
+                }
+            }
+        }
+
+        // Cumulative in place: entry d becomes "pixels whose delta is at most d".
+        for (int d = 1; d < histogram.Length; d++)
+        {
+            histogram[d] += histogram[d - 1];
+        }
+
+        return new GoldenDeltaProfile(expected.Width, expected.Height, histogram[0],
+            maxDelta, maxAlphaDelta, maxX, maxY, histogram);
+    }
+
     private static SKBitmap? Decode(ReadOnlySpan<byte> png)
     {
         if (png.IsEmpty)

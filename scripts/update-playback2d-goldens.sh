@@ -35,6 +35,12 @@ if [ "$SYNTHETIC_ONLY" = "1" ]; then
   exit 0
 fi
 
+# 1b. The hand-authored budget fixture. It is generated from code (SyntheticScenes) rather than
+#     captured, but it is still a corpus entry that dv2d loads by name, so the committed JSON has to be
+#     regenerated whenever the generator changes — a test asserts the two agree.
+echo "[goldens] budget fixture (generated)"
+dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c "$CONFIG"   -- --treenode-filter "/*/*/BudgetFixtureCorpusTests/*"
+
 # 2. The demo-derived family: headless captures of the CURRENT Playback2DViewport, paired with the
 #    SceneFixture built from the same push. This is the corpus B1 must match. Each case SKIPS when its
 #    demo is absent, so a checkout with no demos staged is a no-op here rather than a failure.

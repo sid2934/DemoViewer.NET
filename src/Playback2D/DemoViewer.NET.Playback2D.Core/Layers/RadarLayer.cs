@@ -33,8 +33,11 @@ public sealed class RadarLayer : ISceneLayer
             // The pre-v2 draw was PushOpacity(0.9) + DrawImage. In Skia that is a white paint at the
             // same alpha, because DrawImage multiplies the image by the paint's colour.
             Color = new SKColor(255, 255, 255, (byte)(SceneDefaults.RadarOpacity * 255)),
-            // SkiaSharp 2.88.9 predates SKSamplingOptions — sampling is a paint property here, and it
-            // is pinned rather than defaulted because it is visible in every radar golden.
+            // SkiaSharp 2.88.9 predates SKSamplingOptions — sampling is a paint property here. High is
+            // not a default-by-habit: measured against the pre-v2 golden, it is the closest match of the
+            // four (93.1% of pixels within ±1, versus 78.9% for Medium/Low and 76.5% for None), which
+            // says Avalonia's DrawImage resamples the same way. Changing it re-baselines every radar
+            // golden — see docs/playback2d-v2/plans/B1-text-metrics-review.md.
             FilterQuality = SKFilterQuality.High,
             IsAntialias = true
         };

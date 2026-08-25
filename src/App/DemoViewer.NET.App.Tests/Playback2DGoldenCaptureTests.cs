@@ -222,6 +222,18 @@ public class Playback2DGoldenCaptureTests
         controller.PublishTracker(tracker);
 
         ModuleContext context = new(controller, () => demoPath);
+
+        // Calibrate the game clock, exactly as the shell does on load. Without it CurtimeSeconds is the
+        // naive tick/tickRate and every round/bomb timer in the captured fixture is offset by clockBase
+        // — which is how nuke-multilevel came to record a 7:14 round clock on a 1:55 round. Nothing in
+        // the PICTURE depends on it (the clock is XAML chrome, and B4's HUD layers are not built yet),
+        // but a fixture whose game info is wrong is a fixture that will mislead whoever reads it next.
+        int firstFreezeEnd = FindFirstFreezeEndFrame(frames);
+        (double clockBase, bool clockValid) = GameClock.ComputeClockBase(frames, firstFreezeEnd, 64);
+        context.SetGameClock(clockBase);
+        Console.WriteLine($"[capture] clockBase={clockBase:F3} valid={clockValid} " +
+                          $"firstFreezeEnd={firstFreezeEnd}");
+
         context.SetRoster(demo.Players.Values.Select(p => new PlayerRosterEntry
         {
             Slot = p.Slot,
@@ -291,6 +303,24 @@ public class Playback2DGoldenCaptureTests
         });
 
         return capture;
+    }
+
+    /// <summary>The first <c>round_freeze_end</c> in the demo — the clock calibration point.</summary>
+    /// <param name="frames">The demo's frames.</param>
+    private static int FindFirstFreezeEndFrame(IReadOnlyList<DemoFrame> frames)
+    {
+        for (int i = 0; i < frames.Count; i++)
+        {
+            bool freezeEnd = frames[i].InnerMessages.Any(m =>
+                m is GameEventMessage gem &&
+                gem.DecodedEvent.Name.Equals("round_freeze_end", StringComparison.OrdinalIgnoreCase));
+            if (freezeEnd)
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     // First round_freeze_end past warmup, plus a few frames → all players alive, still near their spawns.

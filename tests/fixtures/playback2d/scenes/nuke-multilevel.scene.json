@@ -3,7 +3,7 @@
   "time": {
     "tick": 9694,
     "frameIndex": 9733,
-    "demoSeconds": 151.46875,
+    "demoSeconds": 471.109375,
     "deltaSeconds": 0.015625,
     "isDiscontinuity": false
   },
@@ -26,7 +26,7 @@
     "time": {
       "tick": 9694,
       "frameIndex": 9733,
-      "demoSeconds": 151.46875,
+      "demoSeconds": 471.109375,
       "deltaSeconds": 0.015625,
       "isDiscontinuity": false
     },
@@ -190,8 +190,8 @@
       "bombState": "\u2014",
       "roundNumber": 1,
       "roundsPlayed": 0,
-      "roundSeconds": 434.453125,
-      "roundTime": "7:14",
+      "roundSeconds": 114.8125,
+      "roundTime": "1:55",
       "bombTicking": false,
       "defuseInProgress": false,
       "defuseKitNote": "\u2014",
@@ -219,7 +219,30 @@
         -416,
         -352
       ],
-      "radars": []
+      "radars": [
+        {
+          "name": "de_nuke.png",
+          "bounds": {
+            "minX": -3453,
+            "minY": -4281,
+            "maxX": 3715,
+            "maxY": 2887
+          },
+          "minZ": -495,
+          "maxZ": 10000
+        },
+        {
+          "name": "de_nuke_lower.png",
+          "bounds": {
+            "minX": -3453,
+            "minY": -4281,
+            "maxX": 3715,
+            "maxY": 2887
+          },
+          "minZ": -10000,
+          "maxZ": -495
+        }
+      ]
     },
     "vision": {
       "isAvailable": false,

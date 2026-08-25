@@ -343,9 +343,9 @@ public class SceneFrameBuilderTests
         }
 
         // The rules entity publishes its section heights, so the once-per-demo read latches on the first
-        // frame. A map that publishes NONE deliberately re-scans every frame (the array may simply not
-        // be decoded yet after a seek) — that is pre-v2 behaviour carried over verbatim, and it is not
-        // what "steady state" means.
+        // frame. The map that publishes NONE — every single-floor map, i.e. most of them — is covered by
+        // MapWithoutSectionHeights_StopsRetrying below; B1 bounded that retry, which used to run for the
+        // whole demo.
         FakeEntityView view = new FakeEntityView().Add(new FakeEntity("CCSGameRulesProxy")
             .With("m_pGameRules.m_fRoundStartTime", 0f)
             .With("m_pGameRules.m_iRoundTime", 115)
@@ -372,6 +372,59 @@ public class SceneFrameBuilderTests
         // enumerator IEnumerable<IReadOnlyEntity> costs per OfClass call — an entity-read-surface cost,
         // not the builder's. §6 makes ZERO a hard budget from B1's dv2d bench; until then this is B0's
         // risk-register R7 ceiling, set close enough to the measurement to catch a real regression.
+        await Assert.That(perBuild).IsLessThan(128);
+    }
+
+    /// <summary>
+    ///     A map that publishes no <c>m_MinimapVerticalSectionHeights</c> must stop looking for them.
+    ///     <para>
+    ///         B0 shipped an unbounded retry: the read only latched once at least one value resolved, so
+    ///         on the majority of maps — every single-floor one — it re-scanned eight interpolated field
+    ///         paths on every push for the entire demo. That is both wasted work and a steady-state
+    ///         allocation, in the one component whose allocation budget the whole design leans on
+    ///         (B0 review carry-forward (a)).
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task MapWithoutSectionHeights_StopsRetrying()
+    {
+        SceneFrameBuilder builder = new();
+        FakeEntity pawn = new FakeEntity("CCSPlayerPawn").With("m_iHealth", 100);
+        List<IPlayerState> players =
+        [
+            new FakePlayer
+            {
+                Slot = 0,
+                Team = 2,
+                Pawn = pawn,
+                WorldPosition = (0f, 0f, 64f)
+            }
+        ];
+
+        // No section heights at all — a single-floor map.
+        FakeEntityView view = new FakeEntityView().Add(new FakeEntity("CCSGameRulesProxy")
+            .With("m_pGameRules.m_fRoundStartTime", 0f)
+            .With("m_pGameRules.m_iRoundTime", 115));
+
+        // Well past the retry bound, so the scan has given up before the measured window.
+        for (int i = 0; i < 512; i++)
+        {
+            Build(builder, Input(players, view, i, i * TickRate, curtime: 10));
+        }
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 64; i++)
+        {
+            Build(builder, Input(players, view, 512 + i, (512 + i) * TickRate, curtime: 10));
+        }
+
+        long perBuild = (GC.GetAllocatedBytesForCurrentThread() - before) / 64;
+        Console.WriteLine($"[alloc] no-section-heights map: {perBuild} bytes/build");
+
+        Scene2DFrame frame = Build(builder, Input(players, view, 999, 999 * TickRate, curtime: 10));
+        await Assert.That(frame.Map.SectionHeights).IsNull();
+
+        // Same ceiling as the publishing case: once the scan has given up, the two paths cost the same.
         await Assert.That(perBuild).IsLessThan(128);
     }
 

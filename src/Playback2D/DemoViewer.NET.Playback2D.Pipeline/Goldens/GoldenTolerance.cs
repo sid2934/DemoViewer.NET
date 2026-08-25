@@ -63,3 +63,53 @@ public readonly record struct GoldenComparison(
     int Width,
     int Height,
     string? FailureReason);
+
+/// <summary>
+///     The per-pixel delta distribution between two images of the same size, as produced by
+///     <c>GoldenImageComparer.Analyze</c>. Every count is over the largest of the three colour-channel
+///     differences at a pixel; alpha is tracked separately.
+/// </summary>
+/// <param name="Width">Image width.</param>
+/// <param name="Height">Image height.</param>
+/// <param name="IdenticalPixels">Pixels that matched bit for bit.</param>
+/// <param name="MaxChannelDelta">The largest per-channel difference anywhere in the frame.</param>
+/// <param name="MaxAlphaDelta">The largest alpha difference anywhere in the frame.</param>
+/// <param name="MaxDeltaX">X of a pixel achieving <paramref name="MaxChannelDelta" />.</param>
+/// <param name="MaxDeltaY">Y of that pixel — so a reviewer can go and look at it.</param>
+/// <param name="CumulativeAtOrBelow">
+///     256 entries; entry <c>d</c> is how many pixels differ by at most <c>d</c>.
+/// </param>
+public readonly record struct GoldenDeltaProfile(
+    int Width,
+    int Height,
+    long IdenticalPixels,
+    int MaxChannelDelta,
+    int MaxAlphaDelta,
+    int MaxDeltaX,
+    int MaxDeltaY,
+    IReadOnlyList<long> CumulativeAtOrBelow)
+{
+    /// <summary>Total pixels compared.</summary>
+    public long TotalPixels => (long)Width * Height;
+
+    /// <summary>The fraction of the frame whose per-channel difference is at most <paramref name="delta" />.</summary>
+    /// <param name="delta">A per-channel difference, 0-255.</param>
+    public double FractionWithin(int delta)
+    {
+        long total = TotalPixels;
+        if (total == 0)
+        {
+            return 1.0;
+        }
+
+        int index = Math.Clamp(delta, 0, CumulativeAtOrBelow.Count - 1);
+        return CumulativeAtOrBelow[index] / (double)total;
+    }
+
+    /// <summary>A one-line summary for a test log or a review write-up.</summary>
+    public string Describe() => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+        $"identical {IdenticalPixels / (double)TotalPixels:P2}, " +
+        $"within±1 {FractionWithin(1):P2}, within±2 {FractionWithin(2):P2}, " +
+        $"within±8 {FractionWithin(8):P2}, within±32 {FractionWithin(32):P2}, " +
+        $"max {MaxChannelDelta} at ({MaxDeltaX},{MaxDeltaY})");
+}

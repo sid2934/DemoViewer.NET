@@ -41,6 +41,17 @@ public sealed class SceneFrameBuilder
 
     private const int MaxMinimapSections = 8; // engine array is fixed; scan a small bounded count.
 
+    // How many pushes to keep re-reading m_MinimapVerticalSectionHeights before concluding the map does
+    // not publish it. The array is networked in the first few ticks on a map that HAS one; a map that
+    // does not (every single-floor map, i.e. most of them) would otherwise re-scan eight field paths on
+    // every push, for the whole demo, forever — the retry was unbounded, and it is a per-frame
+    // allocation on the common case (B0 review carry-forward (a), fixed in B1).
+    private const int MaxSectionHeightAttempts = 256;
+
+    // The field paths, built once. String interpolation inside the scan allocated eight strings per
+    // attempt; on a map with no sections that was eight strings per FRAME.
+    private static readonly string[] _sectionHeightPaths = BuildSectionHeightPaths();
+
     // The grenade-projectile classes whose flight paths get a trail (all derive from CBaseCSGrenadeProjectile,
     // all carry CBodyComponent cell coords). Built once (static) so the per-frame scan allocates no strings.
     private static readonly string[] _grenadeProjectileClasses =
@@ -94,6 +105,7 @@ public sealed class SceneFrameBuilder
     private IReadOnlyList<MapRadarImage> _radars = [];
     private double[]? _sectionHeights;
     private bool _sectionHeightsRead;
+    private int _sectionHeightAttempts;
     private bool _useSlotB;
 
     /// <summary>Creates a builder.</summary>
@@ -123,6 +135,7 @@ public sealed class SceneFrameBuilder
         _trails.Clear();
         _sectionHeights = null;
         _sectionHeightsRead = false;
+        _sectionHeightAttempts = 0;
         _lastFrameIndex = -1;
         _observed = WorldBounds.Default;
         _observedSeeded = false;
@@ -408,10 +421,20 @@ public sealed class SceneFrameBuilder
             return;
         }
 
+        // Bounded retry. The array resolves within the first few pushes on a map that publishes one; on
+        // a map that does not, an unbounded retry re-scanned eight field paths on every frame for the
+        // whole demo. Giving up after a few seconds of play is not a loss: a map that has not networked
+        // its section heights by then does not have any.
+        if (++_sectionHeightAttempts > MaxSectionHeightAttempts)
+        {
+            _sectionHeightsRead = true;
+            return;
+        }
+
         List<double> kept = new(MaxMinimapSections);
         for (int i = 0; i < MaxMinimapSections; i++)
         {
-            if (!rules.TryGet($"m_pGameRules.m_MinimapVerticalSectionHeights[{i}]", out float h))
+            if (!rules.TryGet(_sectionHeightPaths[i], out float h))
             {
                 break; // field unseen at this index — end of the published array for this map.
             }
@@ -438,6 +461,18 @@ public sealed class SceneFrameBuilder
         {
             _sectionHeightsRead = true;
         }
+    }
+
+    private static string[] BuildSectionHeightPaths()
+    {
+        string[] paths = new string[MaxMinimapSections];
+        for (int i = 0; i < MaxMinimapSections; i++)
+        {
+            paths[i] = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"m_pGameRules.m_MinimapVerticalSectionHeights[{i}]");
+        }
+
+        return paths;
     }
 
     // Reads CCSGameRulesProxy.m_pGameRules.m_vMinimapMins / m_vMinimapMaxs (Vector3 world-space radar

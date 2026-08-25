@@ -23,7 +23,9 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 /// </summary>
 public sealed class SceneCompositor : IDisposable
 {
+    private readonly SKPaint _background;
     private readonly LayerPictureCache _cache;
+    private readonly SKPaint _divider;
     private readonly List<ISceneLayer> _layers = [];
     private readonly SceneCompositorOptions _options;
     private bool _disposed;
@@ -36,6 +38,19 @@ public sealed class SceneCompositor : IDisposable
     {
         _options = options ?? new SceneCompositorOptions();
         _cache = new LayerPictureCache(_options.MaxCachedPictures);
+
+        // Owned and mutated in place rather than constructed per frame. An SKPaint is a managed
+        // wrapper over native state, so one per frame is both a heap allocation and a native
+        // allocation — and the §6 budget is zero bytes.
+        _background = new SKPaint
+        {
+            Style = SKPaintStyle.Fill
+        };
+        _divider = new SKPaint
+        {
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true
+        };
     }
 
     /// <summary>The registered layers in draw order.</summary>
@@ -61,6 +76,8 @@ public sealed class SceneCompositor : IDisposable
 
         _disposed = true;
         _cache.Dispose();
+        _background.Dispose();
+        _divider.Dispose();
         foreach (ISceneLayer layer in _layers)
         {
             layer.Dispose();
@@ -186,12 +203,8 @@ public sealed class SceneCompositor : IDisposable
 
         // 1. Background. The pre-v2 control filled the whole control before laying out bands, so a
         //    fractional-pixel seam between bands shows the background rather than stale pixels.
-        using (SKPaint background = new())
-        {
-            background.Color = submission.Palette.Background;
-            background.Style = SKPaintStyle.Fill;
-            canvas.DrawRect(submission.HostBounds, background);
-        }
+        _background.Color = submission.Palette.Background;
+        canvas.DrawRect(submission.HostBounds, _background);
 
         IReadOnlyList<LevelPaneSnapshot> panes = submission.Panes;
         if (panes.Count == 0 || submission.HostBounds.Width < 1 || submission.HostBounds.Height < 1)
@@ -238,10 +251,8 @@ public sealed class SceneCompositor : IDisposable
         //    control's own top edge.
         if (!single)
         {
-            using SKPaint divider = new();
-            divider.Color = submission.Palette.MajorGrid;
-            divider.StrokeWidth = submission.Palette.Strokes.MajorGrid;
-            divider.Style = SKPaintStyle.Stroke;
+            _divider.Color = submission.Palette.MajorGrid;
+            _divider.StrokeWidth = submission.Palette.Strokes.MajorGrid;
 
             for (int i = 0; i < panes.Count; i++)
             {
@@ -251,7 +262,7 @@ public sealed class SceneCompositor : IDisposable
                     continue;
                 }
 
-                canvas.DrawLine(submission.HostBounds.Left, top, submission.HostBounds.Right, top, divider);
+                canvas.DrawLine(submission.HostBounds.Left, top, submission.HostBounds.Right, top, _divider);
             }
         }
 

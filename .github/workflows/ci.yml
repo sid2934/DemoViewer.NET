@@ -37,7 +37,7 @@ jobs:
       - name: Build Desktop head (Release)
         run: dotnet build src/App/DemoViewer.NET.Desktop -c Release
 
-  # The job the rest of the Playback2D track extends: B1 adds a `playback2d-budget` lane beside it,
+  # The job the rest of the Playback2D track extends: B1 added the `playback2d-budget` lane below,
   # C1 appends its CLI tests plus `dv2d golden verify --cpu` and `dv2d bench --gate`, and C2 adds the
   # `render-backends` matrix. Nobody adds a SECOND core/pipeline test invocation.
   playback2d-tests:
@@ -58,4 +58,43 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1
 
       - name: Playback2D core + pipeline tests (direct execution, no Avalonia)
-        run: dotnet test src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
+        run: dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
+             -- --treenode-filter "/*/*/*/*[Category!=Budget]"
+
+  # B1's lane. Split from the correctness suite because it measures rather than asserts behaviour: a
+  # timing failure here means "look at the machine or the change", not "the scene is wrong", and mixing
+  # the two makes people ignore both.
+  playback2d-budget:
+    runs-on: ubuntu-latest
+    needs: playback2d-tests
+    env:
+      # A GitHub hosted runner is not the design §6 baseline laptop. Gate at 2x the baseline so the lane
+      # catches real regressions — an O(n) blow-up, a re-introduced per-frame allocation — without
+      # firing on runner noise; a gate that cries wolf gets disabled within a week. The strict §6
+      # numbers are what a local run reports against, and are printed here either way.
+      #
+      # The ZERO-ALLOCATION assertion is deliberately NOT scaled by this. Zero is zero on every machine,
+      # and it is the half of the budget that carries most of the regression-catching value.
+      DV2D_BUDGET_SCALE: '2.0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install native deps
+        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+
+      - name: Frame-time + allocation budget
+        run: dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
+             -- --treenode-filter "/*/*/*/*[Category=Budget]"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-reports
+          path: bench-reports/dv2d-*.json
+          if-no-files-found: ignore

@@ -56,6 +56,10 @@ public sealed class FloorSplitter
     // each section (ascending), e.g. [1.81, 51.54, 287.0, 376.0]: section i spans [heights[i], heights[i+1]).
     private double[]? _sectionHeights;
 
+    // The last list handed to SetSectionHeights, for the reference-identity short circuit above. Held
+    // only to compare against, never read.
+    private IReadOnlyList<double>? _lastSuppliedHeights;
+
     // Cached slices, recomputed when the histogram changes. Hysteresis keeps a player from flickering
     // across a boundary on a ramp: assignment uses the LAST slices unless Z clearly enters a new band.
     private List<FloorSlice> _slices = new();
@@ -115,6 +119,7 @@ public sealed class FloorSplitter
         _buckets.Clear();
         _slices = new List<FloorSlice>();
         _sectionHeights = null;
+        _lastSuppliedHeights = null;
         _authoritativeFloors = null;
         _dirty = true;
     }
@@ -142,6 +147,17 @@ public sealed class FloorSplitter
     /// </summary>
     public void SetSectionHeights(IReadOnlyList<double>? heights)
     {
+        // Reference identity first. The scene calls this once per PUSH with the same list instance the
+        // frame has been publishing since the map was read, and CleanSectionHeights allocates a List
+        // plus an array every time it runs — a per-frame allocation for data that is constant for the
+        // whole demo, and one the §6 zero-allocation budget catches immediately.
+        if (ReferenceEquals(_lastSuppliedHeights, heights))
+        {
+            return;
+        }
+
+        _lastSuppliedHeights = heights;
+
         double[]? cleaned = CleanSectionHeights(heights);
 
         if (SameHeights(_sectionHeights, cleaned))
