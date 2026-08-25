@@ -1363,3 +1363,58 @@ says it is expected to fail until `SceneLayerCatalog` registers B1's seven layer
 seven layers were never added to it, so `playback2d.annotations` is not headless-selectable via
 `dv2d --layers` either. Closing that seam (C1 risk R6 / C1 deviation 14) should add the annotation layer
 in the same pass, together with a source for `SceneFixture.Annotations`.
+
+### Post-merge fix — the two top-left toolbars (`fix/p2d-toolbar-conflict`, on top of `c393602`)
+
+36. **T18's "mount the toolbar as a top-left `Border`" was wrong by the time it was executed: A4's
+    overlay-toggle strip already owned that corner, and B2 mounted the annotation toolbar underneath it.**
+    Both claimed `HorizontalAlignment=Left` + `VerticalAlignment=Top` + `Margin=10` in the SAME grid cell
+    of `Playback2DView.axaml`'s left column, and every overlay in that cell is a plain sibling of every
+    other — so the strip, being the LATER sibling, painted over the toolbar and won its hit tests.
+    Measured headlessly at 1000×700 before the fix: toolbar `(10,10) 656×74`, strip `(10,10) 485×40`,
+    intersection **485×40 px** — the entire tool row. `Window.InputHitTest` at the Pan tool's own centre
+    `(37, 38.5)` returned a `Border` that is not an ancestor of the button, i.e. **Pan / Draw / Erase were
+    unclickable**, and so were the colour picker, the width slider, the envelope box, "Pin to now",
+    "Track player" and undo/redo. Only the trailing "Clear" and the status line stuck out below/right of
+    the strip. The keymap's `D` / `X` still selected the tools, which is presumably why the suite (all
+    view-model-level for the toolbar) never noticed.
+    **Fix:** the two left-hand overlays now share ONE `StackPanel x:Name="TopLeftHud"` anchored top-left.
+    The always-present toggle strip is first and the gated toolbar sits under it, so a
+    `playback2d.annotations` flip cannot shove the strip around; both children are `HorizontalAlignment=Left`
+    so the narrower strip does not inherit the toolbar's width as dead translucent chrome; the panel has no
+    `Background`, so the 6 px gap and the ragged right edge still pass pan/draw gestures to the canvas. The
+    gate moved onto the mounted element (`IsVisible="{Binding IsEnabled}"`, resolved against the element's
+    own `Annotations` DataContext) — the control's internal gate collapses only its inner `Border`, which
+    would have left this element's top margin in the stack. `TransportBar`, `OverlayToggles` and
+    `ExportButton` gained `x:Name`s purely so the regression test can address them.
+
+37. **The toolbar's tool row was a fixed horizontal `StackPanel` ~775 px wide, in a viewport column that is
+    narrower than that on any window under ~1100 px.** Nothing in the left cell clips, so at 820 px
+    (column 496 px) the row ran the trailing controls out of the column and under the roster panel — a
+    later sibling again, so it painted over them and took their clicks. `DesiredSize` cannot detect this
+    (`Layoutable.MeasureCore` clamps it to the available width, so a clipped row still reports "I fit");
+    the trailing control's arranged rect can, and does: `ClearAllButton` sat at x≈724 in a 496 px column.
+    **Fix:** the row is a `WrapPanel` (`ItemSpacing=6`, `LineSpacing=4`) — reflow instead of clip, the same
+    call design-system D35 made for the Library filter toolbar. Measured after: 775 px on one line at
+    1400 px, two lines at 1000 px, three at 820 px, `Clear` inside the column at all three.
+
+**Considered and deliberately NOT changed.** Arrow keys and Space reaching the annotation toolbar's
+`Slider` / `ComboBox` / `ToggleButton`s are eaten by the tab's tunnelling keymap handler, exactly as they
+are for A4's overlay `CheckBox`es — that is the shipped, documented and pinned behaviour
+(`Playback2DKeyRoutingTests.SpaceOverFocusedCheckbox_TogglesPlay_NotTheCheckbox`), not a toolbar conflict.
+The two toolbars share no toggle, so there is nothing duplicated or contradictory between them, and they
+are not modally exclusive: the overlay strip is layer visibility, the annotation toolbar is a tool palette.
+
+**Regression test:** `src/App/DemoViewer.NET.App.Tests/Playback2DHudLayoutTests.cs` — 6 cases.
+Geometry is the only honest assertion here; a "is it in the right container" test would have passed on the
+broken tree. It pins (a) pairwise non-overlap of every INTERACTIVE viewport overlay
+(`AnnotationToolbarHost`, `OverlayToggles`, `TransportBar`, `LevelStrip`, `ExportButton` — the kill-feed /
+live-sync stack is excluded, being `IsHitTestVisible=False`), (b) each tool button being the topmost
+`InputHitTest` result at its own centre, (c) the toggle strip not moving a pixel when the annotations gate
+flips, and (d) the toolbar's trailing control staying inside the viewport column at 1400 / 1000 / 820 px.
+
+**Verified:** `dotnet build DemoViewer.NET.slnx` 0 errors / 0 warnings. App `*Playback2D*` slice
+**188 total / 169 passed / 19 skipped / 0 failed**; `*Timeline*` 42 / 38 / 4 / 0; `Scene2DHostTests`
+10 / 10 / 0 / 0; `DemoViewer.NET.Playback2D.Tests` **481 / 481**. Full App suite **903 total / 799 passed /
+99 skipped / 5 failed** — the same five (`DiagnosticsFileLogTests` ×3, `DemoLibraryServiceTests` ×2)
+reproduced on an untouched `c393602`, so pre-existing and environmental.
