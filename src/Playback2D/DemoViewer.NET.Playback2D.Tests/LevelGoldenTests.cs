@@ -25,6 +25,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class LevelGoldenTests
 {
     private const string Corpus = "nuke-multilevel";

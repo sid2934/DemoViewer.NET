@@ -14,6 +14,7 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 ///     well under a second, with no app and no window.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class RenderFixtureTests
 {
     /// <summary>Every non-pending corpus entry, as test data.</summary>

@@ -209,8 +209,18 @@ public class ScenePerfRecorderTests
     ///     <see cref="ScenePerfRecorder.Reset" /> retires the rows as well as the samples. A slot only the
     ///     warmup ever touched must vanish from the report rather than survive as a row of zeros, which
     ///     would read as "measured and free" when the truth is "not measured at all".
+    ///     <para>
+    ///         <b>Environmental</b>, for its last line only: <c>SharePct</c> is stage-elapsed over
+    ///         frame-elapsed, so a thread preempted between <c>EndStage</c> and <c>EndFrame</c> reports a
+    ///         share below the 99% floor. Measured at roughly one run in five when the whole suite is
+    ///         running in parallel on a loaded machine, and never in isolation. The tag keeps that noise
+    ///         out of the fast and standard tiers, whose whole value is that a red means the change;
+    ///         it does not change CI, which selects only on <c>Category!=Budget</c> and so still runs
+    ///         this on every pull request exactly as before.
+    ///     </para>
     /// </summary>
     [Test]
+    [Category("Environmental")]
     public async Task Reset_RetiresRowsNothingTouchedAfterwards()
     {
         ScenePerfRecorder recorder = new(16);

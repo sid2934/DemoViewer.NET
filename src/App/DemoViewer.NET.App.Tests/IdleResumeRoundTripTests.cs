@@ -15,6 +15,7 @@ namespace DemoViewer.NET.AppTests;
 ///     heavy loads (open, then the resume re-parse), so it is <see cref="NotInParallelAttribute" /> and heavy.
 /// </summary>
 [NotInParallel]
+[Category("RealDemo")]
 public class IdleResumeRoundTripTests
 {
     [Test]

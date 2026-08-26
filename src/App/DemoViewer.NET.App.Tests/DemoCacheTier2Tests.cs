@@ -22,6 +22,7 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("RealDemo")]
 public class DemoCacheTier2Tests
 {
     private static ParsedDemo Parse()

@@ -64,6 +64,7 @@ public class DemoLibraryServiceTests
     ///     launch loads from cache WITHOUT re-parsing. Uses a fake queue parser so no real demo is needed.
     /// </summary>
     [Test]
+    [Category("Environmental")]
     public async Task QueuePath_PersistsCache_SoSecondLaunchDoesNotReparse()
     {
         string dir = Path.Combine(Path.GetTempPath(), "dvlib_" + Guid.NewGuid().ToString("N"));
@@ -177,6 +178,7 @@ public class DemoLibraryServiceTests
     ///     (real/a.dem vs link/a.dem) → two cards + two full parses.
     /// </summary>
     [Test]
+    [Category("Environmental")]
     public async Task Scan_DeduplicatesSameFile_AcrossSymlinkedFolders()
     {
         string real = Path.Combine(Path.GetTempPath(), "dvlib_" + Guid.NewGuid().ToString("N"));
@@ -724,6 +726,7 @@ public class DemoLibraryServiceTests
     ///     list (no stale folder left behind).
     /// </summary>
     [Test]
+    [Category("Environmental")]
     public async Task SettingsBacked_AddRemoveFolder_WritesThroughToSettingsJson()
     {
         string cfgDir = NewTempDir();

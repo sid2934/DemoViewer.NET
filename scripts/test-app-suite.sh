@@ -15,17 +15,35 @@
 # It now iterates the array itself with a 0-based counter, which means the same thing in
 # both shells; there is no remaining zsh-ism, so bash is the shebang.
 #
-# Usage: scripts/test-app-suite.sh [-c Release|Debug] [-n BATCHES]
+# Tiers: this script is the MEMORY-SAFE way to run the App suite, and is orthogonal to
+# scripts/test.sh, which is the tier entry point for every suite. Passing -t composes the tier's
+# category filter into each batch's class filter, so `-t full` (the default here, since batching
+# exists precisely for the runs too heavy to do in one process) and `-t standard` both work. For a
+# single-process run of one tier, prefer `scripts/test.sh -t TIER -p app`; come back here when the
+# suite is holding real demos and the process is being OS-killed.
+#
+# Usage: scripts/test-app-suite.sh [-c Release|Debug] [-n BATCHES] [-t fast|standard|full]
 set -u
 CONFIG=Release
 BATCHES=3
-while getopts "c:n:" opt; do
+TIER=full
+while getopts "c:n:t:" opt; do
   case $opt in
     c) CONFIG=$OPTARG ;;
     n) BATCHES=$OPTARG ;;
-    *) echo "usage: $0 [-c CONFIG] [-n BATCHES]" >&2; exit 2 ;;
+    t) TIER=$OPTARG ;;
+    *) echo "usage: $0 [-c CONFIG] [-n BATCHES] [-t TIER]" >&2; exit 2 ;;
   esac
 done
+
+# Kept character-for-character in step with scripts/test.sh and tests/shared/TestTiers.cs — the
+# contract test asserts the script text, so a drifting copy turns every suite red.
+case "$TIER" in
+  fast)     TIER_FILTER='[(Category!=Budget)&(Category!=Environmental)&(Category!=Gpu)&(Category!=Integration)&(Category!=RealDemo)&(Category!=Render)]' ;;
+  standard) TIER_FILTER='[(Category!=Budget)&(Category!=Environmental)&(Category!=Integration)&(Category!=RealDemo)]' ;;
+  full)     TIER_FILTER='' ;;
+  *) echo "unknown tier '$TIER' (expected fast, standard or full)" >&2; exit 2 ;;
+esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PROJ="$ROOT/src/App/DemoViewer.NET.App.Tests"
@@ -38,8 +56,8 @@ dotnet build "$PROJ" -c "$CONFIG" -v q --nologo || exit 2
 # holds no ParsedDemo, so it is neither slow nor a memory-pressure risk — and it is the fastest signal
 # that the scene core is broken, which is worth having before the heavy batches start.
 PB2D_PROJ="$ROOT/src/Playback2D/DemoViewer.NET.Playback2D.Tests"
-echo "[batch-runner] playback2d core+pipeline (direct execution)"
-dotnet run --project "$PB2D_PROJ" -c "$CONFIG" || exit 1
+echo "[batch-runner] playback2d core+pipeline (direct execution, tier=$TIER)"
+dotnet run --project "$PB2D_PROJ" -c "$CONFIG" -- --treenode-filter "/*/*/*/*$TIER_FILTER" || exit 1
 
 # Discover test classes from SOURCE (files bearing [Test]); '--list-tests' prints bare
 # method names, so it can't provide class names. Helper classes caught by the grep are
@@ -48,13 +66,16 @@ dotnet run --project "$PB2D_PROJ" -c "$CONFIG" || exit 1
 CLASSES=($(grep -rlE '\[Test\]' "$PROJ" --include="*.cs" \
   | xargs grep -hE "^public (sealed |partial )*class" \
   | sed -E 's/^public (sealed |partial )*class ([A-Za-z0-9_]+).*/\2/' | sort -u))
-EXPECTED=$(dotnet run --project "$PROJ" -c "$CONFIG" --no-build -- --list-tests 2>/dev/null \
-  | grep -cE '^  [A-Za-z0-9_]+$')
+# Discovery is done UNDER THE TIER FILTER, so the partition audit below compares like with like: a
+# tiered run legitimately executes fewer tests than the assembly holds, and an untiered floor would
+# make every `-t fast` run look like silent loss.
+EXPECTED=$(dotnet run --project "$PROJ" -c "$CONFIG" --no-build -- --list-tests \
+  --treenode-filter "/*/*/*/*$TIER_FILTER" 2>/dev/null | grep -cE '^  [A-Za-z0-9_]+$')
 if [ ${#CLASSES[@]} -lt 5 ] || [ "$EXPECTED" -lt 10 ]; then
   echo "[batch-runner] discovery failed (classes=${#CLASSES[@]} expected-tests=$EXPECTED) — refusing to run a partial suite" >&2
   exit 2
 fi
-echo "[batch-runner] ${#CLASSES[@]} test classes, $EXPECTED tests, $BATCHES batches"
+echo "[batch-runner] ${#CLASSES[@]} test classes, $EXPECTED tests, $BATCHES batches, tier=$TIER"
 
 TOTAL_FAILED=0
 TOTAL_RUN=0
@@ -68,7 +89,10 @@ for ((b = 1; b <= BATCHES; b++)); do
     if (( i % BATCHES == b - 1 )); then MEMBERS+=("$CLS"); fi
     i=$((i + 1))
   done
-  FILTER="/*/*/($(IFS='|'; echo "${MEMBERS[*]}"))/*"
+  # Path alternation for the class segment, then the tier's category filter on the method segment.
+  # Both halves in one expression is supported; what is NOT is a boolean between two whole paths, or
+  # an unparenthesised operand inside the brackets — see scripts/test.sh for why.
+  FILTER="/*/*/($(IFS='|'; echo "${MEMBERS[*]}"))/*$TIER_FILTER"
   echo "[batch-runner] batch $b/$BATCHES: ${#MEMBERS[@]} classes"
   OUT=$(dotnet run --project "$PROJ" -c "$CONFIG" --no-build -- --treenode-filter "$FILTER" 2>&1)
   EX=$?

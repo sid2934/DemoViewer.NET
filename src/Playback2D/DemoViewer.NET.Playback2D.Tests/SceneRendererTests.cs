@@ -15,6 +15,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     The offscreen render loop and its PNG output, including the §11 determinism gate: two renders of
 ///     the same request must be byte-identical on a given backend, or no golden means anything.
 /// </summary>
+[Category("Render")]
 public class SceneRendererTests
 {
     [Test]

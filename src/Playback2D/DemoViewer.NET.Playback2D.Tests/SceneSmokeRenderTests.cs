@@ -19,6 +19,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     the running process, not about a csproj, so this checks the running process.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class SceneSmokeRenderTests
 {
     [Test]

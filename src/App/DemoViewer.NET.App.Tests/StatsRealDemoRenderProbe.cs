@@ -24,6 +24,7 @@ namespace DemoViewer.NET.AppTests;
 /// </summary>
 [Category("Probe")]
 [NotInParallel]
+[Category("RealDemo")]
 public class StatsRealDemoRenderProbe
 {
     /// <summary>Render scoreboard + rounds views from a real evaluation and save captures.</summary>

@@ -18,6 +18,7 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Integration")]
 public class BackendFlagTests
 {
     private const string BackendVariable = "DV2D_RENDER_BACKEND";

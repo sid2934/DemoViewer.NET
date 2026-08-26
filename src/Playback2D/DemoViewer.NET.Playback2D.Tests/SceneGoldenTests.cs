@@ -29,6 +29,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class SceneGoldenTests
 {
     private const string UpdateEnvVar = "PB2D_GOLDEN_UPDATE";

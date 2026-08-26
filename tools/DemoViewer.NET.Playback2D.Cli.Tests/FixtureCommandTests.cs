@@ -53,6 +53,7 @@ public class FixtureCommandTests
     }
 
     [Test]
+    [Category("RealDemo")]
     public async Task Capture_WritesAFixtureThatRoundTripsAndRegistersIt()
     {
         string demo = Dv2d.RequireDemo();

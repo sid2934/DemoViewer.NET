@@ -45,6 +45,7 @@ public class NoAvaloniaArchitectureTests
     }
 
     [Test]
+    [Category("Integration")]
     public async Task RealRenderSubprocess_LoadsSkiaSharp_AndNoAvalonia()
     {
         string fixturePath = Path.Combine(Dv2d.CorpusDirectory, "scenes", "duel-mirage-b.scene.json");

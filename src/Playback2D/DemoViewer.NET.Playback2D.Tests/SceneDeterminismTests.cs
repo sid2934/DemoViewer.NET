@@ -22,6 +22,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class SceneDeterminismTests
 {
     private static readonly SKSizeI _size = new(640, 480);

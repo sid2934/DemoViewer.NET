@@ -13,6 +13,7 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 ///     none of which the in-process repeat would show.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class RenderDeterminismTests
 {
     [Test]
@@ -30,6 +31,7 @@ public class RenderDeterminismTests
     }
 
     [Test]
+    [Category("Integration")]
     public async Task SameFixture_InAFreshProcess_IsByteIdentical()
     {
         string fixturePath = Path.Combine(Dv2d.CorpusDirectory, "scenes", "duel-mirage-b.scene.json");

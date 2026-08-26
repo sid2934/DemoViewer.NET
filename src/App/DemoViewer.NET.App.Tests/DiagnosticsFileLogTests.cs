@@ -30,6 +30,7 @@ public class DiagnosticsFileLogTests
     }
 
     [Test]
+    [Category("Environmental")]
     public async Task WritesLines_ToActiveFile()
     {
         string dir = NewTempDir();
@@ -55,6 +56,7 @@ public class DiagnosticsFileLogTests
     }
 
     [Test]
+    [Category("Environmental")]
     public async Task ReadTail_Works_WhileSinkHoldsFileOpen()
     {
         // The copy-diagnostics path reads the log file while the sink still holds it open for writing
@@ -85,6 +87,7 @@ public class DiagnosticsFileLogTests
     }
 
     [Test]
+    [Category("Environmental")]
     public async Task Rolls_AndRetainsAtMostMaxFiles()
     {
         string dir = NewTempDir();

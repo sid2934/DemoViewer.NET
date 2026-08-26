@@ -35,6 +35,7 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("RealDemo")]
 public class TutorialDeferredSegmentTests
 {
     [Test]

@@ -134,6 +134,7 @@ public class ReleaseGateTests
     ///     retired-format error.
     /// </summary>
     [Test]
+    [Category("RealDemo")]
     public async Task UserRuleJourney_AddAndRetiredV1File_EndToEnd()
     {
         string demoPath = DemoTestHelper.RequireDemo();
