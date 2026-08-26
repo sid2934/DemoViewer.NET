@@ -31,13 +31,22 @@ namespace DemoViewer.NET.AppTests;
 [NotInParallel]
 public class EnvelopeSpinnerWidthTests
 {
-    // Six digits covers any tick a real demo produces — the reference Nuke demo is 19 237 frames, five
-    // digits — and every one of these fields accepts at least six (Maximum is 100 000 or more).
+    // TWO unit domains since D8, and the worst case is measured in each rather than in whichever one the
+    // test happened to be written against.
+    //
+    // TICKS (from/until): six digits covers any tick a real demo produces — the reference Nuke demo is
+    // 19 237 frames, five digits — and both fields accept eight.
     private const int SixDigits = 123456;
 
-    /// <summary>Every spinner visible in the Custom envelope renders a six-digit tick unclipped.</summary>
+    // SECONDS (in/out/hold): the spinners' own Maximum, which is what the control clamps anything larger
+    // down to, so nothing wider can ever appear in one. "600.00" is five digits and a period where the
+    // tick fields ask for six digits — the seconds domain is the CHEAPER of the two, which is why D8
+    // moved no width.
+    private const double WidestSeconds = 600;
+
+    /// <summary>Every spinner visible in the Custom envelope renders its widest value unclipped.</summary>
     [Test]
-    public async Task CustomEnvelopeSpinners_ShowASixDigitTick_Unclipped()
+    public async Task CustomEnvelopeSpinners_ShowTheirWidestValue_Unclipped()
     {
         await AssertSpinnersFit(EnvelopeMode.Custom,
             ["FadeInBox", "FadeOutBox", "CustomFromBox", "CustomUntilBox"]);
@@ -48,7 +57,7 @@ public class EnvelopeSpinnerWidthTests
     ///     appears in one mode is a field only one mode's test can measure.
     /// </summary>
     [Test]
-    public async Task FadeEnvelopeSpinners_ShowASixDigitTick_Unclipped()
+    public async Task FadeEnvelopeSpinners_ShowTheirWidestValue_Unclipped()
     {
         await AssertSpinnersFit(EnvelopeMode.Fade, ["FadeInBox", "FadeOutBox", "HoldBox"]);
     }
@@ -65,9 +74,9 @@ public class EnvelopeSpinnerWidthTests
                 Playback2DTimelineHarness.Show(vm, 1400, 800, Playback2DRendererKind.Scene);
 
             vm.Annotations.Visibility = mode;
-            vm.Annotations.FadeInTicks = SixDigits;
-            vm.Annotations.FadeOutTicks = SixDigits;
-            vm.Annotations.HoldTicks = SixDigits;
+            vm.Annotations.FadeInSeconds = WidestSeconds;
+            vm.Annotations.FadeOutSeconds = WidestSeconds;
+            vm.Annotations.HoldSeconds = WidestSeconds;
             vm.Annotations.CustomFromTick = SixDigits;
             vm.Annotations.CustomUntilTick = SixDigits + 1;
             Playback2DTimelineHarness.Pump();

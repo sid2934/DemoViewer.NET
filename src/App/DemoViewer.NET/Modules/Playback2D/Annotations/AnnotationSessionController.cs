@@ -189,6 +189,14 @@ public sealed class AnnotationSessionController : IDisposable
     {
         ArgumentNullException.ThrowIfNull(clock);
 
+        // BEFORE the already-attached early return, and off the CLOCK rather than a second read of the
+        // context: ClockIdentity.TickRate is already "ticks per second of the parse the anchors were
+        // written against", which is exactly the divisor a RealTime cadence and the toolbar's second-
+        // valued spinners need. A second path to the same number is a second thing to get wrong, and this
+        // one is already load-bearing — it is what the ClockMismatch warning compares. Unknown carries 0
+        // and the setter refuses it, so a detach keeps the last real rate rather than dividing by zero.
+        Session.TicksPerSecond = clock.TickRate;
+
         string? normalized = string.IsNullOrWhiteSpace(demoPath) ? null : demoPath;
         if (!force && _attached
                    && string.Equals(_demoPath, normalized, StringComparison.OrdinalIgnoreCase))

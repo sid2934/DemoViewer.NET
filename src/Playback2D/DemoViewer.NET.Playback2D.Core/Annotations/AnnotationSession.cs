@@ -330,20 +330,10 @@ public sealed class AnnotationSession
     public const uint DefaultSecondaryColorArgb = 0xFF29B6F6;
 
     /// <summary>
-    ///     DV frame-clock ticks per second, for turning a <see cref="EnvelopeMode.RealTime" /> stroke's
-    ///     authoring milliseconds into the tick offsets it carries.
-    ///     <para>
-    ///         A CONSTANT rather than a reading, because on this side of the seam there is nothing to
-    ///         read: <c>IToolServices</c> exposes the playhead and no rate, <c>SceneTime</c> carries a
-    ///         frame delta and a <c>DemoSeconds</c> but not the divisor either was derived from, and the
-    ///         two real sources — <c>ITimelineData.TickRate</c> and <c>ClockIdentity.TickRate</c> — are a
-    ///         timeline concern and a Pipeline type. Every other tick quantity in this class already
-    ///         assumes the same 64 (<see cref="HoldTicks" />'s "320 ≈ 5 s"), so a literal here is
-    ///         consistent rather than novel. On a 128-tick parse a RealTime stroke replays at half speed;
-    ///         the fix is one rate on <c>IToolServices</c>, not a second literal somewhere else.
-    ///     </para>
+    ///     The rate a session with no demo attached assumes. 64 because that is what CS2 records at unless
+    ///     a server says otherwise — the same fallback every other rate reader in the app spells.
     /// </summary>
-    public const int DvTicksPerSecond = 64;
+    public const int DefaultTicksPerSecond = 64;
 
     /// <summary>Creates a session over a document.</summary>
     /// <param name="document">The document this session edits.</param>
@@ -355,6 +345,42 @@ public sealed class AnnotationSession
 
     /// <summary>The document being edited.</summary>
     public AnnotationDocument Document { get; }
+
+    /// <summary>
+    ///     DV frame-clock ticks per second for the parse this session is editing against. It converts a
+    ///     <see cref="EnvelopeMode.RealTime" /> stroke's authoring milliseconds into tick offsets, and it
+    ///     is the divisor the toolbar's second-valued duration spinners read.
+    ///     <para>
+    ///         D7a shipped this as a literal 64 with an honest reason — nothing on this side of the
+    ///         <c>IToolServices</c> seam could read a rate — and it was wrong on every parse that is not
+    ///         64-tick, invisibly, for exactly as long as every duration was also SHOWN in ticks. It is a
+    ///         property of the loaded demo and not a preference, so it has no settings key: the host
+    ///         writes it from the rate it already records on <c>ClockIdentity.TickRate</c>.
+    ///     </para>
+    ///     <para>
+    ///         Non-positive is refused rather than stored. <c>ClockIdentity.Unknown</c> carries 0, and a
+    ///         zero divisor turns every duration in the toolbar into an infinity.
+    ///     </para>
+    /// </summary>
+    public int TicksPerSecond
+    {
+        get => _ticksPerSecond;
+        set => _ticksPerSecond = value > 0 ? value : DefaultTicksPerSecond;
+    }
+
+    private int _ticksPerSecond = DefaultTicksPerSecond;
+
+    /// <summary>
+    ///     Answers "which round encloses this DV tick", in ticks, for <see cref="EnvelopeMode.Round" />.
+    ///     A null RESULT means there is no round there at all; a window whose <c>Until</c> is null is a
+    ///     round that runs to the end of the demo, which is the last one.
+    ///     <para>
+    ///         A seam and not a lookup, because Core knows nothing about demos: rounds are
+    ///         <c>round_freeze_end</c> events on <c>ITimelineData</c>, which is a timeline concern the app
+    ///         owns. Consulted once per press, never per frame.
+    ///     </para>
+    /// </summary>
+    public Func<int, (int From, int? Until)?>? RoundWindowResolver { get; set; }
 
     /// <summary>The stroke currently under the pointer.</summary>
     public WetStroke Wet { get; } = new();
@@ -378,7 +404,7 @@ public sealed class AnnotationSession
 
     /// <summary>
     ///     The envelope template for new elements. Only consulted directly in
-    ///     <see cref="EnvelopeMode.Custom" />; the other two modes derive one from the current tick.
+    ///     <see cref="EnvelopeMode.Custom" />; every other mode derives one from the current tick.
     ///     Composed through <see cref="SetCustomWindow" /> rather than assigned field by field, so the
     ///     panel and the settings seed cannot disagree about what a window means.
     /// </summary>
@@ -470,12 +496,30 @@ public sealed class AnnotationSession
     /// <param name="currentTick">The playhead, in DV frame-clock ticks.</param>
     public TimeEnvelope EnvelopeForNewElement(int currentTick) => DefaultVisibility switch
     {
+        // Round is COMPUTED like Fade, not typed like Custom — the window comes from where the playhead
+        // is, so it is sticky for every stroke instead of being re-typed per stroke. HoldTicks plays no
+        // part here: the window IS the round. The ramps still do, which is why they carry no mode binding.
+        //
+        // An open Until is the LAST round, which by construction has no following freeze-end and runs to
+        // the end of the demo — a null bound is already TimeEnvelope's spelling of that, and it costs no
+        // last-tick source the timeline contract does not expose. Max() collapses a window handed back
+        // inverted rather than inverting the envelope, exactly as SetCustomWindow's PinnedTo does.
+        EnvelopeMode.Round when RoundWindowResolver?.Invoke(currentTick) is { } round =>
+            new TimeEnvelope(round.From,
+                round.Until is { } until ? Math.Max(round.From, until) : null,
+                Math.Max(0, FadeInTicks), Math.Max(0, FadeOutTicks)),
+
         // RealTime is Fade's envelope, deliberately and not by omission. D7 §3 renders each SECTION
         // through this very trapezoid shifted by the offset it was drawn at, so the element-level window
         // is the one a Fade element would have had — and HoldTicks then keeps its meaning per section:
         // a hold that outlasts the draw shows the whole stroke at once and dissolves it from the start,
         // and one that does not makes the stroke chase its own tail. The same control gives both.
-        EnvelopeMode.Fade or EnvelopeMode.RealTime =>
+        //
+        // Round lands here too when the arm above declined: a warmup clip, a partial parse, a source with
+        // no round_freeze_end at all. A demo without rounds has to degrade to a window that WORKS rather
+        // than to an empty or inverted one, and the pinned trapezoid is the nearest honest answer —
+        // it opens where the user drew.
+        EnvelopeMode.Fade or EnvelopeMode.RealTime or EnvelopeMode.Round =>
             TimeEnvelope.Static.PinnedTo(currentTick, HoldTicks, FadeInTicks, FadeOutTicks),
         EnvelopeMode.Custom => NewElementEnvelope,
         _ => TimeEnvelope.Static

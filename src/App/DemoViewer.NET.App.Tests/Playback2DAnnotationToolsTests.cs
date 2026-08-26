@@ -314,6 +314,8 @@ public class Playback2DAnnotationToolsTests
     [Test]
     [Arguments("RealTime", EnvelopeMode.RealTime)]
     [Arguments("realtime", EnvelopeMode.RealTime)]
+    [Arguments("Round", EnvelopeMode.Round)]
+    [Arguments("round", EnvelopeMode.Round)]
     [Arguments("7", EnvelopeMode.Always)]
     [Arguments("Nonsense", EnvelopeMode.Always)]
     public async Task PersistedVisibility_ParsesByName_AndFencesTheRest(string persisted,

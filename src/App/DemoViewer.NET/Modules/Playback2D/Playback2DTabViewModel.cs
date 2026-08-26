@@ -718,7 +718,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         _annotationTrack = new AnnotationTrack(_annotationController.Document);
 
-        Timeline.RegisterTrack(new RoundTrack());
+        // EnvelopeMode.Round's bounds, supplied app-side because Core knows nothing about demos. Wired
+        // ONCE and reading _timelineData live, rather than re-assigned on every resync: the session
+        // outlives every demo the tab shows, so a re-assignment would only be a second chance to forget.
+        _annotationController.Session.RoundWindowResolver = ResolveRoundWindow;
+
+        Timeline.RegisterTrack(_roundTrack);
         Timeline.RegisterTrack(new KillTrack());
         Timeline.RegisterTrack(new BombTrack());
         Timeline.RegisterTrack(_annotationTrack);
@@ -740,6 +745,58 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     private readonly AnnotationSessionController _annotationController;
     private readonly AnnotationTrack _annotationTrack;
+
+    // The registered instance, held so ResolveRoundWindow can ask it "does this demo have rounds"
+    // through the same IsAvailable the timeline band asks — one answer, not two that can disagree.
+    private readonly RoundTrack _roundTrack = new();
+
+    /// <summary>
+    ///     The round enclosing a DV tick, as <c>[freeze-end, next freeze-end − 1]</c>, or null when there
+    ///     is no round there. Backs <see cref="EnvelopeMode.Round" />.
+    ///     <para>
+    ///         A walk over consecutive <c>round_freeze_end</c> pairs, the same shape
+    ///         <see cref="BuildExportRanges" /> uses for the export dialog — but over the TICK axis, not
+    ///         the frame axis, because a <c>TimeEnvelope</c> is ticks. <c>EventsOfType</c> carries both,
+    ///         so no conversion is needed and none is invented.
+    ///     </para>
+    ///     <para>
+    ///         Two answers are deliberately null. <b>Before the first freeze-end</b> is warmup, which is
+    ///         not a round — <c>RoundTrack</c> bands it as <c>wu</c> for the same reason — and pinning a
+    ///         warmup stroke into round 1 would put it somewhere the user was not looking. <b>A demo with
+    ///         no freeze-ends at all</b> has no rounds to speak of. Both fall through to the pinned
+    ///         trapezoid in <c>EnvelopeForNewElement</c>, which is a window that works.
+    ///     </para>
+    ///     <para>
+    ///         The LAST round has no following freeze-end, so its <c>Until</c> is null: the round runs to
+    ///         the end of the demo, which is exactly what an open <c>TimeEnvelope</c> bound already means
+    ///         — and the timeline contract exposes no last-TICK to close it against anyway.
+    ///     </para>
+    /// </summary>
+    /// <param name="tick">The playhead, in DV frame-clock ticks.</param>
+    private (int From, int? Until)? ResolveRoundWindow(int tick)
+    {
+        if (_timelineData is not { } data || !_roundTrack.IsAvailable(data))
+        {
+            return null;
+        }
+
+        IReadOnlyList<TimelineEventRecord> freeze = data.EventsOfType(RoundTrack.FreezeEndEvent);
+        int from = -1;
+        for (int i = 0; i < freeze.Count; i++)
+        {
+            int start = freeze[i].Tick;
+            if (start > tick)
+            {
+                // A round CLOSES the tick before the next one opens: freeze-ends are back to back, so an
+                // inclusive UntilTick of `start` would leave one tick belonging to both rounds.
+                return from < 0 ? null : (from, start - 1);
+            }
+
+            from = start;
+        }
+
+        return from < 0 ? null : (from, (int?)null);
+    }
 
     /// <summary>The annotation toolbar's state. A nested VM, so this class does not grow another screen.</summary>
     public AnnotationsPanelViewModel Annotations { get; }

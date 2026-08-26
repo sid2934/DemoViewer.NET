@@ -130,8 +130,10 @@ public sealed class DrawTool : IPointerTool
             // Null for every mode but RealTime, and that is what keeps the rest byte-identical: the DTO
             // writes WhenWritingNull, so an element without a cadence emits no field at all and the
             // pinned v1 schema sample does not move.
+            // The session's rate, not a literal: on a 128-tick parse a stroke converted at 64 replays at
+            // half the speed it was drawn at, and the host writes the real rate off the demo's clock.
             StrokeTiming? timing = session.Wet.IsRecordingCadence
-                ? session.Wet.BuildTiming(AnnotationSession.DvTicksPerSecond)
+                ? session.Wet.BuildTiming(session.TicksPerSecond)
                 : null;
 
             AnnotationElement element = new(

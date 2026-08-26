@@ -84,6 +84,115 @@ public class AnnotationSessionTests
             .Because("an unhandled mode falls through to Static, which would silently pin nothing");
     }
 
+    /// <summary>
+    ///     D8 §1: the rate is a property of the loaded parse, so a session that has met no demo assumes
+    ///     the shipped 64 and REFUSES anything that cannot be a divisor. <c>ClockIdentity.Unknown</c>
+    ///     carries 0, and a zero rate turns every duration in the toolbar into an infinity.
+    /// </summary>
+    [Test]
+    [Arguments(0, AnnotationSession.DefaultTicksPerSecond)]
+    [Arguments(-8, AnnotationSession.DefaultTicksPerSecond)]
+    [Arguments(128, 128)]
+    [Arguments(102, 102)]
+    public async Task TicksPerSecond_TakesARealRate_AndRefusesTheRest(int assigned, int expected)
+    {
+        AnnotationSession session = Session();
+
+        await Assert.That(session.TicksPerSecond).IsEqualTo(AnnotationSession.DefaultTicksPerSecond);
+
+        session.TicksPerSecond = assigned;
+        await Assert.That(session.TicksPerSecond).IsEqualTo(expected);
+    }
+
+    /// <summary>
+    ///     D8 §3: Round takes the resolver's window verbatim and keeps the session's own ramps — the two
+    ///     controls the mode still offers.
+    /// </summary>
+    [Test]
+    public async Task Round_TakesTheResolversWindow_AndTheSessionsRamps()
+    {
+        AnnotationSession session = Session();
+        session.DefaultVisibility = EnvelopeMode.Round;
+        session.FadeInTicks = 6;
+        session.FadeOutTicks = 18;
+        session.HoldTicks = 320;
+        session.RoundWindowResolver = _ => (5000, 8000);
+
+        TimeEnvelope envelope = session.EnvelopeForNewElement(6400);
+
+        await Assert.That(envelope.FromTick).IsEqualTo(5000);
+        await Assert.That(envelope.UntilTick).IsEqualTo(8000);
+        await Assert.That(envelope.FadeInTicks).IsEqualTo(6);
+        await Assert.That(envelope.FadeOutTicks).IsEqualTo(18);
+        await Assert.That(envelope.OpacityAt(8000)).IsEqualTo(1.0);
+        await Assert.That(envelope.OpacityAt(8019)).IsEqualTo(0.0)
+            .Because("the window is the round; HoldTicks has no say in where it ends");
+    }
+
+    /// <summary>
+    ///     The LAST round has no following freeze-end, so its window is open at the far end — which is
+    ///     already what a null <see cref="TimeEnvelope.UntilTick" /> means, and costs no last-tick source.
+    /// </summary>
+    [Test]
+    public async Task Round_LastRound_IsOpenAtTheFarEnd()
+    {
+        AnnotationSession session = Session();
+        session.DefaultVisibility = EnvelopeMode.Round;
+        session.RoundWindowResolver = _ => (5000, null);
+
+        TimeEnvelope envelope = session.EnvelopeForNewElement(6400);
+
+        await Assert.That(envelope.FromTick).IsEqualTo(5000);
+        await Assert.That(envelope.UntilTick).IsNull();
+        await Assert.That(envelope.OpacityAt(999_999)).IsEqualTo(1.0)
+            .Because("the last round runs to the end of the demo, and so does its annotation");
+    }
+
+    /// <summary>
+    ///     A demo with no rounds — a warmup clip, a partial parse, a source that carries no
+    ///     <c>round_freeze_end</c> — degrades to Fade's pinned trapezoid. A mode that produced an empty or
+    ///     inverted window there would draw nothing, which is worse than drawing the wrong thing.
+    /// </summary>
+    [Test]
+    public async Task Round_WithNothingToResolve_FallsBackToThePinnedTrapezoid()
+    {
+        AnnotationSession noResolver = Session();
+        noResolver.DefaultVisibility = EnvelopeMode.Round;
+        noResolver.HoldTicks = 100;
+
+        AnnotationSession declines = Session();
+        declines.DefaultVisibility = EnvelopeMode.Round;
+        declines.HoldTicks = 100;
+        declines.RoundWindowResolver = _ => null;
+
+        AnnotationSession fade = Session();
+        fade.DefaultVisibility = EnvelopeMode.Fade;
+        fade.HoldTicks = 100;
+
+        TimeEnvelope expected = fade.EnvelopeForNewElement(9000);
+
+        await Assert.That(noResolver.EnvelopeForNewElement(9000)).IsEqualTo(expected)
+            .Because("no resolver at all is a Core-only session, and it still has to produce ink");
+        await Assert.That(declines.EnvelopeForNewElement(9000)).IsEqualTo(expected)
+            .Because("a demo without round_freeze_end is the same answer arriving one layer down");
+        await Assert.That(expected.UntilTick).IsEqualTo(9100)
+            .Because("the fallback must be a real window, not an empty or inverted one");
+    }
+
+    /// <summary>A window handed back inverted collapses; it never inverts the envelope.</summary>
+    [Test]
+    public async Task Round_InvertedWindow_CollapsesToZeroLength()
+    {
+        AnnotationSession session = Session();
+        session.DefaultVisibility = EnvelopeMode.Round;
+        session.RoundWindowResolver = _ => (8000, 5000);
+
+        TimeEnvelope envelope = session.EnvelopeForNewElement(6400);
+
+        await Assert.That(envelope.FromTick).IsEqualTo(8000);
+        await Assert.That(envelope.UntilTick).IsEqualTo(8000);
+    }
+
     /// <summary>D2 §2.4's exit criterion: Custom is no longer a second spelling of Always.</summary>
     [Test]
     public async Task Custom_WithAWindow_IsNotStatic()

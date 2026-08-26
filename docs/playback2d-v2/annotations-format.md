@@ -123,6 +123,10 @@ which is every element any other visibility mode produces.
 * **`durationTicks`** is carried separately rather than inferred from the last pair, because it is what
   says the stroke is finished; a reader can use it to skip the table entirely once the elapsed time is
   past it.
+* Every offset here is in **`clock.tickRate` ticks**, not in a fixed 64. A reader turning one back into
+  seconds divides by the rate the header declares. (DemoViewer wrote these at a hard-coded 64 before
+  D8; on a 64-tick parse — which is every one they were written on in practice — the two spellings agree
+  exactly, so no existing document is affected.)
 * Offsets are **elapsed authoring wall-clock, re-based onto the frame clock at the tick the element
   opens** — deliberately *not* the tick each sample was drawn at. The playhead is frozen while the demo
   is paused, which is when most annotation happens, so every sample of a paused stroke would otherwise

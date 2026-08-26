@@ -187,6 +187,49 @@ public class StrokeCadenceTests
     }
 
     /// <summary>
+    ///     <b>D8 §1's regression.</b> The same hand, the same milliseconds, on a 128-tick parse: the
+    ///     cadence is expressed in the DEMO's ticks, so it carries twice as many of them.
+    ///     <para>
+    ///         D7a converted through a hard-coded 64. That was honest — nothing on Core's side of the
+    ///         <c>IToolServices</c> seam could read a rate — and it meant a stroke drawn on a 128-tick
+    ///         demo replayed at HALF the speed it was drawn at, because the run table said "one second"
+    ///         where the renderer counted two. Both assertions below fail on the literal, and the second
+    ///         one is the whole bug: same wall clock in, same wall clock back out.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task ANon64TickParse_ConvertsTheCadenceAtTheDemosOwnRate()
+    {
+        Hand at64 = new();
+        Hand at128 = new(ticksPerSecond: 128);
+
+        foreach (Hand h in new[] { at64, at128 })
+        {
+            h.Press();
+            for (int i = 0; i < 24; i++)
+            {
+                h.Step(40); // 25 samples, 40 ms apart
+            }
+
+            h.Lift(40); // ...and the release at 1000 ms
+        }
+
+        StrokeTiming slow = at64.Committed.Timing!;
+        StrokeTiming fast = at128.Committed.Timing!;
+        Console.WriteLine($"[cadence] rate: 64 -> {slow.DurationTicks} ticks, "
+                          + $"128 -> {fast.DurationTicks} ticks");
+
+        await Assert.That(slow.DurationTicks).IsEqualTo(64);
+        await Assert.That(fast.DurationTicks).IsEqualTo(128)
+            .Because("1000 ms is 128 ticks on a 128-tick parse; converted at a literal 64 it would say "
+                     + "64, and the replay would crawl at half the speed the hand actually moved");
+
+        // Ticks back into seconds through each session's own rate: the SAME second of authoring, which
+        // is the invariant a rate-blind conversion breaks.
+        await Assert.That(fast.DurationTicks / 128.0).IsEqualTo(slow.DurationTicks / 64.0);
+    }
+
+    /// <summary>
     ///     A coalesced batch carries no times of its own — Avalonia stamps the EVENT — so the samples in
     ///     one are spread across the interval since the previous event.
     ///     <para>
@@ -313,13 +356,15 @@ public class StrokeCadenceTests
 
         private float _x;
 
-        public Hand(EnvelopeMode visibility = EnvelopeMode.RealTime)
+        public Hand(EnvelopeMode visibility = EnvelopeMode.RealTime,
+            int ticksPerSecond = AnnotationSession.DefaultTicksPerSecond)
         {
             Pane = AnnotationFakes.Pane(600, 400);
             Document = new AnnotationDocument();
             Session = new AnnotationSession(Document)
             {
-                DefaultVisibility = visibility
+                DefaultVisibility = visibility,
+                TicksPerSecond = ticksPerSecond
             };
             Services = new FakeToolServices(Session, Pane);
             Tool = new DrawTool();

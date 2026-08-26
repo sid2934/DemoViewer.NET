@@ -36,7 +36,10 @@ internal sealed class Playback2DFakeContext : IModuleContext
     // Playback2DTabViewModel's resync clears it when this changes. A permanently-null path could not
     // express "a different demo arrived", which is the whole of D6 finding 11.
     public string? DemoPath { get; set; }
-    public int TickRate => 64;
+    // Settable since D8: the annotation session's tick rate is sourced from this, through the
+    // ClockIdentity the tab builds, and a fake that could only ever be 64-tick is a fake that cannot
+    // reproduce the bug D8 §1 exists to fix.
+    public int TickRate { get; set; } = 64;
     public int CurrentFrameIndex { get; set; }
     public int CurrentTick { get; set; }
     public bool IsPlaying { get; set; }
@@ -46,7 +49,7 @@ internal sealed class Playback2DFakeContext : IModuleContext
 
     public IModuleFeatureGate? Features => Gate;
 
-    public double CurtimeSeconds(int tick) => tick / 64.0;
+    public double CurtimeSeconds(int tick) => tick / (double)TickRate;
 
     // Two frames per tick, and anything past the frame list resolves to -1 (the "drop this marker" answer).
     public int FrameIndexAtTick(int tick)

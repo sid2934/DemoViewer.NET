@@ -98,6 +98,13 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     public AnnotationDocument Document => _controller.Document;
 
     /// <summary>
+    ///     The loaded parse's tick rate, read live off the session — the divisor every DURATION on this
+    ///     panel is shown through. Not a panel-owned value and not a preference: the controller writes it
+    ///     off the demo's clock on attach, and 64 is only what a session with no demo assumes.
+    /// </summary>
+    public int TicksPerSecond => Session.TicksPerSecond;
+
+    /// <summary>
     ///     Whether the toolbar should exist: the <c>playback2d.annotations</c> feature is on AND the
     ///     mounted surface can actually host ink. Fails open on both halves.
     ///     <para>
@@ -201,6 +208,58 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     [ObservableProperty]
     private int _holdTicks = 320;
 
+    // ── The three durations, in seconds ──────────────────────────────────────────────────────────────
+    // STORAGE stays in ticks — the persisted key names and their units are forever, TimeEnvelope is
+    // tick-based end to end, and a tick is the clock's own unit. What changed is that a tick is not a
+    // unit anyone can reason about: "320" answers "how long does this stay up" only if you also know the
+    // parse's rate, and D8 §1 is the finding that the code did not know it either.
+    //
+    // TICKS ARE THE SOURCE OF TRUTH on both sides of the pair. The seconds are re-derived from them every
+    // time rather than held beside them: two stored values for one quantity, each re-rounded against the
+    // other on every panel reload, is exactly the creep the tick value cannot have. Round-to-nearest on
+    // the way IN makes the composition idempotent — ticks → seconds → ticks is the same tick for every
+    // tick — so the only error a user ever meets is the one-time half-tick their typed value is quantized
+    // by, which at 64 tick is 7.8 ms and at 128 is 3.9.
+    //
+    // from/until are deliberately NOT here. They are absolute POSITIONS in the demo, not durations, and
+    // with Round arriving, Custom is the "type an exact window" mode — ticks are the right unit for it.
+
+    /// <summary><see cref="FadeInTicks" /> as seconds. What the toolbar shows and the user types.</summary>
+    public double FadeInSeconds
+    {
+        get => TicksToSeconds(FadeInTicks);
+        set => FadeInTicks = SecondsToTicks(value);
+    }
+
+    /// <summary><see cref="FadeOutTicks" /> as seconds.</summary>
+    public double FadeOutSeconds
+    {
+        get => TicksToSeconds(FadeOutTicks);
+        set => FadeOutTicks = SecondsToTicks(value);
+    }
+
+    /// <summary><see cref="HoldTicks" /> as seconds.</summary>
+    public double HoldSeconds
+    {
+        get => TicksToSeconds(HoldTicks);
+        set => HoldTicks = SecondsToTicks(value);
+    }
+
+    private double TicksToSeconds(int ticks) => ticks / (double)TicksPerSecond;
+
+    // Clamped rather than cast blind: a NumericUpDown bound past int range would otherwise wrap to
+    // int.MinValue and hand the envelope a negative duration.
+    private int SecondsToTicks(double seconds)
+    {
+        if (!double.IsFinite(seconds) || seconds <= 0)
+        {
+            return 0;
+        }
+
+        double ticks = Math.Round(seconds * TicksPerSecond, MidpointRounding.AwayFromZero);
+        return ticks >= int.MaxValue ? int.MaxValue : (int)ticks;
+    }
+
     /// <summary>
     ///     First fully-opaque tick for <see cref="EnvelopeMode.Custom" /> elements, in DV FRAME-CLOCK
     ///     ticks — never CS2 server ticks: the LiveSync servo bends the playhead, so a CS2 anchor drifts
@@ -258,7 +317,7 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
 
     /// <summary>
     ///     <see cref="Visibility" /> as a ComboBox index. A plain enum binding would need a converter
-    ///     for one four-item list; the index is the smaller contract.
+    ///     for one short list; the index is the smaller contract.
     ///     <para>
     ///         The getter is the raw cast, so the XAML's item ORDER is the enum's declaration order and a
     ///         new member has to be appended in both places at once. Anything the setter does not
@@ -276,6 +335,7 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
                 1 => EnvelopeMode.Fade,
                 2 => EnvelopeMode.Custom,
                 3 => EnvelopeMode.RealTime,
+                4 => EnvelopeMode.Round,
                 _ => EnvelopeMode.Always
             };
 
@@ -294,11 +354,15 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
 
     /// <summary>
     ///     Whether the envelope editor is offered at all. Hidden for <see cref="EnvelopeMode.Always" />,
-    ///     which is the shipped default: a user who never leaves Always must not pay for four spin boxes
-    ///     that can only ever say "not applicable" in a toolbar that already reflows at 820 px.
+    ///     which is the shipped default: a user who never leaves Always must not pay for a row of spin
+    ///     boxes that can only ever say "not applicable" in a toolbar that already reflows at 820 px.
+    ///     <para>
+    ///         Stated as "not Always" rather than as a list of the modes that want it: every mode but
+    ///         Always composes a trapezoid, so every one of them has an <c>in</c> and an <c>out</c> to
+    ///         edit, and a list would be a second place a new mode has to be remembered in.
+    ///     </para>
     /// </summary>
-    public bool IsEnvelopeEditorVisible =>
-        Visibility is EnvelopeMode.Fade or EnvelopeMode.Custom or EnvelopeMode.RealTime;
+    public bool IsEnvelopeEditorVisible => Visibility != EnvelopeMode.Always;
 
     /// <summary>True for <see cref="EnvelopeMode.Fade" /> — the hold is relative to the playhead.</summary>
     public bool IsFadeEnvelope => Visibility == EnvelopeMode.Fade;
@@ -325,6 +389,11 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     ///         trapezoid shifted by the offset it was drawn at, so a hold that outlasts the draw shows the
     ///         whole stroke at once and then dissolves from the start, and one that does not makes the
     ///         stroke chase its own tail. Both are useful, and the same number produces them.
+    ///     </para>
+    ///     <para>
+    ///         <see cref="EnvelopeMode.Round" /> does NOT want it, and that is the payoff of the split
+    ///         above: its window is the round, so a hold would be a second, contradictory answer to
+    ///         "how long" — and excluding it was one edit here, not one here and one in the XAML.
     ///     </para>
     /// </summary>
     public bool IsHoldEnvelope => Visibility is EnvelopeMode.Fade or EnvelopeMode.RealTime;
@@ -583,18 +652,25 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     partial void OnFadeInTicksChanged(int value)
     {
         Session.FadeInTicks = Math.Max(0, value);
+
+        // The seconds companion is a projection of this, so it is raised HERE and not from its own
+        // setter: a tick value that moved for any other reason — a settings seed, a demo attach that
+        // changed the rate — has to re-reach the spinner too.
+        OnPropertyChanged(nameof(FadeInSeconds));
         PushCustomWindow();
     }
 
     partial void OnFadeOutTicksChanged(int value)
     {
         Session.FadeOutTicks = Math.Max(0, value);
+        OnPropertyChanged(nameof(FadeOutSeconds));
         PushCustomWindow();
     }
 
     partial void OnHoldTicksChanged(int value)
     {
         Session.HoldTicks = Math.Max(0, value);
+        OnPropertyChanged(nameof(HoldSeconds));
         PersistIfUserDriven();
     }
 
@@ -706,7 +782,31 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
         {
             _applyingFromSession = false;
         }
+
+        SyncTickRate();
     }
+
+    // Only when it moved, on the same discipline as SyncRecentColors: both of this method's callers run
+    // on every document change, and the rate changes once per demo.
+    //
+    // It has to be watched at all because it is the ONE thing on this panel a demo attach changes with no
+    // tick moving anywhere — a 128-tick parse replacing a 64-tick one leaves every stored duration
+    // exactly where it was and every DISPLAYED one wrong — so no [ObservableProperty] setter would fire.
+    private void SyncTickRate()
+    {
+        if (_lastTicksPerSecond == Session.TicksPerSecond)
+        {
+            return;
+        }
+
+        _lastTicksPerSecond = Session.TicksPerSecond;
+        OnPropertyChanged(nameof(TicksPerSecond));
+        OnPropertyChanged(nameof(FadeInSeconds));
+        OnPropertyChanged(nameof(FadeOutSeconds));
+        OnPropertyChanged(nameof(HoldSeconds));
+    }
+
+    private int _lastTicksPerSecond;
 
     // The controller's StateChanged may arrive from the autosave's thread-pool continuation, so the
     // hop is mandatory: raising PropertyChanged off the UI thread is an Avalonia binding crash.
@@ -735,6 +835,10 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
         RedoDepth = _controller.Document.RedoDepth;
         ElementCount = _controller.Document.Elements.Count;
         SyncRecentColors();
+
+        // A demo attach arrives here, and an attach is where the parse's tick rate — hence every duration
+        // this panel displays — can change.
+        SyncTickRate();
         OnPropertyChanged(nameof(IsEnabled));
 
         // Whether a sidecar is possible changes on every attach/detach and on a gate flip, and the

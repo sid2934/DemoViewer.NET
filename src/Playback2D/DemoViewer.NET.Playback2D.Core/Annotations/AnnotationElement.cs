@@ -59,7 +59,23 @@ public enum EnvelopeMode
     ///         what keeps the export determinism gate green.
     ///     </para>
     /// </summary>
-    RealTime
+    RealTime,
+
+    /// <summary>
+    ///     Lasts the ROUND it was drawn in: the window is <c>[freeze-end, next freeze-end)</c> around the
+    ///     playhead, with <see cref="TimeEnvelope.FadeInTicks" /> / <see cref="TimeEnvelope.FadeOutTicks" />
+    ///     still ramping it in and out. The last round has no following freeze-end, so its window is open
+    ///     at the far end — which is what "to the end of the demo" already means to a
+    ///     <see cref="TimeEnvelope" />.
+    ///     <para>
+    ///         COMPUTED like <see cref="Fade" />, not typed like <see cref="Custom" />, and that is why it
+    ///         is a mode rather than a button that fills Custom's window: a coach wants every callout to
+    ///         last its own round without clicking anything per stroke. Rounds are a demo fact Core cannot
+    ///         see, so the bounds arrive through <c>AnnotationSession.RoundWindowResolver</c>; a demo that
+    ///         carries no <c>round_freeze_end</c> degrades to <see cref="Fade" />'s pinned trapezoid.
+    ///     </para>
+    /// </summary>
+    Round
 }
 
 /// <summary>
