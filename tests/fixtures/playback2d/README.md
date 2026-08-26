@@ -42,12 +42,25 @@ all read it, and so do the direct-execution suites, so "which fixtures exist" ha
 }
 ```
 
-**`pending: true` means "this entry's inputs have not all landed yet."** `dv2d golden verify` and
-`dv2d fixture verify` **skip** such an entry rather than failing it, and an entry may be listed with
-no scene file at all while it is pending. That is what lets a later phase register the fixture it is
-going to author. Three entries are pending today: `nuke-multilevel` (B1's parity pair, which needs the
-pane/level model), `annotated-mirage-b` (B2's annotation document) and `full-scene-budget` (B1's
-worst-case 1080p bench scene). Clearing the flag is the phase's job.
+**`pending: true` means "`dv2d golden verify` cannot judge this entry."** It **skips** such an entry
+rather than failing it, and an entry may be listed with no scene file at all while it is pending —
+which is what lets a later phase register the fixture it is going to author.
+
+That is also how a stale flag hides: pending is skipped, never failed, so nobody notices when the
+phase it was waiting on ships. Four of ten entries were pending when D6 audited the corpus, three of
+them naming owners (B1, B2, dv2d) that had all landed — including `annotated-mirage-b`, whose scene
+file did not exist, which is why **no golden anywhere covered burned-in annotations**. All three are
+cleared. The three that remain pending are pending for a reason that is written in the note and is
+not "waiting on a phase":
+
+| Entry | Why it cannot be verified by `dv2d` |
+|---|---|
+| `nuke-multilevel` | its golden is the **pre-v2 control's** own capture, under the LIGHT palette headless Avalonia resolves, gated by `GoldenParityTests` against a delta *distribution*. `dv2d` renders Dark and compares perceptually; it can express neither. |
+| `nuke-multilevel-upper` | `SingleLayout` with the top floor active. `dv2d` refuses `--layout single` because it has no way to name a level id. Written by `LevelGoldenTests`. |
+| `nuke-multilevel-noradar` | nav floors bound, radar art not. `dv2d --no-radar` disables the whole asset root, floors included, so it derives a different level set. There is no flag for "floors yes, art no". Written by `LevelGoldenTests`. |
+
+Every one of those still has a live gate — it is simply not this one. A pending note that does not say
+"PENDING" and why fails `GoldenCorpusTests.EveryPendingEntry_ExplainsItselfInItsNote`.
 
 `map_version` is load-bearing: `golden verify` **refuses** (exit 4, `stale-assets`) when the bundle on
 disk reports a different CRC, rather than diffing a render against re-baked radar art.
@@ -56,8 +69,14 @@ disk reports a different CRC, rather than diffing a render against re-baked rada
 
 **Synthetic** — hand-authored JSON, no demo required. These drive the direct-execution smoke tests
 and run everywhere, CI included. They are edited like any other source file, and each has a committed
-`goldens/cpu/<name>@640x360.png` produced by `SceneGoldenTests` — a CPU-provider render of B0's own
-loop (palette, transform, compositor, fixture format). Those are **not** the B1 parity corpus.
+`goldens/cpu/<name>@640x360.png`.
+
+Those PNGs have **two readers**: `SceneGoldenTests` in the Playback2D suite and `dv2d golden verify`
+in the CLI lane. Both render through `SceneLayerCatalog.CreateSceneStack` + `HeadlessSceneRenderer`
+with the camera pinned — statement for statement the same path — so the two cannot disagree about what
+the file should contain. They previously agreed by accident: `SceneGoldenTests` drew a single
+`DebugGridLayer`, and the catalog registered that same grid and nothing else. They are **not** the
+pre-v2 parity corpus.
 
 | Fixture | What it is for |
 |---|---|
@@ -80,8 +99,20 @@ describe the same world state.
 
 | Fixture | What it is for |
 |---|---|
-| `nuke-single-upper.scene.json` | Captured by `dv2d fixture capture` from the committed `assets/tour/sample-de_nuke.dem` at tick 9694. Re-capture with `--level` once B3 ships the level pick. |
-| `nuke-multilevel.scene.json` | **Pending.** B1's parity pair: its golden came from the pre-v2 control's two-pane stacked layout (camera viewport 900×450 inside a 900×900 image), which needs B1's `PaneSet` and B3's `MapSpace` to reproduce. |
+| `nuke-single-upper.scene.json` | Captured by `dv2d fixture capture` from the committed `assets/tour/sample-de_nuke.dem` at tick 9694. Despite the name it is a **stacked** render — `dv2d` cannot select a floor — so the true single-floor picture is `nuke-multilevel-upper`, below. |
+| `nuke-multilevel.scene.json` | **Pending, permanently as things stand.** The pre-v2 parity pair: its golden came from the control's own `DrawingContext` under the Light palette, and `GoldenParityTests` judges it on a delta distribution. Two further goldens are rendered *from this one scene* by `LevelGoldenTests` and listed under their own names: `nuke-multilevel-upper` (SingleLayout, top floor) and `nuke-multilevel-noradar` (floors bound, no radar art). |
+
+**Pre-v2 captures** — `prev2-*`, written by `Playback2DGoldenCaptureTests` from a real demo through
+headless Avalonia. They exist only on a machine with the relevant demo staged and are **not** listed
+in the manifest, so `GoldenCorpusTests` exempts the prefix. The prefix exists because two of these
+captures used to be named `duel-mirage-b` and `fitmap-mirage-eco` — the names of two hand-authored
+640x360 fixtures — and overwrote both scene files on any machine that had the demos.
+
+`annotations/<name>.dvann.json` is picked up **by convention**, not by a manifest field: if a sidecar
+exists beside the corpus under that name, `golden` and `bench` load it through the production
+`AnnotationStore` and register `playback2d.annotations` (the entry must also name the id in its
+`layers` array). One entry uses it — `annotated-mirage-b` — and it is the only golden anywhere that
+covers burned-in ink. `dv2d render --ink <path>` is the same thing for a one-off.
 
 Note on tolerance. Entries default to `GoldenTolerance.DefaultPerceptual`: CPU rasterisation of
 anti-aliased edges can differ by a least-significant bit between SIMD paths, and headless Skia text
@@ -93,6 +124,14 @@ typeface makes that safe.
 
 Goldens are regenerated only on a **deliberate** visual change, and the new images must be eyeballed
 before they are committed — a golden that is silently rewritten is a test that no longer tests.
+
+`PB2D_GOLDEN_UPDATE=1` rewrites an **existing** golden as well as filling in a missing one. It used to
+do only the latter, which left `scripts/update-playback2d-goldens.sh` unable to re-baseline anything —
+a deliberate visual change needed an undocumented `rm` first. `dv2d golden update` always overwrote;
+the three direct-execution suites now agree with it. The same variable is what gates the *scene*
+writes in `Playback2DGoldenCaptureTests`, which is new: that harness rewrote its fixtures on every
+run, and the tour demo ships in every checkout, so any App-suite run re-authored
+`scenes/nuke-multilevel.scene.json` — the input to `GoldenParityTests` and `LevelGoldenTests`.
 
 ```bash
 scripts/dv2d.sh golden update                 # every entry, through the dv2d render path

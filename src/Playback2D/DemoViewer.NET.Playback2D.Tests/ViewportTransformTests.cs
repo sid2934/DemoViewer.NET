@@ -125,4 +125,43 @@ public class ViewportTransformTests
         await Assert.That(t.BaseScale).IsEqualTo(1.0);
         await Assert.That(double.IsFinite(t.WorldToScreen(100, 100).X)).IsTrue();
     }
+
+    [Test]
+    public async Task Fit_NonFiniteExtent_StillProducesAFiniteTransform()
+    {
+        // The degenerate-extent guard above is `w <= double.Epsilon`, and EVERY comparison against a NaN
+        // is false — so a NaN corner skipped it and flowed into BaseScale and the centre. From there it
+        // is permanent: IsSettledAt loses every comparison, the camera never settles, and the render loop
+        // spins forever drawing nothing (D6 finding 8).
+        (string Name, double MinX, double MinY, double MaxX, double MaxY)[] poisoned =
+        [
+            ("NaN maxX", -1000, -1000, double.NaN, 1000),
+            ("NaN minY", -1000, double.NaN, 1000, 1000),
+            ("+inf maxY", -1000, -1000, 1000, double.PositiveInfinity),
+            ("all NaN", double.NaN, double.NaN, double.NaN, double.NaN)
+        ];
+
+        foreach ((string name, double minX, double minY, double maxX, double maxY) in poisoned)
+        {
+            ViewportTransform t = ViewportTransform.Fit(800, 600, minX, minY, maxX, maxY);
+            Console.WriteLine($"[fit] {name} → centre=({t.CenterX},{t.CenterY}) baseScale={t.BaseScale}");
+
+            await Assert.That(double.IsFinite(t.CenterX)).IsTrue().Because(name);
+            await Assert.That(double.IsFinite(t.CenterY)).IsTrue().Because(name);
+            await Assert.That(double.IsFinite(t.BaseScale)).IsTrue().Because(name);
+            await Assert.That(t.BaseScale).IsGreaterThan(0).Because(name);
+            await Assert.That(double.IsFinite(t.WorldToScreen(0, 0).X)).IsTrue().Because(name);
+        }
+    }
+
+    [Test]
+    public async Task Fit_NonFiniteViewport_StillProducesAFiniteTransform()
+    {
+        // Math.Max propagates NaN too, so the `Math.Max(1.0, viewWidth)` clamp was no clamp at all.
+        ViewportTransform t = ViewportTransform.Fit(double.NaN, 600, -1000, -1000, 1000, 1000);
+
+        await Assert.That(double.IsFinite(t.BaseScale)).IsTrue();
+        await Assert.That(double.IsFinite(t.ViewWidth)).IsTrue();
+        await Assert.That(double.IsFinite(t.WorldToScreen(0, 0).Y)).IsTrue();
+    }
 }

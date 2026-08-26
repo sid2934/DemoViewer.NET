@@ -142,10 +142,23 @@ public class TimelineTrackTests
         await Assert.That(markers.All(m => m.FrameIndex >= 0)).IsTrue();
     }
 
+    // The two side tints, spelled out here because a test that only says "different" is not a test of
+    // WHICH. They are KillTrack's own private constants and RoundTrack's at full alpha; the shared value
+    // is asserted below, so a re-theme that moves one has to move both or say why.
+    private const uint TintTeamT = 0xFFE0A030;   // amber
+    private const uint TintTeamCt = 0xFF4A90D9;  // blue
+
     /// <summary>
     ///     Every kill used to be the same red, because <see cref="KillTrack" /> handed back <c>Argb = 0</c>
     ///     ("host, use the kind default") for all of them. A coach reads the bar for momentum, which needs
     ///     the two sides to be two colours.
+    ///     <para>
+    ///         <b>The MAPPING, not merely two colours (D6 G-6).</b> This case used to assert only that the
+    ///         two were non-zero, different and opaque — under which swapping <c>TintTeamT</c> and
+    ///         <c>TintTeamCt</c> stayed green and every T kill on the bar rendered in the CT blue. D5's
+    ///         entire user-visible claim is "the kill colour reads at a glance", and a colour that reads as
+    ///         the wrong side is worse than one colour for both.
+    ///     </para>
     /// </summary>
     [Test]
     public async Task KillTrack_ColoursEachMarkerByTheAttackersSide()
@@ -159,14 +172,42 @@ public class TimelineTrackTests
 
         IReadOnlyList<TimelineMarker> markers = new KillTrack().BuildMarkers(data);
 
-        await Assert.That(markers[0].Argb).IsNotEqualTo(0u);
-        await Assert.That(markers[1].Argb).IsNotEqualTo(0u);
-        await Assert.That(markers[0].Argb).IsNotEqualTo(markers[1].Argb);
+        // team 2 is T and team 3 is CT — the game's own numbering, which is what the demo carries.
+        await Assert.That(markers[0].Argb).IsEqualTo(TintTeamT)
+            .Because("a T kill is amber; swapping the two constants must fail here, not pass on 'different'");
+        await Assert.That(markers[1].Argb).IsEqualTo(TintTeamCt)
+            .Because("a CT kill is blue");
 
         // Opaque, unlike RoundTrack's 0x38 band washes: a marker is an eight-pixel glyph, and a wash on
         // one reads as nothing drawn at all.
         await Assert.That(markers[0].Argb >> 24).IsEqualTo(0xFFu);
         await Assert.That(markers[1].Argb >> 24).IsEqualTo(0xFFu);
+    }
+
+    /// <summary>
+    ///     The two tracks agree about which side is which colour — the same RGB, at the two alphas their
+    ///     shapes need. A band and the markers inside it disagreeing about who is amber is the one way
+    ///     "read the bar for momentum" can be actively misleading rather than merely dull.
+    /// </summary>
+    [Test]
+    public async Task RoundAndKillTracks_UseTheSameRgbForEachSide()
+    {
+        FakeTimelineData data = new(300);
+        data.EventFrames["round_freeze_end"] = [0, 100];
+        data.Events["round_end"] = [Record(90, 90, ("winner", "2")), Record(290, 290, ("winner", "3"))];
+        data.Events["player_death"] = [Record(64, 10, ("team", "2")), Record(640, 100, ("team", "3"))];
+
+        IReadOnlyList<TimelineBand> bands = new RoundTrack().BuildBands(data);
+        IReadOnlyList<TimelineMarker> markers = new KillTrack().BuildMarkers(data);
+
+        await Assert.That(bands[0].Argb & 0x00FFFFFF).IsEqualTo(TintTeamT & 0x00FFFFFF);
+        await Assert.That(bands[1].Argb & 0x00FFFFFF).IsEqualTo(TintTeamCt & 0x00FFFFFF);
+        await Assert.That(markers[0].Argb & 0x00FFFFFF).IsEqualTo(TintTeamT & 0x00FFFFFF);
+        await Assert.That(markers[1].Argb & 0x00FFFFFF).IsEqualTo(TintTeamCt & 0x00FFFFFF);
+
+        // Different alphas on purpose: a 300 px band behind a label reads at 0x38; an 8 px glyph does not.
+        await Assert.That(bands[0].Argb >> 24).IsEqualTo(0x38u);
+        await Assert.That(markers[0].Argb >> 24).IsEqualTo(0xFFu);
     }
 
     /// <summary>

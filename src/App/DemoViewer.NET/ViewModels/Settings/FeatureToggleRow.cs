@@ -47,7 +47,8 @@ public sealed partial class FeatureToggleRow : ObservableObject
     private bool _isOverridden;
 
     internal FeatureToggleRow(
-        SettingsViewModel owner, IFeatureGate gate, FeatureDescriptor descriptor, int indentLevel)
+        SettingsViewModel owner, IFeatureGate gate, FeatureDescriptor descriptor, int indentLevel,
+        bool platformUnavailable = false)
     {
         _owner = owner;
         _gate = gate;
@@ -57,6 +58,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
         Scope = descriptor.Scope;
         IndentLevel = indentLevel;
         IsRequired = descriptor.Required;
+        IsPlatformUnavailable = platformUnavailable;
 
         // A grouped feature toggles atomically from its LEADER (the gate resolves every member's own-state
         // from the leader). So a NON-leader member's own override is inert — the row must not offer an
@@ -100,18 +102,41 @@ public sealed partial class FeatureToggleRow : ObservableObject
     /// <summary>The leader's label for the "follows &lt;leader&gt;" hint (null unless <see cref="IsGroupFollower" />).</summary>
     public string? FollowsLabel { get; }
 
-    /// <summary>The toggle is interactive only when the feature is neither Required nor a group follower.</summary>
-    public bool IsInteractive => !IsRequired && !IsGroupFollower;
+    /// <summary>
+    ///     True when this feature cannot exist on THIS host whatever the user's override says — the
+    ///     browser head and one of <c>ShellModuleFeatureGate.DesktopOnlyIds</c>.
+    ///     <para>
+    ///         This list binds the raw <see cref="IFeatureGate" />, which resolves catalog and override
+    ///         state and knows nothing about the platform; modules read the same ids through
+    ///         <c>ShellModuleFeatureGate</c>, which ANDs the platform in. So the browser showed a live,
+    ///         ON "Video export" toggle for a capability forced off one layer out, and flipping it
+    ///         persisted an override that nothing would ever honour (D6 §4b, recorded in
+    ///         <c>wasm-matrix.md</c> as a D4 follow-up that D4 shipped without).
+    ///     </para>
+    /// </summary>
+    public bool IsPlatformUnavailable { get; }
 
-    /// <summary>Whether a locked-state hint chip should show (Required or group-follower).</summary>
-    public bool HasLockHint => IsRequired || IsGroupFollower;
+    /// <summary>
+    ///     The toggle is interactive only when the feature is neither Required, nor a group follower,
+    ///     nor unavailable on this platform.
+    /// </summary>
+    public bool IsInteractive => !IsRequired && !IsGroupFollower && !IsPlatformUnavailable;
 
-    /// <summary>The locked-state hint text: "required", "follows &lt;leader&gt;", or empty.</summary>
-    public string LockHint => IsRequired
-        ? "required"
-        : IsGroupFollower
-            ? $"follows {FollowsLabel}"
-            : string.Empty;
+    /// <summary>Whether a locked-state hint chip should show.</summary>
+    public bool HasLockHint => IsRequired || IsGroupFollower || IsPlatformUnavailable;
+
+    /// <summary>
+    ///     The locked-state hint text. The platform answer comes FIRST: it is the one the user cannot
+    ///     change from anywhere, so telling them "required" or "follows X" would send them looking for a
+    ///     lever that would not help.
+    /// </summary>
+    public string LockHint => IsPlatformUnavailable
+        ? "unavailable in the browser"
+        : IsRequired
+            ? "required"
+            : IsGroupFollower
+                ? $"follows {FollowsLabel}"
+                : string.Empty;
 
     /// <summary>Short scope chip text ("Tab" / "Sub" / "Chrome").</summary>
     public string ScopeLabel => Scope switch
@@ -133,7 +158,10 @@ public sealed partial class FeatureToggleRow : ObservableObject
         _applyingRefresh = true;
         try
         {
-            IsEnabled = gate.IsEnabled(FeatureId);
+            // A platform-unavailable row shows OFF regardless of what the raw gate answers — the gate
+            // resolves catalog + override and does not know the host, and this row has to agree with
+            // what the module will actually see through ShellModuleFeatureGate.
+            IsEnabled = !IsPlatformUnavailable && gate.IsEnabled(FeatureId);
             IsOverridden = overrides is not null && overrides.ContainsKey(FeatureId);
         }
         finally
@@ -147,6 +175,24 @@ public sealed partial class FeatureToggleRow : ObservableObject
         if (_applyingRefresh)
         {
             return; // a gate-driven refresh, not a user toggle — never persist it back.
+        }
+
+        if (IsPlatformUnavailable)
+        {
+            // Locked the hardest of the three: no override the user could write would make the module's
+            // own gate answer true here, so persisting one would be a preference that can never take
+            // effect and would then follow them to a desktop head where they never asked for it.
+            _applyingRefresh = true;
+            try
+            {
+                IsEnabled = false;
+            }
+            finally
+            {
+                _applyingRefresh = false;
+            }
+
+            return;
         }
 
         if (IsRequired || IsGroupFollower)

@@ -162,6 +162,12 @@ public sealed class SceneFrameBuilder
         _lastFrameIndex = -1;
         _observed = WorldBounds.Default;
         _observedSeeded = false;
+
+        // The roster is a cache like every other one cleared above, and it was the one exception:
+        // TrackerFrameSource.LastRoster is assigned straight from here, so after a demo reset it went
+        // on pointing at the PREVIOUS demo's pooled list until the next Build — a HUD source reading it
+        // in that window burns the old match's cards into the new one's frames (D6 finding 32).
+        LastRoster = [];
     }
 
     /// <summary>
@@ -363,8 +369,20 @@ public sealed class SceneFrameBuilder
         return name;
     }
 
+    // The one entry point into the observed extent, and therefore the one place a non-finite coordinate
+    // can be stopped. It has to be stopped HERE because _observed is only ever WIDENED and never
+    // re-seeded: WorldBounds.Extend is Math.Min/Math.Max, both of which propagate NaN, so a single bad
+    // sample poisons the extent for the whole demo — and from there ViewportTransform.Fit hands the
+    // camera a NaN centre and scale, IsSettledAt never settles, and the render loop spins at refresh
+    // rate showing nothing, across seeks included (D6 finding 8). A position that is not a number is not
+    // a position; dropping the sample costs one marker's contribution to the fallback rectangle.
     private void Observe(float worldX, float worldY)
     {
+        if (!float.IsFinite(worldX) || !float.IsFinite(worldY))
+        {
+            return;
+        }
+
         if (_observedSeeded)
         {
             _observed = _observed.Extend(worldX, worldY);

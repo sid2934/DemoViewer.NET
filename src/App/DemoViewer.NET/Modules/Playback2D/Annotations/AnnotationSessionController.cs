@@ -27,6 +27,12 @@ namespace DemoViewer.NET.Modules.Playback2D.Annotations;
 ///         <see cref="AutoSaveDelay" />. <see cref="StateChanged" /> may therefore be raised from a
 ///         thread-pool thread — the view-model marshals.
 ///     </para>
+///     <para>
+///         <b>Preference writes are debounced too</b>, for the same reason and a louder trigger: the ink
+///         pickers raise a change on every pointer sample, and <c>SettingsService.Write</c> is a
+///         synchronous write-and-reload whose reload re-composes the keymap and the Settings page inline.
+///         See <see cref="PersistSettings" /> and <see cref="StylePersistDelay" />.
+///     </para>
 /// </summary>
 public sealed class AnnotationSessionController : IDisposable
 {
@@ -81,7 +87,7 @@ public sealed class AnnotationSessionController : IDisposable
         Session = new AnnotationSession(new AnnotationDocument());
         ApplySettings();
         Session.Document.Changed += OnDocumentChanged;
-        StatusText = DescribeLocation(null);
+        StatusText = DescribeLocation();
     }
 
     /// <summary>The session the tools, the layer and the panel share.</summary>
@@ -92,6 +98,32 @@ public sealed class AnnotationSessionController : IDisposable
 
     /// <summary>How long changes coalesce before a save. 750 ms in the app; shortened by tests.</summary>
     public TimeSpan AutoSaveDelay { get; set; } = TimeSpan.FromMilliseconds(750);
+
+    /// <summary>
+    ///     Whether the document is written to its sidecar automatically — the live face of
+    ///     <c>AppSettings.Playback2D.AnnotationAutoSave</c>.
+    ///     <para>
+    ///         D6 finding 26: the key was READ here and written by nothing, with no UI anywhere, so a
+    ///         user who wanted session-only ink had to hand-edit <c>settings.json</c> — and every reader
+    ///         of the key only ever saw its default. It is surfaced rather than deleted because the
+    ///         branch it drives is correct behaviour somebody wants (a clean demo folder, a shared
+    ///         machine); what was missing was one checkbox, not the feature.
+    ///     </para>
+    ///     <para>
+    ///         Held here, not re-read from settings per change, because the panel writes it through
+    ///         <see cref="PersistSettings" />'s debounce like every other preference — a per-change read
+    ///         would race the 250 ms window and answer with the pre-toggle value.
+    ///     </para>
+    /// </summary>
+    public bool AutoSave { get; set; } = true;
+
+    /// <summary>
+    ///     Whether a sidecar could be written at all right now — a demo is attached, a store exists, the
+    ///     host has a real filesystem, and the store resolved a path. False makes the auto-save toggle
+    ///     meaningless, and a checkbox that claims to control saving where nothing can be saved is the
+    ///     same defect one layer down.
+    /// </summary>
+    public bool CanAutoSave => SidecarPath() is not null;
 
     /// <summary>Whether the <c>playback2d.annotations</c> feature is on. Fails OPEN on a null projection.</summary>
     public bool IsEnabled => _features?.IsEnabled(FeatureId) ?? true;
@@ -183,7 +215,7 @@ public sealed class AnnotationSessionController : IDisposable
 
             if (_demoPath is null || _store is null || !IsEnabled)
             {
-                StatusText = DescribeLocation(null);
+                StatusText = DescribeLocation();
                 StateChanged?.Invoke();
                 return;
             }
@@ -194,7 +226,7 @@ public sealed class AnnotationSessionController : IDisposable
             ClockMismatch = result.ClockMismatch;
             DemoMismatch = result.DemoMismatch;
             Session.Document.Reset(result.Elements);
-            StatusText = DescribeLocation(result);
+            StatusText = DescribeLocation();
             StateChanged?.Invoke();
         }
         finally
@@ -210,6 +242,7 @@ public sealed class AnnotationSessionController : IDisposable
     public async Task FlushAsync()
     {
         CancelDebounce();
+        FlushStyleSettings();
         await SaveNowAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
@@ -285,6 +318,10 @@ public sealed class AnnotationSessionController : IDisposable
         Session.ActiveTool = Enum.TryParse(prefs.LastTool, ignoreCase: true, out ToolKind tool)
             ? tool
             : ToolKind.PanZoom;
+
+        // Not session state (the session knows nothing about files), but it is read on the same path and
+        // written on the same debounce as everything above, so it is seeded here with them.
+        AutoSave = prefs.AnnotationAutoSave;
     }
 
     /// <summary>The persisted spelling of "the right button does what the left one does".</summary>
@@ -299,7 +336,29 @@ public sealed class AnnotationSessionController : IDisposable
             ? kind
             : null;
 
-    /// <summary>Persists the current ink style, envelope defaults and tool. Best-effort.</summary>
+    /// <summary>
+    ///     How long preference changes coalesce before <c>settings.json</c> is rewritten. 250 ms in the
+    ///     app; shortened (or zeroed, which writes inline) by tests.
+    /// </summary>
+    public TimeSpan StylePersistDelay { get; set; } = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>
+    ///     Persists the current ink style, envelope defaults and tool. Best-effort, and <b>debounced</b>.
+    ///     <para>
+    ///         <b>Why it cannot write inline.</b> <c>SettingsService.Write</c> is a synchronous
+    ///         read-serialize-temp-write-<c>File.Move</c>-<c>Reload()</c>, and the reload fires
+    ///         <c>IOptionsMonitor.OnChange</c> on this thread — which re-composes the 2D keymap profile
+    ///         and, with Settings open, re-reflects thirty properties and twenty-one keybind rows. This
+    ///         method's loudest caller is a <c>ColorPicker</c> drag, which raises a change on <i>every
+    ///         pointer move through its spectrum</i> — the same fact <see cref="RememberNewestColor" />
+    ///         was written around, applied to the swatch list and not to the file. A one-second drag was
+    ///         a few hundred full cycles on the UI thread.
+    ///     </para>
+    ///     <para>
+    ///         The snapshot is taken HERE, on the calling thread, because the session is UI-thread state;
+    ///         only the write is deferred, and the last snapshot wins.
+    ///     </para>
+    /// </summary>
     public void PersistSettings()
     {
         if (_settings is null)
@@ -307,38 +366,105 @@ public sealed class AnnotationSessionController : IDisposable
             return;
         }
 
-        AnnotationStyle style = Session.Style;
-        EnvelopeMode visibility = Session.DefaultVisibility;
-        ToolKind tool = Session.ActiveTool;
-        bool anchor = Session.AnchorToEntities;
-        int fadeIn = Session.FadeInTicks;
-        int fadeOut = Session.FadeOutTicks;
-        int hold = Session.HoldTicks;
-        uint secondaryColor = Session.SecondaryStyle.ColorArgb;
-        string secondaryTool = Session.SecondaryTool?.ToString() ?? SecondaryToolSame;
-        TimeEnvelope custom = Session.NewElementEnvelope;
+        lock (_styleGate)
+        {
+            _pendingStyle = CaptureStyle();
+        }
+
+        CancelStylePersist();
+
+        if (StylePersistDelay <= TimeSpan.Zero)
+        {
+            WritePendingStyle();
+            return;
+        }
+
+        CancellationTokenSource cts = new();
+        _stylePersist = cts;
+        _ = DelayThenPersistStyleAsync(cts.Token);
+    }
+
+    /// <summary>
+    ///     Writes any debounced preference change NOW. Called from <see cref="FlushAsync" /> and
+    ///     <see cref="Dispose" /> — the two moments there is no "later".
+    /// </summary>
+    public void FlushStyleSettings()
+    {
+        CancelStylePersist();
+        WritePendingStyle();
+    }
+
+    private readonly Lock _styleGate = new();
+    private CancellationTokenSource? _stylePersist;
+    private StyleSnapshot? _pendingStyle;
+
+    private StyleSnapshot CaptureStyle() => new(
+        Session.Style,
+        Session.DefaultVisibility,
+        Session.ActiveTool,
+        Session.AnchorToEntities,
+        Session.FadeInTicks,
+        Session.FadeOutTicks,
+        Session.HoldTicks,
+        Session.SecondaryStyle.ColorArgb,
+        Session.SecondaryTool?.ToString() ?? SecondaryToolSame,
+        Session.NewElementEnvelope,
+        [.. RecentColors],
+        AutoSave);
+
+    private async Task DelayThenPersistStyleAsync(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(StylePersistDelay, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        WritePendingStyle();
+    }
+
+    private void WritePendingStyle()
+    {
+        StyleSnapshot? pending;
+        lock (_styleGate)
+        {
+            pending = _pendingStyle;
+            _pendingStyle = null;
+        }
+
+        if (_settings is null || pending is not { } style)
+        {
+            return;
+        }
 
         try
         {
             _settings.Write(s =>
             {
-                s.Playback2D.AnnotationColorArgb = style.ColorArgb;
-                s.Playback2D.AnnotationWidth = style.WidthWorld;
-                s.Playback2D.AnnotationOpacity = style.Opacity;
-                s.Playback2D.AnnotationDefaultVisibility = visibility.ToString();
-                s.Playback2D.AnnotationFadeInTicks = fadeIn;
-                s.Playback2D.AnnotationFadeOutTicks = fadeOut;
-                s.Playback2D.AnnotationHoldTicks = hold;
-                s.Playback2D.AnnotationAnchorToEntities = anchor;
-                s.Playback2D.LastTool = tool.ToString();
-                s.Playback2D.AnnotationRecentColors = [.. RecentColors];
-                s.Playback2D.AnnotationSecondaryColorArgb = secondaryColor;
-                s.Playback2D.AnnotationSecondaryTool = secondaryTool;
+                s.Playback2D.AnnotationColorArgb = style.Style.ColorArgb;
+                s.Playback2D.AnnotationWidth = style.Style.WidthWorld;
+                s.Playback2D.AnnotationOpacity = style.Style.Opacity;
+                s.Playback2D.AnnotationDefaultVisibility = style.Visibility.ToString();
+                s.Playback2D.AnnotationFadeInTicks = style.FadeInTicks;
+                s.Playback2D.AnnotationFadeOutTicks = style.FadeOutTicks;
+                s.Playback2D.AnnotationHoldTicks = style.HoldTicks;
+                s.Playback2D.AnnotationAnchorToEntities = style.AnchorToEntities;
+                s.Playback2D.LastTool = style.Tool.ToString();
+                s.Playback2D.AnnotationRecentColors = style.RecentColors;
+                s.Playback2D.AnnotationSecondaryColorArgb = style.SecondaryColorArgb;
+                s.Playback2D.AnnotationSecondaryTool = style.SecondaryTool;
+
+                // The WRITER AnnotationAutoSave shipped without (D6 finding 26). The key had a reader
+                // and a WriteInMemory row from B2, so it round-tripped perfectly and could never change.
+                s.Playback2D.AnnotationAutoSave = style.AutoSave;
 
                 // The window is read back OFF the composed envelope, so what is persisted is what the
                 // renderer will actually honour — including PinnedTo's clamp of an inverted window.
-                s.Playback2D.AnnotationCustomFromTick = custom.FromTick ?? 0;
-                s.Playback2D.AnnotationCustomUntilTick = custom.UntilTick ?? 0;
+                s.Playback2D.AnnotationCustomFromTick = style.Custom.FromTick ?? 0;
+                s.Playback2D.AnnotationCustomUntilTick = style.Custom.UntilTick ?? 0;
             });
         }
         catch (IOException)
@@ -350,6 +476,35 @@ public sealed class AnnotationSessionController : IDisposable
         {
         }
     }
+
+    private void CancelStylePersist()
+    {
+        CancellationTokenSource? cts = _stylePersist;
+        _stylePersist = null;
+        if (cts is null)
+        {
+            return;
+        }
+
+        cts.Cancel();
+        cts.Dispose();
+    }
+
+    // Everything a preference write needs, copied off the session at the moment the user changed it.
+    // A record STRUCT so a coalesced drag allocates one box per snapshot rather than a class per sample.
+    private readonly record struct StyleSnapshot(
+        AnnotationStyle Style,
+        EnvelopeMode Visibility,
+        ToolKind Tool,
+        bool AnchorToEntities,
+        int FadeInTicks,
+        int FadeOutTicks,
+        int HoldTicks,
+        uint SecondaryColorArgb,
+        string SecondaryTool,
+        TimeEnvelope Custom,
+        string[] RecentColors,
+        bool AutoSave);
 
     /// <summary>How many swatches the strip keeps. Eight fits one toolbar line at 820 px.</summary>
     public const int MaxRecentColors = 8;
@@ -410,6 +565,10 @@ public sealed class AnnotationSessionController : IDisposable
             return;
         }
 
+        // A colour drag that ended a debounce-window ago still has its write parked. Before the flag,
+        // because this is the last chance the preference has.
+        FlushStyleSettings();
+
         _disposed = true;
         Session.Document.Changed -= OnDocumentChanged;
 
@@ -458,9 +617,9 @@ public sealed class AnnotationSessionController : IDisposable
             return;
         }
 
-        if (_settings?.Current.Playback2D.AnnotationAutoSave == false)
+        if (!AutoSave)
         {
-            return;
+            return; // cheap: do not even arm a timer SaveNowAsync would refuse.
         }
 
         ScheduleSave();
@@ -492,6 +651,16 @@ public sealed class AnnotationSessionController : IDisposable
     private async Task SaveNowAsync(CancellationToken ct)
     {
         if (_disposed || _demoPath is null || _store is null || !IsEnabled || DemoMismatch)
+        {
+            return;
+        }
+
+        // The AUTHORITATIVE auto-save check, and deliberately here rather than only at the schedule.
+        // Every automatic write funnels through this method — the debounce, FlushAsync on a demo swap or
+        // a tab deactivate, and the blocking flush at shutdown — and only the first of those was gated
+        // before. "Session only" that still writes the sidecar when you close the tab is not session
+        // only; it is the same file arriving at a moment the user is even less likely to notice.
+        if (!AutoSave)
         {
             return;
         }
@@ -573,7 +742,34 @@ public sealed class AnnotationSessionController : IDisposable
         cts.Dispose();
     }
 
-    private string DescribeLocation(AnnotationLoadResult? result)
+    // Where this demo's sidecar would go, or null when there is nowhere for one. The single answer both
+    // DescribeLocation and CanAutoSave read, so the status line and the auto-save toggle can never
+    // disagree about whether a file is possible.
+    private string? SidecarPath()
+    {
+        if (!IsEnabled || _demoPath is null || _store is null || _isBrowser())
+        {
+            return null;
+        }
+
+        return _store.ResolvePath(_demoPath);
+    }
+
+    /// <summary>
+    ///     Re-derives <see cref="StatusText" /> from the current state and notifies. The auto-save
+    ///     toggle needs it: the line names a destination, and flipping the toggle changes whether that
+    ///     destination is a promise — with no document change to ride in on.
+    /// </summary>
+    public void RefreshStatus()
+    {
+        StatusText = DescribeLocation();
+        StateChanged?.Invoke();
+    }
+
+    // Reads the RETAINED mismatch flags rather than a load result: both are assigned from the result
+    // immediately before this is called on the load path, and reset to false on every attach, so there
+    // is exactly one source for them — which is what lets RefreshStatus above exist without a result.
+    private string DescribeLocation()
     {
         if (!IsEnabled)
         {
@@ -585,7 +781,7 @@ public sealed class AnnotationSessionController : IDisposable
             return "session only — annotations are not saved";
         }
 
-        if (result?.DemoMismatch == true)
+        if (DemoMismatch)
         {
             return "an existing sidecar belongs to a different demo — it will not be touched";
         }
@@ -601,16 +797,19 @@ public sealed class AnnotationSessionController : IDisposable
             return "session only — this browser tab forgets annotations when it reloads";
         }
 
-        string? path = _store.ResolvePath(_demoPath);
+        string? path = SidecarPath();
         if (path is null)
         {
             return "session only — no writable location for a sidecar";
         }
 
-        string prefix = result?.ClockMismatch == true
+        string prefix = ClockMismatch
             ? "loaded from a different parse — time anchors may be off · "
             : "";
 
-        return prefix + "saving to " + path;
+        // With the toggle off nothing reaches that path at all — not on a stroke, not on a demo swap,
+        // not at shutdown. Leaving "saving to <path>" standing would be a promise the setting revoked,
+        // which is the shape of defect this whole audit is about.
+        return prefix + (AutoSave ? "saving to " : "auto-save off · would save to ") + path;
     }
 }

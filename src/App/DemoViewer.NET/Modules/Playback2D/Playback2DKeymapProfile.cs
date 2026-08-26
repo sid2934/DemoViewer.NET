@@ -32,6 +32,7 @@ public sealed class Playback2DKeymapProfile
     private static readonly Dictionary<Playback2DAction, int> _indexByAction;
     private static readonly HashSet<Playback2DAction> _multiBound;
     private static readonly (Key Key, KeyModifiers Modifiers)[] _shell;
+    private static readonly (Key Key, KeyModifiers Modifiers)[] _shellAndBrowser;
 
     private readonly Playback2DBinding[] _bindings;
     private readonly HashSet<Playback2DAction> _overridden;
@@ -41,9 +42,21 @@ public sealed class Playback2DKeymapProfile
     static Playback2DKeymapProfile()
     {
         _indexByAction = BuildIndex(out _multiBound);
-        _shell = [.. Playback2DKeymap.ShellReservedGestures];
+        _shell = [.. Playback2DKeymap.ReservedGestures(false)];
+        _shellAndBrowser = [.. Playback2DKeymap.ReservedGestures(true)];
         Default = new Playback2DKeymapProfile([.. Playback2DKeymap.Default], [], []);
     }
+
+    // Which gestures a rebind may not claim on THIS head. Both sets are materialised in the static ctor
+    // rather than composed per call: FromOverrides runs the whole conflict sweep once per accepted row on
+    // the fallback path, and re-concatenating two arrays inside that loop is churn for nothing.
+    private static (Key Key, KeyModifiers Modifiers)[] Reserved(bool isBrowser) =>
+        isBrowser ? _shellAndBrowser : _shell;
+
+    // OperatingSystem.IsBrowser() is a JIT-folded intrinsic, so it cannot be faked from outside — every
+    // public entry point below takes a nullable override instead, which is what lets the WASM branch be
+    // proved on a desktop runner (the same seam ShellModuleFeatureGate and AnnotationSessionController use).
+    private static bool HostIsBrowser(bool? isBrowser) => isBrowser ?? OperatingSystem.IsBrowser();
 
     private Playback2DKeymapProfile(Playback2DBinding[] bindings, HashSet<Playback2DAction> overridden,
         IReadOnlyList<string> rejected)
@@ -77,10 +90,17 @@ public sealed class Playback2DKeymapProfile
     /// </summary>
     /// <param name="overrides">The persisted rows, in file order.</param>
     /// <param name="rejected">Receives one line per dropped row.</param>
+    /// <param name="isBrowser">
+    ///     Whether to also refuse the gestures the BROWSER takes before the page sees them. Null reads
+    ///     the real host; a test passes <c>true</c> to prove the WASM branch on a desktop runner.
+    /// </param>
     public static Playback2DKeymapProfile FromOverrides(IEnumerable<string> overrides,
-        out IReadOnlyList<string> rejected)
+        out IReadOnlyList<string> rejected, bool? isBrowser = null)
     {
         ArgumentNullException.ThrowIfNull(overrides);
+
+        bool browser = HostIsBrowser(isBrowser);
+        (Key Key, KeyModifiers Modifiers)[] reserved = Reserved(browser);
 
         List<string> problems = [];
         List<(string Row, Playback2DAction Action, Key Key, KeyModifiers Modifiers)> accepted = [];
@@ -95,8 +115,8 @@ public sealed class Playback2DKeymapProfile
             }
 
             string row = raw.Trim();
-            if (!TryParseRow(row, out Playback2DAction action, out Key key, out KeyModifiers modifiers,
-                    out string error))
+            if (!TryParseRow(row, browser, out Playback2DAction action, out Key key,
+                    out KeyModifiers modifiers, out string error))
             {
                 problems.Add($"{row}: {error}");
                 continue;
@@ -122,7 +142,7 @@ public sealed class Playback2DKeymapProfile
 
         HashSet<Playback2DAction> overridden = [.. accepted.Select(a => a.Action)];
 
-        if (Playback2DKeymap.FindConflicts(table, _shell).Count > 0)
+        if (Playback2DKeymap.FindConflicts(table, reserved).Count > 0)
         {
             // The batch does not stand up. Re-apply row by row and drop only the rows that actually
             // collide, so the report names the offending row instead of condemning the whole file.
@@ -133,7 +153,7 @@ public sealed class Playback2DKeymapProfile
                 Playback2DBinding[] candidate = [.. table];
                 candidate[_indexByAction[action]] = Rebind(candidate[_indexByAction[action]], key, modifiers);
 
-                IReadOnlyList<string> conflicts = Playback2DKeymap.FindConflicts(candidate, _shell);
+                IReadOnlyList<string> conflicts = Playback2DKeymap.FindConflicts(candidate, reserved);
                 if (conflicts.Count > 0)
                 {
                     problems.Add($"{row}: {conflicts[0]}");
@@ -156,7 +176,11 @@ public sealed class Playback2DKeymapProfile
     /// </summary>
     /// <param name="existing">The rows already persisted.</param>
     /// <param name="candidate">The row being proposed.</param>
-    public static string ValidateOverride(IEnumerable<string> existing, string candidate)
+    /// <param name="isBrowser">
+    ///     Whether the browser's own chrome gestures are also refused. Null reads the real host.
+    /// </param>
+    public static string ValidateOverride(IEnumerable<string> existing, string candidate,
+        bool? isBrowser = null)
     {
         ArgumentNullException.ThrowIfNull(existing);
         ArgumentNullException.ThrowIfNull(candidate);
@@ -169,7 +193,7 @@ public sealed class Playback2DKeymapProfile
             [.. existing.Where(r => !string.Equals(ActionPartOf(r), action, StringComparison.OrdinalIgnoreCase))];
         rows.Add(candidate);
 
-        _ = FromOverrides(rows, out IReadOnlyList<string> rejected);
+        _ = FromOverrides(rows, out IReadOnlyList<string> rejected, isBrowser);
 
         string prefix = candidate + ": ";
         foreach (string line in rejected)
@@ -315,7 +339,7 @@ public sealed class Playback2DKeymapProfile
 
     // "Action=Gesture" → the two halves, with every reason a row can be refused. Split at the FIRST '='
     // because no gesture Avalonia parses contains one.
-    private static bool TryParseRow(string row, out Playback2DAction action, out Key key,
+    private static bool TryParseRow(string row, bool isBrowser, out Playback2DAction action, out Key key,
         out KeyModifiers modifiers, out string error)
     {
         action = Playback2DAction.None;
@@ -377,6 +401,17 @@ public sealed class Playback2DKeymapProfile
 
         key = parsed.Key;
         modifiers = parsed.KeyModifiers;
+
+        // The browser check comes FIRST for the gestures that are both (Ctrl+W is a shell accelerator and
+        // a close-tab): on the WASM head the browser is the reason the key can never arrive, and "it is an
+        // app-wide shortcut" would send the user looking for a conflict inside DemoViewer that they could
+        // resolve. Neither list is consulted for a refusal it cannot explain.
+        if (Playback2DKeymap.IsBrowserReserved(key, modifiers, isBrowser))
+        {
+            error = $"{Playback2DKeymap.Format(key, modifiers)} is taken by the browser — the page never "
+                    + "receives it";
+            return false;
+        }
 
         foreach ((Key shellKey, KeyModifiers shellModifiers) in _shell)
         {

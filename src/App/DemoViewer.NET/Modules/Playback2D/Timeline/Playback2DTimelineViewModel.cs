@@ -26,7 +26,7 @@ namespace DemoViewer.NET.Modules.Playback2D.Timeline;
 ///         already speaks; tick-stamped events are converted once at build time by the adapter.
 ///     </para>
 /// </summary>
-public sealed partial class Playback2DTimelineViewModel : ObservableObject
+public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDisposable
 {
     // Two markers of one track closer than this are folded into a single visual whose tooltip carries the
     // count. Without it a 90k-frame demo realizes ~400 glyphs onto a ~600 px bar.
@@ -38,6 +38,13 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject
     private readonly List<TimelineMarker> _builtMarkers = new();
     private readonly List<TimelineTrackToggle> _toggles = new();
     private readonly List<ITimelineTrack> _tracks = new();
+
+    // Per-track content, so a track that says "re-query me" costs one track's build instead of every
+    // track's. Kept parallel to _tracks/_toggles, and recombined in registration order — which is
+    // display order, and which the rounds band's binary search depends on staying ascending.
+    private readonly List<List<TimelineBand>> _trackBands = new();
+    private readonly List<List<TimelineMarker>> _trackMarkers = new();
+    private readonly List<Action> _trackHandlers = new();
 
     [ObservableProperty]
     private int _currentFrameIndex = -1;
@@ -98,7 +105,18 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject
     /// </summary>
     public event Action<int>? SeekRequested;
 
-    /// <summary>Registers a track. Registration order is display order; re-registering an id is ignored.</summary>
+    /// <summary>
+    ///     Registers a track. Registration order is display order; re-registering an id is ignored.
+    ///     <para>
+    ///         <b>Subscribes to <see cref="ITimelineTrack.MarkersChanged" />.</b> The interface documents
+    ///         that event as "the host must re-query it", and this is the host. Without it a track whose
+    ///         content grows while the demo sits still — <c>AnnotationTrack</c> is the only one, and it
+    ///         changes on every stroke — never got re-queried at all: <see cref="Rebuild" /> runs on
+    ///         activation and demo-reset, so the markers never appeared AND the toggle never became
+    ///         available, because availability is only evaluated inside a build.
+    ///     </para>
+    /// </summary>
+    /// <param name="track">The track.</param>
     public void RegisterTrack(ITimelineTrack track)
     {
         ArgumentNullException.ThrowIfNull(track);
@@ -115,6 +133,14 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject
         toggle.PropertyChanged += OnToggleChanged;
         _tracks.Add(track);
         _toggles.Add(toggle);
+        _trackBands.Add([]);
+        _trackMarkers.Add([]);
+
+        // Captured so Dispose can take it back off: an anonymous lambda cannot be unsubscribed, and the
+        // track outlives this view-model in the tab that owns both.
+        Action handler = () => OnTrackContentChanged(track);
+        _trackHandlers.Add(handler);
+        track.MarkersChanged += handler;
     }
 
     /// <summary>
@@ -124,40 +150,108 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject
     public void Rebuild(ITimelineData? data)
     {
         _data = data;
-        _builtBands.Clear();
-        _builtMarkers.Clear();
-
         TotalFrames = data?.TotalFrames ?? 0;
 
         if (data is not null && TotalFrames > 0)
         {
             for (int i = 0; i < _tracks.Count; i++)
             {
-                ITimelineTrack track = _tracks[i];
-                TimelineTrackToggle toggle = _toggles[i];
-                toggle.IsAvailable = track.IsAvailable(data);
-
-                if (!toggle.IsAvailable || !toggle.IsEnabled)
-                {
-                    continue;
-                }
-
-                _builtBands.AddRange(track.BuildBands(data));
-                _builtMarkers.AddRange(track.BuildMarkers(data));
+                BuildTrack(i, data);
             }
         }
         else
         {
-            foreach (TimelineTrackToggle toggle in _toggles)
+            for (int i = 0; i < _toggles.Count; i++)
             {
-                toggle.IsAvailable = false;
+                _toggles[i].IsAvailable = false;
+                _trackBands[i].Clear();
+                _trackMarkers[i].Clear();
             }
+        }
+
+        Recombine();
+    }
+
+    // One track's availability and content, into that track's own slice. The ONE place a track is
+    // queried, so "re-query this track" and "re-query all of them" cannot drift apart.
+    private void BuildTrack(int index, ITimelineData data)
+    {
+        ITimelineTrack track = _tracks[index];
+        TimelineTrackToggle toggle = _toggles[index];
+        List<TimelineBand> bands = _trackBands[index];
+        List<TimelineMarker> markers = _trackMarkers[index];
+
+        bands.Clear();
+        markers.Clear();
+        toggle.IsAvailable = track.IsAvailable(data);
+
+        if (!toggle.IsAvailable || !toggle.IsEnabled)
+        {
+            return;
+        }
+
+        bands.AddRange(track.BuildBands(data));
+        markers.AddRange(track.BuildMarkers(data));
+    }
+
+    // Flattens the per-track slices back into the two built lists and re-lays out.
+    private void Recombine()
+    {
+        _builtBands.Clear();
+        _builtMarkers.Clear();
+
+        for (int i = 0; i < _tracks.Count; i++)
+        {
+            _builtBands.AddRange(_trackBands[i]);
+            _builtMarkers.AddRange(_trackMarkers[i]);
         }
 
         _builtMarkers.Sort(static (a, b) => a.FrameIndex.CompareTo(b.FrameIndex));
         Relayout();
         UpdateRoundLabel();
     }
+
+    // A track saying its content changed. Availability is re-evaluated with it — for AnnotationTrack it
+    // is the FIRST time-anchored stroke that makes the track available at all, and that arrives here and
+    // nowhere else.
+    private void OnTrackContentChanged(ITimelineTrack track)
+    {
+        if (_data is not { } data || TotalFrames <= 0)
+        {
+            return; // no demo: Rebuild already parked every toggle unavailable
+        }
+
+        int index = _tracks.IndexOf(track);
+        if (index < 0)
+        {
+            return;
+        }
+
+        BuildTrack(index, data);
+        Recombine();
+    }
+
+    /// <summary>
+    ///     Drops the <see cref="ITimelineTrack.MarkersChanged" /> subscriptions taken in
+    ///     <see cref="RegisterTrack" />. Idempotent.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        for (int i = 0; i < _trackHandlers.Count; i++)
+        {
+            _tracks[i].MarkersChanged -= _trackHandlers[i];
+        }
+
+        _trackHandlers.Clear();
+    }
+
+    private bool _disposed;
 
     /// <summary>Turns a track on/off and re-runs the build. Unknown ids are ignored.</summary>
     public void SetTrackEnabled(string trackId, bool enabled)

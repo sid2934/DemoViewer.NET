@@ -26,6 +26,15 @@ namespace DemoViewer.NET.AppTests;
 ///         Geometry is the only honest assertion here — an "is it in the right container" test would have
 ///         passed on the broken tree, because everything was in the right container the whole time.
 ///     </para>
+///     <para>
+///         <b>Every case pins the SCENE surface.</b> <c>Playback2DTimelineHarness.Show</c> defaults to the
+///         legacy escape hatch, because it was written for the carried-forward parity suites; this suite's
+///         subject is D4's docked chrome, which is v2's. It mattered from round 3A on: the annotation
+///         toolbar's visibility is now the feature gate AND the mounted surface's capability, so under the
+///         legacy viewport — which has no router, no ink layer and no gesture to cancel —
+///         <c>AnnotationToolbarHost</c> correctly is not there at all, and a layout suite measuring the
+///         default surface would have been measuring the escape hatch's chrome all along.
+///     </para>
 /// </summary>
 [NotInParallel]
 public class Playback2DHudLayoutTests
@@ -48,7 +57,8 @@ public class Playback2DHudLayoutTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DTimelineHarness.Tab();
-            (Window _, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
+            (Window _, Playback2DView view) =
+                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
 
             // The widest state the chrome ever reaches: everything the user can reveal, revealed.
             vm.IsOverlayBarOpen = true;
@@ -93,7 +103,8 @@ public class Playback2DHudLayoutTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
+            (Window window, Playback2DView view) =
+                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
 
             AnnotationToolbar toolbar = view.GetVisualDescendants().OfType<AnnotationToolbar>().Single();
             foreach (string name in _toolButtons)
@@ -140,7 +151,8 @@ public class Playback2DHudLayoutTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm, windowWidth);
+            (Window window, Playback2DView view) =
+                Playback2DTimelineHarness.Show(vm, windowWidth, renderer: Playback2DRendererKind.Scene);
 
             vm.IsOverlayBarOpen = true;
             vm.Annotations.Visibility = EnvelopeMode.Custom; // realizes the envelope editor's second row
@@ -156,16 +168,27 @@ public class Playback2DHudLayoutTests
             Playback2DTimelineHarness.Pump();
 
             int probed = 0;
+            List<string> unmeasured = [];
             foreach (Control control in toolbar.GetVisualDescendants().OfType<Control>())
             {
                 if (control is not (Button or ToggleButton or CheckBox or ComboBox or Slider
                         or NumericUpDown or ColorPicker)
                     || !control.IsEffectivelyVisible
-                    || control.Bounds.Width <= 0 || control.Bounds.Height <= 0
                     // A composite control's own template parts are its business, not the layout's.
                     || control.GetVisualAncestors().OfType<Control>()
                         .Any(a => a is ComboBox or Slider or NumericUpDown or ColorPicker))
                 {
+                    continue;
+                }
+
+                // D6 finding 31 / G-6. This used to `continue` on a 0x0 control — and 0x0 is exactly what
+                // a VISIBLE control with no control theme measures, because there is no template to
+                // measure. So the themeless ColorPicker sailed from B2 to D4 through every run of this
+                // very case, which is the one that exists to notice it. A zero-sized visible control is
+                // now the failure, not the skip.
+                if (control.Bounds.Width <= 0 || control.Bounds.Height <= 0)
+                {
+                    unmeasured.Add($"{Describe(control)} ({control.GetType().Name})");
                     continue;
                 }
 
@@ -197,11 +220,56 @@ public class Playback2DHudLayoutTests
                 }
             }
 
+            Console.WriteLine($"[chrome-width] window={windowWidth} probed={probed} "
+                              + $"unmeasured={unmeasured.Count}");
+
+            await Assert.That(string.Join(", ", unmeasured)).IsEqualTo("")
+                .Because("a visible control measuring 0x0 has no control theme — it is present in the "
+                         + "tree, absent from the screen, and invisible to every geometric assertion "
+                         + "below unless this one refuses to skip it");
+
             // 3 tools + 2 pickers + R⌫ + 2 sliders + combo + Pin + Track + 3 undo/redo/clear + 4 envelope
-            // boxes + ⌖now + 6 overlays + Overlays▾ + Export + collapse. A floor, not an exact count: the
-            // point is that the loop above cannot pass by finding nothing.
-            Console.WriteLine($"[chrome-width] window={windowWidth} probed={probed}");
-            await Assert.That(probed).IsGreaterThanOrEqualTo(25);
+            // boxes + ⌖now + 6 overlays + Overlays▾ + Export + collapse. A floor, not an exact count — but
+            // raised from 25 to the 28 actually present (D6 finding 31): a floor three below the real
+            // count is three controls that could vanish without this case noticing.
+            await Assert.That(probed).IsGreaterThanOrEqualTo(28);
+        });
+    }
+
+    /// <summary>
+    ///     The self-check for the rule above. A control with no template is <b>visible, laid out, and
+    ///     0×0</b> — it occupies the tree and none of the screen — and that is the exact state
+    ///     <see cref="EveryDockedControl_IsInsideTheColumn_AndHitTestable" /> used to skip. Until D4 the
+    ///     ink <c>ColorPicker</c> was in precisely this state, and it survived from B2 to D4 through every
+    ///     CI run of the case written to catch it. Without this canary, "unmeasured must be empty" would
+    ///     be an assertion about a condition nobody has shown to be reachable.
+    /// </summary>
+    [Test]
+    public async Task ATemplatelessControl_IsVisibleAndMeasuresZero()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            Window window = new() { Width = 400, Height = 200 };
+            StackPanel panel = new();
+            Button themed = new() { Content = "ok" };
+            Button themeless = new() { Content = "ok", Template = null };
+            panel.Children.Add(themed);
+            panel.Children.Add(themeless);
+            window.Content = panel;
+            window.Show();
+            Playback2DTimelineHarness.Pump();
+
+            Console.WriteLine($"[chrome-zero] themed={themed.Bounds} themeless={themeless.Bounds} "
+                              + $"visible={themeless.IsEffectivelyVisible}");
+
+            await Assert.That(themed.Bounds.Width).IsGreaterThan(0d)
+                .Because("the positive control: a normally themed Button does measure");
+            await Assert.That(themeless.IsEffectivelyVisible).IsTrue()
+                .Because("this is what makes the defect invisible — the control reports itself as shown");
+            await Assert.That(themeless.Bounds.Width).IsEqualTo(0d);
+            await Assert.That(themeless.Bounds.Height).IsEqualTo(0d);
+
+            window.Close();
         });
     }
 
@@ -215,7 +283,8 @@ public class Playback2DHudLayoutTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DTimelineHarness.Tab();
-            (Window _, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
+            (Window _, Playback2DView view) =
+                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
 
             vm.IsOverlayBarOpen = true;
             Playback2DTimelineHarness.Pump();
@@ -262,7 +331,8 @@ public class Playback2DHudLayoutTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            (Window _, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
+            (Window _, Playback2DView view) =
+                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
 
             vm.IsOverlayBarOpen = true;
             Playback2DTimelineHarness.Pump();

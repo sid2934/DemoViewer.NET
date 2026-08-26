@@ -13,7 +13,16 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///     CI container with no fontconfig.
 ///     <para>
 ///         Deliberately <c>internal</c> (with <c>InternalsVisibleTo</c> for the test project) so it can
-///         never become a production dependency — the real layers land in B1.
+///         never become a production dependency.
+///     </para>
+///     <para>
+///         <b>That sentence was false from B0 until D6.</b> <c>SceneLayerCatalog</c> registered this and
+///         only this, so it was the one layer <c>dv2d render</c>, <c>golden</c> and <c>bench</c> could
+///         draw — every committed CPU golden was a picture of it, and the frame-budget gate was timing
+///         it. The catalog now registers the real stack (D6 G-1) and nothing in Pipeline names this
+///         type; its remaining callers are <c>SceneGoldenTests</c>' single-pane smoke render,
+///         <c>SceneRendererTests</c>, <c>SceneSmokeRenderTests</c> and the GPU parity harness, all of
+///         which construct it directly and all of which want a layer with no font and no state.
 ///     </para>
 /// </summary>
 internal sealed class DebugGridLayer : ISceneLayer

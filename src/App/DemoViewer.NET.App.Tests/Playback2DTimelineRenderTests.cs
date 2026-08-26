@@ -42,15 +42,41 @@ public class Playback2DTimelineRenderTests
             await Assert.That(bmp).IsNotNull();
 
             Point origin = Playback2DTimelineHarness.ToWindow(timeline, window, 0, 0);
-            int nonBg = ScanBand(bmp!, (int)origin.Y, (int)(origin.Y + timeline.Bounds.Height));
+            BandScan scan = Scan(bmp!, new PixelRect(
+                (int)origin.X, (int)origin.Y,
+                (int)timeline.Bounds.Width, (int)timeline.Bounds.Height));
 
             string path = Path.Combine(HeadlessSession.ArtifactDir, "playback2d-timeline.png");
             bmp!.Save(path);
-            Console.WriteLine($"[timeline-render] rows={origin.Y}..{origin.Y + timeline.Bounds.Height} "
-                              + $"nonBg={nonBg} bands={vm.Timeline.Bands.Count} "
-                              + $"markers={vm.Timeline.Markers.Count} -> {path}");
+            Console.WriteLine($"[timeline-render] rect={origin.X},{origin.Y} "
+                              + $"{timeline.Bounds.Width:F0}x{timeline.Bounds.Height:F0} "
+                              + $"area={scan.Area} fill=#{scan.Fill:X8} x{scan.FillCount} "
+                              + $"ink={scan.Ink} colours={scan.DistinctColours} "
+                              + $"anyChannelNonZero={scan.AnyChannelNonZero} "
+                              + $"bands={vm.Timeline.Bands.Count} markers={vm.Timeline.Markers.Count} "
+                              + $"-> {path}");
 
-            await Assert.That(nonBg).IsGreaterThan(100);
+            // D6 G-6: this used to assert `nonBg > 100`, where nonBg counted pixels with ANY non-zero
+            // channel. Pb2dPanelBg is #1A1E24 — every channel non-zero — so the opaque panel fill alone
+            // satisfied it several thousand times over, on a completely empty timeline. The line below
+            // records that the old metric is still trivially true, so the reason this case was rewritten
+            // cannot be lost by someone restoring it.
+            await Assert.That(scan.AnyChannelNonZero).IsGreaterThan(scan.Area * 9 / 10)
+                .Because("the panel fill is opaque and non-black, which is precisely why counting "
+                         + "non-black pixels measured nothing");
+
+            // The fill is found rather than hard-coded, so a re-themed panel does not re-baseline this.
+            await Assert.That(scan.FillCount).IsGreaterThan(scan.Area / 4)
+                .Because("the most common colour in the rect must BE the panel fill; if it is not, this "
+                         + "probe is measuring the wrong rectangle and everything below is noise");
+
+            // Ink is what is drawn ON the fill: round bands, kill and bomb glyphs, tick labels, playhead.
+            await Assert.That(scan.Ink).IsGreaterThan(100)
+                .Because("an empty timeline is a rect of one colour — that is the state this case exists "
+                         + "to fail on");
+            await Assert.That(scan.DistinctColours).IsGreaterThan(4)
+                .Because("bands, markers and text are several colours; one flat wash over the fill would "
+                         + "clear the Ink floor while still being nothing a user could read");
         });
     }
 
@@ -100,9 +126,19 @@ public class Playback2DTimelineRenderTests
         });
     }
 
-    // Counts pixels in a horizontal band that differ from the viewport background — the same probe shape
-    // Playback2DCameraModeTests uses, restricted to the timeline's own rows.
-    private static int ScanBand(WriteableBitmap bmp, int top, int bottom)
+    /// <summary>What one rectangle of the captured frame actually contains.</summary>
+    /// <param name="Area">Pixels examined.</param>
+    /// <param name="Fill">The most common colour — for a panel, its background.</param>
+    /// <param name="FillCount">How many pixels are that colour.</param>
+    /// <param name="Ink">Pixels that are NOT the fill: everything drawn on top of it.</param>
+    /// <param name="DistinctColours">Distinct colours present, fill included.</param>
+    /// <param name="AnyChannelNonZero">The superseded metric, kept so the assertions can show it is vacuous.</param>
+    private readonly record struct BandScan(
+        int Area, uint Fill, int FillCount, int Ink, int DistinctColours, int AnyChannelNonZero);
+
+    // The timeline's OWN rectangle, not a full-width row band: at those rows the window also holds the
+    // splitter and the roster panel, whose pixels are not evidence about the timeline.
+    private static BandScan Scan(WriteableBitmap bmp, PixelRect rect)
     {
         PixelSize size = bmp.PixelSize;
         byte[] buffer = new byte[size.Width * size.Height * 4];
@@ -111,22 +147,37 @@ public class Playback2DTimelineRenderTests
             Marshal.Copy(fb.Address, buffer, 0, buffer.Length);
         }
 
-        int first = Math.Clamp(top, 0, size.Height);
-        int last = Math.Clamp(bottom, 0, size.Height);
+        int x0 = Math.Clamp(rect.X, 0, size.Width);
+        int x1 = Math.Clamp(rect.X + rect.Width, 0, size.Width);
+        int y0 = Math.Clamp(rect.Y, 0, size.Height);
+        int y1 = Math.Clamp(rect.Y + rect.Height, 0, size.Height);
 
-        int nonBg = 0;
-        for (int y = first; y < last; y++)
+        Dictionary<uint, int> histogram = [];
+        int area = 0;
+        int anyChannelNonZero = 0;
+
+        for (int y = y0; y < y1; y++)
         {
-            for (int x = 0; x < size.Width; x++)
+            for (int x = x0; x < x1; x++)
             {
                 int i = (y * size.Width + x) * 4;
+                uint colour = (uint)(buffer[i] | (buffer[i + 1] << 8) | (buffer[i + 2] << 16)
+                                     | (buffer[i + 3] << 24));
+                histogram[colour] = histogram.GetValueOrDefault(colour) + 1;
+                area++;
                 if (buffer[i] != 0 || buffer[i + 1] != 0 || buffer[i + 2] != 0)
                 {
-                    nonBg++;
+                    anyChannelNonZero++;
                 }
             }
         }
 
-        return nonBg;
+        if (area == 0)
+        {
+            return new BandScan(0, 0, 0, 0, 0, 0);
+        }
+
+        (uint fill, int fillCount) = histogram.MaxBy(e => e.Value);
+        return new BandScan(area, fill, fillCount, area - fillCount, histogram.Count, anyChannelNonZero);
     }
 }

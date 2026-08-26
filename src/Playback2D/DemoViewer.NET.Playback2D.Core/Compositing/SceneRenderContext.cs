@@ -22,7 +22,10 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 /// <param name="LevelIndex">-1 = a single pane showing all levels (the pre-v2 <c>sliceIndex &lt; 0</c>).</param>
 /// <param name="LevelMinZ">Lower world Z of this pane's level band.</param>
 /// <param name="LevelMaxZ">Upper world Z of this pane's level band.</param>
-/// <param name="Purpose">Why this scene is being rendered.</param>
+/// <param name="Purpose">
+///     Why this scene is being rendered. <b>Reserved</b> — no layer branches on it and all three values
+///     render identically; see <see cref="RenderPurpose" /> for why it is carried anyway.
+/// </param>
 /// <param name="Palette">Resolved theme colours and stroke widths.</param>
 /// <param name="RenderScaling">Device pixels per DIP; exactly 1.0 offscreen.</param>
 public readonly record struct SceneRenderContext(

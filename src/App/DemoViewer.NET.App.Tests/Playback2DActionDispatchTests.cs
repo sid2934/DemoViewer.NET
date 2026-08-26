@@ -185,11 +185,18 @@ public class Playback2DActionDispatchTests
         await Assert.That(vm.FollowedSlot).IsEqualTo(-1);
     }
 
-    internal static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx) Activated()
+    /// <param name="demoPath">
+    ///     The demo the context is on, set BEFORE activation. Null (the default) is the shape every
+    ///     pre-round-3A caller had. It matters because the tab's resync clears the follow target when the
+    ///     path changes under it, so a test that assigns the path after activation has already staged a
+    ///     demo swap without meaning to.
+    /// </param>
+    internal static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx) Activated(string? demoPath = null)
     {
         Playback2DFakeContext ctx = new()
         {
-            Gate = new FakeModuleFeatureGate()
+            Gate = new FakeModuleFeatureGate(),
+            DemoPath = demoPath
         };
         ctx.AddPlayer(0, "Alpha", 2);
         ctx.AddPlayer(1, "Bravo", 2);

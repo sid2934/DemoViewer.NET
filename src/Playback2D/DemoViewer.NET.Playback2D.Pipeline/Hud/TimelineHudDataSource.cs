@@ -43,6 +43,13 @@ public sealed class TimelineHudDataSource : IHudDataSource
     private HudSnapshot _cached = HudSnapshot.Empty;
     private bool _hasCached;
 
+    /// <summary>
+    ///     How many times the kill window has been rebuilt. Test hook: "the windowing is cached, the
+    ///     readers are not" is the whole contract of <see cref="At" /> and there is no other way to see
+    ///     the first half of it.
+    /// </summary>
+    internal int WindowingsForTest { get; private set; }
+
     /// <summary>Creates a source.</summary>
     /// <param name="allKills">Every kill in the demo. Not copied; must not change under this type.</param>
     /// <param name="tickRate">The demo's tick rate.</param>
@@ -75,12 +82,23 @@ public sealed class TimelineHudDataSource : IHudDataSource
     /// <inheritdoc />
     public HudSnapshot At(int tick)
     {
-        if (_hasCached && _cached.Tick == tick)
+        // The WINDOWING is cached by tick, and only the windowing. It is the expensive half and it is
+        // genuinely a pure function of tick; the clock and the roster are not — they are readers over
+        // whatever frame the source built most recently, and CS2 emits SEVERAL demo frames per tick, so
+        // two consecutive output frames can share one tick while the state behind those readers has
+        // moved on. Caching the whole snapshot by tick alone meant the second of those frames drew the
+        // first one's cards and the first one's scoreboard — invisible in the app, where the roster is
+        // the builder's pooled list, but not in an export: SceneFrameBuilder double-buffers, so the
+        // stale snapshot holds the OTHER slot's list, still carrying the previous frame (D6 finding 32).
+        //
+        // Re-asking costs two delegate calls and nothing else — both readers hand back state the frame
+        // source already computed, and ClockReading.From memoises the one string it formats.
+        if (!_hasCached || _cached.Tick != tick)
         {
-            return _cached;
+            KillFeedTimeline.Window(_allKills, tick, _tickRate, _window, _windowSeconds, _maxRows);
+            WindowingsForTest++;
         }
 
-        KillFeedTimeline.Window(_allKills, tick, _tickRate, _window, _windowSeconds, _maxRows);
         ClockReading clock = _clockAt(tick);
 
         // Borrowed straight through, never copied: the reader hands back the frame source's own pooled
@@ -114,17 +132,31 @@ public readonly record struct ClockReading(
     bool Defusing,
     double DefuseSeconds)
 {
+    // Round numbers as strings, filled on demand. int.ToString allocates, and this runs once per HUD
+    // layer per frame — three times a frame on a full export stack, since TimelineHudDataSource.At
+    // re-asks its readers rather than trusting a tick-keyed cache (D6 finding 32). A match has a few
+    // dozen rounds; the array covers every one of them and overtime besides. A benign race on a slot
+    // costs two identical strings, never a wrong one.
+    private static readonly string[] _roundText = new string[128];
+
     /// <summary>The reading for a tick with no game-rules state. Renders placeholders.</summary>
     public static ClockReading Unknown { get; } = new("—", 0, 0, double.NaN, false, false, double.NaN);
 
     /// <summary>Projects a scene's own game info onto this shape — what the app and the CLI both do.</summary>
     /// <param name="info">The frame's game info.</param>
     public static ClockReading From(SceneGameInfo info) => new(
-        info.RoundNumber > 0 ? info.RoundNumber.ToString(System.Globalization.CultureInfo.InvariantCulture) : "—",
+        RoundText(info.RoundNumber),
         info.TScore,
         info.CtScore,
         info.RoundSeconds,
         info.BombTicking,
         info.DefuseInProgress,
         info.DefuseSeconds);
+
+    private static string RoundText(int round) => round switch
+    {
+        <= 0 => "—",
+        < 128 => _roundText[round] ??= round.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        _ => round.ToString(System.Globalization.CultureInfo.InvariantCulture)
+    };
 }

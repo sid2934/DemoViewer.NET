@@ -44,7 +44,8 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///         still settling or a marker is still gliding, so an idle tab requests no frames at all.
 ///     </para>
 /// </summary>
-public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IDisposable
+public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IAnnotationSurface,
+    IDisposable
 {
     private readonly LevelCrossingTracker _crossings = new();
     private readonly SceneRenderGate _gate = new();
@@ -145,6 +146,16 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, ID
     /// <summary>Selects the active pointer tool.</summary>
     /// <param name="kind">The tool.</param>
     internal void SetActiveTool(ToolKind kind) => _router.SetActive(kind);
+
+    // The three above ARE IAnnotationSurface; they predate it and are internal, and an implicit
+    // implementation would have to make them public. Explicit forwarding keeps the surface exactly as
+    // wide as it was while letting the view ask "can this thing host ink?" instead of "is this thing a
+    // Scene2DHost?" — which is the whole of D6 finding 12.
+    void IAnnotationSurface.SetActiveTool(ToolKind kind) => SetActiveTool(kind);
+
+    void IAnnotationSurface.SetSpacePanHeld(bool held) => SetSpacePanHeld(held);
+
+    void IAnnotationSurface.CancelActiveGesture() => CancelActiveGesture();
 
     /// <summary>The annotation layer, once a session has been bound. Test hook.</summary>
     internal AnnotationLayer? AnnotationLayerForTest => _annotationLayer;
@@ -533,9 +544,36 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, ID
         base.OnPointerReleased(e);
         ArgumentNullException.ThrowIfNull(e);
 
-        ToolPointerEvent sample = Translate(e, includeIntermediate: true);
-        _router.OnReleased(in sample);
-        e.Pointer.Capture(null);
+        // InitialPressMouseButton, never ButtonOf: the pressed-button flags on a RELEASE describe what is
+        // STILL down, so a plain left release reports None and a chorded middle release reports Left —
+        // the one value that would let a stray middle click close the left stroke. Avalonia names the
+        // button this release actually belongs to; the router refuses the rest.
+        ToolPointerEvent sample =
+            Translate(e, includeIntermediate: true, ButtonOf(e.InitialPressMouseButton));
+
+        // Capture follows the GESTURE. A refused chord release leaves it held, or the remainder of the
+        // drag would arrive at whatever is under the cursor instead of at the stroke that owns it.
+        if (_router.OnReleased(in sample))
+        {
+            e.Pointer.Capture(null);
+        }
+    }
+
+    /// <summary>
+    ///     An OS-cancelled contact — a touch or pen lifted out of range, a system gesture, another
+    ///     element taking the pointer — <b>abandons</b> the gesture.
+    ///     <para>
+    ///         Cancel, never commit: nobody released anything, so treating it as a release would write a
+    ///         stroke the user did not finish. And without it the gesture stayed open with capture gone,
+    ///         so <c>OnPointerMoved</c> — which gates only on <c>IsGestureOpen</c> — kept extending the
+    ///         stroke with no button held, for as long as the pointer stayed over the surface.
+    ///     </para>
+    /// </summary>
+    /// <param name="e">The capture-lost event.</param>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        _router.CancelActive();
     }
 
     /// <inheritdoc />
@@ -560,7 +598,8 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, ID
     // Avalonia event → pane-resolved, world-resolved tool sample. The coalesced samples are the reason
     // a fast stroke looks smooth: a 1000 Hz digitiser delivers dozens of points per 60 Hz frame, and
     // taking only the primary one turns a curve into a polyline.
-    private ToolPointerEvent Translate(PointerEventArgs e, bool includeIntermediate)
+    private ToolPointerEvent Translate(PointerEventArgs e, bool includeIntermediate,
+        ToolPointerButton? button = null)
     {
         Point position = e.GetPosition(this);
         float x = (float)position.X;
@@ -620,7 +659,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, ID
             PaneLocal = local,
             World = world,
             Pressure = pressure,
-            Button = ButtonOf(e),
+            Button = button ?? ButtonOf(e),
             Modifiers = Translate(e.KeyModifiers),
             Intermediate = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_coalesced)
         };
@@ -650,6 +689,17 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, ID
 
         return properties.IsLeftButtonPressed ? ToolPointerButton.Left : ToolPointerButton.None;
     }
+
+    // The button a release BELONGS to, from PointerReleasedEventArgs.InitialPressMouseButton — which is
+    // the only thing on a release that names the button that came up rather than the ones still held.
+    // The X buttons reach no tool, so they map to None and the router reads that as "the gesture's own".
+    private static ToolPointerButton ButtonOf(MouseButton button) => button switch
+    {
+        MouseButton.Left => ToolPointerButton.Left,
+        MouseButton.Right => ToolPointerButton.Right,
+        MouseButton.Middle => ToolPointerButton.Middle,
+        _ => ToolPointerButton.None
+    };
 
     private static ToolModifiers Translate(KeyModifiers modifiers)
     {

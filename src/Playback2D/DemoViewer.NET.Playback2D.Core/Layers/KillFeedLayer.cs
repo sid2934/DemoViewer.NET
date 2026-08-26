@@ -45,6 +45,9 @@ public sealed class KillFeedLayer : ISceneLayer
     /// <summary>Rows drawn at most, matching the view-model's own window (<c>KillFeedTimeline</c>).</summary>
     public const int MaxRows = 6;
 
+    /// <summary>Row pitch: the vertical advance from one row's top to the next's.</summary>
+    private const float LineHeightFactor = 1.75f;
+
     private readonly StringBuilder _builder = new(96);
     private readonly IHudDataSource _data;
     private readonly bool _ownsText;
@@ -117,7 +120,7 @@ public sealed class KillFeedLayer : ISceneLayer
 
         float right = ctx.PaneBounds.Right - _style.MarginPx;
         float y = _style.MarginPx;
-        float lineHeight = _style.FontSizePx * 1.75f;
+        float lineHeight = _style.FontSizePx * LineHeightFactor;
 
         // Oldest first, top to bottom — the same order the XAML feed stacks them in.
         int first = rows.Count - count;
@@ -162,6 +165,35 @@ public sealed class KillFeedLayer : ISceneLayer
         {
             _text.Dispose();
         }
+    }
+
+    /// <summary>
+    ///     The vertical band this layer claims at the top of its pane, in pixels: the inset plus a full
+    ///     <see cref="MaxRows" /> feed.
+    ///     <para>
+    ///         <b>Published because a sibling has to stay out of it.</b> <c>hud.roster</c>'s CT column
+    ///         claims the same right edge; the feed is <see cref="Order" /> 80 against the roster's 65, so
+    ///         where they meet the feed paints straight over the cards. With the shipped
+    ///         <see cref="HudStyle" /> and a five-a-side roster they meet on any pane shorter than about
+    ///         552 px — which includes the top band of a 1280×720 two-level stacked export, the exact case
+    ///         both layers' own doc comments cite (D6 finding 9). Neither layer saw it because every test
+    ///         of either one mounted it alone.
+    ///     </para>
+    ///     <para>
+    ///         Sized from <see cref="MaxRows" /> rather than from the live row count, deliberately: a
+    ///         reservation that shrank with the feed would shove the whole roster up and down the frame
+    ///         every time a kill aged out of the window.
+    ///     </para>
+    /// </summary>
+    /// <param name="style">The style the feed will be drawn with.</param>
+    public static float ReservedBandHeight(HudStyle style)
+    {
+        ArgumentNullException.ThrowIfNull(style);
+
+        // MarginPx is the first row's top; MaxRows pitches cover the last row's box, because the pitch
+        // (1.75 em) is comfortably taller than a line box plus its panel padding at every size the style
+        // can take.
+        return style.MarginPx + (MaxRows * style.FontSizePx * LineHeightFactor);
     }
 
     /// <summary>

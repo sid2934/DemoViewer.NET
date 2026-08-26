@@ -26,7 +26,7 @@
                                    Foreground="{DynamicResource TextDim}"
                                    VerticalAlignment="Center"
                                    IsVisible="{Binding HasLockHint}"
-                                   ToolTip.Tip="Locked here — a Required feature is always on; a grouped feature follows its group leader's toggle." />
+                                   ToolTip.Tip="Locked here — a Required feature is always on; a grouped feature follows its group leader's toggle; and a desktop-only feature cannot be switched on in the browser at all." />
                         <Ellipse Width="6" Height="6" VerticalAlignment="Center"
                                  Fill="{DynamicResource AccentAmber}"
                                  IsVisible="{Binding IsOverridden}"
@@ -213,15 +213,31 @@
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Grid.Column="0" Foreground="{DynamicResource TextDim}" FontSize="11"
                                            TextWrapping="Wrap"
-                                           Text="Keys for the 2D Playback tab. Click a gesture and press the key you want; app-wide shortcuts (Ctrl+O, Ctrl+1…9) and keys already taken inside the tab are refused with a reason." />
+                                           Text="Keys for the 2D Playback tab. Click a gesture and press the key you want; app-wide shortcuts (Ctrl+O, Ctrl+1…9), keys already taken inside the tab, and — in the browser — keys the browser itself takes (Ctrl+T, F12) are refused with a reason." />
                                 <Button Grid.Column="1" Classes="ghost" Padding="10,4" VerticalAlignment="Top"
                                         Content="Reset all keys"
                                         Command="{Binding ResetAllKeybindsCommand}"
                                         ToolTip.Tip="Clear every 2D keybinding override and return to the shipped gestures." />
                             </Grid>
 
+                            <!-- Browser honesty (D6 §4b). SettingsService has no file on the WASM head —
+                                 every write goes to the in-memory provider and dies with the page — so a
+                                 user could rebind the whole table, watch all of it apply live, and lose
+                                 the lot on refresh with nothing anywhere saying so. B5 fixed exactly this
+                                 class for annotations ("session only — this browser tab forgets…") and
+                                 D1 shipped a new persisted surface without repeating it.
+                                 Collapsed entirely on desktop: it is not a caveat there. -->
+                            <TextBlock x:Name="KeybindPersistenceNote"
+                                       Foreground="{DynamicResource AccentCaution}" FontSize="11"
+                                       TextWrapping="Wrap"
+                                       Text="{Binding KeybindPersistenceNote}"
+                                       IsVisible="{Binding !KeybindsPersist}"
+                                       ToolTip.Tip="The browser build has no settings file — preferences are kept for this tab only." />
+
                             <!-- Only ever non-empty for a HAND-edited settings file: this screen validates
-                                 before it writes, so nothing it persists can be dropped on load. -->
+                                 before it writes, so nothing it persists can be dropped on load. The
+                                 sentence is BOUND rather than literal because "settings.json" is a file
+                                 the browser head does not have (D6 §4b) — see KeybindRejectionSource. -->
                             <Border Background="{DynamicResource PanelHeaderBg}" CornerRadius="4" Padding="8,6"
                                     IsVisible="{Binding HasKeybindRejections}">
                                 <Grid ColumnDefinitions="Auto,*">
@@ -230,7 +246,7 @@
                                     <StackPanel Grid.Column="1" Spacing="3">
                                         <TextBlock Foreground="{DynamicResource TextMid}" FontSize="11"
                                                    TextWrapping="Wrap"
-                                                   Text="Some keybinding overrides in settings.json were ignored; the shipped gestures are used for them." />
+                                                   Text="{Binding KeybindRejectionSource}" />
                                         <TextBlock Classes="mono" Foreground="{DynamicResource TextDim}" FontSize="10"
                                                    TextWrapping="Wrap" Text="{Binding KeybindRejectionNote}" />
                                     </StackPanel>

@@ -7,6 +7,10 @@ It is available in the app (2D Playback → Export) and headlessly through
 [`dv2d export`](../dv2d.md). Both go through the same `SceneExportSession`, so a request the dialog
 accepts is a request the CLI accepts, and neither can produce a file the other would refuse.
 
+**That is a statement about the validator, not about the picture.** The two front ends agree on what a
+legal request is; what they *default* to differs, and one thing the app can burn in the CLI cannot
+build at all. The [Overlays](#overlays) table below is the authority on where they part.
+
 ---
 
 ## What an export is
@@ -127,13 +131,20 @@ The ladder, in order:
    - No PATH edits wanted? Drop `ffmpeg` and `ffprobe` into `<config>/tools/ffmpeg` and press
      **Re-check**. That folder is picked up immediately, and the highlight-reel feature uses the same
      one — one copy serves both.
-2. **An in-app download**, on Windows x64 only. It fetches a **pinned LGPL-2.1 build** from
+2. **An in-app download**, on Windows x64 only, from the export pane's **Download ffmpeg (LGPL)**
+   button. It fetches a **pinned LGPL-2.1 build** from
    [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds), verifies it against a pinned SHA-256,
    shows you the `LICENSE.txt` from inside the archive, and installs nothing until you accept. A 404,
-   a checksum mismatch or a declined consent all leave the disk exactly as they found it.
+   a checksum mismatch, a cancelled transfer or a declined licence all leave the disk exactly as they
+   found it.
+   *This is a button you press, never something an export does on your behalf.* Consent can only be
+   asked for **after** the transfer — that is what makes the licence you read the one inside the bytes
+   whose checksum was just verified — so a background job that downloaded first and asked later would
+   be asking permission for something it had already done.
    *macOS and Linux do not get this rung*: BtbN publishes those builds as `.tar.xz`, .NET has no xz
    decoder, and taking a compression dependency to unpack something every distribution already
-   packages is the wrong trade.
+   packages is the wrong trade. `dv2d` does not get it either — it is a CLI, and there is nobody there
+   to show a licence to.
 3. **The GIF floor.** With no ffmpeg and no download, GIF still exports, through ImageSharp.
 
 Because the downloadable build is LGPL it has no H.264 encoder. MP4 needs a GPL ffmpeg you installed
@@ -153,23 +164,47 @@ An export is a heavy job, and it says so rather than queueing silently:
   CPU-bound, not multi-gigabyte-RAM-bound, so it never blocks your next load.
 
 Cancelling is safe at any point. It kills ffmpeg, deletes the partial file, releases the gate and
-reports `Cancelled`.
+reports `Cancelled`. Quitting DemoViewer while an export is running does the same thing on the way
+out, so no orphaned ffmpeg and no half-written video survive the exit.
+
+---
+
+## While it runs
+
+The pane hands off and closes; the export does **not** hold a modal. What it is doing appears on a
+status-strip chip — the same shape the highlight-reel job uses — whose flyout carries:
+
+- a determinate progress bar (the export contract counts frames, so this is a measurement);
+- frames done of total, throughput in frames/s, elapsed, and an ETA;
+- **Cancel**, at any point;
+- on failure, the message plus an **Encoder log** section holding the chosen encoder rung and the tail
+  of ffmpeg's stderr, and a Copy button that puts the whole diagnostic on the clipboard;
+- on success, the output path and **Open folder**.
 
 ---
 
 ## Overlays
 
-`Include` in the dialog, `--layers` / `--hud` on the command line.
+`Include` in the dialog; `--layers`, `--hud` and `--annotations` on the command line.
 
-| Overlay | Default | Notes |
-|---|---|---|
-| Radar, trails, area effects, markers, bomb, floor labels | on | The scene |
-| Clock + kill feed (`hud.clock`, `hud.killfeed`) | on in the app, off in `dv2d` | Opt-in by name — an export never burns in a scoreboard by accident |
-| Annotations (`playback2d.annotations`) | on | B2's layer |
-| Vision cones (`playback2d.vision`) | **off** | The frame's biggest cost |
+| Overlay | App default | `dv2d` default | Notes |
+|---|---|---|---|
+| Radar, trails, area effects, markers, bomb, floor labels (`playback2d.*`) | on | on | The scene |
+| Score + clock (`hud.clock`) | on | off — `--hud` | Opt-in by name: an export never burns in a scoreboard by accident |
+| Kill feed (`hud.killfeed`) | on | off — `--hud` | See the parity note below |
+| Player cards (`hud.roster`) | on | off — `--hud` | D3b's cards down both edges |
+| Annotations (`playback2d.annotations`) | on | off — `--annotations` | B2's ink. On the CLI this is the demo's own `.dvann.json` sidecar; with no sidecar the layer is not named at all |
+| Vision cones (`playback2d.vision`) | **off** | **off** — and naming it does nothing here | The frame's biggest per-frame cost. In the app the layer reads a live `IVisionSolver` over the map's visibility engine. **`dv2d export` builds no engine**, and its frames come off `SceneFrameBuilder`, which fills no pre-solved geometry either — so `--layers …,playback2d.vision` on an export registers a layer with nothing to draw. `dv2d render`/`golden`/`bench` *do* draw it, because a scene fixture carries the solved cones (D6 round 3). Closing the export half means constructing a `VisibilityEngine` for the demo's map in `ExportCommand`; nobody has needed it. |
 
-The exported kill feed and the on-screen one are windowed by the same function over the same rows, so
-they cannot show different kills at the same tick.
+**Palette.** The app exports in the theme you are looking at. `dv2d` defaults to dark and takes
+`--palette dark|light`.
+
+**The kill feed is the one real gap, and it is the CLI's.** In the app the exported feed and the
+on-screen one are windowed by the same function over the same rows, so those two cannot show different
+kills at the same tick. `dv2d --hud` draws a true clock and true player cards — both read the frame
+being drawn — over an **empty** feed: kill rows come from a parsed event timeline the app builds from
+`AllGameEvents` and the CLI has no equivalent of. Inventing rows would be worse than the absence, so
+until the CLI can build that timeline, `--hud` on the command line is a HUD with no kills in it.
 
 ---
 
@@ -178,10 +213,19 @@ they cannot show different kills at the same tick.
 ```bash
 dv2d export --demo match.dem --from t12000 --to t20000 \
             --format webm --fps 60 --size 1920x1080 --out round-7.webm
+
+# the app's shipped Include set, on the command line
+dv2d export --demo match.dem --hud --annotations --palette dark --out round-7.webm
 ```
 
 `--from` / `--to` take a frame index, or a tick with a `t` prefix. `--no-encode` renders and reads
 back every frame without encoding anything — the way to tell whether the renderer or the encoder is
-the bottleneck. `--json` reports `frames_per_second` and `realtime_ratio`.
+the bottleneck. `--json` reports `frames_per_second` and `realtime_ratio`, and its `layers` array is
+the exact id set that was drawn.
+
+`--annotations` is a flag, not a path: it burns in the demo's own `.dvann.json` sidecar — the file the
+app writes beside the demo — and prints a line and adds no layer id when there is none. (The
+similarly-spelled `fixture capture --annotations <path>` is a different thing entirely: it embeds a
+raw JSON blob in a golden fixture.)
 
 Ctrl+C cancels, with the same guarantees as the dialog's Cancel.

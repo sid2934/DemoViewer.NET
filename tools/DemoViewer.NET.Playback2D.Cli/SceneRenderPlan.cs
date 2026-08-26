@@ -1,9 +1,12 @@
 #region
 
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Rendering;
+using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
@@ -103,9 +106,16 @@ internal sealed class SceneRenderPlan : IDisposable
     ///     What "no backend was requested" means. <c>Auto</c> everywhere except the golden lane — see
     ///     <see cref="BackendResolver.Resolve" />.
     /// </param>
+    /// <param name="annotations">
+    ///     Ink to burn in, or null. A single-frame render has no demo and therefore no sidecar of its
+    ///     own, so this arrives from <c>--ink</c> (<c>render</c>) or from the corpus convention
+    ///     <c>annotations/&lt;name&gt;.dvann.json</c> (<c>golden</c>, <c>bench</c>) — see
+    ///     <see cref="FixtureInk" />.
+    /// </param>
     public static SceneRenderPlan Build(CliArgs args, SKSizeI defaultSize, string? mapName,
         IReadOnlyList<string>? entryLayers = null, bool allowSizeOverride = true,
-        RenderBackendPreference defaultBackend = RenderBackendPreference.Auto)
+        RenderBackendPreference defaultBackend = RenderBackendPreference.Auto,
+        AnnotationSession? annotations = null)
     {
         ArgumentNullException.ThrowIfNull(args);
 
@@ -121,12 +131,22 @@ internal sealed class SceneRenderPlan : IDisposable
         SceneCompositor compositor;
         try
         {
-            compositor = SceneLayerCatalog.Create(include, exclude);
+            RequireFeedableOptIns(include, annotations);
+
+            // The SAME builder `dv2d export` and the app's export use (D6 G-1). It was
+            // SceneLayerCatalog.Create — a second table holding one debug-grid layer — which is why
+            // every committed CPU golden was a picture of a grid and `--layers markers` was an error.
+            compositor = SceneLayerCatalog.CreateSceneStack(include, exclude, annotations: annotations);
         }
         catch (ArgumentException e)
         {
             backend.Provider.Dispose();
             throw new CliUsageException(e.Message, e);
+        }
+        catch
+        {
+            backend.Provider.Dispose();
+            throw;
         }
 
         LoadedMapAsset? mapAssets = null;
@@ -202,6 +222,53 @@ internal sealed class SceneRenderPlan : IDisposable
         _enrichedFrom = frame;
         _enriched = enriched;
         return enriched;
+    }
+
+    /// <summary>
+    ///     Refuses an opt-in layer this command cannot feed, <b>before</b> the compositor silently drops
+    ///     it. <c>CreateSceneStack</c> skips a starved opt-in id on purpose — an export request that
+    ///     names <c>hud.clock</c> against a source with no clock should draw no HUD rather than an empty
+    ///     box — but on a command line "I asked for it and got a PNG" must not mean "it was not there".
+    ///     Both refusals name the command that <i>can</i> draw the layer.
+    /// </summary>
+    /// <param name="include">The resolved <c>--layers</c> / corpus-entry id set, or null.</param>
+    /// <param name="annotations">The ink actually loaded, or null.</param>
+    private static void RequireFeedableOptIns(IReadOnlyList<string>? include,
+        AnnotationSession? annotations)
+    {
+        if (include is null)
+        {
+            return;
+        }
+
+        foreach (string raw in include)
+        {
+            string id = SceneLayerCatalog.Normalize(raw);
+
+            if (string.Equals(id, SceneLayerIds.Annotations, StringComparison.Ordinal))
+            {
+                if (annotations is null)
+                {
+                    throw new CliUsageException(
+                        $"--layers {raw} needs ink to draw. Pass --ink <file{AnnotationStore.SidecarExtension}>, " +
+                        $"or name a corpus entry with an annotations/<name>{AnnotationStore.SidecarExtension} " +
+                        "sidecar beside its scene.");
+                }
+
+                continue; // fed, so it is not one of the three that cannot be
+            }
+
+            // The three HUD ids feed from an IHudDataSource, which is built over a demo's tracker
+            // (ExportCommand.BuildHud): a clock, a scoreboard and a kill window are functions of a
+            // parsed match, not of a single serialized frame. A fixture carries none of it, so there is
+            // no honest way for render/golden/bench to draw them.
+            if (SceneLayerIds.OptIn.Contains(id))
+            {
+                throw new CliUsageException(
+                    $"--layers {raw} is a HUD layer, and a HUD needs a demo's clock, scoreboard and kill " +
+                    "timeline — which a fixture does not carry. Only 'dv2d export --hud' can feed it.");
+            }
+        }
     }
 
     // B1's merge landed MapSpace + StackedLayout, so --layout stacked is now a real multi-pane render.

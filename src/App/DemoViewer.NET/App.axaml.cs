@@ -132,7 +132,13 @@ public class App : Application
                     () => liveSync?.State.IsSessionActive == true,
                     () => reelJob?.Status.IsRunning == true,
                     () => settings.Current,
-                    settings.Write));
+                    settings.Write,
+
+                    // The 2D tab is lazy and the shell is not, so the chip cannot be attached here the
+                    // way the reel's is. The shell hands over the mount point and the tab calls it on the
+                    // first Export — see Playback2DExportHost.MountStatusChip.
+                    viewModel.AttachPlayback2DExportStatus,
+                    viewModel.OpenOutputFolder));
             }
 
             // The highlight-scan chip. Attached from the container's instance so the strip shows a
@@ -248,7 +254,14 @@ public class App : Application
 
                 viewModel.SaveSession();
                 bool reelRunning = reelJob is { Status.IsRunning: true };
-                if (csvgTornDown || liveSync is null && !reelRunning)
+
+                // A running 2D export owns an ffmpeg subprocess and a half-written video file. Exiting
+                // without cancelling orphaned the process and left the partial output on disk looking
+                // like a finished export — the reel path had this teardown from day one and the export,
+                // whose Cancel had no production caller at all, had none.
+                bool exportRunning = viewModel.Playback2DExportStatus is { IsRunning: true };
+
+                if (csvgTornDown || liveSync is null && !reelRunning && !exportRunning)
                 {
                     return;
                 }
@@ -275,6 +288,23 @@ public class App : Application
                     {
                         // Best effort — a failed restore is CSVG's `csvg restore` / doctor territory;
                         // the app must still exit.
+                    }
+
+                    try
+                    {
+                        // Then the 2D export: its CancelAsync awaits the job's own finally, which
+                        // disposes the sink — that is what kills ffmpeg and deletes the partial file.
+                        // Shorter budget than the reel's: nothing here touches a CS2 install, so the
+                        // worst case is a stuck pipe rather than a machine left patched.
+                        if (viewModel.Playback2DExportStatus is { IsRunning: true } runningExport)
+                        {
+                            await runningExport.CancelCommand.ExecuteAsync(null)
+                                .WaitAsync(TimeSpan.FromSeconds(15));
+                        }
+                    }
+                    catch
+                    {
+                        // Same best-effort contract; a partial file is better than a hung exit.
                     }
 
                     try

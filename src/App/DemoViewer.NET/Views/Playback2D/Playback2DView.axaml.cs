@@ -27,6 +27,13 @@ public partial class Playback2DView : UserControl
     private readonly MenuFlyout? _modeMenuFlyout;
     private readonly ILevelSurface? _levelSurface;
     private readonly IPlayback2DSurface? _surface;
+
+    // The ink half of the mounted surface, or null under the legacy escape hatch. Every "can this thing
+    // draw?" question below asks THIS rather than `_surface is Scene2DHost`: the three tool entry points
+    // were each testing the concrete type, and the toolbar that offers them was testing the feature gate
+    // instead — which is how a complete, inert tool row shipped over a surface with no router (D6 #12).
+    private readonly IAnnotationSurface? _toolSurface;
+
     private Playback2DTabViewModel? _boundViewModel;
 
     public Playback2DView()
@@ -41,6 +48,7 @@ public partial class Playback2DView : UserControl
             : new Scene2DHost();
         _surface = (IPlayback2DSurface)surface;
         _levelSurface = surface as ILevelSurface;
+        _toolSurface = surface as IAnnotationSurface;
         if (this.FindControl<ContentControl>("ViewportHost") is { } slot)
         {
             slot.Content = surface;
@@ -105,6 +113,13 @@ public partial class Playback2DView : UserControl
 
         if (_boundViewModel is not null)
         {
+            // FIRST, before anything reads IsAnnotationsEnabled. The View is the only side that knows
+            // which surface got mounted, and under the legacy hatch the answer is "nothing here can host
+            // ink" — which has to be true before the toolbar binds its visibility to it, and before the
+            // keymap can compute toolActive off a tool the user selected in a toolbar that should not
+            // have been there.
+            _boundViewModel.SetSurfaceCapabilities(canAnnotate: _toolSurface is not null);
+
             _boundViewModel.FollowSlotChanged += OnFollowSlotChanged;
             _boundViewModel.FitRequested += OnFitRequested;
 
@@ -138,13 +153,7 @@ public partial class Playback2DView : UserControl
 
     private void OnFitRequested() => _surface?.FitToExtent();
 
-    private void OnToolSelected(ToolKind kind)
-    {
-        if (_surface is Scene2DHost host)
-        {
-            host.SetActiveTool(kind);
-        }
-    }
+    private void OnToolSelected(ToolKind kind) => _toolSurface?.SetActiveTool(kind);
 
     // Mirrors the VM's single follow funnel onto the control. Setting FollowSlot implies FollowPlayer
     // mode; -1 clears the follow and re-fits.
@@ -216,11 +225,23 @@ public partial class Playback2DView : UserControl
 
         // Two actions belong to the SURFACE, not the view-model: they act on the router's in-flight
         // gesture, which is host state the VM deliberately does not own.
+        //
+        // Both are TOOL-SCOPED, so they can only resolve while toolActive — which is now false whenever
+        // the mounted surface cannot host ink. The `_toolSurface is null` arms below are therefore
+        // unreachable in a shipped build; they stay because leaving the key UNHANDLED is the right
+        // answer if a future surface ever reports capable and then isn't, and because the previous
+        // spelling of this (`_surface is Scene2DHost` with an implicit fall-through) is precisely what
+        // swallowed Space and Escape when the toolbar let a tool be selected over the legacy viewport.
         switch (action)
         {
             case Playback2DAction.HoldPan:
-                if (_surface is Scene2DHost holdHost)
+                if (_toolSurface is { } holdHost)
                 {
+                    // LATCH the key, do not re-resolve it on the way up. Rebinding hold-to-pan (or an
+                    // external settings.json edit landing) while the key is down changed what the
+                    // profile answered, so the release matched nothing — and nothing else clears the
+                    // flag, so the surface panned forever from that moment on.
+                    _holdPanKey = e.Key;
                     holdHost.SetSpacePanHeld(true);
                     e.Handled = true;
                 }
@@ -228,7 +249,7 @@ public partial class Playback2DView : UserControl
                 return;
 
             case Playback2DAction.CancelGesture:
-                if (_surface is Scene2DHost cancelHost)
+                if (_toolSurface is { } cancelHost)
                 {
                     cancelHost.CancelActiveGesture();
                     e.Handled = true;
@@ -242,24 +263,23 @@ public partial class Playback2DView : UserControl
         }
     }
 
-    // The release has to FOLLOW the binding. Nothing else ever clears the router's pan flag, so a
-    // hard-coded Space here would leave a user who rebound hold-to-pan panning forever, from the first
-    // time they used it. Matched on the KEY alone, modifiers ignored: releasing Shift a frame before the
-    // pan key is a normal way to end a gesture, and it must not strand the surface either.
+    // The key that actually STARTED the hold, latched at key-down. Nothing else ever clears the router's
+    // pan flag, so anything that can make the release stop matching — a rebind, an external settings.json
+    // edit, a profile swap — would strand the surface panning forever.
+    private Key? _holdPanKey;
+
+    // The release follows the LATCH, not the binding. Matched on the key alone, modifiers ignored:
+    // releasing Shift a frame before the pan key is a normal way to end a gesture, and it must not
+    // strand the surface either.
     private void OnKeyUp(object? sender, KeyEventArgs e)
     {
-        if (_surface is not Scene2DHost host)
+        if (_holdPanKey is not { } latched || e.Key != latched)
         {
             return;
         }
 
-        Playback2DKeymapProfile profile =
-            (DataContext as Playback2DTabViewModel)?.Keymap ?? Playback2DKeymapProfile.Default;
-
-        if (profile.BindingFor(Playback2DAction.HoldPan) is { } pan && e.Key == pan.Key)
-        {
-            host.SetSpacePanHeld(false);
-        }
+        _holdPanKey = null;
+        _toolSurface?.SetSpacePanHeld(false);
     }
 
     private bool IsTextInputFocused()

@@ -200,6 +200,17 @@
 
             <!-- Persistence + identity status. One line, always honest about where the ink lives. -->
             <StackPanel Orientation="Horizontal" Spacing="6">
+                <!-- The auto-save toggle sits in the PERSISTENCE row rather than the tool row, beside the
+                     line that names the destination: "does this get written, and where" is one question
+                     and the user should not have to find its two halves in two places.
+                     Disabled — not hidden — when no sidecar is possible (no demo, no store, the browser
+                     head): the status line right of it already says why, and a control that vanishes with
+                     no explanation is D6 finding 12's other half. -->
+                <CheckBox x:Name="AutoSaveToggle" Content="Auto-save" FontSize="10"
+                          VerticalAlignment="Center" MinHeight="0"
+                          IsChecked="{Binding AutoSaveSidecar, Mode=TwoWay}"
+                          IsEnabled="{Binding CanAutoSave}"
+                          ToolTip.Tip="Write annotations to the demo's sidecar file as you draw. Off keeps them for this session only — nothing is written on a demo swap or at shutdown either." />
                 <TextBlock x:Name="StatusLabel" Text="{Binding StatusText}"
                            Foreground="{DynamicResource Pb2dTextDim}"
                            FontFamily="Consolas,Menlo,monospace" FontSize="10"

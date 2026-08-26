@@ -114,8 +114,14 @@ internal sealed class FakeToolServices : IToolServices
         switch (element.Space)
         {
             case SpaceRef.World world:
-                return pane.Space is not { Levels.Count: > 1 }
-                       || MapSpace.IdForZMin(world.LevelMinZ) == pane.LevelId;
+            {
+                // Mirrors SceneHostToolServices exactly, including its routing through the SPACE rather
+                // than through the minting rule — a fake that resolves anchors differently from the host
+                // would prove the eraser works in a way production does not.
+                MapSpace? space = pane.Space;
+                return space is not { Levels.Count: > 1 }
+                       || space.IdForAnchor(world.LevelMinZ) == pane.LevelId;
+            }
 
             case SpaceRef.Entity entity:
             {

@@ -2,7 +2,10 @@
 
 using System.Text.Json;
 using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Core.Input;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
+using SkiaSharp;
 
 #endregion
 
@@ -135,6 +138,63 @@ public class AnnotationStoreTests
         await Assert.That(loaded.SchemaVersion).IsEqualTo(99);
         await Assert.That(loaded.Elements.Count).IsEqualTo(1)
             .Because("a newer schema is read for what this build understands, never rejected wholesale");
+    }
+
+    /// <summary>
+    ///     <b>A reserved <c>AnnotationKind</c> in a hand-edited sidecar used to kill the eraser.</b> The
+    ///     store parsed any member of the enum; <c>AnnotationHitTester</c> throws
+    ///     <c>NotSupportedException</c> for everything but <c>Freehand</c> — correctly, it is an internal
+    ///     contract — and <c>EraseTool</c> has no catch, so the throw escaped into Avalonia's pointer
+    ///     pipeline on the first erase drag over that stroke. <c>LevelLayouts.Parse</c> fences its own
+    ///     reserved member for exactly this reason; the store now does the same.
+    ///     <para>
+    ///         The drag is part of the test on purpose: asserting only on the loaded <c>Kind</c> proves
+    ///         the fence, not the thing the fence exists to prevent.
+    ///     </para>
+    /// </summary>
+    [Test]
+    [Arguments("Arrow")]
+    [Arguments("Text")]
+    [Arguments("4")]
+    [Arguments("99")]
+    public async Task Load_AReservedKind_BecomesFreehand_SoTheEraserSurvivesIt(string edited)
+    {
+        using TempTree tree = new();
+        AnnotationStore store = new(tree.AppData);
+        await store.SaveAsync(tree.DemoPath, tree.Demo, tree.Clock, [AnnotationFakes.Stroke()]);
+
+        string path = store.ResolvePath(tree.DemoPath)!;
+        File.WriteAllText(path, File.ReadAllText(path)
+            .Replace("\"kind\": \"Freehand\"", $"\"kind\": \"{edited}\"", StringComparison.Ordinal));
+
+        AnnotationLoadResult loaded = await store.LoadAsync(tree.DemoPath, tree.Clock);
+
+        await Assert.That(loaded.Elements.Count).IsEqualTo(1);
+        await Assert.That(loaded.Elements[0].Kind).IsEqualTo(AnnotationKind.Freehand)
+            .Because("the points are a polyline either way, so loading it as Freehand keeps the stroke");
+
+        AnnotationSession session = new(new AnnotationDocument());
+        session.Document.Reset(loaded.Elements);
+
+        LevelPane pane = AnnotationFakes.Pane(400, 400);
+
+        // Straight over the stroke's middle sample — the drag that used to throw out of the pointer
+        // pipeline rather than erase anything.
+        EraseOver(session, pane, new SKPoint(40, 10));
+
+        await Assert.That(session.Document.Elements).IsEmpty();
+    }
+
+    // ToolPointerEvent is a ref struct, so the gesture is driven from a non-async method (the same
+    // reason EraseToolTests wraps its samples in a harness).
+    private static void EraseOver(AnnotationSession session, LevelPane pane, SKPoint world)
+    {
+        FakeToolServices services = new(session, pane);
+        EraseTool eraser = new();
+        ToolPointerEvent over = AnnotationFakes.Press(pane, world);
+
+        eraser.OnPressed(in over, services);
+        eraser.OnReleased(in over, services);
     }
 
     [Test]

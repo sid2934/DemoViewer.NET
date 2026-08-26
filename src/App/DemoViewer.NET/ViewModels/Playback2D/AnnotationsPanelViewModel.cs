@@ -97,8 +97,52 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     /// <summary>The document, for the timeline track and the tests.</summary>
     public AnnotationDocument Document => _controller.Document;
 
-    /// <summary>Whether the <c>playback2d.annotations</c> feature is on. Fails open.</summary>
-    public bool IsEnabled => _controller.IsEnabled;
+    /// <summary>
+    ///     Whether the toolbar should exist: the <c>playback2d.annotations</c> feature is on AND the
+    ///     mounted surface can actually host ink. Fails open on both halves.
+    ///     <para>
+    ///         The second half is D6 finding 12. The gate answers "is the user allowed to draw"; it
+    ///         cannot answer "is there anything to draw on", and under the legacy renderer the answer to
+    ///         the second is no. Binding the toolbar to the gate alone rendered a complete, completely
+    ///         inert tool row — and selecting a tool in it took <c>Space</c> and <c>Esc</c> away from
+    ///         transport and follow, because the keymap's tool-scoped rows key off
+    ///         <see cref="IsDrawingToolActive" />, which key off this.
+    ///     </para>
+    /// </summary>
+    public bool IsEnabled => _controller.IsEnabled && IsSurfaceCapable;
+
+    /// <summary>
+    ///     Whether the surface the View mounted implements <c>IAnnotationSurface</c>. Defaults to
+    ///     <c>true</c> so a headless test — and the window between construction and the View's first
+    ///     bind — behaves as it always did; the View narrows it the moment it knows.
+    /// </summary>
+    public bool IsSurfaceCapable { get; private set; } = true;
+
+    /// <summary>
+    ///     Told by the View which surface got mounted. Idempotent, and re-raises everything the tool
+    ///     state feeds: a capability that arrives after a tool was already selected has to put the tool
+    ///     back, or the keymap keeps shadowing Space over a surface that cannot pan.
+    /// </summary>
+    /// <param name="capable">Whether the mounted surface can host annotations.</param>
+    internal void SetSurfaceCapability(bool capable)
+    {
+        if (IsSurfaceCapable == capable)
+        {
+            return;
+        }
+
+        IsSurfaceCapable = capable;
+
+        if (!capable)
+        {
+            // Not merely hidden: a tool left selected over an incapable surface is exactly the state
+            // that makes IsDrawingToolActive true with nothing able to service the gesture.
+            SelectTool(ToolKind.PanZoom);
+        }
+
+        OnPropertyChanged(nameof(IsSurfaceCapable));
+        OnPropertyChanged(nameof(IsEnabled));
+    }
 
     /// <summary>Raised when the user picks a tool; the view drives the host's router from it.</summary>
     public event Action<ToolKind>? ToolSelected;
@@ -163,6 +207,21 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     /// <summary>Whether a stroke started near a player follows them by SteamId.</summary>
     [ObservableProperty]
     private bool _anchorToEntities;
+
+    /// <summary>
+    ///     Whether the document is written to its sidecar automatically. The user-reachable face of
+    ///     <c>AppSettings.Playback2D.AnnotationAutoSave</c>, which shipped read-only with no UI at all
+    ///     (D6 finding 26) — the branch worked, and nobody could get to it.
+    /// </summary>
+    [ObservableProperty]
+    private bool _autoSaveSidecar = true;
+
+    /// <summary>
+    ///     Whether a sidecar could be written here at all (a demo is attached, a store exists, the host
+    ///     has a filesystem). Drives the toggle's enabled state: offering "auto-save" where nothing can
+    ///     be saved would be the same lie one layer down.
+    /// </summary>
+    public bool CanAutoSave => _controller.CanAutoSave;
 
     /// <summary>One line saying where annotations are saved, or why they are not.</summary>
     [ObservableProperty]
@@ -457,6 +516,16 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
         PersistIfUserDriven();
     }
 
+    partial void OnAutoSaveSidecarChanged(bool value)
+    {
+        _controller.AutoSave = value;
+
+        // The status line names the destination, and with auto-save off that destination is no longer a
+        // promise — so the line has to be re-read here rather than waiting for the next document change.
+        _controller.RefreshStatus();
+        PersistIfUserDriven();
+    }
+
     partial void OnVisibilityChanged(EnvelopeMode value)
     {
         Session.DefaultVisibility = value;
@@ -582,6 +651,10 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
             AnchorToEntities = Session.AnchorToEntities;
             ActiveTool = Session.ActiveTool;
 
+            // Off the CONTROLLER, not the session: the session knows nothing about files. ApplySettings
+            // has just re-seeded it from the persisted key, so this is that value.
+            AutoSaveSidecar = _controller.AutoSave;
+
             // Stamped once more from what the panel now shows: an assignment that changed nothing raises
             // nothing, so without this a pull whose window matched the panel's would leave the session
             // holding whatever the ramp assignments above composed on the way past.
@@ -621,6 +694,10 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
         ElementCount = _controller.Document.Elements.Count;
         SyncRecentColors();
         OnPropertyChanged(nameof(IsEnabled));
+
+        // Whether a sidecar is possible changes on every attach/detach and on a gate flip, and the
+        // toggle is only meaningful when one is.
+        OnPropertyChanged(nameof(CanAutoSave));
     }
 
     /// <summary>Re-reads settings into the session and re-seeds the panel. After a demo attach.</summary>

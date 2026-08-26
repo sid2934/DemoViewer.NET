@@ -25,6 +25,11 @@ public sealed partial class LevelStripViewModel : ObservableObject
 {
     private readonly List<LevelChipViewModel> _scratch = [];
     private bool _applying;
+
+    // A command that persists at the end of its own body owns the save for that whole gesture. Without
+    // this the IsAutoEnabled it flips on the way would raise a SECOND SettingsChanged, and every raise is
+    // a full read-serialize-temp-write-move-reload of settings.json — two of those per chip click.
+    private bool _inGesture;
     private ILevelSurface? _surface;
 
     [ObservableProperty]
@@ -69,9 +74,20 @@ public sealed partial class LevelStripViewModel : ObservableObject
             return;
         }
 
-        _surface.PickLevel(chip.Id);
-        IsAutoEnabled = false;
-        Refresh();
+        // Both halves of the gesture are persisted by the ONE raise below: PickLevel also puts the
+        // surface into Single, which Refresh mirrors onto IsSingleMode.
+        _inGesture = true;
+        try
+        {
+            _surface.PickLevel(chip.Id);
+            IsAutoEnabled = false;
+            Refresh();
+        }
+        finally
+        {
+            _inGesture = false;
+        }
+
         SettingsChanged?.Invoke();
     }
 
@@ -91,8 +107,17 @@ public sealed partial class LevelStripViewModel : ObservableObject
         SettingsChanged?.Invoke();
     }
 
-    /// <summary>Re-arms AutoFollow.</summary>
-    [RelayCommand]
+    /// <summary>
+    ///     Re-arms AutoFollow.
+    ///     <para>
+    ///         <b>Deliberately NOT a <c>[RelayCommand]</c>.</b> The AUTO chip is a <c>ToggleButton</c> whose
+    ///         <c>IsChecked</c> binds straight to <see cref="IsAutoEnabled" />, and a command on it would
+    ///         fight that binding on the un-check half — so a command here could never be the user's path,
+    ///         which is exactly how D6 finding 13 happened: the generated <c>EnableAutoCommand</c> was the
+    ///         only thing that persisted, and nothing bound it. Persistence now lives in
+    ///         <c>OnIsAutoEnabledChanged</c>, on the path the user actually takes.
+    ///     </para>
+    /// </summary>
     public void EnableAuto()
     {
         if (!IsAutoAvailable)
@@ -100,9 +125,8 @@ public sealed partial class LevelStripViewModel : ObservableObject
             return;
         }
 
-        IsAutoEnabled = true;
+        IsAutoEnabled = true; // applies to the surface, refreshes and persists — see the handler
         Refresh();
-        SettingsChanged?.Invoke();
     }
 
     /// <summary>
@@ -213,17 +237,43 @@ public sealed partial class LevelStripViewModel : ObservableObject
     {
         if (!value)
         {
-            IsAutoEnabled = false;
+            // Under _applying on purpose: the GATE went off, which is not the user changing their mind.
+            // Persisting it would overwrite a real preference with the state of a feature flag, and a
+            // release that shipped the gate off would take AutoFollow away for good.
+            _applying = true;
+            try
+            {
+                IsAutoEnabled = false;
+            }
+            finally
+            {
+                _applying = false;
+            }
         }
 
         ApplyToSurface();
     }
 
+    /// <summary>
+    ///     D6 finding 13. The AUTO chip is a <c>ToggleButton</c> bound straight to
+    ///     <see cref="IsAutoEnabled" />, so <b>every real AUTO flip arrives here</b> and none of them ever
+    ///     touched <c>EnableAutoCommand</c> — the only path that used to raise
+    ///     <see cref="SettingsChanged" />. The toggle applied instantly, looked right, and was forgotten on
+    ///     the next launch. Persistence belongs on the path the user takes, not on the one the test drove.
+    /// </summary>
     partial void OnIsAutoEnabledChanged(bool value)
     {
-        if (!_applying)
+        if (_applying)
         {
-            ApplyToSurface();
+            return;
+        }
+
+        ApplyToSurface();
+        Refresh();
+
+        if (!_inGesture)
+        {
+            SettingsChanged?.Invoke();
         }
     }
 

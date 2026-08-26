@@ -178,8 +178,19 @@ public class FreehandOutlineTests
     /// <summary>
     ///     §6's budget is zero bytes per frame, and a wet stroke is re-outlined on every frame it is
     ///     live. Warm lists plus the outliner's thread-static buffers must therefore allocate nothing.
+    ///     <para>
+    ///         <b><c>NotInParallel</c>, like <c>BudgetTests</c>.</b>
+    ///         <c>GC.GetAllocatedBytesForCurrentThread</c> measures the THREAD, not this method, so a
+    ///         sibling test whose async continuation lands on the same pool thread between the two reads
+    ///         is counted as this outliner's allocation. Observed once in a busy six-project run and
+    ///         green on every isolated one, which is the signature: it fails for a reason nobody can act
+    ///         on, and a required lane that does that gets muted. The repo already made this call twice
+    ///         in round 2 (<c>ExportHudAndLadderTests</c>' two-window rewrite,
+    ///         <c>TimelineLayoutTests</c>' environment-dependent literal).
+    ///     </para>
     /// </summary>
     [Test]
+    [NotInParallel]
     public async Task NoAllocation_OnWarmLists()
     {
         InkPoint[] input = new InkPoint[64];

@@ -377,10 +377,28 @@ public enum UserCategory
 /// <summary>
 ///     Configuration for the 2D Playback module. Binder-safe.
 ///     <para>
-///         <b>One section for the whole module.</b> B2 (annotations), B3 (levels), B4 (export) and C2
-///         (render backend) each ADD properties here rather than creating a sibling section — the
-///         canonical property list lives in <c>docs/playback2d-v2/plans/00-overview.md</c> §3.10, and a
-///         second section would split one feature's state across two places in the file.
+///         <b>One section for the whole module.</b> B2 (annotations), B3 (levels) and B4 (export) each
+///         ADD properties here rather than creating a sibling section — the canonical property list lives
+///         in <c>docs/playback2d-v2/plans/00-overview.md</c> §3.10, and a second section would split one
+///         feature's state across two places in the file.
+///     </para>
+///     <para>
+///         <b><c>RenderBackend</c> is deliberately NOT here, and this paragraph used to promise it.</b>
+///         The registry pins the key and C2 built the whole stack behind it —
+///         <c>RenderBackendPreference</c>, its parser, <c>RenderSurfaceProviderFactory</c>,
+///         <c>GpuSurfaceProvider</c>, <c>RenderSurfaceProbe</c> — but <b>nothing in the app can consume
+///         it</b>. <c>Scene2DHost</c> draws through Avalonia's own compositor and never asks for an
+///         <c>IRenderSurfaceProvider</c> at all, and <c>SceneExportSession</c> REFUSES any provider whose
+///         backend is not <c>CpuRaster</c>, because its render loop crosses threads between frames while
+///         the GPU provider is thread-affine (design §0 <b>O2</b>, C2 Stage 1's work). The only reachable
+///         consumer is <c>dv2d --backend</c> / <c>DV2D_RENDER_BACKEND</c>, and a headless tool reads no UI
+///         state by design (§7.7).
+///         <br />
+///         So adding the property today would ship a preference whose every value behaves identically —
+///         except <c>gpu</c>, which would turn every export into a validation failure. That is the exact
+///         defect class the D6 audit is about, one layer further in. The key lands in the commit that
+///         gives it a consumer: C2 Stage 1 pinning the export loop to one thread. Until then
+///         <c>Playback2DSettingsConsumptionTests._registryKeysNotYetBuilt</c> names the gap out loud.
 ///     </para>
 ///     <para>
 ///         Every property must also be flattened into <c>SettingsService.WriteInMemory</c>, or writes
@@ -599,6 +617,17 @@ public sealed class Playback2DSettings
 
     /// <summary>Whether B2's annotation layer is burned into the video.</summary>
     public bool ExportIncludeAnnotations { get; set; } = true;
+
+    /// <summary>
+    ///     Whether <c>playback2d.vision</c> — the line-of-sight cones — is burned in.
+    ///     <para>
+    ///         <b>The one export toggle that defaults off</b>, and the last one to get a key: the solve is
+    ///         the frame's biggest per-frame cost and R3's first lever for holding the ≥ realtime budget.
+    ///         It shipped as the only box in the pane whose answer was forgotten the moment the dialog
+    ///         closed, so a user who wants cones re-ticked it for every single export.
+    ///     </para>
+    /// </summary>
+    public bool ExportIncludeVision { get; set; }
 
     // ---------------- Encoder selection (P2) ----------------
     // Registry §3.10's last two export rows. Both are flattened into SettingsService.WriteInMemory with

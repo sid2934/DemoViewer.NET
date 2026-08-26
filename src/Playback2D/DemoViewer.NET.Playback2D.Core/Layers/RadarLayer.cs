@@ -27,6 +27,12 @@ public sealed class RadarLayer : ISceneLayer
     private readonly SKPaint _major;
     private readonly SKPaint _minor;
     private readonly SKPaint _resample;
+
+    // How the resample intermediate is obtained. A field rather than a direct SKSurface.Create call so
+    // the failure branch in ScaledFor is REACHABLE from a test: Skia decides on its own when an
+    // allocation is too large, and a suite that cannot make it say no cannot prove what happens next.
+    private Func<SKImageInfo, SKSurface?> _surfaceFactory = static info => SKSurface.Create(info);
+
     private SKImage? _scaled;
     private SKImage? _scaledFrom;
     private int _scaledHeight;
@@ -121,6 +127,18 @@ public sealed class RadarLayer : ISceneLayer
     /// </summary>
     public bool CacheScaledImage { get; set; }
 
+    /// <summary>
+    ///     Test seam: how <see cref="ScaledFor" /> obtains its resample intermediate. Returning null (or
+    ///     throwing) is how the fault path of D6 finding 22 is exercised — see that method's doc.
+    /// </summary>
+    /// <param name="factory">The replacement factory. Null restores <c>SKSurface.Create</c>.</param>
+    internal void SetSurfaceFactoryForTest(Func<SKImageInfo, SKSurface?>? factory) =>
+        _surfaceFactory = factory ?? (static info => SKSurface.Create(info));
+
+    /// <summary>The size the live resample cache describes, or (0,0) when it holds nothing. Test hook.</summary>
+    internal (int Width, int Height) ScaledCacheSizeForTest => _scaled is null ? (0, 0)
+        : (_scaledWidth, _scaledHeight);
+
     /// <inheritdoc />
     public string Id => SceneLayerIds.Radar;
 
@@ -162,9 +180,7 @@ public sealed class RadarLayer : ISceneLayer
         _minor.Dispose();
         _major.Dispose();
         _resample.Dispose();
-        _scaled?.Dispose();
-        _scaled = null;
-        _scaledFrom = null;
+        DropScaled();
     }
 
     // Placed via the bundle's world bounds through the shared transform. The overview txt's rotate and
@@ -219,6 +235,18 @@ public sealed class RadarLayer : ISceneLayer
     ///         are quantised because a sub-pixel change in the destination is invisible and re-resampling
     ///         for it would defeat the cache during a pan.
     ///     </para>
+    ///     <para>
+    ///         <b>The cache is forgotten before the replacement is attempted, not after it succeeds.</b>
+    ///         Disposing <c>_scaled</c> while <c>_scaledFrom</c>/<c>_scaledWidth</c>/<c>_scaledHeight</c>
+    ///         still described it left the hit branch above trusting a dead handle the moment anything
+    ///         between the dispose and the reassignment failed — a null from
+    ///         <c>SKSurface.Create</c> (this asks for up to
+    ///         <see cref="MaxScaledEdge" />² × 4 bytes, and <c>CacheScaledImage</c> is on for every
+    ///         export) or a throw out of the resample. Handing a disposed <see cref="SKImage" /> to
+    ///         <c>DrawImage</c> is an access violation inside Skia, not an exception the frame loop can
+    ///         catch (D6 finding 22). Falling back to <paramref name="source" /> draws the right pixels
+    ///         by the un-cached route; there is no wrong-pixels branch here at all.
+    ///     </para>
     /// </summary>
     private SKImage ScaledFor(SKImage source, SKRect destination)
     {
@@ -238,18 +266,39 @@ public sealed class RadarLayer : ISceneLayer
             return source;
         }
 
-        _scaled?.Dispose();
+        DropScaled();
 
-        using SKSurface surface = SKSurface.Create(
+        using SKSurface? surface = _surfaceFactory(
             new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        if (surface is null)
+        {
+            return source; // no intermediate this frame — the direct resample is correct, only slower.
+        }
+
         surface.Canvas.Clear(SKColors.Transparent);
         surface.Canvas.DrawImage(source, new SKRect(0, 0, width, height), _resample);
 
-        _scaled = surface.Snapshot();
+        if (surface.Snapshot() is not { } snapshot)
+        {
+            return source;
+        }
+
+        _scaled = snapshot;
         _scaledFrom = source;
         _scaledWidth = width;
         _scaledHeight = height;
         return _scaled;
+    }
+
+    // Disposes the cached resample and forgets everything that describes it, in that order and with no
+    // step between them that can fail. Every field the hit branch reads is cleared, not just the handle.
+    private void DropScaled()
+    {
+        _scaled?.Dispose();
+        _scaled = null;
+        _scaledFrom = null;
+        _scaledWidth = 0;
+        _scaledHeight = 0;
     }
 
     private WorldBounds? ResolveBounds(in SceneRenderContext ctx)

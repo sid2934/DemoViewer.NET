@@ -13,11 +13,13 @@
         line of UI.
 
         LAYOUT follows HighlightReelDialogView: label ABOVE content, rows that wrap, one scroll region owned
-        by the HOST. All colour is {DynamicResource}.
+        by the HOST. All colour is {DynamicResource}, and inside the viewport column that means the Pb2d*
+        palette (design-system D21): the app-chrome TextDim these labels used to carry measures 1.71:1 on a
+        Pb2dPanelBg host, which is not a contrast ratio, it is an absence of one.
 
-        There is no progress bar here on purpose. An export runs for minutes; progress lives on the status
-        chip bound to IExportJobService.Status, exactly like the reel job, so the user can keep watching the
-        demo while it renders.
+        There is no export progress bar here on purpose. An export runs for minutes; progress lives on the
+        status chip bound to IExportJobService.Status (Playback2DExportStatusView), exactly like the reel
+        job, so the user can keep watching the demo while it renders.
     -->
     <StackPanel Spacing="10" Margin="12">
 
@@ -25,7 +27,7 @@
 
         <!-- Range -->
         <StackPanel Spacing="3">
-            <TextBlock Text="Range" Foreground="{DynamicResource TextDim}" FontSize="11" />
+            <TextBlock Text="Range" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11" />
             <ComboBox ItemsSource="{Binding Ranges}" SelectedItem="{Binding SelectedRange}"
                       HorizontalAlignment="Stretch">
                 <ComboBox.ItemTemplate>
@@ -41,19 +43,19 @@
              exist there and offering them would be a lie. -->
         <WrapPanel ItemSpacing="12" LineSpacing="8">
             <StackPanel Spacing="3" Width="150">
-                <TextBlock Text="Format" Foreground="{DynamicResource TextDim}" FontSize="11" />
+                <TextBlock Text="Format" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11" />
                 <ComboBox ItemsSource="{Binding Formats}" SelectedItem="{Binding SelectedFormat}"
                           HorizontalAlignment="Stretch" />
             </StackPanel>
             <StackPanel Spacing="3" Width="110">
-                <TextBlock Text="Frame rate" Foreground="{DynamicResource TextDim}" FontSize="11" />
+                <TextBlock Text="Frame rate" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11" />
                 <ComboBox ItemsSource="{Binding AvailableFps}" SelectedItem="{Binding SelectedFps}"
                           HorizontalAlignment="Stretch" />
             </StackPanel>
             <!-- P2 D3. An intent, not a codec setting: every rung maps the three ids onto its own rate
                  and speed controls, so "standard" means the same thing off NVENC and off libvpx. -->
             <StackPanel Spacing="3" Width="110">
-                <TextBlock Text="Quality" Foreground="{DynamicResource TextDim}" FontSize="11" />
+                <TextBlock Text="Quality" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11" />
                 <ComboBox ItemsSource="{Binding Qualities}" SelectedItem="{Binding SelectedQuality}"
                           HorizontalAlignment="Stretch" />
             </StackPanel>
@@ -62,7 +64,7 @@
                  which is why the default is not a name. The list is re-built when the format changes,
                  because the WebM and MP4 ladders share no rung names. -->
             <StackPanel Spacing="3" Width="150">
-                <TextBlock Text="Encoder" Foreground="{DynamicResource TextDim}" FontSize="11" />
+                <TextBlock Text="Encoder" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11" />
                 <ComboBox ItemsSource="{Binding AvailableEncoders}" SelectedItem="{Binding SelectedEncoder}"
                           HorizontalAlignment="Stretch" />
             </StackPanel>
@@ -70,7 +72,7 @@
 
         <!-- Size -->
         <StackPanel Spacing="3">
-            <TextBlock Text="Size" Foreground="{DynamicResource TextDim}" FontSize="11" />
+            <TextBlock Text="Size" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11" />
             <ComboBox ItemsSource="{x:Static vm:Playback2DExportDialogViewModel.SizePresets}"
                       SelectedItem="{Binding SelectedSize}" HorizontalAlignment="Stretch"
                       IsEnabled="{Binding !UseCustomSize}">
@@ -86,14 +88,14 @@
                 <TextBlock Text="×" VerticalAlignment="Center" />
                 <TextBox Width="90" Text="{Binding CustomHeightText}" Watermark="height" />
                 <TextBlock VerticalAlignment="Center" FontSize="11"
-                           Foreground="{DynamicResource TextDim}"
+                           Foreground="{DynamicResource Pb2dTextDim}"
                            Text="Odd values snap down — webm/mp4 need even dimensions." />
             </WrapPanel>
         </StackPanel>
 
         <!-- Overlays -->
         <StackPanel Spacing="3">
-            <TextBlock Text="Include" Foreground="{DynamicResource TextDim}" FontSize="11" />
+            <TextBlock Text="Include" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11" />
             <WrapPanel ItemSpacing="14" LineSpacing="4">
                 <CheckBox Content="HUD" IsChecked="{Binding IncludeHud}" FontSize="11"
                           ToolTip.Tip="The burned-in broadcast overlay. Pick which parts below." />
@@ -115,37 +117,79 @@
 
         <!-- Output -->
         <StackPanel Spacing="3">
-            <TextBlock Text="Save to" Foreground="{DynamicResource TextDim}" FontSize="11" />
+            <TextBlock Text="Save to" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11" />
             <TextBox Text="{Binding OutputPath}" HorizontalAlignment="Stretch" />
         </StackPanel>
 
-        <TextBlock FontSize="11" Foreground="{DynamicResource TextDim}">
+        <TextBlock FontSize="11" Foreground="{DynamicResource Pb2dTextDim}">
             <Run Text="{Binding EstimatedFrameCount}" />
             <Run Text="frames" />
         </TextBlock>
 
         <!-- ffmpeg strip: shown only when the probe found nothing. GIF stays available throughout, which
-             is the whole point of the managed floor. -->
+             is the whole point of the managed floor.
+
+             The Download affordance is a BUTTON, not the pre-ticked check box it replaced. That box was
+             read by a runner parameter production never passed, so it downloaded nothing ever; and even
+             wired it would have been the wrong shape, because FfmpegAcquisition asks for consent only
+             AFTER the transfer and the hash check — so the licence a user reads is the one inside the
+             bytes that were verified. That makes acquisition a foreground action or nothing at all. -->
         <Border IsVisible="{Binding ShowFfmpegStrip}" Padding="8" CornerRadius="4"
                 Background="{DynamicResource Pb2dOverlayBg}">
             <StackPanel Spacing="6">
                 <TextBlock Text="{Binding FfmpegMissingMessage}" TextWrapping="Wrap" FontSize="11" />
                 <TextBlock Text="{Binding FfmpegInstructions}" TextWrapping="Wrap" FontSize="11"
-                           Foreground="{DynamicResource TextDim}" />
-                <CheckBox Content="Allow DemoViewer to download the pinned LGPL build"
-                          IsChecked="{Binding AllowFfmpegDownload}" FontSize="11"
-                          IsVisible="{x:Static vm:Playback2DExportDialogViewModel.CanOfferFfmpegDownload}" />
+                           Foreground="{DynamicResource Pb2dTextDim}" />
+
                 <WrapPanel ItemSpacing="8" LineSpacing="6">
+                    <Button x:Name="DownloadFfmpegButton" Content="Download ffmpeg (LGPL)"
+                            Command="{Binding DownloadFfmpegCommand}"
+                            IsVisible="{Binding CanOfferFfmpegDownload}"
+                            ToolTip.Tip="Fetches the pinned LGPL build (~140 MB), verifies it against a pinned SHA-256 and shows you its licence. Nothing is installed until you accept." />
                     <Button Content="Re-check" Command="{Binding RecheckFfmpegCommand}" />
                     <Button Content="ffmpeg.org" Command="{Binding OpenFfmpegDownloadPageCommand}" />
                 </WrapPanel>
+
+                <StackPanel Spacing="4" IsVisible="{Binding IsDownloadingFfmpeg}">
+                    <ProgressBar Minimum="0" Maximum="1" Value="{Binding FfmpegDownloadFraction}"
+                                 Height="4" />
+                    <Button Content="Cancel download" FontSize="11"
+                            Command="{Binding CancelFfmpegDownloadCommand}" HorizontalAlignment="Left" />
+                </StackPanel>
+
+                <!-- The LGPL notice requirement, discharged before a single byte is extracted. -->
+                <StackPanel Spacing="4" IsVisible="{Binding HasFfmpegLicense}">
+                    <ScrollViewer MaxHeight="160" VerticalScrollBarVisibility="Auto">
+                        <SelectableTextBlock Text="{Binding FfmpegLicenseText}" FontSize="10"
+                                             FontFamily="Consolas,Menlo,monospace" TextWrapping="Wrap"
+                                             Foreground="{DynamicResource Pb2dTextDim}" />
+                    </ScrollViewer>
+                    <WrapPanel ItemSpacing="8" LineSpacing="6">
+                        <Button Content="Accept and install" Classes="accent"
+                                Command="{Binding AcceptFfmpegLicenseCommand}" />
+                        <Button Content="Decline" Command="{Binding DeclineFfmpegLicenseCommand}" />
+                    </WrapPanel>
+                </StackPanel>
+
+                <TextBlock Text="{Binding FfmpegDownloadStatus}" TextWrapping="Wrap" FontSize="11"
+                           Foreground="{DynamicResource Pb2dTextDim}"
+                           IsVisible="{Binding FfmpegDownloadStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
             </StackPanel>
         </Border>
 
-        <TextBlock Text="{Binding ErrorBanner}" IsVisible="{Binding ErrorBanner, Converter={x:Static ObjectConverters.IsNotNull}}"
+        <!-- Two banners, because they answer two questions. ErrorBanner is the ONE thing that makes the
+             dialog refuse; NoticeBanner is true-but-harmless and never gates Export. They shared a channel
+             once, and since the default output path is a constant that made the second export ever
+             attempted open with a red banner and a dead button. -->
+        <TextBlock x:Name="ExportNoticeBanner" Text="{Binding NoticeBanner}"
+                   IsVisible="{Binding NoticeBanner, Converter={x:Static ObjectConverters.IsNotNull}}"
+                   TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Pb2dTextDim}" />
+
+        <TextBlock x:Name="ExportErrorBanner" Text="{Binding ErrorBanner}"
+                   IsVisible="{Binding ErrorBanner, Converter={x:Static ObjectConverters.IsNotNull}}"
                    TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Pb2dTeamT}" />
 
-        <Button Content="Export" Command="{Binding StartCommand}" HorizontalAlignment="Left"
-                Classes="accent" />
+        <Button x:Name="ExportStartButton" Content="Export" Command="{Binding StartCommand}"
+                HorizontalAlignment="Left" Classes="accent" />
     </StackPanel>
 </UserControl>

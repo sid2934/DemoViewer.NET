@@ -40,10 +40,23 @@ namespace DemoViewer.NET.Modules.Playback2D;
 /// <param name="IsReelRunning">True while a highlight reel is rendering.</param>
 /// <param name="Settings">Reads the current settings, for the dialog's defaults.</param>
 /// <param name="PersistSettings">Writes the chosen defaults back.</param>
+/// <param name="MountStatusChip">
+///     Hands the export's status view-model to the shell, which reconciles its chip into the status strip.
+///     <para>
+///         The tab builds the job lazily — on the first Export — and the shell is constructed long before
+///         any module tab exists, so the chip cannot be attached at composition the way the reel's is.
+///         This is the one direction that works: the shell supplies the mount point up front and the tab
+///         calls it when it finally has something to mount. Null (browser, tests, designer) simply leaves
+///         the export chip-less; the job still runs.
+///     </para>
+/// </param>
+/// <param name="OpenExportFolder">Reveals a finished file in the OS file manager. Null on the browser head.</param>
 public sealed record Playback2DExportHost(
     Func<IReadOnlyList<DemoFrame>?> Frames,
     HeavyJobGate? Gate,
     Func<bool>? IsLiveSyncBusy,
     Func<bool>? IsReelRunning,
     Func<AppSettings> Settings,
-    Action<Action<AppSettings>> PersistSettings);
+    Action<Action<AppSettings>> PersistSettings,
+    Action<ViewModels.Playback2D.Playback2DExportStatusViewModel>? MountStatusChip = null,
+    Action<string>? OpenExportFolder = null);

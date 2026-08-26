@@ -4,11 +4,11 @@
 # platform, no demo, no GPU — see docs/playback2d-v2/design.md §11).
 #
 # The Browser/WASM head is built by the `wasm-build` job below (B5), which owns the wasm-tools
-# workload and the native relink. It does NOT run the App UI suite (single-process, OOM-prone —
-# must be batched via scripts/test-app-suite.sh),
-# nor capture Playback2D goldens from a demo (the runner has no demo files, so those cases would
-# report as skipped noise). The parser and analysis suites moved out with the libraries and now run
-# in the CS2DemoKit repo's own CI.
+# workload and the native relink. It does not capture Playback2D goldens from a demo (the runner has
+# only the committed tour sample). The parser and analysis suites moved out with the libraries and now
+# run in the CS2DemoKit repo's own CI.
+#
+# The App UI suite runs in the `app-tests` job below — see its own comment for what changed and why.
 #
 # ── Test tiers (docs/playback2d-v2/plans/P3-test-tiers.md) ───────────────────────────────────────────
 #
@@ -24,6 +24,12 @@
 # by count at the time of the change: Playback2D `Category=Budget` 11 before and after,
 # `Category!=Budget` 497 → 503 (the six new tier-contract tests, and nothing else); dv2d
 # `Category=Budget` 2 before and after.
+#
+# **The complementary pair has to be applied PER PROJECT**, and until D6 round 3 it was not: the budget
+# lane ran `Playback2D.Tests` alone, so dv2d's `Category=Budget` cases were excluded by the correctness
+# lane and selected by no other. Their union was the whole suite only for one of the two projects. That
+# hole is what kept `BenchAllocationTests` invisible while it was red (D6 G-4). Today: Playback2D 12
+# Budget cases, dv2d 3, and the `playback2d-budget` job runs both.
 #
 # Do NOT rewrite these steps as `scripts/test.sh -t full`. That would collapse the correctness and
 # budget lanes into one, and the split is load-bearing: a timing or allocation figure must never flap
@@ -93,6 +99,12 @@ jobs:
 
       # The boot-critical artefacts, asserted rather than eyeballed: the runtime's own wasm, the
       # relinked native (its absence is the DllNotFoundException above), and the app assembly.
+      #
+      # "Boot-critical" means STRICTLY: App.Initialize throws if it is missing, and the head boots black.
+      # Anything App.axaml <StyleInclude>s by `avares://<assembly>/…` is in that set, because the XAML
+      # loader resolves that URI at Initialize time — so a package that stops shipping is not a missing
+      # control theme, it is a crash before the first frame. Add a line here in the same commit that adds
+      # such an include (D6 §4b).
       - name: Verify the published payload
         run: |
           set -e
@@ -102,6 +114,15 @@ jobs:
           test -f "$FW/dotnet.js" || { echo "no dotnet.js loader"; exit 1; }
           ls "$FW" | grep -q '^DemoViewer\.NET\..*\.wasm$' || { echo "no app assembly"; exit 1; }
           ls "$FW" | grep -q '^SkiaSharp\..*\.wasm$' || { echo "SkiaSharp did not ship"; exit 1; }
+          # App.axaml:29 hard-includes avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml —
+          # FluentTheme does not carry the ColorPicker theme, so D4 had to add the package to make the two
+          # annotation ink pickers anything other than 46x24 of nothing. It ships as its own assembly, and
+          # the publish that drops it takes the whole browser head down with it.
+          ls "$FW" | grep -q '^Avalonia\.Controls\.ColorPicker\..*\.wasm$' \
+            || { echo "Avalonia.Controls.ColorPicker did not ship — App.Initialize will throw on the StyleInclude"; exit 1; }
+          # AvaloniaEdit is included from the same block for the same reason (the Workbench editor).
+          ls "$FW" | grep -q '^AvaloniaEdit\..*\.wasm$' \
+            || { echo "AvaloniaEdit did not ship — App.Initialize will throw on the StyleInclude"; exit 1; }
           du -sh artifacts/wasm-publish/wwwroot
 
   # The job the rest of the Playback2D track extends: B1 added the `playback2d-budget` lane below,
@@ -149,19 +170,24 @@ jobs:
           golden verify --cpu --json --diff-dir artifacts/playback2d-goldens
 
       # Budget gate. DV2D_BUDGET_SCALE relaxes the design §6 time budgets for a shared runner; the
-      # allocation budget is never scaled, so it is passed explicitly at today's measured ceiling
-      # instead (~2.8 KB/frame). The allocation is B0's smoke layer building its three SKPaints inside
-      # Render: B1's seven layers are allocation-clean, but `SceneLayerCatalog` still registers only
-      # `playback2d.debuggrid`. TODO: drop --budget-bytes-per-frame entirely in the PR that registers
-      # the real layers there, and walk DV2D_BUDGET_SCALE back toward 1.0 once ~20 runs of
-      # bench-reports exist.
+      # allocation budget is never scaled, and since D6 it is not overridden either — the gate reads the
+      # manifest's own `bytes_per_frame: 0`.
+      #
+      # It used to carry `--budget-bytes-per-frame 4096`. That was a workaround for B0's smoke layer
+      # building three SKPaints inside Render (2784 B/frame measured), which was the only layer
+      # `SceneLayerCatalog` registered for this command — so the gate could not assert the number the
+      # manifest declares. D6 G-1 folded the catalog onto the real stack, which is allocation-clean:
+      # the same invocation now reports 0 B/frame, and what it TIMES moved from a debug grid at 0.094 ms
+      # p99 to the real stack at ~4.9 ms. Headroom against the scaled 16 ms is now ~3x rather than ~170x,
+      # so this lane can finally fail for a render regression — and may also flap on a slow runner.
+      # Raise DV2D_BUDGET_SCALE with a measurement if it does; do not restore the byte override or swap
+      # the fixture. Walking the scale back toward 1.0 still wants ~20 runs of bench-reports first.
       - name: Frame-budget gate
         env:
           DV2D_BUDGET_SCALE: '2.0'
         run: >
           dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --
           bench --name duel-mirage-b --frames 512 --cpu --gate --json
-          --budget-bytes-per-frame 4096
           --report-dir artifacts/bench-reports
 
       # ── B4: the export seam, end to end ─────────────────────────────────────────────────────────
@@ -223,12 +249,111 @@ jobs:
         run: dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
              -- --treenode-filter "/*/*/*/*[Category=Budget]"
 
+      # The dv2d half of the same category, added by D6 round 3. This lane and the `playback2d-tests`
+      # lane are complementary filters over each project — Category=Budget here, Category!=Budget there
+      # — but the pair was only ever applied to Playback2D.Tests, so `Playback2D.Cli.Tests`' two Budget
+      # cases ran in NO job. One of them is `BenchAllocationTests`, which D6 G-4 found had been
+      # permanently red for four phases behind exactly that hole: its own doc said "expected to fail
+      # until SceneLayerCatalog registers B1's layers", and the category was doing a `[Skip]`'s work
+      # without saying so. Round 2 made it a real passing gate at 0 B/frame; this is the step that runs
+      # it. Keep the two projects in step: a Budget test added to either lands in this lane.
+      - name: Frame-time + allocation budget (dv2d)
+        run: >
+          dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli.Tests
+          --treenode-filter "/*/*/*/*[Category=Budget]"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: bench-reports
           path: bench-reports/dv2d-*.json
           if-no-files-found: ignore
+
+  # ── D6 G-2: the App suite, which until now ran in NO CI job at all ────────────────────────────────
+  #
+  # `App.Tests` holds 1041 tests and 73 of the repo's 101 skip sites, and every mechanical guard for
+  # this project's two named defect classes lives in it: the four D6 §4 architecture guards
+  # (Playback2DEventWiringTests, Playback2DCommandBindingTests, Playback2DSettingsConsumptionTests,
+  # Playback2DCompositionTests) plus Playback2DFeatureWiringTests, Playback2DHudLayoutTests,
+  # Playback2DExportDialogTests, Playback2DKeyRoutingTests and SettingsWasmRoundTripTests. A guard in a
+  # project CI never runs is a guard that does not exist, which is how five audits found ~50 defects
+  # against a green suite.
+  #
+  # BATCHED, not one process. The suite churns multi-GB ParsedDemo graphs and render surfaces and peaks
+  # 4-5 GB in a single process; scripts/test-app-suite.sh partitions the discovered class list into N
+  # sequential processes, and its partition audit fails loudly if a class escapes discovery rather than
+  # silently running less. That posture (00-overview.md:345, "OOM-prone") is the reason this job did not
+  # exist, and the script is the reason it now can.
+  #
+  # TWO STEPS, and the split is the deliberate part. `full` is a SUPERSET of `standard`, so ~868 tests
+  # run twice in this job — ~25 s, reviewed in D6 round 3 and kept. Collapsing them would mean either
+  # blocking on the Environmental cases or blocking on nothing, and the tiers are exclusion filters with
+  # no "standard minus nothing-else" spelling. It is the only duplicate work in this file that is not a
+  # different backend or a different category: the two `render-backends` passes per OS are a
+  # GPU-preferred run and a forced-CPU run, which is the point of that lane.
+  #
+  #   * `standard` BLOCKS. It is the tier that excludes Integration, RealDemo, Environmental and Budget
+  #     — i.e. everything that reads a demo off disk, crosses a process boundary, depends on machine
+  #     state this repo does not own, or reports a number instead of a verdict. Measured before landing:
+  #     867 tests, ~25 s, zero failures, and it contains every guard named above. Nothing in it can flap
+  #     for a reason that is not a real regression, which is the whole test for whether a check may be
+  #     required.
+  #
+  #   * `full` REPORTS. Measured before landing at 1041 tests / ~41 s, with 6 failures — all of them
+  #     `Environmental`. Making it required on day one would mean a required check that is red for
+  #     reasons nobody can fix, and this file's own rule is that a gate which cries wolf gets disabled
+  #     within a week. It is here because a non-blocking run still produces a LOG, and the log is the
+  #     evidence needed to promote it.
+  #
+  #     D6 ROUND 3 TOOK ALL SIX, and the interesting part is that the tag had been doing a `[Skip]`'s
+  #     work for four of them. Three `DiagnosticsFileLogTests` cases built their own temp directory out
+  #     of the TUnit TestId — which contains a `:`, illegal in an NTFS path component — and
+  #     `SettingsBacked_AddRemoveFolder_WritesThroughToSettingsJson` looked for a raw Windows path inside
+  #     JSON that escapes backslashes. Both are plain bugs, both are **Windows-only**, and both were
+  #     therefore invisible to THIS lane: the measurement above was taken on a developer's Windows box,
+  #     so what ubuntu-latest actually reports here has never been read. That is the honest state of this
+  #     comment. `Scan_DeduplicatesSameFile_AcrossSymlinkedFolders` now SKIPS with a reason where the
+  #     host cannot create a symlink (it needs an elevated shell or Developer Mode on Windows) rather
+  #     than failing, which is what Environmental is for. `QueuePath_PersistsCache…` was the only
+  #     genuinely host-agnostic one — a race between the tier-2 backlog draining and its best-effort
+  #     Save — and is fixed by waiting on the persisted cache instead of on an in-memory flag.
+  #
+  #     Two of the six lost `[Category("Environmental")]` with the fix, which changes no tier's contents
+  #     (their class already carries `[Category("Integration")]`) and makes the tag mean what it says.
+  #     Full tier measured green locally after the round: 1042 tests, 0 failures, ~45 s.
+  #
+  # PROMOTION CRITERION, so this does not become a step everyone learns to ignore: once ~10 runs of the
+  # `full` step have gone green on a hosted runner, delete `continue-on-error` and this paragraph. Round
+  # 3 removed the known reasons for it to be red but deliberately did NOT promote it — nobody has yet
+  # read ten green Linux runs, and promoting on a Windows measurement would be the same mistake this
+  # comment just documented. If it turns out to be reliably red on some other Environmental case, fix or
+  # re-tag that one and promote the rest. Either outcome is an action; "leave it non-blocking forever"
+  # is not one of them.
+  app-tests:
+    runs-on: ubuntu-latest
+    # A hard ceiling rather than the 6 h default: the failure mode this job's memory posture protects
+    # against looks like a hang, and a hung batch must not sit on the queue.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # Nerdbank.GitVersioning needs full history
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Same native as playback2d-tests: the suite renders through Avalonia.Headless + Avalonia.Skia,
+      # and Inter needs fontconfig to resolve.
+      - name: Install native deps
+        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+
+      - name: App suite — standard tier (batched)
+        run: bash scripts/test-app-suite.sh -c Release -n 4 -t standard
+
+      - name: App suite — full tier (batched; reporting only, see the promotion criterion above)
+        continue-on-error: true
+        run: bash scripts/test-app-suite.sh -c Release -n 4 -t full
 
   # Render-backend correctness (docs/playback2d-v2/plans/C2-gpu-provider.md §8.4).
   #

@@ -36,7 +36,10 @@ public sealed class AnnotationLayer : ISceneLayer
     // Static pictures. CS2 maps live well inside ±32768 world units.
     private static readonly SKRect WorldCull = new(-32768, -32768, 32768, 32768);
 
-    private readonly Dictionary<MapLevelId, SKPicture> _dry = [];
+    // Keyed by the anchor's STORED level ZMin, not by a level id. The id an anchor belongs to is a
+    // question only MapSpace can answer (MapSpace.IdForAnchor), and there is no space in Advance — so the
+    // recording keys on the one value the element itself carries, and the pane resolves it at render.
+    private readonly Dictionary<double, SKPicture> _dry = [];
     private readonly SKPaint _fill;
     private readonly List<SKPoint> _outline = new(1024);
     private readonly SKPath _path = new();
@@ -144,7 +147,7 @@ public sealed class AnnotationLayer : ISceneLayer
         // their radii and stroke widths are in SCREEN units and must not scale.
         canvas.Concat(ref matrix);
 
-        RenderDry(canvas, in ctx);
+        RenderDry(canvas, in ctx, _dry);
         RenderPrepared(canvas, in ctx);
         RenderWet(canvas, in ctx);
 
@@ -181,17 +184,16 @@ public sealed class AnnotationLayer : ISceneLayer
                 continue;
             }
 
-            MapLevelId id = MapSpace.IdForZMin(world.LevelMinZ);
-            if (_dry.ContainsKey(id))
+            if (_dry.ContainsKey(world.LevelMinZ))
             {
                 continue;
             }
 
-            RecordLevel(document, id, world.LevelMinZ);
+            RecordLevel(document, world.LevelMinZ);
         }
     }
 
-    private void RecordLevel(AnnotationDocument document, MapLevelId id, double levelMinZ)
+    private void RecordLevel(AnnotationDocument document, double levelMinZ)
     {
         using SKPictureRecorder recorder = new();
         SKCanvas recording = recorder.BeginRecording(WorldCull);
@@ -217,36 +219,39 @@ public sealed class AnnotationLayer : ISceneLayer
             recording.DrawPath(_path, _fill);
         }
 
-        _dry[id] = recorder.EndRecording();
+        _dry[levelMinZ] = recorder.EndRecording();
         DryRecordCount++;
     }
 
-    private void RenderDry(SKCanvas canvas, in SceneRenderContext ctx)
+    private static void RenderDry(SKCanvas canvas, in SceneRenderContext ctx,
+        Dictionary<double, SKPicture> dry)
     {
-        if (_dry.Count == 0)
+        if (dry.Count == 0)
         {
             return;
         }
 
-        if (ctx.IsSingleLevel)
+        // A handful of entries at most (one per floor a stroke was drawn on), so the pane resolves each
+        // anchor rather than the record keying on an id it cannot know. Struct enumerator, no closure:
+        // this runs inside the §6 zero-allocation steady state.
+        foreach (KeyValuePair<double, SKPicture> entry in dry)
         {
-            foreach (KeyValuePair<MapLevelId, SKPicture> entry in _dry)
+            if (ctx.IsSingleLevel || LevelIdFor(in ctx, entry.Key) == ctx.Pane.LevelId)
             {
                 canvas.DrawPicture(entry.Value);
             }
-
-            return;
-        }
-
-        if (_dry.TryGetValue(ctx.Pane.LevelId, out SKPicture? picture))
-        {
-            canvas.DrawPicture(picture);
         }
     }
 
+    // The one place an anchor becomes a level id. Through the SPACE when there is one, because Mint's
+    // collision bump makes level.Id != IdForZMin(level.ZMin) after a floor is lost and re-found; the
+    // static minting rule is the fallback for a context built without a level set (B0's fixtures).
+    private static MapLevelId LevelIdFor(in SceneRenderContext ctx, double levelMinZ) =>
+        ctx.Levels is { } space ? space.IdForAnchor(levelMinZ) : MapSpace.IdForZMin(levelMinZ);
+
     private void ClearDry()
     {
-        foreach (KeyValuePair<MapLevelId, SKPicture> entry in _dry)
+        foreach (KeyValuePair<double, SKPicture> entry in _dry)
         {
             entry.Value.Dispose();
         }
@@ -280,7 +285,8 @@ public sealed class AnnotationLayer : ISceneLayer
             float offsetX = 0;
             float offsetY = 0;
             double worldZ = 0;
-            MapLevelId levelId = MapLevelId.None;
+            double levelMinZ = 0;
+            bool worldAnchored = false;
 
             switch (element.Space)
             {
@@ -299,7 +305,10 @@ public sealed class AnnotationLayer : ISceneLayer
                 }
 
                 case SpaceRef.World world:
-                    levelId = MapSpace.IdForZMin(world.LevelMinZ);
+                    // The ANCHOR travels, not an id derived from it: Advance has no MapSpace, and the
+                    // id an anchor belongs to is the space's answer, not Z's (see LevelIdFor).
+                    levelMinZ = world.LevelMinZ;
+                    worldAnchored = true;
                     break;
 
                 default:
@@ -312,7 +321,8 @@ public sealed class AnnotationLayer : ISceneLayer
                 continue;
             }
 
-            _prepared.Add(new Prepared(element, offsetX, offsetY, (float)opacity, levelId, worldZ, reveal));
+            _prepared.Add(new Prepared(element, offsetX, offsetY, (float)opacity, worldAnchored,
+                levelMinZ, worldZ, reveal));
         }
     }
 
@@ -322,9 +332,9 @@ public sealed class AnnotationLayer : ISceneLayer
         {
             Prepared prepared = _prepared[i];
 
-            bool belongs = prepared.LevelId.IsNone
-                ? ctx.BelongsHere(prepared.WorldZ)
-                : ctx.IsSingleLevel || ctx.Pane.LevelId == prepared.LevelId;
+            bool belongs = prepared.WorldAnchored
+                ? ctx.IsSingleLevel || ctx.Pane.LevelId == LevelIdFor(in ctx, prepared.LevelMinZ)
+                : ctx.BelongsHere(prepared.WorldZ);
             if (!belongs)
             {
                 continue;
@@ -484,7 +494,8 @@ public sealed class AnnotationLayer : ISceneLayer
         float OffsetX,
         float OffsetY,
         float Opacity,
-        MapLevelId LevelId,
+        bool WorldAnchored,
+        double LevelMinZ,
         double WorldZ,
         int Reveal);
 }

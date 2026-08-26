@@ -86,8 +86,14 @@ public class SceneDeterminismTests
 
     /// <summary>
     ///     Export renders at a fixed timestep; interactive renders at whatever the animation frame
-    ///     reports. Fed the same <c>dt</c>, they must agree — the purpose is a hint to the layers, never
-    ///     an input to the drawing.
+    ///     reports. Fed the same <c>dt</c>, they must agree: the drawing is a function of the frame and
+    ///     the injected clock, never of why somebody asked for it.
+    ///     <para>
+    ///         <c>RenderPurpose</c> is <b>reserved</b> — no layer branches on it at all (D6 finding 28),
+    ///         which <see cref="RenderPurposeTests" /> owns end to end including <c>Thumbnail</c>. This
+    ///         case stays because it asks a different question: determinism across the two purposes
+    ///         production actually submits.
+    ///     </para>
     /// </summary>
     [Test]
     public async Task ExportAndInteractivePurpose_AgreeAtTheSameDt()

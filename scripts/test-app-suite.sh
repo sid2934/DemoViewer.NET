@@ -61,9 +61,15 @@ dotnet run --project "$PB2D_PROJ" -c "$CONFIG" -- --treenode-filter "/*/*/*/*$TI
 
 # Discover test classes from SOURCE (files bearing [Test]); '--list-tests' prints bare
 # method names, so it can't provide class names. Helper classes caught by the grep are
-# harmless (they match zero tests in the filter). The audit below catches discovery GAPS:
-# the sum of batch totals must equal the assembly's own discovered test count.
-CLASSES=($(grep -rlE '\[Test\]' "$PROJ" --include="*.cs" \
+# harmless (they match zero tests in the filter).
+#
+# TWO ROOTS, not one. tests/shared is compiled into this assembly as LINKED source, so its classes are
+# every bit as much part of the partition as the ones under $PROJ — and walking only $PROJ left
+# TestTierContractTests (6 tests: the vocabulary guard, the script-vs-TestTiers.cs text check, the
+# tier-nesting proof) in no batch at all. Found while wiring this script into CI, where the lane would
+# have selected on tier filters while never running the test that keeps them honest.
+SRC_ROOTS=("$PROJ" "$ROOT/tests/shared")
+CLASSES=($(grep -rlE '\[Test\]' "${SRC_ROOTS[@]}" --include="*.cs" \
   | xargs grep -hE "^public (sealed |partial )*class" \
   | sed -E 's/^public (sealed |partial )*class ([A-Za-z0-9_]+).*/\2/' | sort -u))
 # Discovery is done UNDER THE TIER FILTER, so the partition audit below compares like with like: a
@@ -75,7 +81,22 @@ if [ ${#CLASSES[@]} -lt 5 ] || [ "$EXPECTED" -lt 10 ]; then
   echo "[batch-runner] discovery failed (classes=${#CLASSES[@]} expected-tests=$EXPECTED) — refusing to run a partial suite" >&2
   exit 2
 fi
-echo "[batch-runner] ${#CLASSES[@]} test classes, $EXPECTED tests, $BATCHES batches, tier=$TIER"
+
+# The audit the batch TOTALS cannot do. '--list-tests' counts a parametrized test once while the run
+# expands it, so the floor comparison at the bottom ("ran >= listed") is satisfied with room to spare
+# even when a whole class is missing — which is exactly how the tests/shared gap above stayed invisible
+# for the life of this script. Listing under the CLASS filter and comparing it to the same listing
+# unfiltered is EXACT: both sides count the same way, so any difference is a class the grep missed.
+COVERED=$(dotnet run --project "$PROJ" -c "$CONFIG" --no-build -- --list-tests \
+  --treenode-filter "/*/*/($(IFS='|'; echo "${CLASSES[*]}"))/*$TIER_FILTER" 2>/dev/null \
+  | grep -cE '^  [A-Za-z0-9_]+$')
+if [ "$COVERED" -ne "$EXPECTED" ]; then
+  echo "[batch-runner] DISCOVERY AUDIT FAILED: the class list covers $COVERED of the $EXPECTED tests" \
+       "this assembly lists — a class escaped the source grep, and every batch below would silently" \
+       "skip it" >&2
+  exit 2
+fi
+echo "[batch-runner] ${#CLASSES[@]} test classes, $EXPECTED tests (all covered), $BATCHES batches, tier=$TIER"
 
 TOTAL_FAILED=0
 TOTAL_RUN=0

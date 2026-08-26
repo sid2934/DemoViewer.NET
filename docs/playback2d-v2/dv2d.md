@@ -39,6 +39,7 @@ dv2d render   --fixture <path> | --demo <path> (--tick N | --frame N)
               [--out <png>]              default ./dv2d-render.png
               [--size WxH]               default: the fixture's size, else 1920x1080
               [--layers a,b] [--exclude-layers a,b]
+              [--ink <file.dvann.json>]
               [--camera fit-map|fit-alive|follow:<steamId>|fixed:<x>,<y>,<zoom>]
               [--layout stacked|single] [--level <levelId>]
               [--assets <dir>] [--no-radar]
@@ -52,7 +53,27 @@ dv2d render   --fixture <path> | --demo <path> (--tick N | --frame N)
   resolved `frame_index` is always echoed in `--json`, so the mapping is never a guess.
 - `--layers` takes stable `ISceneLayer.Id` values, bare (`markers`) or prefixed
   (`playback2d.markers`). **An unknown id is exit 1**, not a silent no-op — a typo in a CI invocation
-  must fail loudly. `dv2d fixture list --json` and the error message both name the known set.
+  must fail loudly, and `--exclude-layers` is checked the same way. The error message names the known
+  set. Omitted, the stack is **the seven scene layers** — identical to what `export` draws minus its
+  opt-in chrome, because both go through `SceneLayerCatalog.CreateSceneStack`. Until D6 they did not:
+  `render`, `golden` and `bench` built from a second table holding one debug-grid layer, so
+  `--layers markers` was an error and every committed golden was a picture of a grid (D6 G-1).
+- The four **opt-in** ids need a source, and this command refuses one it cannot feed rather than
+  handing back a PNG that quietly lacks it. `playback2d.annotations` takes `--ink`; `hud.roster`,
+  `hud.clock` and `hud.killfeed` need a demo's clock, scoreboard and kill timeline, so only
+  `dv2d export --hud` can draw them.
+- `playback2d.vision` is **not** opt-in and needs no flag: it draws the fixture's own pre-solved
+  `SceneVision` — the cones and could-see lines a scene file carries. It was in the default set and drew
+  nothing until D6 round 3, because the layer read an `IVisionSolver` (which a fixture render has none
+  of) and ignored the geometry sitting in the frame. Three corpus entries carry vision —
+  `duel-mirage-b`, `annotated-mirage-b`, `full-scene-budget` — and their goldens moved when it started
+  drawing. **`export` is the exception**: its frames come off a demo through `SceneFrameBuilder`, which
+  fills no vision, so vision stays off there and naming it explicitly still draws nothing.
+- `--ink <file.dvann.json>` burns an annotation document into a single-frame render, read through the
+  same `AnnotationStore` the app writes with. `golden` and `bench` take it **by convention** instead —
+  `annotations/<name>.dvann.json` beside the corpus entry's scene — so a golden's ink is a committed
+  artefact rather than a flag someone has to remember to pass. `annotated-mirage-b` is the entry that
+  uses it, and it is the only golden anywhere that covers burned-in ink.
 - `--camera` is a single-frame framing. Omit it and the fixture's own camera is used, re-fitted to the
   requested viewport (so `--size` reframes rather than crops).
 - `--diag-assemblies` writes the process's loaded-assembly list to stderr after the render. It exists
@@ -175,8 +196,10 @@ dv2d export --demo match.dem --from t12000 --to t20000 \
 | `--size` | `1920x1080` | Even in both axes for `webm`/`mp4` |
 | `--encoder` | `auto` | `auto` · `software` · a ladder rung's ffmpeg name — see [Encoder ladder](#encoder-ladder---encoder---quality) |
 | `--quality` | `standard` | `draft` · `standard` · `best` |
-| `--layers` | the seven scene layers | Bare or prefixed ids; the HUD is opt-in |
-| `--hud` | off | Adds `hud.clock` and `hud.killfeed`. The clock is the exported frame's own round, score and countdown; the kill feed draws no rows here — see limitations |
+| `--layers` | the scene layers **except vision** | Bare or prefixed ids; the HUD and the ink are opt-in, and vision is opt-in here too so the CLI and the dialog default to the same set |
+| `--hud` | off | Adds `hud.clock`, `hud.killfeed` and `hud.roster`. The clock and the cards are the exported frame's own round, score, countdown and player states; the kill feed draws no rows here — see limitations |
+| `--annotations` | off | Burns in the demo's own `.dvann.json` sidecar — the file the app writes beside the demo. A **flag**, not a path; with no sidecar it says so and adds no layer id |
+| `--palette` | `dark` | `dark` · `light`. The app exports in the theme you are looking at; this is how the CLI reaches the other one |
 | `--out` | `dv2d-export.<format>` | Output path |
 | `--no-encode` | off | Render and read back every frame, encode nothing |
 | `--ffmpeg-log` | off | Echo ffmpeg's stderr |
@@ -280,12 +303,13 @@ counted apart so it does not read as a permanent cache failure).
 `max_render_fps` is the uncapped render-only ceiling, `1000 / p50(render)`. `bench` never encodes and
 `export --no-encode` encodes nothing, so both report it for the stack they are drawing.
 
-> **Which command to ask about layers.** `bench` (and `render`) build through
-> `SceneLayerCatalog.Create`, which in this build still knows only B0's `playback2d.debuggrid` — the
-> seam C1 deviation 14 left open. `export` builds through `CreateSceneStack` and gets the real nine.
-> So today **`export --no-encode --perf` is the per-layer authority**, and `bench --perf` reports a
-> correct table of whatever stack it managed to build. See
-> [`plans/P1-perf-instrumentation.md`](plans/P1-perf-instrumentation.md) §8.
+> **Which command to ask about layers.** All four — `render`, `golden`, `bench`, `export` — build
+> through `SceneLayerCatalog.CreateSceneStack`, so `bench --perf` and `export --no-encode --perf`
+> profile the same stack and their per-layer tables are comparable. That was not true before D6: the
+> first three built from a second table holding only `playback2d.debuggrid` (the seam C1 deviation 14
+> left open), which made `export --no-encode --perf` the sole per-layer authority. The one remaining
+> difference is what FEEDS a layer, not which layers exist — `bench` has no HUD source and no
+> visibility engine. See [`plans/P1-perf-instrumentation.md`](plans/P1-perf-instrumentation.md) §8.
 
 Measured — `export --from 72000 --to 79680 --size 1280x720 --fps 60 --hud --perf` on a de_inferno
 MM demo, CPU raster, libvpx-vp9 (this is the real output, not an illustration):
@@ -402,7 +426,9 @@ With `--json`, **stdout carries exactly one JSON object** and every human line m
  "backend":"CpuRaster","backend_requested":"auto","assets_root":"/repo/assets","assets_source":"probe",
  "source":{"kind":"fixture","name":"duel-mirage-b"},
  "map":"de_mirage","map_version":"1efb9403","tick":21120,"frame_index":21152,
- "layers":["playback2d.debuggrid"],"png_sha256":"…","png_bytes":4576,
+ "layers":["playback2d.radar","playback2d.trails","playback2d.areaeffects","playback2d.vision",
+            "playback2d.markers","playback2d.bomb","playback2d.floorlabel"],
+ "png_sha256":"…","png_bytes":48583,
  "parse_ms":0,"elapsed_ms":103.1}
 
 // probe
@@ -482,16 +508,46 @@ Playback2D test job).
   run: >
     dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --
     bench --name duel-mirage-b --frames 512 --cpu --gate --json
-    --budget-bytes-per-frame 4096
     --report-dir artifacts/bench-reports
 ```
 
-`--budget-bytes-per-frame 4096` is a temporary ceiling: the stack `dv2d` builds is still B0's smoke
-layer, which constructs its three `SKPaint`s inside `Render` (~2.8 KB/frame measured on
-`duel-mirage-b`). B1's seven layers are themselves allocation-clean — the core suite's
-`full-scene-budget` run reports 0 B/frame — so **the PR that registers them in `SceneLayerCatalog`
-drops that flag** (returning the gate to the manifest's 0) and drops the `Category!=Budget` filter
-from the test step, which enables `BenchAllocationTests`.
+**`--budget-bytes-per-frame 4096` is gone** (D6 G-1/G-4). It was a temporary ceiling for B0's smoke
+layer, which built three `SKPaint`s inside `Render` — 2784 B/frame measured, so `bench --gate` failed
+its own manifest budget of 0 unless CI passed the override. The real stack is allocation-clean: the
+same run reports **0 B/frame**, and the gate is back on the number the manifest declares.
+
+What the gate measures also moved by two orders of magnitude, which is the point:
+
+| | before (debug grid) | after (real stack) |
+|---|---|---|
+| `duel-mirage-b` render p99 | 0.098 ms | **4.883 ms** |
+| `duel-mirage-b` bytes/frame | 2784 | **0** |
+| `full-scene-budget` 1920x1080 render p99 | *not benched — the entry was `pending`* | **1.85 ms** |
+
+`duel-mirage-b` being *slower* than a 1080p frame is not a mistake: it is 640x360 framed deep into the
+baked `de_mirage` radar, and resampling that bitmap is ~4.7 ms of the 4.88 (`--exclude-layers radar`
+on the same fixture measures 0.21 ms). Against design §6's 8 ms and CI's `DV2D_BUDGET_SCALE=2.0` the
+gate holds, but the headroom on a shared runner is now roughly 3x rather than 170x — so a genuine
+render regression will finally trip it, and so may a slow runner. Raise `DV2D_BUDGET_SCALE` with a
+measurement if it flaps; do not drop the fixture.
+
+`BenchAllocationTests` is a live gate again rather than a permanently-red class parked behind a
+category. It keeps `[Category("Budget")]` — every allocation assertion in the repository does, so an
+allocation figure cannot flap a required correctness check — and **the `playback2d-budget` lane now runs
+`Playback2D.Cli.Tests` beside `Playback2D.Tests`** (D6 round 3):
+
+```yaml
+- name: Frame-time + allocation budget (dv2d)
+  run: >
+    dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli.Tests
+    --treenode-filter "/*/*/*/*[Category=Budget]"
+```
+
+That step is the whole reason G-4 was invisible. The two lanes are complementary filters —
+`Category!=Budget` for correctness, `Category=Budget` for budget — but the pair had only ever been
+applied to one of the two projects, so dv2d's Budget cases were excluded by one lane and selected by no
+other. A category that no lane selects is a `[Skip]` without the word. Playback2D carries 12 Budget
+cases and dv2d 3; both run here.
 
 The runner needs `libfontconfig1` (`SkiaSharp.NativeAssets.Linux` links fontconfig); the job already
 installs it.
@@ -507,7 +563,9 @@ These are phase boundaries, not bugs. Each is an honest failure rather than a si
 | `--layout single`, `--level` | exit 6 — `MapSpace`/`StackedLayout` landed with B1, so `--layout stacked` is a real multi-pane render; the single-level policy is still B3's | B3 |
 | `--gpu` on macOS | always degrades to CPU (`macos-deferred`); ANGLE/EGL ships for Windows and Linux only | C2 Stage 1 |
 | `export --gpu` | exit 6 — `SceneExportSession` awaits its sink between frames, so the loop resumes on whatever pool thread the continuation lands on, while `GpuSurfaceProvider` is bound to the thread that created its EGL context. `export`'s backend chain therefore ends at `force-cpu` rather than `auto`, exactly as `golden` does, so the default is never a refusal. Pinning the loop to one thread is the work, and it is the same work the ≥2× throughput number needs | C2 Stage 1 |
-| The `render`/`golden`/`bench` layer set | one smoke layer (`playback2d.debuggrid`); `SceneLayerCatalog.Create` is the single place the real seven register. `export` already draws them, through `SceneLayerCatalog.CreateSceneStack` — a second entry point on purpose, because growing `Create`'s default set moves every committed golden | B1 |
-| A scene with no players and no map bundle | derives no floor band, so it gets no pane and renders background only (`synthetic-empty`, marked `pending` in the manifest) | B1, B3 |
+| The `render`/`golden`/`bench` layer set | **closed in D6.** All four commands build through `SceneLayerCatalog.CreateSceneStack`; the second table that held only `playback2d.debuggrid` is gone and the whole CPU corpus was re-baselined in the same commit. `playback2d.debuggrid` is no longer a registrable id | — |
+| The three `hud.*` ids under `render`/`golden`/`bench` | exit 1 — a HUD is a function of a parsed match and a fixture carries no clock, scoreboard or kill timeline. `dv2d export --hud` is the command that can feed one | B4 |
+| A scene with no players and no map bundle | derives no floor band, so it gets no pane and renders background only. That is `synthetic-empty`, and its golden is now that background rather than a skipped entry: whether an empty level set should get one whole-host pane is still open, and the day it is answered the golden moves and a reviewer sees it | B1, B3 |
 | Byte-exact goldens | the corpus defaults to `perceptual`; CPU rasterisation of anti-aliased edges can differ by a least-significant bit between SIMD paths | B1 (embedded typeface), C2 (SSIM) |
-| `export --hud`'s kill feed | draws **no rows**. The clock half is real — the round, score and countdown come off the frame the export is drawing, through `TrackerFrameSource.LastGameInfo` — but kill rows come from a parsed `player_death` timeline the app builds off `AllGameEvents`, and `dv2d` has no equivalent. An empty feed beats invented rows | B4 |
+| `export --hud`'s kill feed | draws **no rows**. The clock and roster halves are real — round, score, countdown and player states all come off the frame the export is drawing, through `TrackerFrameSource.LastGameInfo` / `LastRoster` — but kill rows come from a parsed `player_death` timeline the app builds off `AllGameEvents`, and `dv2d` has no equivalent. An empty feed beats invented rows. **This is the one overlay where the two front ends genuinely differ**; everything else is now a default the flags can match (D6 wave 1) | B4 |
+| Vision cones anywhere in `dv2d` | `dv2d` has no visibility engine, so `playback2d.vision` registers a layer that draws nothing. It is not in `export`'s default id set, which used to make every CLI manifest list a starved layer. It IS in the default `render`/`golden`/`bench` stack, because that stack is the app's — so the CPU goldens carry a vision layer that costs a little and draws nothing, `duel-mirage-b` included, despite its fixture holding two solved cones. `frame.Vision` and `VisionSolution` are different shapes (a `Sightline` carries endpoints, a `SightlineSegment` carries slots), so replaying a fixture's cones is real work rather than a wiring fix | B4 |

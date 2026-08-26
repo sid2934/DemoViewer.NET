@@ -77,7 +77,8 @@ internal static class GoldenCommand
                 // --gpu / --backend / DV2D_RENDER_BACKEND still override, for the parity lane.
                 using SceneRenderPlan plan = SceneRenderPlan.Build(args, entry.Size, entry.MapName,
                     entry.Layers, allowSizeOverride: false,
-                    defaultBackend: RenderBackendPreference.ForceCpu);
+                    defaultBackend: RenderBackendPreference.ForceCpu,
+                    annotations: FixtureInk.ForCorpusEntry(corpus.Directory, entry.Name));
                 backend ??= plan.Backend;
 
                 // A re-baked radar silently changes every pixel under it. Refuse rather than diff.

@@ -218,7 +218,7 @@ public class ExportJobServiceTests
         new(new ExportRequest(0, 9, 60, new SKSizeI(320, 240), 1.0, ExportFormats.WebM,
                 new HashSet<string>(StringComparer.Ordinal),
                 new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>())),
-            "out.webm", "demo.dem", false);
+            "out.webm", "demo.dem");
 
     private static ExportRefusedException? Capture(Action action)
     {

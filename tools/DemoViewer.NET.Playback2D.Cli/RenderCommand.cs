@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Annotations;
 using SkiaSharp;
 
 #endregion
@@ -27,7 +28,17 @@ internal static class RenderCommand
         long started = Stopwatch.GetTimestamp();
 
         using SceneProvider source = SceneProvider.Build(args);
-        using SceneRenderPlan plan = SceneRenderPlan.Build(args, source.DefaultSize, source.MapName);
+
+        // Read before the plan is built: the plan refuses `--layers annotations` with nothing to draw,
+        // and that refusal has to be able to see whether a sidecar was supplied.
+        AnnotationSession? ink = args.String("ink") is { Length: > 0 } inkPath
+            ? FixtureInk.Load(inkPath) ?? throw new CliUsageException(
+                $"--ink {inkPath} holds no annotation this build can draw (missing, empty, or written " +
+                "by a newer schema).")
+            : null;
+
+        using SceneRenderPlan plan = SceneRenderPlan.Build(args, source.DefaultSize, source.MapName,
+            annotations: ink);
 
         string outPath = args.String("out") ?? "dv2d-render.png";
         string? cameraSpec = args.String("camera");

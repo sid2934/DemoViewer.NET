@@ -245,6 +245,116 @@ public class Playback2DAnnotationPersistenceTests
         await Assert.That(browser.StatusText).Contains("reload");
     }
 
+    /// <summary>
+    ///     <b>D6 finding 26 — <c>AnnotationAutoSave</c> had a reader and no writer.</b> The key was
+    ///     honoured at runtime, carried a <c>WriteInMemory</c> row, and nothing in the app could set it:
+    ///     a user who wanted session-only ink had to hand-edit <c>settings.json</c>, and every reader only
+    ///     ever saw the default. Round 3A gave it the toolbar toggle and the writer.
+    ///     <para>
+    ///         The check also MOVED, from the schedule to <see cref="AnnotationSessionController" />'s save
+    ///         itself: <c>FlushAsync</c> is called on a demo swap, on tab deactivation and at shutdown, and
+    ///         it went straight past the schedule-time guard. "Session only" that still writes the sidecar
+    ///         when you close the tab is not session only — it is the same file arriving at a moment the
+    ///         user is even less likely to notice.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task Controller_AutoSaveOff_WritesNothing_NotEvenOnFlush()
+    {
+        using TempDemo demo = new();
+        SettingsService settings = new(demo.SettingsDir);
+        settings.Write(s => s.Playback2D.AnnotationAutoSave = false);
+
+        using AnnotationSessionController controller = new(new AnnotationStore(demo.AppData), settings)
+        {
+            AutoSaveDelay = TimeSpan.FromMilliseconds(20)
+        };
+
+        await Assert.That(controller.AutoSave).IsFalse()
+            .Because("ApplySettings seeds it, so the persisted key reaches the live controller");
+
+        await controller.AttachDemoAsync(demo.DemoPath, demo.Clock);
+        controller.Document.Apply(new DocDelta.Add(Stroke(), 0));
+        await Task.Delay(200);
+
+        await Assert.That(File.Exists(demo.SidecarPath)).IsFalse()
+            .Because("the debounce must not arm at all");
+
+        controller.Flush();
+
+        Console.WriteLine($"[autosave-off] saves={controller.SaveCount} "
+                          + $"sidecar={File.Exists(demo.SidecarPath)} status='{controller.StatusText}'");
+
+        await Assert.That(File.Exists(demo.SidecarPath)).IsFalse()
+            .Because("the flush path — demo swap, deactivate, shutdown — has to honour it too, or the "
+                     + "setting only delays the write it was asked to prevent");
+        await Assert.That(controller.SaveCount).IsEqualTo(0);
+
+        // And the status line stops promising a destination nothing is going to.
+        await Assert.That(controller.StatusText).Contains("auto-save off");
+    }
+
+    /// <summary>
+    ///     The other direction: the toggle WRITES the key. Before round 3A nothing did, which is why the
+    ///     branch above could only ever be reached by hand-editing the file.
+    /// </summary>
+    [Test]
+    public async Task Controller_TogglingAutoSave_PersistsTheKey()
+    {
+        using TempDemo demo = new();
+        SettingsService settings = new(demo.SettingsDir);
+
+        using AnnotationSessionController controller = new(new AnnotationStore(demo.AppData), settings)
+        {
+            StylePersistDelay = TimeSpan.Zero // write inline; the debounce is PersistSettings' own test
+        };
+
+        await Assert.That(settings.Current.Playback2D.AnnotationAutoSave).IsTrue();
+
+        controller.AutoSave = false;
+        controller.PersistSettings();
+
+        Console.WriteLine("[autosave-write] persisted="
+                          + settings.Current.Playback2D.AnnotationAutoSave);
+
+        await Assert.That(settings.Current.Playback2D.AnnotationAutoSave).IsFalse()
+            .Because("the key shipped with a reader, a WriteInMemory row, and no writer anywhere");
+
+        // And it comes back on the next controller, which is what "persisted" has to mean.
+        using AnnotationSessionController reopened = new(new AnnotationStore(demo.AppData), settings);
+        await Assert.That(reopened.AutoSave).IsFalse();
+    }
+
+    /// <summary>
+    ///     <c>CanAutoSave</c> drives the toggle's enabled state, and it has to be false wherever no
+    ///     sidecar is possible — no demo, no store, or the browser head, whose "writable" path is a
+    ///     virtual FS that dies with the tab. A checkbox offering to control saving where nothing can be
+    ///     saved is this audit's own defect class one layer down.
+    /// </summary>
+    [Test]
+    public async Task Controller_CanAutoSave_IsFalseWhereNoSidecarIsPossible()
+    {
+        using TempDemo demo = new();
+
+        using AnnotationSessionController detached = new(new AnnotationStore(demo.AppData), null);
+        await Assert.That(detached.CanAutoSave).IsFalse().Because("no demo is attached");
+
+        using AnnotationSessionController storeless = new(null, null);
+        await storeless.AttachDemoAsync(demo.DemoPath, demo.Clock);
+        await Assert.That(storeless.CanAutoSave).IsFalse().Because("there is no store to write through");
+
+        using AnnotationSessionController browser =
+            new(new AnnotationStore(demo.AppData), null, static () => true);
+        await browser.AttachDemoAsync(demo.DemoPath, demo.Clock);
+        await Assert.That(browser.CanAutoSave).IsFalse()
+            .Because("the browser head's writable path is an in-memory FS that dies with the tab");
+
+        using AnnotationSessionController desktop =
+            new(new AnnotationStore(demo.AppData), null, static () => false);
+        await desktop.AttachDemoAsync(demo.DemoPath, demo.Clock);
+        await Assert.That(desktop.CanAutoSave).IsTrue();
+    }
+
     private static AnnotationElement Stroke() =>
         new(Guid.NewGuid(), AnnotationKind.Freehand, AnnotationStyle.Default, new SpaceRef.World(0),
             TimeEnvelope.Static,

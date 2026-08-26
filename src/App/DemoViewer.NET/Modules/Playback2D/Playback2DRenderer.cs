@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,7 +15,12 @@ public enum Playback2DRendererKind
     /// <summary>The v2 compositor host. The default.</summary>
     Scene,
 
-    /// <summary>The pre-v2 <see cref="Playback2DViewport" />. A parity escape hatch, removed in B5.</summary>
+    /// <summary>
+    ///     The pre-v2 <see cref="Playback2DViewport" />. A parity escape hatch, deleted the release AFTER
+    ///     v2 ships — see <c>docs/playback2d-v2/old-control-removal.md</c>, which carries the trigger
+    ///     conditions. ("removed in B5" is what this said until the D6 audit; B5 shipped and the hatch is
+    ///     still here, which is the state the removal plan is written for.)
+    /// </summary>
     Legacy
 }
 
@@ -65,6 +71,38 @@ public interface ILevelSurface
 
     /// <summary>Raised when the level set, the active level or the display mode changed.</summary>
     event Action? LevelStateChanged;
+}
+
+/// <summary>
+///     The ANNOTATION half of the viewport contract: what the toolbar, the keymap's tool-scoped rows and
+///     the ink gestures need from the mounted surface. Implemented only by the v2 host.
+///     <para>
+///         <b>Why this exists at all (D6 finding 12).</b> The annotation toolbar's visibility was bound to
+///         the <em>feature gate</em>, so under <c>DV_PLAYBACK2D_RENDERER=legacy</c> the whole docked tool
+///         row rendered over a surface that has no router, no ink layer and no gesture to cancel. Picking
+///         Draw then flipped <c>IsDrawingToolActive</c> true, which made the keymap's
+///         <c>WhenToolActive</c> scope win — so <c>Space</c> resolved to <c>HoldPan</c> and <c>Esc</c> to
+///         <c>CancelGesture</c>, both of which fell through a <c>is Scene2DHost</c> check and returned
+///         without setting <c>Handled</c>. Play/pause and clear-follow died with no visible cause.
+///     </para>
+///     <para>
+///         The fix is the <see cref="ILevelSurface" /> shape: a CAPABILITY the mounted surface either
+///         satisfies or does not, asked once at bind time. A gate says whether the user is allowed to
+///         draw; this says whether there is anything to draw on, and the two are different questions.
+///     </para>
+/// </summary>
+internal interface IAnnotationSurface
+{
+    /// <summary>Selects the active pointer tool.</summary>
+    /// <param name="kind">The tool.</param>
+    void SetActiveTool(ToolKind kind);
+
+    /// <summary>Hold-to-pan (plan decision D3). The view sets it from the pan key.</summary>
+    /// <param name="held">Whether the pan key is down.</param>
+    void SetSpacePanHeld(bool held);
+
+    /// <summary>Abandons whatever gesture is in flight.</summary>
+    void CancelActiveGesture();
 }
 
 /// <summary>

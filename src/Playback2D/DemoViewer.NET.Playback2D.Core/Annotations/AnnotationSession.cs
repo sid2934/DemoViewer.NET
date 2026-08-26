@@ -134,8 +134,12 @@ public sealed class WetStroke
             return;
         }
 
+        // The ANCHOR is rebased; the pane identity is NOT re-derived. A level that survives a rebuild
+        // carries its id however far its band drifted (LevelSetChange.Remapped is identity by
+        // construction), and a level that did not survive has no pane for the stroke to be drawn in — so
+        // re-minting an id out of the new ZMin could only ever produce a WRONG one, which is exactly
+        // what it did once MapSpace.Mint had bumped a colliding key.
         Space = new SpaceRef.World(target);
-        PaneLevelId = MapSpace.IdForZMin(target);
         Version++;
     }
 }
@@ -232,8 +236,12 @@ public sealed class AnnotationSession
     /// </summary>
     public float SampleSpacingFactor { get; set; } = 0.35f;
 
-    /// <summary>Raised whenever the wet stroke changed and the surface needs a repaint.</summary>
-    public event Action? WetChanged;
+    // WetChanged / NotifyWetChanged were DELETED here (D6 §3 dead surface). The event was raised four
+    // times per stroke by DrawTool and subscribed by nothing, in production or in a test — and every one
+    // of those four raises was immediately followed by the caller's own `s.RequestRender()`, so a
+    // subscriber added later would have repainted a surface that had just been invalidated anyway. The
+    // choice was "subscribe or delete"; adding the subscriber would have made every pointer sample
+    // repaint twice, which is the opposite of what §6's budget asks for.
 
     /// <summary>The world-space sample spacing filter for the current style.</summary>
     public float SampleSpacingWorld => SampleSpacingFor(Style);
@@ -288,7 +296,4 @@ public sealed class AnnotationSession
         EnvelopeMode.Custom => NewElementEnvelope,
         _ => TimeEnvelope.Static
     };
-
-    /// <summary>Raises <see cref="WetChanged" />. Called by the tools after they touch the wet stroke.</summary>
-    public void NotifyWetChanged() => WetChanged?.Invoke();
 }

@@ -87,6 +87,16 @@ public sealed class MapSpaceFactory
     ///         Called once per push on the UI thread. In the steady state — bands unchanged — it does an
     ///         indexed pass over the markers and returns false, allocating nothing.
     ///     </para>
+    ///     <para>
+    ///         <b>On both branches</b>, which it did not used to be. With a baked bundle the splitter
+    ///         short-circuits to the authoritative list and there was never anything to allocate; without
+    ///         one — every user with no map asset — each <c>Observe</c> marked the histogram dirty and the
+    ///         <c>Slices</c> read below rebuilt it from scratch every frame, at 552 B a frame forever.
+    ///         The gate did not see it because <c>BudgetTests</c> called
+    ///         <see cref="SetAuthoritativeFloors" /> first and measured the branch those users never take
+    ///         (D6 finding 24). <c>FloorSplitter</c> now recomputes out of reusable buffers and republishes
+    ///         the band list only when the bands actually moved, and the budget gate covers both branches.
+    ///     </para>
     /// </summary>
     /// <param name="frame">The frame being advanced to.</param>
     /// <returns>True when the level set changed.</returns>

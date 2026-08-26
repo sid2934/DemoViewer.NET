@@ -43,8 +43,11 @@ internal static class BenchCommand
             ? FixtureSceneProvider.Load(fixturePath)
             : SceneProvider.Build(args);
 
+        // Same corpus-sidecar convention as `golden`: a bench must time the stack the golden pins,
+        // ink included, or the §6 numbers describe a scene nobody renders.
         using SceneRenderPlan plan = SceneRenderPlan.Build(args, entry?.Size ?? source.DefaultSize,
-            source.MapName, entry?.Layers);
+            source.MapName, entry?.Layers,
+            annotations: entry is null ? null : FixtureInk.ForCorpusEntry(entry.CorpusDirectory, entry.Name));
 
         int frames = args.Int("frames", 2000);
         int warmup = args.Int("warmup", 128);

@@ -110,10 +110,22 @@ public class BenchCommandTests
 }
 
 /// <summary>
-///     The §6 zero-allocation contract. <b>Expected to fail until <c>SceneLayerCatalog</c> registers B1's
-///     seven layers</b> — the stack <c>dv2d</c> builds today is still B0's smoke layer, which constructs
-///     its three <c>SKPaint</c>s inside <c>Render</c> — so it is categorised <c>Budget</c> and kept out of
-///     the correctness lane. Enable it in the PR that closes that seam (C1 risk R6 / deviation 14).
+///     The §6 zero-allocation contract, over the layer stack <c>dv2d</c> actually builds.
+///     <para>
+///         <b>This is a live gate.</b> Its doc used to read "<i>Expected to fail until
+///         <c>SceneLayerCatalog</c> registers B1's seven layers</i>" — the catalog registered B0's
+///         <c>DebugGridLayer</c>, which builds three <c>SKPaint</c>s inside <c>Render</c>, so it measured
+///         3336 B/frame and stayed red for four phases with <c>[Category("Budget")]</c> doing a
+///         <c>[Skip]</c>'s job and saying nothing (D6 G-4). The catalog now registers the real stack and
+///         it passes at <b>0 B/frame</b>. It is a failure again the moment a layer allocates.
+///     </para>
+///     <para>
+///         <c>Budget</c> is kept, and is now the honest label rather than a hiding place: every
+///         allocation assertion in this repository carries it (B1's, B4's), because an allocation figure
+///         must not flap a required correctness check. That does mean it runs only in the <c>full</c>
+///         tier and in the <c>playback2d-budget</c> CI lane — <b>which must be extended to this
+///         project</b>; it runs <c>Playback2D.Tests</c> alone today, so nothing executes these two.
+///     </para>
 /// </summary>
 [NotInParallel]
 [Category("Budget")]
@@ -131,5 +143,34 @@ public class BenchAllocationTests
 
         await Assert.That(run.ExitCode).IsEqualTo(0);
         await Assert.That(run.Json()["allocated_bytes_per_frame"]!.GetValue<long>()).IsEqualTo(0);
+    }
+
+    /// <summary>
+    ///     The worst case design §6's numbers are actually stated against: 1080p, two derived floors,
+    ///     ten markers, four sixty-four-point trails, twelve area effects, a defusing bomb and both
+    ///     floor captions. It was a <c>pending</c> manifest entry — skipped, never run — for the whole of
+    ///     B1..D5 (D6 G-7), so the one fixture the budget is written for was the one nothing benched.
+    ///     <para>
+    ///         Gated through <c>--gate</c> rather than by reading the numbers, so what is asserted is the
+    ///         <i>corpus entry's own</i> budget: editing <c>manifest.json</c> moves this test, which is
+    ///         the point of the budget living in the manifest.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task WorstCase1080pScene_MeetsItsDeclaredBudget()
+    {
+        // DV2D_BUDGET_SCALE is what CI relaxes the TIME halves by on a shared runner; it is not set here,
+        // so this asserts the unscaled §6 numbers on a developer machine. The allocation half is never
+        // scaled anywhere — 0 bytes is 0 bytes.
+        CliRun run = Dv2d.InProcess("bench", "--name", "full-scene-budget", "--corpus",
+            Dv2d.CorpusDirectory, "--frames", "256", "--warmup", "64", "--cpu", "--gate", "--json");
+
+        JsonObject payload = run.Json();
+        Console.WriteLine($"[budget] full-scene-budget render p99 " +
+                          $"{payload["render_ms"]!["p99"]!.GetValue<double>():F3} ms, " +
+                          $"{payload["allocated_bytes_per_frame"]!.GetValue<long>()} B/frame");
+
+        await Assert.That(run.ExitCode).IsEqualTo(0);
+        await Assert.That(((JsonObject)payload["gate"]!)["passed"]!.GetValue<bool>()).IsTrue();
     }
 }

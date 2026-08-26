@@ -1,9 +1,11 @@
 # Playback2D v2 — Architecture & Feature Design
 
-**Status:** **Implemented** — A1, B0–B5, C1 and C2 Stage 0 have landed on `feature/playback2d-v2`.
-Five exit criteria are **still open**; they are listed in [§0](#0-status--what-is-still-open) rather
-than in a plan appendix, because the next person to work on this needs to find them.
-· **Branch:** `feature/playback2d-v2` · **Design date:** 2026-08-24 · **Status updated:** 2026-08-25 (B5)
+**Status:** **Implemented** — A1, B0–B5, C1, C2 Stage 0, the P and D tracks, and the D6 audit's three
+fix rounds have landed on `feature/playback2d-v2`. Five exit criteria are **still open**; they are
+listed in [§0](#0-status--what-is-still-open) rather than in a plan appendix, because the next person
+to work on this needs to find them.
+· **Branch:** `feature/playback2d-v2` · **Design date:** 2026-08-24 · **Status updated:** 2026-08-26
+(D6 round 3)
 
 This document is the design for the 2D playback window rework: drawable annotations (static and
 time-anchored), video export of the 2D playback, a proper multi-level map model, follow-player,
@@ -24,17 +26,60 @@ test/iteration story that executes directly against the core (§11).
 
 ## 0. Status — what is still open
 
+*Last re-checked against the tree on 2026-08-26 (D6 round 3), which is the point of a re-stamp: this
+section was carrying "updated 2026-08-25 (B5)" while the whole D track and a five-lens audit had landed
+since, and two of its five rows had gone stale under it.*
+
 The nine phases are merged. The design's per-phase exit criteria are met **except** the five below.
 None of them blocks the release; all five are things a later contributor will otherwise rediscover
-from scratch, so they live here, with their owner and the measurement that closes each one.
+from scratch, so they live here, with their owner and the measurement that closes each one. **O6 below
+is closed** and is recorded anyway, because it is the one the audit says nobody would have found from
+this section.
 
 | # | Criterion | State | Owner / what closes it |
 |---|---|---|---|
 | **O1** | **1080p60 CPU export ≥ realtime** (§9, B4's row) | **Open — and the default moved instead.** Measured on `assets/tour/sample-de_nuke.dem`, shipped layer set, WebM/VP9: **109.8 fps at 1280×720** (1.83× realtime at 60 fps) and **58.4 fps at 1920×1080** (0.97×). B4 took the third of its R3 levers and made **720p the default export size**; 1080p is one click away and perfectly usable, it simply cannot promise "faster than watching it". | Closed either by CPU work on the layer stack, or by O2 — a GPU provider makes the 1080p number moot. Do not quietly re-default to 1080p without re-measuring. |
-| **O2** | **GPU export ≥ 2× realtime at 1080p** (§9, C2's row; transferred to B4 by coordinator decision 2) | **Open.** C2 shipped Stage 0 only: `GpuSurfaceProvider` exists and its ANGLE/D3D11 path is proven on real hardware, with cross-backend parity measured (worst ΔSSIM 0.98352, all divergence on anti-aliased marker rims). Stages 1–2 — flush/readback tuning, threshold calibration, throughput — are deferred to a scheduled spike. Today `SceneExportSession` **refuses** a non-CPU provider, because it awaits its sink between frames and `GpuSurfaceProvider` is thread-affine; making that work is a redesign of `RunAsync` and is the same work Stage 1 needs. | **C2 Stages 1–2.** The baseline to beat is already measured: `dv2d export --no-encode` renders **62.6 fps at 1080p** on `CpuRaster`. |
-| **O3** | **`duel-mirage-b` and `fitmap-mirage-eco` goldens** (§11's corpus) | **Open — blocked on an asset, not on code.** Both capture cases are written and skip cleanly; the only demo in the tree is `assets/tour/sample-de_nuke.dem`. `mirage-single-level` is absent for the same reason, so B3's "strip hidden on a single-level map" case is covered synthetically instead. | Whoever stages a de_mirage demo: run `Playback2DGoldenCaptureTests` with `DV_UPDATE_PLAYBACK2D_GOLDENS=1` and commit the pairs. The `nuke-multilevel` pair is committed and byte-exact, so the parity gate is real in the meantime. |
+| **O2** | **GPU export ≥ 2× realtime at 1080p** (§9, C2's row; transferred to B4 by coordinator decision 2) | **Open.** C2 shipped Stage 0 only: `GpuSurfaceProvider` exists and its ANGLE/D3D11 path is proven on real hardware, with cross-backend parity measured (worst ΔSSIM 0.98352, all divergence on anti-aliased marker rims). Stages 1–2 — flush/readback tuning, threshold calibration, throughput — are deferred to a scheduled spike. Today `SceneExportSession` **refuses** a non-CPU provider, because it awaits its sink between frames and `GpuSurfaceProvider` is thread-affine; making that work is a redesign of `RunAsync` and is the same work Stage 1 needs. | **C2 Stages 1–2.** The baseline to beat is already measured: `dv2d export --no-encode` renders **62.6 fps at 1080p** on `CpuRaster`. **This criterion is also the delete-condition for two other records:** `00-overview.md` §3.10 pins a `RenderBackend` settings key that D6 round 3 deliberately did **not** build — nothing in the app can consume one while this stays open, and a preference whose every value behaves identically except `gpu`, which fails validation, would be the audit's own defect class one layer in — and `Playback2DSettingsConsumptionTests`' allow-list carries the matching entry. Build the key when Stage 1 lands, not before. |
+| **O3** | **A de_mirage pre-v2 parity capture** (§11's corpus) | **Open — blocked on an asset, not on code**, but narrower than this row used to claim. It named *`duel-mirage-b` and `fitmap-mirage-eco`*, which are **hand-authored 640×360 dv2d fixtures**: both have existed since C1, both are `pending: false`, both have committed CPU goldens, and `dv2d golden verify` gates them on every PR. Nothing about them was ever demo-blocked; the two names collided with the capture harness's outputs, which is D6 G-8 and is fixed — the captures now own the `prev2-` namespace. What is genuinely still missing is a **pre-v2 control capture on a Mirage demo** (`prev2-mirage-roundstart`), which skips cleanly because the only demo in the tree is `assets/tour/sample-de_nuke.dem`. `mirage-single-level` is absent for the same reason, so B3's "strip hidden on a single-level map" case is covered synthetically instead. | Whoever stages a de_mirage demo: run `Playback2DGoldenCaptureTests` with `PB2D_GOLDEN_UPDATE=1` and commit the pair. The `nuke-multilevel` pair carries the parity gate meanwhile — **not** "byte-exact", as this row said: `GoldenParityTests` compares a delta *distribution* (≥99 % of pixels within ±8, ≥99.5 % within ±32) precisely because two rasterisers cannot agree pixel for pixel, and the manifest declares that entry `perceptual` and `pending` for dv2d. Byte-exactness is `SceneDeterminismTests`, v2 against itself. |
 | **O4** | **R2 scrub-latency measurement** (A1's risk register) | **Open.** A1's plan called for measuring perceived latency while dragging the scrub bar on a long demo, to decide whether A2 needs a coalescing/preview seek. Never taken — it needed a staged demo at the time, and the reference demo has since landed. | Anyone, in an hour: drag-scrub `assets/tour/sample-de_nuke.dem` (19 237 frames) end to end and record the seek-to-paint latency. The A2 decision it feeds stays open until then. |
-| **O5** | **Envelope drag handles on `AnnotationTrack`** (§12 Q3, B3's T9) | **Open — a feature, not residue.** B2 ships the annotation markers and envelope authoring through the toolbar (Always / Fade / Custom, "pin to now"); dragging a marker's ends to re-time it on the timeline is not built. It was blocked on B2's `DocDelta.Replace`, which now exists — so it is unblocked, small, and simply unscheduled. B5 did not take it because B5 ships no new user-facing behaviour. | **B3's owner**, as a follow-up. B3's plan carries the design sketch (`EnvelopeHitTest`, `EnvelopeDragSession`, `AnnotationTrackInteraction`) and `TickAxis` is already shipped for the drag math. |
+| **O5** | **Envelope drag handles on `AnnotationTrack`** (§12 Q3, B3's T9) | **Open — a feature, not residue.** B2 ships the annotation markers, and the toolbar authors envelopes (Always / Fade / Custom, "pin to now"); dragging a marker's ends to re-time it on the timeline is not built. It was blocked on B2's `DocDelta.Replace`, which now exists — so it is unblocked, small, and simply unscheduled. B5 did not take it because B5 ships no new user-facing behaviour. **The parenthetical above was false when written**: D0 §2.4 found `Custom` was a synonym for `Always` — `EnvelopeMode.Custom` resolved to `TimeEnvelope.Static`, constant opacity 1 — so the toolbar offered *two* behaviours under three names and picking *Custom* changed one persisted string. It is accurate only because **D2 built the `Custom` envelope editor**. Nothing about O5 itself changed; the sentence describing its premise did. | **B3's owner**, as a follow-up. B3's plan carries the design sketch (`EnvelopeHitTest`, `EnvelopeDragSession`, `AnnotationTrackInteraction`) and `TickAxis` is already shipped for the drag math. |
+
+### O6 — the pixel gate that was comparing grids — **FOUND AND FIXED (D6 rounds 2–3)**
+
+**Recorded here as a closed criterion because it was the single largest defect the audit found, and §0
+did not mention it at all** — it existed only in a `ci.yml` comment and in two closed phases' plans, so
+the one place a reader is told what is still wrong about this module was the one place that never said
+the pixel and bench gates were measuring nothing.
+
+`SceneLayerCatalog` held **two** tables. `CreateSceneStack` — the real eleven — was reached only by
+`export`. `Create()` served `dv2d render`, `golden` and `bench` from a second list holding exactly one
+entry, B0's `playback2d.debuggrid`. The split was deliberate and temporary (growing the default set
+re-baselines every committed golden, and B1 was to fold the tables together in the PR that re-captured
+the corpus). B1 did not, and nothing failed, because **the goldens had been captured through the same
+one-layer stack**. So for four phases:
+
+- CI's only pixel-regression gate on a PR re-rendered every corpus entry as a debug grid and compared
+  it, successfully, against a committed picture of a debug grid — `ssim: 1, max_channel_delta: 0` on
+  every entry, forever, for any change to any layer;
+- `bench --gate` measured that grid — p99 **0.094 ms** against a 16 ms budget, ~170× headroom — and its
+  allocation figure was the grid's own three `SKPaint`s, which is why CI carried
+  `--budget-bytes-per-frame 4096` and `BenchAllocationTests` sat permanently red behind a category
+  exclusion (G-4);
+- `dv2d render`, documented as the design-iteration loop for "a marker style, a cone fill, an ink
+  outline", answered `--layers markers` with *"unknown layer id(s)"*.
+
+**Fixed:** one table, one entry point. `SceneStackIds` is now the only list and every command builds
+through `CreateSceneStack`; the six corpus goldens were re-captured; `--budget-bytes-per-frame` is gone
+and the gate reads the manifest's 0 B/frame; `SceneGoldenTests` was retargeted so the two writers of
+the same PNGs share one render path; `SceneLayerListParityTests` asserts every other hand-written layer
+array against the catalog. Round 3 closed the last hole the fold exposed — `playback2d.vision` was in
+the default stack and drew nothing, because the layer read an `IVisionSolver` and ignored the
+pre-solved `SceneVision` a fixture actually carries — and added the CLI's `Category=Budget` cases to
+the budget lane, which is where `BenchAllocationTests` finally runs.
+
+**What it cost to measure the fix:** `duel-mirage-b`'s render p99 went 0.094 ms → **4.9 ms**, of which
+~4.7 ms is resampling the baked `de_mirage` radar at 640×360. Headroom against the scaled CI budget is
+now ~3× rather than ~170×, which is the difference between a gate and a decoration.
 
 **Not open, recorded so nobody re-opens them:** the SkiaSharp-on-WASM question (B0's spike passed;
 the offscreen CPU provider works on the browser head, and B5 verified the whole app path there — see

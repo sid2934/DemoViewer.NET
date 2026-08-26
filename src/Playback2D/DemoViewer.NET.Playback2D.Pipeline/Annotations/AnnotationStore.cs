@@ -520,7 +520,16 @@ public sealed class AnnotationStore
             return null;
         }
 
-        if (!Enum.TryParse(dto.Kind, ignoreCase: true, out AnnotationKind kind))
+        // A sidecar is a hand-editable file, and every OTHER AnnotationKind is reserved: nothing writes
+        // one, and AnnotationHitTester THROWS NotSupportedException for anything but Freehand — a throw
+        // EraseTool does not catch, so it escapes into Avalonia's pointer pipeline on the first erase
+        // drag. LevelLayouts.Parse fences its own reserved member with Enum.IsDefined plus an explicit
+        // check for exactly this reason; this is the same fence. The points are a polyline either way,
+        // so loading a reserved kind AS Freehand draws and erases it rather than losing it.
+        // Enum.TryParse also accepts any NUMBER in range, which is what makes IsDefined load-bearing.
+        if (!Enum.TryParse(dto.Kind, ignoreCase: true, out AnnotationKind kind)
+            || !Enum.IsDefined(kind)
+            || kind != AnnotationKind.Freehand)
         {
             kind = AnnotationKind.Freehand;
         }

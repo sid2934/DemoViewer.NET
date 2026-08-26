@@ -136,8 +136,14 @@ internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession 
         switch (element.Space)
         {
             case SpaceRef.World world:
-                return pane.Space is not { Levels.Count: > 1 }
-                       || MapSpace.IdForZMin(world.LevelMinZ) == pane.LevelId;
+            {
+                // Through the SPACE, exactly as AnnotationLayer resolves it. IdForZMin is the MINTING
+                // rule, and a floor lost and re-found is minted past the colliding key — so deriving the
+                // id from Z here made the eraser unable to touch ink the pane was visibly drawing.
+                MapSpace? space = pane.Space;
+                return space is not { Levels.Count: > 1 }
+                       || space.IdForAnchor(world.LevelMinZ) == pane.LevelId;
+            }
 
             case SpaceRef.Entity entity:
             {

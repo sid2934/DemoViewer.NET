@@ -82,6 +82,50 @@ public class AnnotationLayerTests
             .Because("a stroke drawn on the lower floor must not ghost onto the upper band");
     }
 
+    /// <summary>
+    ///     <b>Design §10 risk 5, at the one seam that actually loses the ink.</b> A floor lost and
+    ///     re-found across rebuilds is minted a NEW key, because <c>MapSpace.Mint</c> walks past every key
+    ///     it has ever issued — after which <c>level.Id != MapSpace.IdForZMin(level.ZMin)</c>. This layer
+    ///     derived the id from the anchor's Z, so the stroke matched no pane at all and simply vanished;
+    ///     a neighbour holding the old key would have drawn it on the wrong storey instead.
+    ///     <para>
+    ///         Both panes are asserted. "Some ink somewhere" passes on the build that puts a lower-floor
+    ///         callout on the upper band, which is the worse half of the same defect.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task WorldAnchored_SurvivesAFloorBeingLostAndReFound()
+    {
+        MapSpace space = new();
+        space.Rebuild([new FloorSlice(-448, -384), new FloorSlice(-384, -128)]);
+        space.Rebuild([new FloorSlice(-384, -128)]);           // the lower floor disappears…
+        space.Rebuild([new FloorSlice(-448, -384), new FloorSlice(-384, -128)]); // …and comes back
+
+        double anchor = MapSpace.QuantizeZ(space.Levels[0].ZMin);
+        Console.WriteLine($"[reminted] pane={space.Levels[0].Id} " +
+                          $"mintingRule={MapSpace.IdForZMin(anchor)}");
+        await Assert.That(space.Levels[0].Id).IsNotEqualTo(MapSpace.IdForZMin(anchor))
+            .Because("the re-found floor carries a re-minted key — that is the condition under test");
+
+        AnnotationDocument doc = new();
+        AnnotationSession session = new(doc);
+        using AnnotationLayer layer = new(session);
+
+        // Static ∧ World → the cached dry picture; time-anchored → the per-frame prepared path. Both
+        // resolved the anchor the same broken way, so both are exercised.
+        doc.Apply(new DocDelta.Add(AnnotationFakes.Stroke(space: new SpaceRef.World(anchor)), 0));
+        doc.Apply(new DocDelta.Add(
+            AnnotationFakes.Stroke(space: new SpaceRef.World(anchor), time: new TimeEnvelope(0, 500, 0, 0),
+                y: 120), 1));
+
+        int lower = Ink(layer, Scene2DFrame.Empty, space, 0, tick: 100);
+        int upper = Ink(layer, Scene2DFrame.Empty, space, 1, tick: 100);
+
+        await Assert.That(lower).IsGreaterThan(0)
+            .Because("the pane is drawing the floor the stroke was drawn on, re-minted key or not");
+        await Assert.That(upper).IsEqualTo(0);
+    }
+
     [Test]
     public async Task EntityAnchored_HiddenWhileUnresolvable()
     {

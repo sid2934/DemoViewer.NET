@@ -20,6 +20,7 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Hud;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Pipeline;
@@ -121,6 +122,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // Re-entrancy guard: the follow funnel assigns SelectedPlayer, whose generated setter loops back into
     // the funnel. Without it a card pick would raise FollowSlotChanged twice.
     private bool _inFollowFunnel;
+
+    // Which demo the current follow target / selection belongs to. A roster slot is only meaningful
+    // inside one demo, and the DemoReset signal does not reach a DEACTIVATED tab — so the path is what
+    // tells the next activation's resync whether the state it is holding is still about this demo.
+    private string? _followDemoPath;
 
     // The ITimelineData adapter over _context. Nulled on deactivation so the context isn't retained.
     private ModuleTimelineData? _timelineData;
@@ -324,12 +330,97 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _context is ModuleContext { ExportHost: not null } &&
         _context.HasDemo;
 
+    // OperatingSystem.IsBrowser() is a JIT-folded intrinsic, so the WASM branch of ExportUnavailableNote
+    // cannot be reached from a desktop test without a seam. Same shape as ShellModuleFeatureGate's and
+    // AnnotationSessionController's, and a desktop-only refusal nobody has proved is a refusal nobody
+    // has tested.
+    internal Func<bool> IsBrowserHost { get; set; } = OperatingSystem.IsBrowser;
+
+    /// <summary>
+    ///     Why the Export button is not there, or "" when it is (or when the user is the reason).
+    ///     <para>
+    ///         The button's <c>IsVisible</c> is <see cref="CanExport" />, and <see cref="CanExport" /> has
+    ///         three inputs — the gate, the host, the demo. It simply vanished, so a browser user could
+    ///         not tell "not available here" from "open a demo first" (D6 finding 12b). The codebase does
+    ///         this correctly elsewhere: <c>SettingsView.axaml</c>'s folder picker says
+    ///         "(unavailable in the browser)" rather than disappearing.
+    ///     </para>
+    ///     <para>
+    ///         Empty when the FEATURE is switched off, deliberately: that one the user did on purpose, in
+    ///         a screen that lists it by name, and re-announcing it beside every gated affordance is
+    ///         noise. Empty too when the only thing missing is the export HOST while a demo is open —
+    ///         that combination is the designer and the test harness, never a shipped desktop build, and
+    ///         there is nobody there to tell.
+    ///     </para>
+    /// </summary>
+    public string ExportUnavailableNote { get; private set; } = "";
+
+    /// <summary>Whether <see cref="ExportUnavailableNote" /> has something to say.</summary>
+    public bool HasExportUnavailableNote => ExportUnavailableNote.Length > 0;
+
+    // Recomputed wherever CanExport is: the gate flip, activation, and the demo reset all land in
+    // RefreshGates, which is also the one place CanExport is re-raised.
+    private void RefreshExportNote()
+    {
+        string note = Describe();
+        if (string.Equals(note, ExportUnavailableNote, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        ExportUnavailableNote = note;
+        OnPropertyChanged(nameof(ExportUnavailableNote));
+        OnPropertyChanged(nameof(HasExportUnavailableNote));
+        return;
+
+        string Describe()
+        {
+            if (CanExport || _context is null)
+            {
+                return "";
+            }
+
+            // The browser check comes FIRST because on that head BOTH the gate and the host say no —
+            // ShellModuleFeatureGate.DesktopOnlyIds forces the feature off and App.axaml.cs wires no
+            // host — and "you switched it off" would be a lie about a decision nobody made.
+            if (IsBrowserHost())
+            {
+                return "Export video — unavailable in the browser";
+            }
+
+            if (_context.Features?.IsEnabled(ExportFeatureId) is false)
+            {
+                return ""; // the user's own decision, made in a screen that lists the feature by name
+            }
+
+            // Checked BEFORE the host, so the sentence is about the thing the user can act on. A desktop
+            // build always wires the host at composition; a context without one is the designer or a test
+            // harness, and neither has anybody to tell — hence the silent fall-through below.
+            if (!_context.HasDemo)
+            {
+                return "Export video — open a demo first";
+            }
+
+            return "";
+        }
+    }
+
     /// <summary>The open export dialog, or null. Non-null is what the view binds its overlay's visibility to.</summary>
     [ObservableProperty]
     private ViewModels.Playback2D.Playback2DExportDialogViewModel? _exportDialog;
 
-    /// <summary>The running export's status, for the chip. Idle when none has run.</summary>
-    public ExportJobStatus ExportStatus => _exportJob?.Status ?? ExportJobStatus.Idle;
+    /// <summary>
+    ///     The running export's chip, or null before the first export was ever opened.
+    ///     <para>
+    ///         Built beside the job and handed to the shell through <c>Playback2DExportHost.MountStatusChip</c>,
+    ///         which is the only route a lazily-built module tab has to the status strip. It is the
+    ///         <b>subscriber</b> <c>ExportJobService.StatusChanged</c> spent its whole life without:
+    ///         progress, throughput, the ETA, the failure message and — the one that mattered — a Cancel
+    ///         button were all computed and marshalled to the UI thread, and none of them had anywhere to
+    ///         land. Internal, so a test can reach the chip the same way the shell does.
+    ///     </para>
+    /// </summary>
+    internal ViewModels.Playback2D.Playback2DExportStatusViewModel? ExportStatus { get; private set; }
 
     /// <summary>Opens the export dialog, seeded from the saved defaults and the current round.</summary>
     [RelayCommand]
@@ -340,11 +431,49 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             return;
         }
 
-        _exportJob ??= new ExportJobService(
-            new SceneExportRunner(_ => BuildExportSetup(host)),
-            host.Gate,
-            host.IsLiveSyncBusy,
-            host.IsReelRunning);
+        if (_exportJob is null)
+        {
+            // The log sink is passed at BOTH levels on purpose: the runner's carries the chosen encoder
+            // rung and every line ffmpeg writes to stderr (which is where an encode failure actually
+            // explains itself), the service's carries the job-level fault. Both were optional parameters
+            // this composition omitted, so all of it went to the floor and a failed export could say
+            // nothing more useful than the exception's own one-liner.
+            //
+            // EVERY seam is named, including the two whose value is the constructor's own default. That
+            // is D6 §4 guard 4's rule and the whole of gap G1: C# materialises an omitted optional
+            // argument AT THE CALL SITE, so a one-argument construction and the fully-spelled form below
+            // compile to identical IL — an omission is not a fact about the program, and nothing
+            // distinguishes "this composition chose the default" from "this composition forgot the
+            // parameter". Four of the nine P0/P1 export defects were the second one.
+            _exportJob = new ExportJobService(
+                new SceneExportRunner(
+                    request => BuildExportSetup(host, request),
+
+                    // CPU, chosen rather than defaulted to. SceneExportSession refuses any non-CpuRaster
+                    // provider outright — its loop crosses threads between frames and GpuSurfaceProvider
+                    // is bound to the thread that made it (design §0 O2) — so this is the only value that
+                    // exports at all today, and it is spelled out so the day C2 Stage 1 lifts that
+                    // refusal, this is the line the AppSettings.Playback2D.RenderBackend key lands on.
+                    surfaces: RenderSurfaceProviderFactory.CreateCpu,
+
+                    // The same directory CsvgWebHost downloads into, so one managed ffmpeg serves reels
+                    // and exports alike. It is also the constructor's default; naming it is what makes
+                    // that a decision instead of a coincidence.
+                    managedFfmpegDirectory: static () => FfmpegDependency.ManagedDirectory,
+                    log: AppendExportLog,
+
+                    // Process-wide, so an app session pays for one two-frame test encode per rung rather
+                    // than one per export (plan P2 D1).
+                    encoderProbe: EncoderProbeCache.Shared),
+                host.Gate,
+                host.IsLiveSyncBusy,
+                host.IsReelRunning,
+                AppendExportLog);
+
+            ExportStatus = new ViewModels.Playback2D.Playback2DExportStatusViewModel(
+                _exportJob, host.OpenExportFolder);
+            host.MountStatusChip?.Invoke(ExportStatus);
+        }
 
         ExportDialog = new ViewModels.Playback2D.Playback2DExportDialogViewModel(
             BuildExportRanges(),
@@ -354,10 +483,18 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             OutputFrameCount,
             () => FfmpegLocationFor(FfmpegDependency.Locate()),
             host.IsLiveSyncBusy,
-            host.PersistSettings);
+            host.PersistSettings,
+            fileExists: null,
+            captureInk: SnapshotInkForExport,
+            acquireFfmpeg: ViewModels.Playback2D.Playback2DExportDialogViewModel.ProductionAcquisition(
+                FfmpegDependency.ManagedDirectory));
 
         ExportDialog.StartRequested += CloseExport;
     }
+
+    // Called from the export's pool thread (and from inside ffmpeg's stderr pump). AppendLog owns the
+    // locking and the UI-thread marshalling; this is only the wire.
+    private void AppendExportLog(string line) => ExportStatus?.AppendLog(line);
 
     /// <summary>Closes the export dialog. The job keeps running — its progress lives on the status chip.</summary>
     [RelayCommand]
@@ -366,10 +503,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         if (ExportDialog is { } dialog)
         {
             dialog.StartRequested -= CloseExport;
+            dialog.Dispose();
         }
 
         ExportDialog = null;
-        OnPropertyChanged(nameof(ExportStatus));
     }
 
     // Whole rounds, plus the whole demo. CS2 rounds OPEN at round_freeze_end — the same fact RoundTrack's
@@ -426,7 +563,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     </para>
     /// </summary>
     /// <param name="host">The shell's export host.</param>
-    internal ExportSceneSetup BuildExportSetup(Playback2DExportHost host) => new(
+    /// <param name="request">
+    ///     The run being set up, or null in a test that only wants the display-mode half. Its
+    ///     <c>Ink</c> is the frozen document for <b>this</b> run.
+    /// </param>
+    internal ExportSceneSetup BuildExportSetup(Playback2DExportHost host,
+        Scene2DExportRequest? request = null) => new(
         host.Frames() ?? [],
         _tickRate,
         _context?.MapName,
@@ -439,9 +581,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         BuildExportHud(),
         MapAsset,
 
-        // Frozen in CaptureExportMoment, not read here: this method runs on the EXPORT's thread, and the
-        // document is UI-thread state with no lock of its own.
-        _exportInk);
+        // Off the REQUEST, not off a field. This method runs on the export's pool thread, and it runs
+        // AFTER the job has waited on the heavy-job gate — a tab-level field written at Start would by
+        // then be whatever the most recent Start put there, which is not necessarily this run's.
+        request?.Ink);
 
     // The exported HUD reads the SAME pre-built kill timeline the XAML feed windows, and the same
     // SceneGameInfo projection the panel binds — which is what makes design risk 8 (dual-HUD drift)
@@ -474,17 +617,13 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // test — the fallback is an empty Fixed script, which leaves every pane on the fit its own level was
     // born with. That is a correct framing, just not the user's.
     //
-    // The ink is frozen HERE rather than in BuildExportSetup because this is the only callback the dialog
-    // makes on the UI THREAD at Start: BuildRequest calls it, synchronously, before the job is handed to
-    // Task.Run. BuildExportSetup runs on the export's pool thread, where copying a List the user may be
-    // drawing into is a race. (Validation passes its own placeholder camera and never reaches this.)
-    private CameraScript CaptureExportMoment()
-    {
-        _exportInk = SnapshotInkForExport();
-
-        return LiveCameraSource?.Invoke()
-               ?? new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>());
-    }
+    // The ink is captured beside it, from the dialog's Start, and both for the same reason: Start is the
+    // one moment the dialog is on the UI THREAD before the job is handed to Task.Run, and copying a List
+    // the user may be drawing into is a race anywhere else. It goes on the request rather than through
+    // here, so this stays what its name says.
+    private CameraScript CaptureExportMoment() =>
+        LiveCameraSource?.Invoke()
+        ?? new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>());
 
     // The ink an in-flight export draws: a COPY of the document as it stood at Start, wrapped in a
     // session of its own. Elements are immutable records, so the copy shares them and costs one list.
@@ -507,11 +646,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         frozen.Reset([.. _annotationController.Document.Elements]);
         return new AnnotationSession(frozen);
     }
-
-    // Non-null only between one CaptureExportMoment and the BuildExportSetup that follows it. Held on the
-    // tab because those two are the dialog's and the runner's ends of the same Start, with the job service
-    // in between and no seam of its own to carry it.
-    private AnnotationSession? _exportInk;
 
     private int OutputFrameCount(int startFrame, int endFrame, int fps, double speed) =>
         _context is ModuleContext { ExportHost: { } host } && host.Frames() is { } frames
@@ -613,9 +747,28 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <summary>The session the v2 host's ink layer and pointer tools share with the toolbar.</summary>
     public AnnotationSession? AnnotationSession => IsAnnotationsEnabled ? Annotations.Session : null;
 
-    /// <summary>Whether the <c>playback2d.annotations</c> feature is on. Fail-open, live.</summary>
-    public bool IsAnnotationsEnabled =>
-        _features?.IsEnabled(AnnotationSessionController.FeatureId) ?? true;
+    /// <summary>
+    ///     Whether annotations are live: the <c>playback2d.annotations</c> feature is on AND the mounted
+    ///     surface can host ink. Fail-open, live.
+    ///     <para>
+    ///         Delegated to the panel rather than re-reading the gate here. Two independent reads of one
+    ///         question is how the surface half went missing on this side while the toolbar had it — and
+    ///         this property is what <c>Playback2DView.OnKeyDown</c> multiplies into <c>toolActive</c>,
+    ///         which is what decides whether the keymap's tool-scoped rows take Space and Escape.
+    ///     </para>
+    /// </summary>
+    public bool IsAnnotationsEnabled => Annotations.IsEnabled;
+
+    /// <summary>
+    ///     Told by the View which surface it mounted. The gate cannot answer "is there anything to draw
+    ///     on"; only the View knows, because only the View mounts the surface (D6 finding 12).
+    /// </summary>
+    /// <param name="canAnnotate">Whether the mounted surface implements <c>IAnnotationSurface</c>.</param>
+    internal void SetSurfaceCapabilities(bool canAnnotate)
+    {
+        Annotations.SetSurfaceCapability(canAnnotate);
+        RefreshGates();
+    }
 
     // The store needs an app-data root for its fallback location and the App's cached demo hash for its
     // key; both come from the container when there is one. Pipeline must not reference the App, so the
@@ -661,11 +814,19 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _keymapWatch?.Dispose();
         _keymapWatch = null;
         Timeline.TrackVisibilityChanged -= SaveTimelineSettings;
+        Timeline.Dispose(); // the tracks' MarkersChanged subscriptions, taken in RegisterTrack
         LevelStrip.SettingsChanged -= SaveLevelSettings;
         _annotationController.Flush();
         Annotations.Dispose();
         _annotationTrack.Dispose();
         _annotationController.Dispose();
+
+        // The chip first: it holds a StatusChanged subscription on the job, and disposing the job cancels
+        // a running export, which would otherwise raise a terminal status into a half-torn-down shell.
+        ExportStatus?.Dispose();
+        ExportDialog?.Dispose();
+        _exportJob?.Dispose();
+        _exportJob = null;
     }
 
     /// <summary>The scrub / rounds / markers chrome docked under the viewport.</summary>
@@ -914,8 +1075,17 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
     }
 
-    /// <summary>Follows a roster slot (the camera-mode submenu and the card list both come through here).</summary>
-    [RelayCommand]
+    /// <summary>
+    ///     Follows a roster slot (the camera-mode submenu and the card list both come through here).
+    ///     <para>
+    ///         A plain method. It carried <c>[RelayCommand]</c> and nothing anywhere bound the generated
+    ///         <c>FollowPlayerCommand</c> — every caller invokes this directly (the card list's
+    ///         <c>OnSelectedPlayerChanged</c> hook, the keymap, the SplitButton submenu through
+    ///         <see cref="NotifyFollowSlotChanged" />), so the wrapper was generated surface with no
+    ///         consumer. D6 §4 guard 2 named it; this is the deletion that entry was routed for.
+    ///     </para>
+    /// </summary>
+    /// <param name="slot">The roster slot to follow.</param>
     public void FollowPlayer(int slot)
     {
         if (IsFollowEnabled)
@@ -924,8 +1094,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
     }
 
-    /// <summary>Clears the follow target and asks the view to re-fit the camera.</summary>
-    [RelayCommand]
+    /// <summary>
+    ///     Clears the follow target and asks the view to re-fit the camera. A plain method for the same
+    ///     reason <see cref="FollowPlayer" /> is: Escape and the demo-reset path both call it directly.
+    /// </summary>
     public void ClearFollow()
     {
         NotifyFollowSlotChanged(-1);
@@ -1208,6 +1380,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // is the last moment it can change.
         OnPropertyChanged(nameof(CanExport));
 
+        // The button's replacement text has the same three inputs, so it is recomputed in the same beat:
+        // a note that says "open a demo first" after one was opened is worse than no note.
+        RefreshExportNote();
+
         Timeline.IsVisible = IsTimelineEnabled && (_context?.HasDemo ?? false);
         LevelStrip.IsAutoAvailable = IsAutoLevelEnabled;
 
@@ -1378,7 +1554,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     private void LoadKeymapSettings()
     {
-        ApplyKeymapOverrides(Settings()?.Current.Playback2D.KeybindOverrides ?? []);
+        string[] overrides = Settings()?.Current.Playback2D.KeybindOverrides ?? [];
+        _appliedKeybindOverrides = overrides;
+        ApplyKeymapOverrides(overrides);
 
         try
         {
@@ -1392,10 +1570,23 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
     }
 
+    // What the profile was last composed from. SettingsViewModel spells this guard `_writing` around its
+    // own Write calls; comparing the VALUE covers the same case and every OTHER write too — the ink
+    // pickers' most of all, which reload settings hundreds of times a second during a colour drag while
+    // touching no key at all.
+    private string[] _appliedKeybindOverrides = [];
+
     // The desktop file watcher raises OnChange on a THREADPOOL thread for an external edit. Swapping the
     // profile is a reference write, but the PropertyChanged that follows it is not, so marshal.
     private void OnKeymapSettingsChanged(string[] overrides)
     {
+        if (_appliedKeybindOverrides.AsSpan().SequenceEqual(overrides))
+        {
+            return; // somebody else's write echoing back; the keys did not move
+        }
+
+        _appliedKeybindOverrides = overrides;
+
         if (Dispatcher.UIThread.CheckAccess())
         {
             ApplyKeymapOverrides(overrides);
@@ -1609,7 +1800,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // is the state-restoration parity the Open-file button and the library browser must share.
     private void OnDemoReset()
     {
-        ResyncToCurrentDemo();
+        ResyncToCurrentDemo(demoChanged: true);
 
         // A demo reload is the one moment the sidecar on disk really is the newer truth, so this one
         // forces — unlike a tab re-activation, which must keep the in-memory document.
@@ -1620,7 +1811,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // demo-reset signal. Re-seeds the roster display + map asset (SeedRosterDisplay → EnsureMapAsset), drops
     // every per-demo cache so nothing glides in from a prior demo/position, then builds the current
     // frame + kill window immediately.
-    private void ResyncToCurrentDemo()
+    /// <param name="demoChanged">
+    ///     True when the caller KNOWS a different demo arrived (the <c>DemoReset</c> signal). The method
+    ///     additionally derives it from the demo path, for the swap that happened while the tab was
+    ///     deactivated and has no signal at all.
+    /// </param>
+    private void ResyncToCurrentDemo(bool demoChanged = false)
     {
         if (_context is null)
         {
@@ -1633,6 +1829,33 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // quietly attributing kills to the wrong teams. The ctor is a field assignment (every cache it
         // holds is lazy), so hoisting it costs nothing.
         _timelineData = new ModuleTimelineData(_context);
+
+        // BEFORE SeedRosterDisplay, which clears and rebuilds Attributes.
+        //
+        // The follow target is SLOT-keyed, and a slot means nothing across demos. Left alone, a swap kept
+        // FollowedSlot pointing at whoever the NEW demo happens to have in that slot — the ring and the
+        // camera silently changed player — while FollowStatus still read "following bravo · requested"
+        // and no card was highlighted, because SelectedPlayer still referenced a PlayerAttributes
+        // instance that is no longer in Attributes at all. Three pieces of state disagreeing about one
+        // fact (D6 finding 11).
+        //
+        // TWO inputs, one clear. `demoChanged` is the explicit DemoReset signal; the path comparison
+        // catches the case that signal cannot see — a demo swapped while this tab was DEACTIVATED, whose
+        // only notification is the next activation's resync. Activation on the same demo must NOT clear:
+        // the View is destroyed and rebuilt on every tab switch, and the follow target surviving that in
+        // the VM is the whole reason Playback2DView.BindViewModel re-projects it.
+        //
+        // Routed through the funnel rather than by assigning the three fields, so the view's
+        // FollowSlotChanged mirror, the per-row flag and the timeline footer clear with them — the funnel
+        // is the single place that knows what "following nobody" means. Not ClearFollow(): that also
+        // raises FitRequested, and the fit is already coming from the resync's own frame rebuild.
+        demoChanged |= !string.Equals(_followDemoPath, _context.DemoPath, StringComparison.OrdinalIgnoreCase);
+        _followDemoPath = _context.DemoPath;
+
+        if (demoChanged && (FollowedSlot >= 0 || SelectedPlayer is not null))
+        {
+            NotifyFollowSlotChanged(-1);
+        }
 
         // Cache the stable identity roster (slot → name) for marker labels + seed one attributes row per
         // slot; also (re)loads the baked map asset for the demo's map. Re-runnable: if the roster is set

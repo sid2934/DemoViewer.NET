@@ -45,7 +45,6 @@ public sealed class DrawTool : IPointerTool
         session.Wet.Begin(session.StyleFor(e.Button), space, pane.LevelId,
             new InkPoint(e.World.X, e.World.Y, e.Pressure));
 
-        session.NotifyWetChanged();
         s.RequestRender();
         return true;
     }
@@ -62,23 +61,20 @@ public sealed class DrawTool : IPointerTool
         }
 
         float spacing = session.SampleSpacingFor(session.Wet.Style);
-        bool appended = false;
 
         // Coalesced samples first, oldest-first: they happened BEFORE the primary point, and appending
         // them after it would fold the stroke back on itself on every fast drag.
         ReadOnlySpan<InkPoint> intermediate = e.Intermediate;
         for (int i = 0; i < intermediate.Length; i++)
         {
-            appended |= session.Wet.TryAppend(intermediate[i], spacing);
+            session.Wet.TryAppend(intermediate[i], spacing);
         }
 
-        appended |= session.Wet.TryAppend(new InkPoint(e.World.X, e.World.Y, e.Pressure), spacing);
+        session.Wet.TryAppend(new InkPoint(e.World.X, e.World.Y, e.Pressure), spacing);
 
-        if (appended)
-        {
-            session.NotifyWetChanged();
-        }
-
+        // Unconditional, as it always effectively was: the repaint below runs whether or not the spacing
+        // filter kept the sample, so the `appended` flag existed only to gate AnnotationSession's
+        // WetChanged — an event nothing ever subscribed to (D6 §3), now deleted.
         s.RequestRender();
     }
 
@@ -121,7 +117,6 @@ public sealed class DrawTool : IPointerTool
 
         CloseGesture();
         session.Wet.Clear();
-        session.NotifyWetChanged();
         s.RequestRender();
     }
 
@@ -137,7 +132,6 @@ public sealed class DrawTool : IPointerTool
         session.Document.BailToMark();
         CloseGesture();
         session.Wet.Clear();
-        session.NotifyWetChanged();
         s.RequestRender();
     }
 

@@ -1,10 +1,15 @@
 #region
 
+using Avalonia;
+using Avalonia.Controls;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.ViewModels.Playback2D;
+using DemoViewer.NET.Views.Playback2D;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Primitives;
 
 #endregion
 
@@ -132,6 +137,51 @@ public class Playback2DAnnotationToolsTests
         await Assert.That(envelope.UntilTick).IsEqualTo(2500);
         await Assert.That(envelope.FadeInTicks).IsEqualTo(12);
         await Assert.That(envelope.FadeOutTicks).IsEqualTo(24);
+    }
+
+    /// <summary>
+    ///     <b>Dragging the ink <c>ColorPicker</c> used to rewrite <c>settings.json</c> on every pointer
+    ///     sample.</b> <c>SettingsService.Write</c> is a synchronous read-serialize-temp-write-move-reload,
+    ///     and the reload fires <c>IOptionsMonitor.OnChange</c> INLINE — re-composing the 2D keymap
+    ///     profile and, with the Settings page open, re-reflecting thirty properties and twenty-one
+    ///     keybind rows. A one-second colour drag was a few hundred of those on the UI thread.
+    ///     <para>
+    ///         The configuration's reload token is the honest counter: it is the very thing every
+    ///         downstream <c>OnChange</c> hangs off, so counting it counts the cost.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task RapidStyleChanges_CoalesceIntoASingleSettingsWrite()
+    {
+        SettingsService settings = new(null); // the fileless branch — still writes, still reloads
+        IConfigurationRoot root = (IConfigurationRoot)settings.Configuration;
+
+        int reloads = 0;
+        using IDisposable watch = ChangeToken.OnChange(root.GetReloadToken,
+            () => Interlocked.Increment(ref reloads));
+
+        using AnnotationSessionController controller = new(null, settings)
+        {
+            // Long enough that only an explicit flush can land it — the assertion is about coalescing,
+            // not about how fast a timer runs on a loaded CI box.
+            StylePersistDelay = TimeSpan.FromSeconds(30)
+        };
+
+        // What one second of dragging through the picker's spectrum looks like from here.
+        for (int i = 0; i < 200; i++)
+        {
+            controller.Session.Style = new AnnotationStyle(0xFF000000u | (uint)i, 8f, 1f);
+            controller.PersistSettings();
+        }
+
+        await Assert.That(reloads).IsEqualTo(0)
+            .Because("200 write-and-reload cycles on the UI thread IS the defect");
+
+        controller.FlushStyleSettings();
+
+        await Assert.That(reloads).IsEqualTo(1);
+        await Assert.That(settings.Current.Playback2D.AnnotationColorArgb).IsEqualTo(0xFF0000C7u)
+            .Because("the sample the user let go on is the one that has to reach the file");
     }
 
     [Test]
@@ -336,6 +386,53 @@ public class Playback2DAnnotationToolsTests
             await Assert.That(controller.Session.Style.Opacity).IsEqualTo(0.4f);
             await Assert.That(controller.Session.SecondaryStyle.Opacity).IsEqualTo(0.4f)
                 .Because("two pens that could drift into two opacities is a bug waiting to be filed");
+        });
+    }
+
+    /// <summary>
+    ///     <b>D6 finding 26's UI half.</b> <c>AnnotationAutoSave</c> was read at runtime and had no
+    ///     control anywhere — the same shape the opacity slider above was written to close. The toggle
+    ///     lives in the toolbar's PERSISTENCE row beside the line that names the destination, because
+    ///     "does this get written, and where" is one question.
+    /// </summary>
+    [Test]
+    public async Task Panel_AutoSaveToggle_ReachesTheControllerAndTheToolbar()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using AnnotationSessionController controller = new(null, null);
+            using AnnotationsPanelViewModel panel = new(controller, () => 0);
+
+            await Assert.That(panel.AutoSaveSidecar).IsTrue();
+
+            panel.AutoSaveSidecar = false;
+            await Assert.That(controller.AutoSave).IsFalse()
+                .Because("the panel property is the only thing that can ever set the key");
+
+            // Session-only by construction here (no store), so the toggle must present as unavailable
+            // rather than as a promise: a checkbox controlling saving where nothing saves is the defect
+            // one layer down.
+            await Assert.That(panel.CanAutoSave).IsFalse();
+
+            AnnotationToolbar toolbar = new()
+            {
+                DataContext = panel
+            };
+            CheckBox box = toolbar.FindControl<CheckBox>("AutoSaveToggle")
+                           ?? throw new InvalidOperationException(
+                               "AutoSaveToggle is not in the toolbar — the key is unreachable again.");
+
+            // The control's own binding, evaluated: a property the view-model exposes and no control
+            // binds is exactly what this finding was.
+            toolbar.Measure(new Size(2000, 400));
+            Console.WriteLine($"[autosave-ui] checked={box.IsChecked} enabled={box.IsEnabled}");
+
+            await Assert.That(box.IsChecked).IsFalse();
+            await Assert.That(box.IsEnabled).IsFalse();
+
+            panel.AutoSaveSidecar = true;
+            await Assert.That(box.IsChecked).IsTrue()
+                .Because("the binding is two-way and live, not a one-shot read at load");
         });
     }
 

@@ -86,6 +86,54 @@ public class Playback2DKeybindRoutingTests
     }
 
     /// <summary>
+    ///     <b>The rebind that lands MID-HOLD.</b> <c>OnKeyUp</c> resolved <c>HoldPan</c> against the
+    ///     CURRENT profile, so rebinding it — from the Settings page, or by an editor saving
+    ///     <c>settings.json</c>, which the tab watches live — while the key was still down made the
+    ///     release match nothing. Nothing else ever clears the router's pan flag, so the surface panned
+    ///     forever, under the pen, with no way out short of reopening the tab.
+    /// </summary>
+    [Test]
+    public async Task HoldPan_ReboundWhileHeld_StillReleases()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DTimelineHarness.Tab();
+            vm.ApplyKeymapOverrides(["HoldPan=B"]);
+
+            (Window window, Playback2DView view) =
+                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
+
+            vm.Annotations.SelectTool(ToolKind.Draw);
+            view.Focus();
+            Playback2DTimelineHarness.Pump();
+
+            window.KeyPressQwerty(PhysicalKey.B, RawInputModifiers.None);
+            Playback2DTimelineHarness.Pump();
+            await Assert.That(host.Router.IsSpaceHeld).IsTrue();
+
+            // The binding moves out from under the held key.
+            vm.ApplyKeymapOverrides(["HoldPan=M"]);
+            Playback2DTimelineHarness.Pump();
+
+            window.KeyReleaseQwerty(PhysicalKey.B, RawInputModifiers.None);
+            Playback2DTimelineHarness.Pump();
+
+            await Assert.That(host.Router.IsSpaceHeld).IsFalse()
+                .Because("the release follows the key that STARTED the hold, not the current binding");
+
+            // And the NEW binding is live for the next hold, so the latch did not freeze the mapping.
+            window.KeyPressQwerty(PhysicalKey.M, RawInputModifiers.None);
+            Playback2DTimelineHarness.Pump();
+            await Assert.That(host.Router.IsSpaceHeld).IsTrue();
+
+            window.KeyReleaseQwerty(PhysicalKey.M, RawInputModifiers.None);
+            Playback2DTimelineHarness.Pump();
+            await Assert.That(host.Router.IsSpaceHeld).IsFalse();
+        });
+    }
+
+    /// <summary>
     ///     Shipped defaults, unchanged: the hold-to-pan shadow still works when nothing is rebound. The
     ///     test above would also pass on a build that broke it.
     /// </summary>

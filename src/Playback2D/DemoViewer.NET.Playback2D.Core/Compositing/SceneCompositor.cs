@@ -33,6 +33,14 @@ public sealed class SceneCompositor : IDisposable
     private int _layersRendered;
     private int _panesRendered;
 
+    // The palette the live pictures were recorded under, and whether one has been seen at all. See
+    // EnsurePalette.
+    private ScenePalette _cachedPalette;
+    private bool _paletteSeen;
+
+    // Set for the duration of a single-pane Render whose caller framed no pane. See that overload.
+    private bool _bypassCache;
+
     /// <summary>Creates a compositor.</summary>
     /// <param name="options">Caching policy; the defaults when null.</param>
     public SceneCompositor(SceneCompositorOptions? options = null)
@@ -226,6 +234,15 @@ public sealed class SceneCompositor : IDisposable
     /// <summary>
     ///     Draws every enabled layer into one already-framed pane. The caller owns the clip, the
     ///     translation and the background.
+    ///     <para>
+    ///         <b>A caller that leaves <c>ctx.Pane</c> at its default gets no picture caching.</b> The
+    ///         cache key's camera component is <c>Pane.CameraEpoch</c> and its pane component is
+    ///         <c>Pane.LevelId</c> — both zero on a default snapshot — so every <c>PerCamera</c> layer
+    ///         would key to the same entry whatever the camera is doing, and the first frame's
+    ///         pane-local pixels would replay for the life of the compositor (D6 finding 17). Drawing
+    ///         directly costs a re-record per frame on a path with no production caller; a frozen radar
+    ///         under a moving camera costs the picture.
+    ///     </para>
     /// </summary>
     /// <param name="canvas">The pane's canvas.</param>
     /// <param name="ctx">The pane's render context.</param>
@@ -242,7 +259,20 @@ public sealed class SceneCompositor : IDisposable
             return;
         }
 
-        RenderPane(canvas, in ctx);
+        EnsurePalette(ctx.Palette);
+
+        // Computed once per render rather than per layer: a caller that framed a pane (the export HUD
+        // suite, a golden that supplies one) keeps its cache.
+        _bypassCache = ctx.Pane == default;
+        try
+        {
+            RenderPane(canvas, in ctx);
+        }
+        finally
+        {
+            _bypassCache = false;
+        }
+
         _panesRendered = 1;
         PublishStats();
     }
@@ -270,6 +300,8 @@ public sealed class SceneCompositor : IDisposable
             PublishStats();
             return;
         }
+
+        EnsurePalette(submission.Palette);
 
         // 1. Background. The pre-v2 control filled the whole control before laying out bands, so a
         //    fractional-pixel seam between bands shows the background rather than stale pixels.
@@ -308,6 +340,11 @@ public sealed class SceneCompositor : IDisposable
                 single ? -1 : pane.LevelIndex, // parity invariant 1: -1 is a sentinel, not an index
                 pane.Level.ZMin,
                 pane.Level.ZMax,
+                // The ONLY production read of Purpose in the repo, and it is a copy: it is handed to
+                // every layer and no layer branches on it, so Export and Interactive render the same
+                // pixels and Thumbnail is never submitted at all. Reserved, on purpose and on record —
+                // RenderPurpose's own doc carries the reasoning, and RenderPurposeTests pins the
+                // equality so this cannot quietly become half-true.
                 submission.Purpose,
                 submission.Palette,
                 submission.RenderScaling)
@@ -359,6 +396,41 @@ public sealed class SceneCompositor : IDisposable
         _cache.InvalidatePane(levelId);
     }
 
+    /// <summary>
+    ///     Drops every cached picture when the palette this frame draws with is not the palette they
+    ///     were recorded under.
+    ///     <para>
+    ///         <b>Why not a fifth component on the cache key.</b> A recorded picture bakes in whatever
+    ///         colours the layer read out of <c>ctx.Palette</c> — <c>RadarLayer</c>, the only production
+    ///         <c>PerCamera</c> layer, records the grid with <c>MinorGrid</c>/<c>MajorGrid</c> in it —
+    ///         so a palette swap really does invalidate them all. But the palette is <i>compositor</i>
+    ///         state, not frame state (<see cref="ScenePalette" />'s own words: "the theme changes on a
+    ///         variant switch, not on a tick"), and putting thirty-two colours into a key that is hashed
+    ///         once per layer per pane per frame would pay for a per-frame lookup to catch an event that
+    ///         happens twice a session. One equality test per <i>render</i> catches the same event, and
+    ///         it catches it for every entry point rather than only for the one property whose doc
+    ///         promised it — <c>HeadlessSceneRenderer.Palette</c> claimed to invalidate and was a plain
+    ///         auto-property, while <c>Scene2DHost.RefreshPalette</c> was invalidating by hand, which is
+    ///         the only reason the stale grid never shipped (D6 finding 16).
+    ///     </para>
+    /// </summary>
+    /// <param name="palette">The palette this render draws with.</param>
+    private void EnsurePalette(in ScenePalette palette)
+    {
+        if (_paletteSeen && _cachedPalette == palette)
+        {
+            return;
+        }
+
+        _cachedPalette = palette;
+        if (_paletteSeen)
+        {
+            InvalidateCaches();
+        }
+
+        _paletteSeen = true;
+    }
+
     private void RenderPane(SKCanvas canvas, in SceneRenderContext ctx)
     {
         ISceneProfiler? profiler = Profiler;
@@ -381,7 +453,7 @@ public sealed class SceneCompositor : IDisposable
     private void RenderLayer(SKCanvas canvas, ISceneLayer layer, int index, ISceneProfiler? profiler,
         in SceneRenderContext ctx)
     {
-        if (!_options.EnablePictureCaching || layer.Cache == LayerCacheHint.Dynamic)
+        if (!_options.EnablePictureCaching || _bypassCache || layer.Cache == LayerCacheHint.Dynamic)
         {
             // Not a miss: there is no cache in this path at all, and counting it as one would make a
             // Dynamic layer look like a permanent cache failure.

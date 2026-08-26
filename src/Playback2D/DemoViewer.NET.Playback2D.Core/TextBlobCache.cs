@@ -19,9 +19,14 @@ namespace DemoViewer.NET.Playback2D.Core;
 ///         <c>THIRD-PARTY-NOTICES.md</c> §d and <c>docs/playback2d-v2/plans/B1-skia-api-notes.md</c> §3.
 ///     </para>
 ///     <para>
-///         <b>Not thread-safe by design.</b> Entries are built during <c>Advance</c> on the UI thread and
-///         only read during <c>Render</c> inside the host's gate, which is the same discipline every layer
-///         cache follows. A cache that locked would be lying about where mutation happens.
+///         <b>Not thread-safe by design.</b> <see cref="Get" /> both reads and MUTATES — a miss shapes,
+///         measures, files and evicts — and every layer calls it from <c>Render</c>, never from
+///         <c>Advance</c>: the strings a layer draws are composed in <c>Render</c>, from the snapshot
+///         <c>Advance</c> captured. So the discipline that makes this safe is the host's render gate,
+///         which serialises <c>Render</c>, and nothing else. (The doc here used to say entries were built
+///         during <c>Advance</c>; they never were, and stating the wrong invariant is worse than stating
+///         none, because the next reader adds a call on the strength of it — D6, wave 3.) A cache that
+///         locked would be lying about where mutation happens.
 ///     </para>
 /// </summary>
 public sealed class TextBlobCache : IDisposable
@@ -43,16 +48,38 @@ public sealed class TextBlobCache : IDisposable
     private readonly Dictionary<Key, Entry> _entries;
     private readonly Dictionary<float, SKFont> _fonts = new(2);
     private readonly List<Key> _order;
+
+    // The manifest name to load, and the face to borrow if it is not there. Fields rather than the
+    // constants they normally hold so the missing-resource branch is testable WITHOUT the test having to
+    // dispose SKTypeface.Default to find out whether this class would have: a suite that proved the bug
+    // by destroying the process-wide singleton would report it as every other text test failing.
+    private readonly SKTypeface _fallbackTypeface;
+    private readonly string _typefaceResourceName;
+
     private bool _disposed;
     private SKTypeface? _typeface;
+
+    // Whether _typeface is ours to dispose. False on the missing-resource fallback — see Dispose.
+    private bool _ownsTypeface;
 
     /// <summary>Creates a cache with a bounded LRU.</summary>
     /// <param name="capacity">Maximum live blobs; the least recently used is evicted past it.</param>
     public TextBlobCache(int capacity = DefaultCapacity)
+        : this(capacity, TypefaceResourceName, SKTypeface.Default)
+    {
+    }
+
+    /// <summary>Creates a cache with a substituted typeface source. Test seam; see the fields it sets.</summary>
+    /// <param name="capacity">Maximum live blobs.</param>
+    /// <param name="typefaceResourceName">Manifest resource to load the face from.</param>
+    /// <param name="fallbackTypeface">The face to borrow — never dispose — when that resource is absent.</param>
+    internal TextBlobCache(int capacity, string typefaceResourceName, SKTypeface fallbackTypeface)
     {
         Capacity = Math.Max(1, capacity);
         _entries = new Dictionary<Key, Entry>(Math.Min(Capacity, 64));
         _order = new List<Key>(Math.Min(Capacity, 64));
+        _typefaceResourceName = typefaceResourceName;
+        _fallbackTypeface = fallbackTypeface;
     }
 
     /// <summary>Maximum live blobs.</summary>
@@ -68,7 +95,34 @@ public sealed class TextBlobCache : IDisposable
     /// </summary>
     public SKTypeface Typeface => _typeface ??= LoadEmbeddedTypeface();
 
-    /// <summary>Releases every cached blob, every sized font, and the typeface. Idempotent.</summary>
+    /// <summary>
+    ///     True when <see cref="Typeface" /> is the embedded face this cache loaded and therefore owns.
+    ///     False when the manifest resource was missing and the process-wide
+    ///     <see cref="SKTypeface.Default" /> was substituted. Public so the packaging test can assert the
+    ///     embedded face is the one actually in use, rather than asserting the resource exists and
+    ///     hoping.
+    /// </summary>
+    public bool OwnsTypeface
+    {
+        get
+        {
+            _ = Typeface; // the answer is only meaningful once the load has been attempted
+            return _ownsTypeface;
+        }
+    }
+
+    /// <summary>
+    ///     Releases every cached blob, every sized font, and the typeface <b>this cache owns</b>.
+    ///     Idempotent.
+    ///     <para>
+    ///         The ownership test is the whole point: <see cref="LoadEmbeddedTypeface" /> falls back to
+    ///         <see cref="SKTypeface.Default" />, which is a process-wide Skia singleton, and several
+    ///         caches exist at once (every layer builds its own when no shared one is passed). Disposing
+    ///         it here unref'd the singleton once per cache and killed text rendering for the whole
+    ///         process — from a packaging fault whose only intended cost was the wrong font (D6 finding
+    ///         23).
+    ///     </para>
+    /// </summary>
     public void Dispose()
     {
         if (_disposed)
@@ -91,8 +145,13 @@ public sealed class TextBlobCache : IDisposable
         }
 
         _fonts.Clear();
-        _typeface?.Dispose();
+        if (_ownsTypeface)
+        {
+            _typeface?.Dispose();
+        }
+
         _typeface = null;
+        _ownsTypeface = false;
     }
 
     /// <summary>
@@ -240,19 +299,25 @@ public sealed class TextBlobCache : IDisposable
         }
     }
 
-    private static SKTypeface LoadEmbeddedTypeface()
+    // Sets _ownsTypeface as it decides, because "did we load it or borrow it" is knowable exactly here
+    // and nowhere else afterwards — SKTypeface.Default is not reference-comparable in any way worth
+    // relying on, and re-deriving the answer at Dispose time would be re-deciding it.
+    private SKTypeface LoadEmbeddedTypeface()
     {
         Stream? stream = typeof(TextBlobCache).Assembly
-            .GetManifestResourceStream(TypefaceResourceName);
+            .GetManifestResourceStream(_typefaceResourceName);
         if (stream is null)
         {
-            return SKTypeface.Default;
+            _ownsTypeface = false;
+            return _fallbackTypeface;
         }
 
         using (stream)
         {
             // SKTypeface.FromStream copies into Skia-owned memory, so the stream can close here.
-            return SKTypeface.FromStream(stream) ?? SKTypeface.Default;
+            SKTypeface? loaded = SKTypeface.FromStream(stream);
+            _ownsTypeface = loaded is not null;
+            return loaded ?? _fallbackTypeface;
         }
     }
 

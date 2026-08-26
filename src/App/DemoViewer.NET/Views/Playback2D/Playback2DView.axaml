@@ -136,6 +136,18 @@
                                 Command="{Binding OpenExportCommand}" IsVisible="{Binding CanExport}"
                                 ToolTip.Tip="Render this view to a video file. Runs in the background — you can keep watching." />
 
+                        <!-- What the button leaves behind when it is not there. CanExport has three
+                             inputs (gate, host, demo) and the button simply vanished for all of them, so
+                             a browser user could not tell "not available here" from "open a demo first" —
+                             and the browser is the head where the answer is permanent. Same slot, same
+                             dock edge, so the header does not reflow when one replaces the other. -->
+                        <TextBlock x:Name="ExportUnavailableLabel" DockPanel.Dock="Right"
+                                   VerticalAlignment="Center" Margin="6,0,0,0" FontSize="11"
+                                   Foreground="{DynamicResource Pb2dTextDim}"
+                                   Text="{Binding ExportUnavailableNote}"
+                                   IsVisible="{Binding HasExportUnavailableNote}"
+                                   ToolTip.Tip="Video export writes a file and drives an ffmpeg subprocess; the browser head has neither." />
+
                         <!-- Six check boxes that are READ rarely and CHANGED rarely were the widest thing
                              in the column (485 px of it) and were on screen permanently. One toggle is the
                              overflow-▾ shape design-system D35 prescribes first; it is INLINE rather than a
@@ -188,7 +200,13 @@
                          and saves more than one at 820, which is the width that has none to spare.
                          The gate's IsVisible is here as well as inside the control, because a
                          control that collapses only its inner content still contributes this element's
-                         slot to the stack. -->
+                         slot to the stack.
+
+                         AnnotationsPanelViewModel.IsEnabled is now the FEATURE and the mounted SURFACE'S
+                         CAPABILITY, not the feature alone (D6 finding 12). Bound to the gate by itself,
+                         this row rendered in full under DV_PLAYBACK2D_RENDERER=legacy over a viewport
+                         with no router — every button inert, and picking one of them took Space and
+                         Escape away from play/pause and clear-follow with no visible cause. -->
                     <tl:AnnotationToolbar x:Name="AnnotationToolbarHost"
                                           HorizontalAlignment="Stretch"
                                           DataContext="{Binding Annotations}"

@@ -181,19 +181,34 @@ public class InputToolRouterTests
         await Assert.That(router.ActiveKind).IsEqualTo(ToolKind.Erase);
     }
 
+    /// <summary>
+    ///     The SESSION mirror is the whole of what <c>SetActive</c> publishes since round 3A deleted
+    ///     <c>ActiveToolChanged</c> (D6 §3 dead surface — the app's toolbar already owns the selection and
+    ///     drives it INTO the router, so the event was a second, unread copy of the fact). This case used
+    ///     to assert the event fired exactly once; it now asserts the mirror lands and that a redundant
+    ///     re-select is still a no-op, which is what the once-only check was really protecting.
+    /// </summary>
     [Test]
-    public async Task SetActive_MirrorsOntoTheSession_AndRaisesOnce()
+    public async Task SetActive_MirrorsOntoTheSession_AndARepeatIsANoOp()
     {
         (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
-        List<ToolKind> raised = [];
-        router.ActiveToolChanged += raised.Add;
 
         router.SetActive(ToolKind.Draw);
-        router.SetActive(ToolKind.Draw);
-
-        await Assert.That(raised.Count).IsEqualTo(1);
         await Assert.That(services.Session.ActiveTool).IsEqualTo(ToolKind.Draw);
         await Assert.That(router.IsDrawingToolActive).IsTrue();
+
+        // A re-select must not cancel the gesture the user has in flight — CancelActive() runs only on
+        // an ACTUAL change, and that early-out is what this second call proves is still there.
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+        router.OnPressed(Sample(pane, start));
+        await Assert.That(services.Session.Wet.IsActive).IsTrue();
+
+        router.SetActive(ToolKind.Draw);
+
+        await Assert.That(services.Session.Wet.IsActive).IsTrue()
+            .Because("selecting the tool you already have is not a reason to abandon a stroke");
+        await Assert.That(services.Session.ActiveTool).IsEqualTo(ToolKind.Draw);
     }
 
     /// <summary>
@@ -276,6 +291,79 @@ public class InputToolRouterTests
         await Assert.That(router.GestureTool).IsTypeOf<DrawTool>();
         await Assert.That(services.Session.Wet.IsActive).IsTrue();
         await Assert.That(pane.Camera.Current.PanX).IsEqualTo(0);
+    }
+
+    /// <summary>
+    ///     <b>The other end of the chord, which D2 never taught the router.</b> <c>OnPressed</c> refused
+    ///     the middle press; <c>OnReleased</c> closed on whatever came up, so letting the middle button go
+    ///     committed the stroke at the chord point and dropped capture — the rest of the drag drew
+    ///     nothing and the real left release was a no-op.
+    ///     <para>
+    ///         The element's LAST sample is the assertion, because "an element exists" passes on the
+    ///         broken build too: the truncation is invisible until you ask where the stroke ends.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task MiddleRelease_DuringAnOpenStroke_DoesNotTruncateIt()
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        router.SetActive(ToolKind.Draw);
+
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+        router.OnPressed(Sample(pane, start));
+        router.OnMoved(Sample(pane, new SKPoint(240, 130)));
+
+        // Brush the wheel button and let it go, halfway through the drag.
+        router.OnPressed(Sample(pane, new SKPoint(240, 130), ToolPointerButton.Middle));
+        bool closed = router.OnReleased(Sample(pane, new SKPoint(240, 130), ToolPointerButton.Middle));
+
+        await Assert.That(closed).IsFalse()
+            .Because("the host drops capture on this answer, and the drag is not over");
+        await Assert.That(router.IsGestureOpen).IsTrue();
+        await Assert.That(services.Session.Wet.IsActive).IsTrue();
+        await Assert.That(services.Session.Document.Elements).IsEmpty();
+
+        // The rest of the drag still draws, and the LEFT release is what commits it.
+        router.OnMoved(Sample(pane, new SKPoint(400, 260)));
+        SKPoint end = new(480, 300);
+        bool closedByOwner = router.OnReleased(Sample(pane, end, ToolPointerButton.Left));
+
+        await Assert.That(closedByOwner).IsTrue();
+        await Assert.That(router.IsGestureOpen).IsFalse();
+        await Assert.That(services.Session.Document.Elements).HasCount().EqualTo(1);
+
+        SKPoint chord = services.ScreenToWorld(pane, new SKPoint(240, 130));
+        SKPoint expected = services.ScreenToWorld(pane, end);
+        InkPoint last = services.Session.Document.Elements[0].Points[^1];
+
+        await Assert.That(last.X).IsEqualTo(expected.X).Within(0.01f)
+            .Because("the element must end where the drag ended, not where the chord happened");
+        await Assert.That(Math.Abs(last.X - chord.X)).IsGreaterThan(1f);
+    }
+
+    /// <summary>
+    ///     A plain release reports which buttons are STILL down — none — so the host cannot always name
+    ///     the one that came up. <see cref="ToolPointerButton.None" /> therefore has to mean "the
+    ///     gesture's own button", or the fix above would strand every gesture open instead.
+    /// </summary>
+    [Test]
+    public async Task Release_WithNoNamedButton_StillClosesTheGesture()
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        router.SetActive(ToolKind.Draw);
+
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+        router.OnPressed(Sample(pane, start));
+        router.OnMoved(Sample(pane, new SKPoint(240, 130)));
+
+        bool closed = router.OnReleased(Sample(pane, new SKPoint(240, 130), ToolPointerButton.None));
+
+        await Assert.That(closed).IsTrue();
+        await Assert.That(router.IsGestureOpen).IsFalse();
+        await Assert.That(services.Session.Wet.IsActive).IsFalse();
+        await Assert.That(services.Session.Document.Elements).HasCount().EqualTo(1);
     }
 
     /// <summary>Ctrl coming down mid-stroke is a modifier change, and modifiers are read at press only.</summary>

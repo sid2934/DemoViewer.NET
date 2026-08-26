@@ -87,6 +87,57 @@ public class BudgetTests
         await Assert.That(steady).IsEqualTo(0);
     }
 
+    /// <summary>
+    ///     The same 512 frames over the same fixture, with <b>no baked floor bands</b> — the branch every
+    ///     user without a map asset is on, and the one this gate has never measured.
+    ///     <para>
+    ///         <see cref="FullScene_SteadyState_AllocatesNothing" /> calls
+    ///         <c>SetAuthoritativeFloors</c> first, which makes <c>FloorSplitter.Slices</c> hand back the
+    ///         bundle's own list and short-circuit the histogram entirely. Everything §6's zero was
+    ///         proving was therefore proved on the short-circuit: on the histogram path each observed
+    ///         marker marked the split dirty and the next read rebuilt it in full, at a measured
+    ///         552 B/frame, for the whole demo (D6 finding 24). A one-line difference from the case
+    ///         above, because that is exactly how much of the gate was missing.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task FullScene_HistogramFloors_SteadyState_AllocatesNothing()
+    {
+        SceneFixture fixture = SyntheticScenes.FullSceneBudget();
+        using SceneStage stage = new(_size);
+        stage.Renderer.AdvanceCameras = true;
+
+        SceneTime time = fixture.Time;
+        for (int i = 0; i < 64; i++)
+        {
+            stage.Renderer.Advance(fixture.Frame, in time);
+            if (i == 0)
+            {
+                stage.Renderer.FitAll(fixture.Frame);
+            }
+
+            stage.Renderer.Render();
+        }
+
+        // The fixture's markers sit on two Z bands 500 units apart, so the density-valley heuristic finds
+        // the same two floors the bundle would have declared. If it ever found one, this would be
+        // measuring a single-pane scene against a two-pane budget.
+        await Assert.That(stage.Renderer.Levels.Space.Levels.Count).IsEqualTo(2);
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        long first = MeasureWindow(stage, fixture, time);
+        long steady = MeasureWindow(stage, fixture, time);
+
+        Console.WriteLine($"[budget] 512 full-scene frames on the HISTOGRAM path at " +
+                          $"{_size.Width}x{_size.Height}: warm window {first} B, steady window " +
+                          $"{steady} B ({steady / 512.0:F2} B/frame)");
+
+        await Assert.That(steady).IsEqualTo(0);
+    }
+
     private static long MeasureWindow(SceneStage stage, SceneFixture fixture, SceneTime time)
     {
         long before = GC.GetAllocatedBytesForCurrentThread();

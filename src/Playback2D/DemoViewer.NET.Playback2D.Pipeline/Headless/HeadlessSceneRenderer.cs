@@ -22,6 +22,14 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Headless;
 ///         <c>SceneCompositor</c>, never a competing renderer.
 ///     </para>
 ///     <para>
+///         That sentence was <b>false when D6 audited it and is true again</b>, which is worth recording
+///         because it was false in the way documentation usually is — quietly, and about the one case that
+///         mattered. <c>SceneGoldenTests</c> wrote three of the corpus PNGs through Core's single-pane
+///         <c>SceneRenderer</c> instead, and agreed with <c>dv2d golden</c> only because both stacks then
+///         held one <c>DebugGridLayer</c> (G-1). Round 2 retargeted it here. Today the only
+///         <c>SceneRenderer</c> callers left anywhere are tests, and none of them writes a golden.
+///     </para>
+///     <para>
 ///         The surface is created once for a given <see cref="Size" /> and reused, because the frame
 ///         budget is measured on this class and allocating a full-frame surface per iteration would be
 ///         measuring the allocator.
@@ -139,7 +147,17 @@ public sealed class HeadlessSceneRenderer : IDisposable
     /// <summary>The arranged panes.</summary>
     public PaneSet Panes { get; }
 
-    /// <summary>Resolved colours. Swapping it invalidates the compositor's caches.</summary>
+    /// <summary>
+    ///     Resolved colours. Swapping it invalidates the compositor's picture caches — on the next
+    ///     render, inside <c>SceneCompositor</c>, which compares the palette it is handed against the one
+    ///     the live pictures were recorded under.
+    ///     <para>
+    ///         It is worth saying where, because this property used to make the claim and be a plain
+    ///         auto-property that did nothing of the sort: a <c>PerCamera</c> layer bakes palette colours
+    ///         into its recording, so a swap at an unchanged camera epoch replayed the OLD theme's grid
+    ///         forever (D6 finding 16).
+    ///     </para>
+    /// </summary>
     public ScenePalette Palette { get; set; }
 
     /// <summary>How levels are laid out. B1 only ever uses <see cref="LevelDisplayMode.Stacked" />.</summary>

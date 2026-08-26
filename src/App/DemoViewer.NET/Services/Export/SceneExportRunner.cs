@@ -33,7 +33,6 @@ namespace DemoViewer.NET.Services.Export;
 /// </summary>
 public sealed class SceneExportRunner : IExportRunner
 {
-    private readonly Func<FfmpegDownloadOffer, string, CancellationToken, Task<bool>>? _consent;
     private readonly Action<string>? _log;
     private readonly Func<string?> _managedFfmpegDirectory;
     private readonly Func<Scene2DExportRequest, ExportSceneSetup?> _setup;
@@ -47,11 +46,7 @@ public sealed class SceneExportRunner : IExportRunner
     ///     Where an app-managed ffmpeg lives. Defaults to <see cref="FfmpegDependency.ManagedDirectory" />,
     ///     which is also where <c>CsvgWebHost</c> looks — one download serves reels and exports alike.
     /// </param>
-    /// <param name="consent">
-    ///     Shows the download offer and the licence text read out of the archive. Null means the download
-    ///     rung is skipped entirely, which is the correct behaviour for a headless caller.
-    /// </param>
-    /// <param name="log">Optional line sink; ffmpeg's stderr flows through it.</param>
+    /// <param name="log">Optional line sink; the chosen encoder and ffmpeg's stderr flow through it.</param>
     /// <param name="encoderProbe">
     ///     How <c>EncoderLadder</c> rungs are verified (plan P2 D1). Defaults to
     ///     <c>EncoderProbeCache.Shared</c>, so an app session pays for one two-frame test encode per
@@ -62,7 +57,6 @@ public sealed class SceneExportRunner : IExportRunner
         Func<Scene2DExportRequest, ExportSceneSetup?> setup,
         Func<IRenderSurfaceProvider>? surfaces = null,
         Func<string?>? managedFfmpegDirectory = null,
-        Func<FfmpegDownloadOffer, string, CancellationToken, Task<bool>>? consent = null,
         Action<string>? log = null,
         IEncoderProbe? encoderProbe = null)
     {
@@ -70,15 +64,24 @@ public sealed class SceneExportRunner : IExportRunner
         _setup = setup;
         _surfaces = surfaces ?? (static () => new CpuSurfaceProvider());
         _managedFfmpegDirectory = managedFfmpegDirectory ?? (static () => FfmpegDependency.ManagedDirectory);
-        _consent = consent;
         _log = log;
         _encoders = new EncoderSelector(encoderProbe);
     }
 
-    /// <summary>The message shown when a video format was asked for and no ffmpeg exists.</summary>
+    /// <summary>
+    ///     The message shown when a video format was asked for and no ffmpeg exists.
+    ///     <para>
+    ///         It used to end "…or let DemoViewer download the LGPL build", which was advertising, in a
+    ///         refusal, the exact rung that had just silently not happened: acquiring ffmpeg was an
+    ///         optional constructor parameter the one production caller omitted. Acquisition is now a
+    ///         foreground action in the export pane — <c>FfmpegAcquisition</c> asks for consent only
+    ///         <i>after</i> the transfer, so it can never be something a background job does on a user's
+    ///         behalf — and the refusal points at the pane instead of promising to act.
+    ///     </para>
+    /// </summary>
     public const string NoFfmpegRefusal =
-        "No ffmpeg was found, so only GIF can be exported. Install ffmpeg (or let DemoViewer download the " +
-        "LGPL build), or switch the format to GIF.";
+        "No ffmpeg was found, so only GIF can be exported. Install ffmpeg — or use the export pane's " +
+        "Download button where one is offered — then press Re-check, or switch the format to GIF.";
 
     /// <inheritdoc />
     public async Task RunAsync(Scene2DExportRequest request, IProgress<ExportProgress> progress,
@@ -90,7 +93,7 @@ public sealed class SceneExportRunner : IExportRunner
                                  ?? throw new ExportRefusedException(
                                      "There is no loaded demo to export.");
 
-        FfmpegLocation ffmpeg = await ResolveFfmpegAsync(request, ct).ConfigureAwait(false);
+        FfmpegLocation ffmpeg = FfmpegLocator.Locate(_managedFfmpegDirectory());
         bool gif = string.Equals(request.Core.FormatId, ExportFormats.Gif, StringComparison.Ordinal);
 
         if (!ffmpeg.Found && !gif)
@@ -137,35 +140,6 @@ public sealed class SceneExportRunner : IExportRunner
 
         IFrameSink sink = BuildSink(request, core, ffmpeg, encoder);
         await session.RunAsync(core, source, sink, surfaces, progress, ct).ConfigureAwait(false);
-    }
-
-    private async Task<FfmpegLocation> ResolveFfmpegAsync(Scene2DExportRequest request, CancellationToken ct)
-    {
-        string? managed = _managedFfmpegDirectory();
-        FfmpegLocation located = FfmpegLocator.Locate(managed);
-
-        if (located.Found || !request.AllowFfmpegDownload || _consent is null || managed is null)
-        {
-            return located;
-        }
-
-        if (FfmpegAcquisition.Offer(managed) is not { } offer)
-        {
-            // No pinned build for this OS/architecture. Not an error — the caller falls through to the
-            // GIF floor, and the dialog shows install instructions instead of a Download button.
-            return located;
-        }
-
-        try
-        {
-            return await FfmpegAcquisition.AcquireAsync(offer, _consent, null, null, ct).ConfigureAwait(false);
-        }
-        catch (FfmpegAcquisitionException ex)
-        {
-            // A 404 on the pin, a checksum mismatch, a broken network: degrade, never crash.
-            _log?.Invoke($"ffmpeg download failed: {ex.Message}");
-            return FfmpegLocation.NotFound;
-        }
     }
 
     private static TrackerFrameSource BuildSource(Scene2DExportRequest request, ExportSceneSetup setup)

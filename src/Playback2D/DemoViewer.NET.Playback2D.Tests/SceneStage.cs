@@ -19,6 +19,14 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     The seven production layers wired exactly as <c>Scene2DHost</c> wires them, over a CPU surface
 ///     and with no Avalonia anywhere. Goldens, determinism, allocation and budget tests all build one of
 ///     these, so none of them can quietly test a different layer stack from the one that ships.
+///     <para>
+///         <b>That last sentence is now enforced rather than asserted in prose</b> (D6 G-3). The array
+///         below is hand-written — deliberately, because this class needs typed handles and a
+///         reverse-registration mode that <c>SceneLayerCatalog.CreateSceneStack</c> cannot give it — so
+///         <c>SceneStageParityTests</c> pins its id set to <see cref="SceneLayerCatalog.SceneStackIds" />
+///         minus the opt-in four. Add a scene layer to the catalog without adding it here and that test
+///         goes red, which is what the doc claimed and nothing checked.
+///     </para>
 /// </summary>
 internal sealed class SceneStage : IDisposable
 {

@@ -39,7 +39,27 @@ public sealed class FloorSplitter
     private const double ValleyDepthFraction = 0.25;
 
     // Sparse running histogram: bucket index → observed count. Sparse because Z spans can be large.
-    private readonly SortedDictionary<int, int> _buckets = new();
+    //
+    // Deliberately NOT a SortedDictionary, which is what this was. Nothing needs the keys in order —
+    // ComputeSlices scatters them into an indexed array and reads that in order — and enumerating a
+    // SortedDictionary allocates a Stack<Node> inside the tree walker EVERY time, measured at 72 B on
+    // each recompute. On the histogram branch that is once a frame, forever.
+    private readonly Dictionary<int, int> _buckets = new(64);
+
+    // The histogram's extent, tracked as it is filled. Read every recompute; `_buckets.Keys.Min()` and
+    // `.Max()` are the obvious spelling and both allocate an enumerator on the way through
+    // IEnumerable<int>, for two numbers Observe already knows.
+    private int _maxBucket = int.MinValue;
+    private int _minBucket = int.MaxValue;
+
+    // ComputeSlices' working set, hoisted to fields. It runs on EVERY frame the histogram moved — which
+    // is every frame with a live player — and a fresh List + int[] + two more Lists per frame is the
+    // 552 B/frame design §6 forbids and the budget gate missed, because the gate called
+    // SetAuthoritativeFloors first and measured the short-circuit instead (D6 finding 24).
+    private readonly List<int> _boundaries = new(8);
+    private readonly List<int> _peaks = new(8);
+    private readonly List<FloorSlice> _scratch = new(4);
+    private int[] _counts = [];
 
     // Authoritative floor bands supplied by a baked map-asset bundle (nav-mesh-derived; validated against
     // observed player-Z — ZFloorValidationProbe). When set they OVERRIDE the Z-histogram AND its sticky
@@ -99,14 +119,24 @@ public sealed class FloorSplitter
 
             if (_dirty)
             {
-                List<FloorSlice> fresh = ComputeSlices();
+                ComputeSlices(_scratch);
+                _dirty = false;
 
                 // Sticky floor count (count hysteresis). Once a map has REVEALED N floors, keep at least N:
                 // a floor that is momentarily empty — or whose relative dwell-mass dilutes as the histogram
                 // keeps growing on the other floor — must NOT make its viewport vanish (jarring). The count
                 // only ever grows or refines its boundaries; it never drops. Reset() clears it for a new demo.
-                _slices = fresh.Count >= _slices.Count ? fresh : _slices;
-                _dirty = false;
+                //
+                // The published list is REPLACED, never refilled in place, and only when the bands actually
+                // moved. Its identity is load-bearing downstream: MapSpaceFactory.SameBands short-circuits
+                // on ReferenceEquals, so mutating _slices would make a real band change invisible to the
+                // rebuild — and handing back a fresh copy every frame is the allocation this method exists
+                // to have stopped making. A demo changes bands a handful of times; every other frame walks
+                // the scratch buffer, finds it unchanged, and allocates nothing.
+                if (_scratch.Count >= _slices.Count && !SameSlices(_scratch, _slices))
+                {
+                    _slices = [.. _scratch];
+                }
             }
 
             return _slices;
@@ -117,7 +147,10 @@ public sealed class FloorSplitter
     public void Reset()
     {
         _buckets.Clear();
+        _minBucket = int.MaxValue;
+        _maxBucket = int.MinValue;
         _slices = new List<FloorSlice>();
+        _scratch.Clear();
         _sectionHeights = null;
         _lastSuppliedHeights = null;
         _authoritativeFloors = null;
@@ -223,12 +256,32 @@ public sealed class FloorSplitter
         return true;
     }
 
-    /// <summary>Folds one observed Z value into the running histogram.</summary>
+    /// <summary>Folds one observed Z value into the running histogram. Non-finite samples are ignored.</summary>
     public void Observe(double z)
     {
+        // (int)Math.Floor(NaN / w) is 0 under .NET's saturating conversions, so an unfiltered bad sample
+        // does not throw — it invents a phantom dwell band at Z ∈ [0, BucketWidth) and can split a
+        // single-floor map in two. Same family as D6 finding 8, same answer: a Z that is not a number is
+        // not a position.
+        if (!double.IsFinite(z))
+        {
+            return;
+        }
+
         int bucket = (int)Math.Floor(z / BucketWidth);
         _buckets.TryGetValue(bucket, out int count);
         _buckets[bucket] = count + 1;
+
+        if (bucket < _minBucket)
+        {
+            _minBucket = bucket;
+        }
+
+        if (bucket > _maxBucket)
+        {
+            _maxBucket = bucket;
+        }
+
         _dirty = true;
     }
 
@@ -278,7 +331,31 @@ public sealed class FloorSplitter
         return nearest;
     }
 
-    private List<FloorSlice> ComputeSlices()
+    // Content equality over two band lists, to the same 1e-3 tolerance MapSpaceFactory.SameBands uses —
+    // the two are asking the same question ("did the bands move?") and answering it differently would be
+    // a rebuild that fires here and not there, or vice versa.
+    private static bool SameSlices(List<FloorSlice> a, List<FloorSlice> b)
+    {
+        if (a.Count != b.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (Math.Abs(a[i].MinZ - b[i].MinZ) > 1e-3 || Math.Abs(a[i].MaxZ - b[i].MaxZ) > 1e-3)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // Fills `result` with the bands the histogram currently describes. The arithmetic is unchanged from
+    // the allocating version — the peaks, the valley test, the midpoint boundary and the sticky rule
+    // above are all the same numbers — only the buffers moved to fields.
+    private void ComputeSlices(List<FloorSlice> result)
     {
         // NOTE (#1 bonus, DEFERRED): m_MinimapVerticalSectionHeights is read + stored (SetSectionHeights /
         // VM.SectionHeights) but NOT adopted as the floor split. Empirically the schema's "radar floor-
@@ -288,10 +365,10 @@ public sealed class FloorSplitter
         // adoption on/off as the histogram accumulates (see Playback2DFloorThresholdProbeTests). With no real
         // multi-floor demo to validate the good case, the stable + testable behavior is histogram-only.
         // Re-enable adoption only when a genuine Nuke/Vertigo demo is available to validate the split.
-        List<FloorSlice> result = new();
+        result.Clear();
         if (_buckets.Count == 0)
         {
-            return result;
+            return;
         }
 
         // Density-valley clustering (replaces the original empty-gap heuristic, which COLLAPSED on Nuke:
@@ -302,10 +379,20 @@ public sealed class FloorSplitter
         // PERSISTS under accumulation (the floor peaks grow faster than the valley fills). Each retained
         // cluster must hold ≥ DwellFraction of all observations, so a lone catwalk passer / box-jump never
         // spawns a phantom band and a single floor with a shallow internal dip never false-splits.
-        int lo = _buckets.Keys.First();
-        int hi = _buckets.Keys.Last();
+        int lo = _minBucket;
+        int hi = _maxBucket;
         int n = hi - lo + 1;
-        int[] counts = new int[n];
+
+        // Grown, never shrunk, and cleared to n rather than reallocated: the extent only widens as the
+        // demo is watched, so this settles after the first few frames and then costs one Array.Clear.
+        if (_counts.Length < n)
+        {
+            _counts = new int[n];
+        }
+
+        int[] counts = _counts;
+        Array.Clear(counts, 0, n);
+
         long total = 0;
         int peak = 0;
         foreach (KeyValuePair<int, int> kv in _buckets)
@@ -322,7 +409,8 @@ public sealed class FloorSplitter
         double minPeakMass = MinPeakFraction * total;
 
         // 1. Significant peaks: local maxima holding ≥ minPeakMass (the dwell bands; one per floor).
-        List<int> peaks = new();
+        List<int> peaks = _peaks;
+        peaks.Clear();
         for (int b = 0; b < n; b++)
         {
             if (counts[b] < minPeakMass)
@@ -344,12 +432,13 @@ public sealed class FloorSplitter
         {
             // One dwell peak (or none significant) → a single slice over the whole observed Z range.
             result.Add(SliceFromBuckets(lo, hi));
-            return result;
+            return;
         }
 
         // 2. Merge adjacent peaks into one floor unless the valley between them is deep vs the SMALLER peak;
         //    a deep valley → a real floor boundary. Boundaries are the valley-minimum bucket indices.
-        List<int> boundaries = new();
+        List<int> boundaries = _boundaries;
+        boundaries.Clear();
         int lastFloorPeak = peaks[0];
         for (int i = 1; i < peaks.Count; i++)
         {
@@ -380,7 +469,7 @@ public sealed class FloorSplitter
         if (boundaries.Count == 0)
         {
             result.Add(SliceFromBuckets(lo, hi));
-            return result;
+            return;
         }
 
         // 3. Floor f spans [valley below .. valley above]; lowest extends to lo, highest to hi. Contiguous.
@@ -390,8 +479,6 @@ public sealed class FloorSplitter
             int hiIdx = f == boundaries.Count ? n : boundaries[f];
             result.Add(new FloorSlice((lo + loIdx) * BucketWidth, (lo + hiIdx) * BucketWidth));
         }
-
-        return result;
     }
 
     private FloorSlice SliceFromBuckets(int firstBucket, int lastBucket) =>

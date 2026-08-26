@@ -171,7 +171,7 @@ public sealed class ExportJobService : IExportJobService, IDisposable
         ExportJobStatus? terminal = null;
 
         SetStatus(new ExportJobStatus(ExportPhase.Preparing, 0, request.Core.FrameCount, 0, TimeSpan.Zero,
-            request.OutputPath, null));
+            request.OutputPath, null, null));
 
         try
         {
@@ -223,7 +223,7 @@ public sealed class ExportJobService : IExportJobService, IDisposable
     private void OnProgress(ExportProgress progress) =>
         SetStatus(new ExportJobStatus(progress.Phase, progress.FramesDone, progress.FramesTotal,
             progress.FramesPerSecond, progress.Elapsed, Status.OutputPath,
-            progress.Phase is ExportPhase.Failed ? progress.Detail : null));
+            progress.Phase is ExportPhase.Failed ? progress.Detail : null, progress.Eta));
 
     private void SetStatus(ExportJobStatus status)
     {

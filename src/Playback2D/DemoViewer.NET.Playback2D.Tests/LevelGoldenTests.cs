@@ -16,7 +16,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     What <see cref="SingleLayout" /> and the per-level radar binding actually draw, over the real
 ///     two-floor <c>nuke-multilevel</c> capture.
 ///     <para>
-///         Two committed goldens (<c>nuke-single-upper</c>, <c>nuke-multilevel-noradar</c>) plus the
+///         Two committed goldens (<c>nuke-multilevel-upper</c>, <c>nuke-multilevel-noradar</c>) plus the
 ///         assertion that matters most for a phase that touched the shared pane machinery: the
 ///         <b>stacked</b> picture is byte-identical after a Stacked → Single → Stacked round trip. That
 ///         is the acceptance line "StackedLayout's output is byte-identical to B1's golden", proved
@@ -44,7 +44,7 @@ public class LevelGoldenTests
         await Assert.That(stage.Renderer.Panes.Panes[0].ViewportRect)
             .IsEqualTo(new SKRect(0, 0, fixture.Size.Width, fixture.Size.Height));
 
-        await CompareOrWrite("nuke-single-upper", fixture.Size, upper);
+        await CompareOrWrite("nuke-multilevel-upper", fixture.Size, upper);
     }
 
     /// <summary>
@@ -139,7 +139,7 @@ public class LevelGoldenTests
     /// <param name="name">The golden to attribute.</param>
     [Test]
     [Arguments("nuke-multilevel-noradar")]
-    [Arguments("nuke-single-upper")]
+    [Arguments("nuke-multilevel-upper")]
     public async Task EveryPixelOverTheStrictCeiling_LiesUnderGlyphInk(string name)
     {
         SceneFixture fixture = LoadNuke();
@@ -240,7 +240,7 @@ public class LevelGoldenTests
     /// <param name="drawText">False silences marker initials and the floor caption.</param>
     private static byte[] Render(string name, SceneFixture fixture, bool drawText)
     {
-        bool single = string.Equals(name, "nuke-single-upper", StringComparison.Ordinal);
+        bool single = string.Equals(name, "nuke-multilevel-upper", StringComparison.Ordinal);
 
         using SceneStage stage = new(fixture.Size);
         stage.TryBindMap(fixture.MapName, single);
@@ -285,10 +285,12 @@ public class LevelGoldenTests
     {
         string goldenPath = GoldenPath(name, size);
 
-        if (!File.Exists(goldenPath))
+        // Same guard shape as SceneGoldenTests: PB2D_GOLDEN_UPDATE=1 rewrites, absence without it fails.
+        bool updating = string.Equals(Environment.GetEnvironmentVariable(UpdateEnvVar), "1",
+            StringComparison.Ordinal);
+        if (!File.Exists(goldenPath) || updating)
         {
-            if (!string.Equals(Environment.GetEnvironmentVariable(UpdateEnvVar), "1",
-                    StringComparison.Ordinal))
+            if (!updating)
             {
                 throw new InvalidOperationException(
                     $"no golden at {goldenPath}. Regenerate deliberately with " +

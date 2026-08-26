@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Text.Json.Nodes;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Hud;
@@ -11,6 +12,7 @@ using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline;
+using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Benchmarking;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
@@ -66,6 +68,19 @@ internal static class ExportCommand
         bool hud = args.Flag("hud");
         bool ffmpegLog = args.Flag("ffmpeg-log");
 
+        // The two options the app had and the CLI did not, which is what made "a request the dialog
+        // accepts is a request the CLI accepts" true of the VALIDATOR and false of the picture. The
+        // exported video's palette was a hard-coded ScenePalette.Dark and its ink was always absent, so
+        // the same request produced two materially different files depending on which front end ran it.
+        ScenePalette palette = ResolvePalette(args.String("palette"));
+        bool annotations = args.Flag("annotations");
+        if (args.String("annotations") is { Length: > 0 } annotationValue)
+        {
+            throw new CliUsageException(
+                $"--annotations is a flag and takes no value (got '{annotationValue}'); it burns in " +
+                $"the demo's own '{AnnotationStore.SidecarExtension}' sidecar.");
+        }
+
         // P2: which rung of the encoder ladder, and how much to spend per frame. `auto` walks the
         // ladder; `software` skips the hardware rungs (the machine-independent answer a bisect wants);
         // a rung's own name is taken literally and refused if it does not verify.
@@ -112,6 +127,13 @@ internal static class ExportCommand
             mapAssets = MapAssetPipeline.TryLoad(root, demo.MapName);
         }
 
+        // The ink FIRST, because whether the annotation id belongs in the layer set is "was one loaded",
+        // not "was one asked for": a --annotations run against a demo with no sidecar must not name a
+        // layer the render then starves, which is the manifest lie BuildLayerIds' own comment is about.
+        AnnotationSession? ink = annotations
+            ? await LoadInkAsync(demoPath, tickRate, frames.Count, ct).ConfigureAwait(false)
+            : null;
+
         ExportRequest request = new(
             0,
             0, // re-stamped below from the source's own frame count
@@ -119,7 +141,7 @@ internal static class ExportCommand
             size,
             speed,
             format,
-            BuildLayerIds(layers, hud),
+            BuildLayerIds(layers, hud, ink is not null),
             new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>()));
 
         using TrackerFrameSource source = new(frames, new SceneFrameBuilder(), startFrame, endFrame,
@@ -178,11 +200,11 @@ internal static class ExportCommand
         double probeMs = encoder is null ? 0 : Stopwatch.GetElapsedTime(probeStarted).TotalMilliseconds;
 
         using SceneCompositor compositor = SceneLayerCatalog.CreateSceneStack(
-            [.. request.LayerIds], null, null, hudData);
+            [.. request.LayerIds], null, null, hudData, ink);
 
         SceneExportSession session = new(compositor)
         {
-            Palette = ScenePalette.Dark,
+            Palette = palette,
             AuthoritativeFloors = mapAssets?.Floors,
             RadarBinder = mapAssets is null ? null : new MapRadarBinder(mapAssets),
 
@@ -374,16 +396,40 @@ internal static class ExportCommand
                 $"--{option} {value} is outside the demo (frames 0..{frames.Count - 1}).");
     }
 
-    private static HashSet<string> BuildLayerIds(IReadOnlyList<string>? layers, bool hud)
+    /// <summary>
+    ///     The default id set, plus whatever the flags opted into. <b>The CLI half of the export's
+    ///     cross-surface parity</b>, and the counterpart of
+    ///     <c>Playback2DExportDialogViewModel.BuildLayerIds</c> — <c>ExportLayerParityTests</c> pins the
+    ///     two to the same Core-derived expression from both sides.
+    /// </summary>
+    /// <param name="layers">An explicit <c>--layers</c> list, or null for the default set.</param>
+    /// <param name="hud">Whether <c>--hud</c> was given.</param>
+    /// <param name="hasInk">Whether a sidecar was actually loaded — see the call site.</param>
+    internal static HashSet<string> BuildLayerIds(IReadOnlyList<string>? layers, bool hud, bool hasInk)
     {
         // The opt-in set, not a "hud." prefix test. The prefix spelling was self-maintaining for HUD
         // ids and blind to every other opt-in layer, so the day D3a made playback2d.annotations a
         // SceneStackId, a no --layers export started NAMING the ink in its default set and in the
-        // sidecar manifest's `layers` array. No pixel moved — the CLI supplies no annotation source, so
-        // the layer is starved and skipped — but a manifest that lists a layer the render never drew is
-        // a lie a later golden diff would have to chase. One source: SceneLayerIds.OptIn.
+        // sidecar manifest's `layers` array. One source: SceneLayerIds.OptIn.
+        //
+        // Vision comes out for the same reason and one more. It is NOT opt-in in the catalog, so a
+        // default export named it — while the app's dialog ships it OFF, because the solve is the
+        // frame's biggest per-frame cost. Two front ends, one request, two different videos. And the
+        // CLI has no visibility engine to hand VisionLayer anyway, so every one of those manifests
+        // listed a layer that drew nothing. `--layers` can still name it explicitly; that is a choice.
+        //
+        // That last sentence is about EXPORT only, and stays true after D6 round 3. VisionLayer now
+        // falls back to a frame's pre-solved SceneVision, which is why `render`/`golden`/`bench` draw
+        // cones from a fixture — but an export's frames come off SceneFrameBuilder, whose Vision input
+        // nothing fills, so `dv2d export --layers …,playback2d.vision` is still an empty layer. Feeding
+        // it means constructing a VisibilityEngine for the demo's map here; nobody has needed it yet.
         HashSet<string> ids = layers is null
-            ? [.. SceneLayerCatalog.SceneStackIds.Where(id => !SceneLayerIds.OptIn.Contains(id))]
+            ?
+            [
+                .. SceneLayerCatalog.SceneStackIds.Where(id =>
+                    !SceneLayerIds.OptIn.Contains(id) &&
+                    !string.Equals(id, SceneLayerIds.Vision, StringComparison.Ordinal))
+            ]
             : [.. layers.Select(SceneLayerCatalog.Normalize)];
 
         if (hud)
@@ -393,7 +439,49 @@ internal static class ExportCommand
             ids.Add(SceneLayerIds.HudRoster);
         }
 
+        if (hasInk)
+        {
+            ids.Add(SceneLayerIds.Annotations);
+        }
+
         return ids;
+    }
+
+    // dark (the shipping default) or light. It used to be a hard-coded ScenePalette.Dark, so a CLI
+    // export of a request the app would have drawn in Light came out inverted — the one difference a
+    // side-by-side comparison notices before any other.
+    private static ScenePalette ResolvePalette(string? requested) => requested?.ToLowerInvariant() switch
+    {
+        null or "dark" => ScenePalette.Dark,
+        "light" => ScenePalette.Light,
+        _ => throw new CliUsageException($"--palette expects dark or light, got '{requested}'.")
+    };
+
+    // The demo's own '.dvann.json', through the same store the app writes it with. A missing, truncated
+    // or foreign sidecar is not an error — AnnotationStore returns an empty result for all three — but an
+    // EMPTY one returns null here, so the caller can keep the annotation id out of the layer set rather
+    // than naming a layer with nothing behind it.
+    private static async Task<AnnotationSession?> LoadInkAsync(string demoPath, int tickRate,
+        int frameCount, CancellationToken ct)
+    {
+        // The same identity the 2D tab builds (Playback2DTabViewModel.AttachAnnotationsToCurrentDemo),
+        // so a sidecar written by the app is recognised as belonging to this parse rather than reported
+        // as a clock mismatch.
+        ClockIdentity clock = new(ClockIdentity.DvFrameClock, tickRate > 0 ? tickRate : 64,
+            frameCount, 0, 0);
+
+        AnnotationLoadResult loaded = await new AnnotationStore(null)
+            .LoadAsync(demoPath, clock, ct).ConfigureAwait(false);
+
+        if (loaded.Elements.Count == 0)
+        {
+            ConsoleOut.Info($"--annotations: no ink found for {Path.GetFileName(demoPath)}");
+            return null;
+        }
+
+        AnnotationDocument document = new();
+        document.Reset(loaded.Elements);
+        return new AnnotationSession(document);
     }
 
     // The clock is the SOURCE's own game info — the round and the score SceneFrameBuilder read off

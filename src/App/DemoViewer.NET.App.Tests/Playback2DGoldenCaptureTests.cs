@@ -38,6 +38,22 @@ namespace DemoViewer.NET.AppTests;
 ///         a golden that silently rewrites itself is a test that no longer tests. See
 ///         <c>scripts/update-playback2d-goldens.sh</c>.
 ///     </para>
+///     <para>
+///         <b>The scene is behind the same guard as the PNG</b> (D6 G-5). It was not: the fixture write
+///         sat outside it, and the tour sample ships in every checkout, so <i>any</i> App-suite run
+///         rewrote <c>scenes/nuke-multilevel.scene.json</c> — the input to <c>GoldenParityTests</c> and
+///         <c>LevelGoldenTests</c>. The class doc's own sentence about a golden that rewrites itself was
+///         true of its <i>input</i>.
+///     </para>
+///     <para>
+///         <b>Corpus names.</b> These captures own the <c>prev2-</c> namespace and nothing else. They
+///         used to be named <c>duel-mirage-b</c> and <c>fitmap-mirage-eco</c> — which are two
+///         <i>hand-authored</i> 640×360 dv2d fixtures — so on any machine with those Mirage demos
+///         staged, a capture overwrote a hand-written scene with a pre-v2 900×900 one and wrote its PNG
+///         to a path the manifest never reads (D6 G-8). <c>nuke-multilevel</c> keeps its name because
+///         that pair genuinely is this harness's: the scene, the golden and
+///         <c>GoldenParityTests</c>' expectation all came from here.
+///     </para>
 /// </summary>
 [NotInParallel]
 [Category("Integration")]
@@ -48,7 +64,7 @@ public class Playback2DGoldenCaptureTests
 
     [Test]
     public async Task Mirage_RoundStart_MatchesGolden() =>
-        await CaptureAndCompare("duel-mirage-b",
+        await CaptureAndCompare("prev2-mirage-roundstart",
             ["furia-vs-vitality-m1-mirage.dem", "vitality-vs-fut-m1-mirage.dem"]);
 
     [Test]
@@ -66,11 +82,11 @@ public class Playback2DGoldenCaptureTests
                 "assets/tour/sample-de_nuke.dem"
             ]);
 
-    // Named for the fixture it captures, not for the map the plan's superseded draft guessed at:
-    // the corpus name is canonical (plans/00-overview.md §registry) and B1/C1/C2 all key off it.
+    // `prev2-`, not `fitmap-mirage-eco`: that name belongs to a hand-authored 640×360 fixture in the
+    // manifest, and this harness writes a 900×900 capture of the PRE-V2 control. One name, one meaning.
     [Test]
     public async Task FitMap_Eco_MatchesGolden() =>
-        await CaptureAndCompare("fitmap-mirage-eco", ["003801777854962729156_0256036251.dem"]);
+        await CaptureAndCompare("prev2-mirage-eco", ["003801777854962729156_0256036251.dem"]);
 
     /// <summary>
     ///     The corpus root, resolved by walking up to the directory holding
@@ -152,26 +168,12 @@ public class Playback2DGoldenCaptureTests
         string goldenPath = Path.Combine(corpus, "goldens", "cpu",
             $"{name}@{CaptureSize}x{CaptureSize}.png");
         string scenePath = Path.Combine(corpus, "scenes", $"{name}.scene.json");
+        bool updating = string.Equals(Environment.GetEnvironmentVariable(UpdateEnvVar), "1",
+            StringComparison.Ordinal);
 
-        // The fixture is written from the SAME push that produced the PNG, so B1 can re-render this JSON
-        // and diff against this image.
-        Directory.CreateDirectory(Path.GetDirectoryName(scenePath)!);
-        SceneFixtureSerializer.WriteFile(new SceneFixture
+        if (!File.Exists(goldenPath) || updating)
         {
-            Frame = capture.Frame,
-            Time = capture.Frame.Time,
-            Camera = capture.Camera,
-            Size = new SKSizeI(CaptureSize, CaptureSize),
-            MapName = capture.MapName,
-            SourceDemoId = Path.GetFileName(path),
-            Notes = $"Captured from the pre-v2 Playback2DViewport at frame {capture.FrameIndex}, " +
-                    "CameraMode.Fit. B1 must re-render this to match the paired golden."
-        }, scenePath);
-
-        if (!File.Exists(goldenPath))
-        {
-            if (!string.Equals(Environment.GetEnvironmentVariable(UpdateEnvVar), "1",
-                    StringComparison.Ordinal))
+            if (!updating)
             {
                 throw new InvalidOperationException(
                     $"no golden at {goldenPath}. Regenerate deliberately with " +
@@ -180,8 +182,26 @@ public class Playback2DGoldenCaptureTests
                     "-- --treenode-filter \"/*/*/Playback2DGoldenCaptureTests/*\").");
             }
 
+            // The fixture is written from the SAME push that produced the PNG, so B1 can re-render this
+            // JSON and diff against this image — which is only true if the two are written TOGETHER, and
+            // therefore only under the guard. Outside it this ran on every App-suite run and silently
+            // re-authored the input the parity and level suites read (D6 G-5).
+            Directory.CreateDirectory(Path.GetDirectoryName(scenePath)!);
+            SceneFixtureSerializer.WriteFile(new SceneFixture
+            {
+                Frame = capture.Frame,
+                Time = capture.Frame.Time,
+                Camera = capture.Camera,
+                Size = new SKSizeI(CaptureSize, CaptureSize),
+                MapName = capture.MapName,
+                SourceDemoId = Path.GetFileName(path),
+                Notes = $"Captured from the pre-v2 Playback2DViewport at frame {capture.FrameIndex}, " +
+                        "CameraMode.Fit. The v2 compositor must re-render this to match the paired golden."
+            }, scenePath);
+
             Directory.CreateDirectory(Path.GetDirectoryName(goldenPath)!);
             await File.WriteAllBytesAsync(goldenPath, capture.Png);
+            Console.WriteLine($"[golden] wrote {scenePath}");
             Console.WriteLine($"[golden] wrote {goldenPath} ({capture.Png.Length} bytes)");
             return;
         }

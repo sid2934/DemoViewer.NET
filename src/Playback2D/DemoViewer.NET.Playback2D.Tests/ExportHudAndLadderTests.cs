@@ -88,6 +88,17 @@ public class KillFeedTimelineTests
         await Assert.That(window.Select(r => r.Tick)).IsEquivalentTo(_expectedOrder);
     }
 
+    /// <summary>
+    ///     Two identical windows, and the SECOND is the one asserted on — the form
+    ///     <see cref="BudgetTests.FullScene_SteadyState_AllocatesNothing" /> uses and documents.
+    ///     <para>
+    ///         This case used to measure ONE window after a warmup loop, and it failed once during D6
+    ///         round 1 and passed on retry. That is the JIT-tiering hazard <c>BudgetTests</c> describes:
+    ///         a single small allocation appears at a varying iteration while the runtime re-tiers the
+    ///         loop body, whatever the body does, and never recurs. Charging it to the budget either makes
+    ///         the gate flaky or forces the budget above zero, and zero is the assertion worth having.
+    ///     </para>
+    /// </summary>
     [Test]
     public async Task ItReusesTheDestination_AndAllocatesNothingOnceWarm()
     {
@@ -97,21 +108,35 @@ public class KillFeedTimelineTests
             all.Add(Kill(1000 + i * 7));
         }
 
+        // Capacity 8 up front: DefaultMaxRows fits, so a growing List would be an allocation of its own
+        // and would confuse "the window allocates" with "the destination is still growing".
         List<KillFeedRow> window = new(8);
         for (int i = 0; i < 64; i++)
         {
             KillFeedTimeline.Window(all, 1500 + i, 64, window);
         }
 
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        long warm = MeasureWindow(all, window);
+        long steady = MeasureWindow(all, window);
+
+        Console.WriteLine($"[alloc] killfeed window: warm {warm} B, steady {steady} B "
+                          + $"({steady / 512.0:F2} B/call)");
+        await Assert.That(steady).IsEqualTo(0L);
+    }
+
+    private static long MeasureWindow(List<KillFeedRow> all, List<KillFeedRow> window)
+    {
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 512; i++)
         {
             KillFeedTimeline.Window(all, 1500 + i, 64, window);
         }
 
-        long perCall = (GC.GetAllocatedBytesForCurrentThread() - before) / 512;
-        Console.WriteLine($"[alloc] killfeed window {perCall} bytes/call");
-        await Assert.That(perCall).IsEqualTo(0L);
+        return GC.GetAllocatedBytesForCurrentThread() - before;
     }
 
     private static KillFeedRow Kill(int tick) =>
@@ -122,7 +147,7 @@ public class KillFeedTimelineTests
 public class TimelineHudDataSourceTests
 {
     [Test]
-    public async Task TheSameTick_AnswersTheSameSnapshot_WithoutRewindowing()
+    public async Task TheSameTick_ReWindowsOnce_ButStillReReadsItsSources()
     {
         int clockCalls = 0;
         TimelineHudDataSource source = new([], 64, _ =>
@@ -134,10 +159,19 @@ public class TimelineHudDataSourceTests
         source.At(1000);
         source.At(1000);
         source.At(1000);
+        source.At(1001);
 
-        // Two HUD layers ask for the same frame. Doing the window three times for one answer is three
-        // times the work and, on a three-level map, three times again.
-        await Assert.That(clockCalls).IsEqualTo(1);
+        // Three HUD layers ask for the same frame. Doing the window three times for one answer is three
+        // times the work and, on a three-level map, three times again — so the WINDOW is cached by tick,
+        // which it can be, because it is a pure function of tick.
+        await Assert.That(source.WindowingsForTest).IsEqualTo(2);
+
+        // The readers are not, and this assertion is the correction: they answer for whatever FRAME the
+        // source built most recently, not for the tick. CS2 emits several demo frames per tick, so two
+        // consecutive output frames can share one — and a snapshot cached by tick alone handed the second
+        // of them the first one's scoreboard and the first one's roster (D6 finding 32). Re-asking costs
+        // two delegate calls over state the frame source has already computed.
+        await Assert.That(clockCalls).IsEqualTo(4);
     }
 
     [Test]

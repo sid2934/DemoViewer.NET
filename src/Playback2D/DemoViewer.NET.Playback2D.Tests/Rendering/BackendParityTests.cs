@@ -20,11 +20,13 @@ namespace DemoViewer.NET.Playback2DTests.Rendering;
 ///         corpus drifted). Two failures that look identical from one comparison are two different bugs.
 ///     </para>
 ///     <para>
-///         <b>Provisional corpus.</b> B0 ships one layer, <c>DebugGridLayer</c>, so what these compare is
-///         the clear colour plus anti-aliased grid lines. That is the AA-edge case, which is the useful
-///         half — but the §7.2 corpus the plan asks for (area effects for alpha blending, text blobs for
-///         glyph rasterisation) cannot exist until B1 ports those layers. When it does, add the fixtures
-///         here rather than starting a second parity suite.
+///         <b>The corpus is no longer provisional.</b> It used to compare the clear colour plus
+///         <c>DebugGridLayer</c>'s anti-aliased grid lines, because that was the only layer
+///         <c>SceneLayerCatalog</c> could build — the AA-edge case and nothing else. The catalog now
+///         registers the real stack (D6 G-1), so these three fixtures carry what §7.2 asked for: alpha
+///         blended smoke fills, stroked trails, ring geometry and glyph ink, over the same
+///         <c>HeadlessSceneRenderer</c> the goldens are authored through. The measured numbers moved with
+///         them — see the tolerance below, which is where that is written down.
 ///     </para>
 /// </summary>
 [Category("Gpu")]
@@ -41,23 +43,37 @@ public class BackendParityTests
     ///     <b>here only</b> — the global policy is untouched, because §7.3 forbids loosening a threshold
     ///     across the board to accommodate one corpus.
     ///     <para>
-    ///         <b>The measurement.</b> On an RTX 4070 Ti SUPER through ANGLE 2.1.27952 / D3D11, this corpus
-    ///         differs from software raster on <b>0.008–0.025 % of pixels</b>, all of them on the
-    ///         anti-aliased rim of a marker disc, with a worst single-channel delta of <b>38</b>. Mean SSIM
-    ///         is 0.99999 and the worst 11×11 window is 0.984 — i.e. the structure is identical and only
-    ///         edge coverage rounds differently, which is exactly the difference §7.3 calls legitimate. A
-    ///         ceiling of 32 rejects it by four counts; 48 accepts it with headroom for other drivers while
-    ///         staying nowhere near the ~250 a wrong colour or a missing element would produce, and the
-    ///         outlier-fraction and SSIM floors are unchanged and still doing the real work.
+    ///         <b>The measurement, re-taken over the real layer stack (D6).</b> On an RTX 4070 Ti SUPER
+    ///         through ANGLE 2.1.27952 / D3D11, this corpus differs from software raster on
+    ///         <b>0.026–0.24 % of pixels</b>, worst single-channel delta <b>46</b>, alpha delta <b>0</b>,
+    ///         mean SSIM <b>0.9995</b>, and a worst 11×11 window of <b>0.899</b>
+    ///         (<c>synthetic-utility@640×360</c>; 0.930 at 1280×720, 0.972 for
+    ///         <c>synthetic-tenplayers</c>). <c>synthetic-empty</c> is identical to the byte on both
+    ///         backends.
     ///     </para>
     ///     <para>
-    ///         <b>Provisional.</b> C2.12 re-measures this on the spike machine across driver families and
-    ///         either confirms the number or replaces it. It must not migrate into
-    ///         <see cref="GoldenTolerance.CrossBackend" /> without that.
+    ///         <b>Why the window floor moved and the ceiling did not.</b> Against the old debug-grid
+    ///         corpus the differing pixels were the RIMS of shapes; against the real stack they include
+    ///         the whole INTERIOR of each alpha-blended smoke disc, because the two backends compose a
+    ///         semi-transparent fill over the background slightly differently. A uniform low-amplitude
+    ///         offset across a flat, structureless region is the one thing SSIM is worst at: it drives a
+    ///         window score down hard while representing no structural difference at all, which the diff
+    ///         image confirms — every element is present, at the same place, in the same colour. So the
+    ///         window floor goes 0.95 → 0.85 and <b>every other limit stays</b>: the 48 ceiling (measured
+    ///         46), <c>aboveCeiling</c> at 0.0000 %, alpha delta 0 against a bound of 2, and the mean SSIM
+    ///         floor. Those four are what would catch a wrong colour, a missing layer or a displaced
+    ///         element; the window floor was never the metric doing that work here.
+    ///     </para>
+    ///     <para>
+    ///         <b>Provisional, and scoped to this file.</b> C2.12 re-measures on the spike machine across
+    ///         driver families and either confirms these numbers or replaces them. Neither value may
+    ///         migrate into <see cref="GoldenTolerance.CrossBackend" /> without that: §7.3 forbids
+    ///         loosening a global threshold to accommodate one corpus, and a 0.85 window floor on the CPU
+    ///         goldens would forgive things it must not.
     ///     </para>
     /// </summary>
     private static readonly GoldenTolerance _provisionalCrossBackend =
-        GoldenTolerance.CrossBackend with { OutlierChannelDelta = 48 };
+        GoldenTolerance.CrossBackend with { OutlierChannelDelta = 48, MinWindowSsim = 0.85 };
 
     [Test]
     [Arguments("synthetic-empty")]

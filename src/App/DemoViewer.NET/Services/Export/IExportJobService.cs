@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Export;
 
 #endregion
@@ -44,10 +45,6 @@ public interface IExportJobService
 /// </param>
 /// <param name="OutputPath">Where the encoded file goes.</param>
 /// <param name="DemoPath">The demo being exported, for the status text and diagnostics.</param>
-/// <param name="AllowFfmpegDownload">
-///     Whether the runner may offer the pinned LGPL download when no ffmpeg is found. False keeps the
-///     ladder at "locate, else the GIF floor".
-/// </param>
 /// <param name="DemoStartFrame">
 ///     First DEMO frame index. Distinct from <c>Core.StartFrame</c> on purpose: an export renders at a
 ///     fixed timestep, so one output frame is not one demo frame, and conflating the two indices is how a
@@ -63,15 +60,26 @@ public interface IExportJobService
 ///     <c>draft</c>, <c>standard</c> (the default) or <c>best</c>. A string for the same reason the
 ///     setting is one: an unknown value degrades to the default rather than throwing.
 /// </param>
+/// <param name="Ink">
+///     The annotation document to burn in, frozen on the UI thread at Start, or null for no ink.
+///     <para>
+///         <b>On the request, not on the tab.</b> It used to be a field the dialog's camera callback wrote
+///         and the runner's setup closure read — but <c>ExportJobService.RunAsync</c> awaits the heavy-job
+///         gate <i>before</i> that closure runs, so a second Start (even one the gate then refused) had
+///         already replaced the document the first, still-parked export was going to draw. The request is
+///         the only object that is one-per-run, so it is the only correct place to carry it. It also stops
+///         the tab retaining a frozen document for its whole lifetime, across demo resets.
+///     </para>
+/// </param>
 public sealed record Scene2DExportRequest(
     ExportRequest Core,
     string OutputPath,
     string DemoPath,
-    bool AllowFfmpegDownload,
     int DemoStartFrame = 0,
     int DemoEndFrame = 0,
     string? EncoderOverride = null,
-    string? Quality = null);
+    string? Quality = null,
+    AnnotationSession? Ink = null);
 
 /// <summary>A point-in-time export status. The chip and the flyout render from this.</summary>
 /// <param name="Phase">Where the export is.</param>
@@ -81,6 +89,11 @@ public sealed record Scene2DExportRequest(
 /// <param name="Elapsed">Wall time since the job started.</param>
 /// <param name="OutputPath">The file being written.</param>
 /// <param name="Error">The failure or refusal message, when there is one.</param>
+/// <param name="Eta">
+///     Estimated time remaining, or null before the session can measure one. It is the number a user
+///     watching a multi-minute render actually wants; <c>SceneExportSession</c> has computed it on every
+///     report since B4 and the App contract had nowhere to put it, so it was dropped on the floor.
+/// </param>
 public readonly record struct ExportJobStatus(
     ExportPhase Phase,
     int FramesDone,
@@ -88,7 +101,8 @@ public readonly record struct ExportJobStatus(
     double FramesPerSecond,
     TimeSpan Elapsed,
     string? OutputPath,
-    string? Error)
+    string? Error,
+    TimeSpan? Eta = null)
 {
     /// <summary>The canonical idle status.</summary>
     public static ExportJobStatus Idle { get; } =

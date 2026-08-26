@@ -499,6 +499,8 @@ public sealed class SettingsService
                 settings.Playback2D.ExportIncludeHudRoster ? "true" : "false"),
             new KeyValuePair<string, string?>("Playback2D:ExportIncludeAnnotations",
                 settings.Playback2D.ExportIncludeAnnotations ? "true" : "false"),
+            new KeyValuePair<string, string?>("Playback2D:ExportIncludeVision",
+                settings.Playback2D.ExportIncludeVision ? "true" : "false"),
             new KeyValuePair<string, string?>("Playback2D:ExportEncoder",
                 settings.Playback2D.ExportEncoder),
             new KeyValuePair<string, string?>("Playback2D:ExportQuality",

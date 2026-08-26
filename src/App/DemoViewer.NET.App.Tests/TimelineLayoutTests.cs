@@ -130,6 +130,16 @@ public class TimelineLayoutTests
     ///     <c>BrushForMarker</c>, whose non-zero branch was written for round bands and had never been
     ///     exercised by a marker. A 0 still resolves to the kind's own token, so an uncolourable kill is
     ///     visually exactly what it is today.
+    ///     <para>
+    ///         <b>The kind default is asserted against another marker that shares its token, not against
+    ///         the literal.</b> <c>Token</c> resolves from the theme when <c>Application.Current</c> exists
+    ///         AND the call is on the UI thread, and falls back to a hard-coded ARGB otherwise — both of
+    ///         which are properties of what else has run in this PROCESS, not of the code under test.
+    ///         Asserting the fallback literal made this case fail roughly one run in ten, always as
+    ///         "expected unknown to be #fff44336", and it is about to sit in a required CI lane.
+    ///         <c>Kill</c> and <c>BombExplode</c> both map to <c>Pb2dHeadshot</c>, so comparing them pins
+    ///         the mapping in either environment.
+    ///     </para>
     /// </summary>
     [Test]
     public async Task KillMarkerBrushes_DifferBySide_AndFallBackToTheKindDefault()
@@ -151,12 +161,28 @@ public class TimelineLayoutTests
         Color ct = Colour(vm.Markers[1]);
         Color unknown = Colour(vm.Markers[2]);
 
-        await Assert.That(t).IsNotEqualTo(ct);
+        // The tints themselves, exactly — the non-zero branch must carry KillTrack's ARGB through
+        // untouched, and "the two differ" would still pass if it handed back any two colours at all.
+        await Assert.That(t).IsEqualTo(Color.FromUInt32(0xFFE0A030)).Because("T is amber");
+        await Assert.That(ct).IsEqualTo(Color.FromUInt32(0xFF4A90D9)).Because("CT is blue");
         await Assert.That(unknown).IsNotEqualTo(t);
         await Assert.That(unknown).IsNotEqualTo(ct);
-        await Assert.That(unknown).IsEqualTo(Color.FromUInt32(0xFFF44336))
-            .Because("no dispatcher here, so Token falls back to the Pb2dHeadshot dark literal — the "
-                     + "colour every kill marker used to be");
+
+        // A second VM in the same call, so both Token lookups see the same process state.
+        Playback2DTimelineViewModel bombs = new();
+        bombs.RegisterTrack(new BombTrack());
+        bombs.PixelWidth = 600;
+        FakeTimelineData bombData = new(1000);
+        bombData.Events["bomb_exploded"] = [TimelineTrackTests.Record(40, 500)];
+        bombs.Rebuild(bombData);
+
+        Console.WriteLine($"[marker-brush] t={t} ct={ct} unknown={unknown} "
+                          + $"explode={Colour(bombs.Markers[0])}");
+
+        await Assert.That(unknown).IsEqualTo(Colour(bombs.Markers[0]))
+            .Because("an uncolourable kill takes the Kill KIND's default, which is the same Pb2dHeadshot "
+                     + "token a bomb explosion takes — that is the claim, and it does not depend on "
+                     + "whether a headless Application happens to exist in this process");
     }
 
     private static Color Colour(TimelineMarkerViewModel marker) =>
@@ -303,6 +329,59 @@ public class TimelineLayoutTests
                 .Because($"Playback2D:TimelineShow* writes '{id}' and nothing errors if it misses");
         }
     }
+
+    /// <summary>
+    ///     <b><see cref="ITimelineTrack.MarkersChanged" /> is documented "the host must re-query it" —
+    ///     and the host never subscribed.</b> <see cref="Playback2DTimelineViewModel.Rebuild" /> runs on
+    ///     tab activation and demo-reset only, so a telestration made while the tab is open produced no
+    ///     marker; worse, the Annotations toggle could never become AVAILABLE at all, because
+    ///     availability was evaluated only inside a build and <c>AnnotationTrack</c> is unavailable until
+    ///     the first time-anchored element exists.
+    /// </summary>
+    [Test]
+    public async Task AnnotationTrack_MarkersAndAvailability_FollowTheDocument_WithNoRebuild()
+    {
+        AnnotationDocument doc = new();
+        Playback2DTimelineViewModel vm = new();
+        using AnnotationTrack track = new(doc);
+
+        vm.RegisterTrack(new KillTrack());
+        vm.RegisterTrack(track);
+        vm.PixelWidth = 600;
+        vm.Rebuild(new FakeTimelineData(1000));
+
+        TimelineTrackToggle toggle = vm.Tracks.Single(t => t.Id == AnnotationTrack.TrackId);
+        await Assert.That(toggle.IsAvailable).IsFalse();
+        await Assert.That(vm.Markers.Count).IsEqualTo(0);
+
+        // One time-anchored stroke — what Fade, Custom and "pin to now" all stamp. Nothing calls
+        // Rebuild from here on; the track saying so is the only signal there is.
+        doc.Apply(new DocDelta.Add(Anchored(400), 0));
+
+        await Assert.That(toggle.IsAvailable).IsTrue()
+            .Because("this is the ONLY moment the Annotations toggle can ever become reachable");
+        await Assert.That(vm.Markers.Count).IsEqualTo(1);
+        await Assert.That(vm.Markers[0].TrackId).IsEqualTo(AnnotationTrack.TrackId);
+        await Assert.That(vm.Markers[0].Tick).IsEqualTo(400);
+
+        // Erase / undo / clear has to take the marker back off, or the bar keeps a glyph for ink that
+        // is no longer in the document.
+        doc.Undo();
+        await Assert.That(vm.Markers.Count).IsEqualTo(0);
+
+        doc.Redo();
+        await Assert.That(vm.Markers.Count).IsEqualTo(1);
+
+        vm.Dispose();
+        doc.Apply(new DocDelta.Add(Anchored(600), 1));
+        await Assert.That(vm.Markers.Count).IsEqualTo(1)
+            .Because("Dispose hands the subscription back, or the track keeps a dead view-model alive");
+    }
+
+    private static AnnotationElement Anchored(int tick) =>
+        new(Guid.NewGuid(), AnnotationKind.Freehand, AnnotationStyle.Default,
+            new SpaceRef.World(0), new TimeEnvelope(tick, null, 0, 0),
+            [new InkPoint(0, 0, 0.5f), new InkPoint(40, 10, 0.5f)], null);
 
     private static Playback2DTimelineViewModel Sized(int totalFrames, double pixelWidth)
     {

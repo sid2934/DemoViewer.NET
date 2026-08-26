@@ -85,6 +85,78 @@ public sealed class MapSpace
     public static MapLevelId IdForZMin(double zMin) => new((int)Math.Floor(zMin / LevelQuantum + 0.5));
 
     /// <summary>
+    ///     The id of the level a stored <c>SpaceRef.World(LevelMinZ)</c> anchor belongs to <b>in this
+    ///     space</b>. The one function annotation consumers may use to turn an anchor into a level id.
+    ///     <para>
+    ///         <b>Why not <see cref="IdForZMin" />.</b> That is the MINTING rule, and <see cref="Mint" />
+    ///         walks a colliding key upward — so after a floor is lost and re-found,
+    ///         <c>level.Id != IdForZMin(level.ZMin)</c>. Every consumer that derived an id from Z instead
+    ///         of asking the space then compared a minting key against a carried identity and got false:
+    ///         world-anchored ink vanished, or drew on whichever floor happened to own the old key.
+    ///         Design §10 risk 5's stated mitigation IS this identity, so the resolution has to live
+    ///         here, where <see cref="Levels" /> is.
+    ///     </para>
+    ///     <para>
+    ///         Resolution order mirrors <see cref="LevelSetChange.TryRemapAnchor" />, and for the same
+    ///         reasons: <b>the quantized key first</b> — an anchor is stamped with
+    ///         <see cref="QuantizeZ" />(level.ZMin) and real band lists are contiguous, so letting
+    ///         containment win first sinks every boundary anchor one floor — then half-open containment
+    ///         (an anchor is a band's LOWER bound, never its top), then closed containment for the top of
+    ///         the highest band, then the nearest band centre so an anchor can never belong to no level
+    ///         at all.
+    ///     </para>
+    /// </summary>
+    /// <param name="zMin">The anchor's stored level lower Z, as <c>DrawTool</c> quantized it.</param>
+    /// <returns>The owning level's id; <see cref="IdForZMin" />'s answer when the space has no levels.</returns>
+    public MapLevelId IdForAnchor(double zMin)
+    {
+        int count = _levels.Count;
+        if (count == 0)
+        {
+            return IdForZMin(zMin);
+        }
+
+        int key = IdForZMin(zMin).Key;
+        for (int i = 0; i < count; i++)
+        {
+            if (IdForZMin(_levels[i].ZMin).Key == key)
+            {
+                return _levels[i].Id;
+            }
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            if (zMin >= _levels[i].ZMin && zMin < _levels[i].ZMax)
+            {
+                return _levels[i].Id;
+            }
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            if (_levels[i].Contains(zMin))
+            {
+                return _levels[i].Id;
+            }
+        }
+
+        int nearest = 0;
+        double best = double.MaxValue;
+        for (int i = 0; i < count; i++)
+        {
+            double d = Math.Abs(zMin - _levels[i].MidZ);
+            if (d < best)
+            {
+                best = d;
+                nearest = i;
+            }
+        }
+
+        return _levels[nearest].Id;
+    }
+
+    /// <summary>
     ///     The level a world Z belongs on. Never null once the space has levels; returns null only
     ///     before the first rebuild.
     /// </summary>
@@ -374,7 +446,23 @@ public sealed class MapSpace
         return LastChange;
     }
 
-    /// <summary>Clears every level. For a demo unload; the next rebuild starts from nothing.</summary>
+    /// <summary>
+    ///     Clears every level. For a demo unload; the next rebuild starts from nothing.
+    ///     <para>
+    ///         <b>Publishes a real removal.</b> <see cref="Rebuild" />'s contract is that
+    ///         <see cref="LastChange" /> describes what happened before <see cref="LevelSetChanged" /> is
+    ///         raised, and a reset removes every level. Publishing <see cref="LevelSetChange.None" />
+    ///         here told every handler that reconciles against it — <c>PaneSet.RetainUnarranged</c>, the
+    ///         shipped one — that nothing had gone, so a demo unload kept a pane, a camera and a picture
+    ///         cache for every floor of the demo that had just closed.
+    ///     </para>
+    ///     <para>
+    ///         <see cref="LevelSetChange.LevelsAfter" /> stays empty, which is what makes
+    ///         <see cref="LevelSetChange.TryRemapAnchor" /> refuse: there is nothing to rebase an
+    ///         annotation anchor ONTO, and rebasing it at unload would rewrite the sidecar of the demo
+    ///         being closed.
+    ///     </para>
+    /// </summary>
     public void Reset()
     {
         if (_levels.Count == 0 && RadarBinding == RadarBindingQuality.None && _usedKeys.Count == 0)
@@ -382,10 +470,21 @@ public sealed class MapSpace
             return;
         }
 
+        _scratchRemoved.Clear();
+        (MapLevelId Id, double ZMin)[] before = new (MapLevelId, double)[_levels.Count];
+        for (int i = 0; i < _levels.Count; i++)
+        {
+            before[i] = (_levels[i].Id, _levels[i].ZMin);
+            _scratchRemoved.Add(_levels[i].Id);
+        }
+
         _levels.Clear();
         _usedKeys.Clear();
         RadarBinding = RadarBindingQuality.None;
-        LastChange = LevelSetChange.None;
+        LastChange = new LevelSetChange(true, [], _scratchRemoved.ToArray(), [])
+        {
+            LevelsBefore = before
+        };
         Version++;
         LevelSetChanged?.Invoke();
     }

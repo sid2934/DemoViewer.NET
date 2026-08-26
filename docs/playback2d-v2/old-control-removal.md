@@ -77,8 +77,16 @@ timeline, the follow funnel and key routing, not the surface. `Scene2DHostTests`
 the pre-v2 control on purpose** — that is what makes them a parity baseline rather than a snapshot of
 v2's own output. It must be retargeted to `Scene2DHost` **in a commit of its own, with the goldens
 re-captured and the diff inspected**, not folded into the deletion. Until then the committed
-`nuke-multilevel` pair stays exactly as it is; it is byte-exact and it is the only real gate B1's
-parity claim rests on.
+`nuke-multilevel` pair stays exactly as it is: it is the only real gate B1's parity claim rests on.
+
+It is **not byte-exact**, as this paragraph used to say (corrected D6 round 3). `GoldenParityTests`
+compares a delta *distribution* — ≥99 % of pixels within ±8 and ≥99.5 % within ±32 — because the
+pre-v2 control draws through Avalonia's `DrawingContext` and v2 through Skia, and two rasterisers
+cannot agree pixel for pixel on an anti-aliased edge. That is the point of the gate, not a weakness in
+it, and the distinction matters to the retarget above: **after** retargeting, both sides are Skia and
+the tolerance should be tightened rather than inherited. Byte-exactness in this repo means
+`SceneDeterminismTests` / `SceneRendererTests.Render_Twice_ProducesByteIdenticalPixels` — v2 against
+itself on one machine — and never a cross-rasteriser comparison.
 
 ---
 

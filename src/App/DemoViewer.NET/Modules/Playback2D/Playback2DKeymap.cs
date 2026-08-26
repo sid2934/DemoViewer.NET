@@ -76,7 +76,12 @@ public static class Playback2DKeymap
         Active = Default.Where(b => !b.IsReserved).ToArray();
         Reserved = Default.Where(b => b.IsReserved).ToArray();
         ShellReservedGestures = BuildShellReserved();
+        BrowserReservedGestures = BuildBrowserReserved();
 
+        // SHELL only. The shipped table is compiled once and runs on every head, so a browser gesture
+        // has no business failing the desktop build's type initialiser — and none of the shipped
+        // bindings uses one anyway. The browser set exists to refuse a USER'S rebind, which is a
+        // per-host question, and Playback2DKeymapProfile is where that gets asked.
         IReadOnlyList<string> conflicts = FindConflicts(Default, ShellReservedGestures);
         if (conflicts.Count > 0)
         {
@@ -96,6 +101,55 @@ public static class Playback2DKeymap
 
     /// <summary>The shell accelerators from <c>MainView.axaml</c> the tab must never shadow.</summary>
     public static IReadOnlyList<(Key Key, KeyModifiers Modifiers)> ShellReservedGestures { get; }
+
+    /// <summary>
+    ///     Gestures the BROWSER consumes before the page ever sees them. Empty of meaning on a desktop
+    ///     head; on WASM these are the keys a rebind can be offered, accepted, persisted — and then never
+    ///     fire, because Chrome opened a tab instead.
+    ///     <para>
+    ///         Deliberately a SECOND list rather than more rows in <see cref="ShellReservedGestures" />:
+    ///         that one is asserted character-for-character against <c>MainView.axaml</c>'s own
+    ///         <c>KeyBindings</c> block by <c>Playback2DKeybindConflictTests</c>, so anything added to it
+    ///         that the shell does not declare breaks the guard that keeps the two honest.
+    ///     </para>
+    ///     <para>
+    ///         <b>Conservative by construction.</b> Only gestures the browser takes at CHROME level and
+    ///         never delivers to the document are here. <c>Ctrl+Z</c>, <c>Ctrl+X</c> and friends are
+    ///         editing commands that DO reach the page and are cancellable, so reserving them would
+    ///         refuse a rebind that works perfectly — the mirror image of this defect.
+    ///     </para>
+    /// </summary>
+    public static IReadOnlyList<(Key Key, KeyModifiers Modifiers)> BrowserReservedGestures { get; }
+
+    /// <summary>
+    ///     The gestures a rebind must not claim on <paramref name="isBrowser" />'s head: the shell
+    ///     accelerators always, plus <see cref="BrowserReservedGestures" /> on the WASM one.
+    /// </summary>
+    /// <param name="isBrowser">Whether the host is the browser head.</param>
+    public static IReadOnlyList<(Key Key, KeyModifiers Modifiers)> ReservedGestures(bool isBrowser) =>
+        isBrowser ? [.. ShellReservedGestures, .. BrowserReservedGestures] : ShellReservedGestures;
+
+    /// <summary>Whether <paramref name="isBrowser" />'s head hands this gesture to the browser chrome.</summary>
+    /// <param name="key">The key.</param>
+    /// <param name="modifiers">The modifiers.</param>
+    /// <param name="isBrowser">Whether the host is the browser head.</param>
+    public static bool IsBrowserReserved(Key key, KeyModifiers modifiers, bool isBrowser)
+    {
+        if (!isBrowser)
+        {
+            return false;
+        }
+
+        foreach ((Key reservedKey, KeyModifiers reservedModifiers) in BrowserReservedGestures)
+        {
+            if (reservedKey == key && reservedModifiers == modifiers)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     ///     Resolves a keypress to an action. Pure — the primary, Avalonia-event-free overload. A gesture that
@@ -227,6 +281,15 @@ public static class Playback2DKeymap
             parts.Add("Alt");
         }
 
+        // Meta, in the same slot and the same spelling Playback2DKeymapProfile.Row persists it in. It
+        // was missing here while Row wrote it, so a macOS user who captured ⌘+K got the right row in
+        // settings.json and read "K" back in every Settings row, reset chip, tooltip and refusal —
+        // indistinguishable from a bare K, and from a DIFFERENT action bound to bare K.
+        if (modifiers.HasFlag(KeyModifiers.Meta))
+        {
+            parts.Add("Meta");
+        }
+
         parts.Add(KeyName(key));
         return string.Join("+", parts);
     }
@@ -315,5 +378,27 @@ public static class Playback2DKeymap
         (Key.D7, KeyModifiers.Control),
         (Key.D8, KeyModifiers.Control),
         (Key.D9, KeyModifiers.Control)
+    ];
+
+    // The gestures Chrome and Firefox handle in the CHROME and never dispatch to the document, so
+    // preventDefault cannot reach them and neither can Avalonia's WASM key pipeline. A user can bind one
+    // in Settings today, watch it persist, and never see it fire — while the Settings copy promises that
+    // "keys already taken … are refused with a reason".
+    //
+    // Ctrl+W is already a shell accelerator, so it is listed there too; a union of two sets is what the
+    // profile checks, and a gesture in both is refused once.
+    private static (Key Key, KeyModifiers Modifiers)[] BuildBrowserReserved() =>
+    [
+        (Key.T, KeyModifiers.Control), // new tab
+        (Key.T, KeyModifiers.Control | KeyModifiers.Shift), // reopen closed tab
+        (Key.N, KeyModifiers.Control), // new window
+        (Key.N, KeyModifiers.Control | KeyModifiers.Shift), // new private window
+        (Key.W, KeyModifiers.Control), // close tab
+        (Key.W, KeyModifiers.Control | KeyModifiers.Shift), // close window
+        (Key.Q, KeyModifiers.Control | KeyModifiers.Shift), // quit (Chrome, Linux/Windows)
+        (Key.F12, KeyModifiers.None), // dev tools
+        (Key.I, KeyModifiers.Control | KeyModifiers.Shift), // dev tools
+        (Key.J, KeyModifiers.Control | KeyModifiers.Shift), // dev tools console
+        (Key.F11, KeyModifiers.None) // browser fullscreen
     ];
 }

@@ -31,7 +31,11 @@ internal sealed class Playback2DFakeContext : IModuleContext
     public FakeModuleFeatureGate? Gate { get; set; }
 
     public bool HasDemo { get; set; } = true;
-    public string? DemoPath => null;
+
+    // Settable since round 3A: the follow target is slot-keyed and only meaningful inside ONE demo, so
+    // Playback2DTabViewModel's resync clears it when this changes. A permanently-null path could not
+    // express "a different demo arrived", which is the whole of D6 finding 11.
+    public string? DemoPath { get; set; }
     public int TickRate => 64;
     public int CurrentFrameIndex { get; set; }
     public int CurrentTick { get; set; }
@@ -92,6 +96,17 @@ internal sealed class Playback2DFakeContext : IModuleContext
     public IReadOnlyEntityView Entities { get; } = new EmptyEntityView();
     public IReadOnlyList<PlayerRosterEntry> Players => Roster;
     public IReadOnlyList<IPlayerState> CurrentPlayers => _players;
+
+    /// <summary>
+    ///     Empties the roster and the live player states. The demo-swap half of a <c>DemoReset</c>:
+    ///     <see cref="Roster" /> alone is not the whole roster, and leaving <c>_players</c> behind makes a
+    ///     "new demo" that still carries the old one's live states.
+    /// </summary>
+    public void ClearPlayers()
+    {
+        Roster.Clear();
+        _players.Clear();
+    }
 
     /// <summary>Adds one roster entry plus the matching live player state (team 2 = T, 3 = CT).</summary>
     public void AddPlayer(int slot, string name, int team)

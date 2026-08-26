@@ -131,9 +131,17 @@ public interface ISceneLayer : IDisposable      // …Core.Compositing
 `Render(SKCanvas, in SceneRenderContext)` (B0, single pane) / `Render(SKCanvas, in SceneSubmission)`
 (B1 overload, multi-pane) / `InvalidateCaches` / `Dispose`. Sort key `(Slot, Order, Id)`.
 
-**Layer ids** (persisted keys): `playback2d.radar`, `playback2d.trails`, `playback2d.areaeffects`,
-`playback2d.vision`, `playback2d.markers`, `playback2d.bomb`, `playback2d.floorlabel` (B1),
-`playback2d.annotations` (B2), `hud.clock`, `hud.killfeed` (B4).
+**Layer ids** (persisted keys) — **eleven**: `playback2d.radar`, `playback2d.trails`,
+`playback2d.areaeffects`, `playback2d.vision`, `playback2d.markers`, `playback2d.bomb`,
+`playback2d.floorlabel` (B1), `playback2d.annotations` (B2), `hud.roster` (D3b), `hud.clock`,
+`hud.killfeed` (B4). `hud.roster` was missing from this list until D6 round 3 — the registry is what a
+reader checks a hand-written layer array against, so an id absent from it is an id that can be absent
+from four other places without anyone noticing (G-3).
+
+This is registration order, not draw order: the compositor sorts on `(Slot, Order, Id)`, which puts
+`playback2d.annotations` (Overlay/100) ahead of `playback2d.floorlabel` (Hud/60). The one table these
+ids actually live in is `SceneLayerCatalog.SceneStackIds`; `SceneLayerListParityTests` asserts every
+other list in the repository against it, so this paragraph is prose about a fact a test owns.
 
 ### 3.4 Levels (B1 declares, B3 fills in)
 
@@ -284,6 +292,21 @@ collisions: `Q`/`E` = round nav, **`X` = erase**, `Ctrl+X` = clear all; `Space` 
 while a drawing tool is active (then hold-to-pan); `Esc` = gesture bail when a tool is active, else
 clear follow. Text-input suppression is A1's single global rule, not a per-binding flag.
 
+> **`RenderBackend`'s status, so the gap is not rediscovered a third time.** The key is in the list
+> below and C2 built the entire stack behind it, but no property exists, and D6 round 3A looked and chose
+> not to add one: nothing in the app can consume it. The scene host draws through Avalonia's own
+> compositor and never asks for a render-surface provider, and the export session refuses any provider
+> that is not CPU raster (design §0 **O2** / C2 Stage 1). A property today would be a preference whose
+> every value behaved identically except `gpu`, which would turn every export into a validation failure
+> — this audit's own defect class. The line stays because the key is still the intended name, and
+> the settings-consumption guard carries a load-bearing allow-list entry that **names** the gap so it is
+> not merely silent about it. Delete both in the commit that gives the key a consumer.
+
+> **Editing the paragraph below.** `Playback2DSettingsConsumptionTests.RegistryKeys` parses it — from the
+> `AppSettings.Playback2D` marker to the next `---` — and treats **every backticked PascalCase token in
+> that span as a persisted key**. Prose mentioning a type name in backticks there becomes a key the guard
+> then demands on the class. Put commentary above this line, as these two blocks are.
+
 **`AppSettings.Playback2D` — one section, one class, every property flattened into
 `SettingsService.WriteInMemory`** (B5 D3; B4's "exclude export keys" is overridden):
 `LastTool`, `AnnotationColorArgb` (uint), `AnnotationWidth`, `AnnotationOpacity`,
@@ -293,8 +316,9 @@ clear follow. Text-input suppression is A1's single global rule, not a per-bindi
 `AutoLevelFollow` · `TimelineShowKills`, `TimelineShowBomb`, `TimelineShowAnnotations` ·
 `ExportFormatId`, `ExportFps`, `ExportWidth`, `ExportHeight`, `ExportOutputDirectory`,
 `ExportIncludeHud`, `ExportIncludeAnnotations`, **`ExportEncoder`** (`auto|software|<rung>`, P2),
-**`ExportQuality`** (`draft|standard|best`, P2) · `RenderBackend` (`auto|cpu|gpu`) ·
-`LegacyViewport`. First lander creates the class; everyone else adds properties.
+**`ExportQuality`** (`draft|standard|best`, P2) · `RenderBackend` (`auto|cpu|gpu`) —
+**pinned here, deliberately NOT on the class** · `LegacyViewport`. First lander creates the class;
+everyone else adds properties.
 
 ---
 

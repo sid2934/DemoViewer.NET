@@ -25,8 +25,9 @@ cd "$ROOT"
 export PB2D_GOLDEN_UPDATE=1
 
 # 1. The synthetic family: CPU-provider renders of the hand-authored fixtures. No demo, no Avalonia,
-#    so this half always runs. It pins B0's own render loop (palette, transform, compositor, fixture
-#    format) — NOT the pre-v2 control.
+#    so this half always runs. It pins the PRODUCTION layer stack through HeadlessSceneRenderer — the
+#    same path `dv2d golden verify` uses, over the same three PNGs, so the two readers of those files
+#    cannot disagree. NOT the pre-v2 control.
 echo "[goldens] synthetic (direct execution)"
 dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c "$CONFIG" \
   -- --treenode-filter "/*/*/SceneGoldenTests/*"
@@ -44,11 +45,13 @@ dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c "$CONFIG"
 # 2. The demo-derived family: headless captures of the CURRENT Playback2DViewport, paired with the
 #    SceneFixture built from the same push. This is the corpus B1 must match. Each case SKIPS when its
 #    demo is absent, so a checkout with no demos staged is a no-op here rather than a failure.
+#    They own the prev2-* names and nothing else: two of them were once called duel-mirage-b and
+#    fitmap-mirage-eco — hand-authored 640x360 fixtures — and this step overwrote both scene files.
 echo "[goldens] demo-derived (headless Avalonia; skips without a demo)"
 dotnet run --project src/App/DemoViewer.NET.App.Tests -c "$CONFIG" \
   -- --treenode-filter "/*/*/Playback2DGoldenCaptureTests/*"
 
-# 3. The level family (B3): nuke-single-upper and nuke-multilevel-noradar are rendered from the SAME
+# 3. The level family (B3): nuke-multilevel-upper and nuke-multilevel-noradar are rendered from the SAME
 #    nuke-multilevel scene captured in step 2 — one floor at full height, and the same scene with no
 #    radar bound — so they have to be regenerated AFTER it or they would be re-baselined against the
 #    previous capture. Direct execution: no demo needed, only the committed scene and the de_nuke bundle.

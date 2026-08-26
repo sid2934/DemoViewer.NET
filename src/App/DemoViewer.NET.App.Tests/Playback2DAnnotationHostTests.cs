@@ -577,6 +577,98 @@ public class Playback2DAnnotationHostTests
     }
 
     /// <summary>
+    ///     <b>A chorded button's RELEASE, through the real pointer plumbing.</b> D2 taught
+    ///     <c>OnPressed</c> that chording is not a gesture and never taught <c>OnReleased</c>: letting the
+    ///     brushed middle button go committed the stroke at the chord point and dropped capture, so the
+    ///     rest of the drag drew nothing and the real left release was a no-op.
+    ///     <para>
+    ///         This runs through the host on purpose. The router half is pinned in the direct-execution
+    ///         suite; what only a real pointer can prove is that the host names the RELEASED button —
+    ///         <c>InitialPressMouseButton</c> — rather than reading the pressed-button flags, which on a
+    ///         release describe what is still DOWN and would report the chord as <c>Left</c>.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task MiddleRelease_MidStroke_DoesNotCutTheStrokeShort()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Fixture f = Fixture.Create();
+            f.Vm.Annotations.SelectTool(ToolKind.Draw);
+            Playback2DTimelineHarness.Pump();
+
+            f.Window.MouseDown(f.HostPoint(300, 300), MouseButton.Left);
+            f.Window.MouseMove(f.HostPoint(340, 310));
+            Playback2DTimelineHarness.Pump();
+
+            InkPoint atChord = f.Vm.Annotations.Session.Wet.Points[^1];
+
+            // The wheel button, brushed and let go, with the left one still down.
+            f.Window.MouseDown(f.HostPoint(340, 310), MouseButton.Middle,
+                RawInputModifiers.LeftMouseButton);
+            f.Window.MouseUp(f.HostPoint(340, 310), MouseButton.Middle,
+                RawInputModifiers.LeftMouseButton);
+            Playback2DTimelineHarness.Pump();
+
+            await Assert.That(f.Document.Elements).IsEmpty()
+                .Because("nothing that owned the gesture was released");
+            await Assert.That(f.Vm.Annotations.Session.Wet.IsActive).IsTrue();
+
+            // Capture has to survive too, or the rest of the drag goes to whatever is under the cursor.
+            f.Window.MouseMove(f.HostPoint(420, 340));
+            f.Window.MouseUp(f.HostPoint(420, 340), MouseButton.Left);
+            Playback2DTimelineHarness.Pump();
+
+            await Assert.That(f.Document.Elements.Count).IsEqualTo(1);
+
+            InkPoint last = f.Document.Elements[0].Points[^1];
+            Console.WriteLine($"[chord] chordX={atChord.X:F1} lastX={last.X:F1}");
+            await Assert.That(last.X).IsGreaterThan(atChord.X)
+                .Because("the element must end where the DRAG ended, not where the chord happened");
+        });
+    }
+
+    /// <summary>
+    ///     <b>An OS-cancelled contact.</b> A touch or pen lifted out of range, a system gesture, another
+    ///     element taking the pointer — Avalonia says so with <c>PointerCaptureLost</c>, which this
+    ///     control did not handle at all. <c>OnPointerMoved</c> gates only on <c>IsGestureOpen</c> and
+    ///     nothing cleared it, so the stroke stayed open and every later move extended it with no button
+    ///     held.
+    /// </summary>
+    [Test]
+    public async Task LostCapture_MidStroke_AbandonsTheGesture()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Fixture f = Fixture.Create();
+            f.Vm.Annotations.SelectTool(ToolKind.Draw);
+            Playback2DTimelineHarness.Pump();
+
+            f.Window.MouseDown(f.HostPoint(300, 300), MouseButton.Left);
+            f.Window.MouseMove(f.HostPoint(340, 310));
+            Playback2DTimelineHarness.Pump();
+            await Assert.That(f.Host.Router.IsGestureOpen).IsTrue();
+
+            f.Host.RaiseEvent(new PointerCaptureLostEventArgs(f.Host,
+                new Avalonia.Input.Pointer(1, PointerType.Mouse, isPrimary: true)));
+            Playback2DTimelineHarness.Pump();
+
+            await Assert.That(f.Host.Router.IsGestureOpen).IsFalse();
+            await Assert.That(f.Vm.Annotations.Session.Wet.IsActive).IsFalse();
+            await Assert.That(f.Document.Elements).IsEmpty()
+                .Because("nobody released anything — a cancelled contact is not a finished stroke");
+            await Assert.That(f.Document.UndoDepth).IsEqualTo(0);
+
+            // The move that used to keep drawing with no button down.
+            f.Window.MouseMove(f.HostPoint(500, 380));
+            Playback2DTimelineHarness.Pump();
+
+            await Assert.That(f.Vm.Annotations.Session.Wet.IsActive).IsFalse();
+            await Assert.That(f.Document.Elements).IsEmpty();
+        });
+    }
+
+    /// <summary>
     ///     D2 §2.3, through the real pointer plumbing: the pen may not take the view away. The pane the
     ///     drag begins on is the one that moves, exactly as under the pan tool.
     /// </summary>

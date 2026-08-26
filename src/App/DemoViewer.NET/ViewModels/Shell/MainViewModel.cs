@@ -2006,7 +2006,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     internal void AttachReelJob(IReelJobService reelJob)
     {
         ReelJob = reelJob;
-        _reelJobStatus = new ReelJobStatusViewModel(reelJob, OpenReelFolder);
+        _reelJobStatus = new ReelJobStatusViewModel(reelJob, OpenOutputFolder);
         _reelJobStatus.DismissRequested += OnReelDismissRequested;
         reelJob.StatusChanged += OnReelStatusChanged;
         ReconcileReelChip();
@@ -2141,9 +2141,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    // Opens the finished reel's output folder ("Open folder"). Desktop-only (the reel feature is), and
-    // best-effort — a launcher failure must never crash the UI thread.
-    private void OpenReelFolder(string path)
+    // Reveals a finished job's output ("Open folder") — the reel chip and, since D6, the 2D export chip.
+    // Desktop-only (both features are), and best-effort: a launcher failure must never crash the UI thread.
+    internal void OpenOutputFolder(string path)
     {
         if (OperatingSystem.IsBrowser() || string.IsNullOrEmpty(path))
         {
@@ -2165,7 +2165,94 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             // Best effort, but no longer silent (v0.6.0): a click that does nothing reads as a
             // broken button, so say what failed in the strip.
-            StatusText = $"Couldn't open the reel folder ({path}) — no file manager responded.";
+            StatusText = $"Couldn't open that folder ({path}) — no file manager responded.";
+        }
+    }
+
+    // ── 2D export chip ─────────────────────────────────────────────────────────
+    // The FIFTH StatusChip consumer, and the only one attached from a tab rather than at composition:
+    // the 2D tab builds its export job lazily, on the first Export, and the shell exists long before any
+    // module tab does. App.axaml.cs hands this method to Playback2DExportHost.MountStatusChip, and the
+    // tab calls it once, when it finally has a job.
+
+    private ViewModels.Playback2D.Playback2DExportStatusViewModel? _playback2DExportStatus;
+    private bool _exportChipDismissed;
+
+    /// <summary>The 2D export chip's mapper, or null until an export has been opened. For tests.</summary>
+    internal ViewModels.Playback2D.Playback2DExportStatusViewModel? Playback2DExportStatus =>
+        _playback2DExportStatus;
+
+    /// <summary>Mounts the 2D export status chip. Idempotent — the tab builds its job exactly once.</summary>
+    /// <param name="status">The mapper the tab built over its job service.</param>
+    internal void AttachPlayback2DExportStatus(
+        ViewModels.Playback2D.Playback2DExportStatusViewModel status)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        if (ReferenceEquals(_playback2DExportStatus, status))
+        {
+            return;
+        }
+
+        if (_playback2DExportStatus is { } previous)
+        {
+            previous.DismissRequested -= OnExportDismissRequested;
+            previous.PropertyChanged -= OnExportStatusPropertyChanged;
+            Chips.Remove(previous.Chip);
+        }
+
+        _playback2DExportStatus = status;
+        _exportChipDismissed = false;
+        status.DismissRequested += OnExportDismissRequested;
+
+        // The mapper already owns the StatusChanged subscription; the shell only needs to know when the
+        // job STARTED or FINISHED, and IsIdle is exactly that edge without a second subscription racing
+        // the first for who sees the new status.
+        status.PropertyChanged += OnExportStatusPropertyChanged;
+        ReconcileExportChip();
+    }
+
+    private void OnExportStatusPropertyChanged(object? sender,
+        System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(ViewModels.Playback2D.Playback2DExportStatusViewModel.IsIdle)
+            or nameof(ViewModels.Playback2D.Playback2DExportStatusViewModel.IsRunning)))
+        {
+            return;
+        }
+
+        // A newly-running job un-dismisses, so the chip comes back for a fresh export.
+        if (_playback2DExportStatus is { IsRunning: true })
+        {
+            _exportChipDismissed = false;
+        }
+
+        ReconcileExportChip();
+    }
+
+    private void OnExportDismissRequested(object? sender, EventArgs e)
+    {
+        _exportChipDismissed = true;
+        ReconcileExportChip();
+    }
+
+    // Shown while running, or while a finished result has not been dismissed. An idle mapper adds nothing
+    // to the strip — the tab attaches it on the first Export, which is long before the first Start.
+    private void ReconcileExportChip()
+    {
+        if (_playback2DExportStatus is not { } status)
+        {
+            return;
+        }
+
+        bool shouldShow = status.IsRunning || !status.IsIdle && !_exportChipDismissed;
+        bool present = Chips.Contains(status.Chip);
+        if (shouldShow && !present)
+        {
+            Chips.Add(status.Chip);
+        }
+        else if (!shouldShow && present)
+        {
+            Chips.Remove(status.Chip);
         }
     }
 

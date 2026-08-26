@@ -42,6 +42,78 @@ public class GoldenCorpusTests
         }
     }
 
+    /// <summary>
+    ///     <b>D6 G-8: the corpus README's "which fixtures exist has exactly one answer", enforced.</b>
+    ///     Every committed CPU golden must be named by an entry, at the size that entry declares.
+    ///     <para>
+    ///         Three things were wrong at once and none of them could be seen from either side alone.
+    ///         <c>nuke-multilevel-noradar@900x900.png</c> was committed with no entry at all.
+    ///         <c>nuke-single-upper</c> had goldens at 640×360 <i>and</i> 900×900 with different
+    ///         meanings, so one name described two pictures and the manifest could only ever describe
+    ///         one of them. And <c>Playback2DGoldenCaptureTests</c> wrote 900×900 captures under
+    ///         <c>duel-mirage-b</c> / <c>fitmap-mirage-eco</c> — names the manifest declares at 640×360 —
+    ///         so its output landed at a path nothing reads, on top of two hand-authored fixtures.
+    ///     </para>
+    ///     <para>
+    ///         The <c>prev2-</c> prefix is exempt and stays exempt: those are the pre-v2 control's own
+    ///         captures, they only exist on a machine with the relevant demo staged, and they are gated
+    ///         by <c>GoldenParityTests</c> rather than by <c>golden verify</c>. Exempting by prefix
+    ///         rather than by name means a fourth capture cannot quietly reintroduce the collision.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task EveryCommittedGolden_IsNamedByAnEntry_AtTheDeclaredSize()
+    {
+        GoldenCorpus corpus = GoldenCorpus.Load(Dv2d.CorpusDirectory);
+        string cpuDir = Path.Combine(corpus.Directory, "goldens", "cpu");
+
+        HashSet<string> declared = new(StringComparer.OrdinalIgnoreCase);
+        foreach (GoldenCorpusEntry entry in corpus.Entries)
+        {
+            declared.Add(Path.GetFileName(entry.GoldenPath(RenderBackend.CpuRaster)));
+        }
+
+        List<string> orphans = [];
+        foreach (string file in Directory.GetFiles(cpuDir, "*.png"))
+        {
+            string name = Path.GetFileName(file);
+            if (!name.StartsWith("prev2-", StringComparison.Ordinal) && !declared.Contains(name))
+            {
+                orphans.Add(name);
+            }
+        }
+
+        Console.WriteLine($"[corpus] {declared.Count} declared goldens, " +
+                          $"{Directory.GetFiles(cpuDir, "*.png").Length} committed, " +
+                          $"{orphans.Count} orphaned");
+
+        await Assert.That(orphans)
+            .IsEmpty()
+            .Because("a committed golden nothing names is a picture no gate reads");
+    }
+
+    /// <summary>
+    ///     The other direction, and the reason <c>annotated-mirage-b</c> could be <c>pending</c> for
+    ///     three phases with no scene file: a name in the manifest that resolves to nothing on disk is
+    ///     invisible to <c>EveryNonPendingEntry_HasASceneAndACpuGolden</c>, which skips pending entries.
+    ///     A pending entry may legitimately have no files — that is what pending is for — but its NOTE
+    ///     must say so, so a reader of the manifest can tell "waiting on an asset" from "waiting on a
+    ///     decision" without opening the directory.
+    /// </summary>
+    [Test]
+    public async Task EveryPendingEntry_ExplainsItselfInItsNote()
+    {
+        GoldenCorpus corpus = GoldenCorpus.Load(Dv2d.CorpusDirectory);
+
+        foreach (GoldenCorpusEntry entry in corpus.Entries.Where(e => e.Pending))
+        {
+            Console.WriteLine($"[corpus] pending {entry.Name}: {entry.Notes}");
+            await Assert.That(entry.Notes).IsNotNull();
+            await Assert.That(entry.Notes!).Contains("PENDING")
+                .Because("a pending flag whose note does not say why is how three stale ones survived");
+        }
+    }
+
     [Test]
     public async Task GoldenPath_FollowsTheCanonicalLayout()
     {

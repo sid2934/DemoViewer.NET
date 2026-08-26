@@ -2,7 +2,9 @@
 
 using System.Diagnostics;
 using System.Text.Json.Nodes;
+using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Pipeline.Goldens;
+using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
 
 #endregion
@@ -84,6 +86,121 @@ public class RenderFixtureTests
         await Assert.That(run.ExitCode).IsEqualTo(0);
         await Assert.That(run.Json()["elapsed_ms"]!.GetValue<double>()).IsLessThan(1000);
         await Assert.That(wallMs).IsLessThan(1000);
+    }
+
+    /// <summary>
+    ///     <b>D6 G-1, from the command line.</b> <c>dv2d render --layers markers</c> answered
+    ///     <i>"unknown layer id(s): markers. Known: playback2d.debuggrid"</i> for four phases, while
+    ///     <c>dv2d.md</c> documented this command as the design-iteration loop for "a marker style, a
+    ///     cone fill, an ink outline". Asserted through the reported <c>layers</c> array rather than a
+    ///     zero exit code: the whole failure mode being closed here is a command that succeeds while
+    ///     drawing something else.
+    /// </summary>
+    /// <param name="spelling">The <c>--layers</c> value; both the bare and prefixed forms are accepted.</param>
+    [Test]
+    [Arguments("markers")]
+    [Arguments("playback2d.markers")]
+    [Arguments("radar,markers,bomb")]
+    public async Task Layers_NamesTheRealSceneLayers(string spelling)
+    {
+        string fixturePath = Path.Combine(Dv2d.CorpusDirectory, "scenes", "duel-mirage-b.scene.json");
+        using TempDirectory temp = new();
+
+        CliRun run = Dv2d.InProcess("render", "--fixture", fixturePath, "--out",
+            Path.Combine(temp.Path, "layers.png"), "--size", "640x360", "--layers", spelling, "--json");
+
+        await Assert.That(run.ExitCode).IsEqualTo(0);
+
+        string[] drawn = [.. ((JsonArray)run.Json()["layers"]!).Select(n => n!.GetValue<string>())];
+        Console.WriteLine($"[layers] --layers {spelling} -> {string.Join(",", drawn)}");
+
+        await Assert.That(drawn.Length).IsEqualTo(spelling.Split(',').Length);
+        await Assert.That(drawn).Contains(SceneLayerIds.Markers);
+        await Assert.That(drawn).DoesNotContain("playback2d.debuggrid");
+    }
+
+    /// <summary>
+    ///     The default stack is the seven scene layers, in draw order — what an export draws, minus the
+    ///     opt-in chrome. This is the assertion that would have read <c>["playback2d.debuggrid"]</c>.
+    /// </summary>
+    [Test]
+    public async Task DefaultStack_IsTheSevenSceneLayers()
+    {
+        string fixturePath = Path.Combine(Dv2d.CorpusDirectory, "scenes", "duel-mirage-b.scene.json");
+        using TempDirectory temp = new();
+
+        CliRun run = Dv2d.InProcess("render", "--fixture", fixturePath, "--out",
+            Path.Combine(temp.Path, "default.png"), "--size", "640x360", "--json");
+
+        string[] drawn = [.. ((JsonArray)run.Json()["layers"]!).Select(n => n!.GetValue<string>())];
+        string[] expected =
+            [.. SceneLayerCatalog.SceneStackIds.Where(id => !SceneLayerIds.OptIn.Contains(id))];
+
+        await Assert.That(run.ExitCode).IsEqualTo(0);
+        await Assert.That(drawn).IsEquivalentTo(expected);
+    }
+
+    /// <summary>
+    ///     An opt-in layer this command cannot feed is <b>refused</b>, not silently dropped.
+    ///     <c>CreateSceneStack</c> skips a starved opt-in id on purpose — an export request naming
+    ///     <c>hud.clock</c> against a source with no clock should draw no HUD rather than an empty box —
+    ///     but on a command line, "I asked for it and got a PNG" must not be able to mean "it was not
+    ///     there". Both refusals name the command that <i>can</i> draw the layer.
+    /// </summary>
+    /// <param name="layerId">The opt-in id to ask for.</param>
+    /// <param name="expectedHint">A phrase the refusal must carry.</param>
+    [Test]
+    [Arguments("hud.clock", "dv2d export --hud")]
+    [Arguments("hud.killfeed", "dv2d export --hud")]
+    [Arguments("hud.roster", "dv2d export --hud")]
+    [Arguments("annotations", "--ink")]
+    public async Task UnfeedableOptInLayer_IsRefusedWithTheCommandThatCanDrawIt(
+        string layerId, string expectedHint)
+    {
+        string fixturePath = Path.Combine(Dv2d.CorpusDirectory, "scenes", "duel-mirage-b.scene.json");
+        using TempDirectory temp = new();
+
+        CliRun run = Dv2d.InProcess("render", "--fixture", fixturePath, "--out",
+            Path.Combine(temp.Path, "starved.png"), "--layers", layerId);
+
+        Console.WriteLine($"[layers] --layers {layerId} -> exit {run.ExitCode}: {run.StdErr.Trim()}");
+        await Assert.That(run.ExitCode).IsEqualTo((int)ExitCode.Usage);
+        await Assert.That(run.StdErr).Contains(expectedHint);
+    }
+
+    /// <summary>
+    ///     <c>--ink</c> feeds the annotation layer for a render with no demo, which is what makes the
+    ///     <c>annotated-mirage-b</c> corpus entry — the only golden anywhere covering burned-in ink —
+    ///     possible at all. The sidecar is read through the production <c>AnnotationStore</c>, so a
+    ///     document the app wrote and one the corpus ships take one code path.
+    /// </summary>
+    [Test]
+    public async Task Ink_RegistersTheAnnotationLayer_AndChangesThePicture()
+    {
+        string fixturePath = Path.Combine(Dv2d.CorpusDirectory, "scenes",
+            "annotated-mirage-b.scene.json");
+        string inkPath = Path.Combine(Dv2d.CorpusDirectory, "annotations",
+            "annotated-mirage-b.dvann.json");
+        using TempDirectory temp = new();
+        string withInk = Path.Combine(temp.Path, "ink.png");
+        string without = Path.Combine(temp.Path, "no-ink.png");
+
+        CliRun inked = Dv2d.InProcess("render", "--fixture", fixturePath, "--out", withInk,
+            "--size", "640x360", "--cpu", "--ink", inkPath,
+            "--layers", "radar,trails,areaeffects,vision,markers,bomb,floorlabel,annotations", "--json");
+        CliRun bare = Dv2d.InProcess("render", "--fixture", fixturePath, "--out", without,
+            "--size", "640x360", "--cpu", "--json");
+
+        await Assert.That(inked.ExitCode).IsEqualTo(0);
+        await Assert.That(bare.ExitCode).IsEqualTo(0);
+
+        string[] drawn = [.. ((JsonArray)inked.Json()["layers"]!).Select(n => n!.GetValue<string>())];
+        await Assert.That(drawn).Contains(SceneLayerIds.Annotations);
+
+        // Not just "the layer registered": the two SHA-256s the CLI reports must differ, which is the
+        // difference between an ink layer that is mounted and an ink layer that draws.
+        await Assert.That(inked.Json()["png_sha256"]!.GetValue<string>())
+            .IsNotEqualTo(bare.Json()["png_sha256"]!.GetValue<string>());
     }
 
     [Test]

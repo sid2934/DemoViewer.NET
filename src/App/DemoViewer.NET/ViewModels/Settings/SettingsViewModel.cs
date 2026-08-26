@@ -244,6 +244,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // skipped as redundant (the bound state already matches what we just wrote).
     private bool _writing;
 
+    // Whether this is the WASM head. Injected, not read from OperatingSystem here — see the internal ctor.
+    private readonly Func<bool> _isBrowser;
+
     /// <summary>
     ///     Constructs over the live <see cref="SettingsService" />, its bound options monitor, the shared
     ///     <see cref="IFeatureGate" />, and the central <see cref="ThemeRegistry" /> (the theme catalogue). All
@@ -253,13 +256,35 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     public SettingsViewModel(
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
         Action? replayWalkthrough = null)
+        : this(settings, monitor, gate, themes, OperatingSystem.IsBrowser, replayWalkthrough)
+    {
+    }
+
+    /// <summary>
+    ///     Test seam: the same view-model with the host predicate injected.
+    ///     <c>OperatingSystem.IsBrowser()</c> is a JIT-folded intrinsic and cannot be faked from outside,
+    ///     and every browser-honesty statement this screen makes (D6 §4b) would otherwise be a sentence
+    ///     nobody has ever seen rendered. Same seam <c>ShellModuleFeatureGate</c> and
+    ///     <c>AnnotationSessionController</c> already use.
+    /// </summary>
+    /// <param name="settings">The live settings service.</param>
+    /// <param name="monitor">Its bound options monitor.</param>
+    /// <param name="gate">The shared feature gate.</param>
+    /// <param name="themes">The theme catalogue.</param>
+    /// <param name="isBrowser">Whether the host is the WASM head.</param>
+    /// <param name="replayWalkthrough">Re-runs the tutorial walkthrough, or null.</param>
+    internal SettingsViewModel(
+        SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
+        Func<bool> isBrowser, Action? replayWalkthrough = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(gate);
         ArgumentNullException.ThrowIfNull(themes);
+        ArgumentNullException.ThrowIfNull(isBrowser);
         _settings = settings;
         _gate = gate;
+        _isBrowser = isBrowser;
         _replayWalkthrough = replayWalkthrough;
         _registry = themes;
 
@@ -611,6 +636,32 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <summary>Whether any override row was dropped — reveals the note.</summary>
     public bool HasKeybindRejections => KeybindRejectionNote.Length > 0;
 
+    /// <summary>
+    ///     Whether rebinds survive a restart. False on the browser head, where <c>SettingsService</c>
+    ///     selects its fileless in-memory provider — every write lands in a dictionary that dies with the
+    ///     page (D6 §4b). A user rebinds twenty gestures, watches every one of them apply live, and loses
+    ///     the lot on refresh.
+    /// </summary>
+    public bool KeybindsPersist => !_isBrowser();
+
+    /// <summary>
+    ///     The sentence shown when they do not, or "". Deliberately the same shape B5 wrote for
+    ///     annotations (<c>"session only — this browser tab forgets annotations when it reloads"</c>) —
+    ///     D1 shipped a second surface with the same property and did not repeat it.
+    /// </summary>
+    public string KeybindPersistenceNote => KeybindsPersist
+        ? ""
+        : "Session only — this browser tab forgets rebound keys when it reloads.";
+
+    /// <summary>
+    ///     Where the dropped override rows came from. On desktop that is a hand-edited
+    ///     <c>settings.json</c>; on the browser there is no such file, and naming one sends the user
+    ///     looking for something that does not exist on their machine.
+    /// </summary>
+    public string KeybindRejectionSource => KeybindsPersist
+        ? "Some keybinding overrides in settings.json were ignored; the shipped gestures are used for them."
+        : "Some stored keybinding overrides were ignored; the shipped gestures are used for them.";
+
     /// <summary>How many actions are bound to something other than their shipped gesture.</summary>
     public int CustomKeybindCount { get; private set; }
 
@@ -634,8 +685,11 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // from Reflect (an external edit / another surface).
     private void RefreshKeybindRows()
     {
+        // The host is passed explicitly: on the browser the reserved set also carries the gestures the
+        // BROWSER takes before the page sees them (Ctrl+T, F12, …), which a rebind must be refused for.
         Playback2DKeymapProfile profile = Playback2DKeymapProfile.FromOverrides(
-            _settings.Current.Playback2D.KeybindOverrides, out IReadOnlyList<string> rejected);
+            _settings.Current.Playback2D.KeybindOverrides, out IReadOnlyList<string> rejected,
+            _isBrowser());
 
         int custom = 0;
         foreach (KeybindRow row in Playback2DKeybindRows)
@@ -760,7 +814,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         string[] existing = _settings.Current.Playback2D.KeybindOverrides;
         string candidate = Playback2DKeymapProfile.Row(row.Action, key, modifiers);
 
-        string reason = Playback2DKeymapProfile.ValidateOverride(existing, candidate);
+        string reason = Playback2DKeymapProfile.ValidateOverride(existing, candidate, _isBrowser());
         if (reason.Length > 0)
         {
             row.Conflict = reason;
@@ -1482,7 +1536,19 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     private void AddFeatureRow(
         ObservableCollection<FeatureToggleRow> group, FeatureDescriptor descriptor, int indentLevel)
     {
-        FeatureToggleRow row = new(this, _gate, descriptor, indentLevel);
+        // The PLATFORM half of the answer, which the raw IFeatureGate does not know (D6 §4b). Modules
+        // read their gate through ShellModuleFeatureGate, whose DesktopOnlyIds forces a set of ids off on
+        // the browser head — so this list showed the browser a live, ON "Video export" toggle for a
+        // capability that is refused one layer out, and flipping it did nothing at all.
+        //
+        // Resolved through ShellModuleFeatureGate.DesktopOnlyIds itself rather than a second copy of the
+        // list: that set is documented as "the ONE !OperatingSystem.IsBrowser() AND site for
+        // module-facing ids", and a second answer to the same question is how this diverged in the first
+        // place.
+        bool platformUnavailable =
+            _isBrowser() && ShellModuleFeatureGate.DesktopOnlyIds.Contains(descriptor.Id);
+
+        FeatureToggleRow row = new(this, _gate, descriptor, indentLevel, platformUnavailable);
         group.Add(row);
         _featureRows.Add(row);
     }

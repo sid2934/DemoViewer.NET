@@ -79,21 +79,45 @@ public sealed class ConePolygon
 }
 
 /// <summary>
-///     A could-see relationship between two players. <b>Endpoints are deliberately absent</b>: the
-///     pre-v2 overlay drew the line between the two <i>smoothed</i> marker dots (lines 998-1002) so the
-///     line meets the players it describes, and the smoothed positions are not known until render time.
+///     A could-see relationship between two players. <b>Endpoints are normally absent</b>: the pre-v2
+///     overlay drew the line between the two <i>smoothed</i> marker dots (lines 998-1002) so the line
+///     meets the players it describes, and the smoothed positions are not known until render time. A
+///     live <see cref="IVisionSolver" /> therefore names slots and lets the layer resolve them.
+///     <para>
+///         <b>The four endpoint fields exist for geometry that was solved somewhere else</b> (D6 round 3):
+///         <c>SceneVision.Sightline</c>, the shape a serialized <see cref="Scene2DFrame" /> carries,
+///         holds world endpoints and no target slot at all, because whoever solved it had already
+///         resolved both ends. Left <see cref="float.NaN" /> — which is what the five-argument form
+///         gives — the layer resolves slots exactly as it always did, so the solver path is unchanged.
+///     </para>
 /// </summary>
 /// <param name="ViewerSlot">The seeing player's roster slot.</param>
 /// <param name="ViewerTeam">The seeing player's team, which colours the line.</param>
 /// <param name="ViewerZ">The viewer's feet Z, for the level filter.</param>
-/// <param name="TargetSlot">The seen player's roster slot.</param>
+/// <param name="TargetSlot">The seen player's roster slot, or -1 when only endpoints are known.</param>
 /// <param name="TargetZ">The target's feet Z, for the level filter.</param>
+/// <param name="ViewerX">Pre-resolved viewer world X, or <see cref="float.NaN" /> to resolve the slot.</param>
+/// <param name="ViewerY">Pre-resolved viewer world Y.</param>
+/// <param name="TargetX">Pre-resolved target world X, or <see cref="float.NaN" /> to resolve the slot.</param>
+/// <param name="TargetY">Pre-resolved target world Y.</param>
 public readonly record struct SightlineSegment(
     int ViewerSlot,
     int ViewerTeam,
     float ViewerZ,
     int TargetSlot,
-    float TargetZ);
+    float TargetZ,
+    float ViewerX = float.NaN,
+    float ViewerY = float.NaN,
+    float TargetX = float.NaN,
+    float TargetY = float.NaN)
+{
+    /// <summary>
+    ///     True when both ends were resolved upstream and the layer must draw them as given rather than
+    ///     re-deriving them from the frame's markers. Both ends together: half a pre-resolved segment and
+    ///     half a smoothed one would be a line neither source ever computed.
+    /// </summary>
+    public bool HasWorldEndpoints => !float.IsNaN(ViewerX) && !float.IsNaN(TargetX);
+}
 
 /// <summary>
 ///     One frame's solved line-of-sight geometry, in world space. Buffers are pooled and reused, so a

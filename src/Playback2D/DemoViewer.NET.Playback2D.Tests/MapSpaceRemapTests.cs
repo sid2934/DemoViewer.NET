@@ -1,6 +1,8 @@
 #region
 
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using SkiaSharp;
 
 #endregion
 
@@ -133,6 +135,101 @@ public class MapSpaceRemapTests
 
         await Assert.That(space.Levels[0].Id).IsNotEqualTo(departed);
         await Assert.That(space.ById(departed)).IsNull();
+    }
+
+    /// <summary>
+    ///     <b>The other side of <see cref="MintedKeys_NeverCollide_AfterRemoveThenAdd" />.</b> The bump
+    ///     that protects a departed level's identity also breaks the equation every annotation consumer
+    ///     used to rely on — <c>level.Id == IdForZMin(level.ZMin)</c> — so an anchor resolved by the
+    ///     minting rule stops matching the pane that is visibly drawing it. Design §10 risk 5's stated
+    ///     mitigation is ZMin-keyed level identity; <see cref="MapSpace.IdForAnchor" /> is where that
+    ///     identity now actually lives.
+    /// </summary>
+    [Test]
+    public async Task IdForAnchor_FollowsTheCarriedIdentity_NotTheMintingRule()
+    {
+        MapSpace space = new();
+        space.Rebuild([new FloorSlice(-448, -384), new FloorSlice(-384, -128)]);
+
+        // Lose the lower floor, then find it again — exactly what a histogram that briefly sees no
+        // samples down there does, and what a demo reload does deliberately.
+        space.Rebuild([new FloorSlice(-384, -128)]);
+        space.Rebuild([new FloorSlice(-448, -384), new FloorSlice(-384, -128)]);
+
+        MapLevel lower = space.Levels[0];
+        double anchor = MapSpace.QuantizeZ(lower.ZMin);
+
+        Console.WriteLine($"[anchor] level={lower.Id} mintingRule={MapSpace.IdForZMin(anchor)}");
+
+        await Assert.That(lower.Id).IsNotEqualTo(MapSpace.IdForZMin(anchor))
+            .Because("Mint walked past the key this band used to hold — that IS the defect");
+        await Assert.That(space.IdForAnchor(anchor)).IsEqualTo(lower.Id);
+        await Assert.That(space.IdForAnchor(MapSpace.QuantizeZ(space.Levels[1].ZMin)))
+            .IsEqualTo(space.Levels[1].Id);
+    }
+
+    /// <summary>
+    ///     Contiguous bands share a boundary value, so containment alone answers "both" and picks the
+    ///     floor BELOW — the same trap <see cref="TryRemapAnchor_OnASharedBoundary_PrefersTheBandAbove" />
+    ///     documents. The quantized key has to win first, and the gap case still has to land somewhere.
+    /// </summary>
+    [Test]
+    public async Task IdForAnchor_PrefersTheBandAbove_AndNeverAnswersNothing()
+    {
+        MapSpace empty = new();
+        await Assert.That(empty.IdForAnchor(0)).IsEqualTo(MapSpace.IdForZMin(0))
+            .Because("before the first rebuild there is nothing to resolve against");
+
+        MapSpace space = new();
+        space.Rebuild([new FloorSlice(0, 640), new FloorSlice(640, 1280)]);
+
+        await Assert.That(space.IdForAnchor(640)).IsEqualTo(space.Levels[1].Id)
+            .Because("an anchor is a band's LOWER bound, never its neighbour's top");
+        await Assert.That(space.IdForAnchor(0)).IsEqualTo(space.Levels[0].Id);
+        await Assert.That(space.IdForAnchor(320)).IsEqualTo(space.Levels[0].Id);
+
+        MapSpace gapped = new();
+        gapped.Rebuild([new FloorSlice(0, 640), new FloorSlice(4000, 4640)]);
+        await Assert.That(gapped.IdForAnchor(3900)).IsEqualTo(gapped.Levels[1].Id)
+            .Because("nearest band centre, exactly as TryRemapAnchor's last rule — ink never belongs "
+                     + "to no floor at all");
+    }
+
+    /// <summary>
+    ///     <b>Reset removes every level, and has to say so.</b> A handler that reconciles against
+    ///     <c>LastChange</c> — <c>PaneSet.RetainUnarranged</c>, which <c>Scene2DHost</c> calls — was told
+    ///     <c>LevelSetChange.None</c>, so a demo unload kept a pane and a camera for every floor of the
+    ///     demo that had just closed.
+    /// </summary>
+    [Test]
+    public async Task Reset_PublishesEveryLevelAsRemoved_SoPanesReconcile()
+    {
+        MapSpace space = new();
+        space.Rebuild([new FloorSlice(-448, -384), new FloorSlice(-384, -128)]);
+
+        PaneSet panes = new(new StackedLayout());
+        panes.Reconcile(space, LevelDisplayMode.Stacked, new SKSize(600, 400),
+            new WorldBounds(-1000, -1000, 1000, 1000));
+        await Assert.That(panes.Panes).HasCount().EqualTo(2);
+
+        MapLevelId[] before = [.. space.Levels.Select(l => l.Id)];
+        space.Reset();
+        LevelSetChange change = space.LastChange;
+
+        await Assert.That(change.Changed).IsTrue();
+        await Assert.That(change.Removed).HasCount().EqualTo(2);
+        await Assert.That(change.Removed.Contains(before[0])).IsTrue();
+        await Assert.That(change.Removed.Contains(before[1])).IsTrue();
+        await Assert.That(change.Added).IsEmpty();
+        await Assert.That(change.Retained).IsEmpty();
+
+        panes.RetainUnarranged(change);
+        await Assert.That(panes.Panes).IsEmpty()
+            .Because("every floor of the outgoing demo is gone, not merely off screen");
+
+        // Nothing to rebase an annotation anchor ONTO, so the rebase path stands down rather than
+        // rewriting the closing demo's sidecar.
+        await Assert.That(change.TryRemapAnchor(-448, out double _)).IsFalse();
     }
 
     [Test]

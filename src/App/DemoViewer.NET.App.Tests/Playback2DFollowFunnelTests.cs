@@ -152,4 +152,70 @@ public class Playback2DFollowFunnelTests
         await Assert.That(vm.FollowedSlot).IsEqualTo(-1);
         await Assert.That(vm.Attributes.Any(a => a.IsFollowed)).IsFalse();
     }
+
+    /// <summary>
+    ///     D6 finding 11. A slot is only meaningful inside one demo, and every piece of follow state is
+    ///     slot-keyed — so a swap has to clear all of it or the three disagree: the ring and the camera
+    ///     silently re-point at whoever the NEW demo has in that slot, the footer keeps naming the OLD
+    ///     player, and no card highlights because <c>SelectedPlayer</c> still references a row that is no
+    ///     longer in <c>Attributes</c>.
+    /// </summary>
+    [Test]
+    public async Task FollowTarget_IsClearedWhenADifferentDemoIsOpened()
+    {
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) =
+            Playback2DActionDispatchTests.Activated("/demos/first.dem");
+
+        vm.NotifyFollowSlotChanged(1);
+        await Assert.That(vm.FollowStatus).Contains("Bravo");
+
+        List<int> mirrored = [];
+        vm.FollowSlotChanged += mirrored.Add;
+
+        // A different demo, with a DIFFERENT player in slot 1 — the case the defect makes invisible.
+        ctx.ClearPlayers();
+        ctx.DemoPath = "/demos/second.dem";
+        ctx.AddPlayer(0, "Delta", 2);
+        ctx.AddPlayer(1, "Echo", 3);
+        ctx.RaiseDemoReset();
+
+        Console.WriteLine($"[follow-swap] slot={vm.FollowedSlot} status='{vm.FollowStatus}' "
+                          + $"selected='{vm.SelectedPlayer?.Name}' mirrored=[{string.Join(",", mirrored)}]");
+
+        await Assert.That(vm.FollowedSlot).IsEqualTo(-1)
+            .Because("slot 1 in the new demo is Echo, not the Bravo the user chose");
+        await Assert.That(vm.FollowStatus).IsEqualTo("")
+            .Because("the footer named a player from a demo that is no longer open");
+        await Assert.That(vm.Timeline.FollowStatus).IsEqualTo("");
+        await Assert.That(vm.SelectedPlayer).IsNull()
+            .Because("it referenced a PlayerAttributes instance that is not in Attributes any more");
+        await Assert.That(vm.Attributes.Any(a => a.IsFollowed)).IsFalse();
+        await Assert.That(mirrored).Contains(-1)
+            .Because("the View mirrors the follow ring off this event; without it the surface keeps "
+                     + "following slot 1 whatever the VM says");
+    }
+
+    /// <summary>
+    ///     The other half, and the reason the clear is not simply unconditional: the View is DESTROYED and
+    ///     rebuilt from the descriptor's factory on every tab activation, and <c>OnActivated</c> re-runs
+    ///     the same resync. Follow surviving that is what <c>Playback2DView.BindViewModel</c>'s
+    ///     re-projection exists for.
+    /// </summary>
+    [Test]
+    public async Task FollowTarget_SurvivesAReactivationOfTheSameDemo()
+    {
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) =
+            Playback2DActionDispatchTests.Activated("/demos/first.dem");
+
+        vm.NotifyFollowSlotChanged(1);
+
+        vm.OnDeactivated();
+        vm.OnActivated(ctx);
+
+        Console.WriteLine($"[follow-reactivate] slot={vm.FollowedSlot} status='{vm.FollowStatus}'");
+
+        await Assert.That(vm.FollowedSlot).IsEqualTo(1);
+        await Assert.That(vm.FollowStatus).Contains("Bravo");
+        await Assert.That(vm.SelectedPlayer?.Slot).IsEqualTo(1);
+    }
 }

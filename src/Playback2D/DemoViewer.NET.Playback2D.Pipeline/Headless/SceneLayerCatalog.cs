@@ -16,10 +16,26 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Headless;
 ///     or an <c>AppSettings</c> value (design §7.7) — it takes explicit ids — so the set of layers a
 ///     render can contain has to be enumerable from Pipeline alone.
 ///     <para>
-///         <b>B1 extends this, and only this.</b> Today the stack is B0's single smoke layer; when the
-///         seven real layers land, they are registered here and <c>--layers radar,markers</c> starts
-///         working with no CLI change. The registered ids are the persisted keys from
-///         <c>plans/00-overview.md</c> §3.3 and are never renamed.
+///         <b>One table, one entry point</b> (D6 G-1/G-3). This class used to hold two: a
+///         <c>_registrations</c> list holding B0's single <c>playback2d.debuggrid</c> that
+///         <c>Create()</c> served to <c>render</c>/<c>golden</c>/<c>bench</c>, and
+///         <see cref="SceneStackIds" /> — the real eleven — that only <c>export</c> ever reached. The
+///         split was deliberate and temporary: growing <c>Create</c>'s default set moves every
+///         committed golden, and B1 was to fold the tables together in the PR that re-baselines the
+///         corpus. It did not, so for four phases <b>CI's only pixel-regression gate re-rendered every
+///         corpus entry as a debug grid</b> and the frame-budget gate measured that grid against a
+///         16 ms budget. This is that fold: <see cref="SceneStackIds" /> is now the only table, and
+///         <c>dv2d render --layers markers</c> draws markers.
+///     </para>
+///     <para>
+///         <c>playback2d.debuggrid</c> is gone from the catalog with it. <c>DebugGridLayer</c>'s own doc
+///         says it is <c>internal</c> "so it can never become a production dependency"; while it was the
+///         only id three shipped CLI commands could name, that sentence was false. It stays where it
+///         belongs — a smoke layer three Core test suites construct directly.
+///     </para>
+///     <para>
+///         The registered ids are the persisted keys from <c>plans/00-overview.md</c> §3.3 and are
+///         never renamed.
 ///     </para>
 /// </summary>
 public static class SceneLayerCatalog
@@ -27,69 +43,13 @@ public static class SceneLayerCatalog
     /// <summary>The prefix every layer id carries; accepted but not required on the command line.</summary>
     public const string IdPrefix = "playback2d.";
 
-    private static readonly IReadOnlyList<Registration> _registrations =
-    [
-        // B0's smoke layer. It draws no text, so it needs no font and rasterises identically on a CI
-        // container with no fontconfig — which is what makes a byte-exact CPU golden lane possible at
-        // all before B1's embedded-typeface work lands.
-        new("playback2d.debuggrid", static () => new DebugGridLayer())
-    ];
-
-    /// <summary>Every layer id this build can register, in registration order.</summary>
-    public static IReadOnlyList<string> KnownLayerIds { get; } =
-        _registrations.Select(static r => r.Id).ToArray();
-
     /// <summary>
-    ///     Builds a compositor holding the requested layers. The caller owns and disposes it (disposing
-    ///     a compositor disposes its layers).
+    ///     Every layer id this build can register — an alias for
+    ///     <see cref="SceneStackIds" /> and not a second table. The name survives the fold because it is
+    ///     what <c>--layers</c>'s refusal text and <c>dv2d.md</c> call the set, and because
+    ///     <see cref="UnknownIds" /> reads more honestly against "known" than against "scene stack".
     /// </summary>
-    /// <param name="include">Ids to register, or null for every known layer.</param>
-    /// <param name="exclude">Ids to subtract from <paramref name="include" />.</param>
-    /// <exception cref="ArgumentException">An id is not in <see cref="KnownLayerIds" />.</exception>
-    public static SceneCompositor Create(IReadOnlyList<string>? include = null,
-        IReadOnlyList<string>? exclude = null)
-    {
-        string[] unknown = [.. UnknownIds(include), .. UnknownIds(exclude)];
-        if (unknown.Length > 0)
-        {
-            throw new ArgumentException(
-                $"unknown layer id(s): {string.Join(", ", unknown)}. Known: {string.Join(", ", KnownLayerIds)}",
-                include is not null && UnknownIds(include).Count > 0 ? nameof(include) : nameof(exclude));
-        }
-
-        HashSet<string>? wanted = include is null
-            ? null
-            : new HashSet<string>(include.Select(Normalize), StringComparer.Ordinal);
-        HashSet<string> unwanted = exclude is null
-            ? []
-            : new HashSet<string>(exclude.Select(Normalize), StringComparer.Ordinal);
-
-        SceneCompositor compositor = new();
-        try
-        {
-            foreach (Registration registration in _registrations)
-            {
-                if (wanted is not null && !wanted.Contains(registration.Id))
-                {
-                    continue;
-                }
-
-                if (unwanted.Contains(registration.Id))
-                {
-                    continue;
-                }
-
-                compositor.Add(registration.Create());
-            }
-        }
-        catch
-        {
-            compositor.Dispose();
-            throw;
-        }
-
-        return compositor;
-    }
+    public static IReadOnlyList<string> KnownLayerIds => SceneStackIds;
 
     /// <summary>The ids in <paramref name="ids" /> that no layer answers to. Empty when all are known.</summary>
     /// <param name="ids">Candidate ids, bare or prefixed.</param>
@@ -130,8 +90,19 @@ public static class SceneLayerCatalog
     }
 
     /// <summary>
-    ///     The ids <see cref="CreateSceneStack" /> can register: B1's seven scene layers, B2's ink, and the
-    ///     three HUD layers, in draw order. The last four are <see cref="SceneLayerIds.OptIn" />.
+    ///     <b>The table.</b> The ids <see cref="CreateSceneStack" /> can register: B1's seven scene
+    ///     layers, B2's ink, and the three HUD layers. The last four are
+    ///     <see cref="SceneLayerIds.OptIn" />. Every other layer list in the repository is asserted
+    ///     against this one by <c>SceneLayerListParityTests</c> rather than hand-maintained beside it.
+    ///     <para>
+    ///         <b>Registration order, NOT draw order</b> — this said "in draw order" and was wrong about
+    ///         one pair. The compositor sorts on <c>(Slot, Order, Id)</c>, which puts
+    ///         <c>playback2d.annotations</c> (Overlay/100) <i>before</i> <c>playback2d.floorlabel</c>
+    ///         (Hud/60), the reverse of the order below: ink is world content the floor caption must stay
+    ///         legible over. Registration order does not matter here — <c>SceneCompositor</c> re-sorts,
+    ///         and <c>SceneStage</c> has a case that registers the whole stack backwards to prove it — so
+    ///         the list stays as it is and the claim about it is what changed.
+    ///     </para>
     /// </summary>
     public static IReadOnlyList<string> SceneStackIds { get; } =
     [
@@ -151,12 +122,10 @@ public static class SceneLayerCatalog
     /// <summary>
     ///     Builds the <b>full v2 scene stack</b> — what the window draws, plus the export HUD.
     ///     <para>
-    ///         <b>Why this is a second entry point and not a bigger <see cref="Create" />.</b> Adding
-    ///         these to <see cref="_registrations" /> would change what <c>Create()</c> returns with no
-    ///         arguments, and that is what <c>dv2d render</c> and every committed CPU golden are built on:
-    ///         every golden in the corpus would move in a commit that is about video export. B1 folds the
-    ///         two tables together in the PR that re-baselines the corpus deliberately; until then this is
-    ///         the stack an export and <c>dv2d export</c> ask for by name.
+    ///         <b>The only entry point.</b> <c>dv2d render</c>, <c>golden</c>, <c>bench</c> and
+    ///         <c>export</c> all arrive here, so a pixel gate and a video cannot be drawn by two
+    ///         different stacks — which is exactly what happened while <c>Create()</c> served the first
+    ///         three from a second table (D6 G-1).
     ///     </para>
     ///     <para>
     ///         The <see cref="SceneLayerIds.OptIn" /> layers — the three HUD layers and the ink — are
@@ -189,15 +158,16 @@ public static class SceneLayerCatalog
             ? []
             : new HashSet<string>(exclude.Select(Normalize), StringComparer.Ordinal);
 
-        if (wanted is not null)
+        // Both directions, because a typo in --exclude-layers is exactly as wrong as one in --layers and
+        // silently subtracting nothing is the failure mode that hides it. (Create() validated the
+        // exclude side and CreateSceneStack did not; folding the two kept the stricter half.)
+        string[] unknown = [.. UnknownIds(include), .. UnknownIds(exclude)];
+        if (unknown.Length > 0)
         {
-            string[] unknown = [.. wanted.Where(id => !SceneStackIds.Contains(id, StringComparer.Ordinal))];
-            if (unknown.Length > 0)
-            {
-                throw new ArgumentException(
-                    $"unknown layer id(s): {string.Join(", ", unknown)}. " +
-                    $"Known: {string.Join(", ", SceneStackIds)}", nameof(include));
-            }
+            throw new ArgumentException(
+                $"unknown layer id(s): {string.Join(", ", unknown)}. " +
+                $"Known: {string.Join(", ", KnownLayerIds)}",
+                UnknownIds(include).Count > 0 ? nameof(include) : nameof(exclude));
         }
 
         MarkerSmoother shared = smoother ?? new MarkerSmoother();
@@ -266,6 +236,4 @@ public static class SceneLayerCatalog
         SceneLayerIds.HudClock => new ClockLayer(hud!, text: text),
         _ => new KillFeedLayer(hud!, text: text)
     };
-
-    private sealed record Registration(string Id, Func<ISceneLayer> Create);
 }

@@ -5,6 +5,7 @@ using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline;
+using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
 using TUnit.Core.Exceptions;
 
@@ -17,8 +18,17 @@ namespace DemoViewer.NET.Playback2DTests.Rendering;
 ///     path both providers go through.
 ///     <para>
 ///         The render path is deliberately <i>identical</i> to <c>SceneGoldenTests.Render</c> — same
-///         compositor, same layer, same context. A parity suite that assembled the scene differently
-///         would be comparing two pipelines and calling the difference a backend difference.
+///         layer stack, same renderer, same camera pin. A parity suite that assembled the scene
+///         differently would be comparing two pipelines and calling the difference a backend
+///         difference, and <c>GpuMatchesTheCommittedCpuGoldens</c> diffs against the very files that
+///         suite writes.
+///     </para>
+///     <para>
+///         It draws the production stack rather than <c>DebugGridLayer</c> from D6 onward, which is what
+///         C2's own note asked for ("when B1 ports those layers, add the fixtures here rather than
+///         starting a second parity suite"). The corpus stops being "the clear colour plus anti-aliased
+///         grid lines" and becomes alpha-blended smoke, resampled radar art and glyph ink — the three
+///         cases §7.2 wanted a cross-backend answer for.
 ///     </para>
 /// </summary>
 internal static class GpuFixtureRender
@@ -69,17 +79,15 @@ internal static class GpuFixtureRender
     /// <param name="size">Output size in pixels.</param>
     public static byte[] RenderPng(IRenderSurfaceProvider provider, SceneFixture fixture, SKSizeI size)
     {
-        SceneRenderer renderer = new(provider);
-        using SceneCompositor compositor = new();
-        compositor.Add(new DebugGridLayer());
+        using SceneCompositor compositor = SceneLayerCatalog.CreateSceneStack();
+        using HeadlessSceneRenderer renderer = new(provider, compositor)
+        {
+            Palette = ScenePalette.Dark,
+            Camera = fixture.Camera
+        };
 
         SceneTime time = fixture.Time;
-        SceneRenderContext ctx = TestContexts.For(fixture.Frame, fixture.Camera, size.Width, size.Height);
-        using SKImage image = renderer.Render(compositor, fixture.Frame, in time, in ctx, size);
-
-        using MemoryStream stream = new();
-        SceneRenderer.WritePng(image, stream);
-        return stream.ToArray();
+        return renderer.RenderPng(fixture.Frame, in time, size, RenderPurpose.Export);
     }
 
     /// <summary>Writes a failing comparison's three images where CI can upload them.</summary>

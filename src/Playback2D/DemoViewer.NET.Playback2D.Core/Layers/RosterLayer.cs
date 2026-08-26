@@ -142,6 +142,39 @@ public sealed class RosterLayer : ISceneLayer
         float gap = _style.RosterRowGapPx;
         float usable = paneH - (_style.MarginPx * 2);
         float rowH = Math.Min(_style.RosterRowHeightPx, (usable - ((tallest - 1) * gap)) / tallest);
+        float top = ctx.PaneBounds.Top + ((paneH - ColumnHeight(tallest, rowH, gap)) / 2);
+
+        // ── the kill feed's band ─────────────────────────────────────────────────────────────────────
+        // hud.killfeed owns the top-right corner of this same pane and is Order 80 against this layer's
+        // 65, so wherever they meet the feed paints over the cards. On a pane tall enough for a centred
+        // roster to clear it — anything from about 552 px with the shipped style — this is a no-op and
+        // nothing below runs. On a short one, and a 1280×720 two-level stacked export is one, the strips
+        // move into the band underneath the feed and shrink to fit it (D6 finding 9).
+        //
+        // BOTH columns move, not only CT's: only the right column can actually collide, but two strips at
+        // different heights is not a layout, and the roster's whole shape is a matched pair framing the
+        // map. The reservation is taken whether or not the feed is mounted, because a layer cannot see
+        // its siblings — and the cost of taking it when it is absent is a shorter card on a small pane,
+        // against a corner of the video that is unreadable when it is present.
+        float feedTop = ctx.PaneBounds.Top + KillFeedLayer.ReservedBandHeight(_style);
+        if (top < feedTop)
+        {
+            float band = ctx.PaneBounds.Bottom - _style.MarginPx - feedTop;
+            float shrunk = Math.Min(rowH, (band - ((tallest - 1) * gap)) / tallest);
+
+            // …and the reservation YIELDS when honouring it would cost the roster its existence. On a
+            // pane so short that a legible column does not fit under the feed at all — an 800×420
+            // two-level export leaves 39 px — there is no non-overlapping layout to find, and
+            // withdrawing would silently drop the cards on every small pane whether or not a feed is
+            // even mounted. Overlap on a pane that has no answer is a degradation; a roster that
+            // vanishes because of a layer that is not there is a second defect.
+            if (shrunk >= MinRowHeightPx)
+            {
+                rowH = shrunk;
+                top = feedTop + ((band - ColumnHeight(tallest, rowH, gap)) / 2);
+            }
+        }
+
         if (rowH < MinRowHeightPx)
         {
             return;
@@ -150,9 +183,15 @@ public sealed class RosterLayer : ISceneLayer
         float leftX = ctx.PaneBounds.Left + _style.MarginPx;
         float rightX = ctx.PaneBounds.Right - _style.MarginPx - cardW;
 
-        DrawColumn(canvas, ctx, roster, 2, leftX, cardW, rowH, gap, tCount, paneH, true);
-        DrawColumn(canvas, ctx, roster, 3, rightX, cardW, rowH, gap, ctCount, paneH, false);
+        float tallestH = ColumnHeight(tallest, rowH, gap);
+        DrawColumn(canvas, ctx, roster, 2, leftX, cardW, rowH, gap, tCount, top, tallestH, true);
+        DrawColumn(canvas, ctx, roster, 3, rightX, cardW, rowH, gap, ctCount, top, tallestH, false);
     }
+
+    // A column of `count` cards, gaps included. The one place the stack's height is expressed, so the
+    // centring above and the per-side centring below cannot drift apart.
+    private static float ColumnHeight(int count, float rowH, float gap) =>
+        (count * rowH) + ((count - 1) * gap);
 
     /// <inheritdoc />
     public void Dispose()
@@ -178,18 +217,20 @@ public sealed class RosterLayer : ISceneLayer
         return count;
     }
 
-    // One side's column, centred vertically so a 4-v-5 round reads as two balanced strips rather than
-    // two columns hanging off the top edge.
+    // One side's column, centred within the band the caller reserved so a 4-v-5 round reads as two
+    // balanced strips rather than two columns hanging off the top edge. Centring against the TALLEST
+    // side's stack rather than against the pane is what keeps the two sides sharing one centre line once
+    // the kill feed has pushed the band down.
     private void DrawColumn(SKCanvas canvas, SceneRenderContext ctx, IReadOnlyList<HudPlayerRow> roster,
-        int team, float x, float cardW, float rowH, float gap, int count, float paneH, bool accentLeft)
+        int team, float x, float cardW, float rowH, float gap, int count, float bandTop, float bandHeight,
+        bool accentLeft)
     {
         if (count == 0)
         {
             return;
         }
 
-        float totalH = (count * rowH) + ((count - 1) * gap);
-        float y = ctx.PaneBounds.Top + ((paneH - totalH) / 2);
+        float y = bandTop + ((bandHeight - ColumnHeight(count, rowH, gap)) / 2);
         SKColor teamColor = ctx.Palette.TeamFill(team);
 
         for (int i = 0; i < roster.Count; i++)

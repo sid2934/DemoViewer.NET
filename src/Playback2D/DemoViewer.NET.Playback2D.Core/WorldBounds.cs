@@ -30,7 +30,15 @@ public readonly record struct WorldBounds(double MinX, double MinY, double MaxX,
         Math.Max(a.MaxX, b.MaxX),
         Math.Max(a.MaxY, b.MaxY));
 
-    /// <summary>The smallest rectangle containing this one and the given world point.</summary>
+    /// <summary>
+    ///     The smallest rectangle containing this one and the given world point.
+    ///     <para>
+    ///         <b>Filter the point before you get here.</b> <c>Math.Min</c>/<c>Math.Max</c> propagate
+    ///         <c>NaN</c>, and a rectangle that is only ever widened never un-poisons itself, so one bad
+    ///         sample is permanent — see <c>SceneFrameBuilder.Observe</c>, which is the gate, and
+    ///         <see cref="ViewportTransform.Fit" />, which is the backstop (D6 finding 8).
+    ///     </para>
+    /// </summary>
     public WorldBounds Extend(double worldX, double worldY) => new(
         Math.Min(MinX, worldX),
         Math.Min(MinY, worldY),

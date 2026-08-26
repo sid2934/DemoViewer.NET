@@ -408,7 +408,197 @@ public class Playback2DExportDialogTests
         await Assert.That(job.Started.EncoderOverride).IsEqualTo(EncoderLadder.Software);
     }
 
+    /// <summary>
+    ///     <b>The second export ever attempted.</b> The overwrite remark was returned from
+    ///     <c>Validate()</c> as the <c>ErrorBanner</c>, and <c>CanStart</c> is <c>ErrorBanner is null</c> —
+    ///     so naming a path that already exists produced a red banner and a dead Export button. The
+    ///     default path is a constant, which means every export after the first landed on exactly that.
+    /// </summary>
+    [Test]
+    public async Task WhenTheOutputFileExists_ItStillStarts_AndSaysItWillOverwrite()
+    {
+        Playback2DExportDialogViewModel vm = Dialog(fileExists: _ => true);
+
+        await Assert.That(vm.CanStart).IsTrue()
+            .Because("overwriting is what naming an existing path MEANS, not a reason to refuse");
+        await Assert.That(vm.StartCommand.CanExecute(null)).IsTrue();
+        await Assert.That(vm.ErrorBanner).IsNull();
+
+        // The remark still has to be made — it just belongs in the channel that does not gate the button.
+        await Assert.That(vm.NoticeBanner).IsNotNull();
+        await Assert.That(vm.NoticeBanner!).Contains("already exists");
+    }
+
+    [Test]
+    public async Task ARealRefusal_StillClearsTheNotice_OutOfTheErrorChannel()
+    {
+        Playback2DExportDialogViewModel vm = Dialog(fileExists: _ => true, liveSync: () => true);
+
+        // Both banners are live at once and they say different things: one is why it will not start, the
+        // other is what will happen when it does.
+        await Assert.That(vm.CanStart).IsFalse();
+        await Assert.That(vm.ErrorBanner).IsEqualTo(Services.Export.ExportJobService.LiveSyncRefusal);
+        await Assert.That(vm.NoticeBanner!).Contains("already exists");
+    }
+
+    /// <summary>
+    ///     ffmpeg infers the container from the extension, and nothing downstream overrides it — so a
+    ///     stale extension is not cosmetic. Picking MP4 over a path still ending <c>.webm</c> produced a
+    ///     WebM, named <c>.webm</c>, encoded under MP4's settings.
+    /// </summary>
+    [Test]
+    public async Task ChangingTheFormat_RewritesTheOutputExtension()
+    {
+        Playback2DExportDialogViewModel vm = Dialog();
+        vm.OutputPath = Path.Combine("videos", "round-7.webm");
+
+        vm.SelectedFormat = ExportFormats.Mp4;
+        await Assert.That(Path.GetExtension(vm.OutputPath)).IsEqualTo(".mp4");
+
+        vm.SelectedFormat = ExportFormats.Gif;
+        await Assert.That(Path.GetExtension(vm.OutputPath)).IsEqualTo(".gif");
+
+        // The directory and the stem are the user's; only the container is the format's.
+        await Assert.That(Path.GetFileNameWithoutExtension(vm.OutputPath)).IsEqualTo("round-7");
+        await Assert.That(Path.GetDirectoryName(vm.OutputPath)).IsEqualTo("videos");
+    }
+
+    /// <summary>
+    ///     <b>Two Starts cannot trade documents.</b> The ink used to be a field on the tab, written by the
+    ///     dialog's Start and read by the runner's setup closure — but the job awaits the heavy-job gate
+    ///     BEFORE that closure runs, so a second Start (even one the gate then refused) replaced the
+    ///     document the first, still-parked export was going to burn in. It rides the request now, and a
+    ///     request is one-per-run by construction.
+    /// </summary>
+    [Test]
+    public async Task EachStart_CarriesItsOwnInk()
+    {
+        RecordingExportJobService job = new();
+        int strokes = 0;
+        Playback2DExportDialogViewModel vm = Dialog(job: job, captureInk: () => InkWith(++strokes));
+
+        vm.StartCommand.Execute(null);
+        vm.StartCommand.Execute(null);
+
+        await Assert.That(job.Requests.Count).IsEqualTo(2);
+        await Assert.That(job.Requests[0].Ink!.Document.Elements.Count).IsEqualTo(1);
+        await Assert.That(job.Requests[1].Ink!.Document.Elements.Count).IsEqualTo(2)
+            .Because("the second Start's snapshot must not have replaced the first's");
+        await Assert.That(ReferenceEquals(job.Requests[0].Ink, job.Requests[1].Ink)).IsFalse();
+    }
+
+    [Test]
+    public async Task WithNoInkCapture_TheRequestSimplyCarriesNone()
+    {
+        RecordingExportJobService job = new();
+        Playback2DExportDialogViewModel vm = Dialog(job: job);
+
+        vm.StartCommand.Execute(null);
+
+        // A tab with the annotations feature off hands back null, and null must mean "no ink layer fed",
+        // never "reuse whatever was there last time".
+        await Assert.That(job.Requests[0].Ink).IsNull();
+    }
+
+    /// <summary>
+    ///     <c>ExportIncludeVision</c> was the one export check box with no settings key at all — absent
+    ///     from the class, from the seed and from the write-back — so a user who wanted cones re-ticked
+    ///     the box for every single export.
+    /// </summary>
+    [Test]
+    public async Task IncludeVision_SeedsFromSettings_AndPersistsBack()
+    {
+        AppSettings written = new();
+        Playback2DExportDialogViewModel seeded = Dialog(
+            defaults: new Playback2DSettings { ExportIncludeVision = true });
+
+        await Assert.That(seeded.IncludeVision).IsTrue();
+        await Assert.That(seeded.BuildRequest(seeded.Ranges[0]).LayerIds.Contains(SceneLayerIds.Vision))
+            .IsTrue();
+
+        Playback2DExportDialogViewModel vm = Dialog(
+            job: new RecordingExportJobService(), persist: mutate => mutate(written));
+        vm.IncludeVision = true;
+        vm.StartCommand.Execute(null);
+
+        await Assert.That(written.Playback2D.ExportIncludeVision).IsTrue();
+    }
+
+    /// <summary>
+    ///     The fileless branch, explicitly. <c>SettingsWasmRoundTripTests</c> reflects over the whole class
+    ///     and would catch a missing <c>WriteInMemory</c> row too, but a key that only ever travels is
+    ///     half a setting: this one asserts the round trip AND the dialog reading it back.
+    /// </summary>
+    [Test]
+    public async Task IncludeVision_SurvivesTheFilelessSettingsPath()
+    {
+        SettingsService settings = new(null); // the WASM branch — no file, only the in-memory provider
+        settings.Write(s => s.Playback2D.ExportIncludeVision = true);
+
+        await Assert.That(settings.Current.Playback2D.ExportIncludeVision).IsTrue()
+            .Because("a Playback2DSettings property with no WriteInMemory row forgets itself on WASM");
+
+        Playback2DExportDialogViewModel vm = Dialog(defaults: settings.Current.Playback2D);
+        await Assert.That(vm.IncludeVision).IsTrue();
+    }
+
+    /// <summary>
+    ///     <b>Cross-surface layer parity, the app half.</b> Its counterpart is
+    ///     <c>ExportLayerParityTests</c> in the dv2d suite, which pins <c>ExportCommand.BuildLayerIds</c>
+    ///     to the same two Core-derived expressions from the other side. Adding a layer to
+    ///     <c>SceneStackIds</c> moves both; changing one front end's defaults moves only one, and that is
+    ///     the drift these exist to catch.
+    /// </summary>
+    [Test]
+    public async Task TheShippedIncludeSet_IsTheCliesFullOverlaySet()
+    {
+        Playback2DExportDialogViewModel vm = Dialog();
+
+        // HUD on, annotations on, vision off — the dialog's shipped defaults, and `dv2d export --hud
+        // --annotations`.
+        await Assert.That(vm.IncludeHud).IsTrue();
+        await Assert.That(vm.IncludeAnnotations).IsTrue();
+        await Assert.That(vm.IncludeVision).IsFalse();
+
+        await Assert.That(vm.BuildRequest(vm.Ranges[0]).LayerIds.Order())
+            .IsEquivalentTo(FullOverlaySet().Order());
+    }
+
+    [Test]
+    public async Task WithEveryOverlayOff_ItIsTheCliesBareDefaultSet()
+    {
+        Playback2DExportDialogViewModel vm = Dialog();
+        vm.IncludeHud = false;
+        vm.IncludeAnnotations = false;
+
+        // The bare `dv2d export` set. Vision used to be in the CLI's and never in the app's, which is one
+        // request producing two different videos depending on which front end ran it.
+        await Assert.That(vm.BuildRequest(vm.Ranges[0]).LayerIds.Order())
+            .IsEquivalentTo(BareSceneSet().Order());
+    }
+
+    /// <summary>Every scene-stack id except vision — `dv2d export --hud --annotations`.</summary>
+    internal static IEnumerable<string> FullOverlaySet() =>
+        Playback2D.Pipeline.Headless.SceneLayerCatalog.SceneStackIds
+            .Where(id => !string.Equals(id, SceneLayerIds.Vision, StringComparison.Ordinal));
+
+    /// <summary>Every non-opt-in scene-stack id except vision — bare `dv2d export`.</summary>
+    internal static IEnumerable<string> BareSceneSet() =>
+        Playback2D.Pipeline.Headless.SceneLayerCatalog.SceneStackIds
+            .Where(id => !SceneLayerIds.OptIn.Contains(id) &&
+                         !string.Equals(id, SceneLayerIds.Vision, StringComparison.Ordinal));
+
     private static AnnotationSession EmptyInk() => new(new AnnotationDocument());
+
+    private static AnnotationSession InkWith(int strokes)
+    {
+        AnnotationDocument document = new();
+        document.Reset([.. Enumerable.Range(0, strokes).Select(_ => new AnnotationElement(
+            Guid.NewGuid(), AnnotationKind.Freehand, AnnotationStyle.Default,
+            new SpaceRef.World(0), TimeEnvelope.Static,
+            [new InkPoint(0, 0, 0.5f), new InkPoint(10, 10, 0.5f)], null))]);
+        return new AnnotationSession(document);
+    }
 
     private static Playback2DExportDialogViewModel Dialog(
         IReadOnlyList<ExportRangeOption>? ranges = null,
@@ -418,7 +608,10 @@ public class Playback2DExportDialogTests
         Func<int, int, int, double, int>? outputFrameCount = null,
         Playback2DSettings? defaults = null,
         IExportJobService? job = null,
-        Action<Action<AppSettings>>? persist = null) =>
+        Action<Action<AppSettings>>? persist = null,
+        Func<string, bool>? fileExists = null,
+        Func<AnnotationSession?>? captureInk = null,
+        FfmpegAcquire? acquireFfmpeg = null) =>
         new(ranges ?? [new ExportRangeOption("Current round", 100, 400)],
             defaults ?? new Playback2DSettings(),
             job: job,
@@ -427,7 +620,9 @@ public class Playback2DExportDialogTests
             ffmpegLocator: ffmpeg ?? (() => new FfmpegLocation(true, "/usr/bin", FfmpegOrigin.SystemPath)),
             isLiveSyncSessionActive: liveSync,
             persistDefaults: persist,
-            fileExists: _ => false);
+            fileExists: fileExists ?? (_ => false),
+            captureInk: captureInk,
+            acquireFfmpeg: acquireFfmpeg);
 
     /// <summary>Records the one request the dialog hands off, and nothing else.</summary>
     private sealed class StubExportJobService : IExportJobService
@@ -446,6 +641,179 @@ public class Playback2DExportDialogTests
 
         public Task CancelAsync() => Task.CompletedTask;
     }
+
+    /// <summary>Every request, in order — what a single-slot stub cannot show about two Starts.</summary>
+    private sealed class RecordingExportJobService : IExportJobService
+    {
+        public List<Scene2DExportRequest> Requests { get; } = [];
+
+        public ExportJobStatus Status => ExportJobStatus.Idle;
+
+        public event EventHandler<ExportJobStatus>? StatusChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public void Start(Scene2DExportRequest request) => Requests.Add(request);
+
+        public Task CancelAsync() => Task.CompletedTask;
+    }
+}
+
+/// <summary>
+///     <b>The pinned ffmpeg download, which for the whole life of the feature could not run.</b> The
+///     runner's <c>consent</c> was an optional constructor parameter its one production caller omitted,
+///     so <c>ResolveFfmpegAsync</c> short-circuited before <c>FfmpegAcquisition</c> was ever reached —
+///     while the pane showed a check box, <b>ticked by default</b>, offering exactly that download, and
+///     the refusal text advertised it too.
+///     <para>
+///         It is a button now, and the licence read out of the verified archive has to be accepted before
+///         anything is extracted. These cases drive that flow with an injected acquisition, so they need
+///         no network, no 140 MB transfer and no Windows-x64 machine.
+///     </para>
+///     <para>
+///         They run on the headless UI thread because the consent callback marshals there — production's
+///         caller is <c>FfmpegAcquisition</c> on a pool thread — and off it the publish would be a
+///         <c>Dispatcher.Post</c> with nothing pumping.
+///     </para>
+/// </summary>
+[NotInParallel]
+public class Playback2DExportFfmpegDownloadTests
+{
+    [Test]
+    public async Task WithNothingPinnedForThisMachine_TheDownloadIsNotOffered()
+    {
+        Playback2DExportDialogViewModel vm = new(
+            [new ExportRangeOption("Current round", 100, 400)],
+            new Playback2DSettings(),
+            ffmpegLocator: () => FfmpegLocation.NotFound,
+            fileExists: _ => false);
+
+        await Assert.That(vm.ShowFfmpegStrip).IsTrue();
+        await Assert.That(vm.CanOfferFfmpegDownload).IsFalse()
+            .Because("a button that cannot do anything is the defect this replaced, in a new shape");
+        await Assert.That(vm.DownloadFfmpegCommand.CanExecute(null)).IsFalse();
+    }
+
+    [Test]
+    public async Task TheLicence_IsShown_AndInstallingWaitsForTheUserToAcceptIt() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            bool installed = false;
+            bool ffmpegPresent = false;
+
+            Playback2DExportDialogViewModel vm = Dialog(() => ffmpegPresent,
+                async (consent, progress, ct) =>
+                {
+                    progress?.Report(0.5);
+                    if (!await consent(Offer(), "LGPL-2.1 …", ct).ConfigureAwait(true))
+                    {
+                        return FfmpegLocation.NotFound;
+                    }
+
+                    installed = true;
+                    ffmpegPresent = true;
+                    return new FfmpegLocation(true, "/managed", FfmpegOrigin.Managed);
+                });
+
+            Task download = vm.DownloadFfmpegCommand.ExecuteAsync(null);
+
+            // The licence is on screen and nothing has been written: that ordering is the whole point of
+            // FfmpegAcquisition's contract, which asks only after the bytes are downloaded and hashed.
+            await Assert.That(vm.HasFfmpegLicense).IsTrue();
+            await Assert.That(vm.FfmpegLicenseText).IsNotNull();
+            await Assert.That(installed).IsFalse();
+
+            vm.AcceptFfmpegLicenseCommand.Execute(null);
+            await download.WaitAsync(TimeSpan.FromSeconds(10));
+
+            await Assert.That(installed).IsTrue();
+            await Assert.That(vm.HasFfmpegLicense).IsFalse();
+            await Assert.That(vm.IsDownloadingFfmpeg).IsFalse();
+
+            // Re-probed, so the pane stops refusing video without a second press of Re-check.
+            await Assert.That(vm.IsFfmpegMissing).IsFalse();
+            await Assert.That(vm.CanStart).IsTrue();
+        });
+
+    [Test]
+    public async Task DecliningTheLicence_InstallsNothing_AndSaysSo() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            bool installed = false;
+            Playback2DExportDialogViewModel vm = Dialog(() => false,
+                async (consent, _, ct) =>
+                {
+                    if (!await consent(Offer(), "LGPL-2.1 …", ct).ConfigureAwait(true))
+                    {
+                        return FfmpegLocation.NotFound;
+                    }
+
+                    installed = true;
+                    return new FfmpegLocation(true, "/managed", FfmpegOrigin.Managed);
+                });
+
+            Task download = vm.DownloadFfmpegCommand.ExecuteAsync(null);
+            await Assert.That(vm.HasFfmpegLicense).IsTrue();
+
+            vm.DeclineFfmpegLicenseCommand.Execute(null);
+            await download.WaitAsync(TimeSpan.FromSeconds(10));
+
+            await Assert.That(installed).IsFalse();
+            await Assert.That(vm.FfmpegDownloadStatus!).Contains("Nothing was installed");
+            await Assert.That(vm.CanStart).IsFalse().Because("no ffmpeg still means no video export");
+        });
+
+    [Test]
+    public async Task AFailedDownload_DegradesToTheMessage_NeverToACrash() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            Playback2DExportDialogViewModel vm = Dialog(() => false,
+                (_, _, _) => throw new FfmpegAcquisitionException(
+                    "The downloaded ffmpeg archive did not match its pinned checksum, so it was discarded."));
+
+            await vm.DownloadFfmpegCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(10));
+
+            await Assert.That(vm.FfmpegDownloadStatus!).Contains("pinned checksum");
+            await Assert.That(vm.IsDownloadingFfmpeg).IsFalse();
+        });
+
+    /// <summary>
+    ///     Closing the pane mid-download must not leave the acquisition awaiting a licence answer that
+    ///     can no longer be given — the pane it would have been given in is gone.
+    /// </summary>
+    [Test]
+    public async Task DisposingMidConsent_ReleasesTheAcquisition() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            Playback2DExportDialogViewModel vm = Dialog(() => false,
+                async (consent, _, ct) => await consent(Offer(), "LGPL-2.1 …", ct).ConfigureAwait(true)
+                    ? new FfmpegLocation(true, "/managed", FfmpegOrigin.Managed)
+                    : FfmpegLocation.NotFound);
+
+            Task download = vm.DownloadFfmpegCommand.ExecuteAsync(null);
+            await Assert.That(vm.HasFfmpegLicense).IsTrue();
+
+            vm.Dispose();
+            await download.WaitAsync(TimeSpan.FromSeconds(10));
+
+            await Assert.That(vm.IsDownloadingFfmpeg).IsFalse();
+        });
+
+    private static FfmpegDownloadOffer Offer() =>
+        new("https://example.invalid/ffmpeg.zip", new string('a', 64), "autobuild-test",
+            "https://example.invalid", "LGPL-2.1", 1024, "/managed");
+
+    private static Playback2DExportDialogViewModel Dialog(Func<bool> ffmpegPresent,
+        FfmpegAcquire acquire) =>
+        new([new ExportRangeOption("Current round", 100, 400)],
+            new Playback2DSettings(),
+            ffmpegLocator: () => ffmpegPresent()
+                ? new FfmpegLocation(true, "/managed", FfmpegOrigin.Managed)
+                : FfmpegLocation.NotFound,
+            fileExists: _ => false,
+            acquireFfmpeg: acquire);
 }
 
 /// <summary>

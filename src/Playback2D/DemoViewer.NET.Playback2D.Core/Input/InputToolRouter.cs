@@ -22,6 +22,11 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 ///         <see cref="SecondaryTool" />. All three are read from the same press-time expression as
 ///         hold-Space, so none of them can re-route a gesture that is already in flight.
 ///     </para>
+///     <para>
+///         <b>The button owns the whole gesture, press to release.</b> A press from another button is
+///         refused (<see cref="OnPressed" />) and so is that button's RELEASE
+///         (<see cref="OnReleased" />) — chording is not a gesture at either end.
+///     </para>
 /// </summary>
 public sealed class InputToolRouter
 {
@@ -92,8 +97,12 @@ public sealed class InputToolRouter
     /// </summary>
     public bool IsDrawingToolActive => _selected is ToolKind.Draw or ToolKind.Erase;
 
-    /// <summary>Raised after <see cref="SetActive" /> actually changed the selection.</summary>
-    public event Action<ToolKind>? ActiveToolChanged;
+    // ActiveToolChanged was DELETED here (D6 §3 dead surface). It was a second, unread copy of a fact the
+    // app already publishes: the selection round-trips through AnnotationsPanelViewModel's own
+    // ObservableProperty, which is what the toolbar binds and what the View's ToolSelected wire drives
+    // INTO this router. The routed choice was "subscribe or delete"; subscribing would have closed a
+    // loop — panel → View → SetActive → back to the panel — for a fact the panel started with.
+    // SetActive still mirrors onto the session, which is the part anything downstream actually reads.
 
     /// <summary>Registers a tool. Replacing a registered kind is allowed (a test double, a re-wire).</summary>
     /// <param name="tool">The tool.</param>
@@ -123,7 +132,6 @@ public sealed class InputToolRouter
         CancelActive();
         _selected = kind;
         _services.Session.ActiveTool = kind;
-        ActiveToolChanged?.Invoke(kind);
     }
 
     /// <summary>Routes a press. Returns true when a tool took the gesture.</summary>
@@ -168,17 +176,38 @@ public sealed class InputToolRouter
     /// <param name="e">The pointer sample.</param>
     public void OnMoved(in ToolPointerEvent e) => _gestureTool?.OnMoved(in e, _services);
 
-    /// <summary>Routes a release and closes the gesture.</summary>
+    /// <summary>
+    ///     Routes a release. Returns true when it actually closed the gesture — the host drops pointer
+    ///     capture on that answer and on nothing else.
+    ///     <para>
+    ///         <b>The mirror of <see cref="OnPressed" />'s chord refusal</b>, and the half D2 forgot.
+    ///         Brushing the middle button halfway through a stroke and letting go is a release for a
+    ///         button that owns nothing: closing here committed the stroke at the chord point and dropped
+    ///         capture, so the rest of the drag drew nothing and the real left release was a no-op.
+    ///     </para>
+    ///     <para>
+    ///         <see cref="ToolPointerButton.None" /> is read as "the gesture's own button". A release
+    ///         reports which buttons are STILL down, so the host cannot always name the one that came up,
+    ///         and a synthetic sequence often carries none at all — refusing those would strand every
+    ///         gesture open instead.
+    ///     </para>
+    /// </summary>
     /// <param name="e">The pointer sample.</param>
-    public void OnReleased(in ToolPointerEvent e)
+    public bool OnReleased(in ToolPointerEvent e)
     {
         if (_gestureTool is not { } tool)
         {
-            return;
+            return false;
+        }
+
+        if (e.Button != ToolPointerButton.None && e.Button != _gestureButton)
+        {
+            return false;
         }
 
         _gestureTool = null;
         tool.OnReleased(in e, _services);
+        return true;
     }
 
     /// <summary>Zoom-to-cursor, under every tool (D2).</summary>
