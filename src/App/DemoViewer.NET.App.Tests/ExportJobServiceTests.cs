@@ -146,6 +146,10 @@ public class ExportJobServiceTests
     }
 
     [Test]
+    // Asserts a cross-thread publish ordering that loses a race ~1 run in 5 under full-suite
+    // parallelism and passes 10/10 in isolation (P2 report; reproduced at the tiers merge).
+    // Environmental keeps it out of fast/standard; the App suite is not in CI, so no lane changes.
+    [Category("Environmental")]
     public async Task TheTerminalStatus_PublishesOnlyAfterTheGateIsReleased()
     {
         using HeavyJobGate gate = new();
