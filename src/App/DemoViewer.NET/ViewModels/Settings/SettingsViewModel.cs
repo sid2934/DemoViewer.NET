@@ -1,12 +1,14 @@
 #region
 
 using System.Collections.ObjectModel;
+using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
+using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Setup;
@@ -322,6 +324,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         RefreshFeatureRows();
         _gate.Changed += OnGateChanged;
 
+        // The 2D keybinding rows (D1): the shipped table is the list, the resolved profile is the state.
+        BuildKeybindRows();
+        RefreshKeybindRows();
+
         // React to external settings changes. Self-writes raise this too — synchronously, while _writing is
         // set — so they are skipped as a redundant echo. The name arg is unused.
         _onChange = monitor.OnChange((updated, _) => OnSettingsChanged(updated));
@@ -494,7 +500,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
                      + "tick offset plugin session log verbosity grpc"),
         ("Highlights", "highlights reels clips lead-in lead-out padding output format fps crf "
                        + "bitrate resolution audio scan"),
-        ("Diagnostics", "diagnostics logging log level rows file rolling caps size count")
+        ("Diagnostics", "diagnostics logging log level rows file rolling caps size count"),
+        ("Playback2DKeys", "keys keybinds keybindings keyboard shortcuts hotkeys gestures rebind "
+                           + "controls 2d playback radar draw erase undo pan follow round kill speed")
     ];
 
     /// <summary>The settings search box. Empty = everything shows (gates permitting).</summary>
@@ -512,6 +520,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private bool _showSectionLiveSync = true;
     [ObservableProperty] private bool _showSectionHighlights = true;
     [ObservableProperty] private bool _showSectionDiagnostics = true;
+    [ObservableProperty] private bool _showSectionPlayback2DKeys = true;
 
     // Group visibility (any member visible) + expansion. Features starts COLLAPSED — its ~25
     // toggle rows are ~35% of the whole page, which is the wall the grouping exists to remove.
@@ -557,8 +566,11 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         ShowSectionLiveSync = CanManageLiveSync && SectionMatches("LiveSync", filter);
         ShowSectionHighlights = CanManageHighlights && SectionMatches("Highlights", filter);
         ShowSectionDiagnostics = CanManageDiagnosticsLogging && SectionMatches("Diagnostics", filter);
+        // No platform gate: the 2D tab (and therefore its keymap) is WASM-reachable.
+        ShowSectionPlayback2DKeys = SectionMatches("Playback2DKeys", filter);
 
-        ShowGroupGeneral = ShowSectionUserCategory || ShowSectionTheme || ShowSectionUpdates;
+        ShowGroupGeneral = ShowSectionUserCategory || ShowSectionTheme || ShowSectionUpdates
+                           || ShowSectionPlayback2DKeys;
         ShowGroupLibrary = ShowSectionFolders || ShowSectionProcessing || ShowSectionIdle;
         ShowGroupFeatures = ShowSectionFeatures;
         ShowGroupLiveCs2 = ShowSectionLiveSync || ShowSectionHighlights;
@@ -573,6 +585,218 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             IsGroupDiagnosticsExpanded |= ShowGroupDiagnostics;
         }
     }
+
+    // ── 2D playback controls (D1): the keybinding surface ─────────────────────
+    // The shipped table is the row list; the RESOLVED profile is what each row displays. Every write is
+    // validated before it is persisted, so the settings file can only ever hold rows that resolve — the
+    // profile's drop-and-report path exists for a HAND-edited file, not for anything this screen writes.
+
+    /// <summary>One row per keymap action, in the shipped table's authored order.</summary>
+    public ObservableCollection<KeybindRow> Playback2DKeybindRows { get; } = [];
+
+    /// <summary>
+    ///     The row currently waiting for a keypress, or null. At most one at a time: two armed rows would
+    ///     make the next key ambiguous, and the view routes every key to this one while it is set.
+    /// </summary>
+    [ObservableProperty]
+    private KeybindRow? _capturingKeybind;
+
+    /// <summary>
+    ///     What a hand-edited settings file got wrong, one line per dropped row, or "". The rebind UI can
+    ///     only write valid rows, so a non-empty note here always means the file was edited by hand.
+    /// </summary>
+    [ObservableProperty]
+    private string _keybindRejectionNote = "";
+
+    /// <summary>Whether any override row was dropped — reveals the note.</summary>
+    public bool HasKeybindRejections => KeybindRejectionNote.Length > 0;
+
+    /// <summary>How many actions are bound to something other than their shipped gesture.</summary>
+    public int CustomKeybindCount { get; private set; }
+
+    /// <summary>Whether anything is rebound — reveals the section header's "N custom" badge.</summary>
+    public bool HasCustomKeybinds => CustomKeybindCount > 0;
+
+    partial void OnKeybindRejectionNoteChanged(string value) =>
+        OnPropertyChanged(nameof(HasKeybindRejections));
+
+    // One row per SHIPPED binding, reserved rows included — a reserved gesture that is simply absent from
+    // the list reads as free, which is the opposite of what the reservation means.
+    private void BuildKeybindRows()
+    {
+        foreach (Playback2DBinding binding in Playback2DKeymapProfile.Default.Bindings)
+        {
+            Playback2DKeybindRows.Add(new KeybindRow(this, binding));
+        }
+    }
+
+    // Re-resolve every row from the persisted overrides. Called at construction, after each write, and
+    // from Reflect (an external edit / another surface).
+    private void RefreshKeybindRows()
+    {
+        Playback2DKeymapProfile profile = Playback2DKeymapProfile.FromOverrides(
+            _settings.Current.Playback2D.KeybindOverrides, out IReadOnlyList<string> rejected);
+
+        int custom = 0;
+        foreach (KeybindRow row in Playback2DKeybindRows)
+        {
+            row.Refresh(profile);
+            if (row.IsOverridden)
+            {
+                custom++;
+            }
+        }
+
+        CustomKeybindCount = custom;
+        OnPropertyChanged(nameof(CustomKeybindCount));
+        OnPropertyChanged(nameof(HasCustomKeybinds));
+        KeybindRejectionNote = rejected.Count == 0 ? "" : string.Join("\n", rejected);
+    }
+
+    /// <summary>
+    ///     Arms <paramref name="row" /> for capture: the next keypress inside the Settings view becomes
+    ///     its gesture. Re-arming a different row disarms the previous one.
+    /// </summary>
+    /// <param name="row">The row to rebind.</param>
+    internal void BeginKeybindCapture(KeybindRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        if (!row.IsBindable)
+        {
+            return;
+        }
+
+        CancelKeybindCapture();
+        row.Conflict = "";
+        row.IsCapturing = true;
+        CapturingKeybind = row;
+    }
+
+    /// <summary>Disarms whatever row is capturing. Idempotent.</summary>
+    internal void CancelKeybindCapture()
+    {
+        if (CapturingKeybind is { } row)
+        {
+            row.IsCapturing = false;
+        }
+
+        CapturingKeybind = null;
+    }
+
+    /// <summary>
+    ///     Feeds a keypress to the armed row. Returns true when the key was CONSUMED — the view marks it
+    ///     handled, which is what stops a captured <c>Space</c> from also clicking the button underneath
+    ///     it and a captured letter from typing into the search box.
+    ///     <para>
+    ///         A bare modifier is consumed but does not complete the capture: <c>Ctrl</c> arrives as its
+    ///         own key event a moment before <c>Ctrl+Z</c> does, and finishing on it would make every
+    ///         modified gesture impossible to enter.
+    ///     </para>
+    /// </summary>
+    /// <param name="key">The pressed key.</param>
+    /// <param name="modifiers">The modifiers held with it.</param>
+    internal bool HandleKeybindCapture(Key key, KeyModifiers modifiers)
+    {
+        if (CapturingKeybind is not { } row)
+        {
+            return false;
+        }
+
+        if (IsModifierKey(key))
+        {
+            return true;
+        }
+
+        // Esc backs out. It is also a bound gesture (clear-follow / cancel), so it can never be captured
+        // this way — the reset affordance is how you get back to it, and that is the honest trade for
+        // having an escape hatch out of a mode the user may have entered by accident.
+        if (key == Key.Escape)
+        {
+            CancelKeybindCapture();
+            return true;
+        }
+
+        ApplyKeybindCapture(row, key, modifiers);
+        return true;
+    }
+
+    /// <summary>Drops <paramref name="row" />'s override, reverting it to the shipped gesture.</summary>
+    /// <param name="row">The row to reset.</param>
+    internal void ResetKeybind(KeybindRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        CancelKeybindCapture();
+        row.Conflict = "";
+
+        string[] remaining = WithoutAction(_settings.Current.Playback2D.KeybindOverrides, row.Action);
+        if (remaining.Length == _settings.Current.Playback2D.KeybindOverrides.Length)
+        {
+            return; // not overridden
+        }
+
+        Persist(s => s.Playback2D.KeybindOverrides = remaining);
+        RefreshKeybindRows();
+    }
+
+    /// <summary>Clears every 2D keybinding override, returning the whole table to the shipped gestures.</summary>
+    [RelayCommand]
+    private void ResetAllKeybinds()
+    {
+        CancelKeybindCapture();
+        foreach (KeybindRow row in Playback2DKeybindRows)
+        {
+            row.Conflict = "";
+        }
+
+        Persist(s => s.Playback2D.KeybindOverrides = []);
+        RefreshKeybindRows();
+    }
+
+    // Validate FIRST, persist second. A conflicting rebind is refused with its reason on the row rather
+    // than written and silently dropped on the next load — the user has to be able to see WHY the key
+    // they pressed did not take.
+    private void ApplyKeybindCapture(KeybindRow row, Key key, KeyModifiers modifiers)
+    {
+        string[] existing = _settings.Current.Playback2D.KeybindOverrides;
+        string candidate = Playback2DKeymapProfile.Row(row.Action, key, modifiers);
+
+        string reason = Playback2DKeymapProfile.ValidateOverride(existing, candidate);
+        if (reason.Length > 0)
+        {
+            row.Conflict = reason;
+            CancelKeybindCapture();
+            return;
+        }
+
+        // Rebinding an action back to its shipped gesture REMOVES the row instead of storing a redundant
+        // one: an override is a promise to keep that key even if the default moves, and nobody means to
+        // make that promise by pressing the key that was already there.
+        Playback2DBinding? shipped = Playback2DKeymapProfile.Default.BindingFor(row.Action);
+        bool isShippedGesture = shipped is { } d && d.Key == key && d.Modifiers == modifiers;
+
+        string[] updated = WithoutAction(existing, row.Action);
+        if (!isShippedGesture)
+        {
+            updated = [.. updated, candidate];
+        }
+
+        row.Conflict = "";
+        CancelKeybindCapture();
+        Persist(s => s.Playback2D.KeybindOverrides = updated);
+        RefreshKeybindRows();
+    }
+
+    private static string[] WithoutAction(string[] rows, Playback2DAction action)
+    {
+        string prefix = action + "=";
+        return [.. rows.Where(r => !r.TrimStart().StartsWith(prefix, StringComparison.OrdinalIgnoreCase))];
+    }
+
+    // A modifier's own key event carries the modifier in neither Key nor KeyModifiers reliably across
+    // platforms, so they are matched by key identity rather than by inspecting the flags.
+    private static bool IsModifierKey(Key key) => key is Key.LeftCtrl or Key.RightCtrl
+        or Key.LeftShift or Key.RightShift or Key.LeftAlt or Key.RightAlt
+        or Key.LWin or Key.RWin or Key.System or Key.None;
 
     /// <summary>
     ///     Re-opens the "What's new" window for the RUNNING version. The post-update gate shows it
@@ -1434,6 +1658,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         {
             ReplaceFolders(folders);
         }
+
+        // Outside the _applyingExternal block on purpose: the keybind rows carry no persisting
+        // change-hook (their writes are explicit commands), so a refresh here can never echo.
+        RefreshKeybindRows();
     }
 
     private CategoryOption OptionFor(UserCategory category)

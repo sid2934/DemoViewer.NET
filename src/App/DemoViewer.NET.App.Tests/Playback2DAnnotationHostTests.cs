@@ -7,6 +7,7 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.VisualTree;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
@@ -511,6 +512,125 @@ public class Playback2DAnnotationHostTests
             await Assert.That(f.Document.Elements[0].Space).IsTypeOf<SpaceRef.Entity>();
             await Assert.That(((SpaceRef.Entity)f.Document.Elements[0].Space).SteamId)
                 .IsEqualTo(expected);
+        });
+    }
+
+    /// <summary>
+    ///     D2 §2.2, through the real pointer plumbing. <c>ToolPointerEvent.Button</c> was resolved
+    ///     correctly from day one and read by nothing, so a right-drag drew ink identical to a left-drag.
+    ///     This is the case that proves the host actually hands the button to the router.
+    /// </summary>
+    [Test]
+    public async Task RightDrag_DrawsTheSecondaryInk()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Fixture f = Fixture.Create();
+            f.Vm.Annotations.InkColor = Avalonia.Media.Color.FromRgb(0xFF, 0xC1, 0x07);
+            f.Vm.Annotations.SecondaryInkColor = Avalonia.Media.Color.FromRgb(0x29, 0xB6, 0xF6);
+            f.Vm.Annotations.SelectTool(ToolKind.Draw);
+            Playback2DTimelineHarness.Pump();
+
+            f.Window.MouseDown(f.HostPoint(300, 300), MouseButton.Right);
+            f.Window.MouseMove(f.HostPoint(350, 310));
+            f.Window.MouseUp(f.HostPoint(350, 310), MouseButton.Right);
+            Playback2DTimelineHarness.Pump();
+
+            await Assert.That(f.Document.Elements.Count).IsEqualTo(1);
+            await Assert.That(f.Document.Elements[0].Style.ColorArgb).IsEqualTo(0xFF29B6F6u);
+
+            f.Window.MouseDown(f.HostPoint(300, 340), MouseButton.Left);
+            f.Window.MouseMove(f.HostPoint(350, 350));
+            f.Window.MouseUp(f.HostPoint(350, 350), MouseButton.Left);
+            Playback2DTimelineHarness.Pump();
+
+            await Assert.That(f.Document.Elements[1].Style.ColorArgb).IsEqualTo(0xFFFFC107u)
+                .Because("the left button is untouched by any of this");
+        });
+    }
+
+    /// <summary>
+    ///     The right button can be bound to the eraser instead — the ask this unlocks cheaply. Not the
+    ///     shipped default: item 2.2 asked for two PENS, and an out-of-the-box eraser would leave the
+    ///     second colour inert with nothing to hint that it exists.
+    /// </summary>
+    [Test]
+    public async Task RightDrag_WithTheEraseBinding_ErasesInstead()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Fixture f = Fixture.Create();
+            f.DrawStroke();
+            await Assert.That(f.Document.Elements.Count).IsEqualTo(1);
+
+            f.Vm.Annotations.RightButtonErases = true;
+            Playback2DTimelineHarness.Pump();
+
+            f.Window.MouseDown(f.HostPoint(300, 300), MouseButton.Right);
+            f.Window.MouseMove(f.HostPoint(350, 310));
+            f.Window.MouseUp(f.HostPoint(350, 310), MouseButton.Right);
+            Playback2DTimelineHarness.Pump();
+
+            await Assert.That(f.Document.Elements).IsEmpty()
+                .Because("the binding is read at press time, so a toolbar click takes effect immediately");
+        });
+    }
+
+    /// <summary>
+    ///     D2 §2.3, through the real pointer plumbing: the pen may not take the view away. The pane the
+    ///     drag begins on is the one that moves, exactly as under the pan tool.
+    /// </summary>
+    [Test]
+    public async Task MiddleDrag_PansWhileTheDrawToolIsActive()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Fixture f = Fixture.Create();
+            f.Vm.Annotations.SelectTool(ToolKind.Draw);
+            Playback2DTimelineHarness.Pump();
+
+            double panBefore = f.Host.PrimaryCameraTransform.PanX;
+
+            f.Window.MouseDown(f.HostPoint(300, 300), MouseButton.Middle);
+            f.Window.MouseMove(f.HostPoint(360, 300));
+            f.Window.MouseUp(f.HostPoint(360, 300), MouseButton.Middle);
+            Playback2DTimelineHarness.Pump();
+
+            await Assert.That(f.Document.Elements).IsEmpty();
+            await Assert.That(f.Vm.Annotations.Session.Wet.IsActive).IsFalse();
+            await Assert.That(f.Host.PrimaryCameraTransform.PanX).IsNotEqualTo(panBefore);
+        });
+    }
+
+    /// <summary>
+    ///     D2 §2.1: the recent-colour strip. <c>AnnotationRecentColors</c> was persisted, WASM-flattened
+    ///     and round-trip tested since B2 — and displayed nowhere. This walks the whole chain the fix
+    ///     added: a committed stroke pushes its colour, the panel mirrors it, and the toolbar realises a
+    ///     button for it.
+    /// </summary>
+    [Test]
+    public async Task DrawnStroke_PutsItsColourInTheRecentStrip()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Fixture f = Fixture.Create();
+            AnnotationToolbar toolbar = f.View.GetVisualDescendants().OfType<AnnotationToolbar>().Single();
+            ItemsControl strip = toolbar.FindControl<ItemsControl>("RecentColorsStrip")
+                                 ?? throw new InvalidOperationException("RecentColorsStrip not found");
+
+            await Assert.That(f.Vm.Annotations.HasRecentColors).IsFalse();
+            await Assert.That(strip.IsEffectivelyVisible).IsFalse()
+                .Because("an empty strip is chrome with nothing in it");
+
+            f.Vm.Annotations.InkColor = Avalonia.Media.Color.FromRgb(0x11, 0x22, 0x33);
+            f.DrawStroke();
+            Playback2DTimelineHarness.Pump(3);
+
+            await Assert.That(f.Vm.Annotations.RecentColors.Count).IsEqualTo(1);
+            await Assert.That(f.Vm.Annotations.RecentColors[0].Hex).IsEqualTo("#FF112233");
+            await Assert.That(strip.IsEffectivelyVisible).IsTrue();
+            await Assert.That(strip.GetVisualDescendants().OfType<Button>().Count()).IsEqualTo(1)
+                .Because("the swatch template has to realise, not merely bind");
         });
     }
 

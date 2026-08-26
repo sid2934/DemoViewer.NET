@@ -458,6 +458,14 @@ public sealed class SettingsService
                 settings.Playback2D.AnnotationAnchorToEntities ? "true" : "false"),
             new KeyValuePair<string, string?>("Playback2D:AnnotationAutoSave",
                 settings.Playback2D.AnnotationAutoSave ? "true" : "false"),
+            new KeyValuePair<string, string?>("Playback2D:AnnotationSecondaryColorArgb",
+                settings.Playback2D.AnnotationSecondaryColorArgb.ToString(CultureInfo.InvariantCulture)),
+            new KeyValuePair<string, string?>("Playback2D:AnnotationSecondaryTool",
+                settings.Playback2D.AnnotationSecondaryTool),
+            new KeyValuePair<string, string?>("Playback2D:AnnotationCustomFromTick",
+                settings.Playback2D.AnnotationCustomFromTick.ToString(CultureInfo.InvariantCulture)),
+            new KeyValuePair<string, string?>("Playback2D:AnnotationCustomUntilTick",
+                settings.Playback2D.AnnotationCustomUntilTick.ToString(CultureInfo.InvariantCulture)),
             new KeyValuePair<string, string?>("Playback2D:LevelDisplayMode",
                 settings.Playback2D.LevelDisplayMode),
             new KeyValuePair<string, string?>("Playback2D:AutoLevelFollow",
@@ -468,6 +476,10 @@ public sealed class SettingsService
                 settings.Playback2D.TimelineShowBomb ? "true" : "false"),
             new KeyValuePair<string, string?>("Playback2D:TimelineShowAnnotations",
                 settings.Playback2D.TimelineShowAnnotations ? "true" : "false"),
+            new KeyValuePair<string, string?>("Playback2D:ViewportToolbarOpen",
+                settings.Playback2D.ViewportToolbarOpen ? "true" : "false"),
+            new KeyValuePair<string, string?>("Playback2D:ViewportOverlayBarOpen",
+                settings.Playback2D.ViewportOverlayBarOpen ? "true" : "false"),
             new KeyValuePair<string, string?>("Playback2D:ExportFormatId", settings.Playback2D.ExportFormatId),
             new KeyValuePair<string, string?>("Playback2D:ExportFps",
                 settings.Playback2D.ExportFps.ToString(CultureInfo.InvariantCulture)),
@@ -479,6 +491,12 @@ public sealed class SettingsService
                 settings.Playback2D.ExportOutputDirectory),
             new KeyValuePair<string, string?>("Playback2D:ExportIncludeHud",
                 settings.Playback2D.ExportIncludeHud ? "true" : "false"),
+            new KeyValuePair<string, string?>("Playback2D:ExportIncludeHudClock",
+                settings.Playback2D.ExportIncludeHudClock ? "true" : "false"),
+            new KeyValuePair<string, string?>("Playback2D:ExportIncludeHudKillFeed",
+                settings.Playback2D.ExportIncludeHudKillFeed ? "true" : "false"),
+            new KeyValuePair<string, string?>("Playback2D:ExportIncludeHudRoster",
+                settings.Playback2D.ExportIncludeHudRoster ? "true" : "false"),
             new KeyValuePair<string, string?>("Playback2D:ExportIncludeAnnotations",
                 settings.Playback2D.ExportIncludeAnnotations ? "true" : "false"),
             new KeyValuePair<string, string?>("Playback2D:ExportEncoder",
@@ -491,6 +509,12 @@ public sealed class SettingsService
         {
             data.Add(new KeyValuePair<string, string?>($"Playback2D:AnnotationRecentColors:{i}",
                 settings.Playback2D.AnnotationRecentColors[i]));
+        }
+
+        for (int i = 0; i < settings.Playback2D.KeybindOverrides.Length; i++)
+        {
+            data.Add(new KeyValuePair<string, string?>($"Playback2D:KeybindOverrides:{i}",
+                settings.Playback2D.KeybindOverrides[i]));
         }
 
         for (int i = 0; i < settings.Library.Folders.Length; i++)

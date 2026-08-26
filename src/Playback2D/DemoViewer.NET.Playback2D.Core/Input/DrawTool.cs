@@ -39,8 +39,10 @@ public sealed class DrawTool : IPointerTool
         _gesture = session.Document.BeginGesture("draw");
         _envelope = session.EnvelopeForNewElement(s.CurrentTick);
 
+        // The BUTTON picks the ink, and the wet stroke carries it from here on: the toolbar can change
+        // colour mid-drag and the committed element still has the paint the gesture started with.
         SpaceRef space = ResolveSpace(pane, in e, s);
-        session.Wet.Begin(session.Style, space, pane.LevelId,
+        session.Wet.Begin(session.StyleFor(e.Button), space, pane.LevelId,
             new InkPoint(e.World.X, e.World.Y, e.Pressure));
 
         session.NotifyWetChanged();
@@ -59,7 +61,7 @@ public sealed class DrawTool : IPointerTool
             return;
         }
 
-        float spacing = session.SampleSpacingWorld;
+        float spacing = session.SampleSpacingFor(session.Wet.Style);
         bool appended = false;
 
         // Coalesced samples first, oldest-first: they happened BEFORE the primary point, and appending
@@ -92,7 +94,8 @@ public sealed class DrawTool : IPointerTool
             return;
         }
 
-        session.Wet.TryAppend(new InkPoint(e.World.X, e.World.Y, e.Pressure), session.SampleSpacingWorld);
+        session.Wet.TryAppend(new InkPoint(e.World.X, e.World.Y, e.Pressure),
+            session.SampleSpacingFor(session.Wet.Style));
 
         IReadOnlyList<InkPoint> samples = session.Wet.Points;
         if (samples.Count > 0)

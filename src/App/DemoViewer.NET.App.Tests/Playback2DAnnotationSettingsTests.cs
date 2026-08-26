@@ -32,7 +32,10 @@ public class Playback2DAnnotationSettingsTests
 
             await Assert.That(prefs.LastTool).IsEqualTo("PanZoom");
             await Assert.That(prefs.AnnotationColorArgb).IsEqualTo(0xFFFFC107u);
-            await Assert.That(prefs.AnnotationWidth).IsEqualTo(8d);
+            // 6, not 8: the settings key used to disagree with AnnotationStyle.Default.WidthWorld about
+            // what the shipped pen is, and Core's constant — the one every test, the wet stroke and a
+            // session-only run already use — is the one that won (D2).
+            await Assert.That(prefs.AnnotationWidth).IsEqualTo(6d);
             await Assert.That(prefs.AnnotationOpacity).IsEqualTo(1d);
             await Assert.That(prefs.AnnotationDefaultVisibility).IsEqualTo("Always");
             await Assert.That(prefs.AnnotationFadeInTicks).IsEqualTo(8);
@@ -41,6 +44,15 @@ public class Playback2DAnnotationSettingsTests
             await Assert.That(prefs.AnnotationAnchorToEntities).IsFalse();
             await Assert.That(prefs.AnnotationAutoSave).IsTrue();
             await Assert.That(prefs.AnnotationRecentColors).IsEmpty();
+
+            // D2's four. "Same" is the shipped right-button binding — item 2.2 asked for two PENS, and a
+            // right button that erased out of the box would leave the secondary swatch inert with no
+            // hint that a second colour exists. The Custom window ships non-empty on purpose: a mode
+            // whose default is [0,0] would still look like a second spelling of Always.
+            await Assert.That(prefs.AnnotationSecondaryColorArgb).IsEqualTo(0xFF29B6F6u);
+            await Assert.That(prefs.AnnotationSecondaryTool).IsEqualTo("Same");
+            await Assert.That(prefs.AnnotationCustomFromTick).IsEqualTo(0);
+            await Assert.That(prefs.AnnotationCustomUntilTick).IsEqualTo(320);
 
             // P2. `auto` is the only encoder value that cannot fail for an environment reason — it walks
             // the ladder and lands on tuned software where no hardware verifies — so it is the only one
@@ -113,6 +125,10 @@ public class Playback2DAnnotationSettingsTests
         s.Playback2D.AnnotationAnchorToEntities = true;
         s.Playback2D.AnnotationAutoSave = false;
         s.Playback2D.AnnotationRecentColors = ["#FF112233", "#FF445566"];
+        s.Playback2D.AnnotationSecondaryColorArgb = 0xFF7788AAu;
+        s.Playback2D.AnnotationSecondaryTool = "Erase";
+        s.Playback2D.AnnotationCustomFromTick = 1500;
+        s.Playback2D.AnnotationCustomUntilTick = 2500;
         s.Playback2D.ExportEncoder = "av1_nvenc";
         s.Playback2D.ExportQuality = "best";
     }
@@ -131,6 +147,10 @@ public class Playback2DAnnotationSettingsTests
         await Assert.That(prefs.AnnotationAutoSave).IsFalse();
         await Assert.That(prefs.AnnotationRecentColors.Length).IsEqualTo(2);
         await Assert.That(prefs.AnnotationRecentColors[1]).IsEqualTo("#FF445566");
+        await Assert.That(prefs.AnnotationSecondaryColorArgb).IsEqualTo(0xFF7788AAu);
+        await Assert.That(prefs.AnnotationSecondaryTool).IsEqualTo("Erase");
+        await Assert.That(prefs.AnnotationCustomFromTick).IsEqualTo(1500);
+        await Assert.That(prefs.AnnotationCustomUntilTick).IsEqualTo(2500);
 
         // P2's two keys, through the same fileless path as the rest: a Playback2D property missing from
         // SettingsService.WriteInMemory binds fine, writes fine, and forgets itself on the next reload.

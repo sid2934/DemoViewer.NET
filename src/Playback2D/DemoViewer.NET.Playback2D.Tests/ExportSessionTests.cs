@@ -2,6 +2,7 @@
 
 using System.Collections.Concurrent;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Layers;
@@ -413,5 +414,127 @@ public class SceneExportSessionProgressTests
     private sealed class SynchronousProgress(Action<ExportProgress> report) : IProgress<ExportProgress>
     {
         public void Report(ExportProgress value) => report(value);
+    }
+}
+
+/// <summary>
+///     <b>Which layers an export has to be asked for by name</b>, and the single list that decides.
+///     <para>
+///         There were three of those lists — <c>CreateSceneStack</c>'s <c>isHud</c> pair, the session's
+///         <c>OptInLayerIds</c>, and <c>ExportRequest.LayerIds</c>' prose — and a layer that reached two of
+///         them was force-enabled on every export by the third. These cases drive off
+///         <see cref="SceneLayerIds.OptIn" /> itself rather than naming ids, so D3b's <c>hud.roster</c> is
+///         covered by them the moment it is added.
+///     </para>
+/// </summary>
+public class ExportOptInLayerTests
+{
+    [Test]
+    public async Task TheOptInSet_HasOneOwner_AndEveryIdInItIsBuildable()
+    {
+        await Assert.That(SceneExportSession.OptInLayerIds).IsSameReferenceAs(SceneLayerIds.OptIn)
+            .Because("an alias keeps the request rule and the stack rule from disagreeing");
+
+        foreach (string id in SceneLayerIds.OptIn)
+        {
+            // Opt-in without being registrable is the shape of the crash D3a fixed: the dialog named
+            // playback2d.annotations, CreateSceneStack had never heard of it, and every export under
+            // shipped defaults died on "unknown layer id(s)" before rendering a frame.
+            await Assert.That(SceneLayerCatalog.SceneStackIds.Contains(id, StringComparer.Ordinal))
+                .IsTrue().Because($"{id} is offered but not buildable");
+        }
+    }
+
+    [Test]
+    public async Task ANullIncludeSet_RegistersNothingOptIn_EvenWithEverySourceOnHand()
+    {
+        StubHudDataSource hud = new(ExportFixtures.Hud(3));
+        AnnotationSession ink = Ink();
+
+        using SceneCompositor compositor = SceneLayerCatalog.CreateSceneStack(null, null, null, hud, ink);
+
+        foreach (string id in SceneLayerIds.OptIn)
+        {
+            await Assert.That(compositor.Find(id)).IsNull().Because($"{id} is opt-in by name");
+        }
+
+        await Assert.That(compositor.Find(SceneLayerIds.Markers)).IsNotNull()
+            .Because("null include still means the whole scene");
+    }
+
+    [Test]
+    public async Task AnOptInLayerAskedForWithNoSource_IsSkipped_NotBuilt()
+    {
+        // Every source withheld: each opt-in layer is named and starved, and the answer is an absent
+        // layer rather than an empty scoreboard box — or, before the source was threaded through at all,
+        // a NullReferenceException out of the layer's own constructor.
+        using SceneCompositor compositor =
+            SceneLayerCatalog.CreateSceneStack([.. SceneLayerCatalog.SceneStackIds]);
+
+        foreach (string id in SceneLayerIds.OptIn)
+        {
+            await Assert.That(compositor.Find(id)).IsNull();
+        }
+    }
+
+    [Test]
+    public async Task NamingTheInk_WithADocument_ChangesTheExportedFrames()
+    {
+        IReadOnlyList<string> blank = await Export(Ink(strokes: 0));
+        IReadOnlyList<string> drawn = await Export(Ink());
+
+        // The end of the promise design §1 goal 2 makes: not "the id is accepted" but "the ink is in the
+        // file". Hashes of the rendered RGBA, so nothing short of pixels satisfies it.
+        await Assert.That(blank.Count).IsEqualTo(drawn.Count);
+
+        bool anyDifference = false;
+        for (int i = 0; i < blank.Count; i++)
+        {
+            anyDifference |= !string.Equals(blank[i], drawn[i], StringComparison.Ordinal);
+        }
+
+        await Assert.That(anyDifference).IsTrue().Because("the stroke has to reach the exported pixels");
+    }
+
+    private static async Task<IReadOnlyList<string>> Export(AnnotationSession ink)
+    {
+        HashSet<string> ids = new(StringComparer.Ordinal)
+        {
+            SceneLayerIds.Markers, SceneLayerIds.Annotations
+        };
+
+        using SceneCompositor compositor =
+            SceneLayerCatalog.CreateSceneStack([.. ids], null, null, null, ink);
+        using CpuSurfaceProvider surfaces = new();
+        HashingFrameSink sink = new();
+
+        await new SceneExportSession(compositor).RunAsync(
+            ExportFixtures.Request(4, size: new SKSizeI(64, 48), layerIds: ids),
+            ExportFixtures.Source(4), sink, surfaces, null, CancellationToken.None);
+
+        return sink.FrameHashes;
+    }
+
+    // Ink anchored to one of the budget scene's live players rather than to a world level: an entity
+    // anchor resolves against whatever pane that player's Z lands in, so the stroke is visible without
+    // the test having to guess which quantized level the export derived from the fixture.
+    private static AnnotationSession Ink(int strokes = 1)
+    {
+        AnnotationDocument document = new();
+        List<AnnotationElement> elements = new(strokes);
+        for (int i = 0; i < strokes; i++)
+        {
+            elements.Add(new AnnotationElement(
+                Guid.NewGuid(),
+                AnnotationKind.Freehand,
+                new AnnotationStyle(0xFFFF0000, 240f, 1f),
+                new SpaceRef.Entity(76561190000000001, 0, 0),
+                TimeEnvelope.Static,
+                [new InkPoint(0, 0, 0.5f), new InkPoint(600, 400, 0.5f)],
+                null));
+        }
+
+        document.Reset(elements);
+        return new AnnotationSession(document);
     }
 }

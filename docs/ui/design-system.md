@@ -476,9 +476,51 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
      cursor.
   2. **Scrub bar (22 px)** — a track rule, one glyph per `TimelineMarker` (`×` kill · `◆` plant ·
      `✂` defuse · `✸` explode), and the playhead. Press seeks; press-and-drag scrubs continuously.
-  3. **Footer (18 px)** — the current round label, `frame N / M · tick T`, the follow status, the
-     `Status` readout **moved here from the floating bottom-left overlay**, and one `CheckBox` per
-     available track.
+     A **kill glyph is coloured by the side that got the kill** — see the marker-colour rule below.
+  3. **Footer (26 px)** — the current round label, `frame N / M · tick T`, the hover readout, the follow
+     status, the speed-lock note, the `Status` readout **moved here from the floating bottom-left
+     overlay**, and one `CheckBox` per available track.
+     - **26 px, not 18 (changed in D5).** A stock Fluent `CheckBox` cannot be made to fit an 18 px row:
+       its template hangs the 20×20 check box inside a `Grid` with a hard-coded `Height="32"`,
+       top-aligned, which pins the box to **y = 6..26** of that band. A template part's `Height` is a
+       *local* value, so it outranks a style setter and `MinHeight="0"` on the `CheckBox` cannot compress
+       it — measured, the box hung 8 px below the row, through the panel's own bottom padding and out of
+       the control, where the window edge cut it off ("the toggles are partially hidden", D5 item 5.2).
+       26 px is the box's exact extent. `Padding="4,6,0,0"` on the `CheckBox` re-centres the LABEL on the
+       box: `Padding` is the Fluent template's content *margin*, and the box is centred on that 32 px
+       band rather than on the row.
+     - **The footer is a `DockPanel`, and the toggles are `Dock="Right"` and declared FIRST.** It was a
+       `ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto"` grid with the toggles in the trailing `Auto`.
+       `Auto` columns are measured unconstrained and never shrink, so during playback — six-digit frame
+       and tick, a follow target, the Live-Sync speed note, five of the six readouts untrimmed monospace
+       — the `*` status column collapsed to zero and the toggles were arranged **past the control's right
+       edge**: measured 99 px past it at 1000 px and 279 px at 820 px, where `InputHitTest` handed every
+       toggle's centre to the roster panel. Nothing clips, so it never showed as a cut — the `GridSplitter`
+       and the roster panel are later siblings of `Playback2DView`'s root grid and take both the paint and
+       the clicks, the identical failure mode as the [HUD corners](#playback2d-hud-corners).
+       `DockPanel` measures each docked child against the space still unclaimed and the first child claims
+       first, so declaring the toggles first makes their reservation **structural**; every readout then
+       docks `Left` in priority order and the same remaining-space measure becomes their drop order, each
+       taking its natural width if there is room and ellipsizing (`TextTrimming="CharacterEllipsis"` on
+       all of them now, not just `Status`) into what is left if there is not. This is the shape D35's
+       "[responsive horizontal strips MUST wrap or scroll](#responsive-strip)" prescribes and P3.1 already
+       applied to the NavStrip. **Reordering the `ItemsControl` below the readouts silently restores the
+       bug.**
+- **Marker colour is the TRACK's to decide, and a track may not reach for a brush.**
+  `TimelineMarker.Argb == 0` means "host, use the kind default", and `BrushForMarker` honours any non-zero
+  value — so a track hands back ARGB and the `Timeline/` folder stays renderer-independent.
+  `KillTrack` uses it to colour each `×` by **the attacker's side** (`TintTeamT` `0xFFE0A030` /
+  `TintTeamCt` `0xFF4A90D9`, the `Pb2dTeamT` / `Pb2dTeamCt` hues), so a run of one colour reads as a side
+  winning fights. **Full alpha, unlike `RoundTrack.ApplyWinnerTints`' `0x38` washes** — a wash reads as a
+  side across a 300 px band and as *nothing drawn* on an eight-pixel glyph.
+  - **The side comes from `TimelineEventKeys.Team`** (`"2"` = T, `"3"` = CT, the encoding `Winner`
+    already uses), which `ModuleTimelineData` populates for any event naming an attacker. Team is per-tick
+    state, not identity — it is deliberately absent from `PlayerRosterEntry` because it swaps at half — so
+    the adapter resolves it **at the event's own tick** from the `player_team` timeline, the same record
+    the parser's team post-pass is fed by. GOTV emits `player_team` only for the halftime swap, so a kill
+    before the swap reads the swap's `OldTeam`.
+  - **An unresolvable side leaves the key absent ⇒ `Argb = 0` ⇒ today's `Pb2dHeadshot` red.** No kill
+    ever loses its marker over a missing team.
 - **Layout model.** The item layers are plain `Panel`s and every band/marker positions itself with a left
   `Margin` from its own view-model — no attached property is set on a generated container, which is what
   keeps the templates free of `ContentPresenter` styling. The x-axis domain is **frame index**;
@@ -492,38 +534,125 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Gating.** `playback2d.timeline` (`SubFeature`, parent `tab.playback2d`). The view-model folds the gate
   AND has-demo into `IsVisible`; because the row is `Auto`-sized, an off gate leaves no layout hole.
 - **Focus.** `Focusable="False"` — the control must never steal the keymap's focus target.
+- **Pinned by** `TimelineFooterLayoutTests` — every visible track toggle's *painted* extent inside the
+  control's bounds and reachable via `InputHitTest` at 1400/1000/820 px, with every readout populated
+  (blank readouts fit by eight pixels, so a test that leaves them blank proves nothing). Geometry is the
+  assertion; a container-shape test passed on the broken tree, because the toggles were in the right
+  container the whole time. Marker colour is pinned by `TimelineTrackTests` (ARGB, no host) and
+  `TimelineLayoutTests` (the resolved `Brush`, including the fall-back-to-red case).
 
 <a id="playback2d-hud-corners"></a>
-### The 2D viewport's HUD corners — who owns which pixels (Playback2D v2, A4/B2/B3/B4)
-Everything floating over the 2D canvas lives in **one grid cell** of `Playback2DView.axaml`'s left column,
-as a plain sibling of everything else in it. There is no z-manager and nothing clips: two overlays that
-claim the same alignment simply overlap, and the **later sibling wins both the paint and the hit test** —
-silently, because the XAML reads as two independent corner widgets. The allocation is therefore a
-contract, not a convention:
+<a id="playback2d-viewport-chrome"></a>
+### The 2D viewport's chrome — what is docked, what floats, who owns which pixels (Playback2D v2, A4/B2/B3/B4, **restructured by D4**)
 
-| Slot | Owner | Interactive? |
-|---|---|---|
-| **Top-left** | `TopLeftHud` — one `StackPanel`: A4's `OverlayToggles` strip, then B2's `AnnotationToolbarHost` under it | yes |
-| **Top-right** | `HudStack` — live-sync dot ([`Ellipse.pb2dDot`](#pb2d-hud-dot)) over the A4 kill feed | **no** (`IsHitTestVisible=False`) |
-| **Bottom-left** | `TransportBar` — camera-mode `SplitButton`, mode label, kill nav | yes |
-| **Bottom-right** | `ExportButton` (B4) | yes |
-| **Right centre** | `LevelStrip` (B3), vertical margins clearing the kill feed and the transport bar | yes |
-| **Bottom edge** | [`TimelineControl`](#timelinecontrol) — its own `Auto` grid row, not an overlay | yes |
+> **Superseded (D4, 2026-08-25).** Until D4 this section allocated four *corners* of one canvas cell,
+> because every toolbar floated over the map. The corner allocation is gone: the persistent chrome is
+> **docked in its own `Auto` grid row** and the canvas cell now holds three small, mode-scoped widgets and
+> nothing else. The rules the corner contract existed to enforce did not go away — they moved down a level,
+> from "which corner" to "which docked line" — so they are restated below rather than deleted.
 
-- **A second widget in an occupied slot joins that slot's stack; it does not float in the same corner.**
-  B2 mounted the annotation toolbar as its own top-left `Border` and A4's strip covered its entire tool row
-  (485×40 px), leaving Pan/Draw/Erase unclickable. Within a stack the **always-present** member goes first,
-  so a feature gate flipping cannot shove it around, and each member is `HorizontalAlignment=Left` so the
-  narrower one is not padded out to the wider one's width. The stack itself carries no `Background`, so its
-  gaps stay transparent to viewport pan/draw gestures.
-- **A gated overlay's `IsVisible` belongs on the MOUNTED element**, not only inside the control. A control
-  that collapses its own inner `Border` still contributes the mount's margin to the stack.
-- **Overlays reflow rather than clip.** The viewport column is ~500 px wide on an 820 px window; a fixed
-  row wider than that runs under the splitter and the roster panel (later siblings, so they cover it and
-  take its clicks). The annotation toolbar's tool row is a `WrapPanel`, per [D35](#library-toolbar-reflow).
-- **Pinned by** `Playback2DHudLayoutTests` — pairwise non-overlap of the interactive overlays, per-tool
-  `InputHitTest` reachability, gate-flip stability, and column containment at 1400/1000/820 px. Geometry is
-  the assertion; a container-shape test passes on the broken tree.
+**The left column is three rows: `RowDefinitions="Auto,*,Auto"`.**
+
+```
+┌ row 0 · ViewportToolbar — DOCKED (Pb2dPanelBg, Pb2dHudDivider hairline on the docked edge) ────┐
+│ ▴  ································································  [ Overlays ▾ ][ Export… ] │  ChromeHeader   · always
+│ ☑ Radar  ☑ Trails  ☑ Smoke/Fire  ☑ Bomb  ☑ Kills  ☐ Vision                                    │  OverlayToggles · IsOverlayBarOpen
+│ ✋ ✎ ⌫ │ ▣ ▣ R⌫ ◼◼ w ──── α ── │ [Always ▾] Pin to now ☐ Track player │ ↶ ↷ Clear             │  AnnotationToolbarHost · gated
+│ in ▢ out ▢ from ▢ until ▢ ⌖now          ·  status line                                        │
+└───────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ row 1 · the canvas ───────────────────────────────────────────────────────────────────────────┐
+│ ▾ ChromeRestoreButton (only while collapsed)                       ● live-sync · kill feed ▸  │
+│                                                                                    LevelStrip │
+│ TransportBar ▸                                                                                │
+└───────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ row 2 · TimelineControl — DOCKED ─────────────────────────────────────────────────────────────┐
+```
+
+| Region | Owner | Row | Interactive? |
+|---|---|---|---|
+| **Top edge** | `ViewportToolbar` — `ChromeHeader`, then `OverlayToggles`, then `AnnotationToolbarHost` | 0 (`Auto`) | yes |
+| **Canvas top-left** | `ChromeRestoreButton` — 26×17, present **only** while the toolbar is collapsed | 1 | yes |
+| **Canvas top-right** | `HudStack` — live-sync dot ([`Ellipse.pb2dDot`](#pb2d-hud-dot)) over the A4 kill feed | 1 | **no** (`IsHitTestVisible=False`) |
+| **Canvas bottom-left** | `TransportBar` — camera-mode `SplitButton`, mode label, kill nav | 1 | yes |
+| **Canvas right centre** | `LevelStrip` (B3), vertical margins clearing the kill feed and the transport bar | 1 | yes |
+| **Bottom edge** | [`TimelineControl`](#timelinecontrol) — its own `Auto` grid row | 2 | yes |
+
+- **Docking, not reflow, is the answer to "the toolbars are always displayed".** D35's responsive rule
+  ([wrap or scroll](#responsive-strip)) is about a strip that is too WIDE; the reported defect was chrome
+  that was permanently over the MAP. A strip that reflows beautifully still covers the thing the user opened
+  the tab to look at. So the tool row and the overlay toggles left the canvas cell entirely and took an
+  `Auto` row at the top edge — structurally the mirror of what `TimelineControl` already does at the bottom,
+  which is also the existing proof that an `Auto` row leaves **no layout hole** when its content is removed.
+  The precedent is **Blender's viewport header**: an edge-docked region, a collapse arrow, and popovers for
+  the display toggles. Rejected: a Krita/GIMP-style left tool rail (a vertical rail costs the *width* the
+  820 px floor has least of, and this tab has one tool group, not thirty), and Figma's floating tool island
+  (that is the shape being complained about).
+- **The docked stack is ordered ALWAYS-PRESENT → OPTIONAL → GATED, top down, and that order is the
+  contract.** A member may only ever move what is *below* it, so neither the `playback2d.annotations` gate
+  nor the overlay-bar toggle can shove the header's own controls around. This is the same rule the old
+  corner contract stated for its top-left stack, and it exists for the same reason: B2 mounted the
+  annotation toolbar in a corner A4's strip already owned and covered its whole tool row (485×40 px),
+  leaving Pan/Draw/Erase unclickable.
+- **The header's right-hand cluster is `Dock="Right"` and declared FIRST**, which is D5's timeline-footer
+  reservation trick: a `DockPanel` measures each child against what is still unclaimed, so declaring first
+  makes the reservation structural. `Export video…` lives there rather than floating bottom-right — it is a
+  viewport-level command and that corner is canvas now.
+- **The six overlay toggles ship CLOSED, behind one `Overlays ▾` toggle.** They are read rarely and changed
+  rarely and were the widest thing in the column (485 px of it, permanently on screen) — the textbook
+  overflow candidate D35 names first. The overflow is **inline (a revealed row), not a flyout**: a flyout's
+  content lives in a popup, which is outside the viewport column (so the layout suite could no longer
+  measure or hit-test it) and outside the tab's tunnelling `KeyDown` handler (so `Space` over a focused
+  check box would stop meaning play/pause). Inline keeps both guarantees and costs one docked line while
+  open.
+- **Collapsing removes the row; the way back is mounted BY the collapsed state.** `ViewportToolbar`'s
+  `IsVisible` binds `IsViewportToolbarOpen`, so a collapse gives the whole docked height back to the canvas
+  (measured: 172 px → 0 at a 1000 px window with the overlay bar open). `ChromeRestoreButton` binds the
+  negation and floats in the canvas's top-left corner, in the same place the collapse chevron occupies when
+  expanded. Because the restore affordance is created by the collapsed state rather than by the toolbar it
+  restores, a persisted "collapsed" **cannot** be a state with no exit — the hazard
+  `MainViewModel.RestoreSession` guards against for the shell's output drawer and debugger rail, where the
+  toggle lives in chrome a gate can take away.
+- **Persisted as two `Playback2DSettings` bools** — `ViewportToolbarOpen` (default `true`) and
+  `ViewportOverlayBarOpen` (default `false`) — each with its own `SettingsService.WriteInMemory` row,
+  because the 2D tab is WASM-reachable and an unflattened key there is a setting that silently forgets
+  itself.
+- **A gated control's `IsVisible` belongs on the MOUNTED element**, not only inside the control. A control
+  that collapses its own inner `Border` still contributes the mount's slot to the stack. (Both copies are
+  kept for the annotation toolbar: the inner one is what a standalone mount reads.)
+- **Chrome is `Focusable="False"`; the check boxes deliberately are NOT.** The keymap owns `Space` and the
+  arrows through a tunnelling handler, and a focusable *container* in that path eats them. The six overlay
+  check boxes stay focusable on purpose — `Playback2DKeyRoutingTests` focuses one and presses `Space`, and
+  making them unfocusable would retire the hazard instead of proving the handler still covers it.
+- **The docked toolbar wears the TIMELINE's chrome, not the HUD's.** `Pb2dPanelBg` with a `Pb2dHudDivider`
+  hairline on the docked edge, matching `TimelineControl` exactly. `Pb2dOverlayBg` — the translucent HUD
+  strip — is what *floating* furniture wears; a translucent strip inside an opaque docked one reads as a HUD
+  widget somebody forgot to unmount, which is the "feels a little strange" quality being fixed. `Pb2d*`
+  tokens only, per [D21](#pb2d-hud-dot).
+- **Overlays still reflow rather than clip.** The viewport column is **496 px** at an 820 px window and
+  nothing here clips, so a fixed row wider than that runs under the splitter and the roster panel (later
+  siblings, so they take both the paint and the clicks). The annotation tool row and the overlay row are
+  both `WrapPanel`s, per [D35](#library-toolbar-reflow) — which is also why the tool row gets its **own**
+  docked line instead of sharing the header's fill slot: at 820 px it would be left ~250 px and four wrapped
+  rows, where a full-width line wraps to two.
+- **Every gesture the toolbar names comes off the resolved keymap**, never a literal — see
+  [`Playback2DKeymapProfile`](#playback2d-keybind-profile). `AnnotationsPanelViewModel` exposes
+  `DrawToolTip` / `EraseToolTip` / `UndoToolTip` / `RedoToolTip` / `ClearAllToolTip`, and
+  `Playback2DTabViewModel.ApplyKeymapOverrides` pushes the profile in. Pushed rather than pulled through a
+  `$parent` ancestor cast because the toolbar's `DataContext` is the panel and it is also mounted
+  standalone; the panel seeds itself with `Playback2DKeymapProfile.Default`, so an unpushed panel still
+  shows the shipped gestures instead of blanks.
+- **`ColorPicker` needs its own control theme** — `FluentTheme` does not carry it (it ships in the
+  `Avalonia.Controls.ColorPicker` package), so both annotation ink pickers were **templateless** from B2
+  until D4: 46×24 of nothing that painted no swatch and took no click. `App.axaml` now includes
+  `avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml` beside the AvaloniaEdit include, which
+  is there for the identical reason. The pickers' hard-coded `Width`/`Height` went with it: they were
+  authored against a control that rendered nothing, and the real template's 32 px drop-down button hung 4 px
+  out of a 24 px box top and bottom.
+- **Pinned by** `Playback2DHudLayoutTests` — pairwise non-overlap of the sibling chrome regions, **every**
+  interactive control in the docked toolbar contained in the column and `InputHitTest`-reachable at
+  1400/1000/820 px, the collapse actually returning height to the surface, gate-flip stability of everything
+  above the gated member, the settings round trip through the fileless (WASM) path, and gesture hints
+  following a rebind. Geometry is the assertion; a container-shape test passes on the broken tree.
 
 <a id="playback2d-keybinds"></a>
 ### Playback2D keymap (`Modules/Playback2D/Playback2DKeymap.cs`)
@@ -537,7 +666,52 @@ input has focus. Every mutation routes through `PlaybackController` commands or 
 **This table is the source of truth the conflict test reads.** `Playback2DKeybindConflictTests` parses
 `MainView.axaml` at test time for the shell's accelerators rather than mirroring a list, and pins the
 resolutions below individually — so a later edit that re-introduces a collision fails there, not in a
-user's hands.
+user's hands. It is also **the shipped default the user's overrides are composed over** — the table below
+is what an untouched install routes, not what every install routes.
+
+<a id="playback2d-keybind-profile"></a>
+#### The gestures are configurable (D1) — `Playback2DKeymapProfile`
+The table above stays static, stays conflict-checked, and **still throws**: it is a compile-time contract
+and a collision in it is a bug. What a running tab actually routes is a `Playback2DKeymapProfile` — that
+table with `Playback2DSettings.KeybindOverrides` composed over it. **The two types exist separately
+because only one of them may throw.** A `TypeInitializationException` raised from a hand-editable JSON
+file would take the 2D tab down with no way to fix it from inside the app, and `Playback2DTabViewModel`
+is constructed by a bare `new()` with no DI, so there is nowhere useful to catch it. The profile
+therefore validates, **drops, and reports** instead — `FromOverrides(rows, out rejected)` never throws.
+
+- **Persisted as `"Action=Gesture"` rows** (`"NextRound=Shift+R"`), flattened as indexed keys exactly like
+  `AnnotationRecentColors`. Only rows that DIFFER from the shipped gesture are stored, so a later default
+  change still reaches everyone who never rebound that action. Gestures are written with the tokens
+  `KeyGesture.Parse` accepts, never the display text — `←` and `Esc` are for human eyes and would not
+  survive the next load.
+- **A row is refused for one of five reasons**, each reported on its own line: it is not an
+  `Action=Gesture` pair; the action is unknown; the action is **`Reserved`** (a reservation exists to keep
+  a gesture unclaimed, so it cannot be claimed by a settings file either); the gesture is a shell
+  accelerator; or it duplicates another binding **within its scope**. Scope matters — a `WhenToolActive`
+  row may share a key with an `Always` one, because that shadowing IS the mechanism that turns `Space`
+  into hold-to-pan.
+- **The whole accepted set is applied first, and only then checked.** Row-by-row validation cannot express
+  a swap (`PrevRound=E` + `NextRound=Q`), because the first half collides with the second half's
+  not-yet-replaced default. Only if the batch fails does it fall back to applying row by row, so the
+  report names the offending row instead of condemning the file.
+- **Live, not next-activation.** `Playback2DTabViewModel` re-resolves the profile from an
+  `IOptionsMonitor<AppSettings>.OnChange` (resolved through the same lazy `App.Services` locator as
+  `SettingsService`, since the descriptor's factory is a bare `new()`). A keymap is the one setting a
+  user edits with the tab open and immediately tests; "applies next time" reads as the rebind having
+  failed. The external-edit callback arrives on a **threadpool thread** and marshals before notifying.
+- **`OnKeyUp` follows the binding.** Hold-to-pan is released by key, and nothing else ever clears the
+  router's flag, so a hard-coded `Space` there would leave a user who rebound pan stuck in pan mode
+  forever. `Playback2DKeymapProfile.BindingFor(HoldPan)` is what the release matches, on the KEY alone —
+  releasing Shift a frame early must not strand the surface either.
+- **`GestureText(action)` is the display surface** — Settings rows and tooltips read it **off the resolved
+  profile**, so a rebound key shows the user's gesture and not the shipped one.
+- **The Settings section validates before it writes** (`ValidateOverride`), so a conflicting rebind is
+  refused inline with its reason rather than persisted and silently dropped on the next load. A non-empty
+  rejection note in that section therefore always means a hand-edited file.
+- **Pinned by** `Playback2DKeymapProfileTests` (every refusal reason, the swap, scope-aware duplicates,
+  the persisted-row round trip), `Playback2DKeybindSettingsTests` (persistence including the fileless WASM
+  path, and the whole Settings rebind/reset/refuse flow) and `Playback2DKeybindRoutingTests` (real
+  headless key events through the real view — including the `OnKeyUp` hazard above).
 
 | Gesture | Scope | Action | Notes |
 |---|---|---|---|
@@ -1015,6 +1189,15 @@ static mockup or `SvgExporter`, never a promised headless before/after.
     `MinWidth=220`/`MaxWidth=360` instead of the Grid's `*`. Verified `library-populated` at 700/900/1200
     (700 = 2 rows, nothing clips) + `library-landing` (collapsed filters leave no gap). See
     [D35](#library-toolbar-reflow).
+  - **Applied (Playback2D viewport chrome, D4):** all three options at once, plus the one this rule does not
+    cover. Option (1) collapses the six overlay toggles behind an `Overlays ▾` toggle — **inline**, not a
+    flyout, because a popup leaves the viewport column (where the layout suite measures) and the tab's
+    tunnelling `KeyDown` handler (where `Space` still has to mean play). Option (2) `WrapPanel`s both the
+    tool row and the overlay row. The header's `Export…`/`Overlays ▾`/collapse cluster right-docks and is
+    declared first, the NavStrip's structural reservation. What the rule *cannot* say is the part that
+    mattered most: the strip was over the CANVAS, so it moved into its own docked `Auto` row. **Reflow is
+    the answer to "too wide"; docking is the answer to "in the way."** See
+    [the viewport chrome contract](#playback2d-viewport-chrome).
 
 <a id="match-overview-page"></a>
 > **SUPERSEDED (v0.5.3, redesign plan step 5) — Match Overview is now THE PER-DEMO PAGE, not a landing

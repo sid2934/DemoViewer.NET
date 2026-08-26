@@ -411,8 +411,17 @@ public sealed class Playback2DSettings
     /// <summary>Ink colour as packed ARGB (0xAARRGGBB), not a string — the scene speaks in ARGB.</summary>
     public uint AnnotationColorArgb { get; set; } = 0xFFFFC107;
 
-    /// <summary>Ink width in WORLD units, so a stroke zooms with the map like a map pen.</summary>
-    public double AnnotationWidth { get; set; } = 8;
+    /// <summary>
+    ///     Ink width in WORLD units, so a stroke zooms with the map like a map pen.
+    ///     <para>
+    ///         <b>6, matching <c>AnnotationStyle.Default.WidthWorld</c>.</b> The two shipped 6 and 8 and
+    ///         disagreed about the default pen: Core's constant is what a session-only run, every test and
+    ///         the wet stroke's initial state use, and it is the one documented as "the app's default ink"
+    ///         — so the settings key is the outlier, and it moved. An existing user has a persisted value
+    ///         and sees nothing change.
+    ///     </para>
+    /// </summary>
+    public double AnnotationWidth { get; set; } = 6;
 
     /// <summary>Ink opacity multiplier, 0..1, applied on top of the time envelope.</summary>
     public double AnnotationOpacity { get; set; } = 1.0;
@@ -437,6 +446,49 @@ public sealed class Playback2DSettings
 
     /// <summary>Recently used ink colours, newest first, as <c>#AARRGGBB</c>. Flattened as indexed keys.</summary>
     public string[] AnnotationRecentColors { get; set; } = [];
+
+    // ── Keybindings (D1). Indexed keys like AnnotationRecentColors above — the one array shape
+    //    SettingsService.WriteInMemory already flattens.
+
+    /// <summary>
+    ///     Per-user 2D keymap overrides as <c>"Action=Gesture"</c> rows (<c>"NextRound=Shift+R"</c>),
+    ///     where the action is a <c>Playback2DAction</c> name and the gesture is anything
+    ///     <c>KeyGesture.Parse</c> accepts. Only the rows that differ from the shipped table are stored,
+    ///     so a later default change reaches everyone who never rebound that action.
+    ///     <para>
+    ///         Composed over the shipped table by <c>Playback2DKeymapProfile</c>, which DROPS and reports
+    ///         any row it cannot honour — a typo in this array can never take the 2D tab down.
+    ///     </para>
+    /// </summary>
+    public string[] KeybindOverrides { get; set; } = [];
+
+    // ── Per-button ink and the Custom envelope (D2). Same rules as the block above: persisted names,
+    //    one WriteInMemory row each.
+
+    /// <summary>
+    ///     SECONDARY (right-button) ink colour as packed ARGB. Width and opacity are shared with the
+    ///     primary, so two pens never drift into two widths.
+    /// </summary>
+    public uint AnnotationSecondaryColorArgb { get; set; } = 0xFF29B6F6;
+
+    /// <summary>
+    ///     What the RIGHT button does: a <c>ToolKind</c> name (<c>Erase</c> is the popular one), or
+    ///     <c>Same</c> — the default — for "the selected tool, in the secondary ink". A persisted string
+    ///     rather than the enum so an unknown value degrades to <c>Same</c> instead of failing the bind.
+    /// </summary>
+    public string AnnotationSecondaryTool { get; set; } = "Same";
+
+    /// <summary>
+    ///     First fully-opaque DV frame-clock tick for <c>Custom</c> elements. Never a CS2 server tick.
+    /// </summary>
+    public int AnnotationCustomFromTick { get; set; }
+
+    /// <summary>
+    ///     Last fully-opaque DV frame-clock tick for <c>Custom</c> elements. 320 ≈ 5 s at 64 tick, so the
+    ///     shipped Custom window is a real one — selecting the mode does something the moment it is
+    ///     picked, which is the whole difference between Custom and a second spelling of Always.
+    /// </summary>
+    public int AnnotationCustomUntilTick { get; set; } = 320;
 
     // ── Levels (B3). Registry §3.10 names: LevelDisplayMode, AutoLevelFollow.
 
@@ -470,6 +522,32 @@ public sealed class Playback2DSettings
     /// <summary>Whether the timeline draws the annotation track's markers.</summary>
     public bool TimelineShowAnnotations { get; set; } = true;
 
+    // ── Viewport chrome (D4) ────────────────────────────────────────────────────────────────────────
+    // The docked viewport toolbar's two collapse bits. Both are WASM-reachable (the 2D tab runs in the
+    // browser), so both carry a SettingsService.WriteInMemory row.
+
+    /// <summary>
+    ///     Whether the docked viewport toolbar is expanded. Collapsed, its whole <c>Auto</c> grid row goes
+    ///     away and a 22 px restore chevron is the only chrome left over the canvas.
+    ///     <para>
+    ///         <b>Restoring <c>false</c> can never strand the user</b> — the restore chevron is mounted by
+    ///         the collapsed state itself, not by the toolbar it restores, so unlike the shell's drawer and
+    ///         debugger rail (<c>MainViewModel.RestoreSession</c>) this needs no "don't restore it open"
+    ///         guard: there is no gate that can take the way back away.
+    ///     </para>
+    /// </summary>
+    public bool ViewportToolbarOpen { get; set; } = true;
+
+    /// <summary>
+    ///     Whether the six overlay check boxes are revealed under the toolbar's header.
+    ///     <para>
+    ///         <b>Closed by default</b>, which is the whole of D4 item 4.1: they are read rarely and changed
+    ///         rarely, and as six always-visible check boxes they were the widest thing in the viewport
+    ///         column. The <c>Overlays ▾</c> toggle that reveals them is always present.
+    ///     </para>
+    /// </summary>
+    public bool ViewportOverlayBarOpen { get; set; }
+
     // ---------------- Video export (B4) ----------------
     // Flat, not a nested Playback2DExportSettings: registry §3.10 / B5 D3 fixed ONE flat class for the
     // whole module, and every key below is flattened into SettingsService.WriteInMemory alongside the
@@ -499,8 +577,25 @@ public sealed class Playback2DSettings
     /// <summary>Where exports are written. Empty means the user's Videos folder.</summary>
     public string ExportOutputDirectory { get; set; } = string.Empty;
 
-    /// <summary>Whether the clock and kill-feed HUD layers are burned into the video.</summary>
+    /// <summary>
+    ///     The master switch for every HUD layer. Off means no HUD whatever the three below say.
+    ///     <para>
+    ///         D3b split the HUD into three layers and gave each its own key; this one keeps its original
+    ///         name and meaning so a saved "no HUD" survives the split. It used to be spelled "the clock and
+    ///         kill-feed layers", which is why the three are defaulted ON: a user whose file says
+    ///         <c>true</c> asked for the HUD, and the HUD now includes the roster.
+    ///     </para>
+    /// </summary>
     public bool ExportIncludeHud { get; set; } = true;
+
+    /// <summary>Whether <c>hud.clock</c> is burned in, when <see cref="ExportIncludeHud" /> is on.</summary>
+    public bool ExportIncludeHudClock { get; set; } = true;
+
+    /// <summary>Whether <c>hud.killfeed</c> is burned in, when <see cref="ExportIncludeHud" /> is on.</summary>
+    public bool ExportIncludeHudKillFeed { get; set; } = true;
+
+    /// <summary>Whether <c>hud.roster</c> is burned in, when <see cref="ExportIncludeHud" /> is on.</summary>
+    public bool ExportIncludeHudRoster { get; set; } = true;
 
     /// <summary>Whether B2's annotation layer is burned into the video.</summary>
     public bool ExportIncludeAnnotations { get; set; } = true;

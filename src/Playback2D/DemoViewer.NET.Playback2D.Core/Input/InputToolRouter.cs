@@ -16,6 +16,12 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 ///         <b>Wheel is router-level</b> (D2): it always applies zoom-to-cursor to the pane under the
 ///         cursor whatever tool is selected, preserving the pre-v2 semantics byte for byte.
 ///     </para>
+///     <para>
+///         <b>The button is part of the routing decision</b> (D2 §3.4): middle and Ctrl+drag reach
+///         <see cref="PanZoomTool" /> under every tool, and the right button reaches
+///         <see cref="SecondaryTool" />. All three are read from the same press-time expression as
+///         hold-Space, so none of them can re-route a gesture that is already in flight.
+///     </para>
 /// </summary>
 public sealed class InputToolRouter
 {
@@ -24,6 +30,7 @@ public sealed class InputToolRouter
     private readonly Dictionary<ToolKind, IPointerTool> _tools = [];
 
     private IPointerTool? _gestureTool;
+    private ToolPointerButton _gestureButton;
     private ToolKind _selected = ToolKind.PanZoom;
 
     /// <summary>Creates a router over the host's services with pan/zoom as the permanent fallback.</summary>
@@ -50,6 +57,28 @@ public sealed class InputToolRouter
     ///     time (D3).
     /// </summary>
     public bool IsSpaceHeld { get; set; }
+
+    /// <summary>
+    ///     The tool the RIGHT button routes to. <c>null</c> — the default — means "whatever
+    ///     <see cref="Active" /> is", so a right-drag with the pen still draws; it is then the ink that
+    ///     differs, through <c>AnnotationSession.StyleFor</c>. An unregistered kind falls back to
+    ///     <see cref="Active" /> rather than to pan: a right-drag that silently panned would be the same
+    ///     surprise this property exists to remove.
+    /// </summary>
+    public ToolKind? SecondaryTool { get; set; }
+
+    /// <summary>
+    ///     Whether the middle button always pans. On by default: every map tool in the genre pans on
+    ///     middle-drag, and a drawing tool that takes the wheel button hostage has no way back to the
+    ///     view except putting the pen down.
+    /// </summary>
+    public bool PanOnMiddleButton { get; set; } = true;
+
+    /// <summary>
+    ///     Whether Ctrl+drag always pans. On by default, for the same reason as
+    ///     <see cref="PanOnMiddleButton" /> — and because a trackpad has no middle button.
+    /// </summary>
+    public bool PanOnControlDrag { get; set; } = true;
 
     /// <summary>Whether a gesture is in flight.</summary>
     public bool IsGestureOpen => _gestureTool is not null;
@@ -101,15 +130,29 @@ public sealed class InputToolRouter
     /// <param name="e">The pointer sample.</param>
     public bool OnPressed(in ToolPointerEvent e)
     {
-        // A press while a gesture is somehow still open (a lost capture, a synthetic sequence) closes
-        // the old one rather than interleaving two.
         if (_gestureTool is not null)
         {
+            // CHORDING IS NOT A GESTURE. A press from a DIFFERENT button while one is in flight is the
+            // accidental middle-click halfway through a stroke; cancelling there would trade the ink for
+            // a pan nobody asked for. The SAME button pressing again can only mean its release went
+            // missing (a lost capture, a synthetic sequence), and that has to stay recoverable — so it
+            // still closes the stale gesture rather than interleaving two.
+            if (e.Button != _gestureButton)
+            {
+                return false;
+            }
+
             CancelActive();
         }
 
-        bool divert = IsSpaceHeld || (e.Modifiers & ToolModifiers.Space) != 0;
-        IPointerTool tool = divert ? _panZoom : Active;
+        // Read ONCE, at press time (D3). Every clause here is a diversion to pan; the button→tool map
+        // below is what the right button uses when nothing diverted it.
+        bool divert = IsSpaceHeld
+                      || (e.Modifiers & ToolModifiers.Space) != 0
+                      || (PanOnMiddleButton && e.Button == ToolPointerButton.Middle)
+                      || (PanOnControlDrag && (e.Modifiers & ToolModifiers.Control) != 0);
+
+        IPointerTool tool = divert ? _panZoom : ToolForButton(e.Button);
 
         if (!tool.OnPressed(in e, _services))
         {
@@ -117,6 +160,7 @@ public sealed class InputToolRouter
         }
 
         _gestureTool = tool;
+        _gestureButton = e.Button;
         return true;
     }
 
@@ -152,4 +196,14 @@ public sealed class InputToolRouter
         _gestureTool = null;
         tool.OnCancelled(_services);
     }
+
+    // The right button's tool, or the selected one. An unregistered SecondaryTool degrades to Active
+    // instead of throwing: it arrives from a persisted settings string, and a hand-edited typo must not
+    // be able to take the pointer away from the user.
+    private IPointerTool ToolForButton(ToolPointerButton button) =>
+        button == ToolPointerButton.Right
+        && SecondaryTool is { } kind
+        && _tools.TryGetValue(kind, out IPointerTool? secondary)
+            ? secondary
+            : Active;
 }

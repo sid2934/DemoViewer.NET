@@ -17,9 +17,17 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Hud;
 ///         cannot disagree about what "round 13, 1:55" means.
 ///     </para>
 ///     <para>
-///         <b>One list, reused.</b> <see cref="At" /> caches its last answer by tick, so the two HUD
+///         <b>One list, reused.</b> <see cref="At" /> caches its last answer by tick, so the three HUD
 ///         layers asking for the same frame do the windowing once and neither the window nor the
 ///         snapshot allocates per frame (design §6).
+///     </para>
+///     <para>
+///         <b>The roster half is a delegate for the same reason the clock half is</b> (D3b): its source
+///         differs by caller, it is a function of the frame being drawn rather than of a pre-built
+///         timeline, and the production reader is one expression —
+///         <c>rosterAt: _ =&gt; src.LastRoster</c> over the export's own
+///         <c>TrackerFrameSource</c>. Left null the roster is empty and <c>hud.roster</c> draws nothing,
+///         which is what a fixture render and a clock-only export both want.
 ///     </para>
 /// </summary>
 public sealed class TimelineHudDataSource : IHudDataSource
@@ -27,6 +35,7 @@ public sealed class TimelineHudDataSource : IHudDataSource
     private readonly IReadOnlyList<KillFeedRow> _allKills;
     private readonly Func<int, ClockReading> _clockAt;
     private readonly int _maxRows;
+    private readonly Func<int, IReadOnlyList<HudPlayerRow>>? _rosterAt;
     private readonly int _tickRate;
     private readonly List<KillFeedRow> _window;
     private readonly int _windowSeconds;
@@ -40,10 +49,16 @@ public sealed class TimelineHudDataSource : IHudDataSource
     /// <param name="clockAt">Round/score/countdown at a tick. Must be pure.</param>
     /// <param name="windowSeconds">How long a kill row stays visible.</param>
     /// <param name="maxRows">Row ceiling.</param>
+    /// <param name="rosterAt">
+    ///     Player cards at a tick, or null for no roster. Must be pure. Trailing and optional because this
+    ///     type's two callers each construct it in one expression, and a required parameter would have made
+    ///     "I do not draw <c>hud.roster</c>" something a caller has to say out loud.
+    /// </param>
     public TimelineHudDataSource(IReadOnlyList<KillFeedRow> allKills, int tickRate,
         Func<int, ClockReading> clockAt,
         int windowSeconds = KillFeedTimeline.DefaultWindowSeconds,
-        int maxRows = KillFeedTimeline.DefaultMaxRows)
+        int maxRows = KillFeedTimeline.DefaultMaxRows,
+        Func<int, IReadOnlyList<HudPlayerRow>>? rosterAt = null)
     {
         ArgumentNullException.ThrowIfNull(allKills);
         ArgumentNullException.ThrowIfNull(clockAt);
@@ -53,6 +68,7 @@ public sealed class TimelineHudDataSource : IHudDataSource
         _clockAt = clockAt;
         _windowSeconds = windowSeconds;
         _maxRows = maxRows;
+        _rosterAt = rosterAt;
         _window = new List<KillFeedRow>(Math.Max(4, maxRows));
     }
 
@@ -67,8 +83,12 @@ public sealed class TimelineHudDataSource : IHudDataSource
         KillFeedTimeline.Window(_allKills, tick, _tickRate, _window, _windowSeconds, _maxRows);
         ClockReading clock = _clockAt(tick);
 
+        // Borrowed straight through, never copied: the reader hands back the frame source's own pooled
+        // list, whose lifetime is already the one HudSnapshot documents for KillRows.
+        IReadOnlyList<HudPlayerRow> roster = _rosterAt?.Invoke(tick) ?? [];
+
         _cached = new HudSnapshot(tick, clock.Round, clock.TScore, clock.CtScore, clock.CountdownSeconds,
-            clock.BombTicking, clock.Defusing, clock.DefuseSeconds, _window);
+            clock.BombTicking, clock.Defusing, clock.DefuseSeconds, _window, roster);
         _hasCached = true;
         return _cached;
     }

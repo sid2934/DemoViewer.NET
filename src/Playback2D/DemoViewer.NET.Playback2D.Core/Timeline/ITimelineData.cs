@@ -2,8 +2,8 @@ namespace DemoViewer.NET.Playback2D.Core.Timeline;
 
 /// <summary>
 ///     Normalized field keys an <see cref="ITimelineData" /> adapter writes and tracks read. The adapter owns
-///     the demo-domain translation (payload property names, slot→display-name resolution); a track only ever
-///     sees these seven keys, so it stays free of parser and host vocabulary.
+///     the demo-domain translation (payload property names, slot→display-name resolution, the per-tick team
+///     lookup); a track only ever sees these eight keys, so it stays free of parser and host vocabulary.
 /// </summary>
 public static class TimelineEventKeys
 {
@@ -27,6 +27,31 @@ public static class TimelineEventKeys
 
     /// <summary>Winning team number as a string (round_end): "2" = T, "3" = CT.</summary>
     public const string Winner = "winner";
+
+    /// <summary>
+    ///     The CREDITING side of an event that names an attacker, in <see cref="Winner" />'s encoding:
+    ///     "2" = T, "3" = CT. ABSENT when the demo cannot say which side the attacker was on at that
+    ///     tick — a consumer must fall back to its neutral rendering rather than guess, because
+    ///     guessing paints a kill onto the wrong team's ledger.
+    ///     <para>
+    ///         Team is per-tick state, not identity — it is deliberately absent from the roster
+    ///         (see <c>PlayerRosterEntry</c>) because it swaps at half — so an adapter has to resolve
+    ///         it AT the event's tick, not at the playhead's.
+    ///     </para>
+    /// </summary>
+    public const string Team = "team";
+
+    /// <summary>
+    ///     The VICTIM's side at the event's tick, in <see cref="Winner" />'s encoding. Absent under the
+    ///     same rule as <see cref="Team" />.
+    ///     <para>
+    ///         A separate key rather than a second lookup at the consumer: the two sides are resolved by
+    ///         one walk in the adapter, which is the only place that knows GOTV emits <c>player_team</c>
+    ///         solely for the halftime swap. A consumer re-deriving it would be a second copy of that
+    ///         finding, and the copies would drift.
+    ///     </para>
+    /// </summary>
+    public const string VictimTeam = "victimteam";
 }
 
 /// <summary>One decoded demo event, already resolved onto the frame axis and flattened to strings.</summary>

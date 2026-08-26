@@ -31,6 +31,13 @@ public static class SceneLayerIds
     public const string Annotations = "playback2d.annotations";
 
     /// <summary>
+    ///     Player cards down both pane edges — T on one side, CT on the other (D3b, registry D0 §3.1).
+    ///     Ordered 65, between the floor caption and the clock, so a card sits over the map but under the
+    ///     scoreboard it would otherwise crowd at the top centre.
+    /// </summary>
+    public const string HudRoster = "hud.roster";
+
+    /// <summary>
     ///     Round number, score and the main countdown, burned into an export (B4 D15). Deliberately
     ///     un-prefixed: it is a HUD layer, not a 2D-playback overlay, and the same id names it in
     ///     <c>dv2d render --layers</c> and in a saved export preset.
@@ -39,4 +46,18 @@ public static class SceneLayerIds
 
     /// <summary>The kill feed, burned into an export (B4 D15).</summary>
     public const string HudKillFeed = "hud.killfeed";
+
+    /// <summary>
+    ///     The layers a stack registers <b>only when the caller names them</b>. Off under a null or empty
+    ///     include set: an export that silently burned in a scoreboard — or someone else's telestration —
+    ///     would be a surprise, not a feature.
+    ///     <para>
+    ///         <b>One set, three readers</b> (registry §3.1): <c>SceneLayerCatalog.CreateSceneStack</c>,
+    ///         <c>SceneExportSession.OptInLayerIds</c>, and <c>ExportRequest.LayerIds</c>'s
+    ///         contract. Those were three hand-written pair-lists, and an id that learned two of the three
+    ///         was force-enabled on every export by the third — so a new opt-in layer is one line HERE.
+    ///     </para>
+    /// </summary>
+    public static IReadOnlySet<string> OptIn { get; } =
+        new HashSet<string>(StringComparer.Ordinal) { Annotations, HudRoster, HudClock, HudKillFeed };
 }

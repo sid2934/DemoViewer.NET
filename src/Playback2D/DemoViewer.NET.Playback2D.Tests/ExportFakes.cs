@@ -186,7 +186,10 @@ internal static class ExportFixtures
     /// <summary>A HUD snapshot with a bomb ticking and <paramref name="rows" /> kills.</summary>
     /// <param name="rows">How many kill rows to synthesise.</param>
     /// <param name="bombTicking">Whether the C4 owns the countdown.</param>
-    public static HudSnapshot Hud(int rows, bool bombTicking = false)
+    /// <param name="roster">Player cards, or null for none — <c>hud.roster</c>'s "draws nothing" case.</param>
+    /// <param name="defusing">Whether a defuse is racing the detonation.</param>
+    public static HudSnapshot Hud(int rows, bool bombTicking = false,
+        IReadOnlyList<HudPlayerRow>? roster = null, bool defusing = false)
     {
         List<KillFeedRow> kills = new(rows);
         for (int i = 0; i < rows; i++)
@@ -196,6 +199,26 @@ internal static class ExportFixtures
                 i % 7 == 0, i % 2 == 0));
         }
 
-        return new HudSnapshot(1000, "13", 7, 5, 34.5, bombTicking, false, double.NaN, kills);
+        return new HudSnapshot(1000, "13", 7, 5, 34.5, bombTicking, defusing,
+            defusing ? 3.4 : double.NaN, kills, roster ?? []);
+    }
+
+    /// <summary>A full five-a-side roster, with one dead player per side.</summary>
+    /// <param name="perSide">Cards on each of T and CT.</param>
+    public static IReadOnlyList<HudPlayerRow> Roster(int perSide = 5)
+    {
+        List<HudPlayerRow> rows = new(perSide * 2);
+        for (int team = 2; team <= 3; team++)
+        {
+            for (int i = 0; i < perSide; i++)
+            {
+                bool alive = i != 0;
+                rows.Add(new HudPlayerRow(((team - 2) * 5) + i, team, $"P{i}", alive,
+                    alive ? 100 - (i * 17) : 0, alive ? 100 - (i * 20) : 0, i % 2 == 0,
+                    team == 3 && i == 1, alive ? "ak47" : "—", 800 * (i + 1), i, 5 - i, i % 3));
+            }
+        }
+
+        return rows;
     }
 }

@@ -22,6 +22,11 @@
         <!-- AvaloniaEdit control theme (Workbench editor). Without it the TextEditor renders
              but has no control template, so it is not interactive. -->
         <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
+        <!-- ColorPicker control theme, for the SAME reason and found the same way: FluentTheme does not
+             carry it (it ships in its own package), so both annotation ink pickers were templateless —
+             46x24 of nothing that painted no swatch and took no click, since B2 mounted the first one.
+             Caught by D4's hit-test sweep over the docked toolbar, which is what that sweep is for. -->
+        <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
         <!-- Design-system foundation: the former Styles/Components.axaml split into four role
              files. Loaded AFTER FluentTheme so these additive style classes layer over the Fluent base
              (they never replace its control templates). See docs/ui/design-system.md. -->

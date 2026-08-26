@@ -65,8 +65,29 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
     [ObservableProperty]
     private bool _includeAnnotations = true;
 
+    /// <summary>
+    ///     The master HUD switch, persisted as the original <c>ExportIncludeHud</c>.
+    ///     <para>
+    ///         It stays because it is the key already in users' settings files, and because the three
+    ///         sub-toggles below would otherwise make "no HUD at all" a three-click operation. Off here
+    ///         means off regardless of what the three say — the sub-toggles are a composition, not an
+    ///         override.
+    ///     </para>
+    /// </summary>
     [ObservableProperty]
     private bool _includeHud = true;
+
+    /// <summary>Whether <c>hud.clock</c> — the score, round and countdown strip — is burned in.</summary>
+    [ObservableProperty]
+    private bool _includeHudClock = true;
+
+    /// <summary>Whether <c>hud.killfeed</c> is burned in.</summary>
+    [ObservableProperty]
+    private bool _includeHudKillFeed = true;
+
+    /// <summary>Whether <c>hud.roster</c> — D3b's player cards down both edges — is burned in.</summary>
+    [ObservableProperty]
+    private bool _includeHudRoster = true;
 
     [ObservableProperty]
     private bool _includeVision;
@@ -144,6 +165,9 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
         _selectedQuality = ExportQualities.ToId(ExportQualities.ParseOrDefault(seed.ExportQuality));
         _selectedEncoder = NormalizeEncoder(_selectedFormat, seed.ExportEncoder);
         _includeHud = seed.ExportIncludeHud;
+        _includeHudClock = seed.ExportIncludeHudClock;
+        _includeHudKillFeed = seed.ExportIncludeHudKillFeed;
+        _includeHudRoster = seed.ExportIncludeHudRoster;
         _includeAnnotations = seed.ExportIncludeAnnotations;
         _selectedSize = SizePresets.FirstOrDefault(s => s.Width == seed.ExportWidth && s.Height == seed.ExportHeight)
                         ?? SizePresets[0];
@@ -340,18 +364,33 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
 
         if (IncludeHud)
         {
-            ids.Add(SceneLayerIds.HudClock);
-            ids.Add(SceneLayerIds.HudKillFeed);
+            // Three layers, three answers. One "HUD" checkbox meant a user who wanted the clock and not a
+            // scoreboard down both edges of a 720p clip could only have both or neither, and D3b made that
+            // a real choice by adding a third layer to the same switch.
+            Toggle(ids, IncludeHudClock, SceneLayerIds.HudClock);
+            Toggle(ids, IncludeHudKillFeed, SceneLayerIds.HudKillFeed);
+            Toggle(ids, IncludeHudRoster, SceneLayerIds.HudRoster);
         }
 
         if (IncludeAnnotations)
         {
-            // B2's layer id. Harmless when B2's layer is not registered — the stack simply has nothing
-            // answering to it, and CreateSceneStack ignores ids it does not know how to build.
-            ids.Add("playback2d.annotations");
+            // B2's ink. The constant, not the string it spells: the literal was the same nine characters
+            // and STILL not an id CreateSceneStack knew, which is how every export under shipped defaults
+            // died on "unknown layer id(s): playback2d.annotations" before it rendered a frame (D3a).
+            // Naming it here is only half of it — the tab has to hand the setup a document too, or the
+            // layer is asked for with nothing to feed it and is skipped.
+            ids.Add(SceneLayerIds.Annotations);
         }
 
         return ids;
+    }
+
+    private static void Toggle(HashSet<string> ids, bool on, string id)
+    {
+        if (on)
+        {
+            ids.Add(id);
+        }
     }
 
     private void PersistDefaults() =>
@@ -363,6 +402,9 @@ public sealed partial class Playback2DExportDialogViewModel : ObservableObject
             settings.Playback2D.ExportHeight = ResolvedSize.Height;
             settings.Playback2D.ExportOutputDirectory = Path.GetDirectoryName(OutputPath) ?? string.Empty;
             settings.Playback2D.ExportIncludeHud = IncludeHud;
+            settings.Playback2D.ExportIncludeHudClock = IncludeHudClock;
+            settings.Playback2D.ExportIncludeHudKillFeed = IncludeHudKillFeed;
+            settings.Playback2D.ExportIncludeHudRoster = IncludeHudRoster;
             settings.Playback2D.ExportIncludeAnnotations = IncludeAnnotations;
             settings.Playback2D.ExportEncoder = SelectedEncoder;
             settings.Playback2D.ExportQuality = SelectedQuality;

@@ -376,14 +376,21 @@ internal static class ExportCommand
 
     private static HashSet<string> BuildLayerIds(IReadOnlyList<string>? layers, bool hud)
     {
+        // The opt-in set, not a "hud." prefix test. The prefix spelling was self-maintaining for HUD
+        // ids and blind to every other opt-in layer, so the day D3a made playback2d.annotations a
+        // SceneStackId, a no --layers export started NAMING the ink in its default set and in the
+        // sidecar manifest's `layers` array. No pixel moved — the CLI supplies no annotation source, so
+        // the layer is starved and skipped — but a manifest that lists a layer the render never drew is
+        // a lie a later golden diff would have to chase. One source: SceneLayerIds.OptIn.
         HashSet<string> ids = layers is null
-            ? [.. SceneLayerCatalog.SceneStackIds.Where(id => !id.StartsWith("hud.", StringComparison.Ordinal))]
+            ? [.. SceneLayerCatalog.SceneStackIds.Where(id => !SceneLayerIds.OptIn.Contains(id))]
             : [.. layers.Select(SceneLayerCatalog.Normalize)];
 
         if (hud)
         {
             ids.Add(SceneLayerIds.HudClock);
             ids.Add(SceneLayerIds.HudKillFeed);
+            ids.Add(SceneLayerIds.HudRoster);
         }
 
         return ids;
@@ -404,6 +411,10 @@ internal static class ExportCommand
     // draws a true clock over an empty feed; inventing rows would be worse than the absence.
     // Internal, not private: the closure IS the bug. A test that rebuilt an equivalent delegate would
     // have passed against the broken constant too.
+    //
+    // The roster is NOT the feed's gap: it comes off the same frame the clock does, so `--hud` on the
+    // CLI draws real cards even though it has no kill rows to draw.
     internal static TimelineHudDataSource BuildHud(TrackerFrameSource source, int tickRate) =>
-        new([], tickRate, _ => ClockReading.From(source.LastGameInfo));
+        new([], tickRate, _ => ClockReading.From(source.LastGameInfo),
+            rosterAt: _ => source.LastRoster);
 }

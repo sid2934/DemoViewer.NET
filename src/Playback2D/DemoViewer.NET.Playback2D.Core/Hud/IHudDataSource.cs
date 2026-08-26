@@ -25,9 +25,9 @@ public interface IHudDataSource
 ///         <see cref="KillFeedRow" /> — Pipeline must not declare a second one.
 ///     </para>
 ///     <para>
-///         <see cref="KillRows" /> is borrowed from the source and is valid until the next
-///         <see cref="IHudDataSource.At" /> call on that source. A layer reads it during
-///         <c>Render</c> in the same frame; nothing retains it.
+///         <see cref="KillRows" /> and <see cref="Roster" /> are borrowed from the source and are valid
+///         until the next <see cref="IHudDataSource.At" /> call on that source. A layer reads them during
+///         <c>Render</c> in the same frame; nothing retains them.
 ///     </para>
 /// </summary>
 /// <param name="Tick">The tick this snapshot answers for.</param>
@@ -42,6 +42,11 @@ public interface IHudDataSource
 /// <param name="DefuseInProgress">True while a defuse is under way.</param>
 /// <param name="DefuseSeconds">Defuse-completion remaining, or <c>NaN</c>.</param>
 /// <param name="KillRows">The kill rows visible at this tick, oldest first.</param>
+/// <param name="Roster">
+///     Every player card at this tick, in slot order — the two sides are split by the layer, not here, so
+///     one list serves both edges of the frame. Empty when the source was built without a roster reader,
+///     which is what a fixture render and a HUD-less export both look like.
+/// </param>
 public readonly record struct HudSnapshot(
     int Tick,
     string RoundNumber,
@@ -51,11 +56,12 @@ public readonly record struct HudSnapshot(
     bool BombTicking,
     bool DefuseInProgress,
     double DefuseSeconds,
-    IReadOnlyList<KillFeedRow> KillRows)
+    IReadOnlyList<KillFeedRow> KillRows,
+    IReadOnlyList<HudPlayerRow> Roster)
 {
     /// <summary>The snapshot a layer draws before any data has arrived. Renders placeholders, never throws.</summary>
     public static HudSnapshot Empty { get; } =
-        new(0, "—", 0, 0, double.NaN, false, false, double.NaN, []);
+        new(0, "—", 0, 0, double.NaN, false, false, double.NaN, [], []);
 }
 
 /// <summary>
@@ -66,8 +72,30 @@ public readonly record struct HudSnapshot(
 /// <param name="MarginPx">Inset from the pane edge.</param>
 /// <param name="TextArgb">Primary text colour.</param>
 /// <param name="PanelArgb">Backing-panel fill, drawn behind the text so a light radar cannot swallow it.</param>
+/// <param name="DimTextArgb">Secondary text: the round caption, a card's weapon and K/D/A.</param>
+/// <param name="OnTeamArgb">
+///     Text drawn <b>on</b> a team-coloured fill. Near-black rather than the primary near-white, because
+///     both team tokens (amber and mid blue) are light enough that white-on-team is the unreadable pairing.
+/// </param>
+/// <param name="MoneyArgb">Cash figure on a roster card.</param>
+/// <param name="ArmorArgb">The armour bar under a card's health bar; brighter with a helmet.</param>
+/// <param name="TrackArgb">The unfilled remainder of a card's health/armour bar.</param>
+/// <param name="RosterCardWidthPx">
+///     Preferred card width. Clamped down against the pane so a small export keeps its map — see
+///     <c>RosterLayer</c>, which draws nothing at all rather than a roster wider than the radar.
+/// </param>
+/// <param name="RosterRowHeightPx">Preferred card height; shrunk to fit the pane before anything is dropped.</param>
+/// <param name="RosterRowGapPx">Vertical gap between cards.</param>
 public sealed record HudStyle(
     float FontSizePx = 14f,
     float MarginPx = 12f,
     uint TextArgb = 0xFFF2F2F2u,
-    uint PanelArgb = 0x99101010u);
+    uint PanelArgb = 0x99101010u,
+    uint DimTextArgb = 0xFF9AA4AFu,
+    uint OnTeamArgb = 0xFF12161Au,
+    uint MoneyArgb = 0xFF7BC96Fu,
+    uint ArmorArgb = 0xFF8FA3B8u,
+    uint TrackArgb = 0x66000000u,
+    float RosterCardWidthPx = 160f,
+    float RosterRowHeightPx = 46f,
+    float RosterRowGapPx = 5f);

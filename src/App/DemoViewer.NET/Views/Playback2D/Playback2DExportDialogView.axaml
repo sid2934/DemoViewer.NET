@@ -95,10 +95,21 @@
         <StackPanel Spacing="3">
             <TextBlock Text="Include" Foreground="{DynamicResource TextDim}" FontSize="11" />
             <WrapPanel ItemSpacing="14" LineSpacing="4">
-                <CheckBox Content="Clock + kill feed" IsChecked="{Binding IncludeHud}" FontSize="11" />
+                <CheckBox Content="HUD" IsChecked="{Binding IncludeHud}" FontSize="11"
+                          ToolTip.Tip="The burned-in broadcast overlay. Pick which parts below." />
                 <CheckBox Content="Annotations" IsChecked="{Binding IncludeAnnotations}" FontSize="11" />
                 <CheckBox Content="Vision cones" IsChecked="{Binding IncludeVision}" FontSize="11"
                           ToolTip.Tip="Off by default: solving line of sight is the most expensive thing in the frame, and it is the first thing to drop if an export is slower than realtime." />
+            </WrapPanel>
+
+            <!-- The three HUD layers, indented under their master. They wrap rather than clip: the dialog
+                 is narrow and D35's "overlays reflow, never clip" applies to it too. -->
+            <WrapPanel ItemSpacing="14" LineSpacing="4" Margin="18,2,0,0"
+                       IsEnabled="{Binding IncludeHud}">
+                <CheckBox Content="Score + clock" IsChecked="{Binding IncludeHudClock}" FontSize="11" />
+                <CheckBox Content="Kill feed" IsChecked="{Binding IncludeHudKillFeed}" FontSize="11" />
+                <CheckBox Content="Player cards" IsChecked="{Binding IncludeHudRoster}" FontSize="11"
+                          ToolTip.Tip="Health, armour, weapon and cash for each side, down both edges of the frame." />
             </WrapPanel>
         </StackPanel>
 

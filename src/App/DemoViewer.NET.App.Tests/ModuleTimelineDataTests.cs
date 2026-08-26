@@ -75,6 +75,75 @@ public class ModuleTimelineDataTests
         await Assert.That(record.Fields.ContainsKey(TimelineEventKeys.Assister)).IsFalse();
     }
 
+    /// <summary>
+    ///     The attacker's side, resolved AT the kill's tick. It cannot come off the roster (identity only,
+    ///     because team swaps at half) nor off <c>CurrentPlayers</c> (that is the PLAYHEAD's tick, and the
+    ///     adapter builds whenever the demo loads), so <c>player_team</c> is the only record there is — and
+    ///     it is the same one the parser's own team post-pass reads.
+    /// </summary>
+    [Test]
+    public async Task EventsOfType_ResolvesTheAttackersSideAtTheKillsTick()
+    {
+        Playback2DFakeContext ctx = Context();
+        ctx.Timelines["player_team"] = [TeamChange(50, 0, 2), TeamChange(50, 2, 3)];
+        ctx.Timelines["player_death"] =
+        [
+            Event(100, ("Attacker", 0), ("UserId", 2)),
+            Event(200, ("Attacker", 2), ("UserId", 0))
+        ];
+
+        ModuleTimelineData data = new(ctx);
+        IReadOnlyList<TimelineEventRecord> records = data.EventsOfType("player_death");
+
+        await Assert.That(records[0].Fields[TimelineEventKeys.Team]).IsEqualTo("2");
+        await Assert.That(records[1].Fields[TimelineEventKeys.Team]).IsEqualTo("3");
+    }
+
+    /// <summary>
+    ///     GOTV emits <c>player_team</c> ONLY for the halftime swap — measured on both reference demos, and
+    ///     the reason the demo trimmer synthesizes the initial seating. So for every kill in the first half
+    ///     the only record of a player's side is the one they are swapping AWAY from at half.
+    /// </summary>
+    [Test]
+    public async Task EventsOfType_ReadsOldTeamForAKillBeforeTheHalftimeSwap()
+    {
+        Playback2DFakeContext ctx = Context();
+        ctx.Timelines["player_team"] = [TeamChange(900, 0, 3, oldTeam: 2)];
+        ctx.Timelines["player_death"] =
+        [
+            Event(100, ("Attacker", 0), ("UserId", 2)),
+            Event(1000, ("Attacker", 0), ("UserId", 2))
+        ];
+
+        ModuleTimelineData data = new(ctx);
+        IReadOnlyList<TimelineEventRecord> records = data.EventsOfType("player_death");
+
+        await Assert.That(records[0].Fields[TimelineEventKeys.Team]).IsEqualTo("2")
+            .Because("before the swap the player was on the side the swap took them off");
+        await Assert.That(records[1].Fields[TimelineEventKeys.Team]).IsEqualTo("3");
+    }
+
+    /// <summary>
+    ///     No <c>player_team</c> anywhere (a trim that predates the synthesizer, a warmup-only demo) leaves
+    ///     the key ABSENT, which is what keeps the marker rather than colouring it wrong.
+    /// </summary>
+    [Test]
+    public async Task EventsOfType_OmitsTeamWhenTheDemoCannotSayWhichSideTheAttackerWasOn()
+    {
+        Playback2DFakeContext ctx = Context();
+        ctx.Timelines["player_death"] =
+        [
+            Event(100, ("Attacker", 0), ("UserId", 2)),
+            Event(200, ("Attacker", -1), ("UserId", 2))
+        ];
+
+        ModuleTimelineData data = new(ctx);
+        IReadOnlyList<TimelineEventRecord> records = data.EventsOfType("player_death");
+
+        await Assert.That(records[0].Fields.ContainsKey(TimelineEventKeys.Team)).IsFalse();
+        await Assert.That(records[1].Fields.ContainsKey(TimelineEventKeys.Team)).IsFalse();
+    }
+
     [Test]
     public async Task EventsOfType_DropsUnresolvableTicks()
     {
@@ -130,6 +199,21 @@ public class ModuleTimelineDataTests
         ctx.AddPlayer(2, "Charlie", 3);
         return ctx;
     }
+
+    // A player_team fire. Team / OldTeam are KV1 `byte` fields, which GameEventViewFactory materialises as
+    // boxed ints — so the fixture boxes ints, not bytes, or the adapter's read misses exactly as production
+    // would not.
+    private static GameEventView TeamChange(int tick, int slot, int team, int oldTeam = 0) => new()
+    {
+        Name = "player_team",
+        Tick = tick,
+        Fields = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["UserId"] = slot,
+            ["Team"] = team,
+            ["OldTeam"] = oldTeam
+        }
+    };
 
     private static GameEventView Event(int tick, params (string Key, object? Value)[] fields)
     {

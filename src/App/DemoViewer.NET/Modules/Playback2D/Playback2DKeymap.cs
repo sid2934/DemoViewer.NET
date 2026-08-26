@@ -206,7 +206,10 @@ public static class Playback2DKeymap
         return false;
     }
 
-    private static string Format(Key key, KeyModifiers modifiers)
+    // DISPLAY text, not persistence text: the arrow glyphs and "Esc" below are for human eyes and would
+    // not survive KeyGesture.Parse. Playback2DKeymapProfile.Row writes the parseable form and calls this
+    // for everything a user reads, so one formatter serves both the shipped table and a rebound one.
+    internal static string Format(Key key, KeyModifiers modifiers)
     {
         List<string> parts = new(4);
         if (modifiers.HasFlag(KeyModifiers.Control))

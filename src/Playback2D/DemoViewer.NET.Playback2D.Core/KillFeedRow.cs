@@ -23,6 +23,18 @@ namespace DemoViewer.NET.Playback2D.Core;
 /// <param name="AttackerBlind">The attacker was flashed at the moment of the kill.</param>
 /// <param name="AttackerInAir">The attacker was airborne.</param>
 /// <param name="AssistedFlash">The assist was a flash assist rather than damage.</param>
+/// <param name="AttackerTeam">
+///     The killer's side at the kill's own tick — 2 = T, 3 = CT, <b>0 = the demo could not say</b>. The
+///     encoding is <c>TimelineEventKeys.Team</c>'s, so a kill marker on the timeline and a kill row in the
+///     feed cannot disagree about which side gets the colour.
+///     <para>
+///         <b>Trailing and defaulted, deliberately.</b> This record is the one row shape the XAML feed and
+///         the exported <c>hud.killfeed</c> layer share (D5), so widening it in the middle would be a
+///         source break for every construction site at once. 0 is a first-class answer: a demo that never
+///         emitted <c>player_team</c> for a slot must still get its kill drawn, in the neutral colour.
+///     </para>
+/// </param>
+/// <param name="VictimTeam">The victim's side at the kill's own tick, same encoding.</param>
 public readonly record struct KillFeedRow(
     int Tick,
     string Attacker,
@@ -35,7 +47,9 @@ public readonly record struct KillFeedRow(
     bool ThroughSmoke,
     bool AttackerBlind,
     bool AttackerInAir,
-    bool AssistedFlash)
+    bool AssistedFlash,
+    int AttackerTeam = 0,
+    int VictimTeam = 0)
 {
     /// <summary>True when the kill had an assister — drives the "+name" chip's visibility in the XAML feed.</summary>
     public bool HasAssist => !string.IsNullOrEmpty(Assister);

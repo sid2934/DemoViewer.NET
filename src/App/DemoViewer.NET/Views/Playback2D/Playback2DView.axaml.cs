@@ -207,7 +207,9 @@ public partial class Playback2DView : UserControl
         // ones, which is how B2 takes Space and Esc back without editing A1's table.
         bool toolActive = vm.IsAnnotationsEnabled && vm.Annotations.IsDrawingToolActive;
 
-        if (!Playback2DKeymap.TryResolve(e, toolActive, out Playback2DAction action))
+        // The VM's RESOLVED profile, not the shipped static table: the table is the default this composes
+        // over, and routing through it directly would ignore every user override.
+        if (!vm.Keymap.TryResolve(e, toolActive, out Playback2DAction action))
         {
             return;
         }
@@ -240,9 +242,21 @@ public partial class Playback2DView : UserControl
         }
     }
 
+    // The release has to FOLLOW the binding. Nothing else ever clears the router's pan flag, so a
+    // hard-coded Space here would leave a user who rebound hold-to-pan panning forever, from the first
+    // time they used it. Matched on the KEY alone, modifiers ignored: releasing Shift a frame before the
+    // pan key is a normal way to end a gesture, and it must not strand the surface either.
     private void OnKeyUp(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Space && _surface is Scene2DHost host)
+        if (_surface is not Scene2DHost host)
+        {
+            return;
+        }
+
+        Playback2DKeymapProfile profile =
+            (DataContext as Playback2DTabViewModel)?.Keymap ?? Playback2DKeymapProfile.Default;
+
+        if (profile.BindingFor(Playback2DAction.HoldPan) is { } pan && e.Key == pan.Key)
         {
             host.SetSpacePanHeld(false);
         }

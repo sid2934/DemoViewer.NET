@@ -2,9 +2,11 @@
 
 using System.Globalization;
 using System.Numerics;
+using CS2DemoKit.Analysis.PlayerStats;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Hud;
 
 #endregion
 
@@ -75,6 +77,9 @@ public sealed class SceneFrameBuilder
     private readonly Dictionary<int, GrenadeTrail> _trails = new(16);
     private readonly List<int> _trailsToPrune = new(8);
 
+    // Weapon class name → short name, resolved once per class. See ActiveWeapon.
+    private readonly Dictionary<string, string> _weaponNames = new(32, StringComparer.Ordinal);
+
     // m:ss formatting cache. FormatClock is the only per-frame allocation left in Build, and the value
     // changes at most once a second, so keying the cached string on the rounded second makes a steady-state
     // frame allocation-free.
@@ -117,6 +122,24 @@ public sealed class SceneFrameBuilder
     ///     Map-mode fallback when the map publishes no networked bounds. Only ever widened.
     /// </summary>
     public WorldBounds ObservedBounds => _observed;
+
+    /// <summary>
+    ///     The export HUD's player cards for the frame <see cref="Build" /> produced most recently, in slot
+    ///     order (D3b, registry D0 §3.2). Empty before the first build.
+    ///     <para>
+    ///         <b>A sibling of the frame, not a member of it.</b> <c>Scene2DFrame</c> is B0's record and
+    ///         adding to it is "a guaranteed merge conflict for no gain" in <c>IHudDataSource</c>'s own
+    ///         words; the HUD is a function of tick queried through <c>IHudDataSource</c>, and this is the
+    ///         property that function reads — exactly as <c>TrackerFrameSource.LastGameInfo</c> is for the
+    ///         clock.
+    ///     </para>
+    ///     <para>
+    ///         Borrowed on the frame's own terms (decision D6): the list is one of the two pooled slots and
+    ///         is refilled in place, so it is valid until the next <see cref="Build" /> on this builder.
+    ///         Never retain it.
+    ///     </para>
+    /// </summary>
+    public IReadOnlyList<HudPlayerRow> LastRoster { get; private set; } = [];
 
     /// <summary>
     ///     Clears trails, ring history, last-known positions and the once-per-demo section-height read.
@@ -175,11 +198,13 @@ public sealed class SceneFrameBuilder
         slot.Markers.Clear();
         slot.AreaEffects.Clear();
         slot.Trails.Clear();
+        slot.Roster.Clear();
 
         SceneGameInfo gameInfo = BuildGameInfo(input);
         UpdateAreaEffects(input.Entities, slot.AreaEffects);
         UpdateTrajectories(input.Entities, input.Tick, tickRate, slot.Trails);
-        BuildMarkers(input, slot.Markers);
+        BuildMarkers(input, slot.Markers, slot.Roster);
+        LastRoster = slot.Roster;
 
         Scene2DFrame frame = slot.Frame;
         frame.TimeField = new SceneTime(
@@ -202,7 +227,12 @@ public sealed class SceneFrameBuilder
     // Copies out the scalars the scene needs from the transient/pooled player states (lifetime rule: read
     // inside the callback, copy to value types, never retain the pooled instance). Per-player cost is
     // O(players) via the allocation-free indexer — never EntityState.Fields.
-    private void BuildMarkers(in SceneFrameInput input, List<PlayerMarker> markers)
+    //
+    // The roster is built in this same pass rather than beside it: health is already read here for the
+    // ring state and was thrown away afterwards, and a second sweep would re-walk the same pooled facades
+    // for the same fields. D3b's whole point is that the export HUD reads the entities ONCE, from the one
+    // place both the app and dv2d already go through.
+    private void BuildMarkers(in SceneFrameInput input, List<PlayerMarker> markers, List<HudPlayerRow> roster)
     {
         Func<int, string> labelFor = input.LabelForSlot;
         Func<int, ulong>? steamIdFor = input.SteamIdForSlot;
@@ -218,6 +248,8 @@ public sealed class SceneFrameBuilder
             float flash = ReadFloat(pawn, "m_flFlashDuration", 0);
             bool alive = hasPawn && IsAlive(pawn);
             ulong steamId = steamIdFor?.Invoke(p.Slot) ?? 0;
+
+            AddRosterRow(roster, p, input.Entities, labelFor(p.Slot), health, alive);
 
             if (p.WorldPosition is { } pos)
             {
@@ -272,6 +304,63 @@ public sealed class SceneFrameBuilder
                     steamId));
             }
         }
+    }
+
+    // One player card. The field paths are the ones Playback2DTabViewModel.UpdateAttributes reads for the
+    // app's attributes panel, verbatim — pawn for condition, controller for the cumulative scoreboard —
+    // because the panel and the burnt-in card disagreeing about a player's health is the same class of bug
+    // B4 D5 removed from the kill feed.
+    //
+    // Emitted for EVERY roster row including the dead and the sideless: the layer decides who gets an edge
+    // of the frame, and dropping a dead player here would make his card vanish the instant it matters most.
+    private void AddRosterRow(List<HudPlayerRow> roster, IPlayerState p, IReadOnlyEntityView entities,
+        string label, int health, bool alive)
+    {
+        IReadOnlyEntity? pawn = p.Pawn;
+        IReadOnlyEntity? ctrl = p.Controller;
+
+        roster.Add(new HudPlayerRow(
+            p.Slot,
+            p.Team,
+            label,
+            alive,
+            alive ? health : 0,
+            ReadIntOr(pawn, "m_ArmorValue", 0),
+            ReadBool(pawn, "m_pItemServices.m_bHasHelmet"),
+            ReadBool(pawn, "m_pItemServices.m_bHasDefuser"),
+            ActiveWeapon(pawn, entities),
+            ReadIntOr(ctrl, "m_pInGameMoneyServices.m_iAccount", 0),
+            ReadIntOr(ctrl, "m_pActionTrackingServices.m_iKills", 0),
+            ReadIntOr(ctrl, "m_pActionTrackingServices.m_iDeaths", 0),
+            ReadIntOr(ctrl, "m_pActionTrackingServices.m_iAssists", 0)));
+    }
+
+    // One handle hop, and the class name read IMMEDIATELY (the clobber rule: ResolveHandle hands back a
+    // SHARED pooled facade, so anything not read before the next resolve is read off the wrong entity).
+    // The short name is memoised by class name because WeaponShortName allocates and the answer is fixed
+    // per class — otherwise this is one string per player per frame, in the method §6's budget measures.
+    private string ActiveWeapon(IReadOnlyEntity? pawn, IReadOnlyEntityView entities)
+    {
+        if (pawn is null || !pawn.TryGet("m_pWeaponServices.m_hActiveWeapon", out ulong handle) ||
+            handle == 0)
+        {
+            return "—";
+        }
+
+        if (entities.ResolveHandle(handle) is not { } weapon)
+        {
+            return "—";
+        }
+
+        string cls = weapon.ClassName;
+        if (_weaponNames.TryGetValue(cls, out string? cached))
+        {
+            return cached;
+        }
+
+        string name = PlayerSnapshotBuilder.WeaponShortName(cls);
+        _weaponNames[cls] = name;
+        return name;
     }
 
     private void Observe(float worldX, float worldY)
@@ -796,8 +885,15 @@ public sealed class SceneFrameBuilder
         return _clockCacheText;
     }
 
-    private static int ReadIntOr(IReadOnlyEntity entity, string path, int fallback)
+    // Null-tolerant: the roster reads a CONTROLLER, which is absent for a slot the demo never seated, and
+    // the correct answer there is the fallback rather than a guard at every call site.
+    private static int ReadIntOr(IReadOnlyEntity? entity, string path, int fallback)
     {
+        if (entity is null)
+        {
+            return fallback;
+        }
+
         if (entity.TryGet(path, out int i))
         {
             return i;
@@ -858,5 +954,9 @@ public sealed class SceneFrameBuilder
         public List<PlayerMarker> Markers { get; } = new(16);
         public List<AreaEffect> AreaEffects { get; } = new(32);
         public List<GrenadeTrail> Trails { get; } = new(16);
+
+        // Pooled with the rest, but NOT wired into Frame: the roster is published through
+        // SceneFrameBuilder.LastRoster, because Scene2DFrame does not grow a member for it.
+        public List<HudPlayerRow> Roster { get; } = new(16);
     }
 }

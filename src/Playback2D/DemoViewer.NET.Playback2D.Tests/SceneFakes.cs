@@ -82,6 +82,7 @@ internal sealed class FakeEntityView : IReadOnlyEntityView
 
     private readonly Dictionary<string, List<IReadOnlyEntity>> _byClass = new(StringComparer.Ordinal);
     private readonly List<IReadOnlyEntity> _entities = [];
+    private readonly Dictionary<ulong, IReadOnlyEntity> _byHandle = [];
     private Dictionary<string, IReadOnlyEntity[]>? _frozen;
 
     public IEnumerable<IReadOnlyEntity> All() => _entities;
@@ -94,7 +95,19 @@ internal sealed class FakeEntityView : IReadOnlyEntityView
 
     public IReadOnlyEntity? BySerial(int serial) => _entities.FirstOrDefault(e => e.Serial == serial);
     public IReadOnlyEntity? ByIndex(int entityIndex) => null;
-    public IReadOnlyEntity? ResolveHandle(ulong handle) => null;
+
+    // Only the handles a test explicitly seated resolve. The real view decodes an entity index out of the
+    // handle's low bits; reproducing that here would test the fake's arithmetic, not the builder's reads.
+    public IReadOnlyEntity? ResolveHandle(ulong handle) => _byHandle.GetValueOrDefault(handle);
+
+    /// <summary>Seats an entity at a handle, so a one-hop read (the active weapon) resolves.</summary>
+    /// <param name="handle">The handle value a field will carry.</param>
+    /// <param name="entity">What it points at. Also added to the view.</param>
+    public FakeEntityView AddHandle(ulong handle, IReadOnlyEntity entity)
+    {
+        _byHandle[handle] = entity;
+        return Add(entity);
+    }
 
     /// <summary>Adds an entity and returns this, so a view reads as one expression.</summary>
     /// <param name="entity">The entity to add.</param>

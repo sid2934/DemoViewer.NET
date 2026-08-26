@@ -1,5 +1,7 @@
 #region
 
+using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Timeline;
@@ -122,6 +124,43 @@ public class TimelineLayoutTests
 
         await Assert.That(vm.Markers.Count).IsEqualTo(3);
     }
+
+    /// <summary>
+    ///     The other half of the team-coloured kill marker: the ARGB a track hands back has to survive
+    ///     <c>BrushForMarker</c>, whose non-zero branch was written for round bands and had never been
+    ///     exercised by a marker. A 0 still resolves to the kind's own token, so an uncolourable kill is
+    ///     visually exactly what it is today.
+    /// </summary>
+    [Test]
+    public async Task KillMarkerBrushes_DifferBySide_AndFallBackToTheKindDefault()
+    {
+        Playback2DTimelineViewModel vm = new();
+        vm.RegisterTrack(new KillTrack());
+        vm.PixelWidth = 600;
+
+        FakeTimelineData data = new(1000);
+        data.Events["player_death"] =
+        [
+            TimelineTrackTests.Record(10, 0, ("team", "2")),
+            TimelineTrackTests.Record(20, 400, ("team", "3")),
+            TimelineTrackTests.Record(30, 900)
+        ];
+        vm.Rebuild(data);
+
+        Color t = Colour(vm.Markers[0]);
+        Color ct = Colour(vm.Markers[1]);
+        Color unknown = Colour(vm.Markers[2]);
+
+        await Assert.That(t).IsNotEqualTo(ct);
+        await Assert.That(unknown).IsNotEqualTo(t);
+        await Assert.That(unknown).IsNotEqualTo(ct);
+        await Assert.That(unknown).IsEqualTo(Color.FromUInt32(0xFFF44336))
+            .Because("no dispatcher here, so Token falls back to the Pb2dHeadshot dark literal — the "
+                     + "colour every kill marker used to be");
+    }
+
+    private static Color Colour(TimelineMarkerViewModel marker) =>
+        ((ImmutableSolidColorBrush)marker.Brush).Color;
 
     [Test]
     public async Task UpdatePlayhead_SetsRoundLabelFromBand()

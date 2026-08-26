@@ -1,17 +1,62 @@
 #region
 
+using System.Collections.ObjectModel;
 using System.Globalization;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Input;
+using Playback2DAction = DemoViewer.NET.Modules.Playback2D.Playback2DAction;
+using Playback2DKeymapProfile = DemoViewer.NET.Modules.Playback2D.Playback2DKeymapProfile;
 
 #endregion
 
 namespace DemoViewer.NET.ViewModels.Playback2D;
+
+/// <summary>
+///     One recently used ink colour, ready to paint. Carries an <see cref="ImmutableSolidColorBrush" />
+///     and never a <c>SolidColorBrush</c>: that constructor asserts UI-thread affinity, which would make
+///     the panel untestable off the dispatcher for the sake of a brush nobody mutates (D21).
+/// </summary>
+public sealed class AnnotationSwatch
+{
+    private AnnotationSwatch(uint argb, string hex)
+    {
+        Argb = argb;
+        Hex = hex;
+        Brush = new ImmutableSolidColorBrush(Color.FromUInt32(argb));
+    }
+
+    /// <summary>Packed ARGB (0xAARRGGBB).</summary>
+    public uint Argb { get; }
+
+    /// <summary>The persisted spelling, <c>#AARRGGBB</c>. Also the tooltip.</summary>
+    public string Hex { get; }
+
+    /// <summary>The fill for the swatch button.</summary>
+    public IImmutableSolidColorBrush Brush { get; }
+
+    /// <summary>Parses a persisted <c>#AARRGGBB</c>. A malformed row is DROPPED, never guessed at.</summary>
+    /// <param name="hex">The persisted spelling.</param>
+    /// <param name="swatch">The parsed swatch.</param>
+    public static bool TryParse(string? hex, out AnnotationSwatch? swatch)
+    {
+        swatch = null;
+        if (hex is not { Length: 9 } || hex[0] != '#'
+            || !uint.TryParse(hex.AsSpan(1), NumberStyles.HexNumber, CultureInfo.InvariantCulture,
+                out uint argb))
+        {
+            return false;
+        }
+
+        swatch = new AnnotationSwatch(argb, hex);
+        return true;
+    }
+}
 
 /// <summary>
 ///     The annotation toolbar's view-model: tool selection, ink style, envelope defaults, undo/redo and
@@ -62,13 +107,26 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     [ObservableProperty]
     private ToolKind _activeTool = ToolKind.PanZoom;
 
-    /// <summary>Ink colour, as the picker sees it.</summary>
+    /// <summary>Ink colour, as the picker sees it. The LEFT button's pen.</summary>
     [ObservableProperty]
     private Color _inkColor = Color.FromArgb(0xFF, 0xFF, 0xC1, 0x07);
 
+    /// <summary>The RIGHT button's pen. Shares width and opacity with the primary; only the hue differs.</summary>
+    [ObservableProperty]
+    private Color _secondaryInkColor = Color.FromUInt32(AnnotationSession.DefaultSecondaryColorArgb);
+
+    /// <summary>
+    ///     Whether the right button erases instead of drawing. Off by default: item 2.2 asked for two
+    ///     PENS, and shipping right-erase would leave the secondary swatch inert on first run with no
+    ///     hint that a second colour exists at all. One click here turns it into the eraser people expect
+    ///     from every other telestration tool.
+    /// </summary>
+    [ObservableProperty]
+    private bool _rightButtonErases;
+
     /// <summary>Ink width in world units.</summary>
     [ObservableProperty]
-    private double _inkWidth = 8;
+    private double _inkWidth = 6;
 
     /// <summary>Ink opacity 0..1.</summary>
     [ObservableProperty]
@@ -89,6 +147,18 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     /// <summary>Fully-opaque hold for <see cref="EnvelopeMode.Fade" /> elements.</summary>
     [ObservableProperty]
     private int _holdTicks = 320;
+
+    /// <summary>
+    ///     First fully-opaque tick for <see cref="EnvelopeMode.Custom" /> elements, in DV FRAME-CLOCK
+    ///     ticks — never CS2 server ticks: the LiveSync servo bends the playhead, so a CS2 anchor drifts
+    ///     against what the user was looking at.
+    /// </summary>
+    [ObservableProperty]
+    private int _customFromTick;
+
+    /// <summary>Last fully-opaque tick for <see cref="EnvelopeMode.Custom" /> elements, in DV frame-clock ticks.</summary>
+    [ObservableProperty]
+    private int _customUntilTick = 320;
 
     /// <summary>Whether a stroke started near a player follows them by SteamId.</summary>
     [ObservableProperty]
@@ -138,6 +208,28 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
         }
     }
 
+    /// <summary>
+    ///     Recently used ink colours, newest first. Rebuilt from the controller only when its version
+    ///     moves, so a stroke that reuses the current colour does not churn the strip's bindings.
+    /// </summary>
+    public ObservableCollection<AnnotationSwatch> RecentColors { get; } = [];
+
+    /// <summary>Whether there is anything in the swatch strip. Hides the divider with it.</summary>
+    public bool HasRecentColors => RecentColors.Count > 0;
+
+    /// <summary>
+    ///     Whether the envelope editor is offered at all. Hidden for <see cref="EnvelopeMode.Always" />,
+    ///     which is the shipped default: a user who never leaves Always must not pay for four spin boxes
+    ///     that can only ever say "not applicable" in a toolbar that already reflows at 820 px.
+    /// </summary>
+    public bool IsEnvelopeEditorVisible => Visibility is EnvelopeMode.Fade or EnvelopeMode.Custom;
+
+    /// <summary>True for <see cref="EnvelopeMode.Fade" /> — the hold is relative to the playhead.</summary>
+    public bool IsFadeEnvelope => Visibility == EnvelopeMode.Fade;
+
+    /// <summary>True for <see cref="EnvelopeMode.Custom" /> — the window is typed in absolute ticks.</summary>
+    public bool IsCustomEnvelope => Visibility == EnvelopeMode.Custom;
+
     /// <summary>True while a drawing tool owns the surface — what shadows Space and Esc in the keymap.</summary>
     public bool IsDrawingToolActive => ActiveTool is ToolKind.Draw or ToolKind.Erase;
 
@@ -155,6 +247,61 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
 
     /// <summary>Whether redo is available.</summary>
     public bool CanRedo => RedoDepth > 0;
+
+    // ── Gesture hints (D4, closing D1's follow-up) ───────────────────────────────────────────────────
+    // Every gesture the toolbar names used to be spelled out in the XAML — "(D)", "Ctrl+Z", "Space to
+    // pan". Keys became user-configurable in D1, so each of those went stale the first time anyone
+    // rebound one, silently and in the one place a user goes to LEARN the gesture.
+    //
+    // The profile is PUSHED here by the tab (ApplyKeymap) rather than pulled through a $parent binding:
+    // the toolbar binds this panel, and it is also mounted directly in tests. Seeding with the shipped
+    // Default means a panel nobody pushed to still shows the real shipped gestures instead of blanks.
+
+    private Playback2DKeymapProfile _keymap = Playback2DKeymapProfile.Default;
+
+    /// <summary>Re-aims the toolbar's gesture hints at a freshly resolved keymap.</summary>
+    /// <param name="keymap">The tab's resolved profile — the shipped table with the user's overrides on top.</param>
+    public void ApplyKeymap(Playback2DKeymapProfile keymap)
+    {
+        ArgumentNullException.ThrowIfNull(keymap);
+
+        _keymap = keymap;
+        OnPropertyChanged(nameof(DrawToolTip));
+        OnPropertyChanged(nameof(EraseToolTip));
+        OnPropertyChanged(nameof(UndoToolTip));
+        OnPropertyChanged(nameof(RedoToolTip));
+        OnPropertyChanged(nameof(ClearAllToolTip));
+    }
+
+    /// <summary>Draw-tool tooltip, naming the live draw / hold-pan / cancel gestures.</summary>
+    public string DrawToolTip =>
+        $"Draw{Gesture(Playback2DAction.ToolDraw)} — right-drag for the second pen, middle- or "
+        + $"Ctrl-drag to pan{Held(Playback2DAction.HoldPan)}{Cancel(Playback2DAction.CancelGesture)}";
+
+    /// <summary>Erase-tool tooltip, naming the live erase gesture.</summary>
+    public string EraseToolTip =>
+        $"Erase whole strokes{Gesture(Playback2DAction.ToolErase)} — middle- or Ctrl-drag to pan";
+
+    /// <summary>Undo tooltip, naming the live undo gesture.</summary>
+    public string UndoToolTip => $"Undo{Gesture(Playback2DAction.Undo)}";
+
+    /// <summary>Redo tooltip, naming the live redo gesture.</summary>
+    public string RedoToolTip => $"Redo{Gesture(Playback2DAction.Redo)}";
+
+    /// <summary>Clear-all tooltip, naming the live clear gesture.</summary>
+    public string ClearAllToolTip =>
+        $"Clear every annotation{Gesture(Playback2DAction.ClearAnnotations)} — one undo entry";
+
+    // An unbound action yields "" from the profile, and " ()" reads as a bug. Every hint therefore
+    // carries its own punctuation and disappears whole rather than leaving an empty bracket behind.
+    private string Gesture(Playback2DAction action) =>
+        _keymap.GestureText(action) is { Length: > 0 } text ? $" ({text})" : "";
+
+    private string Held(Playback2DAction action) =>
+        _keymap.GestureText(action) is { Length: > 0 } text ? $", {text} to pan" : "";
+
+    private string Cancel(Playback2DAction action) =>
+        _keymap.GestureText(action) is { Length: > 0 } text ? $", {text} to cancel" : "";
 
     /// <summary>Selects a tool. Idempotent.</summary>
     /// <param name="kind">The tool to select.</param>
@@ -180,6 +327,34 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
 
     [RelayCommand]
     private void SelectErase() => SelectTool(ToolKind.Erase);
+
+    /// <summary>
+    ///     Paints a recent colour back onto the PRIMARY pen. The secondary keeps its own picker: a
+    ///     click-target that changed a different pen depending on some modifier would be a coin flip.
+    /// </summary>
+    /// <param name="swatch">The swatch that was clicked.</param>
+    [RelayCommand]
+    private void ApplyRecentColor(AnnotationSwatch? swatch)
+    {
+        if (swatch is not null)
+        {
+            InkColor = Color.FromUInt32(swatch.Argb);
+        }
+    }
+
+    /// <summary>
+    ///     Fills the Custom window from the playhead — the same "I mean here" gesture as <c>Pin to now</c>,
+    ///     for the mode whose ticks are absolute and would otherwise have to be read off the timeline and
+    ///     typed in by hand.
+    /// </summary>
+    [RelayCommand]
+    private void CustomWindowFromNow()
+    {
+        int tick = _currentTick();
+        int length = Math.Max(0, CustomUntilTick - CustomFromTick);
+        CustomFromTick = tick;
+        CustomUntilTick = tick + (length > 0 ? length : HoldTicks);
+    }
 
     [RelayCommand]
     private void Undo() => _controller.Document.Undo();
@@ -264,9 +439,17 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
 
     partial void OnInkColorChanged(Color value) => PushStyle();
 
+    partial void OnSecondaryInkColorChanged(Color value) => PushStyle();
+
     partial void OnInkWidthChanged(double value) => PushStyle();
 
     partial void OnInkOpacityChanged(double value) => PushStyle();
+
+    partial void OnRightButtonErasesChanged(bool value)
+    {
+        Session.SecondaryTool = value ? ToolKind.Erase : null;
+        PersistIfUserDriven();
+    }
 
     partial void OnAnchorToEntitiesChanged(bool value)
     {
@@ -278,19 +461,24 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     {
         Session.DefaultVisibility = value;
         OnPropertyChanged(nameof(VisibilityIndex));
+        OnPropertyChanged(nameof(IsEnvelopeEditorVisible));
+        OnPropertyChanged(nameof(IsFadeEnvelope));
+        OnPropertyChanged(nameof(IsCustomEnvelope));
         PersistIfUserDriven();
     }
 
+    // The two ramps feed BOTH modes: Fade reads them off the session at draw time, Custom bakes them
+    // into the template — so a ramp change has to re-compose the template or Custom keeps yesterday's.
     partial void OnFadeInTicksChanged(int value)
     {
         Session.FadeInTicks = Math.Max(0, value);
-        PersistIfUserDriven();
+        PushCustomWindow();
     }
 
     partial void OnFadeOutTicksChanged(int value)
     {
         Session.FadeOutTicks = Math.Max(0, value);
-        PersistIfUserDriven();
+        PushCustomWindow();
     }
 
     partial void OnHoldTicksChanged(int value)
@@ -299,22 +487,36 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
         PersistIfUserDriven();
     }
 
+    partial void OnCustomFromTickChanged(int value) => PushCustomWindow();
+
+    partial void OnCustomUntilTickChanged(int value) => PushCustomWindow();
+
     partial void OnUndoDepthChanged(int value) => OnPropertyChanged(nameof(CanUndo));
 
     partial void OnRedoDepthChanged(int value) => OnPropertyChanged(nameof(CanRedo));
 
     private void PushStyle()
     {
-        Session.Style = new AnnotationStyle(ToArgb(InkColor), (float)InkWidth,
-            (float)Math.Clamp(InkOpacity, 0, 1));
+        float width = (float)InkWidth;
+        float opacity = (float)Math.Clamp(InkOpacity, 0, 1);
 
-        if (_applyingFromSession)
-        {
-            return;
-        }
+        Session.Style = new AnnotationStyle(ToArgb(InkColor), width, opacity);
+        Session.SecondaryStyle = new AnnotationStyle(ToArgb(SecondaryInkColor), width, opacity);
 
-        _controller.RememberColor(ToArgb(InkColor));
-        _controller.PersistSettings();
+        OnPropertyChanged(nameof(InkColorHex));
+        OnPropertyChanged(nameof(SecondaryInkColorHex));
+
+        // NOT where a colour becomes "recent": the picker raises a change on every pointer move through
+        // its spectrum. The controller pushes the swatch when a stroke actually commits.
+        PersistIfUserDriven();
+    }
+
+    // The Custom template is composed here rather than assembled at draw time, so EnvelopeForNewElement
+    // stays the pure switch it is and there is exactly ONE place that knows what a window means.
+    private void PushCustomWindow()
+    {
+        Session.SetCustomWindow(CustomFromTick, CustomUntilTick);
+        PersistIfUserDriven();
     }
 
     private void PersistIfUserDriven()
@@ -325,6 +527,30 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
         }
     }
 
+    // Only when the controller says the list moved: RefreshFromController runs on every document change,
+    // and rebuilding eight bindings per stroke would be churn nobody can see.
+    private void SyncRecentColors()
+    {
+        if (_recentColorsVersion == _controller.RecentColorsVersion)
+        {
+            return;
+        }
+
+        _recentColorsVersion = _controller.RecentColorsVersion;
+        RecentColors.Clear();
+        foreach (string hex in _controller.RecentColors)
+        {
+            if (AnnotationSwatch.TryParse(hex, out AnnotationSwatch? swatch) && swatch is not null)
+            {
+                RecentColors.Add(swatch);
+            }
+        }
+
+        OnPropertyChanged(nameof(HasRecentColors));
+    }
+
+    private int _recentColorsVersion = -1;
+
     // Seeds the panel from the session the controller built out of settings, without echoing every
     // assignment straight back into a settings write.
     private void PullFromSession()
@@ -332,16 +558,34 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
         _applyingFromSession = true;
         try
         {
+            // The template is read FIRST. Assigning the ramps below re-composes it out of the window
+            // the panel is still showing, so reading it afterwards hands back what this pull just
+            // overwrote — the seeded Custom window silently becoming the previous demo's.
+            TimeEnvelope custom = Session.NewElementEnvelope;
+
             AnnotationStyle style = Session.Style;
             InkColor = FromArgb(style.ColorArgb);
+            SecondaryInkColor = FromArgb(Session.SecondaryStyle.ColorArgb);
+            RightButtonErases = Session.SecondaryTool == ToolKind.Erase;
             InkWidth = style.WidthWorld;
             InkOpacity = style.Opacity;
             Visibility = Session.DefaultVisibility;
             FadeInTicks = Session.FadeInTicks;
             FadeOutTicks = Session.FadeOutTicks;
             HoldTicks = Session.HoldTicks;
+
+            // The template is the truth the renderer reads, so the boxes show what it says — including
+            // the clamp PinnedTo applied to an inverted window somebody hand-edited into settings.
+            CustomFromTick = custom.FromTick ?? 0;
+            CustomUntilTick = custom.UntilTick ?? 0;
+
             AnchorToEntities = Session.AnchorToEntities;
             ActiveTool = Session.ActiveTool;
+
+            // Stamped once more from what the panel now shows: an assignment that changed nothing raises
+            // nothing, so without this a pull whose window matched the panel's would leave the session
+            // holding whatever the ramp assignments above composed on the way past.
+            Session.SetCustomWindow(CustomFromTick, CustomUntilTick);
         }
         finally
         {
@@ -375,6 +619,7 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
         UndoDepth = _controller.Document.UndoDepth;
         RedoDepth = _controller.Document.RedoDepth;
         ElementCount = _controller.Document.Elements.Count;
+        SyncRecentColors();
         OnPropertyChanged(nameof(IsEnabled));
     }
 
@@ -393,4 +638,8 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
 
     /// <summary>The ink colour as <c>#AARRGGBB</c>, for the swatch tooltip.</summary>
     public string InkColorHex => "#" + ToArgb(InkColor).ToString("X8", CultureInfo.InvariantCulture);
+
+    /// <summary>The right button's ink as <c>#AARRGGBB</c>, for its tooltip.</summary>
+    public string SecondaryInkColorHex =>
+        "#" + ToArgb(SecondaryInkColor).ToString("X8", CultureInfo.InvariantCulture);
 }

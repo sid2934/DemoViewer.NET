@@ -499,6 +499,12 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, ID
         base.OnPointerPressed(e);
         ArgumentNullException.ThrowIfNull(e);
 
+        // The toolbar edits the SESSION — it has no seam to the router — so the button→tool map is
+        // refreshed from it here, at the one moment the router reads it. Same "sampled at press time"
+        // discipline as the divert expression, and it cannot go stale between a toolbar click and the
+        // next gesture the way a bind-time or frame-time mirror would while the tab sits paused.
+        _router.SecondaryTool = _boundSession?.SecondaryTool;
+
         ToolPointerEvent sample = Translate(e, includeIntermediate: false);
         if (_router.OnPressed(in sample))
         {

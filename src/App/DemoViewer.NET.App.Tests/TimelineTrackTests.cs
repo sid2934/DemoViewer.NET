@@ -142,6 +142,58 @@ public class TimelineTrackTests
         await Assert.That(markers.All(m => m.FrameIndex >= 0)).IsTrue();
     }
 
+    /// <summary>
+    ///     Every kill used to be the same red, because <see cref="KillTrack" /> handed back <c>Argb = 0</c>
+    ///     ("host, use the kind default") for all of them. A coach reads the bar for momentum, which needs
+    ///     the two sides to be two colours.
+    /// </summary>
+    [Test]
+    public async Task KillTrack_ColoursEachMarkerByTheAttackersSide()
+    {
+        FakeTimelineData data = new(1000);
+        data.Events["player_death"] =
+        [
+            Record(64, 10, ("attacker", "s1mple"), ("team", "2")),
+            Record(640, 100, ("attacker", "device"), ("team", "3"))
+        ];
+
+        IReadOnlyList<TimelineMarker> markers = new KillTrack().BuildMarkers(data);
+
+        await Assert.That(markers[0].Argb).IsNotEqualTo(0u);
+        await Assert.That(markers[1].Argb).IsNotEqualTo(0u);
+        await Assert.That(markers[0].Argb).IsNotEqualTo(markers[1].Argb);
+
+        // Opaque, unlike RoundTrack's 0x38 band washes: a marker is an eight-pixel glyph, and a wash on
+        // one reads as nothing drawn at all.
+        await Assert.That(markers[0].Argb >> 24).IsEqualTo(0xFFu);
+        await Assert.That(markers[1].Argb >> 24).IsEqualTo(0xFFu);
+    }
+
+    /// <summary>
+    ///     The fallback is the WHOLE contract: a demo that cannot say who was on which side (no
+    ///     <c>player_team</c> at all, a world death, a spectator slot) must keep every marker it had. A
+    ///     kill that disappears because its side is unknown is a worse bug than a kill that is the wrong
+    ///     colour.
+    /// </summary>
+    [Test]
+    public async Task KillTrack_UnknownSide_FallsBackToTheHostsKindDefault()
+    {
+        FakeTimelineData data = new(1000);
+        data.Events["player_death"] =
+        [
+            Record(64, 10, ("attacker", "s1mple")),
+            Record(128, 20, ("attacker", "world"), ("team", "")),
+            Record(192, 30, ("attacker", "world"), ("team", "0")),
+            Record(256, 40, ("attacker", "spectator"), ("team", "1"))
+        ];
+
+        IReadOnlyList<TimelineMarker> markers = new KillTrack().BuildMarkers(data);
+
+        await Assert.That(markers.Count).IsEqualTo(4);
+        await Assert.That(markers.All(m => m.Argb == 0u)).IsTrue()
+            .Because("0 is what BrushForMarker reads as 'use the Kill default', i.e. today's red");
+    }
+
     [Test]
     public async Task BombTrack_ProducesPlantDefuseExplodeKinds()
     {

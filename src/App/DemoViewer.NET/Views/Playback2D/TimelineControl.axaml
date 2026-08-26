@@ -19,7 +19,13 @@
     <Border Background="{DynamicResource Pb2dPanelBg}"
             BorderBrush="{DynamicResource Pb2dHudDivider}" BorderThickness="0,1,0,0"
             Padding="8,4">
-        <Grid RowDefinitions="18,22,18" RowSpacing="2">
+        <!-- 18 / 22 / 26. The footer is 26 and not 18 because a stock Fluent CheckBox cannot be made to
+             fit 18: its template puts the 20x20 check box inside a Grid with a HARD-CODED Height="32",
+             top-aligned, which centres the box at y=6..26 of that band. Height on a template part is a
+             LOCAL value, so neither MinHeight="0" on the CheckBox nor a style setter can compress it —
+             measured, the box hung 8 px below an 18 px row, through the panel's own bottom padding and
+             out of the control, where the window edge cut it off. 26 is the box's exact extent. -->
+        <Grid RowDefinitions="18,22,26" RowSpacing="2">
 
             <!-- ── Rounds band ─────────────────────────────────────────────────────────── -->
             <ItemsControl Grid.Row="0" x:Name="RoundsBand" ItemsSource="{Binding Bands}" ClipToBounds="True">
@@ -82,43 +88,34 @@
             </Panel>
 
             <!-- ── Footer ──────────────────────────────────────────────────────────────── -->
-            <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" >
-                <TextBlock Grid.Column="0" Text="{Binding CurrentRoundLabel}" VerticalAlignment="Center"
-                           Margin="0,0,10,0" MinWidth="18"
-                           Foreground="{DynamicResource Pb2dTextBright}"
-                           FontFamily="Consolas,Menlo,monospace" FontSize="10"
-                           ToolTip.Tip="Current round" />
-                <TextBlock Grid.Column="1" Text="{Binding PositionText}" VerticalAlignment="Center"
-                           Margin="0,0,10,0"
-                           Foreground="{DynamicResource Pb2dTextMid}"
-                           FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+            <!-- A DockPanel, not a row of Auto grid columns.
 
-                <!-- Where a click would land, while the pointer is over the bar. Blank otherwise, so the
-                     footer does not jitter during playback. -->
-                <TextBlock Grid.Column="2" x:Name="HoverReadout" Text="{Binding HoverText}"
-                           VerticalAlignment="Center" Margin="0,0,10,0"
-                           Foreground="{DynamicResource Pb2dTextBright}"
-                           FontFamily="Consolas,Menlo,monospace" FontSize="10" />
-                <TextBlock Grid.Column="3" Text="{Binding FollowStatus}" VerticalAlignment="Center"
-                           Margin="0,0,10,0"
-                           Foreground="{DynamicResource Pb2dPositive}"
-                           FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+                 Auto columns are measured unconstrained and never shrink, so once the readouts outgrew the
+                 row the `*` status column collapsed to zero and the TRAILING Auto column — the toggles —
+                 was arranged past the control's right edge: measured 99 px past it at a 1000 px window and
+                 279 px at 820 px, on a demo mid-playback with a follow target and the Live-Sync speed note
+                 up. Nothing clips here, so the overflow is not even visible as a cut: the GridSplitter and
+                 the opaque roster panel are LATER siblings of the root grid, so they paint over the toggles
+                 and win their hit tests (InputHitTest returned the roster's presenter for all three).
 
-                <!-- Why a speed key did nothing. A consumed-but-refused key with no explanation reads as a
-                     bug; Live Sync pinning the speed is a state the user can act on. -->
-                <TextBlock Grid.Column="4" x:Name="SpeedLockNote" Text="{Binding SpeedLockNote}"
-                           VerticalAlignment="Center" Margin="0,0,10,0"
-                           IsVisible="{Binding SpeedLockNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                           Foreground="{DynamicResource Pb2dMapApprox}"
-                           FontFamily="Consolas,Menlo,monospace" FontSize="10" />
-                <TextBlock Grid.Column="5" Text="{Binding StatusText}" VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource Pb2dTextDim}"
-                           FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+                 The pressure is structural, not a corner case: five of the six readouts are untrimmed
+                 monospace, and the frame/tick digits, the followed player's name and the speed note all
+                 arrive DURING playback — the footer is at its widest exactly when it is being read.
+
+                 So the toggles dock RIGHT: DockPanel measures a docked child against the space still
+                 unclaimed, and the first child claims first, which makes "reserved" structural rather than
+                 a width that has to be guessed. Every readout then docks LEFT in priority order, and the
+                 same remaining-space measure becomes their drop order — each takes its natural width if
+                 there is room and ellipsizes into what is left if there is not. Same shape as the NavStrip's
+                 P3.1 fix under design-system D35 ("responsive horizontal strips MUST wrap or scroll"). -->
+            <DockPanel Grid.Row="2">
 
                 <!-- Per-track toggles. A track the demo cannot feed shows no checkbox at all, rather than a
-                     dead one (design §7.6: markers only for events the demo has). -->
-                <ItemsControl Grid.Column="6" ItemsSource="{Binding Tracks}">
+                     dead one (design §7.6: markers only for events the demo has).
+
+                     DECLARED FIRST so it is the child that measures against the full footer width. Moving it
+                     below the readouts in document order silently restores the bug this DockPanel fixes. -->
+                <ItemsControl x:Name="TrackToggles" DockPanel.Dock="Right" ItemsSource="{Binding Tracks}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel Orientation="Horizontal" Spacing="8" />
@@ -126,14 +123,57 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="timeline:TimelineTrackToggle">
+                            <!-- Padding is the Fluent template's CONTENT MARGIN, not an inset: the 6 px top
+                                 re-centres the label on the check box, which the template pins to y=6..26 of
+                                 a hard-coded 32 px band and therefore does NOT centre on the row. -->
                             <CheckBox Content="{Binding DisplayName}" FontSize="10"
-                                      MinHeight="0" Padding="4,0,0,0"
+                                      MinHeight="0" MinWidth="0" Padding="4,6,0,0"
                                       IsChecked="{Binding IsEnabled, Mode=TwoWay}"
                                       IsVisible="{Binding IsAvailable}" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-            </Grid>
+
+                <TextBlock DockPanel.Dock="Left" Text="{Binding CurrentRoundLabel}"
+                           VerticalAlignment="Center" Margin="0,0,10,0" MinWidth="18"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource Pb2dTextBright}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                           ToolTip.Tip="Current round" />
+                <TextBlock DockPanel.Dock="Left" Text="{Binding PositionText}"
+                           VerticalAlignment="Center" Margin="0,0,10,0"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource Pb2dTextMid}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+
+                <!-- Where a click would land, while the pointer is over the bar. Blank otherwise, so the
+                     footer does not jitter during playback. -->
+                <TextBlock DockPanel.Dock="Left" x:Name="HoverReadout" Text="{Binding HoverText}"
+                           VerticalAlignment="Center" Margin="0,0,10,0"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource Pb2dTextBright}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+                <TextBlock DockPanel.Dock="Left" Text="{Binding FollowStatus}"
+                           VerticalAlignment="Center" Margin="0,0,10,0"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource Pb2dPositive}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+
+                <!-- Why a speed key did nothing. A consumed-but-refused key with no explanation reads as a
+                     bug; Live Sync pinning the speed is a state the user can act on. -->
+                <TextBlock DockPanel.Dock="Left" x:Name="SpeedLockNote" Text="{Binding SpeedLockNote}"
+                           VerticalAlignment="Center" Margin="0,0,10,0"
+                           TextTrimming="CharacterEllipsis"
+                           IsVisible="{Binding SpeedLockNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                           Foreground="{DynamicResource Pb2dMapApprox}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+
+                <!-- Last child: fills whatever the docked ones left, and is the first thing to disappear. -->
+                <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource Pb2dTextDim}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10" />
+            </DockPanel>
         </Grid>
     </Border>
 </UserControl>

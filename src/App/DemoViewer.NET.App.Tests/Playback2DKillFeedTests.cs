@@ -209,7 +209,77 @@ public class Playback2DKillFeedTests
         return "world";
     }
 
+    /// <summary>
+    ///     The sides a kill row carries are resolved AT the kill's own tick, and a kill before the
+    ///     halftime swap reads that swap's <c>OldTeam</c> — GOTV emits <c>player_team</c> only for the
+    ///     swap, so it is the only record a first-half kill has.
+    ///     <para>
+    ///         This also pins that the feed does NOT pair itself against
+    ///         <c>ModuleTimelineData.EventsOfType</c> by index: that list is tick-sorted and drops
+    ///         events with no frame, so a positional join would misattribute a side the moment either
+    ///         happened. The unsorted timeline below is what makes that failure observable.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task EachKillCarriesBothSides_ResolvedAtItsOwnTick()
+    {
+        const int Swap = 5000;
+
+        // Deliberately NOT in tick order: the adapter's own record list sorts and filters, so a feed
+        // that leaned on its ordering would pair these rows with the wrong sides.
+        GameEventView[] kills =
+        [
+            Kill(6000, 0, 1, "ak47"), // after the swap: 0 is T, 1 is CT
+            Kill(1000, 0, 1, "m4a1")  // before it:      0 is CT, 1 is T
+        ];
+
+        Playback2DTabViewModel vm = new();
+        FakeCtx ctx = new(kills);
+        ctx.Roster.Add(new PlayerRosterEntry { Slot = 0, Name = "Neo", SteamId = 1 });
+        ctx.Roster.Add(new PlayerRosterEntry { Slot = 1, Name = "Smith", SteamId = 2 });
+        ctx.TeamTimeline.Add(TeamSwap(Swap, slot: 0, oldTeam: 3, team: 2));
+        ctx.TeamTimeline.Add(TeamSwap(Swap, slot: 1, oldTeam: 2, team: 3));
+        vm.OnActivated(ctx);
+
+        ctx.Push(0, 6100);
+        KillFeedRow after = vm.KillFeed.Single(r => r.Tick == 6000);
+        await Assert.That(after.AttackerTeam).IsEqualTo(2).Because("slot 0 is T after the swap");
+        await Assert.That(after.VictimTeam).IsEqualTo(3).Because("slot 1 is CT after the swap");
+
+        ctx.Push(0, 1100);
+        KillFeedRow before = vm.KillFeed.Single(r => r.Tick == 1000);
+        await Assert.That(before.AttackerTeam).IsEqualTo(3)
+            .Because("before the swap slot 0 was on the side the swap records as OldTeam");
+        await Assert.That(before.VictimTeam).IsEqualTo(2);
+    }
+
+    /// <summary>A demo that cannot say which side anyone was on must still produce every kill row.</summary>
+    [Test]
+    public async Task WithNoSideTimeline_RowsSurvive_WithNeutralSides()
+    {
+        (Playback2DTabViewModel vm, FakeCtx ctx) = Activate(Kill(1000, 0, 1, "ak47"));
+
+        ctx.Push(0, 1010);
+        KillFeedRow row = vm.KillFeed.Single();
+        await Assert.That(row.AttackerTeam).IsEqualTo(0);
+        await Assert.That(row.VictimTeam).IsEqualTo(0);
+        await Assert.That(row.Victim).IsEqualTo("Smith").Because("the row itself is unaffected");
+    }
+
     // ── Setup + builders ──
+
+    private static GameEventView TeamSwap(int tick, int slot, int oldTeam, int team) =>
+        new()
+        {
+            Name = "player_team",
+            Tick = tick,
+            Fields = new Dictionary<string, object?>
+            {
+                ["UserId"] = slot,
+                ["Team"] = team,
+                ["OldTeam"] = oldTeam
+            }
+        };
 
     private static (Playback2DTabViewModel, FakeCtx) Activate(params GameEventView[] timeline)
     {
@@ -262,8 +332,18 @@ public class Playback2DKillFeedTests
 
         public List<PlayerRosterEntry> Roster { get; } = new();
 
-        public IReadOnlyList<GameEventView> GetEventTimeline(string eventName) =>
-            eventName == "player_death" ? _timeline : Array.Empty<GameEventView>();
+        /// <summary>
+        ///     The side timeline. Empty by default, which is the honest shape of a demo whose sides
+        ///     cannot be resolved — every kill then carries side 0 and both feeds render it neutrally.
+        /// </summary>
+        public List<GameEventView> TeamTimeline { get; } = new();
+
+        public IReadOnlyList<GameEventView> GetEventTimeline(string eventName) => eventName switch
+        {
+            "player_death" => _timeline,
+            "player_team" => TeamTimeline,
+            _ => Array.Empty<GameEventView>()
+        };
 
         public bool HasDemo => true;
         public string? DemoPath => null;

@@ -196,7 +196,179 @@ public class InputToolRouterTests
         await Assert.That(router.IsDrawingToolActive).IsTrue();
     }
 
-    private static ToolPointerEvent Sample(LevelPane pane, SKPoint screen)
+    /// <summary>
+    ///     D2 §2.3: the middle button pans under EVERY tool. A pen that takes the wheel button hostage
+    ///     leaves no way back to the view except putting it down.
+    /// </summary>
+    [Test]
+    [Arguments(ToolKind.Draw)]
+    [Arguments(ToolKind.Erase)]
+    public async Task MiddleDrag_Pans_UnderEveryDrawingTool(ToolKind kind)
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        router.SetActive(kind);
+
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+        router.OnPressed(Sample(pane, start, ToolPointerButton.Middle));
+        router.OnMoved(Sample(pane, new SKPoint(240, 130), ToolPointerButton.Middle));
+
+        await Assert.That(router.GestureTool).IsTypeOf<PanZoomTool>();
+        await Assert.That(pane.Camera.Current.PanX).IsEqualTo(40);
+        await Assert.That(services.Session.Wet.IsActive).IsFalse();
+        await Assert.That(services.Session.Document.IsGestureOpen).IsFalse()
+            .Because("neither the pen nor the eraser may open a document gesture on a middle-drag");
+    }
+
+    /// <summary>The other half of D2 §2.3, for the pointing device that has no middle button.</summary>
+    [Test]
+    [Arguments(ToolKind.Draw)]
+    [Arguments(ToolKind.Erase)]
+    public async Task ControlDrag_Pans_UnderEveryDrawingTool(ToolKind kind)
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        router.SetActive(kind);
+
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+        router.OnPressed(Sample(pane, start, modifiers: ToolModifiers.Control));
+        router.OnMoved(Sample(pane, new SKPoint(240, 130), modifiers: ToolModifiers.Control));
+
+        await Assert.That(router.GestureTool).IsTypeOf<PanZoomTool>();
+        await Assert.That(pane.Camera.Current.PanX).IsEqualTo(40);
+        await Assert.That(services.Session.Wet.IsActive).IsFalse();
+        await Assert.That(services.Session.Document.IsGestureOpen).IsFalse();
+    }
+
+    [Test]
+    public async Task PanOnMiddleButton_Off_LeavesTheButtonToTheTool()
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        router.SetActive(ToolKind.Draw);
+        router.PanOnMiddleButton = false;
+
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+        router.OnPressed(Sample(pane, start, ToolPointerButton.Middle));
+
+        await Assert.That(services.Session.Wet.IsActive).IsTrue();
+        await Assert.That(pane.Camera.Current.PanX).IsEqualTo(0);
+    }
+
+    /// <summary>
+    ///     The <see cref="SpaceHeld_DoesNotHijackOpenGesture" /> invariant, for the two new diversions:
+    ///     an accidental middle-click halfway through a stroke must not trade the ink for a pan.
+    /// </summary>
+    [Test]
+    public async Task MiddlePress_DuringAnOpenStroke_DoesNotHijackIt()
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        router.SetActive(ToolKind.Draw);
+
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+        router.OnPressed(Sample(pane, start));
+        await Assert.That(services.Session.Wet.IsActive).IsTrue();
+
+        bool took = router.OnPressed(Sample(pane, new SKPoint(240, 130), ToolPointerButton.Middle));
+
+        await Assert.That(took).IsFalse().Because("chording is not a gesture");
+        await Assert.That(router.GestureTool).IsTypeOf<DrawTool>();
+        await Assert.That(services.Session.Wet.IsActive).IsTrue();
+        await Assert.That(pane.Camera.Current.PanX).IsEqualTo(0);
+    }
+
+    /// <summary>Ctrl coming down mid-stroke is a modifier change, and modifiers are read at press only.</summary>
+    [Test]
+    public async Task ControlHeld_DoesNotHijackOpenGesture()
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        router.SetActive(ToolKind.Draw);
+
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+        router.OnPressed(Sample(pane, start));
+        router.OnMoved(Sample(pane, new SKPoint(240, 130), modifiers: ToolModifiers.Control));
+
+        await Assert.That(services.Session.Wet.IsActive).IsTrue()
+            .Because("the tool that took the press keeps the whole gesture");
+        await Assert.That(pane.Camera.Current.PanX).IsEqualTo(0);
+    }
+
+    /// <summary>D2 §2.2: the right button is a tool binding, not a second left button.</summary>
+    [Test]
+    public async Task RightPress_RoutesToTheSecondaryTool()
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        router.SetActive(ToolKind.Draw);
+        router.SecondaryTool = ToolKind.Erase;
+
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+        router.OnPressed(Sample(pane, start, ToolPointerButton.Right));
+
+        await Assert.That(router.GestureTool).IsTypeOf<EraseTool>();
+        await Assert.That(services.Session.Wet.IsActive).IsFalse();
+    }
+
+    [Test]
+    public async Task LeftPress_IgnoresTheSecondaryTool()
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        router.SetActive(ToolKind.Draw);
+        router.SecondaryTool = ToolKind.Erase;
+
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+        router.OnPressed(Sample(pane, start));
+
+        await Assert.That(router.GestureTool).IsTypeOf<DrawTool>();
+        await Assert.That(services.Session.Wet.IsActive).IsTrue();
+    }
+
+    /// <summary>Null — the shipped default — means "the same tool", so a right-drag still draws.</summary>
+    [Test]
+    public async Task RightPress_WithNoSecondaryTool_StaysOnTheActiveTool()
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        router.SetActive(ToolKind.Draw);
+
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+        router.OnPressed(Sample(pane, start, ToolPointerButton.Right));
+
+        await Assert.That(router.SecondaryTool).IsNull();
+        await Assert.That(router.GestureTool).IsTypeOf<DrawTool>();
+        await Assert.That(services.Session.Wet.IsActive).IsTrue();
+    }
+
+    /// <summary>
+    ///     The binding arrives from a persisted string, so an unregistered kind has to degrade to the
+    ///     active tool rather than silently hand the right button to pan.
+    /// </summary>
+    [Test]
+    public async Task UnregisteredSecondaryTool_FallsBackToTheActiveTool()
+    {
+        (MapSpace _, PaneSet panes) = AnnotationFakes.Panes(new SKSize(600, 400),
+            new FloorSlice(-448, -384), new FloorSlice(-384, -128));
+
+        AnnotationSession session = new(new AnnotationDocument());
+        FakeToolServices services = new(session, panes);
+        InputToolRouter router = new(services, new PanZoomTool());
+        router.Register(new DrawTool());
+        router.SetActive(ToolKind.Draw);
+        router.SecondaryTool = ToolKind.Erase; // never registered
+
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+        router.OnPressed(Sample(pane, start, ToolPointerButton.Right));
+
+        await Assert.That(router.GestureTool).IsTypeOf<DrawTool>();
+    }
+
+    private static ToolPointerEvent Sample(LevelPane pane, SKPoint screen,
+        ToolPointerButton button = ToolPointerButton.Left,
+        ToolModifiers modifiers = ToolModifiers.None)
     {
         (double wx, double wy) = pane.Camera.Current.ScreenToWorld(
             screen.X - pane.ViewportRect.Left, screen.Y - pane.ViewportRect.Top);
@@ -208,8 +380,8 @@ public class InputToolRouterTests
             PaneLocal = new SKPoint(screen.X - pane.ViewportRect.Left, screen.Y - pane.ViewportRect.Top),
             World = new SKPoint((float)wx, (float)wy),
             Pressure = 0.5f,
-            Button = ToolPointerButton.Left,
-            Modifiers = ToolModifiers.None
+            Button = button,
+            Modifiers = modifiers
         };
     }
 

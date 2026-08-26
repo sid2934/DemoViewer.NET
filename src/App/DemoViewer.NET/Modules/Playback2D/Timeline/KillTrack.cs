@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 
 #endregion
@@ -16,6 +17,20 @@ public sealed class KillTrack : ITimelineTrack
     public const string DeathEvent = "player_death";
 
     private const string KillGlyph = "×";
+
+    // The crediting side's colour, mirroring RoundTrack.ApplyWinnerTints — a track may not reach for a
+    // brush (this folder is renderer-independent), so it hands back ARGB and the host themes everything
+    // else. 0 means "host, use the kind default", which is what an unknown side keeps.
+    //
+    // FULL alpha, not RoundTrack's 0x38 wash. The wash exists because a band is a 300 px rectangle behind
+    // a label, where a fifth of an alpha still reads as a side; a marker is an eight-pixel glyph, and the
+    // same wash on it reads as "nothing was drawn here" rather than as T.
+    private const uint TintTeamT = 0xFFE0A030;
+    private const uint TintTeamCt = 0xFF4A90D9;
+    private const uint TintUnknown = 0;
+
+    private const int TeamT = 2;
+    private const int TeamCt = 3;
 
     /// <inheritdoc />
     public string Id => "kill";
@@ -50,7 +65,7 @@ public sealed class KillTrack : ITimelineTrack
                 TimelineMarkerKind.Kill,
                 KillGlyph,
                 Describe(record),
-                0));
+                TintFor(record)));
         }
 
         return markers;
@@ -64,6 +79,25 @@ public sealed class KillTrack : ITimelineTrack
 #pragma warning disable CS0067
     public event Action? MarkersChanged;
 #pragma warning restore CS0067
+
+    // Colours the marker by WHO GOT THE KILL, so a run of one colour reads as a side winning fights.
+    // Every miss lands on TintUnknown: a demo with no player_team, a world/suicide death, a side number
+    // outside the two the game has. A kill never loses its marker over an unresolvable side.
+    private static uint TintFor(TimelineEventRecord record)
+    {
+        if (!record.Fields.TryGetValue(TimelineEventKeys.Team, out string? value)
+            || !int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int team))
+        {
+            return TintUnknown;
+        }
+
+        return team switch
+        {
+            TeamT => TintTeamT,
+            TeamCt => TintTeamCt,
+            _ => TintUnknown
+        };
+    }
 
     private static string Describe(TimelineEventRecord record)
     {

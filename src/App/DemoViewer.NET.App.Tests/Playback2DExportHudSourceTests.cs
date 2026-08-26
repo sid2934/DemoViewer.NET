@@ -118,6 +118,104 @@ public class Playback2DExportHudSourceTests
             .Because("the range spans a round change, so a frozen clock cannot pass this");
     }
 
+    /// <summary>
+    ///     <b>Where the exported roster's numbers come from</b> (D3b §3.1.1). Health, armour, weapon, cash
+    ///     and K/D/A used to exist only in the App's <c>PlayerAttributes</c> — a live-viewport panel an
+    ///     export cannot see — so <c>hud.roster</c> could not have been built on them. They are read in
+    ///     <c>SceneFrameBuilder</c> now, off the export's own replayed entities, and reach the layer as
+    ///     <c>TrackerFrameSource.LastRoster</c>.
+    ///     <para>
+    ///         The wiring under test is the one expression a caller writes:
+    ///         <c>rosterAt: _ =&gt; src.LastRoster</c>, the roster twin of the clock's
+    ///         <c>ClockReading.From(src.LastGameInfo)</c>.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task TheExportedRoster_ReadsTheExportsOwnFrame_AndCarriesEachPlayersCondition()
+    {
+        ParsedDemo demo = DemoTestHelper.GetOrParse(ResolveNuke());
+        using TrackerFrameSource source = MidMatchSource(demo);
+
+        TimelineHudDataSource hud = new([], demo.TickRate > 0
+                ? (int)Math.Round((double)demo.TickRate)
+                : 64,
+            _ => ClockReading.From(source.LastGameInfo),
+            rosterAt: _ => source.LastRoster);
+
+        Scene2DFrame exported = source.FrameAt(0);
+        HudSnapshot drawn = hud.At(exported.Time.Tick);
+
+        int alive = 0;
+        int armed = 0;
+        HashSet<int> sides = [];
+        foreach (HudPlayerRow row in drawn.Roster)
+        {
+            sides.Add(row.Team);
+            if (row.IsAlive)
+            {
+                alive++;
+                await Assert.That(row.Health).IsGreaterThan(0);
+                await Assert.That(row.Health).IsLessThanOrEqualTo(100);
+            }
+            else
+            {
+                await Assert.That(row.Health).IsEqualTo(0);
+            }
+
+            await Assert.That(row.Money).IsGreaterThanOrEqualTo(0);
+            await Assert.That(string.IsNullOrEmpty(row.Name)).IsFalse();
+            if (!string.Equals(row.Weapon, "—", StringComparison.Ordinal))
+            {
+                armed++;
+            }
+        }
+
+        Console.WriteLine($"[export-hud] roster={drawn.Roster.Count} alive={alive} armed={armed} " +
+                          $"sides={string.Join(",", sides.Order())} at tick {drawn.Tick}");
+
+        await Assert.That(drawn.Roster.Count).IsGreaterThanOrEqualTo(10);
+        await Assert.That(sides.Contains(2)).IsTrue();
+        await Assert.That(sides.Contains(3)).IsTrue();
+
+        // The weapon is the one field that takes a handle hop through the entity view, and the clobber
+        // rule makes it the one that silently reads back the wrong entity when done carelessly.
+        await Assert.That(armed).IsGreaterThan(0)
+            .Because("mid-match, somebody is holding something");
+    }
+
+    /// <summary>
+    ///     And it keeps reading it, frame by frame — the roster is a function of the frame being drawn, so
+    ///     a card frozen at frame 0 would show a player who died ten seconds ago at full health.
+    /// </summary>
+    [Test]
+    public async Task TheExportedRoster_TracksTheExport_RatherThanFreezingAtFrameZero()
+    {
+        ParsedDemo demo = DemoTestHelper.GetOrParse(ResolveNuke());
+        using TrackerFrameSource source = MidMatchSource(demo);
+
+        HashSet<string> shapes = [];
+        int stride = Math.Max(1, source.FrameCount / 40);
+
+        for (int i = 0; i < source.FrameCount; i += stride)
+        {
+            source.FrameAt(i);
+
+            int health = 0;
+            int aliveCount = 0;
+            foreach (HudPlayerRow row in source.LastRoster)
+            {
+                health += row.Health;
+                aliveCount += row.IsAlive ? 1 : 0;
+            }
+
+            shapes.Add($"{aliveCount}:{health}");
+        }
+
+        Console.WriteLine($"[export-hud] distinct roster states across the range: {shapes.Count}");
+        await Assert.That(shapes.Count).IsGreaterThan(1)
+            .Because("the range spans deaths and damage, so a frozen roster cannot pass this");
+    }
+
     private static (Playback2DTabViewModel, Playback2DFakeContext) Tab()
     {
         Playback2DTabViewModel vm = new();

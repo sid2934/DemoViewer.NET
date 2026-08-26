@@ -4,6 +4,7 @@ using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Playback2D.Core.Hud;
 
 #endregion
 
@@ -238,6 +239,7 @@ public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSour
 
         Scene2DFrame built = _builder.Build(in input);
         LastGameInfo = built.GameInfo;
+        LastRoster = _builder.LastRoster;
         return built;
     }
 
@@ -260,6 +262,25 @@ public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSour
     ///     </para>
     /// </summary>
     public SceneGameInfo LastGameInfo { get; private set; } = SceneGameInfo.Empty;
+
+    /// <summary>
+    ///     The player cards of the frame <see cref="FrameAt" /> built most recently, or empty before the
+    ///     first one — <c>hud.roster</c>'s half of what <see cref="LastGameInfo" /> is to <c>hud.clock</c>
+    ///     (D3b, registry D0 §3.2).
+    ///     <para>
+    ///         It exists for the same reason and is ordered correctly for the same reason: a HUD layer is a
+    ///         function of tick, <c>SceneExportSession.RunAsync</c> is strictly <c>FrameAt</c> →
+    ///         <c>Advance</c> → <c>Render</c>, and a layer asks its data source during <c>Advance</c>. Wire
+    ///         it as the roster half of a <c>TimelineHudDataSource</c>:
+    ///         <c>new TimelineHudDataSource(kills, rate, _ =&gt; ClockReading.From(src.LastGameInfo),
+    ///         rosterAt: _ =&gt; src.LastRoster)</c>.
+    ///     </para>
+    ///     <para>
+    ///         <b>Borrowed, not copied</b> — it is the builder's pooled list, valid until the next
+    ///         <see cref="FrameAt" /> on this source, exactly like the <c>Scene2DFrame</c> beside it.
+    ///     </para>
+    /// </summary>
+    public IReadOnlyList<HudPlayerRow> LastRoster { get; private set; } = [];
 
     /// <summary>The map name stamped onto every built frame. Set before the first <see cref="FrameAt" />.</summary>
     public string? MapName { get; set; }

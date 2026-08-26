@@ -200,6 +200,45 @@ public class DrawToolTests
         await Assert.That(h.Document.IsGestureOpen).IsFalse();
     }
 
+    /// <summary>
+    ///     D2 §2.2. <c>ToolPointerEvent.Button</c> reached the tools from day one and nothing read it, so
+    ///     a right-drag drew ink identical to a left-drag. The button picks the pen.
+    /// </summary>
+    [Test]
+    [Arguments(ToolPointerButton.Left, 0xFFFFC107u)]
+    [Arguments(ToolPointerButton.Right, 0xFF29B6F6u)]
+    [Arguments(ToolPointerButton.Middle, 0xFFFFC107u)]
+    public async Task TheButtonPicksTheInk(ToolPointerButton button, uint expected)
+    {
+        Harness h = new();
+        h.Session.Style = new AnnotationStyle(0xFFFFC107, 6f, 1f);
+        h.Session.SecondaryStyle = new AnnotationStyle(0xFF29B6F6, 6f, 1f);
+
+        h.Press(0, 0, button);
+        h.Move(60, 0, button: button);
+        h.Release(60, 0, button);
+
+        await Assert.That(h.Document.Elements[0].Style.ColorArgb).IsEqualTo(expected);
+    }
+
+    /// <summary>
+    ///     The wet stroke carries the pen it started with. A toolbar click mid-drag must not repaint the
+    ///     half of the stroke that is already down — and, on release, the whole of it.
+    /// </summary>
+    [Test]
+    public async Task InkChosenAtPress_SurvivesAStyleChangeMidGesture()
+    {
+        Harness h = new();
+        h.Session.SecondaryStyle = new AnnotationStyle(0xFF29B6F6, 6f, 1f);
+
+        h.Press(0, 0, ToolPointerButton.Right);
+        h.Session.SecondaryStyle = new AnnotationStyle(0xFF00FF00, 6f, 1f);
+        h.Move(60, 0, button: ToolPointerButton.Right);
+        h.Release(60, 0, ToolPointerButton.Right);
+
+        await Assert.That(h.Document.Elements[0].Style.ColorArgb).IsEqualTo(0xFF29B6F6u);
+    }
+
     private sealed class Harness
     {
         public Harness(double zMin = 0)
@@ -221,21 +260,25 @@ public class DrawToolTests
 
         public DrawTool Tool { get; }
 
-        public void Press(float x, float y) => Tool.OnPressed(Event(x, y, default), Services);
+        public void Press(float x, float y, ToolPointerButton button = ToolPointerButton.Left) =>
+            Tool.OnPressed(Event(x, y, default, button), Services);
 
-        public void Move(float x, float y, ReadOnlySpan<InkPoint> coalesced = default) =>
-            Tool.OnMoved(Event(x, y, coalesced), Services);
+        public void Move(float x, float y, ReadOnlySpan<InkPoint> coalesced = default,
+            ToolPointerButton button = ToolPointerButton.Left) =>
+            Tool.OnMoved(Event(x, y, coalesced, button), Services);
 
-        public void Release(float x, float y) => Tool.OnReleased(Event(x, y, default), Services);
+        public void Release(float x, float y, ToolPointerButton button = ToolPointerButton.Left) =>
+            Tool.OnReleased(Event(x, y, default, button), Services);
 
-        private ToolPointerEvent Event(float x, float y, ReadOnlySpan<InkPoint> coalesced) =>
+        private ToolPointerEvent Event(float x, float y, ReadOnlySpan<InkPoint> coalesced,
+            ToolPointerButton button) =>
             new()
             {
                 Pane = Pane,
                 Screen = Services.WorldToScreen(Pane, new SKPoint(x, y)),
                 World = new SKPoint(x, y),
                 Pressure = 0.5f,
-                Button = ToolPointerButton.Left,
+                Button = button,
                 Intermediate = coalesced
             };
     }

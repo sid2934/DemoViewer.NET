@@ -258,10 +258,15 @@ public sealed class AnnotationSessionController : IDisposable
     {
         Playback2DSettings prefs = _settings?.Current.Playback2D ?? new Playback2DSettings();
 
-        Session.Style = new AnnotationStyle(
-            prefs.AnnotationColorArgb,
-            (float)prefs.AnnotationWidth,
-            (float)Math.Clamp(prefs.AnnotationOpacity, 0, 1));
+        float width = (float)prefs.AnnotationWidth;
+        float opacity = (float)Math.Clamp(prefs.AnnotationOpacity, 0, 1);
+
+        Session.Style = new AnnotationStyle(prefs.AnnotationColorArgb, width, opacity);
+
+        // The two pens share width and opacity by construction — only the colour is per-button — so a
+        // user who widens the pen never discovers that the right one stayed thin.
+        Session.SecondaryStyle = new AnnotationStyle(prefs.AnnotationSecondaryColorArgb, width, opacity);
+        Session.SecondaryTool = ParseSecondaryTool(prefs.AnnotationSecondaryTool);
 
         Session.DefaultVisibility =
             Enum.TryParse(prefs.AnnotationDefaultVisibility, ignoreCase: true, out EnvelopeMode mode)
@@ -271,11 +276,28 @@ public sealed class AnnotationSessionController : IDisposable
         Session.FadeInTicks = Math.Max(0, prefs.AnnotationFadeInTicks);
         Session.FadeOutTicks = Math.Max(0, prefs.AnnotationFadeOutTicks);
         Session.HoldTicks = Math.Max(0, prefs.AnnotationHoldTicks);
+
+        // AFTER the ramps: the Custom window borrows them, so seeding it first would compose an
+        // envelope out of whatever the previous demo's fades happened to be.
+        Session.SetCustomWindow(prefs.AnnotationCustomFromTick, prefs.AnnotationCustomUntilTick);
+
         Session.AnchorToEntities = prefs.AnnotationAnchorToEntities;
         Session.ActiveTool = Enum.TryParse(prefs.LastTool, ignoreCase: true, out ToolKind tool)
             ? tool
             : ToolKind.PanZoom;
     }
+
+    /// <summary>The persisted spelling of "the right button does what the left one does".</summary>
+    public const string SecondaryToolSame = "Same";
+
+    // "Same" and every unrecognised string mean "no override" — the right button then runs the selected
+    // tool with the secondary ink. PanZoom is refused on purpose: middle and Ctrl+drag already pan under
+    // every tool (D2 §2.3), and a third way to pan bound to the button that is supposed to draw would be
+    // a setting whose only effect is to take the second pen away.
+    private static ToolKind? ParseSecondaryTool(string? name) =>
+        Enum.TryParse(name, ignoreCase: true, out ToolKind kind) && kind != ToolKind.PanZoom
+            ? kind
+            : null;
 
     /// <summary>Persists the current ink style, envelope defaults and tool. Best-effort.</summary>
     public void PersistSettings()
@@ -292,6 +314,9 @@ public sealed class AnnotationSessionController : IDisposable
         int fadeIn = Session.FadeInTicks;
         int fadeOut = Session.FadeOutTicks;
         int hold = Session.HoldTicks;
+        uint secondaryColor = Session.SecondaryStyle.ColorArgb;
+        string secondaryTool = Session.SecondaryTool?.ToString() ?? SecondaryToolSame;
+        TimeEnvelope custom = Session.NewElementEnvelope;
 
         try
         {
@@ -307,6 +332,13 @@ public sealed class AnnotationSessionController : IDisposable
                 s.Playback2D.AnnotationAnchorToEntities = anchor;
                 s.Playback2D.LastTool = tool.ToString();
                 s.Playback2D.AnnotationRecentColors = [.. RecentColors];
+                s.Playback2D.AnnotationSecondaryColorArgb = secondaryColor;
+                s.Playback2D.AnnotationSecondaryTool = secondaryTool;
+
+                // The window is read back OFF the composed envelope, so what is persisted is what the
+                // renderer will actually honour — including PinnedTo's clamp of an inverted window.
+                s.Playback2D.AnnotationCustomFromTick = custom.FromTick ?? 0;
+                s.Playback2D.AnnotationCustomUntilTick = custom.UntilTick ?? 0;
             });
         }
         catch (IOException)
@@ -319,22 +351,40 @@ public sealed class AnnotationSessionController : IDisposable
         }
     }
 
+    /// <summary>How many swatches the strip keeps. Eight fits one toolbar line at 820 px.</summary>
+    public const int MaxRecentColors = 8;
+
     /// <summary>Recently used ink colours, newest first, as <c>#AARRGGBB</c>. Capped at eight.</summary>
     public IReadOnlyList<string> RecentColors => _recentColors;
+
+    /// <summary>
+    ///     Bumped whenever <see cref="RecentColors" /> changed. The panel rebuilds its swatch collection
+    ///     off this rather than off every <see cref="StateChanged" />, which also fires on each stroke.
+    /// </summary>
+    public int RecentColorsVersion { get; private set; }
 
     private readonly List<string> _recentColors = [];
 
     /// <summary>Records a colour as recently used and moves it to the front.</summary>
     /// <param name="argb">Packed ARGB.</param>
-    public void RememberColor(uint argb)
+    /// <returns>True when the list actually changed — a colour already at the front changes nothing.</returns>
+    public bool RememberColor(uint argb)
     {
         string text = "#" + argb.ToString("X8", CultureInfo.InvariantCulture);
+        if (_recentColors.Count > 0 && string.Equals(_recentColors[0], text, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
         _recentColors.Remove(text);
         _recentColors.Insert(0, text);
-        while (_recentColors.Count > 8)
+        while (_recentColors.Count > MaxRecentColors)
         {
             _recentColors.RemoveAt(_recentColors.Count - 1);
         }
+
+        RecentColorsVersion++;
+        return true;
     }
 
     /// <summary>Seeds the recent-colour list from settings.</summary>
@@ -348,6 +398,8 @@ public sealed class AnnotationSessionController : IDisposable
                 _recentColors.Add(colour);
             }
         }
+
+        RecentColorsVersion++;
     }
 
     /// <inheritdoc />
@@ -372,8 +424,33 @@ public sealed class AnnotationSessionController : IDisposable
 
     private void OnFeaturesChanged() => StateChanged?.Invoke();
 
+    // "Recent" means recently DRAWN WITH, not recently hovered in the picker. A ColorPicker raises a
+    // change on every pointer move through its spectrum, so remembering there filled the strip with
+    // eight shades of one drag and buried the colours the user had actually committed to. One new
+    // element is one use — of whichever pen drew it, which is how the secondary ink earns its place in
+    // the strip too. A LOAD is not a use, and neither is a batch: only a single-element growth counts.
+    private void RememberNewestColor()
+    {
+        int count = Session.Document.Elements.Count;
+        int previous = _lastElementCount;
+        _lastElementCount = count;
+
+        if (_loading || count != previous + 1)
+        {
+            return;
+        }
+
+        if (RememberColor(Session.Document.Elements[^1].Style.ColorArgb))
+        {
+            PersistSettings();
+        }
+    }
+
+    private int _lastElementCount;
+
     private void OnDocumentChanged()
     {
+        RememberNewestColor();
         StateChanged?.Invoke();
 
         if (_disposed || _loading || _demoPath is null || _store is null || !IsEnabled)

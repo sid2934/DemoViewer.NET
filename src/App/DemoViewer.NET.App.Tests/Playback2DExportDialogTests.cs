@@ -1,11 +1,16 @@
 #region
 
+using System.ComponentModel;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
+using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
+using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.ViewModels.Playback2D;
 
@@ -102,7 +107,7 @@ public class Playback2DExportDialogTests
     }
 
     [Test]
-    public async Task IncludingTheHud_AddsBothHudLayerIds()
+    public async Task IncludingTheHud_AddsEveryHudLayerId()
     {
         Playback2DExportDialogViewModel vm = Dialog();
         vm.IncludeHud = true;
@@ -111,6 +116,139 @@ public class Playback2DExportDialogTests
 
         await Assert.That(request.LayerIds.Contains(SceneLayerIds.HudClock)).IsTrue();
         await Assert.That(request.LayerIds.Contains(SceneLayerIds.HudKillFeed)).IsTrue();
+        await Assert.That(request.LayerIds.Contains(SceneLayerIds.HudRoster)).IsTrue()
+            .Because("a saved ExportIncludeHud=true asked for the HUD, and the HUD now has three parts");
+    }
+
+    /// <summary>
+    ///     One checkbox for three layers was too coarse the moment D3b added the third: a user who wants
+    ///     the score strip but not a scoreboard down both edges of a 720p clip could only have both or
+    ///     neither.
+    /// </summary>
+    [Test]
+    public async Task EachHudLayer_HasItsOwnToggle()
+    {
+        Playback2DExportDialogViewModel vm = Dialog();
+        vm.IncludeHudKillFeed = false;
+        vm.IncludeHudRoster = false;
+
+        ExportRequest request = vm.BuildRequest(vm.Ranges[0]);
+
+        await Assert.That(request.LayerIds.Contains(SceneLayerIds.HudClock)).IsTrue();
+        await Assert.That(request.LayerIds.Contains(SceneLayerIds.HudKillFeed)).IsFalse();
+        await Assert.That(request.LayerIds.Contains(SceneLayerIds.HudRoster)).IsFalse();
+    }
+
+    [Test]
+    public async Task TheHudMaster_TurnsOffEveryPart_WhateverTheThreeSay()
+    {
+        Playback2DExportDialogViewModel vm = Dialog();
+        vm.IncludeHud = false;
+
+        // ExportIncludeHud is the key already in users' files, so "off" has to keep meaning "no HUD"
+        // rather than becoming an override the three sub-toggles can win against.
+        IReadOnlySet<string> ids = vm.BuildRequest(vm.Ranges[0]).LayerIds;
+
+        foreach (string id in new[]
+                 {
+                     SceneLayerIds.HudClock, SceneLayerIds.HudKillFeed, SceneLayerIds.HudRoster
+                 })
+        {
+            await Assert.That(ids.Contains(id)).IsFalse().Because($"{id} is under the master switch");
+        }
+    }
+
+    [Test]
+    public async Task TheHudToggles_SeedFromSettings_AndPersistBack()
+    {
+        Playback2DSettings saved = new()
+        {
+            ExportIncludeHudClock = false,
+            ExportIncludeHudRoster = false
+        };
+
+        AppSettings written = new();
+        Playback2DExportDialogViewModel vm = Dialog(
+            defaults: saved,
+            job: new StubExportJobService(),
+            persist: mutate => mutate(written));
+
+        await Assert.That(vm.IncludeHudClock).IsFalse();
+        await Assert.That(vm.IncludeHudKillFeed).IsTrue();
+        await Assert.That(vm.IncludeHudRoster).IsFalse();
+
+        vm.IncludeHudRoster = true;
+        vm.StartCommand.Execute(null);
+
+        await Assert.That(written.Playback2D.ExportIncludeHudClock).IsFalse();
+        await Assert.That(written.Playback2D.ExportIncludeHudRoster).IsTrue();
+        await Assert.That(written.Playback2D.ExportIncludeHudKillFeed).IsTrue();
+    }
+
+    /// <summary>
+    ///     The whole point of the roster being an id rather than a flag: naming it, with a HUD source on
+    ///     hand, produces a registered layer. D3a's <c>Starved()</c> routes it — no new source kind, no new
+    ///     line in the catalog.
+    /// </summary>
+    [Test]
+    public async Task TheRosterId_BuildsALayer_WhenAHudSourceIsSupplied()
+    {
+        Playback2DExportDialogViewModel vm = Dialog();
+        ExportRequest request = vm.BuildRequest(vm.Ranges[0]);
+
+        using SceneCompositor fed = SceneLayerCatalog.CreateSceneStack(
+            [.. request.LayerIds], null, null, new EmptyHud(), EmptyInk());
+        await Assert.That(fed.Find(SceneLayerIds.HudRoster)).IsNotNull();
+
+        using SceneCompositor starved = SceneLayerCatalog.CreateSceneStack(
+            [.. request.LayerIds], null, null, null, EmptyInk());
+        await Assert.That(starved.Find(SceneLayerIds.HudRoster)).IsNull()
+            .Because("asked for with nothing to feed it, a HUD layer is skipped, not an empty box");
+    }
+
+    /// <summary>A HUD source with nothing in it — enough to prove a layer was registered.</summary>
+    private sealed class EmptyHud : Playback2D.Core.Hud.IHudDataSource
+    {
+        public Playback2D.Core.Hud.HudSnapshot At(int tick) =>
+            Playback2D.Core.Hud.HudSnapshot.Empty with { Tick = tick };
+    }
+
+    /// <summary>
+    ///     <b>The defect, at the exact seam it bit.</b> <c>ExportIncludeAnnotations</c> ships true, so this
+    ///     is the id set every first export produces — and <c>CreateSceneStack</c> threw
+    ///     <c>ArgumentException: unknown layer id(s): playback2d.annotations</c> on it, killing the export
+    ///     before its first frame. The comment on the offending line claimed unknown ids were ignored.
+    /// </summary>
+    [Test]
+    public async Task TheShippedDefaultIdSet_BuildsAStack_WithTheInkInIt()
+    {
+        Playback2DExportDialogViewModel vm = Dialog();
+        await Assert.That(vm.IncludeAnnotations).IsTrue().Because("the box ships checked");
+
+        ExportRequest request = vm.BuildRequest(vm.Ranges[0]);
+
+        using SceneCompositor compositor = SceneLayerCatalog.CreateSceneStack(
+            [.. request.LayerIds], null, null, null, EmptyInk());
+
+        await Assert.That(compositor.Find(SceneLayerIds.Annotations)).IsNotNull()
+            .Because("a checkbox that stops throwing but still draws nothing is only half the fix");
+    }
+
+    [Test]
+    public async Task WithAnnotationsUnchecked_TheStackHasNoInk()
+    {
+        Playback2DExportDialogViewModel vm = Dialog();
+        vm.IncludeAnnotations = false;
+
+        ExportRequest request = vm.BuildRequest(vm.Ranges[0]);
+
+        // The document is supplied either way: unchecked has to mean "not drawn", not "nothing to draw
+        // with", or the setting would be honoured only by accident on a tab with no strokes on it.
+        using SceneCompositor compositor = SceneLayerCatalog.CreateSceneStack(
+            [.. request.LayerIds], null, null, null, EmptyInk());
+
+        await Assert.That(request.LayerIds.Contains(SceneLayerIds.Annotations)).IsFalse();
+        await Assert.That(compositor.Find(SceneLayerIds.Annotations)).IsNull();
     }
 
     [Test]
@@ -270,20 +408,25 @@ public class Playback2DExportDialogTests
         await Assert.That(job.Started.EncoderOverride).IsEqualTo(EncoderLadder.Software);
     }
 
+    private static AnnotationSession EmptyInk() => new(new AnnotationDocument());
+
     private static Playback2DExportDialogViewModel Dialog(
         IReadOnlyList<ExportRangeOption>? ranges = null,
         Func<FfmpegLocation>? ffmpeg = null,
         Func<bool>? liveSync = null,
         Func<CameraScript>? captureCamera = null,
-        Func<int, int, int, double, int>? outputFrameCount = null) =>
+        Func<int, int, int, double, int>? outputFrameCount = null,
+        Playback2DSettings? defaults = null,
+        IExportJobService? job = null,
+        Action<Action<AppSettings>>? persist = null) =>
         new(ranges ?? [new ExportRangeOption("Current round", 100, 400)],
-            new Playback2DSettings(),
-            job: null,
+            defaults ?? new Playback2DSettings(),
+            job: job,
             captureLiveCamera: captureCamera,
             outputFrameCount: outputFrameCount,
             ffmpegLocator: ffmpeg ?? (() => new FfmpegLocation(true, "/usr/bin", FfmpegOrigin.SystemPath)),
             isLiveSyncSessionActive: liveSync,
-            persistDefaults: null,
+            persistDefaults: persist,
             fileExists: _ => false);
 
     /// <summary>Records the one request the dialog hands off, and nothing else.</summary>
@@ -303,6 +446,106 @@ public class Playback2DExportDialogTests
 
         public Task CancelAsync() => Task.CompletedTask;
     }
+}
+
+/// <summary>
+///     <b>Whether the Export button can ever appear.</b> <c>CanExport</c> is computed over the gate, the
+///     export host and <c>HasDemo</c>, and nothing raised a change notification for it — so the button's
+///     <c>IsVisible</c> binding latched its first read, which on a cold start is "no demo loaded", and the
+///     export entry point stayed invisible however many demos were opened afterwards. Reported as "there
+///     is no export button"; it was a missing <c>OnPropertyChanged</c>.
+/// </summary>
+public class Playback2DExportVisibilityTests
+{
+    [Test]
+    public async Task WhenADemoArrivesUnderAnActiveTab_CanExportIsRaised()
+    {
+        Playback2DTabViewModel vm = new();
+        Playback2DFakeContext ctx = new()
+        {
+            HasDemo = false, Gate = new FakeModuleFeatureGate()
+        };
+        vm.OnActivated(ctx);
+
+        List<string> raised = [];
+        PropertyChangedEventHandler handler = (_, e) => raised.Add(e.PropertyName ?? string.Empty);
+        vm.PropertyChanged += handler;
+
+        try
+        {
+            ctx.HasDemo = true;
+            ctx.RaiseDemoReset();
+        }
+        finally
+        {
+            vm.PropertyChanged -= handler;
+        }
+
+        await Assert.That(raised).Contains(nameof(Playback2DTabViewModel.CanExport))
+            .Because("a demo loading is exactly when the affordance has to appear");
+    }
+
+    [Test]
+    public async Task AGateFlip_RaisesItToo()
+    {
+        Playback2DTabViewModel vm = new();
+        FakeModuleFeatureGate gate = new();
+        Playback2DFakeContext ctx = new()
+        {
+            Gate = gate
+        };
+        vm.OnActivated(ctx);
+
+        List<string> raised = [];
+        PropertyChangedEventHandler handler = (_, e) => raised.Add(e.PropertyName ?? string.Empty);
+        vm.PropertyChanged += handler;
+
+        try
+        {
+            // Live, like every other gate on this tab: turning the feature off in Settings has to take the
+            // button away without rebuilding the tab.
+            gate.SetEnabled("playback2d.export", false);
+        }
+        finally
+        {
+            vm.PropertyChanged -= handler;
+        }
+
+        await Assert.That(raised).Contains(nameof(Playback2DTabViewModel.CanExport));
+    }
+}
+
+/// <summary>
+///     <b>What ink an export is handed.</b> The runner evaluates the tab's setup on a pool thread and then
+///     renders for minutes, while the user carries on drawing in the window it came from.
+/// </summary>
+public class Playback2DExportInkTests
+{
+    [Test]
+    public async Task TheInkAnExportGets_IsASnapshot_NotTheLiveDocument()
+    {
+        Playback2DTabViewModel vm = new();
+        AnnotationDocument live = vm.Annotations.Session.Document;
+        live.Apply(new DocDelta.Add(Stroke(), 0));
+
+        AnnotationSession? frozen = vm.SnapshotInkForExport();
+        await Assert.That(frozen).IsNotNull();
+        await Assert.That(frozen!.Document.Elements.Count).IsEqualTo(1);
+
+        // Drawing during the render must not reach frames the export has already passed — and erasing
+        // must not take ink out of frames that already showed it. AnnotationLayer re-records its cached
+        // pictures on every Version bump, so the live document would do exactly both.
+        live.Apply(new DocDelta.Add(Stroke(), 1));
+
+        await Assert.That(live.Elements.Count).IsEqualTo(2);
+        await Assert.That(frozen.Document.Elements.Count).IsEqualTo(1)
+            .Because("the export renders from the document as it stood when Start was pressed");
+    }
+
+    private static AnnotationElement Stroke() => new(
+        Guid.NewGuid(), AnnotationKind.Freehand, AnnotationStyle.Default,
+        new SpaceRef.World(0), TimeEnvelope.Static,
+        [new InkPoint(0, 0, 0.5f), new InkPoint(100, 100, 0.5f)], null);
 }
 
 /// <summary>

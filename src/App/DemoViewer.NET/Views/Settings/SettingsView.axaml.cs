@@ -2,6 +2,7 @@
 
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -22,6 +23,21 @@ public partial class SettingsView : UserControl
     {
         InitializeComponent();
         AttachedToVisualTree += OnAttachedToVisualTree;
+
+        // Keybind capture (D1). Registered on the ROOT and TUNNELLING, not on the capture button itself:
+        // Button's own class handler claims Space and Enter before any handler attached to the button
+        // would run, and those are two of the keys a user is most likely to bind. Tunnelling from here
+        // also means the search box cannot swallow a captured letter. Inert unless a row is armed — the
+        // view-model owns that state, and it allows only one armed row at a time.
+        AddHandler(KeyDownEvent, OnKeybindCaptureKeyDown, RoutingStrategies.Tunnel);
+    }
+
+    private void OnKeybindCaptureKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is SettingsViewModel vm && vm.HandleKeybindCapture(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+        }
     }
 
     private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)

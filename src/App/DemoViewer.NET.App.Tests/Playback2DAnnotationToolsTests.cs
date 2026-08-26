@@ -1,0 +1,346 @@
+#region
+
+using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Modules.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Core.Input;
+using DemoViewer.NET.ViewModels.Playback2D;
+
+#endregion
+
+namespace DemoViewer.NET.AppTests;
+
+/// <summary>
+///     D2's authoring preferences: the recent-colour strip, the per-button pen and the <c>Custom</c>
+///     envelope.
+///     <para>
+///         All three shipped as plumbing with no control on the end of it — a persisted key, a view-model
+///         property, and nothing a user could ever reach. These are the tests that keep them wired: a
+///         value the panel writes has to survive a settings round trip, or the surface is decorative
+///         again.
+///     </para>
+/// </summary>
+[NotInParallel]
+public class Playback2DAnnotationToolsTests
+{
+    [Test]
+    public async Task RecentColors_PushNewestFirst_AndDeDuplicate()
+    {
+        using AnnotationSessionController controller = new(null, null);
+
+        controller.RememberColor(0xFFFF0000);
+        controller.RememberColor(0xFF00FF00);
+        controller.RememberColor(0xFFFF0000);
+
+        await Assert.That(controller.RecentColors.Count).IsEqualTo(2)
+            .Because("re-using a colour moves it, it does not add a second copy");
+        await Assert.That(controller.RecentColors[0]).IsEqualTo("#FFFF0000");
+        await Assert.That(controller.RecentColors[1]).IsEqualTo("#FF00FF00");
+    }
+
+    [Test]
+    public async Task RecentColors_StopAtTheCap_DroppingTheOldest()
+    {
+        using AnnotationSessionController controller = new(null, null);
+
+        for (uint i = 0; i <= AnnotationSessionController.MaxRecentColors; i++)
+        {
+            controller.RememberColor(0xFF000000u | i);
+        }
+
+        await Assert.That(controller.RecentColors.Count)
+            .IsEqualTo(AnnotationSessionController.MaxRecentColors);
+        await Assert.That(controller.RecentColors.Contains("#FF000000")).IsFalse()
+            .Because("the first colour is the one that falls off the end");
+    }
+
+    /// <summary>
+    ///     Re-drawing with the colour already at the front is not a change, so it must not bump the
+    ///     version the panel rebuilds off — nor trigger a settings write per stroke.
+    /// </summary>
+    [Test]
+    public async Task RecentColors_RepeatingTheFrontColour_IsNotAChange()
+    {
+        using AnnotationSessionController controller = new(null, null);
+
+        await Assert.That(controller.RememberColor(0xFF123456)).IsTrue();
+        int version = controller.RecentColorsVersion;
+
+        await Assert.That(controller.RememberColor(0xFF123456)).IsFalse();
+        await Assert.That(controller.RecentColorsVersion).IsEqualTo(version);
+    }
+
+    /// <summary>
+    ///     "Recent" means recently DRAWN WITH. A ColorPicker raises a change on every pointer move
+    ///     through its spectrum, so pushing on style change filled the strip with eight shades of one
+    ///     drag; the commit is the only honest moment.
+    /// </summary>
+    [Test]
+    public async Task ACommittedStroke_PushesItsOwnColour_AndAStyleChangeDoesNot()
+    {
+        using AnnotationSessionController controller = new(null, null);
+
+        controller.Session.Style = new AnnotationStyle(0xFFABCDEF, 6f, 1f);
+        await Assert.That(controller.RecentColors).IsEmpty()
+            .Because("moving the picker is not using a colour");
+
+        controller.Document.Apply(new DocDelta.Add(Stroke(0xFF102030), 0));
+
+        await Assert.That(controller.RecentColors.Count).IsEqualTo(1);
+        await Assert.That(controller.RecentColors[0]).IsEqualTo("#FF102030");
+    }
+
+    /// <summary>The right button's pen earns its swatch on the same terms as the left one's.</summary>
+    [Test]
+    public async Task ASecondaryInkStroke_PushesItsColourToo()
+    {
+        using AnnotationSessionController controller = new(null, null);
+
+        controller.Document.Apply(new DocDelta.Add(Stroke(0xFF29B6F6), 0));
+
+        await Assert.That(controller.RecentColors[0]).IsEqualTo("#FF29B6F6");
+    }
+
+    /// <summary>
+    ///     D2 §2.4's exit criterion, end to end: the authored window reaches settings and comes back as a
+    ///     real envelope rather than <c>TimeEnvelope.Static</c> under a different name.
+    /// </summary>
+    [Test]
+    public async Task CustomWindow_RoundTripsThroughSettings()
+    {
+        SettingsService settings = new(null); // the fileless WASM branch — the one that forgets things
+
+        using (AnnotationSessionController author = new(null, settings))
+        {
+            author.Session.DefaultVisibility = EnvelopeMode.Custom;
+            author.Session.FadeInTicks = 12;
+            author.Session.FadeOutTicks = 24;
+            author.Session.SetCustomWindow(1500, 2500);
+            author.PersistSettings();
+        }
+
+        await Assert.That(settings.Current.Playback2D.AnnotationCustomFromTick).IsEqualTo(1500);
+        await Assert.That(settings.Current.Playback2D.AnnotationCustomUntilTick).IsEqualTo(2500);
+
+        using AnnotationSessionController reader = new(null, settings);
+        TimeEnvelope envelope = reader.Session.EnvelopeForNewElement(999_999);
+
+        await Assert.That(reader.Session.DefaultVisibility).IsEqualTo(EnvelopeMode.Custom);
+        await Assert.That(envelope).IsNotEqualTo(TimeEnvelope.Static)
+            .Because("Custom used to be a synonym for Always — one persisted string and no behaviour");
+        await Assert.That(envelope.FromTick).IsEqualTo(1500);
+        await Assert.That(envelope.UntilTick).IsEqualTo(2500);
+        await Assert.That(envelope.FadeInTicks).IsEqualTo(12);
+        await Assert.That(envelope.FadeOutTicks).IsEqualTo(24);
+    }
+
+    [Test]
+    public async Task SecondaryPen_RoundTripsThroughSettings()
+    {
+        SettingsService settings = new(null);
+
+        using (AnnotationSessionController author = new(null, settings))
+        {
+            author.Session.SecondaryStyle = new AnnotationStyle(0xFF00FF00, 6f, 1f);
+            author.Session.SecondaryTool = ToolKind.Erase;
+            author.PersistSettings();
+        }
+
+        await Assert.That(settings.Current.Playback2D.AnnotationSecondaryTool).IsEqualTo("Erase");
+
+        using AnnotationSessionController reader = new(null, settings);
+        await Assert.That(reader.Session.SecondaryStyle.ColorArgb).IsEqualTo(0xFF00FF00u);
+        await Assert.That(reader.Session.SecondaryTool).IsEqualTo(ToolKind.Erase);
+    }
+
+    /// <summary>
+    ///     The binding is a hand-editable string. Nonsense means "no override", and so does
+    ///     <c>PanZoom</c>: middle- and Ctrl-drag already pan under every tool, so a third way to pan
+    ///     bound to the button that is supposed to draw would only take the second pen away.
+    /// </summary>
+    [Test]
+    [Arguments("Same")]
+    [Arguments("PanZoom")]
+    [Arguments("nonsense")]
+    [Arguments("")]
+    public async Task SecondaryTool_UnusableValues_MeanNoOverride(string persisted)
+    {
+        SettingsService settings = new(null);
+        settings.Write(s => s.Playback2D.AnnotationSecondaryTool = persisted);
+
+        using AnnotationSessionController controller = new(null, settings);
+
+        await Assert.That(controller.Session.SecondaryTool).IsNull();
+    }
+
+    /// <summary>
+    ///     The panel is what the toolbar binds to, so the envelope editor's visibility is a contract:
+    ///     Always — the shipped default — must not put four spin boxes in a toolbar that already reflows
+    ///     at 820 px.
+    /// </summary>
+    [Test]
+    public async Task Panel_EnvelopeEditor_IsOfferedOnlyWhenTheModeNeedsIt()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using AnnotationSessionController controller = new(null, null);
+            using AnnotationsPanelViewModel panel = new(controller, () => 0);
+
+            await Assert.That(panel.IsEnvelopeEditorVisible).IsFalse();
+
+            panel.Visibility = EnvelopeMode.Fade;
+            await Assert.That(panel.IsEnvelopeEditorVisible).IsTrue();
+            await Assert.That(panel.IsFadeEnvelope).IsTrue();
+            await Assert.That(panel.IsCustomEnvelope).IsFalse();
+
+            panel.Visibility = EnvelopeMode.Custom;
+            await Assert.That(panel.IsCustomEnvelope).IsTrue();
+            await Assert.That(panel.IsFadeEnvelope).IsFalse();
+        });
+    }
+
+    [Test]
+    public async Task Panel_CustomWindow_ComposesTheTemplateTheRendererReads()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using AnnotationSessionController controller = new(null, null);
+            using AnnotationsPanelViewModel panel = new(controller, () => 4242);
+
+            panel.Visibility = EnvelopeMode.Custom;
+            panel.FadeInTicks = 5;
+            panel.CustomFromTick = 900;
+            panel.CustomUntilTick = 1900;
+
+            TimeEnvelope envelope = controller.Session.EnvelopeForNewElement(0);
+            await Assert.That(envelope.FromTick).IsEqualTo(900);
+            await Assert.That(envelope.UntilTick).IsEqualTo(1900);
+            await Assert.That(envelope.FadeInTicks).IsEqualTo(5);
+
+            // "⌖ now" moves the window to the playhead and KEEPS its length — a coach re-using the same
+            // three-second callout on the next round should not have to re-type the length.
+            panel.CustomWindowFromNowCommand.Execute(null);
+            await Assert.That(panel.CustomFromTick).IsEqualTo(4242);
+            await Assert.That(panel.CustomUntilTick).IsEqualTo(5242);
+        });
+    }
+
+    /// <summary>
+    ///     Seeding the panel must not destroy what it is seeding FROM. The ramps and the window share the
+    ///     same template, so a pull that assigned the ramps first re-composed the template out of the
+    ///     window the panel was still showing — and the persisted Custom window silently became 0..320.
+    /// </summary>
+    [Test]
+    public async Task Panel_SeededFromSettings_KeepsTheAuthoredCustomWindow()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            SettingsService settings = new(null);
+            settings.Write(s =>
+            {
+                s.Playback2D.AnnotationDefaultVisibility = "Custom";
+                s.Playback2D.AnnotationFadeInTicks = 12;
+                s.Playback2D.AnnotationFadeOutTicks = 24;
+                s.Playback2D.AnnotationCustomFromTick = 1500;
+                s.Playback2D.AnnotationCustomUntilTick = 2500;
+            });
+
+            using AnnotationSessionController controller = new(null, settings);
+            using AnnotationsPanelViewModel panel = new(controller, () => 0);
+
+            await Assert.That(panel.CustomFromTick).IsEqualTo(1500);
+            await Assert.That(panel.CustomUntilTick).IsEqualTo(2500);
+            await Assert.That(controller.Session.NewElementEnvelope.FromTick).IsEqualTo(1500);
+            await Assert.That(controller.Session.NewElementEnvelope.UntilTick).IsEqualTo(2500);
+            await Assert.That(controller.Session.NewElementEnvelope.FadeInTicks).IsEqualTo(12);
+
+            panel.Resync();
+            await Assert.That(panel.CustomFromTick).IsEqualTo(1500)
+                .Because("a re-seed on demo attach is the same pull, run again");
+        });
+    }
+
+    [Test]
+    public async Task Panel_RightButtonErases_IsTheSecondaryToolBinding()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using AnnotationSessionController controller = new(null, null);
+            using AnnotationsPanelViewModel panel = new(controller, () => 0);
+
+            await Assert.That(panel.RightButtonErases).IsFalse()
+                .Because("the shipped right button is the SECOND PEN, not the eraser");
+            await Assert.That(controller.Session.SecondaryTool).IsNull();
+
+            panel.RightButtonErases = true;
+            await Assert.That(controller.Session.SecondaryTool).IsEqualTo(ToolKind.Erase);
+
+            panel.RightButtonErases = false;
+            await Assert.That(controller.Session.SecondaryTool).IsNull();
+        });
+    }
+
+    [Test]
+    public async Task Panel_Swatches_MirrorTheControllerNewestFirst_AndPaintThePrimaryPen()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using AnnotationSessionController controller = new(null, null);
+            controller.RememberColor(0xFF00FF00);
+            controller.RememberColor(0xFFFF0000);
+
+            using AnnotationsPanelViewModel panel = new(controller, () => 0);
+
+            await Assert.That(panel.HasRecentColors).IsTrue();
+            await Assert.That(panel.RecentColors.Count).IsEqualTo(2);
+            await Assert.That(panel.RecentColors[0].Argb).IsEqualTo(0xFFFF0000u);
+
+            panel.ApplyRecentColorCommand.Execute(panel.RecentColors[1]);
+
+            await Assert.That(panel.InkColorHex).IsEqualTo("#FF00FF00");
+            await Assert.That(controller.Session.Style.ColorArgb).IsEqualTo(0xFF00FF00u);
+        });
+    }
+
+    /// <summary>A malformed persisted row is dropped, not guessed at — and does not take the strip down.</summary>
+    [Test]
+    public async Task Panel_Swatches_DropMalformedPersistedRows()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            SettingsService settings = new(null);
+            settings.Write(s => s.Playback2D.AnnotationRecentColors =
+                ["#FF112233", "not-a-colour", "#GGGGGGGG", "#FF445566"]);
+
+            using AnnotationSessionController controller = new(null, settings);
+            controller.LoadRecentColors();
+            using AnnotationsPanelViewModel panel = new(controller, () => 0);
+
+            await Assert.That(panel.RecentColors.Count).IsEqualTo(2);
+            await Assert.That(panel.RecentColors[0].Hex).IsEqualTo("#FF112233");
+            await Assert.That(panel.RecentColors[1].Hex).IsEqualTo("#FF445566");
+        });
+    }
+
+    /// <summary>The opacity control was the missing half: a persisted value nothing could ever set.</summary>
+    [Test]
+    public async Task Panel_InkOpacity_ReachesBothPens()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using AnnotationSessionController controller = new(null, null);
+            using AnnotationsPanelViewModel panel = new(controller, () => 0);
+
+            panel.InkOpacity = 0.4;
+
+            await Assert.That(controller.Session.Style.Opacity).IsEqualTo(0.4f);
+            await Assert.That(controller.Session.SecondaryStyle.Opacity).IsEqualTo(0.4f)
+                .Because("two pens that could drift into two opacities is a bug waiting to be filed");
+        });
+    }
+
+    private static AnnotationElement Stroke(uint argb) =>
+        new(Guid.NewGuid(), AnnotationKind.Freehand,
+            new AnnotationStyle(argb, 6f, 1f), new SpaceRef.World(0), TimeEnvelope.Static,
+            [new InkPoint(0, 0, 0.5f), new InkPoint(10, 0, 0.5f)], null);
+}

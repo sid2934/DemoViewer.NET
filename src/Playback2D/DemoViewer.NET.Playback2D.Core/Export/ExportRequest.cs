@@ -21,9 +21,11 @@ namespace DemoViewer.NET.Playback2D.Core.Export;
 /// <param name="Speed">Playback-rate multiplier; 1 is realtime.</param>
 /// <param name="FormatId">One of <see cref="ExportFormats" />. A persisted key.</param>
 /// <param name="LayerIds">
-///     Which layers to draw. <b>Empty means "every enabled layer"</b>, with the two HUD layers off —
-///     <c>hud.clock</c> and <c>hud.killfeed</c> render only when named explicitly, because an export that
-///     silently burned in a scoreboard would be a surprise, not a feature.
+///     Which layers to draw. <b>Empty means "every enabled layer"</b>, minus
+///     <see cref="Layers.SceneLayerIds.OptIn" /> — those render only when named explicitly, because an
+///     export that silently burned in a scoreboard, or someone else's telestration, would be a surprise
+///     rather than a feature. That set is the one place the opt-in ids are listed; naming them here in
+///     prose is how the list drifted in the first place.
 /// </param>
 /// <param name="Camera">How the camera moves for the whole export.</param>
 public sealed record ExportRequest(

@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Hud;
 using DemoViewer.NET.Playback2D.Core.Layers;
@@ -129,8 +130,8 @@ public static class SceneLayerCatalog
     }
 
     /// <summary>
-    ///     The ids <see cref="CreateSceneStack" /> can register: B1's seven scene layers plus B4's two
-    ///     opt-in HUD layers, in draw order.
+    ///     The ids <see cref="CreateSceneStack" /> can register: B1's seven scene layers, B2's ink, and the
+    ///     three HUD layers, in draw order. The last four are <see cref="SceneLayerIds.OptIn" />.
     /// </summary>
     public static IReadOnlyList<string> SceneStackIds { get; } =
     [
@@ -141,6 +142,8 @@ public static class SceneLayerCatalog
         SceneLayerIds.Markers,
         SceneLayerIds.Bomb,
         SceneLayerIds.FloorLabel,
+        SceneLayerIds.Annotations,
+        SceneLayerIds.HudRoster,
         SceneLayerIds.HudClock,
         SceneLayerIds.HudKillFeed
     ];
@@ -156,20 +159,28 @@ public static class SceneLayerCatalog
     ///         the stack an export and <c>dv2d export</c> ask for by name.
     ///     </para>
     ///     <para>
-    ///         The two HUD layers are registered only when <paramref name="hud" /> is supplied and only
-    ///         when named in <paramref name="include" /> — an export never burns in a scoreboard by
-    ///         accident (<c>SceneExportSession.OptInLayerIds</c> enforces the same rule on the request).
+    ///         The <see cref="SceneLayerIds.OptIn" /> layers — the three HUD layers and the ink — are
+    ///         registered only when named in <paramref name="include" /> AND only when the source that
+    ///         feeds them was supplied. An export never burns in a scoreboard, or someone else's
+    ///         telestration, by accident (<c>SceneExportSession.OptInLayerIds</c> enforces the same rule on
+    ///         the request).
     ///     </para>
     /// </summary>
-    /// <param name="include">Ids to register; null registers the seven scene layers and no HUD.</param>
+    /// <param name="include">Ids to register; null registers the seven scene layers and nothing opt-in.</param>
     /// <param name="exclude">Ids to subtract.</param>
     /// <param name="vision">The line-of-sight solver, or null to draw no cones (the layer handles it).</param>
     /// <param name="hud">The tick → HUD state function; null leaves the HUD layers unregistered.</param>
+    /// <param name="annotations">
+    ///     The ink to burn in; null leaves the annotation layer unregistered. <b>Never the live document</b>
+    ///     when the caller is an export — the layer re-records its cached pictures whenever the document's
+    ///     Version moves, so a session the user is still drawing into would put strokes made DURING the
+    ///     render into frames it had already passed.
+    /// </param>
     /// <param name="smoother">Shared marker smoothing; a private one when null.</param>
     /// <exception cref="ArgumentException">An id is not in <see cref="SceneStackIds" />.</exception>
     public static SceneCompositor CreateSceneStack(IReadOnlyList<string>? include = null,
         IReadOnlyList<string>? exclude = null, IVisionSolver? vision = null, IHudDataSource? hud = null,
-        MarkerSmoother? smoother = null)
+        AnnotationSession? annotations = null, MarkerSmoother? smoother = null)
     {
         HashSet<string>? wanted = include is null
             ? null
@@ -192,9 +203,9 @@ public static class SceneLayerCatalog
         MarkerSmoother shared = smoother ?? new MarkerSmoother();
         SceneCompositor compositor = new();
 
-        // ONE blob cache for all four text layers, exactly as Scene2DHost and the test stage wire it.
-        // Left to their defaults each layer builds its own, which means four copies of the embedded
-        // Inter face and four LRUs holding the same handful of strings. Built eagerly rather than on
+        // ONE blob cache for every text layer, exactly as Scene2DHost and the test stage wire it. Left to
+        // their defaults each layer builds its own, which means five copies of the embedded Inter face and
+        // five LRUs holding the same handful of strings. Built eagerly rather than on
         // first text layer because the compositor is what owns it — see SceneCompositor.AddOwned.
         TextBlobCache text = new();
         compositor.AddOwned(text);
@@ -208,19 +219,19 @@ public static class SceneLayerCatalog
                     continue;
                 }
 
-                // Null include = "the scene", not "everything": the HUD is opt-in by name.
-                bool isHud = id is SceneLayerIds.HudClock or SceneLayerIds.HudKillFeed;
-                if (wanted is null ? isHud : !wanted.Contains(id))
+                // Null include = "the scene", not "everything": the HUD and the ink are opt-in by name.
+                bool optIn = SceneLayerIds.OptIn.Contains(id);
+                if (wanted is null ? optIn : !wanted.Contains(id))
                 {
                     continue;
                 }
 
-                if (isHud && hud is null)
+                if (optIn && Starved(id, hud, annotations))
                 {
                     continue; // asked for, but nothing to feed it — draw nothing rather than an empty box.
                 }
 
-                compositor.Add(BuildLayer(id, vision, hud, shared, text));
+                compositor.Add(BuildLayer(id, vision, hud, annotations, shared, text));
             }
         }
         catch
@@ -232,8 +243,16 @@ public static class SceneLayerCatalog
         return compositor;
     }
 
+    // Which source an opt-in id starves without. Everything opt-in EXCEPT the ink feeds from the HUD
+    // source, so D3b's hud.roster needs no line here — only a genuinely new kind of source would. The
+    // check is what lets BuildLayer keep its `hud!` / `annotations!`: an unfed layer never reaches it.
+    private static bool Starved(string id, IHudDataSource? hud, AnnotationSession? annotations) =>
+        string.Equals(id, SceneLayerIds.Annotations, StringComparison.Ordinal)
+            ? annotations is null
+            : hud is null;
+
     private static ISceneLayer BuildLayer(string id, IVisionSolver? vision, IHudDataSource? hud,
-        MarkerSmoother smoother, TextBlobCache text) => id switch
+        AnnotationSession? annotations, MarkerSmoother smoother, TextBlobCache text) => id switch
     {
         SceneLayerIds.Radar => new RadarLayer(),
         SceneLayerIds.Trails => new TrailLayer(),
@@ -242,6 +261,8 @@ public static class SceneLayerCatalog
         SceneLayerIds.Markers => new MarkerLayer(smoother, text),
         SceneLayerIds.Bomb => new BombLayer(),
         SceneLayerIds.FloorLabel => new FloorLabelLayer(text),
+        SceneLayerIds.Annotations => new AnnotationLayer(annotations!),
+        SceneLayerIds.HudRoster => new RosterLayer(hud!, text: text),
         SceneLayerIds.HudClock => new ClockLayer(hud!, text: text),
         _ => new KillFeedLayer(hud!, text: text)
     };

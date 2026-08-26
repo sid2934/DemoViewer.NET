@@ -27,10 +27,19 @@ public class Playback2DKeyRoutingTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
+            // The overlay toggles ship CLOSED since D4 (they were "always displayed, taking up screen
+            // area"), so the hazard has to be set up rather than assumed: the check boxes are still
+            // FOCUSABLE and still inside the tunnel, which is exactly what this test exists to prove.
+            vm.IsOverlayBarOpen = true;
+            Playback2DTimelineHarness.Pump();
+
             CheckBox radar = view.GetVisualDescendants().OfType<CheckBox>()
                 .First(c => c.Content as string == "Radar");
-            radar.Focus();
+            bool focused = radar.Focus();
             Playback2DTimelineHarness.Pump();
+            await Assert.That(focused).IsTrue()
+                .Because("a non-focusable check box would retire the hazard instead of proving the "
+                         + "tunnelling handler still covers it");
 
             bool before = vm.ShowRadar;
             window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);

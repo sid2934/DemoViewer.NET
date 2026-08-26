@@ -109,10 +109,13 @@ public sealed class SceneExportSession
 
     /// <summary>
     ///     The layers that are off unless <see cref="ExportRequest.LayerIds" /> names them explicitly.
-    ///     Both HUD layers: an export that silently burned in a scoreboard would be a surprise.
+    ///     <para>
+    ///         An alias, not a second list (registry §3.1): this and
+    ///         <c>SceneLayerCatalog.CreateSceneStack</c> were two hand-written pairs, and an opt-in id that
+    ///         reached only one of them was force-enabled here on every export.
+    ///     </para>
     /// </summary>
-    public static IReadOnlySet<string> OptInLayerIds { get; } =
-        new HashSet<string>(StringComparer.Ordinal) { SceneLayerIds.HudClock, SceneLayerIds.HudKillFeed };
+    public static IReadOnlySet<string> OptInLayerIds => SceneLayerIds.OptIn;
 
     /// <summary>
     ///     Renders <c>[StartFrame, EndFrame]</c> into <paramref name="sink" />.

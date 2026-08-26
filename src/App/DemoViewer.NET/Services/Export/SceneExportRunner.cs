@@ -190,9 +190,9 @@ public sealed class SceneExportRunner : IExportRunner
     private static SceneCompositor BuildCompositor(ExportRequest core, ExportSceneSetup setup,
         IHudDataSource? hud)
     {
-        // Empty LayerIds means "the scene, no HUD" — CreateSceneStack's own null-include behaviour.
+        // Empty LayerIds means "the scene, nothing opt-in" — CreateSceneStack's own null-include behaviour.
         IReadOnlyList<string>? include = core.LayerIds.Count == 0 ? null : [.. core.LayerIds];
-        return SceneLayerCatalog.CreateSceneStack(include, null, setup.Vision, hud);
+        return SceneLayerCatalog.CreateSceneStack(include, null, setup.Vision, hud, setup.Annotations);
     }
 
     private IFrameSink BuildSink(Scene2DExportRequest request, ExportRequest core, FfmpegLocation ffmpeg,

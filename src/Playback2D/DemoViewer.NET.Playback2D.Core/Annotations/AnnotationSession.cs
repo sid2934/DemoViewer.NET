@@ -157,6 +157,12 @@ public sealed class AnnotationSession
     /// <summary>Default entity-anchor capture radius in world units.</summary>
     public const float DefaultAnchorWorldRadius = 96f;
 
+    /// <summary>
+    ///     Default SECONDARY ink: a cool blue nobody can confuse with the amber primary. Two pens whose
+    ///     colours look alike would make the right button's whole point invisible.
+    /// </summary>
+    public const uint DefaultSecondaryColorArgb = 0xFF29B6F6;
+
     /// <summary>Creates a session over a document.</summary>
     /// <param name="document">The document this session edits.</param>
     public AnnotationSession(AnnotationDocument document)
@@ -171,12 +177,28 @@ public sealed class AnnotationSession
     /// <summary>The stroke currently under the pointer.</summary>
     public WetStroke Wet { get; } = new();
 
-    /// <summary>The paint new elements are stamped with.</summary>
+    /// <summary>The paint new elements are stamped with. The PRIMARY (left) button's ink.</summary>
     public AnnotationStyle Style { get; set; } = AnnotationStyle.Default;
+
+    /// <summary>
+    ///     The paint the RIGHT button stamps. Width and opacity track <see cref="Style" /> in the app —
+    ///     only the colour differs — so a two-pen user never has to keep two widths in step.
+    /// </summary>
+    public AnnotationStyle SecondaryStyle { get; set; } =
+        AnnotationStyle.Default with { ColorArgb = DefaultSecondaryColorArgb };
+
+    /// <summary>
+    ///     The tool the right button routes to, mirrored here for the UI's benefit exactly as
+    ///     <see cref="ActiveTool" /> is: the panel edits the session, and the host pushes this onto
+    ///     <c>InputToolRouter.SecondaryTool</c>. Null = whatever the active tool is.
+    /// </summary>
+    public ToolKind? SecondaryTool { get; set; }
 
     /// <summary>
     ///     The envelope template for new elements. Only consulted directly in
     ///     <see cref="EnvelopeMode.Custom" />; the other two modes derive one from the current tick.
+    ///     Composed through <see cref="SetCustomWindow" /> rather than assigned field by field, so the
+    ///     panel and the settings seed cannot disagree about what a window means.
     /// </summary>
     public TimeEnvelope NewElementEnvelope { get; set; } = TimeEnvelope.Static;
 
@@ -214,7 +236,42 @@ public sealed class AnnotationSession
     public event Action? WetChanged;
 
     /// <summary>The world-space sample spacing filter for the current style.</summary>
-    public float SampleSpacingWorld => Math.Max(0f, Style.WidthWorld) * SampleSpacingFactor;
+    public float SampleSpacingWorld => SampleSpacingFor(Style);
+
+    /// <summary>
+    ///     The world-space sample spacing filter for a given paint. A gesture filters against the ink it
+    ///     is actually laying down — the right button's, when that is what took the press — not against
+    ///     whatever the toolbar happens to be showing.
+    /// </summary>
+    /// <param name="style">The paint the stroke is being drawn with.</param>
+    public float SampleSpacingFor(in AnnotationStyle style) =>
+        Math.Max(0f, style.WidthWorld) * SampleSpacingFactor;
+
+    /// <summary>
+    ///     The paint a button stamps: right → <see cref="SecondaryStyle" />, everything else →
+    ///     <see cref="Style" />. The one place the button→ink map lives, so a tool that forgets to ask is
+    ///     a compile-time visible omission rather than ink that silently comes out the wrong colour.
+    /// </summary>
+    /// <param name="button">The button that took the press.</param>
+    public AnnotationStyle StyleFor(ToolPointerButton button) =>
+        button == ToolPointerButton.Right ? SecondaryStyle : Style;
+
+    /// <summary>
+    ///     Stamps <see cref="NewElementEnvelope" /> with an explicit tick window, taking the ramps from
+    ///     the session's current <see cref="FadeInTicks" /> / <see cref="FadeOutTicks" />. The ONE
+    ///     composer for <see cref="EnvelopeMode.Custom" />.
+    ///     <para>
+    ///         Both bounds are real ticks, never null: "open at one end" is what
+    ///         <see cref="EnvelopeMode.Always" /> and <see cref="EnvelopeMode.Fade" /> already are, and a
+    ///         sentinel in a spin box would cost every user clarity to serve a case neither of them
+    ///         leaves uncovered. An inverted window collapses to a zero-length one rather than throwing.
+    ///     </para>
+    /// </summary>
+    /// <param name="fromTick">First fully-opaque DV frame-clock tick.</param>
+    /// <param name="untilTick">Last fully-opaque DV frame-clock tick.</param>
+    public void SetCustomWindow(int fromTick, int untilTick) =>
+        NewElementEnvelope = TimeEnvelope.Static.PinnedTo(
+            fromTick, untilTick - fromTick, FadeInTicks, FadeOutTicks);
 
     /// <summary>
     ///     The envelope a new element gets, resolved against the playhead.

@@ -2,6 +2,7 @@
 
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Hud;
 using DemoViewer.NET.Playback2D.Core.Levels;
@@ -58,6 +59,16 @@ public interface IExportRunner
 ///     </para>
 /// </param>
 /// <param name="MapAssets">The decoded map bundle, for radar art and authoritative floors. Not owned.</param>
+/// <param name="Annotations">
+///     The ink to burn in, or null to export without it.
+///     <para>
+///         A <b>snapshot</b> of the tab's document, taken on the UI thread when Start is pressed — never
+///         the live session. The export renders for minutes on a pool thread while the user keeps drawing,
+///         and <c>AnnotationLayer</c> re-records its cached pictures whenever <c>Document.Version</c> moves:
+///         handing over the live document would put strokes made DURING the render into frames the export
+///         had already passed, and would read a <c>List</c> the UI thread is mutating.
+///     </para>
+/// </param>
 public sealed record ExportSceneSetup(
     IReadOnlyList<DemoFrame> Frames,
     int TickRate,
@@ -66,4 +77,5 @@ public sealed record ExportSceneSetup(
     LevelDisplayMode DisplayMode,
     IVisionSolver? Vision,
     Func<TrackerFrameSource, IHudDataSource>? Hud,
-    LoadedMapAsset? MapAssets);
+    LoadedMapAsset? MapAssets,
+    AnnotationSession? Annotations = null);

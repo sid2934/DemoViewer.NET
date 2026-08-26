@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Numerics;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Hud;
 using DemoViewer.NET.Playback2D.Pipeline;
 
 #endregion
@@ -74,6 +75,125 @@ public class SceneFrameBuilderTests
         await Assert.That(frame.Markers[0].IsAlive).IsFalse();
         await Assert.That(frame.Markers[0].WorldX).IsEqualTo(100f);
         await Assert.That(frame.Markers[0].WorldY).IsEqualTo(-200f);
+    }
+
+    /// <summary>
+    ///     The export HUD's player cards, read off the same entities the markers are (D3b §3.2). Before
+    ///     this, health / armour / weapon / cash / K-D-A existed <b>only</b> in the App's
+    ///     <c>PlayerAttributes</c>, which an export and <c>dv2d</c> cannot see — so a burnt-in roster was
+    ///     not merely unimplemented, it had no data to draw.
+    /// </summary>
+    [Test]
+    public async Task Roster_CarriesEachPlayersCondition_IncludingTheDead()
+    {
+        SceneFrameBuilder builder = new();
+
+        FakeEntity rifle = new("CWeaponAK47", 900);
+        FakeEntity pawn = new FakeEntity("CCSPlayerPawn")
+            .With("m_iHealth", 63)
+            .With("m_ArmorValue", 87)
+            .With("m_pItemServices.m_bHasHelmet", 1)
+            .With("m_pItemServices.m_bHasDefuser", 0)
+            .With("m_pWeaponServices.m_hActiveWeapon", 900UL);
+        FakeEntity controller = new FakeEntity("CCSPlayerController")
+            .With("m_pInGameMoneyServices.m_iAccount", 4150)
+            .With("m_pActionTrackingServices.m_iKills", 12)
+            .With("m_pActionTrackingServices.m_iDeaths", 7)
+            .With("m_pActionTrackingServices.m_iAssists", 3);
+
+        // The dead half: an orphaned pawn with no world position at all, which is the state a player is in
+        // for the rest of the round after dying.
+        FakeEntity deadPawn = new FakeEntity("CCSPlayerPawn")
+            .With("m_iHealth", 0)
+            .With("m_lifeState", 1)
+            .With("m_ArmorValue", 42);
+        FakeEntity deadController = new FakeEntity("CCSPlayerController")
+            .With("m_pInGameMoneyServices.m_iAccount", 250)
+            .With("m_pActionTrackingServices.m_iKills", 1)
+            .With("m_pActionTrackingServices.m_iDeaths", 9)
+            .With("m_pActionTrackingServices.m_iAssists", 2);
+
+        FakeEntityView view = new FakeEntityView().AddHandle(900UL, rifle);
+        FakePlayer alive = new()
+        {
+            Slot = 0,
+            Team = 2,
+            Pawn = pawn,
+            Controller = controller,
+            WorldPosition = (100f, -200f, 64f)
+        };
+        FakePlayer dead = new()
+        {
+            Slot = 5,
+            Team = 3,
+            HasLivePawn = false,
+            Pawn = deadPawn,
+            Controller = deadController
+        };
+
+        Build(builder, Input([alive, dead], view, 10, 640));
+
+        await Assert.That(builder.LastRoster.Count).IsEqualTo(2)
+            .Because("a dead player keeps his card — that is when it matters most");
+
+        HudPlayerRow t = builder.LastRoster[0];
+        await Assert.That(t.Slot).IsEqualTo(0);
+        await Assert.That(t.Team).IsEqualTo(2);
+        await Assert.That(t.Name).IsEqualTo("P0").Because("the card carries the MARKER's tag, so a card "
+                                                          + "and its disc are matched by eye");
+        await Assert.That(t.IsAlive).IsTrue();
+        await Assert.That(t.Health).IsEqualTo(63);
+        await Assert.That(t.Armor).IsEqualTo(87);
+        await Assert.That(t.HasHelmet).IsTrue();
+        await Assert.That(t.HasDefuser).IsFalse();
+        await Assert.That(t.Weapon).IsEqualTo("AK-47");
+        await Assert.That(t.Money).IsEqualTo(4150);
+        await Assert.That(t.Kills).IsEqualTo(12);
+        await Assert.That(t.Deaths).IsEqualTo(7);
+        await Assert.That(t.Assists).IsEqualTo(3);
+
+        HudPlayerRow ct = builder.LastRoster[1];
+        await Assert.That(ct.Slot).IsEqualTo(5);
+        await Assert.That(ct.Team).IsEqualTo(3);
+        await Assert.That(ct.IsAlive).IsFalse();
+
+        // Health zeroes with the pawn; the controller-sourced stats do NOT — cash and K/D/A survive death
+        // exactly as the app's attributes panel keeps them.
+        await Assert.That(ct.Health).IsEqualTo(0);
+        await Assert.That(ct.Money).IsEqualTo(250);
+        await Assert.That(ct.Deaths).IsEqualTo(9);
+        await Assert.That(ct.Weapon).IsEqualTo("—")
+            .Because("a corpse holds no active weapon handle, and an unresolved read is a placeholder");
+    }
+
+    /// <summary>
+    ///     The roster follows the frame's own lifetime rule (decision D6): it is one of the two pooled
+    ///     slots, refilled in place. A caller that retained it would be reading the frame after next.
+    /// </summary>
+    [Test]
+    public async Task Roster_IsDoubleBuffered_LikeTheFrameItAccompanies()
+    {
+        SceneFrameBuilder builder = new();
+        FakeEntity pawn = new FakeEntity("CCSPlayerPawn").With("m_iHealth", 100);
+        FakePlayer player = new()
+        {
+            Slot = 0,
+            Team = 2,
+            Pawn = pawn,
+            WorldPosition = (0f, 0f, 64f)
+        };
+
+        Build(builder, Input([player], new FakeEntityView(), 1, 64));
+        IReadOnlyList<HudPlayerRow> a = builder.LastRoster;
+
+        Build(builder, Input([player], new FakeEntityView(), 2, 128));
+        IReadOnlyList<HudPlayerRow> b = builder.LastRoster;
+
+        Build(builder, Input([player], new FakeEntityView(), 3, 192));
+        IReadOnlyList<HudPlayerRow> c = builder.LastRoster;
+
+        await Assert.That(ReferenceEquals(a, b)).IsFalse();
+        await Assert.That(ReferenceEquals(a, c)).IsTrue();
     }
 
     [Test]
