@@ -79,9 +79,9 @@ public readonly record struct GoldenTolerance(
 {
     /// <summary>
     ///     How many pixels of one two-letter label may land over <see cref="OutlierChannelDelta" /> when
-    ///     the rasteriser is not the corpus's. Measured at 3.5 and 4.0 across the two label-bearing
-    ///     synthetic fixtures; 1.5× that, and the whole derivation, is on
-    ///     <see cref="ForLabelledFrame" />.
+    ///     the rasteriser is not the corpus's. Measured at 0.40-4.00 across all eight label-bearing
+    ///     entries of the <c>dv2d golden</c> corpus; 1.5× the worst of those, and the whole derivation,
+    ///     is on <see cref="ForLabelledFrame" />.
     /// </summary>
     private const int GlyphOutlierPixelsPerLabel = 6;
 
@@ -179,24 +179,44 @@ public readonly record struct GoldenTolerance(
     ///     <para>
     ///         <b>The measurement.</b> Taken by comparing the committed goldens against the frames the
     ///         ubuntu llvmpipe runner actually produced, i.e. against FreeType rather than the Windows
-    ///         text stack. <c>synthetic-utility</c> (2 labels): 7 pixels over the strict ceiling, worst
-    ///         channel delta 65, worst window 0.9304. <c>synthetic-tenplayers</c> (10 labels): 40 pixels
-    ///         over, worst delta 80, worst window 0.8998. That is 3.5 and 4.0 pixels per two-letter
-    ///         label. The attribution test measures the other half of the ratio — the ink itself is 117 px
-    ///         over those 2 labels and 592 px over these 10, i.e. 58.5 and 59.2 px per label — so the
-    ///         disagreement is <b>6.0 % and 6.8 % of the glyph ink</b> in two frames whose areas are
-    ///         identical and whose text loads differ fivefold. Two independent quantities both come out
-    ///         per-label and neither comes out per-area; that is the evidence the unit is right, not an
-    ///         assumption behind it.
+    ///         text stack — first over the two label-bearing synthetics, then, when <c>dv2d golden</c>
+    ///         was wired to this budget, over every non-pending entry of the corpus. Pixels over the
+    ///         strict 32 ceiling, per two-letter label:
+    ///         <list type="bullet">
+    ///             <item>
+    ///                 640×360, no map: <c>synthetic-tenplayers</c> 40/10 = <b>4.00</b>,
+    ///                 <c>synthetic-utility</c> 7/2 = <b>3.50</b>.
+    ///             </item>
+    ///             <item>
+    ///                 640×360 over a baked radar: <c>fitmap-mirage-eco</c> 12/10 = 1.20,
+    ///                 <c>bomb-planted-inferno</c> 7/4 = 1.75, <c>duel-mirage-b</c> and
+    ///                 <c>annotated-mirage-b</c> 2/5 = 0.40, <c>nuke-single-upper</c> 12/10 = 1.20.
+    ///             </item>
+    ///             <item>1920×1080: <c>full-scene-budget</c> 32/10 = 3.20.</item>
+    ///         </list>
+    ///         The attribution tests measure the other half of the ratio — the marker ink is 117 px over
+    ///         those 2 labels and 592 px over those 10, i.e. 58.5 and 59.2 px per label, and 44-57 px
+    ///         per label on the radar-backed entries — so the disagreement is <b>at most 6.8 % of the
+    ///         glyph ink</b> across frames whose areas differ by a factor of nine and whose text loads
+    ///         differ fivefold. Two independent quantities both come out per-label and neither comes
+    ///         out per-area; that is the evidence the unit is right, not an assumption behind it.
     ///     </para>
     ///     <para>
-    ///         <see cref="GlyphOutlierPixelsPerLabel" /> is therefore 6 — 1.5× the worse observed rate,
-    ///         and about a tenth of one label's ink, so the tier forgives at most ~10 % of the text
-    ///         against a measured 6-7 % and a different FreeType build has somewhere to go. The 96
-    ///         ceiling is <see cref="ForTextBearingGolden" />'s own and is not re-derived: 80 is the worst
-    ///         delta seen. Everything else measured comfortably inside <see cref="DefaultPerceptual" />
-    ///         and is therefore left there — 0.0855 % of pixels over ±8 against a 0.5 % budget, mean SSIM
-    ///         0.99988 against a 0.995 floor, and an alpha delta of exactly 0.
+    ///         <see cref="GlyphOutlierPixelsPerLabel" /> is therefore 6 — 1.5× the worst observed rate,
+    ///         which is still the ten-label synthetic's 4.00, and about a tenth of one label's ink, so
+    ///         the tier forgives at most ~10 % of the text against a measured 0.6-6.8 % and a different
+    ///         FreeType build has somewhere to go. <b>The two ceilings are the tight ones and neither
+    ///         moved.</b> The worst 11×11 window is 0.89976, again on the ten-label synthetic, against
+    ///         the 0.88 floor: 0.0198 of margin, and no other entry gets below 0.90547. The worst single
+    ///         channel is <b>94</b>, on <c>fitmap-mirage-eco</c>, against the 96 the tier allows: 2/255,
+    ///         and worth stating plainly rather than rounding away, because 96 is
+    ///         <see cref="ForTextBearingGolden" />'s constant and this is the first corpus wide enough
+    ///         to test it. It is not a flake risk — a rasteriser is deterministic, so that 94 is 94 on
+    ///         every run of a given runner image — but it is the number to re-read first if a runner
+    ///         bump ever turns this lane red, and the fix then is a measurement, not a round-up.
+    ///         Everything else measured comfortably inside <see cref="DefaultPerceptual" /> and is
+    ///         therefore left there: worst 0.2083 % of pixels over ±8 against a 0.5 % budget, worst mean
+    ///         SSIM 0.99979 against a 0.995 floor, and an alpha delta of exactly 0 on every entry.
     ///     </para>
     ///     <para>
     ///         <b>What the budget deliberately does not try to do.</b> Ten labels earn 60 pixels and one
@@ -215,13 +235,30 @@ public readonly record struct GoldenTolerance(
     ///         a single pixel over 32. It currently matches its golden byte for byte on Linux.
     ///     </para>
     ///     <para>
-    ///         <b>The proof obligation</b> is <see cref="ForTextBearingGolden" />'s, discharged for this
-    ///         corpus by <c>SceneGoldenTests.EveryPixelOverTheStrictCeiling_LiesUnderGlyphInk</c>: it
-    ///         re-renders each fixture with the labels silenced, uses the difference as an exact glyph-ink
-    ///         mask, substitutes the golden's own pixels under the ink and puts the result through
+    ///         <b>The proof obligation</b> is <see cref="ForTextBearingGolden" />'s, and it is discharged
+    ///         once per <i>reader</i> of the corpus, because a budget is worth exactly what the test
+    ///         beside it proves: <c>SceneGoldenTests.EveryPixelOverTheStrictCeiling_LiesUnderGlyphInk</c>
+    ///         for the three synthetics rendered through the Pipeline suite, and
+    ///         <c>GoldenAttributionTests.EveryPixelOverTheStrictCeiling_LiesUnderGlyphInk</c> for every
+    ///         non-pending entry rendered through <c>dv2d golden</c>'s own plan — the six that only the
+    ///         CLI reaches (the four radar-backed Mirage/Inferno frames, <c>nuke-single-upper</c> and the
+    ///         1080p <c>full-scene-budget</c>) were relaxed by this budget and proved by nothing before
+    ///         that test existed. Both re-render with the labels silenced, use the difference as an exact
+    ///         glyph-ink mask, substitute the golden's own pixels under the ink and put the result through
     ///         <see cref="DefaultPerceptual" /> unrelaxed — so everything this budget forgives has to be
-    ///         glyph ink, asserted on Windows as well as off it. That test also prints the per-label rate
-    ///         it observes, which is where the numbers above are re-measured from rather than trusted.
+    ///         glyph ink, asserted on Windows as well as off it. They also print the per-label rate they
+    ///         observe, which is where the numbers above are re-measured from rather than trusted.
+    ///     </para>
+    ///     <para>
+    ///         <b>How confined the difference actually is.</b> Outside the glyph mask, an ubuntu render
+    ///         is not merely inside the ±8 band this policy allows it — it is <i>byte-identical</i> to
+    ///         the committed golden on seven of the eight text-bearing entries, and differs by exactly
+    ///         <b>1</b> on the eighth. At both sizes, over baked radar art and over the grid fallback,
+    ///         with trails, smokes, bomb rings, view cones and burned-in ink in the picture. The entire
+    ///         cross-OS disagreement is glyph edges, which is why the geometry half of these frames can
+    ///         go on being gated at 1/255 while the text half cannot — and why an entry that starts
+    ///         spending its allowance somewhere else fails the attribution test long before it runs the
+    ///         budget out.
     ///     </para>
     /// </summary>
     /// <param name="width">Frame width in pixels.</param>

@@ -241,6 +241,13 @@ public class SceneGoldenTests
     ///     How many labels the frame draws, which is what the glyph budget is denominated in. Read off
     ///     the scene rather than declared per fixture: a hand-written count is a number someone can raise
     ///     to buy slack, and this one cannot be raised without adding a player to the capture.
+    ///     <para>
+    ///         The twin of <c>GoldenCommand.LabelCount</c>, which denominates the same budget for the
+    ///         same three PNGs on the <c>dv2d golden</c> side. Two assemblies, so two copies of a
+    ///         one-liner; they have to stay the same definition, and the reason they are allowed to be
+    ///         separate is the reason this whole file is — the two owners of these images render them
+    ///         independently on purpose (D6 G-1).
+    ///     </para>
     /// </summary>
     /// <param name="fixture">The scene about to be drawn.</param>
     private static int LabelCount(SceneFixture fixture) =>

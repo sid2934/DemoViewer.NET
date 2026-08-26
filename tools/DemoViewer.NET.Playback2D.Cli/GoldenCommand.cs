@@ -19,6 +19,11 @@ namespace DemoViewer.NET.Playback2D.Cli;
 ///         summary meant to be eyeballed in the PR diff — a golden that is silently rewritten is a test
 ///         that no longer tests.
 ///     </para>
+///     <para>
+///         What "within tolerance" means here is <see cref="ToleranceFor" />, and it is not a constant:
+///         eight of the nine entries this command judges draw text, and Skia's glyph rasteriser is not
+///         the same code on every operating system. <c>GoldenAttributionTests</c> keeps that honest.
+///     </para>
 /// </summary>
 internal static class GoldenCommand
 {
@@ -71,14 +76,7 @@ internal static class GoldenCommand
                     continue;
                 }
 
-                // defaultBackend: ForceCpu. The committed corpus is goldens/cpu/ and CPU is
-                // authoritative (00-overview.md §3.9), so an unqualified `dv2d golden verify` must not
-                // auto-probe onto a GPU and report a rasterizer difference as a pixel regression.
-                // --gpu / --backend / DV2D_RENDER_BACKEND still override, for the parity lane.
-                using SceneRenderPlan plan = SceneRenderPlan.Build(args, entry.Size, entry.MapName,
-                    entry.Layers, allowSizeOverride: false,
-                    defaultBackend: RenderBackendPreference.ForceCpu,
-                    annotations: FixtureInk.ForCorpusEntry(corpus.Directory, entry.Name));
+                using SceneRenderPlan plan = PlanFor(args, corpus, entry);
                 backend ??= plan.Backend;
 
                 // A re-baked radar silently changes every pixel under it. Refuse rather than diff.
@@ -93,10 +91,7 @@ internal static class GoldenCommand
                 }
 
                 SceneFixture fixture = SceneFixture.Load(entry.ScenePath);
-                Scene2DFrame frame = plan.WithRadarArt(fixture.Frame);
-                SceneTime time = fixture.Time;
-                plan.Renderer.Camera = CameraSpec.Resolve(null, frame, entry.Size, fixture.Camera);
-                byte[] actual = plan.Renderer.RenderPng(frame, in time, entry.Size, RenderPurpose.Export);
+                byte[] actual = RenderEntry(plan, entry, fixture);
 
                 string goldenPath = entry.GoldenPath(plan.Backend.Backend);
 
@@ -119,9 +114,8 @@ internal static class GoldenCommand
                 }
 
                 byte[] expectedPng = File.ReadAllBytes(goldenPath);
-                GoldenTolerance tolerance = (toleranceOverride ?? entry.Tolerance) == GoldenMode.ByteExact
-                    ? GoldenTolerance.ByteExact
-                    : GoldenTolerance.DefaultPerceptual;
+                int labels = LabelCount(fixture);
+                GoldenTolerance tolerance = ToleranceFor(entry, labels, toleranceOverride);
                 GoldenComparison comparison = GoldenImageComparer.Compare(expectedPng, actual, tolerance);
 
                 JsonObject row = Result(entry, comparison.Match ? "match" : "mismatch", goldenPath,
@@ -130,6 +124,17 @@ internal static class GoldenCommand
                 row["max_channel_delta"] = comparison.MaxChannelDelta;
                 row["ssim"] = comparison.Ssim;
                 row["tolerance"] = tolerance.Mode == GoldenMode.ByteExact ? "byte-exact" : "perceptual";
+
+                // Additive on schema_version 1, and not decoration. The glyph tier is spent in
+                // `above_ceiling_fraction` and bounded by `min_window_ssim`, and neither was in this
+                // payload while this gate was the one going red in CI — the artifact upload carried the
+                // pixels but the log could not say which rule they broke, or how close the rest came.
+                // `labels` and `glyph_budget` are printed together because a budget nobody can see the
+                // denominator of is a budget nobody can check.
+                row["above_ceiling_fraction"] = comparison.AboveCeilingFraction;
+                row["min_window_ssim"] = comparison.MinWindowSsim;
+                row["labels"] = labels;
+                row["glyph_budget"] = tolerance.MaxGlyphOutlierFraction;
 
                 if (comparison.Match)
                 {
@@ -144,7 +149,9 @@ internal static class GoldenCommand
                         row["diff"] = WriteArtifact(diffDir, entry.Name, ".diff.png", diff);
                     }
 
-                    ConsoleOut.Info($"MISMATCH {entry.Name}: {comparison.FailureReason}");
+                    // Summary, not just the reason: the reason names the one rule that broke, and the
+                    // next question is always how the other six did.
+                    ConsoleOut.Info($"MISMATCH {entry.Name} (labels={labels}): {comparison.Summary}");
                 }
 
                 results.Add(row);
@@ -200,6 +207,113 @@ internal static class GoldenCommand
         }
 
         return ok ? ExitCode.Success : ExitCode.GateFailure;
+    }
+
+    /// <summary>
+    ///     The layer stack, backend and map art one corpus entry renders through. The plan is the
+    ///     caller's to dispose.
+    ///     <para>
+    ///         <c>defaultBackend: ForceCpu</c>. The committed corpus is <c>goldens/cpu/</c> and CPU is
+    ///         authoritative (00-overview.md §3.9), so an unqualified <c>dv2d golden verify</c> must not
+    ///         auto-probe onto a GPU and report a rasteriser difference as a pixel regression.
+    ///         <c>--gpu</c> / <c>--backend</c> / <c>DV2D_RENDER_BACKEND</c> still override, for the
+    ///         parity lane.
+    ///     </para>
+    ///     <para>
+    ///         Extracted from <see cref="Run" /> rather than inlined because
+    ///         <c>GoldenAttributionTests</c> has to render these entries <i>through this exact
+    ///         plan</i> — with one layer silenced — to prove what the glyph tier forgives. A proof that
+    ///         renders a lookalike stack proves nothing about the stack the gate judges.
+    ///     </para>
+    /// </summary>
+    /// <param name="args">The parsed arguments, for the backend / assets / layer flags.</param>
+    /// <param name="corpus">The corpus, for the annotation sidecar convention.</param>
+    /// <param name="entry">The entry to plan for.</param>
+    internal static SceneRenderPlan PlanFor(CliArgs args, GoldenCorpus corpus, GoldenCorpusEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(corpus);
+        ArgumentNullException.ThrowIfNull(entry);
+
+        return SceneRenderPlan.Build(args, entry.Size, entry.MapName, entry.Layers,
+            allowSizeOverride: false, defaultBackend: RenderBackendPreference.ForceCpu,
+            annotations: FixtureInk.ForCorpusEntry(corpus.Directory, entry.Name));
+    }
+
+    /// <summary>Renders one entry through a plan <see cref="PlanFor" /> built.</summary>
+    /// <param name="plan">The plan. Its camera is overwritten.</param>
+    /// <param name="entry">The entry, for the size a golden is named for.</param>
+    /// <param name="fixture">The loaded scene.</param>
+    internal static byte[] RenderEntry(SceneRenderPlan plan, GoldenCorpusEntry entry,
+        SceneFixture fixture)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(entry);
+        ArgumentNullException.ThrowIfNull(fixture);
+
+        Scene2DFrame frame = plan.WithRadarArt(fixture.Frame);
+        SceneTime time = fixture.Time;
+        plan.Renderer.Camera = CameraSpec.Resolve(null, frame, entry.Size, fixture.Camera);
+        return plan.Renderer.RenderPng(frame, in time, entry.Size, RenderPurpose.Export);
+    }
+
+    /// <summary>
+    ///     How many text labels the frame draws, which is what the glyph budget is denominated in.
+    ///     <para>
+    ///         <b>Read off the scene, never off the manifest.</b> A count a maintainer can edit is a
+    ///         budget a maintainer can inflate, and <c>manifest.json</c> is a hand-edited file; this
+    ///         number cannot be raised without adding a labelled player to the capture, which changes
+    ///         the golden and therefore gets reviewed. Same definition and same source as
+    ///         <c>SceneGoldenTests.LabelCount</c>, which is what lets the two owners of these PNGs agree
+    ///         on the budget as well as on the pixels.
+    ///     </para>
+    ///     <para>
+    ///         Marker labels only. The floor caption <c>FloorLabelLayer</c> draws is glyph ink too — and
+    ///         a long string, some 400-500 px of it per pane against ~57 px for a two-letter initial —
+    ///         so on the two stacked entries it spends a budget it earns nothing towards. That is
+    ///         deliberate: it makes the budget <i>tighter</i> where there is more text, never looser,
+    ///         and both entries still measure comfortably inside it (1.20 and 3.20 px per marker label
+    ///         against the 6 allowed). Counting captions would be the change that needs justifying.
+    ///     </para>
+    /// </summary>
+    /// <param name="fixture">The scene about to be drawn.</param>
+    internal static int LabelCount(SceneFixture fixture)
+    {
+        ArgumentNullException.ThrowIfNull(fixture);
+        return fixture.Frame.Markers.Count(static m => !string.IsNullOrEmpty(m.Label));
+    }
+
+    /// <summary>
+    ///     The budget one entry is judged at: <see cref="GoldenTolerance.ByteExact" /> when the entry or
+    ///     the caller asks for it, and otherwise <see cref="GoldenTolerance.ForLabelledFrame" />.
+    ///     <para>
+    ///         It was <see cref="GoldenTolerance.DefaultPerceptual" />, which is the same value on the
+    ///         platform that authored the corpus and a wrong one everywhere else: eight of the nine
+    ///         entries carry labelled markers, and Skia's glyph rasteriser is not the same code on
+    ///         Linux, so ubuntu failed the whole clean corpus on text and nothing else — every one of
+    ///         those eight on <c>max channel delta</c>, the first rule, at 45 to 94 against a 32
+    ///         ceiling. The reasoning
+    ///         and the measurements are on <see cref="GoldenTolerance.ForLabelledFrame" />; the proof
+    ///         that the allowance is spent on glyph ink and nothing else is
+    ///         <c>GoldenAttributionTests</c>.
+    ///     </para>
+    ///     <para>
+    ///         <c>--tolerance</c> keeps its exact meaning: it overrides the <i>mode</i> the manifest
+    ///         states, not the budget that mode resolves to. So <c>byte-exact</c> is still every channel
+    ///         of every pixel, and <c>perceptual</c> still means whatever a manifest entry saying
+    ///         "perceptual" means — which is the point of an override.
+    ///     </para>
+    /// </summary>
+    /// <param name="entry">The entry, for its size and its declared mode.</param>
+    /// <param name="labels">The count from <see cref="LabelCount" />.</param>
+    /// <param name="toleranceOverride">The parsed <c>--tolerance</c>, or null.</param>
+    internal static GoldenTolerance ToleranceFor(GoldenCorpusEntry entry, int labels,
+        GoldenMode? toleranceOverride)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        return (toleranceOverride ?? entry.Tolerance) == GoldenMode.ByteExact
+            ? GoldenTolerance.ByteExact
+            : GoldenTolerance.ForLabelledFrame(entry.Size.Width, entry.Size.Height, labels);
     }
 
     private static GoldenMode? ParseTolerance(string? raw) => raw switch

@@ -95,6 +95,22 @@ mismatch or missing golden and writes `<name>.actual.png` plus `<name>.diff.png`
 `update` rewrites the PNGs. **Look at them before committing** — a golden that is silently rewritten
 is a test that no longer tests.
 
+A `"tolerance": "perceptual"` entry is compared at `GoldenTolerance.ForLabelledFrame`, which is
+`DefaultPerceptual` **unchanged** on the platform that authored the corpus and opens a small
+per-label glyph allowance anywhere else: Skia's glyph rasteriser is not the same code on every OS, so
+a golden containing text cannot be held to a ceiling sized for anti-aliasing rounding. The allowance
+is denominated in the frame's own labelled markers — never in a manifest field, which a maintainer
+could edit — and every entry it touches is attributed pixel by pixel by
+`GoldenAttributionTests.EveryPixelOverTheStrictCeiling_LiesUnderGlyphInk`, which re-renders with the
+text silenced and re-imposes the whole unrelaxed policy outside the glyph ink. `--tolerance`
+overrides the *mode* the manifest states, not the budget that mode resolves to; `byte-exact` is still
+every channel of every pixel, and is only green on the authoring platform.
+
+Each result row therefore reports `labels` and `glyph_budget` (the fraction of the frame the tier may
+spend) alongside `above_ceiling_fraction` — what actually spent it — and `min_window_ssim`, the worst
+11×11 window. Those four are what a CI log needs to say *which* rule a red gate broke and how close
+the rest came.
+
 `--size` is deliberately **not** accepted here: a golden is named for its size, so an override would
 compare one image against a differently-named other.
 
@@ -479,6 +495,7 @@ With `--json`, **stdout carries exactly one JSON object** and every human line m
  "counts":{"total":10,"matched":6,"mismatched":1,"missing":0,"skipped":3,"updated":0},
  "results":[{"name":"duel-mirage-b","status":"mismatch","mismatched_fraction":0.013,
    "max_channel_delta":37,"ssim":0.981,"tolerance":"perceptual",
+   "above_ceiling_fraction":0.0009,"min_window_ssim":0.973,"labels":5,"glyph_budget":0.000130,
    "golden":"tests/fixtures/playback2d/goldens/cpu/duel-mirage-b@640x360.png",
    "actual":"artifacts/playback2d-goldens/duel-mirage-b.actual.png",
    "diff":"artifacts/playback2d-goldens/duel-mirage-b.diff.png"}]}

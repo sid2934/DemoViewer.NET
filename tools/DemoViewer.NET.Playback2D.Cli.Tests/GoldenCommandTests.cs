@@ -43,6 +43,27 @@ public class GoldenCommandTests
         }
     }
 
+    /// <summary>
+    ///     The gate's teeth: one corrupted golden, one mismatch, exit 4, evidence on disk.
+    ///     <para>
+    ///         <b>At the shipping tolerance, deliberately.</b> This used to pass <c>--tolerance
+    ///         byte-exact</c>, which made the assertion "a bit flip is not a bit-for-bit match" — true
+    ///         everywhere, and a statement about nothing the gate actually runs at. It also could not
+    ///         hold off Windows: byte-exact judges every OTHER entry too, and Skia's glyph rasteriser
+    ///         differs on Linux, so ubuntu saw all eight text-bearing entries mismatch rather than the
+    ///         one, and this case went red for a reason with nothing to do with the corruption it
+    ///         injects. Run at the per-entry
+    ///         tolerance the CI lane uses, it now asserts what it always claimed to: the budget that
+    ///         forgives cross-OS glyph edges does <b>not</b> forgive a real regression, and the other
+    ///         entries verify clean around it.
+    ///     </para>
+    ///     <para>
+    ///         The corruption lands at (1,1) — the frame's top-left corner, nowhere near a glyph — and
+    ///         inverts the red channel, a delta of 213 against a dark background. That is over the glyph
+    ///         tier's own 96 ceiling twice over, so it fails on <c>max channel delta</c>: the first rule,
+    ///         and the one no budget can spend its way past.
+    ///     </para>
+    /// </summary>
     [Test]
     public async Task Verify_CorruptedGolden_ExitsFour_AndWritesADiff()
     {
@@ -51,13 +72,84 @@ public class GoldenCommandTests
         using TempDirectory diffs = new();
 
         CliRun run = Dv2d.InProcess("golden", "verify", "--corpus", copy.Path, "--diff-dir", diffs.Path,
-            "--tolerance", "byte-exact", "--json");
+            "--json");
 
         await Assert.That(run.ExitCode).IsEqualTo(4);
         JsonObject payload = run.Json();
-        await Assert.That(((JsonObject)payload["counts"]!)["mismatched"]!.GetValue<int>()).IsEqualTo(1);
+        JsonObject counts = (JsonObject)payload["counts"]!;
+        await Assert.That(counts["mismatched"]!.GetValue<int>()).IsEqualTo(1);
+
+        // "For the right reason": the one mismatch is the entry that was corrupted, everything else
+        // matched, and the failure names the ceiling rather than a budget that merely ran out.
+        JsonNode row = ((JsonArray)payload["results"]!)
+            .Single(r => r!["status"]!.GetValue<string>() == "mismatch")!;
+        await Assert.That(row["name"]!.GetValue<string>()).IsEqualTo("synthetic-tenplayers");
+        await Assert.That(row["reason"]!.GetValue<string>()).Contains("max channel delta");
+        await Assert.That(counts["matched"]!.GetValue<int>()).IsEqualTo(
+            counts["total"]!.GetValue<int>() - counts["skipped"]!.GetValue<int>() - 1);
+
         await Assert.That(File.Exists(Path.Combine(diffs.Path, "synthetic-tenplayers.actual.png"))).IsTrue();
         await Assert.That(File.Exists(Path.Combine(diffs.Path, "synthetic-tenplayers.diff.png"))).IsTrue();
+    }
+
+    /// <summary>
+    ///     <c>--tolerance byte-exact</c> still overrides the manifest's per-entry mode, and is still
+    ///     strictly stricter than what that mode resolves to.
+    ///     <para>
+    ///         Both halves matter and neither alone would do. A one-step nudge to a golden is inside
+    ///         every perceptual budget — the ±8 band, both SSIM floors — so the default verify stays
+    ///         green; byte-exact refuses the same corpus. Scoped to one entry with <c>--name</c> because
+    ///         a whole-corpus byte-exact verify is only green on the platform that authored the PNGs,
+    ///         which is the property this flag exists to let a maintainer check <i>there</i>, not an
+    ///         invariant CI can assert.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task ByteExactOverride_RefusesWhatThePerEntryToleranceForgives()
+    {
+        using CorpusCopy copy = new();
+        copy.NudgeGolden("synthetic-tenplayers");
+
+        CliRun forgiving = Dv2d.InProcess("golden", "verify", "--corpus", copy.Path, "--name",
+            "synthetic-tenplayers", "--json");
+        await Assert.That(forgiving.ExitCode).IsEqualTo(0);
+        await Assert.That(((JsonObject)forgiving.Json()["tolerance"]!)["mode"]!.GetValue<string>())
+            .IsEqualTo("per-entry");
+
+        CliRun exact = Dv2d.InProcess("golden", "verify", "--corpus", copy.Path, "--name",
+            "synthetic-tenplayers", "--tolerance", "byte-exact", "--json");
+        await Assert.That(exact.ExitCode).IsEqualTo(4);
+        JsonObject payload = exact.Json();
+        await Assert.That(((JsonObject)payload["tolerance"]!)["mode"]!.GetValue<string>())
+            .IsEqualTo("byte-exact");
+        await Assert.That(((JsonArray)payload["results"]!)[0]!["tolerance"]!.GetValue<string>())
+            .IsEqualTo("byte-exact");
+    }
+
+    /// <summary>
+    ///     The glyph budget is reported, and its denominator with it. A budget whose denominator is
+    ///     invisible in the payload is a budget nobody can check against the manifest they are reading —
+    ///     and <c>above_ceiling_fraction</c> is the quantity it is spent on, which was missing from this
+    ///     payload for the whole of the round in which this lane was the one going red.
+    /// </summary>
+    [Test]
+    public async Task Verify_ReportsTheGlyphBudgetAndWhatSpentIt()
+    {
+        CliRun run = Dv2d.InProcess("golden", "verify", "--corpus", Dv2d.CorpusDirectory, "--json");
+
+        JsonNode row = ((JsonArray)run.Json()["results"]!)
+            .Single(r => r!["name"]!.GetValue<string>() == "synthetic-tenplayers")!;
+
+        // Ten labelled markers in the capture; the count is read off the scene, so it cannot be edited
+        // upward without adding a player and re-baselining the golden a reviewer then looks at.
+        await Assert.That(row["labels"]!.GetValue<int>()).IsEqualTo(10);
+        await Assert.That(row["above_ceiling_fraction"]).IsNotNull();
+        await Assert.That(row["min_window_ssim"]).IsNotNull();
+
+        // 6 px per label over the frame's area off the authoring platform, and a closed tier on it.
+        double budget = row["glyph_budget"]!.GetValue<double>();
+        double expected = GoldenTolerance.GlyphsMatchTheCorpus ? 0 : 6.0 * 10 / (640.0 * 360.0);
+        await Assert.That(budget).IsEqualTo(expected).Within(1e-12);
     }
 
     [Test]
@@ -145,17 +237,33 @@ internal sealed class CorpusCopy : IDisposable
     /// <inheritdoc />
     public void Dispose() => _temp.Dispose();
 
-    /// <summary>Flips one pixel in an entry's golden — the smallest change byte-exact must catch.</summary>
+    /// <summary>
+    ///     Inverts the red channel of one pixel in an entry's golden — a delta of 213 against the dark
+    ///     palette background, at (1,1) where no glyph reaches. Well over the glyph tier's 96 ceiling, so
+    ///     it is caught by the same perceptual budget CI runs at, not only by byte-exact.
+    /// </summary>
     /// <param name="name">The entry name.</param>
-    public void CorruptGolden(string name)
+    public void CorruptGolden(string name) =>
+        Rewrite(name, static p => new SKColor((byte)(p.Red ^ 0xFF), p.Green, p.Blue, p.Alpha));
+
+    /// <summary>
+    ///     Moves one pixel of an entry's golden by a single step — the smallest possible change, and one
+    ///     that every perceptual budget forgives (it is inside the ±8 band, so it spends neither the
+    ///     0.5 % coverage budget nor the glyph tier). What byte-exact must still refuse.
+    /// </summary>
+    /// <param name="name">The entry name.</param>
+    public void NudgeGolden(string name) =>
+        Rewrite(name, static p =>
+            new SKColor((byte)(p.Red == 255 ? 254 : p.Red + 1), p.Green, p.Blue, p.Alpha));
+
+    private void Rewrite(string name, Func<SKColor, SKColor> change)
     {
         GoldenCorpus corpus = GoldenCorpus.Load(Path);
         GoldenCorpusEntry entry = corpus.Find(name)!;
         string goldenPath = entry.GoldenPath(Playback2D.Core.Rendering.RenderBackend.CpuRaster);
 
         using SKBitmap bitmap = SKBitmap.Decode(goldenPath);
-        SKColor pixel = bitmap.GetPixel(1, 1);
-        bitmap.SetPixel(1, 1, new SKColor((byte)(pixel.Red ^ 0xFF), pixel.Green, pixel.Blue, pixel.Alpha));
+        bitmap.SetPixel(1, 1, change(bitmap.GetPixel(1, 1)));
 
         using SKImage image = SKImage.FromBitmap(bitmap);
         using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
