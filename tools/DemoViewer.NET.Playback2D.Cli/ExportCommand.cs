@@ -134,6 +134,14 @@ internal static class ExportCommand
         // AFTER the source exists, because the clock reads the source. See BuildHud.
         IHudDataSource? hudData = hud ? BuildHud(source, tickRate) : null;
 
+        // Pure argument validation BEFORE the ffmpeg gate: a wrong --encoder must be refused with the
+        // ladder's choices even on a machine with no ffmpeg at all (the GPU-less CI runner hits exactly
+        // this ordering). --no-encode ignores --encoder by documented decision, so it skips too.
+        if (!noEncode)
+        {
+            EncoderSelector.ValidateRequest(format, encoderRequest);
+        }
+
         FfmpegLocation ffmpeg = FfmpegLocator.Locate(null);
         bool gif = string.Equals(format, ExportFormats.Gif, StringComparison.Ordinal);
         if (!ffmpeg.Found && !gif && !noEncode)

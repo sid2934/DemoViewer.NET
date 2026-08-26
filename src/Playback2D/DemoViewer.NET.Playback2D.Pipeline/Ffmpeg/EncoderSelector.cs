@@ -180,16 +180,42 @@ public sealed class EncoderSelector(IEncoderProbe? probe = null)
             attempts);
     }
 
+    /// <summary>
+    ///     Pure argument validation — no ffmpeg lookup, no probes. A request that names nothing on the
+    ///     format's ladder throws the same refusal <see cref="Select" /> would, which lets a front end
+    ///     refuse a bad <c>--encoder</c> BEFORE its ffmpeg-presence gate: a wrong name must be answered
+    ///     with the ladder's choices even on a machine with no ffmpeg at all. <c>auto</c>, <c>software</c>,
+    ///     blank, and GIF (whose <c>--encoder</c> is documented as ignored) all pass.
+    /// </summary>
+    /// <exception cref="ExportValidationException"><paramref name="request" /> names nothing on the ladder.</exception>
+    public static void ValidateRequest(string? formatId, string? request)
+    {
+        if (string.IsNullOrWhiteSpace(request) ||
+            string.Equals(formatId, ExportFormats.Gif, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        string wanted = request.Trim().ToLowerInvariant();
+        if (string.Equals(wanted, EncoderLadder.Auto, StringComparison.Ordinal) ||
+            string.Equals(wanted, EncoderLadder.Software, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (EncoderLadder.Find(formatId, request.Trim()) is null)
+        {
+            throw new ExportValidationException(string.Create(CultureInfo.InvariantCulture,
+                $"'{request.Trim()}' is not an encoder for {formatId ?? ExportFormats.WebM}. " +
+                $"Choose one of: {EncoderLadder.DescribeChoices(formatId)}."));
+        }
+    }
+
     private EncoderSelection SelectNamed(string? formatId, string request, ExportQuality quality,
         string? binaryFolder, CancellationToken ct)
     {
-        VideoEncoder? rung = EncoderLadder.Find(formatId, request);
-        if (rung is null)
-        {
-            throw new ExportValidationException(string.Create(CultureInfo.InvariantCulture,
-                $"'{request}' is not an encoder for {formatId ?? ExportFormats.WebM}. " +
-                $"Choose one of: {EncoderLadder.DescribeChoices(formatId)}."));
-        }
+        ValidateRequest(formatId, request);
+        VideoEncoder rung = EncoderLadder.Find(formatId, request)!;
 
         EncoderProbeResult result = _probe.Verify(rung.Name, binaryFolder, !rung.IsHardware, ct);
         if (result.Works)
