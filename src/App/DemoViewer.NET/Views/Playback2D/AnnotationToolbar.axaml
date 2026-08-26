@@ -149,18 +149,30 @@
                  shipped default) never sees four spin boxes appear in a toolbar that already reflows at
                  820 px. Every tick here is a DV FRAME-CLOCK tick, never a CS2 server tick: the LiveSync
                  servo bends the playhead, so a CS2 anchor drifts against what the user was looking at. -->
+            <!-- Every spinner in this row is 132 wide, and that number is measured, not chosen.
+                 A Fluent NumericUpDown spends a CONSTANT 68 px on its two spinner buttons and border
+                 plus 16 px of inner TextBox padding, whatever width the control is given — so the 86 px
+                 these boxes shipped at left the `in`/`out` fields with **2 px** of glyph space and
+                 `from`/`until` with 20, i.e. one or two digits of a five-digit tick. Width here buys
+                 glyphs one-for-one: 140 = 84 of chrome + 56 for six digits at the theme's 14 px (a digit
+                 measures 8.35 px, so six need 50.1 — 132 was tried first and fell 2.1 px short), which
+                 covers any tick a real demo produces (the reference Nuke demo is 19 237 frames — five).
+                 One shared width rather than per-field: a row of numeric fields at four different widths
+                 reads as a mistake, and `in`/`out` accept six digits too (Maximum is 100 000).
+                 EnvelopeSpinnerWidthTests pins this against the rendered text, so a theme change that
+                 makes the chrome hungrier fails rather than silently clipping again. -->
             <WrapPanel x:Name="EnvelopeEditor" Orientation="Horizontal" ItemSpacing="6" LineSpacing="4"
                        IsVisible="{Binding IsEnvelopeEditorVisible}">
 
                 <TextBlock Text="in" Foreground="{DynamicResource Pb2dTextDim}"
                            FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center" />
-                <NumericUpDown x:Name="FadeInBox" Width="86" Minimum="0" Maximum="100000" Increment="4"
+                <NumericUpDown x:Name="FadeInBox" Width="140" Minimum="0" Maximum="100000" Increment="4"
                                FormatString="0" Value="{Binding FadeInTicks, Mode=TwoWay}"
                                ToolTip.Tip="Lead-in ramp, in ticks. The fade sits OUTSIDE the window." />
 
                 <TextBlock Text="out" Foreground="{DynamicResource Pb2dTextDim}"
                            FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center" />
-                <NumericUpDown x:Name="FadeOutBox" Width="86" Minimum="0" Maximum="100000" Increment="4"
+                <NumericUpDown x:Name="FadeOutBox" Width="140" Minimum="0" Maximum="100000" Increment="4"
                                FormatString="0" Value="{Binding FadeOutTicks, Mode=TwoWay}"
                                ToolTip.Tip="Lead-out ramp, in ticks. The fade sits OUTSIDE the window." />
 
@@ -169,7 +181,7 @@
                 <TextBlock Text="hold" Foreground="{DynamicResource Pb2dTextDim}"
                            FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center"
                            IsVisible="{Binding IsFadeEnvelope}" />
-                <NumericUpDown x:Name="HoldBox" Width="94" Minimum="0" Maximum="1000000" Increment="32"
+                <NumericUpDown x:Name="HoldBox" Width="140" Minimum="0" Maximum="1000000" Increment="32"
                                FormatString="0" Value="{Binding HoldTicks, Mode=TwoWay}"
                                IsVisible="{Binding IsFadeEnvelope}"
                                ToolTip.Tip="How long a Fade annotation stays fully opaque. 320 ≈ 5 s at 64 tick." />
@@ -177,7 +189,7 @@
                 <TextBlock Text="from" Foreground="{DynamicResource Pb2dTextDim}"
                            FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center"
                            IsVisible="{Binding IsCustomEnvelope}" />
-                <NumericUpDown x:Name="CustomFromBox" Width="104" Minimum="0" Maximum="100000000"
+                <NumericUpDown x:Name="CustomFromBox" Width="140" Minimum="0" Maximum="100000000"
                                Increment="32" FormatString="0"
                                Value="{Binding CustomFromTick, Mode=TwoWay}"
                                IsVisible="{Binding IsCustomEnvelope}"
@@ -186,7 +198,7 @@
                 <TextBlock Text="until" Foreground="{DynamicResource Pb2dTextDim}"
                            FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center"
                            IsVisible="{Binding IsCustomEnvelope}" />
-                <NumericUpDown x:Name="CustomUntilBox" Width="104" Minimum="0" Maximum="100000000"
+                <NumericUpDown x:Name="CustomUntilBox" Width="140" Minimum="0" Maximum="100000000"
                                Increment="32" FormatString="0"
                                Value="{Binding CustomUntilTick, Mode=TwoWay}"
                                IsVisible="{Binding IsCustomEnvelope}"
