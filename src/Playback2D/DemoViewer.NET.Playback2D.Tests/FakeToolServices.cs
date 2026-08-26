@@ -36,6 +36,17 @@ internal sealed class FakeToolServices : IToolServices
 
     public int CurrentTick { get; set; }
 
+    /// <summary>
+    ///     The monotonic authoring clock, in milliseconds. Settable, and deliberately INDEPENDENT of
+    ///     <see cref="CurrentTick" />: driving one while the other stays frozen is how a test reproduces
+    ///     drawing on a paused demo, which is the case D7 §1 exists for.
+    /// </summary>
+    public long NowMilliseconds { get; set; }
+
+    /// <summary>Advances the authoring clock and returns the new reading.</summary>
+    /// <param name="milliseconds">How far to advance.</param>
+    public long Advance(long milliseconds) => NowMilliseconds += milliseconds;
+
     /// <summary>Markers <see cref="TryResolveEntityAnchor" /> searches.</summary>
     public List<PlayerMarker> Markers { get; } = [];
 

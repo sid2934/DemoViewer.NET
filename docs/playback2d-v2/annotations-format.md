@@ -55,7 +55,12 @@ The writable check is a create-and-delete probe, run once per directory per sess
   "fadeInTicks": 0, "fadeOutTicks": 0,           // ramps OUTSIDE the window (see below)
 
   "points": [ -120.5, 240.25, 0.5, -60, 260, 0.62 ],  // flat [x, y, pressure] triples, world space
-  "text": null                                   // label content, for the (unimplemented) Text kind
+  "text": null,                                  // label content, for the (unimplemented) Text kind
+
+  "timing": {                                    // OPTIONAL; absent on all but real-time strokes
+    "runs": [ 0, 0, 41, 96, 41, 160, 78, 214 ],  // flat [sampleIndex, tickOffset] pairs
+    "durationTicks": 214
+  }
 }
 ```
 
@@ -95,10 +100,53 @@ only wants approximate geometry can stroke the polyline at `widthWorld`.
 
 Pressure is `0..1`; devices that report none write `0.5`.
 
+### The authoring cadence (`timing`) — optional
+
+A stroke authored in DemoViewer's **real-time** mode replays at the speed it was drawn at, pauses
+included. `timing` is what records that, and **it is absent from every element that does not have one** —
+which is every element any other visibility mode produces.
+
+```jsonc
+"timing": {
+  "runs": [ 0, 0, 41, 96, 41, 160, 78, 214 ],   // [sampleIndex, tickOffset] pairs, sample-ordered
+  "durationTicks": 214                          // first sample to last; 0 for an instant stroke
+}
+```
+
+* **`runs`** is a flat array of pairs — the same flattening `points` uses — read two at a time as
+  `sampleIndex` (an index into `points`, counted in *samples*, not in the flat triples) and `tickOffset`
+  (ticks elapsed since the stroke's **first** sample, not an absolute tick). It is a **sparse** table: a
+  pair is emitted only where the authoring speed changed, so a stroke drawn in one continuous motion
+  carries two pairs and one that paused three times carries eight. Offsets between two consecutive pairs
+  are linear, so a pair-to-pair span is a constant-speed run and a *repeated* `sampleIndex` — `41, 96`
+  followed by `41, 160` above — is a pause: 64 ticks in which the hand did not move.
+* **`durationTicks`** is carried separately rather than inferred from the last pair, because it is what
+  says the stroke is finished; a reader can use it to skip the table entirely once the elapsed time is
+  past it.
+* Offsets are **elapsed authoring wall-clock, re-based onto the frame clock at the tick the element
+  opens** — deliberately *not* the tick each sample was drawn at. The playhead is frozen while the demo
+  is paused, which is when most annotation happens, so every sample of a paused stroke would otherwise
+  share one tick. The consequence is intended: a stroke drawn during three seconds of paused thinking
+  replays over three seconds of *demo* time, and the replay is a pure function of tick, which is what
+  makes it identical in a video export at any frame rate.
+* An odd number of values in `runs` is a truncated pair: DemoViewer drops the orphan and keeps the rest.
+  It does **not** re-order the table, so a hand-edit that breaks the sample ordering replays oddly rather
+  than being silently rewritten.
+
+`timing` is an **additive** field and `schemaVersion` is deliberately still `1`. A document without a
+real-time stroke is byte-identical to what earlier builds wrote, and one with a real-time stroke differs
+from it only by this object — so bumping the version would announce a break to every reader of every
+document, for a field they are already required to ignore.
+
 ## Forward compatibility
 
 Both the root object and each element accept unknown fields, and DemoViewer preserves them across a
 load → edit → save cycle. A newer build's extra fields therefore survive being opened by an older one.
 Readers should ignore fields they do not recognise rather than rejecting the file.
+
+That is not a promise about hypothetical fields — it is what `timing` relies on. A build that predates it
+parses a real-time stroke as an ordinary one, keeps `timing` in its unknown-field bag, and writes it back
+out on the next save: the user edits a colour in the old build, saves, reopens in the new one, and the
+cadence is still there. A third-party reader that round-trips a document is asked to do the same.
 
 `schemaVersion` is advisory: a higher number is read for whatever this build understands, not refused.

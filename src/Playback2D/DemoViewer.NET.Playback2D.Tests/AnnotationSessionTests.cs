@@ -61,6 +61,29 @@ public class AnnotationSessionTests
         await Assert.That(envelope.UntilTick).IsEqualTo(9100);
     }
 
+    /// <summary>
+    ///     D7 §3: RealTime's ELEMENT-level window is Fade's, deliberately. Each section is then rendered
+    ///     through this same trapezoid shifted by the offset it was drawn at, which is what lets
+    ///     <c>HoldTicks</c> keep its meaning per section — hold longer than the draw and the whole stroke
+    ///     stands before dissolving from the start; shorter, and it chases its own tail.
+    /// </summary>
+    [Test]
+    public async Task RealTime_PinsToThePlayhead_ExactlyAsFadeDoes()
+    {
+        AnnotationSession fade = Session();
+        fade.DefaultVisibility = EnvelopeMode.Fade;
+        fade.HoldTicks = 100;
+
+        AnnotationSession realTime = Session();
+        realTime.DefaultVisibility = EnvelopeMode.RealTime;
+        realTime.HoldTicks = 100;
+
+        await Assert.That(realTime.EnvelopeForNewElement(9000))
+            .IsEqualTo(fade.EnvelopeForNewElement(9000));
+        await Assert.That(realTime.EnvelopeForNewElement(9000)).IsNotEqualTo(TimeEnvelope.Static)
+            .Because("an unhandled mode falls through to Static, which would silently pin nothing");
+    }
+
     /// <summary>D2 §2.4's exit criterion: Custom is no longer a second spelling of Always.</summary>
     [Test]
     public async Task Custom_WithAWindow_IsNotStatic()

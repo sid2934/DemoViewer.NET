@@ -249,6 +249,84 @@ public class Playback2DAnnotationToolsTests
         });
     }
 
+    /// <summary>
+    ///     <b>D7's fourth mode, through the ComboBox index a user actually moves.</b> The panel's index
+    ///     adapter is the only place the XAML's item order and <c>EnvelopeMode</c>'s declaration order
+    ///     have to agree, and a mode that reaches the panel but not the session is a picker that changes
+    ///     nothing — the exact shape D2's Custom mode shipped in.
+    /// </summary>
+    [Test]
+    public async Task Panel_RealTime_OffersTheRelativeControls_AndReachesTheSession()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using AnnotationSessionController controller = new(null, null);
+            using AnnotationsPanelViewModel panel = new(controller, () => 0);
+
+            panel.VisibilityIndex = 3; // what selecting the fourth item does
+
+            await Assert.That(panel.Visibility).IsEqualTo(EnvelopeMode.RealTime);
+            await Assert.That(controller.Session.DefaultVisibility).IsEqualTo(EnvelopeMode.RealTime)
+                .Because("the panel edits the session; a mode that stops here is a decorative picker");
+            await Assert.That(panel.VisibilityIndex).IsEqualTo(3)
+                .Because("the getter is a raw cast, so the XAML's item order IS the enum's");
+
+            // in / out / hold — the three relative controls, and not Custom's absolute window. Plan D7
+            // §3: each section runs the element's own trapezoid shifted by its draw offset, so all three
+            // keep their meaning per section, while from/until would be a second answer to "when".
+            await Assert.That(panel.IsEnvelopeEditorVisible).IsTrue();
+            await Assert.That(panel.IsHoldEnvelope).IsTrue();
+            await Assert.That(panel.IsRealTimeEnvelope).IsTrue();
+            await Assert.That(panel.IsCustomEnvelope).IsFalse();
+            await Assert.That(panel.IsFadeEnvelope).IsFalse()
+                .Because("IsFadeEnvelope answers WHICH MODE; IsHoldEnvelope answers which controls");
+        });
+    }
+
+    /// <summary>
+    ///     The mode is persisted by NAME, so a fourth member costs no new key — but only if it actually
+    ///     survives the fileless path, which is where a setting quietly forgets itself.
+    /// </summary>
+    [Test]
+    public async Task RealTimeVisibility_RoundTripsThroughSettings()
+    {
+        SettingsService settings = new(null); // the fileless WASM branch — the one that forgets things
+
+        using (AnnotationSessionController author = new(null, settings))
+        {
+            author.Session.DefaultVisibility = EnvelopeMode.RealTime;
+            author.PersistSettings();
+        }
+
+        await Assert.That(settings.Current.Playback2D.AnnotationDefaultVisibility).IsEqualTo("RealTime")
+            .Because("the key holds an EnvelopeMode NAME, and the names are a forever contract");
+
+        using AnnotationSessionController reader = new(null, settings);
+        await Assert.That(reader.Session.DefaultVisibility).IsEqualTo(EnvelopeMode.RealTime);
+    }
+
+    /// <summary>
+    ///     A visibility string this build cannot make sense of degrades to <c>Always</c> — including a
+    ///     bare NUMBER, which <c>Enum.TryParse</c> accepts for any value in range whether a member is
+    ///     defined there or not. That is a mode nothing switches on, arriving at the toolbar's ComboBox
+    ///     as an out-of-range index; the same fence <c>AnnotationStore</c> puts on a hand-edited kind.
+    /// </summary>
+    [Test]
+    [Arguments("RealTime", EnvelopeMode.RealTime)]
+    [Arguments("realtime", EnvelopeMode.RealTime)]
+    [Arguments("7", EnvelopeMode.Always)]
+    [Arguments("Nonsense", EnvelopeMode.Always)]
+    public async Task PersistedVisibility_ParsesByName_AndFencesTheRest(string persisted,
+        EnvelopeMode expected)
+    {
+        SettingsService settings = new(null);
+        settings.Write(s => s.Playback2D.AnnotationDefaultVisibility = persisted);
+
+        using AnnotationSessionController controller = new(null, settings);
+
+        await Assert.That(controller.Session.DefaultVisibility).IsEqualTo(expected);
+    }
+
     [Test]
     public async Task Panel_CustomWindow_ComposesTheTemplateTheRendererReads()
     {

@@ -153,6 +153,25 @@ public interface IToolServices
     /// </summary>
     int CurrentTick { get; }
 
+    /// <summary>
+    ///     A <b>monotonic</b> authoring clock in milliseconds, counted from an arbitrary origin. Elapsed
+    ///     time, never a wall-clock date: an NTP correction or a DST step landing mid-stroke would
+    ///     otherwise hand the cadence accumulator a negative offset and invert its run table.
+    ///     <para>
+    ///         It cannot be <see cref="CurrentTick" />, and that is the decision the whole of plan D7
+    ///         rests on: the playhead is FROZEN while the demo is paused, which is when most annotation
+    ///         happens, so every sample of a paused stroke would share one tick and the replay would be
+    ///         instantaneous — and even while playing, at <c>--speed 0.5</c> the hand moves at 1× while
+    ///         the clock moves at 0.5×.
+    ///     </para>
+    ///     <para>
+    ///         It arrives through this interface because <c>BannedApiTests</c> bans
+    ///         <c>DateTime</c>/<c>Stopwatch</c>/<c>Random</c> in Core outright — no exemptions — and this
+    ///         is the seam that exists for exactly that kind of host fact.
+    ///     </para>
+    /// </summary>
+    long NowMilliseconds { get; }
+
     /// <summary>The pane under a host-space point, or null.</summary>
     /// <param name="screen">Host-relative position.</param>
     LevelPane? PaneAt(SKPoint screen);

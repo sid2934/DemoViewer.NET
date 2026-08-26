@@ -2,7 +2,9 @@
 
 using System.Globalization;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline;
@@ -204,6 +206,168 @@ public class BudgetTests
         }
 
         await Assert.That(violations).IsEmpty();
+    }
+
+    /// <summary>
+    ///     <b>The 8 ms render budget had never seen ink</b> (plan D7 §7).
+    ///     <para>
+    ///         Every other case here builds <see cref="SceneStage" /> with no <c>extra</c> layers, and the
+    ///         stage's fixed seven cannot include the annotation layer because it takes a session — so it
+    ///         only ever arrives through <c>extra</c>, and no timing gate passed it one.
+    ///         <c>AnnotationLayerTests.SteadyState_ZeroAllocations</c> measures allocation only, and did
+    ///         it on THREE-sample strokes. The result was that the whole ink subsystem sat outside the
+    ///         frame-time budget while looking covered.
+    ///     </para>
+    ///     <para>
+    ///         The document below is the shape a real telestration session produces: hundreds of samples
+    ///         per stroke, cached ink on both floors, a fade and a tracked callout, and two
+    ///         <b>mid-replay real-time strokes</b> — the worst content this layer has, because a real-time
+    ///         stroke is re-sectioned and re-outlined on every frame and is cached by nothing. The run is
+    ///         reported twice, ink off and ink on, because "we are inside budget" is much less useful
+    ///         than "the ink costs this much of it".
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task FullScene_WithRealStrokeInk_FrameTimesAreWithinBudget()
+    {
+        SceneFixture fixture = SyntheticScenes.FullSceneBudget();
+        AnnotationDocument document = new();
+        InkFixture(document, fixture.Time.Tick);
+
+        AnnotationLayer ink = new(new AnnotationSession(document));
+        using SceneStage stage = new(_size, extra: ink);
+        using CpuSurfaceProvider provider = new();
+
+        ScenePipelineBenchmark benchmark = new(stage.Compositor, provider, new StackedLayout(),
+            ScenePalette.Dark)
+        {
+            Id = SyntheticScenes.FullSceneBudgetName + "-ink",
+            AuthoritativeFloors = SyntheticScenes.BudgetFloors
+        };
+
+        FixtureFrameSource source = new(fixture);
+        BenchmarkRequest request = new(256, _size);
+
+        ink.IsEnabled = false;
+        BenchmarkReport without = benchmark.Run(source, request);
+        ink.IsEnabled = true;
+        BenchmarkReport with = benchmark.Run(source, request);
+
+        // A fixture whose ink was culled — wrong floor anchor, closed envelope, dead player — would
+        // report a delta of zero and pass for entirely the wrong reason.
+        await Assert.That(ink.DryPictureCount).IsEqualTo(2)
+            .Because("cached ink on both floors, or the dry half of the layer is not being measured");
+        await Assert.That(ink.PreparedCount).IsEqualTo(6)
+            .Because("three fades, one tracked callout and two real-time strokes have to be LIVE");
+
+        BudgetPolicy policy = BudgetPolicy.Ci;
+        IReadOnlyList<string> violations = policy.Violations(with);
+
+        foreach (string strict in BudgetPolicy.Baseline.Violations(with))
+        {
+            Console.WriteLine($"[budget] over the design baseline (not gated): {strict}");
+        }
+
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"[budget-ink] render  p50={with.Render.P50Ms:F3} p99={with.Render.P99Ms:F3} ms " +
+            $"(baseline {BudgetPolicy.Baseline.RenderP99Ms:F3}, ci {policy.RenderP99Ms:F3})"));
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"[budget-ink] no ink  p50={without.Render.P50Ms:F3} p99={without.Render.P99Ms:F3} ms " +
+            $"→ the ink costs p50 {(with.Render.P50Ms - without.Render.P50Ms) * 1000:F0} µs, " +
+            $"p99 {(with.Render.P99Ms - without.Render.P99Ms) * 1000:F0} µs per frame"));
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"[budget-ink] advance p50={with.Advance.P50Ms:F3} p99={with.Advance.P99Ms:F3} ms " +
+            $"(budget {policy.AdvanceP99Ms:F3})"));
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"[budget-ink] total   p99={with.Total.P99Ms:F3} ms, frame floor 15.625 ms at 64 fps"));
+        Console.WriteLine($"[budget-ink] allocation {with.AllocatedBytesPerFrame} B/frame " +
+                          $"({without.AllocatedBytesPerFrame} B/frame with the ink layer off)");
+
+        Console.WriteLine($"[budget-ink] report {with.WriteToBenchReports(BenchReportDirectory())}");
+
+        foreach (string violation in violations)
+        {
+            Console.WriteLine($"[budget-ink] VIOLATION {violation}");
+        }
+
+        await Assert.That(violations).IsEmpty();
+    }
+
+    // The ink a real session leaves behind, at the budget fixture's tick. Sample counts are in the
+    // hundreds deliberately: the outliner is O(n) in them and a three-point stub measures the call
+    // overhead rather than the work.
+    private static void InkFixture(AnnotationDocument document, int tick)
+    {
+        double lower = MapSpace.QuantizeZ(SyntheticScenes.BudgetFloors[0].MinZ);
+        double upper = MapSpace.QuantizeZ(SyntheticScenes.BudgetFloors[1].MinZ);
+
+        // Six always-on strokes, three per floor: the cached WORLD pictures, recorded once and replayed
+        // under each pane's camera.
+        for (int i = 0; i < 6; i++)
+        {
+            document.Apply(new DocDelta.Add(
+                new AnnotationElement(Guid.NewGuid(), AnnotationKind.Freehand, InkStyle(6f),
+                    new SpaceRef.World(i % 2 == 0 ? lower : upper), TimeEnvelope.Static,
+                    Squiggle(320, -1700f + i * 120f, -900f + i * 240f), null),
+                document.Elements.Count));
+        }
+
+        // Three mid-fade strokes: outlined every frame, but at one alpha and one path.
+        for (int i = 0; i < 3; i++)
+        {
+            document.Apply(new DocDelta.Add(
+                new AnnotationElement(Guid.NewGuid(), AnnotationKind.Freehand, InkStyle(8f),
+                    new SpaceRef.World(i % 2 == 0 ? lower : upper),
+                    new TimeEnvelope(tick - 200, tick + 200, 32, 32),
+                    Squiggle(280, -1500f + i * 500f, 200f + i * 180f), null),
+                document.Elements.Count));
+        }
+
+        // One tracked callout on a live player — slot 3's SteamId, on the upper band.
+        document.Apply(new DocDelta.Add(
+            new AnnotationElement(Guid.NewGuid(), AnnotationKind.Freehand, InkStyle(8f),
+                new SpaceRef.Entity(76561190000000003, 40f, 40f), TimeEnvelope.Static,
+                Squiggle(240, 0f, 0f), null),
+            document.Elements.Count));
+
+        // Two real-time strokes, both 200 ticks into a 260-tick replay with a 64-tick hold: a live head,
+        // a full-alpha body and every one of the eight tail bands, on every frame, cached by nothing.
+        for (int i = 0; i < 2; i++)
+        {
+            StrokeTiming cadence = i == 0
+                ? RealTimeFakes.Steady(400, 260)
+                : RealTimeFakes.WithPause(400, 100, 60);
+
+            document.Apply(new DocDelta.Add(
+                new AnnotationElement(Guid.NewGuid(), AnnotationKind.Freehand, InkStyle(10f),
+                    new SpaceRef.World(i == 0 ? lower : upper),
+                    new TimeEnvelope(tick - 200, tick - 136, 0, 48),
+                    Squiggle(400, -1800f, -400f + i * 700f), null, cadence),
+                document.Elements.Count));
+        }
+    }
+
+    private static AnnotationStyle InkStyle(float width) =>
+        AnnotationStyle.Default with
+        {
+            WidthWorld = width
+        };
+
+    // A doubling-back arc across the map, which is the case a gradient shader gets wrong and the case a
+    // straight line would let through: the outliner emits its 13-point corner sweeps here.
+    private static InkPoint[] Squiggle(int count, float x, float y)
+    {
+        InkPoint[] points = new InkPoint[count];
+        for (int i = 0; i < count; i++)
+        {
+            double t = (double)i / (count - 1);
+            points[i] = new InkPoint(
+                x + (float)(t * 2400.0 + Math.Sin(t * Math.PI * 6) * 90.0),
+                y + (float)(Math.Sin(t * Math.PI * 2.5) * 260.0),
+                0.5f);
+        }
+
+        return points;
     }
 
     // Which layer allocates, when the zero assertion fails. Printed rather than asserted: the failure

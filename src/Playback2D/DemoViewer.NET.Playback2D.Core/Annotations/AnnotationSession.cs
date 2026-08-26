@@ -21,10 +21,47 @@ public sealed class WetStroke
 {
     private const int InitialCapacity = 4096;
 
+    /// <summary>Boundary table capacity. A stroke with fifteen pauses fits without regrowing.</summary>
+    private const int InitialRunCapacity = 32;
+
+    // Where the authoring cadence gets a boundary (plan D7 §2): only where the SPEED changed, never one
+    // per sample. What a viewer reads as "it is replaying me" is the pauses, and a stamp on every point
+    // spends 400 near-identical deltas recording something nobody sees through a fading tail at 64 Hz.
+    //
+    // The test is this sample's gap against the mean gap of the run still open, on BOTH sides, so one
+    // expression catches a stop and a marked acceleration alike.
+    //
+    // FACTOR 2 — the hand at least halved or doubled its speed; anything gentler is the smooth variation
+    // inside one continuous motion, which §2 is explicit is invisible. FLOOR 32 ms — two DV frame-clock
+    // ticks: two gaps closer than that quantize to the same tick offset in BuildTiming, so a boundary
+    // there records a distinction the tick clock cannot express, and the ±4 ms jitter a 60 Hz event
+    // stream carries would put one on every sample. Measured against synthetic strokes, the pair is
+    // insensitive across floor 16–64 ms and factor 1.5–3: a continuous stroke lands on 2 boundaries and
+    // a telestration with three pauses on 8, which is §2's own arithmetic.
+    private const long SpeedChangeFactor = 2;
+    private const long MinGapDeviationMs = 32;
+
     private readonly List<InkPoint> _points = new(InitialCapacity);
+
+    // (index into _points, elapsed MILLISECONDS since the first sample). Milliseconds and not ticks:
+    // the speed test above is a millisecond comparison, and quantizing on the way in would throw away
+    // the resolution the pause detector runs on. The conversion happens exactly once, in BuildTiming.
+    private List<CadenceMark>? _marks;
+    private bool _recordCadence;
+    private long _originMs;
+    private long _anchorMs;
+    private long _prevMs;
+    private int _anchorIndex;
+    private int _prevIndex;
 
     /// <summary>True between <see cref="Begin" /> and <see cref="Clear" />.</summary>
     public bool IsActive { get; private set; }
+
+    /// <summary>
+    ///     True while this stroke is accumulating its authoring cadence — decided at
+    ///     <see cref="Begin" /> and carried from there, exactly as <see cref="Style" /> is.
+    /// </summary>
+    public bool IsRecordingCadence => _recordCadence;
 
     /// <summary>The paint the committed element will carry.</summary>
     public AnnotationStyle Style { get; private set; } = AnnotationStyle.Default;
@@ -49,7 +86,15 @@ public sealed class WetStroke
     /// <param name="space">The anchor.</param>
     /// <param name="paneLevelId">The level whose pane the gesture began on.</param>
     /// <param name="first">The first sample.</param>
-    public void Begin(in AnnotationStyle style, SpaceRef space, MapLevelId? paneLevelId, InkPoint first)
+    /// <param name="recordCadence">
+    ///     Whether to accumulate the authoring cadence for <see cref="EnvelopeMode.RealTime" />.
+    /// </param>
+    /// <param name="atMs">
+    ///     The monotonic authoring clock at the first sample. Every offset is re-based here, so the
+    ///     committed table starts at 0 whatever the clock's arbitrary origin happens to be.
+    /// </param>
+    public void Begin(in AnnotationStyle style, SpaceRef space, MapLevelId? paneLevelId, InkPoint first,
+        bool recordCadence = false, long atMs = 0)
     {
         ArgumentNullException.ThrowIfNull(space);
 
@@ -59,12 +104,14 @@ public sealed class WetStroke
         Space = space;
         PaneLevelId = paneLevelId;
         IsActive = true;
+        BeginCadence(recordCadence, atMs);
         Version++;
     }
 
     /// <summary>Appends a sample unconditionally.</summary>
     /// <param name="point">The sample.</param>
-    public void Append(InkPoint point)
+    /// <param name="atMs">The monotonic authoring clock at this sample; ignored unless recording cadence.</param>
+    public void Append(InkPoint point, long atMs = 0)
     {
         if (!IsActive)
         {
@@ -72,6 +119,7 @@ public sealed class WetStroke
         }
 
         _points.Add(point);
+        MarkCadence(_points.Count - 1, atMs);
         Version++;
     }
 
@@ -82,8 +130,9 @@ public sealed class WetStroke
     /// </summary>
     /// <param name="point">The candidate sample.</param>
     /// <param name="minDistanceWorld">Minimum world-space separation.</param>
+    /// <param name="atMs">The monotonic authoring clock at this sample; ignored unless recording cadence.</param>
     /// <returns>True when the sample was kept.</returns>
-    public bool TryAppend(InkPoint point, float minDistanceWorld)
+    public bool TryAppend(InkPoint point, float minDistanceWorld, long atMs = 0)
     {
         if (!IsActive)
         {
@@ -102,8 +151,49 @@ public sealed class WetStroke
         }
 
         _points.Add(point);
+
+        // INSIDE the append, past the spacing filter, so the index in the table is an index into
+        // _points. A rejected sample is one the committed element never had, and timing it would slide
+        // every later boundary off the point it describes.
+        MarkCadence(_points.Count - 1, atMs);
         Version++;
         return true;
+    }
+
+    /// <summary>
+    ///     The cadence accumulated since <see cref="Begin" />, as the committed element's
+    ///     <see cref="StrokeTiming" />. <see cref="StrokeTiming.Instant" /> when this stroke was not
+    ///     recording one or ended before a second boundary existed — a tap is a dot, and a dot has no
+    ///     cadence to replay.
+    /// </summary>
+    /// <param name="ticksPerSecond">DV frame-clock ticks per second the offsets are expressed in.</param>
+    public StrokeTiming BuildTiming(int ticksPerSecond)
+    {
+        if (!_recordCadence || _marks is null || ticksPerSecond <= 0)
+        {
+            return StrokeTiming.Instant;
+        }
+
+        // The LAST sample is always a boundary: it is what DurationTicks means, and without it the
+        // closing run would be extrapolated from wherever the last speed change happened to land.
+        if (_marks[^1].SampleIndex != _prevIndex)
+        {
+            _marks.Add(new CadenceMark(_prevIndex, _prevMs));
+        }
+
+        if (_marks.Count < 2 || _prevMs <= 0)
+        {
+            return StrokeTiming.Instant;
+        }
+
+        TimingRun[] runs = new TimingRun[_marks.Count];
+        for (int i = 0; i < runs.Length; i++)
+        {
+            CadenceMark mark = _marks[i];
+            runs[i] = new TimingRun(mark.SampleIndex, ToTicks(mark.ElapsedMs, ticksPerSecond));
+        }
+
+        return new StrokeTiming(runs, runs[^1].TickOffset);
     }
 
     /// <summary>Ends the stroke and drops its samples. The capacity is kept.</summary>
@@ -115,6 +205,8 @@ public sealed class WetStroke
         }
 
         _points.Clear();
+        _marks?.Clear();
+        _recordCadence = false;
         IsActive = false;
         PaneLevelId = null;
         Version++;
@@ -142,6 +234,76 @@ public sealed class WetStroke
         Space = new SpaceRef.World(target);
         Version++;
     }
+
+    // The table is allocated on the first RealTime stroke and kept for the life of the session: a user
+    // who never draws in RealTime never pays for it, and one who does never pays twice. Clearing rather
+    // than re-allocating is the same discipline the sample buffer above already runs on.
+    private void BeginCadence(bool record, long atMs)
+    {
+        _recordCadence = record;
+        if (!record)
+        {
+            return;
+        }
+
+        _marks ??= new List<CadenceMark>(InitialRunCapacity);
+        _marks.Clear();
+        _marks.Add(new CadenceMark(0, 0));
+        _originMs = atMs;
+        _anchorIndex = 0;
+        _anchorMs = 0;
+        _prevIndex = 0;
+        _prevMs = 0;
+    }
+
+    private void MarkCadence(int index, long atMs)
+    {
+        if (!_recordCadence || _marks is null)
+        {
+            return;
+        }
+
+        // Re-based at the press and clamped monotonic. A stamp that went backwards — an unstamped
+        // Append, or a host clock that could not stay monotonic — repeats the previous instant rather
+        // than inverting the table, which is StrokeTiming's own "degrade, never throw" contract.
+        long elapsed = Math.Max(atMs - _originMs, _prevMs);
+
+        int runSamples = _prevIndex - _anchorIndex;
+        if (runSamples > 0)
+        {
+            long mean = (_prevMs - _anchorMs) / runSamples;
+            long gap = elapsed - _prevMs;
+
+            if (gap > (mean * SpeedChangeFactor) + MinGapDeviationMs
+                || mean > (gap * SpeedChangeFactor) + MinGapDeviationMs)
+            {
+                // A PAIR, not one boundary. The run is closed BEFORE the change and re-opened AFTER it,
+                // so the change itself is a single two-boundary segment that the reader interpolates
+                // across exactly. Emitting only the closing half would leave the following run running
+                // straight THROUGH the pause — and stalling across a pause is the entire feature.
+                //
+                // It is also §2's arithmetic: two entries for a continuous stroke, eight for one with
+                // three pauses, which only adds up if a boundary comes in twos.
+                _marks.Add(new CadenceMark(_prevIndex, _prevMs));
+                _marks.Add(new CadenceMark(index, elapsed));
+                _anchorIndex = index;
+                _anchorMs = elapsed;
+            }
+        }
+
+        _prevIndex = index;
+        _prevMs = elapsed;
+    }
+
+    // Round to the NEAREST tick, not down: truncation biases every offset toward the start of the
+    // stroke by up to a tick, which across a whole table reads as a replay that runs slightly fast.
+    private static int ToTicks(long elapsedMs, int ticksPerSecond) =>
+        (int)(((elapsedMs * ticksPerSecond) + 500) / 1000);
+
+    /// <summary>One accumulated boundary, in the millisecond domain the speed test runs in.</summary>
+    /// <param name="SampleIndex">Index into <see cref="Points" />.</param>
+    /// <param name="ElapsedMs">Milliseconds since the first sample.</param>
+    private readonly record struct CadenceMark(int SampleIndex, long ElapsedMs);
 }
 
 /// <summary>
@@ -166,6 +328,22 @@ public sealed class AnnotationSession
     ///     colours look alike would make the right button's whole point invisible.
     /// </summary>
     public const uint DefaultSecondaryColorArgb = 0xFF29B6F6;
+
+    /// <summary>
+    ///     DV frame-clock ticks per second, for turning a <see cref="EnvelopeMode.RealTime" /> stroke's
+    ///     authoring milliseconds into the tick offsets it carries.
+    ///     <para>
+    ///         A CONSTANT rather than a reading, because on this side of the seam there is nothing to
+    ///         read: <c>IToolServices</c> exposes the playhead and no rate, <c>SceneTime</c> carries a
+    ///         frame delta and a <c>DemoSeconds</c> but not the divisor either was derived from, and the
+    ///         two real sources — <c>ITimelineData.TickRate</c> and <c>ClockIdentity.TickRate</c> — are a
+    ///         timeline concern and a Pipeline type. Every other tick quantity in this class already
+    ///         assumes the same 64 (<see cref="HoldTicks" />'s "320 ≈ 5 s"), so a literal here is
+    ///         consistent rather than novel. On a 128-tick parse a RealTime stroke replays at half speed;
+    ///         the fix is one rate on <c>IToolServices</c>, not a second literal somewhere else.
+    ///     </para>
+    /// </summary>
+    public const int DvTicksPerSecond = 64;
 
     /// <summary>Creates a session over a document.</summary>
     /// <param name="document">The document this session edits.</param>
@@ -292,7 +470,13 @@ public sealed class AnnotationSession
     /// <param name="currentTick">The playhead, in DV frame-clock ticks.</param>
     public TimeEnvelope EnvelopeForNewElement(int currentTick) => DefaultVisibility switch
     {
-        EnvelopeMode.Fade => TimeEnvelope.Static.PinnedTo(currentTick, HoldTicks, FadeInTicks, FadeOutTicks),
+        // RealTime is Fade's envelope, deliberately and not by omission. D7 §3 renders each SECTION
+        // through this very trapezoid shifted by the offset it was drawn at, so the element-level window
+        // is the one a Fade element would have had — and HoldTicks then keeps its meaning per section:
+        // a hold that outlasts the draw shows the whole stroke at once and dissolves it from the start,
+        // and one that does not makes the stroke chase its own tail. The same control gives both.
+        EnvelopeMode.Fade or EnvelopeMode.RealTime =>
+            TimeEnvelope.Static.PinnedTo(currentTick, HoldTicks, FadeInTicks, FadeOutTicks),
         EnvelopeMode.Custom => NewElementEnvelope,
         _ => TimeEnvelope.Static
     };

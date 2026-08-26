@@ -301,8 +301,14 @@ public sealed class AnnotationSessionController : IDisposable
         Session.SecondaryStyle = new AnnotationStyle(prefs.AnnotationSecondaryColorArgb, width, opacity);
         Session.SecondaryTool = ParseSecondaryTool(prefs.AnnotationSecondaryTool);
 
+        // Enum.IsDefined as well as TryParse, for the reason AnnotationStore.ToElement fences its kind:
+        // this is a hand-editable string AND Enum.TryParse accepts any NUMBER in range, so "7" would
+        // parse to an EnvelopeMode nothing switches on — a session whose mode reaches the toolbar's
+        // ComboBox as an out-of-range SelectedIndex and silently deselects. Always is the degrade, which
+        // is also what a mode written by a newer build should look like from here.
         Session.DefaultVisibility =
             Enum.TryParse(prefs.AnnotationDefaultVisibility, ignoreCase: true, out EnvelopeMode mode)
+            && Enum.IsDefined(mode)
                 ? mode
                 : EnvelopeMode.Always;
 

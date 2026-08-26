@@ -90,8 +90,44 @@ internal sealed class AnnotationElementDto
 
     public string? Text { get; set; }
 
+    /// <summary>
+    ///     The authoring cadence for an <c>EnvelopeMode.RealTime</c> stroke (plan D7), absent for every
+    ///     other element.
+    ///     <para>
+    ///         <b>Nullable, and that is the whole compatibility story.</b> The context below writes with
+    ///         <c>DefaultIgnoreCondition = WhenWritingNull</c>, so an element with no cadence emits no
+    ///         field and the pinned v1 sample does not move by a byte — which is why this is an additive
+    ///         field inside schema 1 rather than a version bump every document would have carried.
+    ///     </para>
+    /// </summary>
+    public AnnotationTimingDto? Timing { get; set; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
+/// <summary>
+///     A stroke's <c>StrokeTiming</c> on disk: the sparse table of boundaries where the authoring speed
+///     changed, plus how long the whole stroke took.
+///     <para>
+///         One nested object rather than two sibling fields on the element, because the two halves are
+///         one value — <c>StrokeTiming.Equals</c> compares both, so a document carrying runs without a
+///         duration is not a degraded cadence but a different one, and a shape that cannot express that
+///         split cannot be hand-edited into it.
+///     </para>
+/// </summary>
+internal sealed class AnnotationTimingDto
+{
+    /// <summary>
+    ///     Flat <c>[sampleIndex, tickOffset, sampleIndex, tickOffset, …]</c>, exactly as
+    ///     <see cref="AnnotationElementDto.Points" /> flattens its triples. A pair per boundary rather
+    ///     than an object per boundary: the table is small but the file is INDENTED, so an object costs
+    ///     four lines and two key names where a pair costs two numbers.
+    /// </summary>
+    public List<int>? Runs { get; set; }
+
+    /// <summary>Ticks from the first sample to the last. 0 for an instant stroke.</summary>
+    public int DurationTicks { get; set; }
 }
 
 [JsonSourceGenerationOptions(

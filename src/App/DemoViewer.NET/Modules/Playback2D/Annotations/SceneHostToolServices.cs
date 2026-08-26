@@ -1,5 +1,6 @@
 #region
 
+using System.Diagnostics;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Input;
@@ -21,6 +22,12 @@ namespace DemoViewer.NET.Modules.Playback2D.Annotations;
 /// </summary>
 internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession session) : IToolServices
 {
+    // Stopwatch, not DateTime: its timestamp counts from an arbitrary origin on a monotonic counter, so
+    // an NTP correction or a DST step landing mid-stroke cannot walk it backwards and hand D7's cadence
+    // accumulator a negative offset. Banned in Core, which is exactly why the clock is an IToolServices
+    // member implemented out here in the app rather than read where it is used.
+    private readonly long _origin = Stopwatch.GetTimestamp();
+
     /// <summary>The session the tools mutate. Re-pointed when the host binds a new view-model.</summary>
     public AnnotationSession Session { get; set; } = session;
 
@@ -30,6 +37,12 @@ internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession 
     ///     engine tick.
     /// </summary>
     public int CurrentTick => host.CurrentSceneFrame.Time.Tick;
+
+    /// <summary>
+    ///     Milliseconds since this services instance was built. The origin is arbitrary and unshared on
+    ///     purpose — every consumer re-bases it at the press, so only the differences ever matter.
+    /// </summary>
+    public long NowMilliseconds => (long)Stopwatch.GetElapsedTime(_origin).TotalMilliseconds;
 
     /// <inheritdoc />
     public LevelPane? PaneAt(SKPoint screen) => host.PaneAtHostPoint(screen.X, screen.Y);

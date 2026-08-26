@@ -180,15 +180,24 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     [ObservableProperty]
     private EnvelopeMode _visibility = EnvelopeMode.Always;
 
-    /// <summary>Lead-in ticks for <see cref="EnvelopeMode.Fade" /> elements.</summary>
+    // The three ramps are SHARED by Fade and RealTime, and deliberately not duplicated per mode: a
+    // RealTime element runs the very same trapezoid, once per section, shifted by the offset that
+    // section was drawn at (plan D7 §3). A second set of "real-time in/out/hold" keys would be a second
+    // spelling of these three, with nothing to distinguish them but which mode last wrote them.
+
+    /// <summary>Lead-in ticks for <see cref="EnvelopeMode.Fade" /> and <see cref="EnvelopeMode.RealTime" />.</summary>
     [ObservableProperty]
     private int _fadeInTicks = 8;
 
-    /// <summary>Lead-out ticks for <see cref="EnvelopeMode.Fade" /> elements.</summary>
+    /// <summary>Lead-out ticks for <see cref="EnvelopeMode.Fade" /> and <see cref="EnvelopeMode.RealTime" />.</summary>
     [ObservableProperty]
     private int _fadeOutTicks = 16;
 
-    /// <summary>Fully-opaque hold for <see cref="EnvelopeMode.Fade" /> elements.</summary>
+    /// <summary>
+    ///     Fully-opaque hold. Per ELEMENT for <see cref="EnvelopeMode.Fade" />, and per SECTION for
+    ///     <see cref="EnvelopeMode.RealTime" /> — the same number, applied to whatever the mode's
+    ///     trapezoid is anchored to.
+    /// </summary>
     [ObservableProperty]
     private int _holdTicks = 320;
 
@@ -249,7 +258,13 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
 
     /// <summary>
     ///     <see cref="Visibility" /> as a ComboBox index. A plain enum binding would need a converter
-    ///     for one three-item list; the index is the smaller contract.
+    ///     for one four-item list; the index is the smaller contract.
+    ///     <para>
+    ///         The getter is the raw cast, so the XAML's item ORDER is the enum's declaration order and a
+    ///         new member has to be appended in both places at once. Anything the setter does not
+    ///         recognise is <see cref="EnvelopeMode.Always" />, which is the mode that cannot surprise
+    ///         anyone.
+    ///     </para>
     /// </summary>
     public int VisibilityIndex
     {
@@ -260,6 +275,7 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
             {
                 1 => EnvelopeMode.Fade,
                 2 => EnvelopeMode.Custom,
+                3 => EnvelopeMode.RealTime,
                 _ => EnvelopeMode.Always
             };
 
@@ -281,13 +297,37 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     ///     which is the shipped default: a user who never leaves Always must not pay for four spin boxes
     ///     that can only ever say "not applicable" in a toolbar that already reflows at 820 px.
     /// </summary>
-    public bool IsEnvelopeEditorVisible => Visibility is EnvelopeMode.Fade or EnvelopeMode.Custom;
+    public bool IsEnvelopeEditorVisible =>
+        Visibility is EnvelopeMode.Fade or EnvelopeMode.Custom or EnvelopeMode.RealTime;
 
     /// <summary>True for <see cref="EnvelopeMode.Fade" /> — the hold is relative to the playhead.</summary>
     public bool IsFadeEnvelope => Visibility == EnvelopeMode.Fade;
 
     /// <summary>True for <see cref="EnvelopeMode.Custom" /> — the window is typed in absolute ticks.</summary>
     public bool IsCustomEnvelope => Visibility == EnvelopeMode.Custom;
+
+    /// <summary>True for <see cref="EnvelopeMode.RealTime" /> — the stroke replays at its draw cadence.</summary>
+    public bool IsRealTimeEnvelope => Visibility == EnvelopeMode.RealTime;
+
+    /// <summary>
+    ///     Whether the <c>hold</c> spinner is offered — <see cref="EnvelopeMode.Fade" /> and
+    ///     <see cref="EnvelopeMode.RealTime" />, the two modes whose window is relative to a moment
+    ///     rather than typed in absolute ticks.
+    ///     <para>
+    ///         A SEPARATE bool from <see cref="IsFadeEnvelope" /> even though it started as its twin: that
+    ///         one answers "which mode is this", which the two per-mode spinner groups key off, and this
+    ///         one answers "does this control belong on the row". Binding a control to the mode question
+    ///         is what makes a third mode that wants the same control an edit in two places with one of
+    ///         them easy to miss.
+    ///     </para>
+    ///     <para>
+    ///         RealTime wants it for the reason plan D7 §3 gives: each section runs the element's own
+    ///         trapezoid shifted by the offset it was drawn at, so a hold that outlasts the draw shows the
+    ///         whole stroke at once and then dissolves from the start, and one that does not makes the
+    ///         stroke chase its own tail. Both are useful, and the same number produces them.
+    ///     </para>
+    /// </summary>
+    public bool IsHoldEnvelope => Visibility is EnvelopeMode.Fade or EnvelopeMode.RealTime;
 
     /// <summary>True while a drawing tool owns the surface — what shadows Space and Esc in the keymap.</summary>
     public bool IsDrawingToolActive => ActiveTool is ToolKind.Draw or ToolKind.Erase;
@@ -533,6 +573,8 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
         OnPropertyChanged(nameof(IsEnvelopeEditorVisible));
         OnPropertyChanged(nameof(IsFadeEnvelope));
         OnPropertyChanged(nameof(IsCustomEnvelope));
+        OnPropertyChanged(nameof(IsRealTimeEnvelope));
+        OnPropertyChanged(nameof(IsHoldEnvelope));
         PersistIfUserDriven();
     }
 

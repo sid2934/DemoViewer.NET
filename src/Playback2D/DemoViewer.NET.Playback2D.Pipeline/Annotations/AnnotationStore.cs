@@ -510,7 +510,49 @@ public sealed class AnnotationStore
             dto.Points.Add(point.Pressure);
         }
 
+        // Left NULL for every element without a cadence, which is every element a non-RealTime mode
+        // produces. WhenWritingNull then emits no field at all, so the v1 schema snapshot does not move.
+        if (element.Timing is { } timing)
+        {
+            List<int> runs = new(timing.Runs.Count * 2);
+            for (int i = 0; i < timing.Runs.Count; i++)
+            {
+                TimingRun run = timing.Runs[i];
+                runs.Add(run.SampleIndex);
+                runs.Add(run.TickOffset);
+            }
+
+            dto.Timing = new AnnotationTimingDto
+            {
+                Runs = runs,
+                DurationTicks = timing.DurationTicks
+            };
+        }
+
         return dto;
+    }
+
+    // A sidecar is hand-editable, so an ODD number of values is a truncated pair rather than an error:
+    // the orphan is dropped and everything before it kept, matching StrokeTiming's own contract that a
+    // truncated table degrades instead of throwing. The order is NOT re-sorted — a table somebody
+    // hand-edited out of order replays oddly, which they can see and fix, where silently re-ordering
+    // their file would be this reader inventing data.
+    private static StrokeTiming? ToTiming(AnnotationTimingDto? dto)
+    {
+        if (dto is null)
+        {
+            return null;
+        }
+
+        List<int> flat = dto.Runs ?? [];
+        int count = flat.Count / 2;
+        TimingRun[] runs = new TimingRun[count];
+        for (int i = 0; i < count; i++)
+        {
+            runs[i] = new TimingRun(flat[i * 2], flat[(i * 2) + 1]);
+        }
+
+        return new StrokeTiming(runs, dto.DurationTicks);
     }
 
     private static AnnotationElement? ToElement(AnnotationElementDto dto)
@@ -551,6 +593,7 @@ public sealed class AnnotationStore
             space,
             new TimeEnvelope(dto.FromTick, dto.UntilTick, dto.FadeInTicks, dto.FadeOutTicks),
             points,
-            dto.Text);
+            dto.Text,
+            ToTiming(dto.Timing));
     }
 }

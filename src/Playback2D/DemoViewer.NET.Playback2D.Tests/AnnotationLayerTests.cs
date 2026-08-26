@@ -285,6 +285,13 @@ public class AnnotationLayerTests
     /// <summary>
     ///     §6's budget. 512 Advance+Render frames with no active stroke must allocate nothing — measured
     ///     on the SECOND of two identical windows, for the reason B1 records in its deviation 14.
+    ///     <para>
+    ///         The mix carries a mid-replay real-time stroke (plan D7) as well as the cached, the
+    ///         entity-anchored and the fading cases, because that is the only element whose section table
+    ///         is rebuilt on every single frame. <c>RealTimeInkTests</c> measures that case on its own,
+    ///         at a realistic sample count; here it is in the shipped mix, where a per-section list or a
+    ///         closure would show up against everything else the layer does.
+    ///     </para>
     /// </summary>
     [Test]
     [Category("Budget")]
@@ -309,6 +316,16 @@ public class AnnotationLayerTests
         doc.Apply(new DocDelta.Add(
             AnnotationFakes.Stroke(time: new TimeEnvelope(0, 10_000, 8, 8)), doc.Elements.Count));
 
+        // Tick 100 is elapsed 60 into a 128-tick replay whose sections have a 24-tick hold: a live head,
+        // a full-alpha body and a tail that is part way through all eight bands.
+        doc.Apply(new DocDelta.Add(
+            RealTimeFakes.RealTime(RealTimeFakes.Steady(RealTimeFakes.SampleCount, 128),
+                    from: 40, hold: 24, fadeOut: 32) with
+                {
+                    Space = new SpaceRef.World(MapSpace.QuantizeZ(-448))
+                },
+            doc.Elements.Count));
+
         Scene2DFrame frame = AnnotationFakes.Frame(AnnotationFakes.Marker(7ul, 0, 0, -400));
         SceneRenderContext ctx = Context(frame, space, 0, 100);
 
@@ -318,7 +335,12 @@ public class AnnotationLayerTests
         long first = Measure(layer, surface.Canvas, frame, in ctx);
         long second = Measure(layer, surface.Canvas, frame, in ctx);
 
-        Console.WriteLine($"[annotations] alloc window1={first} B window2={second} B");
+        Console.WriteLine($"[annotations] alloc window1={first} B window2={second} B " +
+                          $"dry={layer.DryPictureCount} prepared={layer.PreparedCount}");
+
+        await Assert.That(layer.PreparedCount).IsEqualTo(3)
+            .Because("entity-anchored, fading and real-time all have to be LIVE, or this window is " +
+                     "measuring a layer that culled its own content");
         await Assert.That(second).IsEqualTo(0);
     }
 

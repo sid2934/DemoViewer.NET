@@ -22,6 +22,11 @@ public sealed class DrawTool : IPointerTool
     private IDisposable? _gesture;
     private TimeEnvelope _envelope = TimeEnvelope.Static;
 
+    // The previous event's reading of the authoring clock — the START of the span this event's coalesced
+    // batch is spread across. It lives on the tool rather than on the wet stroke because it tracks
+    // EVENTS, and the wet stroke only ever sees the samples the spacing filter kept.
+    private long _lastEventMs;
+
     /// <inheritdoc />
     public ToolKind Kind => ToolKind.Draw;
 
@@ -38,12 +43,18 @@ public sealed class DrawTool : IPointerTool
         AnnotationSession session = s.Session;
         _gesture = session.Document.BeginGesture("draw");
         _envelope = session.EnvelopeForNewElement(s.CurrentTick);
+        _lastEventMs = s.NowMilliseconds;
 
         // The BUTTON picks the ink, and the wet stroke carries it from here on: the toolbar can change
         // colour mid-drag and the committed element still has the paint the gesture started with.
+        //
+        // Whether there is a CADENCE to record is captured in the same breath and for the same reason:
+        // the accumulator has to start at the first sample, so a toolbar flip mid-drag must not get to
+        // decide retroactively whether this stroke had one.
         SpaceRef space = ResolveSpace(pane, in e, s);
         session.Wet.Begin(session.StyleFor(e.Button), space, pane.LevelId,
-            new InkPoint(e.World.X, e.World.Y, e.Pressure));
+            new InkPoint(e.World.X, e.World.Y, e.Pressure),
+            session.DefaultVisibility == EnvelopeMode.RealTime, _lastEventMs);
 
         s.RequestRender();
         return true;
@@ -60,17 +71,28 @@ public sealed class DrawTool : IPointerTool
             return;
         }
 
+        long nowMs = s.NowMilliseconds;
         float spacing = session.SampleSpacingFor(session.Wet.Style);
 
         // Coalesced samples first, oldest-first: they happened BEFORE the primary point, and appending
         // them after it would fold the stroke back on itself on every fast drag.
+        //
+        // They are spread EVENLY across the interval since the previous event, because a batch carries
+        // no times of its own: Avalonia (11.3.12) stamps the EVENT and never the sample —
+        // PointerEventArgs.Timestamp is a ulong of milliseconds, PointerPoint exposes only
+        // Pointer/Position/Properties, and even RawPointerPoint carries no time. That costs nothing:
+        // a 60 Hz event arrives 16.7 ms after the last and one DV tick is 15.625 ms, so the whole
+        // interpolation happens strictly BELOW the quantization floor BuildTiming rounds to. It is not
+        // an approximation of something that could otherwise have been measured.
         ReadOnlySpan<InkPoint> intermediate = e.Intermediate;
         for (int i = 0; i < intermediate.Length; i++)
         {
-            session.Wet.TryAppend(intermediate[i], spacing);
+            long atMs = _lastEventMs + ((nowMs - _lastEventMs) * (i + 1) / (intermediate.Length + 1));
+            session.Wet.TryAppend(intermediate[i], spacing, atMs);
         }
 
-        session.Wet.TryAppend(new InkPoint(e.World.X, e.World.Y, e.Pressure), spacing);
+        session.Wet.TryAppend(new InkPoint(e.World.X, e.World.Y, e.Pressure), spacing, nowMs);
+        _lastEventMs = nowMs;
 
         // Unconditional, as it always effectively was: the repaint below runs whether or not the spacing
         // filter kept the sample, so the `appended` flag existed only to gate AnnotationSession's
@@ -90,8 +112,10 @@ public sealed class DrawTool : IPointerTool
             return;
         }
 
+        // No _lastEventMs update here: the release is the LAST event of the gesture, and the next press
+        // seeds it again. Carrying it forward would be a value nothing can read.
         session.Wet.TryAppend(new InkPoint(e.World.X, e.World.Y, e.Pressure),
-            session.SampleSpacingFor(session.Wet.Style));
+            session.SampleSpacingFor(session.Wet.Style), s.NowMilliseconds);
 
         IReadOnlyList<InkPoint> samples = session.Wet.Points;
         if (samples.Count > 0)
@@ -103,6 +127,13 @@ public sealed class DrawTool : IPointerTool
                 ? [.. samples]
                 : [samples[0], samples[0]];
 
+            // Null for every mode but RealTime, and that is what keeps the rest byte-identical: the DTO
+            // writes WhenWritingNull, so an element without a cadence emits no field at all and the
+            // pinned v1 schema sample does not move.
+            StrokeTiming? timing = session.Wet.IsRecordingCadence
+                ? session.Wet.BuildTiming(AnnotationSession.DvTicksPerSecond)
+                : null;
+
             AnnotationElement element = new(
                 Guid.NewGuid(),
                 AnnotationKind.Freehand,
@@ -110,7 +141,8 @@ public sealed class DrawTool : IPointerTool
                 session.Wet.Space,
                 _envelope,
                 points,
-                null);
+                null,
+                timing);
 
             session.Document.Apply(new DocDelta.Add(element, session.Document.Elements.Count));
         }

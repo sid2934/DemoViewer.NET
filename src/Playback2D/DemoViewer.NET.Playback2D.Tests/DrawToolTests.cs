@@ -167,6 +167,73 @@ public class DrawToolTests
         await Assert.That(element.Time.FadeOutTicks).IsEqualTo(9);
     }
 
+    /// <summary>
+    ///     Plan D7: a cadence is what <see cref="EnvelopeMode.RealTime" /> means and nothing else has one.
+    ///     Null here is load-bearing — the DTO writes <c>WhenWritingNull</c>, so an element without one
+    ///     emits no field and the pinned v1 schema sample does not move.
+    /// </summary>
+    [Test]
+    [Arguments(EnvelopeMode.Always)]
+    [Arguments(EnvelopeMode.Fade)]
+    [Arguments(EnvelopeMode.Custom)]
+    public async Task EveryModeButRealTime_CommitsNoTiming(EnvelopeMode mode)
+    {
+        Harness h = new();
+        h.Session.DefaultVisibility = mode;
+        h.Session.SetCustomWindow(500, 800);
+
+        h.Press(0, 0);
+        h.Services.Advance(120);
+        h.Move(60, 0);
+        h.Services.Advance(120);
+        h.Release(120, 40);
+
+        await Assert.That(h.Document.Elements[0].Timing).IsNull()
+            .Because("time really passed while this was drawn; only RealTime is asking about it");
+    }
+
+    /// <summary>
+    ///     ...and RealTime commits one, through the same public entry points. The shape of it is
+    ///     <c>StrokeCadenceTests</c>' business; that it arrives at all is this suite's.
+    /// </summary>
+    [Test]
+    public async Task RealTime_CommitsTheCadenceItWasDrawnAt()
+    {
+        Harness h = new();
+        h.Session.DefaultVisibility = EnvelopeMode.RealTime;
+
+        h.Press(0, 0);
+        h.Services.Advance(250);
+        h.Move(60, 0);
+        h.Services.Advance(250);
+        h.Release(120, 40);
+
+        StrokeTiming? timing = h.Document.Elements[0].Timing;
+        await Assert.That(timing).IsNotNull();
+        await Assert.That(timing!.DurationTicks).IsEqualTo(32)
+            .Because("500 ms of authoring is 32 ticks at 64 tick");
+    }
+
+    /// <summary>
+    ///     The cadence flag is captured at PRESS, with the ink and the anchor and for the same reason:
+    ///     recording has to begin at the first sample, so a toolbar flip mid-drag cannot decide
+    ///     retroactively that this stroke had a cadence nobody was accumulating.
+    /// </summary>
+    [Test]
+    public async Task VisibilityChosenAtPress_SurvivesAModeChangeMidGesture()
+    {
+        Harness h = new();
+        h.Session.DefaultVisibility = EnvelopeMode.Always;
+
+        h.Press(0, 0);
+        h.Session.DefaultVisibility = EnvelopeMode.RealTime;
+        h.Services.Advance(250);
+        h.Move(60, 0);
+        h.Release(120, 40);
+
+        await Assert.That(h.Document.Elements[0].Timing).IsNull();
+    }
+
     [Test]
     public async Task Cancel_LeavesDocumentUnchanged()
     {

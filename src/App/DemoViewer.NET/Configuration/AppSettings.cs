@@ -444,16 +444,29 @@ public sealed class Playback2DSettings
     /// <summary>Ink opacity multiplier, 0..1, applied on top of the time envelope.</summary>
     public double AnnotationOpacity { get; set; } = 1.0;
 
-    /// <summary>Envelope authoring mode for new elements: <c>Always</c>, <c>Fade</c> or <c>Custom</c>.</summary>
+    /// <summary>
+    ///     Envelope authoring mode for new elements: an <c>EnvelopeMode</c> NAME — <c>Always</c>,
+    ///     <c>Fade</c>, <c>Custom</c> or <c>RealTime</c>. A string rather than the enum so a member a
+    ///     newer build knows about degrades to <c>Always</c> instead of failing the bind, which is what
+    ///     made D7's fourth mode additive: no migration, no new key.
+    /// </summary>
     public string AnnotationDefaultVisibility { get; set; } = "Always";
 
-    /// <summary>Lead-in length in DV frame-clock ticks for <c>Fade</c> elements.</summary>
+    // The three ramps below serve BOTH relative modes. A RealTime element runs this very trapezoid once
+    // per drawn section, shifted by the offset that section was authored at (plan D7 §3), so there is
+    // deliberately no second "real-time in/out/hold" trio: it would be the same three numbers under
+    // names that could drift apart, which is the unreachable-key defect D6 audited.
+
+    /// <summary>Lead-in length in DV frame-clock ticks for <c>Fade</c> and <c>RealTime</c> elements.</summary>
     public int AnnotationFadeInTicks { get; set; } = 8;
 
-    /// <summary>Lead-out length in DV frame-clock ticks for <c>Fade</c> elements.</summary>
+    /// <summary>Lead-out length in DV frame-clock ticks for <c>Fade</c> and <c>RealTime</c> elements.</summary>
     public int AnnotationFadeOutTicks { get; set; } = 16;
 
-    /// <summary>Fully-opaque hold for <c>Fade</c> elements. 320 ≈ 5 s at 64 tick.</summary>
+    /// <summary>
+    ///     Fully-opaque hold: for the whole element in <c>Fade</c>, for each drawn section in
+    ///     <c>RealTime</c>. 320 ≈ 5 s at 64 tick.
+    /// </summary>
     public int AnnotationHoldTicks { get; set; } = 320;
 
     /// <summary>Whether a stroke started near a player anchors to them by SteamId.</summary>

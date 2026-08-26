@@ -115,12 +115,23 @@
                 <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1" />
 
                 <!-- Visibility envelope. "Pin to now" is the one-click path: it switches to Fade and
-                     re-times the stroke just drawn to open at the playhead. -->
-                <ComboBox x:Name="VisibilityBox" Width="94" SelectedIndex="{Binding VisibilityIndex, Mode=TwoWay}"
+                     re-times the stroke just drawn to open at the playhead.
+                     The item ORDER is EnvelopeMode's declaration order: VisibilityIndex's getter is a raw
+                     cast, so a member appended to the enum has to be appended here in the same breath.
+                     Width is the same lesson the spinners below learned, one control over, and the same
+                     kind of measured number: a Fluent ComboBox spends a CONSTANT 44 px on its drop-down
+                     glyph, border and padding, and "Real-time" — the longest of the four labels —
+                     renders at 63.4 px. At the 94 this box carried, that is 50 px of room for 63.4 px of
+                     text: clipped mid-word, and invisible to every test that only asks whether the
+                     control is present and bound. 118 = 44 + 74. RealTimeEnvelopeUiTests measures the
+                     rendered label against the presenter, so a theme with hungrier chrome fails here
+                     rather than silently truncating the mode a user is trying to pick. -->
+                <ComboBox x:Name="VisibilityBox" Width="118" SelectedIndex="{Binding VisibilityIndex, Mode=TwoWay}"
                           ToolTip.Tip="When new annotations are visible">
                     <ComboBoxItem Content="Always" />
                     <ComboBoxItem Content="Fade" />
                     <ComboBoxItem Content="Custom" />
+                    <ComboBoxItem Content="Real-time" />
                 </ComboBox>
                 <Button x:Name="PinToNowButton" Content="Pin to now" Padding="8,2"
                         Command="{Binding PinToNowCommand}"
@@ -143,7 +154,7 @@
                         ToolTip.Tip="{Binding ClearAllToolTip}" />
             </WrapPanel>
 
-            <!-- The envelope editor: a SECOND row, shown only for Fade and Custom.
+            <!-- The envelope editor: a SECOND row, shown for every mode but Always.
                  Its own row rather than more items in the one above, so the tool row's trailing controls
                  keep their place when the mode changes — and so a user who never leaves Always (the
                  shipped default) never sees four spin boxes appear in a toolbar that already reflows at
@@ -176,15 +187,19 @@
                                FormatString="0" Value="{Binding FadeOutTicks, Mode=TwoWay}"
                                ToolTip.Tip="Lead-out ramp, in ticks. The fade sits OUTSIDE the window." />
 
-                <!-- Fade holds relative to the tick the stroke was drawn at; Custom types the window out
-                     in absolute ticks. Showing both at once would offer two answers to "when". -->
+                <!-- Fade holds relative to the tick the stroke was drawn at, Real-time holds each SECTION
+                     relative to the offset it was drawn at, and Custom types the window out in absolute
+                     ticks. Showing hold and from/until at once would offer two answers to "when".
+                     Bound to IsHoldEnvelope — "does this control belong here" — rather than to a mode:
+                     `in` and `out` mean the same thing in all three modes and carry no visibility binding
+                     at all, and `hold` is the one field the two RELATIVE modes share and Custom does not. -->
                 <TextBlock Text="hold" Foreground="{DynamicResource Pb2dTextDim}"
                            FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center"
-                           IsVisible="{Binding IsFadeEnvelope}" />
+                           IsVisible="{Binding IsHoldEnvelope}" />
                 <NumericUpDown x:Name="HoldBox" Width="140" Minimum="0" Maximum="1000000" Increment="32"
                                FormatString="0" Value="{Binding HoldTicks, Mode=TwoWay}"
-                               IsVisible="{Binding IsFadeEnvelope}"
-                               ToolTip.Tip="How long a Fade annotation stays fully opaque. 320 ≈ 5 s at 64 tick." />
+                               IsVisible="{Binding IsHoldEnvelope}"
+                               ToolTip.Tip="How long an annotation stays fully opaque — the whole element in Fade, each drawn section in Real-time. 320 ≈ 5 s at 64 tick." />
 
                 <TextBlock Text="from" Foreground="{DynamicResource Pb2dTextDim}"
                            FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center"

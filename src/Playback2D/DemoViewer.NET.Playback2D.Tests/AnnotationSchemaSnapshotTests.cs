@@ -58,6 +58,12 @@ public class AnnotationSchemaSnapshotTests
         await Assert.That(loaded.Elements[0].Space).IsTypeOf<SpaceRef.World>();
         await Assert.That(loaded.Elements[1].Space).IsTypeOf<SpaceRef.Entity>();
 
+        // D7's `timing` is additive and NULLABLE, which is the only reason the byte comparison below
+        // still holds: WhenWritingNull emits nothing for an element that has no cadence, and neither of
+        // these has one. Named here so a future field that forgets to be nullable fails with a reason
+        // rather than as an unexplained golden diff.
+        await Assert.That(loaded.Elements.All(e => e.Timing is null)).IsTrue();
+
         await store.SaveAsync(sidecar.DemoPath, TempSidecar.Demo, TempSidecar.Clock, loaded.Elements);
 
         string round = File.ReadAllText(sidecar.SidecarPath);
