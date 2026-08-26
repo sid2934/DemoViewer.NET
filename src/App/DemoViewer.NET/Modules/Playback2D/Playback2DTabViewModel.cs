@@ -487,7 +487,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             fileExists: null,
             captureInk: SnapshotInkForExport,
             acquireFfmpeg: ViewModels.Playback2D.Playback2DExportDialogViewModel.ProductionAcquisition(
-                FfmpegDependency.ManagedDirectory));
+                FfmpegDependency.ManagedDirectory),
+            capturePalette: CaptureExportPalette);
 
         ExportDialog.StartRequested += CloseExport;
     }
@@ -572,7 +573,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         host.Frames() ?? [],
         _tickRate,
         _context?.MapName,
-        ScenePaletteFactory.Build(Avalonia.Application.Current?.ActualThemeVariant),
+        request?.Palette ?? LivePalette(),
         LevelStrip.DisplayMode,
 
         // The export builds its own solver over the same engine: VisionLayer is stateless per frame, and
@@ -624,6 +625,25 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private CameraScript CaptureExportMoment() =>
         LiveCameraSource?.Invoke()
         ?? new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>());
+
+    // The scene colours, resolved at Start beside the camera and the ink, and for a harder reason than
+    // either: Application.ActualThemeVariant is a STYLED PROPERTY, so reading it off the UI thread throws
+    // "Call from invalid thread" out of AvaloniaObject.VerifyAccess. BuildExportSetup runs on the export's
+    // pool thread by contract — its own doc comment says so — and resolved the palette there, so every
+    // export died before frame zero. It went unseen because the dialog did not render and the layer set
+    // threw first (D6 findings 1 and 2); fixing those is what made this reachable.
+    //
+    // A ScenePalette is a plain record of SKColor, so once resolved it crosses threads freely. It is the
+    // READ that is thread-affine, never the value.
+    internal ScenePalette CaptureExportPalette() => LivePalette();
+
+    // Falls back to Dark rather than throwing, for the two callers that legitimately have no request: the
+    // display-mode-only test path, and any future UI-thread caller. Dark is a correct scene; a crash is
+    // not, and this method is one an export's failure path can reach.
+    private static ScenePalette LivePalette() =>
+        Dispatcher.UIThread.CheckAccess()
+            ? ScenePaletteFactory.Build(Avalonia.Application.Current?.ActualThemeVariant)
+            : ScenePalette.Dark;
 
     // The ink an in-flight export draws: a COPY of the document as it stood at Start, wrapped in a
     // session of its own. Elements are immutable records, so the copy shares them and costs one list.

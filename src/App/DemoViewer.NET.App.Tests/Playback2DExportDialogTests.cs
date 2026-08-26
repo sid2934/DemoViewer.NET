@@ -4,6 +4,7 @@ using System.ComponentModel;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Export;
@@ -487,6 +488,29 @@ public class Playback2DExportDialogTests
         await Assert.That(ReferenceEquals(job.Requests[0].Ink, job.Requests[1].Ink)).IsFalse();
     }
 
+    /// <summary>
+    ///     Start must put the resolved palette on the request, because the setup that consumes it runs on
+    ///     the export's pool thread and cannot resolve a theme there — that threw "Call from invalid
+    ///     thread" for every export until D9.
+    ///     <para>
+    ///         Dropping this wiring does NOT crash: the setup falls back to a correct-but-wrong-theme
+    ///         palette, so a dark-theme user would silently get a light video. A silent wrong answer needs
+    ///         a louder guard than a loud one.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task EachStart_CarriesTheThemeItWasStartedIn()
+    {
+        RecordingExportJobService job = new();
+        Playback2DExportDialogViewModel vm = Dialog(job: job, capturePalette: () => ScenePalette.Light);
+
+        vm.StartCommand.Execute(null);
+
+        await Assert.That(job.Requests[0].Palette).IsNotNull()
+            .Because("the setup builds off the UI thread and cannot read the theme itself");
+        await Assert.That(job.Requests[0].Palette!.Value.Background).IsEqualTo(ScenePalette.Light.Background);
+    }
+
     [Test]
     public async Task WithNoInkCapture_TheRequestSimplyCarriesNone()
     {
@@ -611,7 +635,8 @@ public class Playback2DExportDialogTests
         Action<Action<AppSettings>>? persist = null,
         Func<string, bool>? fileExists = null,
         Func<AnnotationSession?>? captureInk = null,
-        FfmpegAcquire? acquireFfmpeg = null) =>
+        FfmpegAcquire? acquireFfmpeg = null,
+        Func<ScenePalette>? capturePalette = null) =>
         new(ranges ?? [new ExportRangeOption("Current round", 100, 400)],
             defaults ?? new Playback2DSettings(),
             job: job,
@@ -622,7 +647,8 @@ public class Playback2DExportDialogTests
             persistDefaults: persist,
             fileExists: fileExists ?? (_ => false),
             captureInk: captureInk,
-            acquireFfmpeg: acquireFfmpeg);
+            acquireFfmpeg: acquireFfmpeg,
+            capturePalette: capturePalette);
 
     /// <summary>Records the one request the dialog hands off, and nothing else.</summary>
     private sealed class StubExportJobService : IExportJobService

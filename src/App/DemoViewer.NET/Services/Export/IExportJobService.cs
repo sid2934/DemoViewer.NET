@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Export;
 
@@ -71,6 +72,19 @@ public interface IExportJobService
 ///         the tab retaining a frozen document for its whole lifetime, across demo resets.
 ///     </para>
 /// </param>
+/// <param name="Palette">
+///     The scene colours to render with, resolved on the UI thread at Start, or null to let the setup
+///     decide.
+///     <para>
+///         <b>Here for a harder reason than the ink.</b> The setup is built on the export's pool thread by
+///         contract, and it resolved the palette from <c>Application.Current.ActualThemeVariant</c> — a
+///         styled property, so <c>AvaloniaObject.VerifyAccess</c> threw <i>"Call from invalid thread"</i>
+///         before frame zero. Every export failed that way; nobody saw it, because until D6 the dialog
+///         never rendered and the layer set threw first. A <c>ScenePalette</c> is a plain record of
+///         <c>SKColor</c>, so once resolved it crosses threads freely — the theme is only reachable where
+///         it is read, which is why the read has to happen at Start and travel.
+///     </para>
+/// </param>
 public sealed record Scene2DExportRequest(
     ExportRequest Core,
     string OutputPath,
@@ -79,7 +93,8 @@ public sealed record Scene2DExportRequest(
     int DemoEndFrame = 0,
     string? EncoderOverride = null,
     string? Quality = null,
-    AnnotationSession? Ink = null);
+    AnnotationSession? Ink = null,
+    ScenePalette? Palette = null);
 
 /// <summary>A point-in-time export status. The chip and the flyout render from this.</summary>
 /// <param name="Phase">Where the export is.</param>

@@ -311,9 +311,13 @@ public class Playback2DExportStatusSurfaceTests
 /// </summary>
 public class Playback2DExportSetupTests
 {
-    // On the UI thread because BuildExportSetup resolves the theme variant off Application.Current, and
-    // Avalonia's AvaloniaObject.GetValue verifies dispatcher affinity. It passes off-thread only while no
-    // other test has built an application, which is the worst kind of green.
+    // This used to run on the UI thread, with a comment explaining that BuildExportSetup resolves the
+    // theme variant off Application.Current and that AvaloniaObject.GetValue verifies dispatcher affinity.
+    // That was the right observation about the wrong subject: the affinity problem belonged to the
+    // PRODUCTION code, which builds this setup on the export's pool thread by contract, not to the test.
+    // Keeping the test on the UI thread hid a crash that killed every real export before frame zero
+    // (D9). It stays here because the ink assertion needs no particular thread; the thread itself is now
+    // pinned by TheSetup_BuildsOffTheUiThread_LikeTheRunnerDoes below.
     [Test]
     public async Task TheSetupTakesItsInkFromTheRequest_NotFromTheTab() =>
         await HeadlessSession.RunOnUi(async () =>
@@ -335,6 +339,45 @@ public class Playback2DExportSetupTests
             // And with no request at all — the design-preview path — there is simply no ink, rather than
             // whatever the last export left behind.
             await Assert.That(vm.BuildExportSetup(host).Annotations).IsNull();
+        });
+
+    /// <summary>
+    ///     The setup must build on a POOL thread, because that is the only place production ever builds it:
+    ///     <c>SceneExportRunner.RunAsync</c> calls the factory after the job has been handed to
+    ///     <c>Task.Run</c> and has awaited the heavy-job gate.
+    ///     <para>
+    ///         Before D9 it resolved the palette from <c>Application.Current.ActualThemeVariant</c> — a
+    ///         styled property — and threw <i>"Call from invalid thread"</i> for every user who pressed
+    ///         Export. The application must be BUILT for this test to mean anything: with no
+    ///         <c>Application.Current</c> the affinity check has nothing to verify and the old code passed
+    ///         off-thread too, which is why the previous test could not have caught it.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task TheSetup_BuildsOffTheUiThread_LikeTheRunnerDoes() =>
+        // The hop to the pool happens INSIDE the session: the headless harness builds an isolated
+        // application per dispatch, so Application.Current exists only for the life of this delegate. Off
+        // the pool thread outside it there is nothing for VerifyAccess to object to, and the unfixed code
+        // passes — which is exactly the "worst kind of green" the old comment on the test above described
+        // without recognising it applied here.
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            Playback2DTabViewModel vm = new();
+            Playback2DExportHost host = new(
+                () => null, null, null, null, () => new AppSettings(), _ => { });
+
+            await Assert.That(Avalonia.Application.Current).IsNotNull()
+                .Because("with no Application there is no affinity to violate and this proves nothing");
+
+            ScenePalette captured = vm.CaptureExportPalette();   // what Start does, on the UI thread
+            Scene2DExportRequest request = Request(null) with { Palette = captured };
+
+            // Task.Run, not the dispatcher: this is the runner's thread, and the whole point.
+            ExportSceneSetup setup = await Task.Run(() => vm.BuildExportSetup(host, request));
+
+            await Assert.That(setup.Palette).IsEqualTo(captured)
+                .Because("the palette is resolved at Start and travels on the request; the READ is what "
+                         + "is thread-affine, never the value");
         });
 
     private static Scene2DExportRequest Request(AnnotationSession? ink) =>

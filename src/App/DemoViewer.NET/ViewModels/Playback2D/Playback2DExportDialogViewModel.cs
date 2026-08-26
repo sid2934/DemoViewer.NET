@@ -77,6 +77,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
 {
     private readonly FfmpegAcquire? _acquireFfmpeg;
     private readonly Func<AnnotationSession?>? _captureInk;
+    private readonly Func<ScenePalette>? _capturePalette;
     private readonly Func<CameraScript> _captureLiveCamera;
     private readonly Func<string, bool> _fileExists;
     private readonly Func<FfmpegLocation>? _ffmpegLocator;
@@ -198,6 +199,12 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     ///     Start — even one the gate then refuses — had already overwritten the ink the first, parked
     ///     export was going to burn in.
     /// </param>
+    /// <param name="capturePalette">
+    ///     Resolves the scene colours, called <b>on Start</b> and on the UI thread for the same reason as
+    ///     <paramref name="captureInk" /> — but a harder one: the theme is a styled property and reading it
+    ///     off the UI thread throws, which is what made every export fail before D9. See
+    ///     <see cref="Scene2DExportRequest.Palette" />.
+    /// </param>
     /// <param name="acquireFfmpeg">
     ///     Fetches the pinned LGPL build for the Download button. Null hides the button entirely, which is
     ///     the correct state on every platform with nothing pinned for it.
@@ -213,7 +220,8 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
         Action<Action<AppSettings>>? persistDefaults = null,
         Func<string, bool>? fileExists = null,
         Func<AnnotationSession?>? captureInk = null,
-        FfmpegAcquire? acquireFfmpeg = null)
+        FfmpegAcquire? acquireFfmpeg = null,
+        Func<ScenePalette>? capturePalette = null)
     {
         ArgumentNullException.ThrowIfNull(ranges);
 
@@ -227,6 +235,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
         _fileExists = fileExists ?? File.Exists;
         _captureInk = captureInk;
         _acquireFfmpeg = acquireFfmpeg;
+        _capturePalette = capturePalette;
 
         _selectedRange = Ranges.Count > 0 ? Ranges[0] : null;
 
@@ -380,7 +389,8 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
             // the request is what makes two Starts incapable of trading documents.
             _job.Start(new Scene2DExportRequest(core, OutputPath, string.Empty,
                 range.StartFrame, range.EndFrame, SelectedEncoder, SelectedQuality,
-                _captureInk?.Invoke()));
+                _captureInk?.Invoke(),
+                _capturePalette?.Invoke()));
 
             PersistDefaults();
             StartRequested?.Invoke();
