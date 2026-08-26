@@ -21,6 +21,7 @@ namespace DemoViewer.NET.AppTests;
 ///     tests — there are no modules here.
 /// </summary>
 [NotInParallel]
+[Category("RealDemo")]
 public class PlaybackLoopPhase2Tests
 {
     [Test]

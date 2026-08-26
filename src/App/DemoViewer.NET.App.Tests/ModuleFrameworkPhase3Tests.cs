@@ -114,6 +114,7 @@ public class ModuleFrameworkPhase3Tests
     }
 
     [Test]
+    [Category("RealDemo")]
     public async Task PlaceholderModule_HostPlayerJoin_AndActiveOnlyPushes()
     {
         string demo = DemoTestHelper.RequireDemo();

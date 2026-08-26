@@ -24,6 +24,7 @@ namespace DemoViewer.NET.AppTests;
 ///     real view models / data binding (TUnit + Avalonia headless) and captures rendered frames via
 ///     the Skia backend to <see cref="HeadlessSession.ArtifactDir" /> for inspection.
 /// </summary>
+[Category("RealDemo")]
 public class UnknownMessageCardTests
 {
     // ── VM-level correctness: unknowns become wire-decoded cards; selecting one shows its bytes ──

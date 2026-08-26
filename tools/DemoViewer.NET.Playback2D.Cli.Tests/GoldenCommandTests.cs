@@ -13,6 +13,7 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 ///     never rewrite a committed golden.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class GoldenCommandTests
 {
     [Test]

@@ -382,6 +382,7 @@ public class MatchOverviewLandingTests
     ///     SAME numbers the Stats tab derived from that one evaluation.
     /// </summary>
     [Test]
+    [Category("RealDemo")]
     public async Task RealOpen_AdvancesAllThreeStages_AndMatchesTheStatsTab()
     {
         string demo = DemoTestHelper.RequireDemo();
@@ -650,6 +651,7 @@ public class MatchOverviewLandingTests
     ///     state and must be cleared on unload, exactly like the tables it is derived from.
     /// </summary>
     [Test]
+    [Category("RealDemo")]
     public async Task StatsTab_ClearsItsDerivedScore_OnDemoUnload()
     {
         string demo = DemoTestHelper.RequireDemo();
@@ -692,6 +694,7 @@ public class MatchOverviewLandingTests
     ///     </para>
     /// </summary>
     [Test]
+    [Category("RealDemo")]
     public async Task TeamTotals_AndSideTotals_AreDistinct_AndBothSumToTheRoundCount()
     {
         string demo = DemoTestHelper.RequireDemo();

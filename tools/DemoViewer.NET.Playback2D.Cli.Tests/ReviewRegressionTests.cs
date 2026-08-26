@@ -138,6 +138,7 @@ public class ReviewRegressionTests
     /// </summary>
     [Test]
     [Category("Budget")]
+    [Category("RealDemo")]
     public async Task TrackerSceneSnapshot_Refresh_AllocatesNoPerFrameDelegate()
     {
         ParsedDemo demo = DemoTestHelper.GetOrParse(Dv2d.RequireDemo());

@@ -50,6 +50,7 @@ public class Playback2DModuleLifecycleTests
     }
 
     [Test]
+    [Category("RealDemo")]
     public async Task ViewModelFactory_Path_FiresLifecycle_AndActiveOnlyPushes()
     {
         string demo = DemoTestHelper.RequireDemo();

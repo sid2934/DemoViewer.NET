@@ -16,6 +16,7 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 ///     a demo: CI has none, and a silent pass would be worse than a skip.
 /// </summary>
 [NotInParallel]
+[Category("RealDemo")]
 public class TrackerFrameSourceTests
 {
     [Test]

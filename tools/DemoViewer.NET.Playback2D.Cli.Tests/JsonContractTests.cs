@@ -12,6 +12,7 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 ///     between the two streams is the whole point and only a subprocess has two real streams.
 /// </summary>
 [NotInParallel]
+[Category("Integration")]
 public class JsonContractTests
 {
     /// <summary>Every command that emits a stdout payload, as an argument vector.</summary>

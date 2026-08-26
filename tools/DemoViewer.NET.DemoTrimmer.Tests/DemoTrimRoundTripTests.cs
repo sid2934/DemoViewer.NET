@@ -24,6 +24,7 @@ namespace DemoViewer.NET.DemoTrimmer.Tests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("RealDemo")]
 public sealed class DemoTrimRoundTripTests
 {
     /// <summary>Round count kept small so a test run stays within a few seconds of replay per variant.</summary>

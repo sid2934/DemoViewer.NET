@@ -141,6 +141,7 @@ public class LibraryPreviewTests
     ///     live render is strictly richer, and a selection is not a request to leave it.
     /// </summary>
     [Test]
+    [Category("RealDemo")]
     public async Task SelectingTheOpenDemo_LeavesTheLivePageAlone()
     {
         string demo = DemoTestHelper.RequireDemo();
@@ -182,6 +183,7 @@ public class LibraryPreviewTests
     ///     snapshot of a page that was still filling in.
     /// </summary>
     [Test]
+    [Category("RealDemo")]
     public async Task PreviewingWhileADemoIsOpen_OffersTheWayBack_AndReturningRestoresTheLivePage()
     {
         string demo = DemoTestHelper.RequireDemo();

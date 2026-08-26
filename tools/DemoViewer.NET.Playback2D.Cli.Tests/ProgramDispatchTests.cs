@@ -63,6 +63,7 @@ public class ProgramDispatchTests
     ///     </para>
     /// </summary>
     [Test]
+    [Category("RealDemo")]
     public async Task EveryOptionTheExportUsageAdvertises_IsAnOptionExportAccepts()
     {
         string demo = Dv2d.RequireDemo();

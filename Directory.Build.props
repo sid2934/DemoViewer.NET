@@ -3,6 +3,24 @@
     <ItemGroup>
         <PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all"/>
     </ItemGroup>
+
+    <!--
+        The test-tier taxonomy (docs/playback2d-v2/plans/P3-test-tiers.md), compiled into every test
+        assembly as LINKED SOURCE rather than reached through a shared test-support assembly.
+
+        Linked, because two suites cannot take the reference: the Playback2D and dv2d suites assert
+        that no Avalonia assembly is loaded in their process and that their dependency graph is
+        Avalonia-free, and a shared test-support assembly is exactly the kind of edge that silently
+        acquires one. Source has no graph.
+
+        Here rather than in six csproj files, because the guard's whole job is to catch a taxonomy
+        that has drifted — and "the new test project forgot to link the file that checks for drift"
+        is the first way that happens. A project named *.Tests gets it by existing.
+    -->
+    <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+        <Compile Include="$(MSBuildThisFileDirectory)tests/shared/*.cs" LinkBase="TestTiers"/>
+    </ItemGroup>
+
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>

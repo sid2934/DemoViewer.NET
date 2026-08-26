@@ -36,6 +36,7 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("RealDemo")]
 public class ExportHudClockTests
 {
     /// <summary>

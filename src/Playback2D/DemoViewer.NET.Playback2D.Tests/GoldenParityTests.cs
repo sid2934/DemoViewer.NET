@@ -38,6 +38,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class GoldenParityTests
 {
     // Measured on the nuke-multilevel corpus entry and written up in the review. Set just below the

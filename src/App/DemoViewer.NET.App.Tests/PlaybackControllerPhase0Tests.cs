@@ -15,6 +15,7 @@ namespace DemoViewer.NET.AppTests;
 ///     tracks the selected frame, and that a single seek does not double-fire the entity seek.
 /// </summary>
 [NotInParallel]
+[Category("RealDemo")]
 public class PlaybackControllerPhase0Tests
 {
     [Test]
