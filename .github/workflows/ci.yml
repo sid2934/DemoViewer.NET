@@ -9,6 +9,27 @@
 # nor capture Playback2D goldens from a demo (the runner has no demo files, so those cases would
 # report as skipped noise). The parser and analysis suites moved out with the libraries and now run
 # in the CS2DemoKit repo's own CI.
+#
+# ── Test tiers (docs/playback2d-v2/plans/P3-test-tiers.md) ───────────────────────────────────────────
+#
+# The repo now has three tiers — `fast`, `standard`, `full` — selected by `scripts/test.sh -t`. They
+# exist for IN-FLIGHT development, where running everything on every iteration is the cost that
+# actually gets paid. CI is not in-flight: **every lane below runs the `full` tier**, and this file
+# was deliberately left almost untouched when the tiers landed.
+#
+# Concretely: the tiers are exclusion filters over `[Category]`, and the only category any lane here
+# selects on is `Budget` — `Category!=Budget` for the correctness lanes, `Category=Budget` for the
+# budget lane. Those two are complementary, so their union is the whole suite, and the tier tags
+# added alongside (`Render`, `RealDemo`, `Integration`, `Environmental`) change neither set. Verified
+# by count at the time of the change: Playback2D `Category=Budget` 11 before and after,
+# `Category!=Budget` 497 → 503 (the six new tier-contract tests, and nothing else); dv2d
+# `Category=Budget` 2 before and after.
+#
+# Do NOT rewrite these steps as `scripts/test.sh -t full`. That would collapse the correctness and
+# budget lanes into one, and the split is load-bearing: a timing or allocation figure must never flap
+# a required check (see the `playback2d-budget` job's own comment).
+#
+# The push-to-main trigger the tier plan asks for is already below and predates it.
 name: ci
 
 on:

@@ -21,6 +21,7 @@
 | [`C1-cli.md`](C1-cli.md) | C (parallel with B2–B4) | `dv2d` tool (`render`/`export`/`bench`/`golden`/`fixture`), `TrackerFrameSource`, `HeadlessSceneRenderer`, golden corpus manifest, CI golden + budget gates | Any tick → PNG in <1 s with no app launch; CI uses `dv2d` | 1 wk |
 | [`C2-gpu-provider.md`](C2-gpu-provider.md) | C | `GpuSurfaceProvider` (ANGLE/EGL), probe + override precedence, SSIM/perceptual parity, `render-backends` CI matrix, ANGLE packaging + notices | GPU export ≥ 2× realtime at 1080p; CPU parity within perceptual tolerance | 1.5 wk |
 | [`P1-perf-instrumentation.md`](P1-perf-instrumentation.md) | P (post-C, measurement only) | `ISceneProfiler` seam on `SceneCompositor`, `ScenePerfRecorder` + `PerfReport`, `--perf` on `dv2d bench`/`export`, additive `perf` JSON block | Per-layer / per-stage breakdown of an export; §6 gates unchanged with the flag off | 0.5 wk |
+| [`P3-test-tiers.md`](P3-test-tiers.md) | P (workflow only — no product code) | `fast`/`standard`/`full` tiers over `[Category]`, the cost-tag vocabulary (`Budget` `Environmental` `Gpu` `Integration` `RealDemo` `Render`), `scripts/test.sh`, the linked `TestTiers` + `TestTierContractTests` guard, and the TUnit 0.25.21 / MTP 1.7.1 filter-grammar findings every other plan's `--treenode-filter` lines depend on | In-flight default runs in 54 s where running everything took 205 s; PR and `main` lanes provably unchanged, by count | 0.5 wk |
 
 Total ≈ 15.5 person-weeks, ~12.5 on the A+B critical path (design §9).
 
