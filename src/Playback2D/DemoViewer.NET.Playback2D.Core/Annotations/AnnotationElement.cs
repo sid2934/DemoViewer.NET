@@ -44,7 +44,172 @@ public enum EnvelopeMode
     Fade,
 
     /// <summary>Explicit From/Until ticks typed by the user.</summary>
-    Custom
+    Custom,
+
+    /// <summary>
+    ///     Replays the stroke at the cadence it was authored at, then fades it away behind itself: every
+    ///     sample carries the elapsed authoring time at which it was drawn, and each SECTION runs the
+    ///     element's own <see cref="TimeEnvelope" /> trapezoid shifted by that offset (plan D7).
+    ///     <para>
+    ///         The offsets are elapsed <b>authoring wall-clock</b>, re-based at <c>Time.FromTick</c> — not
+    ///         the tick each sample was drawn at, which is not a well-defined quantity. The playhead is
+    ///         frozen while the demo is paused, which is when most annotation happens, so every sample of
+    ///         a paused stroke shares one tick; and at <c>--speed 0.5</c> the hand moves at 1× while the
+    ///         clock moves at 0.5×. Re-basing is what makes the replay a pure function of tick, which is
+    ///         what keeps the export determinism gate green.
+    ///     </para>
+    /// </summary>
+    RealTime
+}
+
+/// <summary>
+///     One boundary in a stroke's authoring cadence: sample <paramref name="SampleIndex" /> was drawn
+///     <paramref name="TickOffset" /> ticks after the stroke began. Offsets between two boundaries are
+///     linear, so a run is a constant-speed segment and a boundary is where the speed changed.
+/// </summary>
+/// <param name="SampleIndex">Index into <see cref="AnnotationElement.Points" />.</param>
+/// <param name="TickOffset">Ticks elapsed since the first sample. Monotonically non-decreasing.</param>
+public readonly record struct TimingRun(int SampleIndex, int TickOffset);
+
+/// <summary>
+///     When each sample of a stroke was drawn, as a SPARSE run table rather than a stamp per point.
+///     <para>
+///         A boundary is emitted only where the authoring speed actually changed, so a stroke that was
+///         drawn in one continuous motion carries two entries and one that paused three times carries
+///         eight. Measured on a 1200-world-unit stroke, that is <b>+0.9 %</b> of the persisted document
+///         against <b>+26 %</b> for a fourth float on every <see cref="InkPoint" /> — and it is the
+///         better encoding, not the cheaper one: what a viewer reads as "it is replaying me" is the
+///         PAUSES, and speed variation inside one continuous motion is invisible at 64 Hz through a
+///         fading tail. A per-point stamp spends 400 near-identical deltas to record something nobody
+///         sees.
+///     </para>
+///     <para>
+///         Both queries are pure and allocation-free: they are called once per stroke per frame, on the
+///         render path that <c>AnnotationLayerTests.SteadyState_ZeroAllocations</c> holds at 0 B/frame.
+///     </para>
+/// </summary>
+/// <param name="Runs">Boundaries, ordered by <see cref="TimingRun.SampleIndex" />. May be empty.</param>
+/// <param name="DurationTicks">Ticks from the first sample to the last. 0 for an instant stroke.</param>
+public sealed record StrokeTiming(IReadOnlyList<TimingRun> Runs, int DurationTicks)
+{
+    /// <summary>No cadence recorded — the whole stroke appears at once. What a non-RealTime element has.</summary>
+    public static readonly StrokeTiming Instant = new([], 0);
+
+    /// <summary>
+    ///     Ticks after the stroke began at which <paramref name="sampleIndex" /> was drawn, interpolated
+    ///     linearly inside its run. Clamped at both ends, so an index outside the table is the nearest
+    ///     boundary's answer rather than an exception — a truncated table must degrade, not throw.
+    /// </summary>
+    /// <param name="sampleIndex">Index into the element's points.</param>
+    public int TickOffsetForSample(int sampleIndex)
+    {
+        if (Runs.Count == 0)
+        {
+            return 0;
+        }
+
+        if (sampleIndex <= Runs[0].SampleIndex)
+        {
+            return Runs[0].TickOffset;
+        }
+
+        for (int i = 1; i < Runs.Count; i++)
+        {
+            TimingRun hi = Runs[i];
+            if (sampleIndex > hi.SampleIndex)
+            {
+                continue;
+            }
+
+            TimingRun lo = Runs[i - 1];
+            int span = hi.SampleIndex - lo.SampleIndex;
+            if (span <= 0)
+            {
+                return hi.TickOffset;
+            }
+
+            long numerator = (long)(hi.TickOffset - lo.TickOffset) * (sampleIndex - lo.SampleIndex);
+            return lo.TickOffset + (int)(numerator / span);
+        }
+
+        return Runs[^1].TickOffset;
+    }
+
+    /// <summary>
+    ///     How many samples have been drawn <paramref name="elapsedTicks" /> after the stroke began.
+    ///     <para>
+    ///         <b>Monotone and continuous in the tick</b>, which is what keeps an export deterministic:
+    ///         a 30 fps render samples roughly every other tick (<c>ticksPerOutputFrame ≈ 2.13</c>), so a
+    ///         reveal that pulsed on a single tick could be skipped entirely at one frame rate and not
+    ///         another. Never returns 0 for a live stroke — a stroke that has begun has a head.
+    ///     </para>
+    /// </summary>
+    /// <param name="elapsedTicks">Ticks since the stroke began. Negative means not yet started.</param>
+    /// <param name="sampleCount">Total samples in the element.</param>
+    public int RevealedCount(int elapsedTicks, int sampleCount)
+    {
+        if (sampleCount <= 0)
+        {
+            return 0;
+        }
+
+        if (elapsedTicks < 0)
+        {
+            return 0;
+        }
+
+        if (Runs.Count == 0 || elapsedTicks >= DurationTicks)
+        {
+            return sampleCount;
+        }
+
+        for (int i = 1; i < Runs.Count; i++)
+        {
+            TimingRun hi = Runs[i];
+            if (elapsedTicks > hi.TickOffset)
+            {
+                continue;
+            }
+
+            TimingRun lo = Runs[i - 1];
+            int span = hi.TickOffset - lo.TickOffset;
+            int revealed = span <= 0
+                ? hi.SampleIndex
+                : lo.SampleIndex
+                  + (int)((long)(hi.SampleIndex - lo.SampleIndex) * (elapsedTicks - lo.TickOffset) / span);
+
+            return Math.Clamp(revealed + 1, 1, sampleCount);
+        }
+
+        return sampleCount;
+    }
+
+    /// <summary>
+    ///     Structural equality including the run table, for the same reason
+    ///     <see cref="AnnotationElement" /> compares its points element-wise: a save/load round trip must
+    ///     compare equal to what was written.
+    /// </summary>
+    /// <param name="other">The timing to compare against.</param>
+    public bool Equals(StrokeTiming? other)
+    {
+        if (other is null || DurationTicks != other.DurationTicks || Runs.Count != other.Runs.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < Runs.Count; i++)
+        {
+            if (!Runs[i].Equals(other.Runs[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(DurationTicks, Runs.Count);
 }
 
 /// <summary>One raw input sample in WORLD units. Pressure is 0..1; 0.5 when the device reports none.</summary>
@@ -201,6 +366,13 @@ public readonly record struct TimeEnvelope(int? FromTick, int? UntilTick, int Fa
 /// <param name="Time">When it is visible.</param>
 /// <param name="Points">Raw WORLD-space samples, oldest first. Never empty for a committed element.</param>
 /// <param name="Text">Label content for <see cref="AnnotationKind.Text" />; null otherwise.</param>
+/// <param name="Timing">
+///     The authoring cadence for <see cref="EnvelopeMode.RealTime" />, or null for every other element
+///     (plan D7). TRAILING and defaulted on purpose: every existing construction site is positional, and
+///     a nullable property is also what keeps the persisted v1 schema byte-identical — the DTO writes
+///     with <c>DefaultIgnoreCondition = WhenWritingNull</c>, so an element without a cadence emits no
+///     field and <c>AnnotationSchemaSnapshotTests</c> does not move.
+/// </param>
 public sealed record AnnotationElement(
     Guid Id,
     AnnotationKind Kind,
@@ -208,7 +380,8 @@ public sealed record AnnotationElement(
     SpaceRef Space,
     TimeEnvelope Time,
     IReadOnlyList<InkPoint> Points,
-    string? Text)
+    string? Text,
+    StrokeTiming? Timing = null)
 {
     /// <summary>
     ///     Structural equality, including the samples.
@@ -228,11 +401,14 @@ public sealed record AnnotationElement(
         && Space.Equals(other.Space)
         && Time.Equals(other.Time)
         && string.Equals(Text, other.Text, StringComparison.Ordinal)
+        // Timing is in BOTH members deliberately: this comparison is the one persistence uses to prove a
+        // round trip, so a cadence the writer dropped would otherwise pass every save/load test silently.
+        && Equals(Timing, other.Timing)
         && SamePoints(Points, other.Points);
 
     /// <inheritdoc />
     public override int GetHashCode() =>
-        HashCode.Combine(Id, Kind, Style, Space, Time, Text, Points.Count);
+        HashCode.Combine(Id, Kind, Style, Space, Time, Text, Points.Count, Timing);
 
     private static bool SamePoints(IReadOnlyList<InkPoint> a, IReadOnlyList<InkPoint> b)
     {
