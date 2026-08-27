@@ -150,7 +150,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     // The three above ARE IAnnotationSurface; they predate it and are internal, and an implicit
     // implementation would have to make them public. Explicit forwarding keeps the surface exactly as
     // wide as it was while letting the view ask "can this thing host ink?" instead of "is this thing a
-    // Scene2DHost?" — which is the whole of D6 finding 12.
+    // Scene2DHost?".
     void IAnnotationSurface.SetActiveTool(ToolKind kind) => SetActiveTool(kind);
 
     void IAnnotationSurface.SetSpacePanHeld(bool held) => SetSpacePanHeld(held);
@@ -510,7 +510,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         base.OnPointerPressed(e);
         ArgumentNullException.ThrowIfNull(e);
 
-        // The toolbar edits the SESSION — it has no seam to the router — so the button→tool map is
+        // The toolbar edits the SESSION (it has no seam to the router), so the button→tool map is
         // refreshed from it here, at the one moment the router reads it. Same "sampled at press time"
         // discipline as the divert expression, and it cannot go stale between a toolbar click and the
         // next gesture the way a bind-time or frame-time mirror would while the tab sits paused.
@@ -563,10 +563,10 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     ///     An OS-cancelled contact — a touch or pen lifted out of range, a system gesture, another
     ///     element taking the pointer — <b>abandons</b> the gesture.
     ///     <para>
-    ///         Cancel, never commit: nobody released anything, so treating it as a release would write a
-    ///         stroke the user did not finish. And without it the gesture stayed open with capture gone,
-    ///         so <c>OnPointerMoved</c> — which gates only on <c>IsGestureOpen</c> — kept extending the
-    ///         stroke with no button held, for as long as the pointer stayed over the surface.
+    ///         Cancel, never commit: no button was released, so treating it as a release would write a
+    ///         stroke the user did not finish. And without it the gesture stayed open with capture gone, so
+    ///         <c>OnPointerMoved</c> (which gates only on <c>IsGestureOpen</c>) kept extending the stroke
+    ///         with no button held, for as long as the pointer stayed over the surface.
     ///     </para>
     /// </summary>
     /// <param name="e">The capture-lost event.</param>

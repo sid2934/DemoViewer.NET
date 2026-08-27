@@ -22,6 +22,7 @@ namespace DemoViewer.NET.AppTests;
 ///     awaited statements; only the synchronous render goes through the headless dispatcher.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class NavStripTests
 {
     [Test]

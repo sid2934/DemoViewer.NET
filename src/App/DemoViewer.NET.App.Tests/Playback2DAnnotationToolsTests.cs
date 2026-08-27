@@ -16,7 +16,7 @@ using Microsoft.Extensions.Primitives;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     D2's authoring preferences: the recent-colour strip, the per-button pen and the <c>Custom</c>
+///     The authoring preferences: the recent-colour strip, the per-button pen and the <c>Custom</c>
 ///     envelope.
 ///     <para>
 ///         All three shipped as plumbing with no control on the end of it — a persisted key, a view-model
@@ -43,18 +43,22 @@ public class Playback2DAnnotationToolsTests
         await Assert.That(controller.RecentColors[1]).IsEqualTo("#FF00FF00");
     }
 
+    /// <summary>
+    ///     The swatch row holds eight, stated as a literal. Read off
+    ///     <c>AnnotationSessionController.MaxRecentColors</c> it passed at a cap of 2 and at 500 alike —
+    ///     the number is a UI decision and this is the test that owns it.
+    /// </summary>
     [Test]
     public async Task RecentColors_StopAtTheCap_DroppingTheOldest()
     {
         using AnnotationSessionController controller = new(null, null);
 
-        for (uint i = 0; i <= AnnotationSessionController.MaxRecentColors; i++)
+        for (uint i = 0; i <= 8; i++)
         {
             controller.RememberColor(0xFF000000u | i);
         }
 
-        await Assert.That(controller.RecentColors.Count)
-            .IsEqualTo(AnnotationSessionController.MaxRecentColors);
+        await Assert.That(controller.RecentColors.Count).IsEqualTo(8);
         await Assert.That(controller.RecentColors.Contains("#FF000000")).IsFalse()
             .Because("the first colour is the one that falls off the end");
     }
@@ -78,7 +82,7 @@ public class Playback2DAnnotationToolsTests
     /// <summary>
     ///     "Recent" means recently DRAWN WITH. A ColorPicker raises a change on every pointer move
     ///     through its spectrum, so pushing on style change filled the strip with eight shades of one
-    ///     drag; the commit is the only honest moment.
+    ///     drag; the commit is the only moment that counts as use.
     /// </summary>
     [Test]
     public async Task ACommittedStroke_PushesItsOwnColour_AndAStyleChangeDoesNot()
@@ -107,8 +111,8 @@ public class Playback2DAnnotationToolsTests
     }
 
     /// <summary>
-    ///     D2 §2.4's exit criterion, end to end: the authored window reaches settings and comes back as a
-    ///     real envelope rather than <c>TimeEnvelope.Static</c> under a different name.
+    ///     The authored window, end to end: it reaches settings and comes back as a real envelope rather
+    ///     than <c>TimeEnvelope.Static</c> under a different name.
     /// </summary>
     [Test]
     public async Task CustomWindow_RoundTripsThroughSettings()
@@ -146,8 +150,8 @@ public class Playback2DAnnotationToolsTests
     ///     profile and, with the Settings page open, re-reflecting thirty properties and twenty-one
     ///     keybind rows. A one-second colour drag was a few hundred of those on the UI thread.
     ///     <para>
-    ///         The configuration's reload token is the honest counter: it is the very thing every
-    ///         downstream <c>OnChange</c> hangs off, so counting it counts the cost.
+    ///         The configuration's reload token is the thing every downstream <c>OnChange</c> hangs off,
+    ///         so counting it counts the cost directly.
     ///     </para>
     /// </summary>
     [Test]
@@ -250,10 +254,10 @@ public class Playback2DAnnotationToolsTests
     }
 
     /// <summary>
-    ///     <b>D7's fourth mode, through the ComboBox index a user actually moves.</b> The panel's index
+    ///     <b>The Real-time mode, through the ComboBox index a user actually moves.</b> The panel's index
     ///     adapter is the only place the XAML's item order and <c>EnvelopeMode</c>'s declaration order
     ///     have to agree, and a mode that reaches the panel but not the session is a picker that changes
-    ///     nothing — the exact shape D2's Custom mode shipped in.
+    ///     nothing — the exact shape the Custom mode once shipped in.
     /// </summary>
     [Test]
     public async Task Panel_RealTime_OffersTheRelativeControls_AndReachesTheSession()
@@ -269,11 +273,13 @@ public class Playback2DAnnotationToolsTests
             await Assert.That(controller.Session.DefaultVisibility).IsEqualTo(EnvelopeMode.RealTime)
                 .Because("the panel edits the session; a mode that stops here is a decorative picker");
             await Assert.That(panel.VisibilityIndex).IsEqualTo(3)
-                .Because("the getter is a raw cast, so the XAML's item order IS the enum's");
+                .Because("the ComboBox reads the index straight back; a getter that disagreed with the "
+                         + "setter would snap the picker to the old row. That the XAML's item order IS "
+                         + "the enum's is pinned by RealTimeEnvelopeUiTests, which opens the XAML");
 
-            // in / out / hold — the three relative controls, and not Custom's absolute window. Plan D7
-            // §3: each section runs the element's own trapezoid shifted by its draw offset, so all three
-            // keep their meaning per section, while from/until would be a second answer to "when".
+            // in / out / hold — the three relative controls, and not Custom's absolute window. Each
+            // section runs the element's own trapezoid shifted by its draw offset, so all three keep
+            // their meaning per section, while from/until would be a second answer to "when".
             await Assert.That(panel.IsEnvelopeEditorVisible).IsTrue();
             await Assert.That(panel.IsHoldEnvelope).IsTrue();
             await Assert.That(panel.IsRealTimeEnvelope).IsTrue();
@@ -470,7 +476,7 @@ public class Playback2DAnnotationToolsTests
     }
 
     /// <summary>
-    ///     <b>D6 finding 26's UI half.</b> <c>AnnotationAutoSave</c> was read at runtime and had no
+    ///     <b>The UI half of <c>AnnotationAutoSave</c>.</b> The setting was read at runtime and had no
     ///     control anywhere — the same shape the opacity slider above was written to close. The toggle
     ///     lives in the toolbar's PERSISTENCE row beside the line that names the destination, because
     ///     "does this get written, and where" is one question.

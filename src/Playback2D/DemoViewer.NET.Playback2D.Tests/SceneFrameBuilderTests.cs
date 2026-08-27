@@ -78,10 +78,10 @@ public class SceneFrameBuilderTests
     }
 
     /// <summary>
-    ///     The export HUD's player cards, read off the same entities the markers are (D3b §3.2). Before
-    ///     this, health / armour / weapon / cash / K-D-A existed <b>only</b> in the App's
+    ///     The export HUD's player cards, read off the same entities the markers are. Before this,
+    ///     health / armour / weapon / cash / K-D-A existed <b>only</b> in the App's
     ///     <c>PlayerAttributes</c>, which an export and <c>dv2d</c> cannot see — so a burnt-in roster was
-    ///     not merely unimplemented, it had no data to draw.
+    ///     not just unimplemented, it had no data to draw.
     /// </summary>
     [Test]
     public async Task Roster_CarriesEachPlayersCondition_IncludingTheDead()
@@ -167,7 +167,7 @@ public class SceneFrameBuilderTests
     }
 
     /// <summary>
-    ///     The roster follows the frame's own lifetime rule (decision D6): it is one of the two pooled
+    ///     The roster follows the frame's own lifetime rule: it is one of the two pooled
     ///     slots, refilled in place. A caller that retained it would be reading the frame after next.
     /// </summary>
     [Test]
@@ -464,8 +464,8 @@ public class SceneFrameBuilderTests
 
         // The rules entity publishes its section heights, so the once-per-demo read latches on the first
         // frame. The map that publishes NONE — every single-floor map, i.e. most of them — is covered by
-        // MapWithoutSectionHeights_StopsRetrying below; B1 bounded that retry, which used to run for the
-        // whole demo.
+        // MapWithoutSectionHeights_StopsRetrying below; that retry is now bounded, where it used to run
+        // for the whole demo.
         FakeEntityView view = new FakeEntityView().Add(new FakeEntity("CCSGameRulesProxy")
             .With("m_pGameRules.m_fRoundStartTime", 0f)
             .With("m_pGameRules.m_iRoundTime", 115)
@@ -490,19 +490,19 @@ public class SceneFrameBuilderTests
         // Measured at ~72 bytes: the builder's own frame path allocates nothing (pooled lists, a cached
         // SceneMapInfo, and a clock string keyed on the rounded second), and what remains is the boxed
         // enumerator IEnumerable<IReadOnlyEntity> costs per OfClass call — an entity-read-surface cost,
-        // not the builder's. §6 makes ZERO a hard budget from B1's dv2d bench; until then this is B0's
-        // risk-register R7 ceiling, set close enough to the measurement to catch a real regression.
+        // not the builder's. §6 does not make ZERO a hard budget here; this ceiling is set close enough
+        // to the measurement to catch a real regression.
         await Assert.That(perBuild).IsLessThan(128);
     }
 
     /// <summary>
     ///     A map that publishes no <c>m_MinimapVerticalSectionHeights</c> must stop looking for them.
     ///     <para>
-    ///         B0 shipped an unbounded retry: the read only latched once at least one value resolved, so
-    ///         on the majority of maps — every single-floor one — it re-scanned eight interpolated field
-    ///         paths on every push for the entire demo. That is both wasted work and a steady-state
-    ///         allocation, in the one component whose allocation budget the whole design leans on
-    ///         (B0 review carry-forward (a)).
+    ///         A prior implementation shipped an unbounded retry: the read only latched once at least one
+    ///         value resolved, so on the majority of maps — every single-floor one — it re-scanned eight
+    ///         interpolated field paths on every push for the entire demo. That is both wasted work and a
+    ///         steady-state allocation, in the one component whose allocation budget the whole design
+    ///         leans on.
     ///     </para>
     /// </summary>
     [Test]

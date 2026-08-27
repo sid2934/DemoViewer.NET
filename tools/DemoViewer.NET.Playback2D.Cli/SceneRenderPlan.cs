@@ -133,9 +133,8 @@ internal sealed class SceneRenderPlan : IDisposable
         {
             RequireFeedableOptIns(include, annotations);
 
-            // The SAME builder `dv2d export` and the app's export use (D6 G-1). It was
-            // SceneLayerCatalog.Create — a second table holding one debug-grid layer — which is why
-            // every committed CPU golden was a picture of a grid and `--layers markers` was an error.
+            // The SAME builder `dv2d export` and the app's export use — a second table would let a
+            // golden and a real export draw two different stacks silently.
             compositor = SceneLayerCatalog.CreateSceneStack(include, exclude, annotations: annotations);
         }
         catch (ArgumentException e)
@@ -226,10 +225,10 @@ internal sealed class SceneRenderPlan : IDisposable
 
     /// <summary>
     ///     Refuses an opt-in layer this command cannot feed, <b>before</b> the compositor silently drops
-    ///     it. <c>CreateSceneStack</c> skips a starved opt-in id on purpose — an export request that
-    ///     names <c>hud.clock</c> against a source with no clock should draw no HUD rather than an empty
-    ///     box — but on a command line "I asked for it and got a PNG" must not mean "it was not there".
-    ///     Both refusals name the command that <i>can</i> draw the layer.
+    ///     it. <c>CreateSceneStack</c> skips a starved opt-in id on purpose: an export request that names
+    ///     <c>hud.clock</c> against a source with no clock should draw no HUD rather than an empty box.
+    ///     But on a command line, asking for a layer and getting a PNG must not mean it was not drawn.
+    ///     Both refusals name the command that can draw the layer.
     /// </summary>
     /// <param name="include">The resolved <c>--layers</c> / corpus-entry id set, or null.</param>
     /// <param name="annotations">The ink actually loaded, or null.</param>
@@ -260,8 +259,8 @@ internal sealed class SceneRenderPlan : IDisposable
 
             // The three HUD ids feed from an IHudDataSource, which is built over a demo's tracker
             // (ExportCommand.BuildHud): a clock, a scoreboard and a kill window are functions of a
-            // parsed match, not of a single serialized frame. A fixture carries none of it, so there is
-            // no honest way for render/golden/bench to draw them.
+            // parsed match, not of a single serialized frame. A fixture carries none of it, so
+            // render/golden/bench cannot draw them.
             if (SceneLayerIds.OptIn.Contains(id))
             {
                 throw new CliUsageException(
@@ -271,10 +270,10 @@ internal sealed class SceneRenderPlan : IDisposable
         }
     }
 
-    // B1's merge landed MapSpace + StackedLayout, so --layout stacked is now a real multi-pane render.
-    // `single` and a per-level selection are B3's SingleLayout, which has not landed: accepting either
-    // and quietly rendering the stacked set would be the worst outcome — a golden captured "with
-    // --level 1" that in fact shows every level. So anything but the default is an honest exit 6.
+    // `single` and a per-level selection need the level model's single-level layout, which is not
+    // implemented: accepting either and quietly rendering the stacked set would be the worst outcome —
+    // a golden captured "with --level 1" that in fact shows every level. So anything but the default
+    // stacked layout refuses with exit 6 instead.
     private static void RequireSingleLevelLayout(CliArgs args)
     {
         string layout = args.String("layout") ?? "stacked";

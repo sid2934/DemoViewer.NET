@@ -15,8 +15,8 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     D3b's export HUD: the roster strip, the recomposed clock, and the team-coloured kill feed. Every
-///     case here asserts <b>pixels</b> — the point of the plan is what a 720p export looks like, and a
+///     The export HUD: the roster strip, the recomposed clock, and the team-coloured kill feed. Every
+///     case here asserts <b>pixels</b>, since what matters is what a 720p export looks like, and a
 ///     layer that lays out correctly and paints in one colour would pass a geometry-only suite.
 /// </summary>
 public class ExportHudRosterTests
@@ -241,7 +241,7 @@ public class ExportHudRosterTests
     private static RosterLayer Roster(IHudDataSource data) => new(data);
 
     // The shipped size renders 14 px glyphs whose only fully-covered pixels are stems; doubling it gives
-    // solid glyph cores, so a colour assertion can be exact instead of a tolerance nobody can defend.
+    // solid glyph cores, so a colour assertion can be exact instead of needing an arbitrary tolerance.
     private static HudStyle Bigger() => new HudStyle() with { FontSizePx = 28f };
 
     private static KillFeedRow Kill(int attacker, int victim) =>

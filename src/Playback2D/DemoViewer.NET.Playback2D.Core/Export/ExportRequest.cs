@@ -17,15 +17,14 @@ namespace DemoViewer.NET.Playback2D.Core.Export;
 /// <param name="StartFrame">First source frame, inclusive.</param>
 /// <param name="EndFrame">Last source frame, inclusive.</param>
 /// <param name="Fps">Output frame rate. With <paramref name="Speed" /> it fixes the fixed timestep.</param>
-/// <param name="Size">Output pixel size. Even in both axes for <c>webm</c>/<c>mp4</c> (plan D8).</param>
+/// <param name="Size">Output pixel size. Even in both axes for <c>webm</c>/<c>mp4</c>.</param>
 /// <param name="Speed">Playback-rate multiplier; 1 is realtime.</param>
 /// <param name="FormatId">One of <see cref="ExportFormats" />. A persisted key.</param>
 /// <param name="LayerIds">
 ///     Which layers to draw. <b>Empty means "every enabled layer"</b>, minus
-///     <see cref="Layers.SceneLayerIds.OptIn" /> — those render only when named explicitly, because an
-///     export that silently burned in a scoreboard, or someone else's telestration, would be a surprise
-///     rather than a feature. That set is the one place the opt-in ids are listed; naming them here in
-///     prose is how the list drifted in the first place.
+///     <see cref="Layers.SceneLayerIds.OptIn" /> — those render only when named explicitly, so an export
+///     never silently burns in a scoreboard or someone else's telestration. That set is the one place the
+///     opt-in ids are listed.
 /// </param>
 /// <param name="Camera">How the camera moves for the whole export.</param>
 public sealed record ExportRequest(
@@ -54,7 +53,7 @@ public static class ExportFormats
     /// <summary>WebM / VP9. The default: present in LGPL ffmpeg builds, so the managed download can produce it.</summary>
     public const string WebM = "webm";
 
-    /// <summary>MP4 / H.264. Needs a GPL ffmpeg the user installed themselves (plan D9).</summary>
+    /// <summary>MP4 / H.264. Needs a GPL ffmpeg the user installed themselves.</summary>
     public const string Mp4 = "mp4";
 
     /// <summary>Animated GIF. The only format that works with no ffmpeg at all.</summary>

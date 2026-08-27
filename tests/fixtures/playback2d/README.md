@@ -46,12 +46,11 @@ all read it, and so do the direct-execution suites, so "which fixtures exist" ha
 rather than failing it, and an entry may be listed with no scene file at all while it is pending —
 which is what lets a later phase register the fixture it is going to author.
 
-That is also how a stale flag hides: pending is skipped, never failed, so nobody notices when the
-phase it was waiting on ships. Four of ten entries were pending when D6 audited the corpus, three of
-them naming owners (B1, B2, dv2d) that had all landed — including `annotated-mirage-b`, whose scene
-file did not exist, which is why **no golden anywhere covered burned-in annotations**. All three are
-cleared. The three that remain pending are pending for a reason that is written in the note and is
-not "waiting on a phase":
+A stale flag therefore hides: pending is skipped, never failed, so nothing goes red when the phase it
+was waiting on ships. Four of ten entries were pending at one point, three of them naming owners (B1,
+B2, dv2d) that had all landed — including `annotated-mirage-b`, whose scene file did not exist, so
+**no golden anywhere covered burned-in annotations**. All three are cleared. The three that remain
+pending carry a reason in the note that is not "waiting on a phase":
 
 | Entry | Why it cannot be verified by `dv2d` |
 |---|---|

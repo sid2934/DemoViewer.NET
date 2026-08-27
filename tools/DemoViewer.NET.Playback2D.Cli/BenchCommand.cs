@@ -20,10 +20,9 @@ namespace DemoViewer.NET.Playback2D.Cli;
 ///         measures from outside.
 ///     </para>
 ///     <para>
-///         <b>Seam closed at the C1 merge.</b> The measurement loop that shipped here has been absorbed
-///         into B1's <see cref="ScenePipelineBenchmark" /> (C1 deviation 7's stated merge action). This
-///         command keeps what the plan said it keeps — the JSON shape, the budget resolution and the
-///         gate — and owns no timing loop of its own. There is one harness, not two.
+///         This command owns no timing loop of its own — <see cref="ScenePipelineBenchmark" /> in
+///         Pipeline is the harness, and this keeps the JSON shape, the budget resolution and the gate.
+///         There is one harness, not two.
 ///     </para>
 /// </summary>
 internal static class BenchCommand
@@ -44,7 +43,7 @@ internal static class BenchCommand
             : SceneProvider.Build(args);
 
         // Same corpus-sidecar convention as `golden`: a bench must time the stack the golden pins,
-        // ink included, or the §6 numbers describe a scene nobody renders.
+        // ink included, or the §6 numbers describe a scene the real stack never draws.
         using SceneRenderPlan plan = SceneRenderPlan.Build(args, entry?.Size ?? source.DefaultSize,
             source.MapName, entry?.Layers,
             annotations: entry is null ? null : FixtureInk.ForCorpusEntry(entry.CorpusDirectory, entry.Name));
@@ -206,8 +205,8 @@ internal static class BenchCommand
         return entry;
     }
 
-    // The dv2d JSON shape is C1's and stays C1's (deviation 7): B1's FrameTimeStats is the source of
-    // the numbers, this is the projection onto the documented snake_case block.
+    // The dv2d JSON shape is fixed: FrameTimeStats is the source of the numbers, and this is the
+    // projection onto the documented snake_case block.
     private static JsonObject Percentiles(FrameTimeStats stats) => new()
     {
         ["p50"] = Round(stats.P50Ms),
@@ -391,8 +390,8 @@ internal static class BenchCommand
 }
 
 /// <summary>
-///     Presents the CLI's <see cref="SceneProvider" /> as the <see cref="ISceneFrameSource" /> B1's
-///     harness consumes, re-attaching the plan's decoded radar art on the way through.
+///     Presents the CLI's <see cref="SceneProvider" /> as the <see cref="ISceneFrameSource" /> the
+///     benchmark harness consumes, re-attaching the plan's decoded radar art on the way through.
 ///     <para>
 ///         The enrichment is memoised by <c>SceneRenderPlan.WithRadarArt</c>, so replaying one fixture
 ///         a few thousand times allocates nothing here — which matters, because this adapter sits

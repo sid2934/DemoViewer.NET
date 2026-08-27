@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Playback2DTests;
 /// <summary>
 ///     The session's two authoring maps: button → ink, and <see cref="EnvelopeMode" /> → envelope.
 ///     <para>
-///         The envelope half is D2 §2.4's regression. <c>Custom</c> shipped as a synonym for
+///         The envelope half guards a real regression: <c>Custom</c> shipped as a synonym for
 ///         <c>Always</c>: <c>NewElementEnvelope</c> was declared, read once, and never assigned, so the
 ///         mode changed one persisted string and nothing a user could see.
 ///     </para>
@@ -62,7 +62,7 @@ public class AnnotationSessionTests
     }
 
     /// <summary>
-    ///     D7 §3: RealTime's ELEMENT-level window is Fade's, deliberately. Each section is then rendered
+    ///     RealTime's ELEMENT-level window is Fade's, deliberately. Each section is then rendered
     ///     through this same trapezoid shifted by the offset it was drawn at, which is what lets
     ///     <c>HoldTicks</c> keep its meaning per section — hold longer than the draw and the whole stroke
     ///     stands before dissolving from the start; shorter, and it chases its own tail.
@@ -85,7 +85,7 @@ public class AnnotationSessionTests
     }
 
     /// <summary>
-    ///     D8 §1: the rate is a property of the loaded parse, so a session that has met no demo assumes
+    ///     The rate is a property of the loaded parse, so a session that has met no demo assumes
     ///     the shipped 64 and REFUSES anything that cannot be a divisor. <c>ClockIdentity.Unknown</c>
     ///     carries 0, and a zero rate turns every duration in the toolbar into an infinity.
     /// </summary>
@@ -105,7 +105,7 @@ public class AnnotationSessionTests
     }
 
     /// <summary>
-    ///     D8 §3: Round takes the resolver's window verbatim and keeps the session's own ramps — the two
+    ///     Round takes the resolver's window verbatim and keeps the session's own ramps — the two
     ///     controls the mode still offers.
     /// </summary>
     [Test]
@@ -193,7 +193,7 @@ public class AnnotationSessionTests
         await Assert.That(envelope.UntilTick).IsEqualTo(8000);
     }
 
-    /// <summary>D2 §2.4's exit criterion: Custom is no longer a second spelling of Always.</summary>
+    /// <summary>Custom is no longer a second spelling of Always.</summary>
     [Test]
     public async Task Custom_WithAWindow_IsNotStatic()
     {

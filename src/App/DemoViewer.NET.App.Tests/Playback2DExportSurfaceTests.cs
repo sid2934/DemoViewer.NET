@@ -22,9 +22,10 @@ namespace DemoViewer.NET.AppTests;
 ///     <b>The export pane, through the surface rather than through the view-model.</b>
 ///     <para>
 ///         Every rule the export dialog applies was already covered by a suite that instantiated the
-///         view-model directly — which is exactly why nobody noticed that the pane <em>had no view</em>.
-///         <c>Playback2DView</c> mounts it as a bare <c>ContentControl</c>, resolution goes through the app
-///         <c>ViewLocator</c>, and the locator matches on <c>ViewModelBase</c> while the view-model derived
+///         view-model directly, which never exercised view resolution — so the pane <em>had no view</em>
+///         and nothing caught it. <c>Playback2DView</c> mounts it as a bare <c>ContentControl</c>,
+///         resolution goes through the app <c>ViewLocator</c>, and the locator matches on
+///         <c>ViewModelBase</c> while the view-model derived
 ///         from <c>ObservableObject</c> — so the whole pane rendered as one line of fully-qualified type
 ///         name next to a Close button, for the life of the feature.
 ///     </para>
@@ -35,6 +36,7 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DExportPaneMountTests
 {
     [Test]
@@ -56,7 +58,7 @@ public class Playback2DExportPaneMountTests
                 await Assert.That(mounted.Length).IsEqualTo(1)
                     .Because("ViewLocator.Match is `data is ViewModelBase`, and the pane's VM has to be one");
 
-                // A named control INSIDE the view: proof the template was applied, not merely that a
+                // A named control INSIDE the view: proof the template was applied, not that a
                 // control of the right type was constructed.
                 await Assert.That(mounted[0].FindControl<Button>("ExportStartButton")).IsNotNull();
 
@@ -75,8 +77,8 @@ public class Playback2DExportPaneMountTests
     }
 
     /// <summary>
-    ///     The eleven labels crossed the D21 palette wall: app-chrome <c>TextDim</c> on a
-    ///     <c>Pb2dPanelBg</c> host measures 1.71:1 in Dark. Asserted on the resolved brushes rather than on
+    ///     The eleven labels sit at the edge of the palette's contrast floor: app-chrome <c>TextDim</c> on
+    ///     a <c>Pb2dPanelBg</c> host measures 1.71:1 in Dark. Asserted on the resolved brushes rather than on
     ///     the XAML text, so a token renamed out from under the pane fails here too.
     /// </summary>
     [Test]
@@ -147,6 +149,7 @@ public class Playback2DExportPaneMountTests
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DExportStatusSurfaceTests
 {
     [Test]
@@ -171,7 +174,7 @@ public class Playback2DExportStatusSurfaceTests
                 await Assert.That(status.Chip.Label).IsEqualTo("Export · 25%");
                 await Assert.That(status.ProgressFraction).IsEqualTo(0.25);
 
-                // The ETA the session has computed since B4 and the App contract had nowhere to put.
+                // The ETA the session computes but the App contract had nowhere to put.
                 await Assert.That(status.Detail).Contains("left");
                 await Assert.That(status.Detail).Contains("118 fps");
 
@@ -305,9 +308,9 @@ public class Playback2DExportStatusSurfaceTests
 }
 
 /// <summary>
-///     What the tab hands the runner for one export. The setup used to read a tab-level field the dialog
-///     had written at Start — and <c>ExportJobService.RunAsync</c> awaits the heavy-job gate before the
-///     setup closure ever runs, so a second Start had already replaced it.
+///     What the tab hands the runner for one export. See
+///     <see cref="Playback2DExportDialogTests.EachStart_CarriesItsOwnInk" /> for why this rides the
+///     request rather than a tab-level field.
 /// </summary>
 public class Playback2DExportSetupTests
 {
@@ -315,8 +318,8 @@ public class Playback2DExportSetupTests
     // theme variant off Application.Current and that AvaloniaObject.GetValue verifies dispatcher affinity.
     // That was the right observation about the wrong subject: the affinity problem belonged to the
     // PRODUCTION code, which builds this setup on the export's pool thread by contract, not to the test.
-    // Keeping the test on the UI thread hid a crash that killed every real export before frame zero
-    // (D9). It stays here because the ink assertion needs no particular thread; the thread itself is now
+    // Keeping the test on the UI thread hid a crash that killed every real export before frame zero.
+    // It stays here because the ink assertion needs no particular thread; the thread itself is now
     // pinned by TheSetup_BuildsOffTheUiThread_LikeTheRunnerDoes below.
     [Test]
     public async Task TheSetupTakesItsInkFromTheRequest_NotFromTheTab() =>
@@ -346,7 +349,7 @@ public class Playback2DExportSetupTests
     ///     <c>SceneExportRunner.RunAsync</c> calls the factory after the job has been handed to
     ///     <c>Task.Run</c> and has awaited the heavy-job gate.
     ///     <para>
-    ///         Before D9 it resolved the palette from <c>Application.Current.ActualThemeVariant</c> — a
+    ///         It used to resolve the palette from <c>Application.Current.ActualThemeVariant</c> — a
     ///         styled property — and threw <i>"Call from invalid thread"</i> for every user who pressed
     ///         Export. The application must be BUILT for this test to mean anything: with no
     ///         <c>Application.Current</c> the affinity check has nothing to verify and the old code passed

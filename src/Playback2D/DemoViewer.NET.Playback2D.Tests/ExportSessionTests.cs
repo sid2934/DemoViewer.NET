@@ -49,7 +49,7 @@ public class ExportRequestValidationTests
     [Test]
     public async Task AnFpsTheFormatCannotExpress_IsRefused()
     {
-        // 30 does not divide 100, so a GIF at 30 fps would silently become 33.3 (plan D7).
+        // 30 does not divide 100, so a GIF at 30 fps would silently become 33.3.
         await Assert.That(Refusal(ExportFixtures.Request(10, ExportFormats.Gif, fps: 30))).IsNotNull();
         await Assert.That(Refusal(ExportFixtures.Request(10, ExportFormats.Gif, fps: 20))).IsNull();
         await Assert.That(Refusal(ExportFixtures.Request(10, ExportFormats.WebM, fps: 30))).IsNull();
@@ -195,15 +195,15 @@ public class SceneExportSessionLoopTests
     ///     <para>
     ///         The loop awaits the sink between frames, so it resumes on whatever pool thread the
     ///         continuation lands on, while <c>GpuSurfaceProvider</c> is bound to the thread that made
-    ///         its EGL context. B4 was written before C2 Stage 0 merged, when export could only ever be
-    ///         handed <see cref="CpuSurfaceProvider" />; once the auto-probe could find ANGLE,
-    ///         <c>dv2d export</c> on any GPU machine died mid-run with a thread-affinity message about
-    ///         an internal invariant. Found at the B4 merge, by running CI's own export step.
+    ///         its EGL context. Export could originally only ever be handed
+    ///         <see cref="CpuSurfaceProvider" />; once the auto-probe could find ANGLE, <c>dv2d export</c>
+    ///         on any GPU machine died mid-run with a thread-affinity message about an internal invariant,
+    ///         found by running CI's own export step.
     ///     </para>
     ///     <para>
-    ///         Making GPU export work is C2 Stage 1's (the loop has to be pinned to one thread). Until
-    ///         then the contract is a refusal in the caller's vocabulary, and the CLI defaults to CPU so
-    ///         only an explicit <c>--gpu</c> reaches it.
+    ///         Making GPU export work requires pinning the loop to one thread. Until then the contract is
+    ///         a refusal in the caller's vocabulary, and the CLI defaults to CPU so only an explicit
+    ///         <c>--gpu</c> reaches it.
     ///     </para>
     /// </summary>
     [Test]
@@ -297,7 +297,7 @@ public class SceneExportSessionCancellationTests
         // Thread-safe, and NOT a plain List: with no synchronization context under the test runner,
         // Progress<T> posts every callback to the thread pool, so a report still in flight lands
         // while the assertions below read the collection. A List here is a ~30 % flaky
-        // "Collection was modified" — found by re-running this suite at the B4 merge.
+        // "Collection was modified" — found by re-running this suite repeatedly.
         ConcurrentQueue<ExportProgress> reports = [];
 
         await Assert.That(await Caught(() => new SceneExportSession(compositor).RunAsync(
@@ -352,7 +352,7 @@ public class SceneExportSessionCancellationTests
     }
 }
 
-/// <summary>Progress reporting: monotone, bounded, and honest about what it does not know yet.</summary>
+/// <summary>Progress reporting: monotone, bounded, and null where the total is not yet known.</summary>
 public class SceneExportSessionProgressTests
 {
     [Test]
@@ -423,7 +423,7 @@ public class SceneExportSessionProgressTests
 ///         There were three of those lists — <c>CreateSceneStack</c>'s <c>isHud</c> pair, the session's
 ///         <c>OptInLayerIds</c>, and <c>ExportRequest.LayerIds</c>' prose — and a layer that reached two of
 ///         them was force-enabled on every export by the third. These cases drive off
-///         <see cref="SceneLayerIds.OptIn" /> itself rather than naming ids, so D3b's <c>hud.roster</c> is
+///         <see cref="SceneLayerIds.OptIn" /> itself rather than naming ids, so a future opt-in layer like <c>hud.roster</c> is
 ///         covered by them the moment it is added.
 ///     </para>
 /// </summary>
@@ -437,7 +437,7 @@ public class ExportOptInLayerTests
 
         foreach (string id in SceneLayerIds.OptIn)
         {
-            // Opt-in without being registrable is the shape of the crash D3a fixed: the dialog named
+            // Opt-in without being registrable is the shape of a real crash: the dialog named
             // playback2d.annotations, CreateSceneStack had never heard of it, and every export under
             // shipped defaults died on "unknown layer id(s)" before rendering a frame.
             await Assert.That(SceneLayerCatalog.SceneStackIds.Contains(id, StringComparer.Ordinal))

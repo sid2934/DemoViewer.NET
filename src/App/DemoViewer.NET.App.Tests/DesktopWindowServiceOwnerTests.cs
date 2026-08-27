@@ -20,6 +20,7 @@ namespace DemoViewer.NET.AppTests;
 ///     otherwise.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class DesktopWindowServiceOwnerTests
 {
     /// <summary>Returns no notes, so opening the window never touches the network.</summary>

@@ -55,7 +55,7 @@ Known: playback2d.radar, …, hud.clock, hud.killfeed (Parameter 'include')
 Reproduced directly against `CreateSceneStack` with the exact id set the dialog produces under shipped
 defaults. The comment at `Playback2DExportDialogViewModel.cs:347-350` asserts the opposite —
 *"CreateSceneStack ignores ids it does not know how to build"* — and `SceneLayerCatalog.cs:183-190`
-is the code that disproves it. **The comment is the bug's alibi; both go.**
+is the code that disproves it. Both go.
 
 ### 2.2 …and annotations could never have been exported anyway
 
@@ -63,8 +63,7 @@ is the code that disproves it. **The comment is the bug's alibi; both go.**
 reference to it in `Services/Export/` or `Pipeline/Export/`, it is absent from `SceneStackIds`, and
 `SceneLayerCatalog.BuildLayer` has no case for it. So *Include annotations* is a checkbox that, once
 it stops throwing, still does nothing — while design §1 goal 2 promises *"render 2D playback (with
-annotations) to gif/webm/mp4"*. D3a closes the gap rather than making the checkbox honest by deleting
-it.
+annotations) to gif/webm/mp4"*. D3a closes the gap rather than deleting the checkbox.
 
 ### 2.3 `CanExport` never raises a change notification
 
@@ -235,9 +234,8 @@ Unknown team ⇒ `0` ⇒ today's `Pb2dHeadshot` red. **No kill loses a marker ov
 - **Tiers are defined by exclusion.** An untagged test is in every tier, so a new unit test needs no
   attribute. Only tag a test that is genuinely expensive, and only from `TestTiers`' vocabulary —
   `TestTierContractTests` fails on any category string outside it.
-- **Geometry is the assertion.** `Playback2DHudLayoutTests` measures rectangles and hit-tests, not
-  container shapes, *because a container-shape test passes on the broken tree*. D4 and D5 extend that
-  suite in the same style.
+- **Geometry is the assertion.** `Playback2DHudLayoutTests` measures rectangles and hit-tests rather
+  than container shapes. D4 and D5 extend that suite in the same style.
 
 ---
 

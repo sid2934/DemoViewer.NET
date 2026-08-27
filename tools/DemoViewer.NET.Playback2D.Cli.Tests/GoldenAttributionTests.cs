@@ -13,38 +13,22 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
 ///     <b>The proof obligation behind the glyph tier, for the corpus <c>dv2d golden</c> owns.</b>
+///     See <see cref="GlyphAttribution" /> for the mask and what it licenses.
 ///     <para>
-///         <see cref="GoldenTolerance.ForLabelledFrame" /> lets a budgeted handful of pixels reach 96
-///         rather than 32, and drops the worst-window SSIM floor to 0.88, on every platform that is not
-///         the one which authored the PNGs. <c>SceneGoldenTests</c> proves that is only glyph ink for
-///         the three synthetics and <c>LevelGoldenTests</c> for the two nuke goldens — but those two
-///         suites render through the Pipeline, and six corpus entries are reachable only through the
-///         CLI's own plan: the four radar-backed Mirage/Inferno frames, <c>nuke-single-upper</c>, and
-///         the 1080p <c>full-scene-budget</c>. Until this suite existed those six were relaxed by that
-///         budget and proved by nothing, which is the whole failure mode the rule is written against —
-///         a relaxed number is worth exactly what the test beside it proves.
+///         <c>SceneGoldenTests</c> and <c>LevelGoldenTests</c> discharge the same obligation for the
+///         synthetics and the nuke goldens, but both render through the Pipeline. Six corpus entries are
+///         reachable only through the CLI's own plan: the four radar-backed Mirage/Inferno frames,
+///         <c>nuke-single-upper</c>, and the 1080p <c>full-scene-budget</c>.
 ///     </para>
 ///     <para>
-///         Each entry is re-rendered with the text layers silenced, and the difference between that and
-///         the full render is an <b>exact</b> glyph-ink mask — not an approximation of one, since it is
-///         literally the set of pixels the text layers painted. Two assertions ride on it. The cheap
-///         one: outside the ink no pixel may exceed even the ±8 band. The complete one: substitute the
-///         golden's own pixels under the ink, which neutralises every allowance the tier grants, and run
-///         the result through <see cref="GoldenTolerance.DefaultPerceptual" /> with <b>nothing</b>
-///         relaxed — the 32 ceiling, the 0.5 % budget, the alpha bound and both SSIM floors. A displaced
-///         marker, a dropped smoke, a recoloured trail or a re-baked radar tile lands outside the mask
-///         and survives the substitution.
+///         <b>It renders through <see cref="GoldenCommand.PlanFor" /> and
+///         <see cref="GoldenCommand.RenderEntry" /></b> — the command's own statements, not a
+///         reproduction of them. A proof that renders a lookalike stack proves nothing about the stack
+///         the gate judges, and the two owners of these PNGs have drifted apart once already.
 ///     </para>
 ///     <para>
-///         It renders through <see cref="GoldenCommand.PlanFor" /> and
-///         <see cref="GoldenCommand.RenderEntry" /> — the command's own statements, not a reproduction
-///         of them. A proof that renders a lookalike stack proves nothing about the stack the gate
-///         judges, and the two owners of these PNGs have drifted apart once already (D6 G-1).
-///     </para>
-///     <para>
-///         It runs on every platform. On Windows the deltas are zeroes, which is worth pinning precisely
-///         because it is the assertion that goes red first if the rasteriser difference ever stops being
-///         confined to text.
+///         It runs on every platform. On Windows the deltas are zeroes, and that assertion goes red first
+///         if the rasteriser difference ever stops being confined to text.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -86,95 +70,32 @@ public class GoldenAttributionTests
         }
 
         byte[] goldenPng = await File.ReadAllBytesAsync(goldenPath);
-
-        // Whole-bitmap reads rather than GetPixel per pixel: full-scene-budget is 1920x1080, and four
-        // bitmaps' worth of per-pixel interop across 2.07 M pixels is minutes of CI time for a number
-        // one marshalled array gives in milliseconds.
-        SKColor[] golden = Pixels(goldenPng, out int width, out int height);
-        SKColor[] actual = Pixels(Render(corpus, entry, fixture, true), out _, out _);
-        SKColor[] noText = Pixels(Render(corpus, entry, fixture, false), out _, out _);
-        SKColor[] patched = new SKColor[golden.Length];
-
-        // A golden is named for its size and the render is pinned to it, so this cannot drift — but an
-        // IndexOutOfRange three lines down would be a terrible way to learn that it had.
-        if (actual.Length != golden.Length || noText.Length != golden.Length)
-        {
-            throw new InvalidOperationException(
-                $"{name}: the golden is {width}x{height} and the render is not.");
-        }
-
-        int strictCeiling = GoldenTolerance.DefaultPerceptual.OutlierChannelDelta;
-        int softCeiling = GoldenTolerance.DefaultPerceptual.MaxChannelDelta;
-        int worstOutsideInk = 0, worstUnderInk = 0, worstX = 0, worstY = 0;
-        long inkPixels = 0, overCeilingOutsideInk = 0, overCeilingUnderInk = 0;
-
-        for (int i = 0; i < golden.Length; i++)
-        {
-            SKColor e = golden[i];
-            SKColor a = actual[i];
-            bool underInk = a != noText[i];
-            int delta = Math.Max(Math.Abs(e.Red - a.Red),
-                Math.Max(Math.Abs(e.Green - a.Green), Math.Abs(e.Blue - a.Blue)));
-
-            // The glyph tier's allowance, neutralised: under the ink the golden judges itself, so
-            // whatever survives is by construction NOT a text difference.
-            patched[i] = underInk ? e : a;
-
-            if (underInk)
-            {
-                inkPixels++;
-                worstUnderInk = Math.Max(worstUnderInk, delta);
-                if (delta > strictCeiling)
-                {
-                    overCeilingUnderInk++;
-                }
-
-                continue;
-            }
-
-            if (delta > worstOutsideInk)
-            {
-                worstOutsideInk = delta;
-                worstX = i % width;
-                worstY = i / width;
-            }
-
-            if (delta > strictCeiling)
-            {
-                overCeilingOutsideInk++;
-            }
-        }
+        GlyphAttribution ink = GlyphAttribution.Measure(goldenPng,
+            Render(corpus, entry, fixture, true), Render(corpus, entry, fixture, false));
 
         // The budget read off the SHIPPING tolerance rather than restated: on the authoring platform
-        // the tier is closed and this prints 0, which is the honest number there.
+        // the tier is closed and this prints 0.
         int labels = GoldenCommand.LabelCount(fixture);
+        SKSizeI size = entry.Size;
         long budget = (long)(GoldenCommand.ToleranceFor(entry, labels, null).MaxGlyphOutlierFraction
-                             * width * height);
-        Console.WriteLine($"[attribution] {name}: {labels} labels, glyph ink {inkPixels} px; " +
-                          $"worst under ink {worstUnderInk} ({overCeilingUnderInk} over {strictCeiling}" +
-                          $" = {(labels == 0 ? 0 : overCeilingUnderInk / (double)labels):F2} per label, " +
-                          $"budget {budget} px); " +
-                          $"worst outside ink {worstOutsideInk} at ({worstX},{worstY}) " +
-                          $"({overCeilingOutsideInk} over {strictCeiling})");
+                             * size.Width * size.Height);
+        Console.WriteLine($"[attribution] {ink.Describe(name, labels)}, budget {budget} px");
 
-        // A silenced render that silenced nothing would make the whole proof vacuous on Windows, where
-        // every delta is zero and an empty mask still passes everything below. It is not hypothetical:
-        // the mask depends on MarkerLayer being findable under SceneLayerIds.Markers, and a renamed id
-        // would fail open rather than closed.
+        // The mask depends on MarkerLayer being findable under SceneLayerIds.Markers, so a renamed id
+        // would fail open. GlyphAttribution.InkPixels is the guard.
         if (labels > 0)
         {
-            await Assert.That(inkPixels).IsGreaterThan(0L);
+            await Assert.That(ink.InkPixels).IsGreaterThan(0L);
         }
 
-        // Not a tautology: the mask is "where the text layers changed the picture", and the deltas are
-        // measured against the COMMITTED golden. A geometry regression lands outside the mask.
-        await Assert.That(overCeilingOutsideInk).IsEqualTo(0L);
-        await Assert.That(worstOutsideInk).IsLessThanOrEqualTo(softCeiling);
+        await Assert.That(ink.OverCeilingOutsideInk).IsEqualTo(0L);
+        await Assert.That(ink.WorstOutsideInk)
+            .IsLessThanOrEqualTo(GoldenTolerance.DefaultPerceptual.MaxChannelDelta);
 
-        // And the whole unrelaxed policy over the glyph-patched frame — the assertion that actually
-        // licenses the budget, because it re-imposes every limit ForLabelledFrame loosens.
-        GoldenComparison strict = GoldenImageComparer.Compare(goldenPng,
-            Encode(patched, width, height), GoldenTolerance.DefaultPerceptual);
+        // The unrelaxed policy over the glyph-patched frame re-imposes every limit ForLabelledFrame
+        // loosens.
+        GoldenComparison strict = GoldenImageComparer.Compare(goldenPng, ink.GlyphPatchedPng,
+            GoldenTolerance.DefaultPerceptual);
         Console.WriteLine($"[attribution] {name} glyph-patched, unrelaxed: {strict.Summary}");
         await Assert.That(strict.FailureReason).IsNull();
     }
@@ -252,23 +173,5 @@ public class GoldenAttributionTests
         }
 
         return GoldenCommand.RenderEntry(plan, entry, fixture);
-    }
-
-    private static SKColor[] Pixels(byte[] png, out int width, out int height)
-    {
-        using SKBitmap bitmap = SKBitmap.Decode(png)
-                                ?? throw new InvalidOperationException("the image did not decode");
-        width = bitmap.Width;
-        height = bitmap.Height;
-        return bitmap.Pixels;
-    }
-
-    private static byte[] Encode(SKColor[] pixels, int width, int height)
-    {
-        using SKBitmap bitmap = new(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        bitmap.Pixels = pixels;
-        using SKImage image = SKImage.FromBitmap(bitmap);
-        using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
-        return data.ToArray();
     }
 }

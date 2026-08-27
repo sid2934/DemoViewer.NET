@@ -16,7 +16,7 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     D8 §3: <c>EnvelopeMode.Round</c> — the annotation lasts the round it was drawn in.
+///     <c>EnvelopeMode.Round</c> — the annotation lasts the round it was drawn in.
 ///     <para>
 ///         The bounds are a DEMO fact and the envelope is a Core type, so they meet at a resolver seam the
 ///         tab supplies. These tests drive the tab's real resolver over real
@@ -26,6 +26,7 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class RoundEnvelopeTests
 {
     // Three rounds, back to back. FrameIndexAtTick on the fake is tick/2 and drops anything past
@@ -190,7 +191,9 @@ public class RoundEnvelopeTests
             await Assert.That(controller.Session.DefaultVisibility).IsEqualTo(EnvelopeMode.Round)
                 .Because("the panel edits the session; a mode that stops here is a decorative picker");
             await Assert.That(panel.VisibilityIndex).IsEqualTo(4)
-                .Because("the getter is a raw cast, so the XAML's item order IS the enum's");
+                .Because("the ComboBox reads the index straight back; a getter that disagreed with the "
+                         + "setter would snap the picker to the old row. That the XAML's item order IS "
+                         + "the enum's is pinned by RealTimeEnvelopeUiTests, which opens the XAML");
 
             await Assert.That(panel.IsEnvelopeEditorVisible).IsTrue()
                 .Because("in and out still ramp a Round element in and out");

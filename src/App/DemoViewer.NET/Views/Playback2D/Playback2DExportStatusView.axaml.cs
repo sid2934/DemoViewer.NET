@@ -44,7 +44,7 @@ public partial class Playback2DExportStatusView : UserControl
         catch (Exception)
         {
             // Clipboard writes can be rejected (permission/gesture-gated hosts); surfacing a second
-            // failure over the first helps nobody.
+            // failure over the first would only obscure the diagnostics the user was trying to copy.
         }
     }
 }

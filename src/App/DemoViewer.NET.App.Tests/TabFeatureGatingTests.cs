@@ -37,6 +37,7 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class TabFeatureGatingTests
 {
     // The full Main + Diagnostics tab set (developer sees all) — static so CA1861 stays clean.

@@ -19,6 +19,7 @@ namespace DemoViewer.NET.AppTests;
 ///     and what keeps every other tab in step.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DTimelineScrubTests
 {
     [Test]

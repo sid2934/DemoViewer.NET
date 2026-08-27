@@ -23,6 +23,7 @@ namespace DemoViewer.NET.AppTests;
 ///     region contains plenty of pixels that differ from the viewport background.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DKillFeedRenderTests
 {
     private const byte BgR = 0x15, BgG = 0x18, BgB = 0x1C; // viewport background
@@ -55,7 +56,7 @@ public class Playback2DKillFeedRenderTests
             await Assert.That(vm.KillFeed.Count).IsEqualTo(3);
 
             const int Width = 900, Height = 560;
-            // Carried-forward suite: pin the LEGACY surface (plan §6.3). B1 mounts the surface in
+            // Carried-forward suite: pin the LEGACY surface. Mounting the surface happens in
             // code, so a view built without this would get the v2 host.
             Playback2DRenderer.ResetForTest(Playback2DRendererKind.Legacy);
             Playback2DView view = new()

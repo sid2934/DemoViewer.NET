@@ -10,18 +10,17 @@ namespace DemoViewer.NET.Playback2D.Core.Levels;
 ///     The resolved set of floors for the current map, and the one authority on "which floor is this
 ///     world Z on".
 ///     <para>
-///         <b>Assignment is a parity clone of <see cref="FloorSplitter.SliceIndexFor" /></b> (B1
-///         decision D-15): contains-first, then nearest by band centre. That fallback is load-bearing —
-///         a player on a ramp between bands, or standing above the highest observed band, must still be
-///         drawn <i>somewhere</i>, and the pre-v2 control's "nearest" answer is what the goldens
-///         contain. <c>MapSpaceTests</c> pins the two implementations against each other over a Z table.
+///         <b>Assignment is a parity clone of <see cref="FloorSplitter.SliceIndexFor" />.</b>
+///         Contains-first, then nearest by band centre. That fallback is load-bearing — a player on a
+///         ramp between bands, or standing above the highest observed band, must still be drawn
+///         somewhere, and the pre-v2 control's "nearest" answer is what the goldens contain.
+///         <c>MapSpaceTests</c> pins the two implementations against each other over a Z table.
 ///     </para>
 ///     <para>
-///         <b>Identity is minted, then CARRIED</b> (design risk 5). A quantized lower Z mints the id of
-///         a genuinely new band; every rebuild after that matches bands to levels by <i>overlap</i>, so
-///         a boundary drifting one or two buckets — which is what the density-valley histogram does all
-///         demo long — keeps every identity intact. See <see cref="Rebuild" /> and
-///         <see cref="MapLevelId" />.
+///         <b>Identity is minted, then CARRIED.</b> A quantized lower Z mints the id of a genuinely new
+///         band; every rebuild after that matches bands to levels by overlap, so a boundary drifting one
+///         or two buckets — which the density-valley histogram does all demo long — keeps every identity
+///         intact. See <see cref="Rebuild" /> and <see cref="MapLevelId" />.
 ///     </para>
 /// </summary>
 public sealed class MapSpace
@@ -38,7 +37,7 @@ public sealed class MapSpace
     ///     How much of the thinner of two bands must be shared before a rebuild treats them as the same
     ///     floor. A boundary drifting by one or two buckets moves the score by under 0.05 on any real
     ///     band, so identity survives drift; a genuine 1→2 split scores below this on at least one side,
-    ///     so the new floor is <c>Added</c> rather than welded onto its neighbour (plan D2, risk R1).
+    ///     so the new floor is <c>Added</c> rather than welded onto its neighbour.
     /// </summary>
     public const double MatchThreshold = 0.50;
 
@@ -75,7 +74,7 @@ public sealed class MapSpace
     /// <summary>
     ///     Quantizes a world Z to the id grid. <b>Half-up, not banker's</b>: CS2 maps sit at negative Z
     ///     routinely, and <c>Math.Round</c>'s round-half-to-even would make the rule asymmetric about
-    ///     zero — a silent identity change at exactly the boundary values (plan D1).
+    ///     zero — a silent identity change at exactly the boundary values.
     /// </summary>
     /// <param name="z">World Z.</param>
     public static double QuantizeZ(double z) => Math.Floor(z / LevelQuantum + 0.5) * LevelQuantum;
@@ -88,22 +87,20 @@ public sealed class MapSpace
     ///     The id of the level a stored <c>SpaceRef.World(LevelMinZ)</c> anchor belongs to <b>in this
     ///     space</b>. The one function annotation consumers may use to turn an anchor into a level id.
     ///     <para>
-    ///         <b>Why not <see cref="IdForZMin" />.</b> That is the MINTING rule, and <see cref="Mint" />
-    ///         walks a colliding key upward — so after a floor is lost and re-found,
-    ///         <c>level.Id != IdForZMin(level.ZMin)</c>. Every consumer that derived an id from Z instead
-    ///         of asking the space then compared a minting key against a carried identity and got false:
-    ///         world-anchored ink vanished, or drew on whichever floor happened to own the old key.
-    ///         Design §10 risk 5's stated mitigation IS this identity, so the resolution has to live
-    ///         here, where <see cref="Levels" /> is.
+    ///         Not <see cref="IdForZMin" />: that is the MINTING rule, and <see cref="Mint" /> walks a
+    ///         colliding key upward — so after a floor is lost and re-found,
+    ///         <c>level.Id != IdForZMin(level.ZMin)</c>. A consumer that derives an id from Z instead of
+    ///         asking the space compares a minting key against a carried identity and gets false:
+    ///         world-anchored ink vanishes, or draws on whichever floor happens to own the old key.
     ///     </para>
     ///     <para>
-    ///         Resolution order mirrors <see cref="LevelSetChange.TryRemapAnchor" />, and for the same
-    ///         reasons: <b>the quantized key first</b> — an anchor is stamped with
+    ///         Resolution order mirrors <see cref="LevelSetChange.TryRemapAnchor" />, for the same
+    ///         reasons. <b>The quantized key first</b>, since an anchor is stamped with
     ///         <see cref="QuantizeZ" />(level.ZMin) and real band lists are contiguous, so letting
-    ///         containment win first sinks every boundary anchor one floor — then half-open containment
-    ///         (an anchor is a band's LOWER bound, never its top), then closed containment for the top of
-    ///         the highest band, then the nearest band centre so an anchor can never belong to no level
-    ///         at all.
+    ///         containment win first would sink every boundary anchor one floor. Then half-open
+    ///         containment (an anchor is a band's LOWER bound, never its top), then closed containment
+    ///         for the top of the highest band, then the nearest band centre, so an anchor never belongs
+    ///         to no level at all.
     ///     </para>
     /// </summary>
     /// <param name="zMin">The anchor's stored level lower Z, as <c>DrawTool</c> quantized it.</param>
@@ -210,15 +207,13 @@ public sealed class MapSpace
     ///     until <paramref name="worldZ" /> has cleared that band by at least
     ///     <see cref="LevelHysteresis.SpatialBand" />.
     ///     <para>
-    ///         This is the <i>spatial</i> half of the hysteresis and carries no dwell — an entity must
-    ///         never lag its own level (plan D4). The temporal half lives in
-    ///         <see cref="LevelHysteresis" />, which is what AutoFollow's <i>view</i> decision uses.
-    ///     </para>
-    ///     <para>
-    ///         <b>The band comes from <see cref="LevelHysteresisOptions.Default" />.</b> This overload
-    ///         has no options parameter (registry §3.4) and its production caller —
-    ///         <see cref="LevelCrossingTracker" /> — has none to give. A caller that carries its own
-    ///         tuning applies the band itself; <see cref="LevelHysteresis.Update" /> does exactly that.
+    ///         This is the spatial half of the hysteresis and carries no dwell — an entity must never lag
+    ///         its own level. The temporal half lives in <see cref="LevelHysteresis" />, which is what
+    ///         AutoFollow's view decision uses. The band comes from
+    ///         <see cref="LevelHysteresisOptions.Default" />: this overload has no options parameter, and
+    ///         its production caller — <see cref="LevelCrossingTracker" /> — has none to give. A caller
+    ///         that carries its own tuning applies the band itself; <see cref="LevelHysteresis.Update" />
+    ///         does exactly that.
     ///     </para>
     ///     <para>
     ///         <b>Drawing does not go through here.</b> <c>SceneRenderContext.BelongsHere</c> uses the
@@ -301,8 +296,8 @@ public sealed class MapSpace
     ///         the caller run this every frame — and it does, because the map bundle can arrive late.
     ///     </para>
     ///     <para>
-    ///         <see cref="LastChange" /> is assigned <i>before</i> <see cref="LevelSetChanged" /> is
-    ///         raised, so a handler can read the change off the property.
+    ///         <see cref="LastChange" /> is assigned BEFORE <see cref="LevelSetChanged" /> is raised, so
+    ///         a handler can read the change off the property.
     ///     </para>
     /// </summary>
     /// <param name="bands">The floor bands, lowest first.</param>
@@ -452,9 +447,9 @@ public sealed class MapSpace
     ///         <b>Publishes a real removal.</b> <see cref="Rebuild" />'s contract is that
     ///         <see cref="LastChange" /> describes what happened before <see cref="LevelSetChanged" /> is
     ///         raised, and a reset removes every level. Publishing <see cref="LevelSetChange.None" />
-    ///         here told every handler that reconciles against it — <c>PaneSet.RetainUnarranged</c>, the
-    ///         shipped one — that nothing had gone, so a demo unload kept a pane, a camera and a picture
-    ///         cache for every floor of the demo that had just closed.
+    ///         here would tell every handler that reconciles against it — <c>PaneSet.RetainUnarranged</c>,
+    ///         the shipped one — that nothing had gone, so a demo unload would keep a pane, a camera and a
+    ///         picture cache for every floor of the demo that had just closed.
     ///     </para>
     ///     <para>
     ///         <see cref="LevelSetChange.LevelsAfter" /> stays empty, which is what makes

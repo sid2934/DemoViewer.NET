@@ -69,7 +69,7 @@ public class BudgetTests
         // the layer stack draws, vanishes entirely when nothing draws, happens with no gen-0 collection
         // in sight, and never recurs. That is the runtime tiering the loop body, not the scene
         // allocating: charging it to the budget would either make the gate flaky or force the budget
-        // above zero, and zero is the assertion worth having.
+        // above zero.
         long first = MeasureWindow(stage, fixture, time);
         long steady = MeasureWindow(stage, fixture, time);
 
@@ -98,7 +98,7 @@ public class BudgetTests
     ///         bundle's own list and short-circuit the histogram entirely. Everything §6's zero was
     ///         proving was therefore proved on the short-circuit: on the histogram path each observed
     ///         marker marked the split dirty and the next read rebuilt it in full, at a measured
-    ///         552 B/frame, for the whole demo (D6 finding 24). A one-line difference from the case
+    ///         552 B/frame, for the whole demo. A one-line difference from the case
     ///         above, because that is exactly how much of the gate was missing.
     ///     </para>
     /// </summary>
@@ -145,7 +145,7 @@ public class BudgetTests
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 512; i++)
         {
-            // The animation-frame timestamp jitters in reality, so a varying dt is the honest steady
+            // The animation-frame timestamp jitters in reality, so a varying dt matches the real steady
             // state — and it also stops MarkerSmoother.AdvanceOnce from de-duplicating the loop away.
             SceneTime frameTime = time with
             {
@@ -209,7 +209,7 @@ public class BudgetTests
     }
 
     /// <summary>
-    ///     <b>The 8 ms render budget had never seen ink</b> (plan D7 §7).
+    ///     <b>The 8 ms render budget had never seen ink.</b>
     ///     <para>
     ///         Every other case here builds <see cref="SceneStage" /> with no <c>extra</c> layers, and the
     ///         stage's fixed seven cannot include the annotation layer because it takes a session — so it

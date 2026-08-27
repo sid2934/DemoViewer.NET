@@ -24,20 +24,19 @@ public sealed class WetStroke
     /// <summary>Boundary table capacity. A stroke with fifteen pauses fits without regrowing.</summary>
     private const int InitialRunCapacity = 32;
 
-    // Where the authoring cadence gets a boundary (plan D7 §2): only where the SPEED changed, never one
-    // per sample. What a viewer reads as "it is replaying me" is the pauses, and a stamp on every point
-    // spends 400 near-identical deltas recording something nobody sees through a fading tail at 64 Hz.
+    // A boundary is placed only where the authoring SPEED changed, never one per sample — see
+    // StrokeTiming's doc comment for why that beats a stamp per point.
     //
     // The test is this sample's gap against the mean gap of the run still open, on BOTH sides, so one
     // expression catches a stop and a marked acceleration alike.
     //
     // FACTOR 2 — the hand at least halved or doubled its speed; anything gentler is the smooth variation
-    // inside one continuous motion, which §2 is explicit is invisible. FLOOR 32 ms — two DV frame-clock
-    // ticks: two gaps closer than that quantize to the same tick offset in BuildTiming, so a boundary
-    // there records a distinction the tick clock cannot express, and the ±4 ms jitter a 60 Hz event
-    // stream carries would put one on every sample. Measured against synthetic strokes, the pair is
-    // insensitive across floor 16–64 ms and factor 1.5–3: a continuous stroke lands on 2 boundaries and
-    // a telestration with three pauses on 8, which is §2's own arithmetic.
+    // inside one continuous motion and stays invisible. FLOOR 32 ms — two DV frame-clock ticks: two gaps
+    // closer than that quantize to the same tick offset in BuildTiming, so a boundary there records a
+    // distinction the tick clock cannot express, and the ±4 ms jitter a 60 Hz event stream carries would
+    // put one on every sample. Measured against synthetic strokes, the pair is insensitive across floor
+    // 16-64 ms and factor 1.5-3: a continuous stroke lands on 2 boundaries and a telestration with three
+    // pauses on 8.
     private const long SpeedChangeFactor = 2;
     private const long MinGapDeviationMs = 32;
 
@@ -213,8 +212,8 @@ public sealed class WetStroke
     }
 
     /// <summary>
-    ///     Rebases a world anchor across a level-set rebuild (plan risk S5). A rebuild that lands
-    ///     mid-gesture would otherwise leave the wet stroke pointing at a level that no longer exists.
+    ///     Rebases a world anchor across a level-set rebuild. A rebuild that lands mid-gesture would
+    ///     otherwise leave the wet stroke pointing at a level that no longer exists.
     /// </summary>
     /// <param name="zMinMap">Old quantized level ZMin → new quantized level ZMin.</param>
     public void RemapWorldLevel(IReadOnlyDictionary<double, double> zMinMap)
@@ -229,8 +228,8 @@ public sealed class WetStroke
         // The ANCHOR is rebased; the pane identity is NOT re-derived. A level that survives a rebuild
         // carries its id however far its band drifted (LevelSetChange.Remapped is identity by
         // construction), and a level that did not survive has no pane for the stroke to be drawn in — so
-        // re-minting an id out of the new ZMin could only ever produce a WRONG one, which is exactly
-        // what it did once MapSpace.Mint had bumped a colliding key.
+        // re-minting an id out of the new ZMin risks colliding with a key MapSpace.Mint has already
+        // bumped.
         Space = new SpaceRef.World(target);
         Version++;
     }
@@ -282,8 +281,8 @@ public sealed class WetStroke
                 // across exactly. Emitting only the closing half would leave the following run running
                 // straight THROUGH the pause — and stalling across a pause is the entire feature.
                 //
-                // It is also §2's arithmetic: two entries for a continuous stroke, eight for one with
-                // three pauses, which only adds up if a boundary comes in twos.
+                // Two entries for a continuous stroke, eight for one with three pauses — the count only
+                // adds up if a boundary always comes in twos.
                 _marks.Add(new CadenceMark(_prevIndex, _prevMs));
                 _marks.Add(new CadenceMark(index, elapsed));
                 _anchorIndex = index;
@@ -324,7 +323,7 @@ public sealed class AnnotationSession
     public const float DefaultAnchorWorldRadius = 96f;
 
     /// <summary>
-    ///     Default SECONDARY ink: a cool blue nobody can confuse with the amber primary. Two pens whose
+    ///     Default SECONDARY ink: a cool blue, clearly distinct from the amber primary. Two pens whose
     ///     colours look alike would make the right button's whole point invisible.
     /// </summary>
     public const uint DefaultSecondaryColorArgb = 0xFF29B6F6;
@@ -351,11 +350,9 @@ public sealed class AnnotationSession
     ///     <see cref="EnvelopeMode.RealTime" /> stroke's authoring milliseconds into tick offsets, and it
     ///     is the divisor the toolbar's second-valued duration spinners read.
     ///     <para>
-    ///         D7a shipped this as a literal 64 with an honest reason — nothing on this side of the
-    ///         <c>IToolServices</c> seam could read a rate — and it was wrong on every parse that is not
-    ///         64-tick, invisibly, for exactly as long as every duration was also SHOWN in ticks. It is a
-    ///         property of the loaded demo and not a preference, so it has no settings key: the host
-    ///         writes it from the rate it already records on <c>ClockIdentity.TickRate</c>.
+    ///         It is a property of the loaded demo and not a preference, so it has no settings key: the
+    ///         host writes it from the rate it already records on <c>ClockIdentity.TickRate</c>. The
+    ///         default above is only the fallback before the host sets it.
     ///     </para>
     ///     <para>
     ///         Non-positive is refused rather than stored. <c>ClockIdentity.Unknown</c> carries 0, and a
@@ -440,12 +437,8 @@ public sealed class AnnotationSession
     /// </summary>
     public float SampleSpacingFactor { get; set; } = 0.35f;
 
-    // WetChanged / NotifyWetChanged were DELETED here (D6 §3 dead surface). The event was raised four
-    // times per stroke by DrawTool and subscribed by nothing, in production or in a test — and every one
-    // of those four raises was immediately followed by the caller's own `s.RequestRender()`, so a
-    // subscriber added later would have repainted a surface that had just been invalidated anyway. The
-    // choice was "subscribe or delete"; adding the subscriber would have made every pointer sample
-    // repaint twice, which is the opposite of what §6's budget asks for.
+    // No WetChanged event: every mutation above is followed by the caller's own `s.RequestRender()`, so
+    // an event here would only double the repaint per sample.
 
     /// <summary>The world-space sample spacing filter for the current style.</summary>
     public float SampleSpacingWorld => SampleSpacingFor(Style);
@@ -488,9 +481,8 @@ public sealed class AnnotationSession
     /// <summary>
     ///     The envelope a new element gets, resolved against the playhead.
     ///     <para>
-    ///         <paramref name="currentTick" /> is a DV FRAME-CLOCK tick, never a CS2 server tick — the
-    ///         LiveSync servo bends the playhead between 0.75× and 1.5×, so a CS2 anchor would drift
-    ///         against what the user was looking at when they drew.
+    ///         <paramref name="currentTick" /> is a DV FRAME-CLOCK tick, never a CS2 server tick — see
+    ///         <see cref="TimeEnvelope" />'s own doc for why a CS2 tick would drift.
     ///     </para>
     /// </summary>
     /// <param name="currentTick">The playhead, in DV frame-clock ticks.</param>
@@ -509,15 +501,15 @@ public sealed class AnnotationSession
                 round.Until is { } until ? Math.Max(round.From, until) : null,
                 Math.Max(0, FadeInTicks), Math.Max(0, FadeOutTicks)),
 
-        // RealTime is Fade's envelope, deliberately and not by omission. D7 §3 renders each SECTION
-        // through this very trapezoid shifted by the offset it was drawn at, so the element-level window
-        // is the one a Fade element would have had — and HoldTicks then keeps its meaning per section:
-        // a hold that outlasts the draw shows the whole stroke at once and dissolves it from the start,
-        // and one that does not makes the stroke chase its own tail. The same control gives both.
+        // RealTime is Fade's envelope, deliberately and not by omission: each SECTION is rendered through
+        // this very trapezoid shifted by the offset it was drawn at, so the element-level window is the
+        // one a Fade element would have had — and HoldTicks then keeps its meaning per section: a hold
+        // that outlasts the draw shows the whole stroke at once and dissolves it from the start, and one
+        // that does not makes the stroke chase its own tail. The same control gives both.
         //
         // Round lands here too when the arm above declined: a warmup clip, a partial parse, a source with
         // no round_freeze_end at all. A demo without rounds has to degrade to a window that WORKS rather
-        // than to an empty or inverted one, and the pinned trapezoid is the nearest honest answer —
+        // than to an empty or inverted one, and the pinned trapezoid is the fallback that still works —
         // it opens where the user drew.
         EnvelopeMode.Fade or EnvelopeMode.RealTime or EnvelopeMode.Round =>
             TimeEnvelope.Static.PinnedTo(currentTick, HoldTicks, FadeInTicks, FadeOutTicks),

@@ -30,9 +30,9 @@ public interface ILevelRadarBinder
 ///         schema's "vertical sections" turned out to be radar sub-divisions, not storeys).
 ///     </para>
 ///     <para>
-///         B0's frame deliberately carries floor <i>inputs</i> rather than resolved levels (decision D3),
-///         so this is where the derivation happens — once per push, and rebuilding the space only when
-///         the band list actually moved.
+///         The frame deliberately carries floor inputs rather than resolved levels, so this is where the
+///         derivation happens — once per push, and rebuilding the space only when the band list actually
+///         moved.
 ///     </para>
 /// </summary>
 public sealed class MapSpaceFactory
@@ -55,8 +55,8 @@ public sealed class MapSpaceFactory
 
     /// <summary>
     ///     The binder consulted once per rebuild. Setting it re-binds on the next
-    ///     <see cref="Update" /> — which is how a late-arriving map bundle reaches the levels without a
-    ///     re-activation, exactly as the pre-v2 per-push <c>AuthoritativeFloors</c> pull did.
+    ///     <see cref="Update" />, so a late-arriving map bundle reaches the levels without a
+    ///     re-activation — exactly as the pre-v2 per-push <c>AuthoritativeFloors</c> pull did.
     /// </summary>
     public ILevelRadarBinder? RadarBinder
     {
@@ -88,14 +88,10 @@ public sealed class MapSpaceFactory
     ///         indexed pass over the markers and returns false, allocating nothing.
     ///     </para>
     ///     <para>
-    ///         <b>On both branches</b>, which it did not used to be. With a baked bundle the splitter
-    ///         short-circuits to the authoritative list and there was never anything to allocate; without
-    ///         one — every user with no map asset — each <c>Observe</c> marked the histogram dirty and the
-    ///         <c>Slices</c> read below rebuilt it from scratch every frame, at 552 B a frame forever.
-    ///         The gate did not see it because <c>BudgetTests</c> called
-    ///         <see cref="SetAuthoritativeFloors" /> first and measured the branch those users never take
-    ///         (D6 finding 24). <c>FloorSplitter</c> now recomputes out of reusable buffers and republishes
-    ///         the band list only when the bands actually moved, and the budget gate covers both branches.
+    ///         <b>Allocates nothing on either branch.</b> With a baked bundle the splitter short-circuits
+    ///         to the authoritative list. Without one — every user with no map asset —
+    ///         <c>FloorSplitter</c> recomputes out of reusable buffers and republishes the band list only
+    ///         when the bands actually moved, and <c>BudgetTests</c> covers both branches.
     ///     </para>
     /// </summary>
     /// <param name="frame">The frame being advanced to.</param>

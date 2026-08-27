@@ -262,10 +262,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Test seam: the same view-model with the host predicate injected.
-    ///     <c>OperatingSystem.IsBrowser()</c> is a JIT-folded intrinsic and cannot be faked from outside,
-    ///     and every browser-honesty statement this screen makes (D6 §4b) would otherwise be a sentence
-    ///     nobody has ever seen rendered. Same seam <c>ShellModuleFeatureGate</c> and
-    ///     <c>AnnotationSessionController</c> already use.
+    ///     <c>OperatingSystem.IsBrowser()</c> is a JIT-folded intrinsic and cannot be faked from outside, so
+    ///     without this seam every browser-specific statement this screen renders would have no test
+    ///     exercising it. Same seam <c>ShellModuleFeatureGate</c> and <c>AnnotationSessionController</c>
+    ///     already use.
     /// </summary>
     /// <param name="settings">The live settings service.</param>
     /// <param name="monitor">Its bound options monitor.</param>
@@ -349,7 +349,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         RefreshFeatureRows();
         _gate.Changed += OnGateChanged;
 
-        // The 2D keybinding rows (D1): the shipped table is the list, the resolved profile is the state.
+        // The 2D keybinding rows: the shipped table is the list, the resolved profile is the state.
         BuildKeybindRows();
         RefreshKeybindRows();
 
@@ -611,7 +611,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         }
     }
 
-    // ── 2D playback controls (D1): the keybinding surface ─────────────────────
+    // ── 2D playback controls: the keybinding surface ──────────────────────────
     // The shipped table is the row list; the RESOLVED profile is what each row displays. Every write is
     // validated before it is persisted, so the settings file can only ever hold rows that resolve — the
     // profile's drop-and-report path exists for a HAND-edited file, not for anything this screen writes.
@@ -639,15 +639,15 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Whether rebinds survive a restart. False on the browser head, where <c>SettingsService</c>
     ///     selects its fileless in-memory provider — every write lands in a dictionary that dies with the
-    ///     page (D6 §4b). A user rebinds twenty gestures, watches every one of them apply live, and loses
-    ///     the lot on refresh.
+    ///     page. A user rebinds twenty gestures, watches every one of them apply live, and loses the lot on
+    ///     refresh.
     /// </summary>
     public bool KeybindsPersist => !_isBrowser();
 
     /// <summary>
-    ///     The sentence shown when they do not, or "". Deliberately the same shape B5 wrote for
-    ///     annotations (<c>"session only — this browser tab forgets annotations when it reloads"</c>) —
-    ///     D1 shipped a second surface with the same property and did not repeat it.
+    ///     The sentence shown when they do not, or "". Deliberately the same shape used for annotations
+    ///     (<c>"session only — this browser tab forgets annotations when it reloads"</c>): this is a
+    ///     second surface with the same property, so it uses the same wording.
     /// </summary>
     public string KeybindPersistenceNote => KeybindsPersist
         ? ""
@@ -761,9 +761,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             return true;
         }
 
-        // Esc backs out. It is also a bound gesture (clear-follow / cancel), so it can never be captured
-        // this way — the reset affordance is how you get back to it, and that is the honest trade for
-        // having an escape hatch out of a mode the user may have entered by accident.
+        // Esc backs out, so it can never be captured this way even though it IS a bindable gesture
+        // (clear-follow / cancel). The reset affordance is the way to rebind it. Capture is a mode the
+        // user can enter by accident, and it must always have an exit.
         if (key == Key.Escape)
         {
             CancelKeybindCapture();
@@ -823,8 +823,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         }
 
         // Rebinding an action back to its shipped gesture REMOVES the row instead of storing a redundant
-        // one: an override is a promise to keep that key even if the default moves, and nobody means to
-        // make that promise by pressing the key that was already there.
+        // one: an override is a promise to keep that key even if the default moves, and pressing the key
+        // that was already there does not make that promise.
         Playback2DBinding? shipped = Playback2DKeymapProfile.Default.BindingFor(row.Action);
         bool isShippedGesture = shipped is { } d && d.Key == key && d.Modifiers == modifiers;
 
@@ -1536,10 +1536,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     private void AddFeatureRow(
         ObservableCollection<FeatureToggleRow> group, FeatureDescriptor descriptor, int indentLevel)
     {
-        // The PLATFORM half of the answer, which the raw IFeatureGate does not know (D6 §4b). Modules
-        // read their gate through ShellModuleFeatureGate, whose DesktopOnlyIds forces a set of ids off on
-        // the browser head — so this list showed the browser a live, ON "Video export" toggle for a
-        // capability that is refused one layer out, and flipping it did nothing at all.
+        // The PLATFORM half of the answer, which the raw IFeatureGate does not know. See
+        // FeatureToggleRow.IsPlatformUnavailable for why this matters on the browser head.
         //
         // Resolved through ShellModuleFeatureGate.DesktopOnlyIds itself rather than a second copy of the
         // list: that set is documented as "the ONE !OperatingSystem.IsBrowser() AND site for

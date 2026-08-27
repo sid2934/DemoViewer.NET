@@ -8,7 +8,7 @@ using DemoViewer.NET.Modules.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The user-facing keymap (D1). <see cref="Playback2DKeymap" /> stays a compile-time contract whose
+///     The user-facing keymap. <see cref="Playback2DKeymap" /> stays a compile-time contract whose
 ///     static constructor throws on a bad table; <see cref="Playback2DKeymapProfile" /> is the one that
 ///     composes a hand-editable settings file over it, and its whole reason to exist is that it must
 ///     <b>never</b> throw. Every case below is therefore a bad row that has to be dropped, reported, and
@@ -73,14 +73,18 @@ public class Playback2DKeymapProfileTests
             Playback2DKeymapProfile.FromOverrides(rows, out IReadOnlyList<string> rejected);
 
         Console.WriteLine("[keymap-profile] " + string.Join(" | ", rejected));
-        await Assert.That(rejected.Count).IsEqualTo(5)
-            .Because("each bad row must be reported on its own — a single 'the file is bad' is unfixable");
 
+        // Which rows, not how many: a single "the file is bad" is unfixable, and a count would also break
+        // the day the loader adds a diagnostic line beside the per-row reports.
         foreach (string row in rows)
         {
-            await Assert.That(rejected.Any(r => r.StartsWith(row, StringComparison.Ordinal))).IsTrue()
+            await Assert.That(rejected.Any(r => r.StartsWith(row + ":", StringComparison.Ordinal))).IsTrue()
                 .Because($"the report has to name the offending row: {row}");
         }
+
+        await Assert.That(rejected.Where(r => !rows.Any(row => r.StartsWith(row + ":", StringComparison.Ordinal))))
+            .IsEmpty()
+            .Because("a rejection that names no row in the file is one the user cannot act on");
 
         await Assert.That(profile.Rejected).IsEquivalentTo(rejected);
         await Assert.That(profile.Bindings).IsEquivalentTo(Playback2DKeymap.Default)
@@ -104,7 +108,13 @@ public class Playback2DKeymapProfileTests
             ["Teleport=Y", "NextRound=Shift+R", "NextRound=Ctrl+O"],
             out IReadOnlyList<string> rejected);
 
-        await Assert.That(rejected.Count).IsEqualTo(2);
+        await Assert.That(rejected.Any(r => r.StartsWith("Teleport=Y:", StringComparison.Ordinal))).IsTrue();
+        await Assert.That(rejected.Any(r => r.StartsWith("NextRound=Ctrl+O:", StringComparison.Ordinal)))
+            .IsTrue();
+        await Assert.That(rejected.Any(r => r.StartsWith("NextRound=Shift+R:", StringComparison.Ordinal)))
+            .IsFalse()
+            .Because("the good row is the one that has to survive its neighbours");
+
         await Assert.That(Resolve(profile, Key.R, KeyModifiers.Shift))
             .IsEqualTo(Playback2DAction.NextRound);
     }
@@ -128,8 +138,15 @@ public class Playback2DKeymapProfileTests
         Playback2DKeymapProfile profile = Playback2DKeymapProfile.FromOverrides(
             ["FitCamera=G", "TogglePlay=Home"], out IReadOnlyList<string> rejected);
 
-        await Assert.That(rejected.Count).IsEqualTo(2);
-        await Assert.That(rejected[0]).Contains("reserved");
+        // Both rows, each with its own reason — rather than a count and rejected[0], which pinned the
+        // order the loader happens to report in and said nothing about the second message at all.
+        Console.WriteLine("[keymap-profile] " + string.Join(" | ", rejected));
+        await Assert.That(rejected.Single(r => r.StartsWith("FitCamera=G:", StringComparison.Ordinal)))
+            .Contains("reserved")
+            .Because("a reserved action cannot be rebound, and the row has to say so");
+        await Assert.That(rejected.Single(r => r.StartsWith("TogglePlay=Home:", StringComparison.Ordinal)))
+            .Contains("FitCamera")
+            .Because("nothing else may claim a reserved gesture — and the report names what holds it");
 
         await Assert.That(profile.TryResolve(Key.Home, KeyModifiers.None, false, out Playback2DAction fit))
             .IsFalse();
@@ -207,7 +224,12 @@ public class Playback2DKeymapProfileTests
         Playback2DKeymapProfile profile = Playback2DKeymapProfile.FromOverrides(
             ["NextRound=Shift+R", "NextRound=Shift+T"], out IReadOnlyList<string> rejected);
 
-        await Assert.That(rejected.Count).IsEqualTo(1);
+        await Assert.That(rejected.Any(r => r.StartsWith("NextRound=Shift+T:", StringComparison.Ordinal)))
+            .IsTrue();
+        await Assert.That(rejected.Any(r => r.StartsWith("NextRound=Shift+R:", StringComparison.Ordinal)))
+            .IsFalse()
+            .Because("the FIRST row wins, so it is the second that must be reported");
+
         await Assert.That(Resolve(profile, Key.R, KeyModifiers.Shift)).IsEqualTo(Playback2DAction.NextRound);
     }
 

@@ -128,11 +128,10 @@ which is every element any other visibility mode produces.
   D8; on a 64-tick parse — which is every one they were written on in practice — the two spellings agree
   exactly, so no existing document is affected.)
 * Offsets are **elapsed authoring wall-clock, re-based onto the frame clock at the tick the element
-  opens** — deliberately *not* the tick each sample was drawn at. The playhead is frozen while the demo
-  is paused, which is when most annotation happens, so every sample of a paused stroke would otherwise
-  share one tick. The consequence is intended: a stroke drawn during three seconds of paused thinking
-  replays over three seconds of *demo* time, and the replay is a pure function of tick, which is what
-  makes it identical in a video export at any frame rate.
+  opens** — deliberately *not* the tick each sample was drawn at, which is frozen while the demo is
+  paused. The consequence is intended: a stroke drawn during three seconds of paused thinking replays
+  over three seconds of *demo* time, and the replay is a pure function of tick, so it is identical in a
+  video export at any frame rate.
 * An odd number of values in `runs` is a truncated pair: DemoViewer drops the orphan and keeps the rest.
   It does **not** re-order the table, so a hand-edit that breaks the sample ordering replays oddly rather
   than being silently rewritten.

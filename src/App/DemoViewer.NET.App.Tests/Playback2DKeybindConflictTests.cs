@@ -16,27 +16,16 @@ namespace DemoViewer.NET.AppTests;
 ///     <c>&lt;KeyBinding Gesture="Q" …&gt;</c> to the shell fails here instead of silently shadowing round
 ///     navigation inside the tab.
 ///     <para>
-///         B5-5's keybind audit lands here too (the plan calls the class
-///         <c>Playback2DKeymapConflictTests</c>; A1 had already shipped this one under a different name and
-///         a near-duplicate would have been two files answering the same question). The audit's own
-///         resolutions — <c>X</c> is erase, <c>E</c> is round nav, no duplicate gesture within a scope —
-///         are pinned below. Text-input suppression is A1's single global rule and is asserted where the
-///         rule lives, in <c>Playback2DKeyRoutingTests.TextBoxFocused_KeysAreNotIntercepted</c>.
+///         <b>Conflicts only.</b> Which gesture each action carries is <c>Playback2DKeymapTests</c>'
+///         business, and the shipped table's conflict-freedom is the static constructor's — restating
+///         both here once made a rebind a three-file edit, and a real duplicate threw
+///         <c>TypeInitializationException</c> before any of the three ran. The single global
+///         text-input-suppression rule is asserted where it lives, in
+///         <c>Playback2DKeyRoutingTests.TextBoxFocused_KeysAreNotIntercepted</c>.
 ///     </para>
 /// </summary>
 public class Playback2DKeybindConflictTests
 {
-    [Test]
-    public async Task Keymap_DoesNotCollideWithShellAccelerators()
-    {
-        List<(Key Key, KeyModifiers Modifiers)> shell = ParseShellGestures();
-
-        IReadOnlyList<string> conflicts = Playback2DKeymap.FindConflicts(Playback2DKeymap.Default, shell);
-
-        Console.WriteLine($"[keybind-audit] shell accelerators parsed from MainView.axaml: {shell.Count}");
-        await Assert.That(conflicts).IsEmpty();
-    }
-
     [Test]
     public async Task ShellReservedGestures_MatchesMainViewAxaml()
     {
@@ -45,74 +34,32 @@ public class Playback2DKeybindConflictTests
         HashSet<(Key, KeyModifiers)> fromSource = [.. ParseShellGestures()];
         HashSet<(Key, KeyModifiers)> declared = [.. Playback2DKeymap.ShellReservedGestures];
 
+        Console.WriteLine($"[keybind-audit] shell accelerators parsed from MainView.axaml: {fromSource.Count}");
         await Assert.That(declared.SetEquals(fromSource)).IsTrue();
     }
 
     /// <summary>
-    ///     No gesture is bound twice WITHIN a scope. This is the second, independent net behind the static
-    ///     constructor's own <c>FindConflicts</c> throw — a table whose conflict check is only ever run by
-    ///     the code that owns it has nobody watching the watchman.
+    ///     Erase and round navigation must never share a gesture. Both were once assigned <c>E</c>, "Q/E
+    ///     round nav" and "erase" colliding; whichever keys the two end up on, <b>they must not be the
+    ///     same one</b>, or picking up the pen shadows round navigation. Which key each actually is
+    ///     belongs to <c>Playback2DKeymapTests</c>; pinning it here as well would make a rebind a
+    ///     two-file edit.
     /// </summary>
     [Test]
-    public async Task NoDuplicateGesture_WithinTheKeymap()
-    {
-        HashSet<(Playback2DBindingScope, Key, KeyModifiers)> seen = [];
-        List<string> duplicates = [];
-
-        foreach (Playback2DBinding binding in Playback2DKeymap.Default)
-        {
-            if (!seen.Add((binding.Scope, binding.Key, binding.Modifiers)))
-            {
-                duplicates.Add($"{binding.Modifiers}+{binding.Key} ({binding.Scope}) → {binding.Action}");
-            }
-        }
-
-        await Assert.That(string.Join("; ", duplicates)).IsEqualTo("");
-    }
-
-    /// <summary>
-    ///     B5 D1, pinned. Design §7.5 assigned <c>E</c> to BOTH "Q/E round nav" and "erase"; the keybind
-    ///     audit is the phase that had to resolve it. Rounds keep <c>Q</c>/<c>E</c> (parity with the rest
-    ///     of the market), erase moved to <c>X</c>, which pairs coherently with <c>Ctrl+X</c> = clear all.
-    ///     A later edit re-introducing the clash fails here rather than shadowing round navigation the
-    ///     moment somebody picks up the pen.
-    /// </summary>
-    [Test]
-    public async Task EraseIsX_NotE()
+    public async Task Erase_AndRoundNav_AreDifferentGestures()
     {
         Playback2DBinding erase = Single(Playback2DAction.ToolErase);
-        await Assert.That(erase.Key).IsEqualTo(Key.X);
-        await Assert.That(erase.Modifiers).IsEqualTo(KeyModifiers.None);
-
         Playback2DBinding nextRound = Single(Playback2DAction.NextRound);
-        await Assert.That(nextRound.Key).IsEqualTo(Key.E);
-        await Assert.That(nextRound.Modifiers).IsEqualTo(KeyModifiers.None);
 
-        Playback2DBinding clearAll = Single(Playback2DAction.ClearAnnotations);
-        await Assert.That(clearAll.Key).IsEqualTo(Key.X);
-        await Assert.That(clearAll.Modifiers).IsEqualTo(KeyModifiers.Control);
+        Console.WriteLine($"[keybind-audit] erase={Playback2DKeymap.Format(erase.Key, erase.Modifiers)} "
+                          + $"nextRound={Playback2DKeymap.Format(nextRound.Key, nextRound.Modifiers)}");
+
+        await Assert.That((erase.Key, erase.Modifiers)).IsNotEqualTo((nextRound.Key, nextRound.Modifiers));
     }
 
     /// <summary>
-    ///     B5-5's <c>Space</c> resolution: play/pause normally, hold-to-pan while a drawing tool is
-    ///     active — and while a tool is active a tap must NOT also toggle playback, or every pan starts by
-    ///     un-pausing the demo under the user's pen.
-    /// </summary>
-    [Test]
-    public async Task Space_IsPlayPause_UnlessADrawingToolIsActive()
-    {
-        await Assert.That(Playback2DKeymap.TryResolve(Key.Space, KeyModifiers.None, false,
-            out Playback2DAction idle)).IsTrue();
-        await Assert.That(idle).IsEqualTo(Playback2DAction.TogglePlay);
-
-        await Assert.That(Playback2DKeymap.TryResolve(Key.Space, KeyModifiers.None, true,
-            out Playback2DAction drawing)).IsTrue();
-        await Assert.That(drawing).IsEqualTo(Playback2DAction.HoldPan);
-    }
-
-    /// <summary>
-    ///     The transport owns the arrow keys and the speed ladder, at <c>Always</c> scope. Risk 2: the
-    ///     player-card <c>ItemsControl</c> became selectable in A1, and an arrow that reached the list
+    ///     The transport owns the arrow keys and the speed ladder, at <c>Always</c> scope. The
+    ///     player-card <c>ItemsControl</c> is independently selectable, so an arrow that reaches the list
     ///     instead of the transport is a silently dead key. The routing half is
     ///     <c>Playback2DKeyRoutingTests.ArrowKeys_DoNotChangeListBoxSelection</c>; this half pins that the
     ///     table still claims them.
@@ -137,8 +84,8 @@ public class Playback2DKeybindConflictTests
     }
 
     /// <summary>
-    ///     <b>D6 finding 20 — the display formatter dropped <c>Meta</c> while the persist formatter wrote
-    ///     it.</b> A macOS user who captured ⌘+K got <c>ToolDraw=Meta+K</c> in the file, correctly, and
+    ///     <b>The display formatter dropped <c>Meta</c> while the persist formatter wrote it.</b> A
+    ///     macOS user who captured ⌘+K got <c>ToolDraw=Meta+K</c> in the file, correctly, and
     ///     read back a bare <c>"K"</c> in every Settings row, reset chip, tooltip and refusal message —
     ///     indistinguishable from an unmodified K, and from a DIFFERENT action bound to plain K.
     ///     <para>
@@ -172,7 +119,36 @@ public class Playback2DKeybindConflictTests
     }
 
     /// <summary>
-    ///     <b>D6 §4b — the browser eats some gestures before the page sees them.</b> Settings promises
+    ///     The same contract closed over EVERY modifier combination rather than three samples. Both
+    ///     spellings now come from one formatter asked for a different key half, and this is what pins
+    ///     them there: the modifier chain must be character-identical, and only the key may differ — the
+    ///     arrow glyph is the half that would not survive <c>KeyGesture.Parse</c>.
+    /// </summary>
+    [Test]
+    public async Task DisplayAndPersistedSpellings_ShareOneModifierChain()
+    {
+        for (int mask = 0; mask < 16; mask++)
+        {
+            KeyModifiers modifiers =
+                ((mask & 1) != 0 ? KeyModifiers.Control : KeyModifiers.None)
+                | ((mask & 2) != 0 ? KeyModifiers.Shift : KeyModifiers.None)
+                | ((mask & 4) != 0 ? KeyModifiers.Alt : KeyModifiers.None)
+                | ((mask & 8) != 0 ? KeyModifiers.Meta : KeyModifiers.None);
+
+            string display = Playback2DKeymap.Format(Key.Left, modifiers);
+            string gesture = Playback2DKeymapProfile
+                .Row(Playback2DAction.StepBack, Key.Left, modifiers)["StepBack=".Length..];
+
+            Console.WriteLine($"[keybind-format] {modifiers} → display='{display}' row='{gesture}'");
+
+            await Assert.That(display).IsEqualTo(gesture[..^"Left".Length] + "←")
+                .Because("one chain, two key spellings — a modifier either formatter knows alone is the "
+                         + "Meta defect coming back");
+        }
+    }
+
+    /// <summary>
+    ///     <b>The browser eats some gestures before the page sees them.</b> Settings promises
     ///     that "keys already taken … are refused with a reason"; on the WASM head a user could bind
     ///     <c>Ctrl+T</c> or <c>F12</c>, watch it persist, and never see it fire once.
     /// </summary>

@@ -5,27 +5,18 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 ///     <para>
 ///         <b>The gesture, not the selection, decides where a move goes.</b> The tool that took the press
 ///         keeps every move and the release, so switching tools or releasing Space mid-drag can never
-///         hand half a stroke to the eraser.
+///         hand half a stroke to the eraser. The button owns the whole gesture, press to release: a
+///         press from another button is refused (<see cref="OnPressed" />) and so is that button's
+///         RELEASE (<see cref="OnReleased" />) — chording is not a gesture at either end.
 ///     </para>
 ///     <para>
-///         <b>Hold-Space is sampled at press time only</b> (plan decision D3): it diverts the NEXT press
-///         to <see cref="PanZoomTool" />, and a gesture already in flight is never hijacked — a
-///         half-committed stroke is worse than a missed pan.
-///     </para>
-///     <para>
-///         <b>Wheel is router-level</b> (D2): it always applies zoom-to-cursor to the pane under the
+///         <b>Routing is decided once, at press time.</b> Hold-Space diverts the NEXT press to
+///         <see cref="PanZoomTool" /> without hijacking a gesture already in flight — a half-committed
+///         stroke is worse than a missed pan. Middle and Ctrl+drag reach <see cref="PanZoomTool" /> under
+///         every tool, and the right button reaches <see cref="SecondaryTool" />; all three are read from
+///         the same press-time expression as hold-Space, so none of them can re-route a gesture already
+///         in flight. Wheel is router-level: it always applies zoom-to-cursor to the pane under the
 ///         cursor whatever tool is selected, preserving the pre-v2 semantics byte for byte.
-///     </para>
-///     <para>
-///         <b>The button is part of the routing decision</b> (D2 §3.4): middle and Ctrl+drag reach
-///         <see cref="PanZoomTool" /> under every tool, and the right button reaches
-///         <see cref="SecondaryTool" />. All three are read from the same press-time expression as
-///         hold-Space, so none of them can re-route a gesture that is already in flight.
-///     </para>
-///     <para>
-///         <b>The button owns the whole gesture, press to release.</b> A press from another button is
-///         refused (<see cref="OnPressed" />) and so is that button's RELEASE
-///         (<see cref="OnReleased" />) — chording is not a gesture at either end.
 ///     </para>
 /// </summary>
 public sealed class InputToolRouter
@@ -59,7 +50,7 @@ public sealed class InputToolRouter
 
     /// <summary>
     ///     Whether the hold-to-pan modifier is down. Set by the host's key handlers; read only at press
-    ///     time (D3).
+    ///     time.
     /// </summary>
     public bool IsSpaceHeld { get; set; }
 
@@ -97,12 +88,10 @@ public sealed class InputToolRouter
     /// </summary>
     public bool IsDrawingToolActive => _selected is ToolKind.Draw or ToolKind.Erase;
 
-    // ActiveToolChanged was DELETED here (D6 §3 dead surface). It was a second, unread copy of a fact the
-    // app already publishes: the selection round-trips through AnnotationsPanelViewModel's own
+    // No ActiveToolChanged event: the selection round-trips through AnnotationsPanelViewModel's own
     // ObservableProperty, which is what the toolbar binds and what the View's ToolSelected wire drives
-    // INTO this router. The routed choice was "subscribe or delete"; subscribing would have closed a
-    // loop — panel → View → SetActive → back to the panel — for a fact the panel started with.
-    // SetActive still mirrors onto the session, which is the part anything downstream actually reads.
+    // INTO this router. SetActive mirrors onto the session, which is the part anything downstream
+    // actually reads.
 
     /// <summary>Registers a tool. Replacing a registered kind is allowed (a test double, a re-wire).</summary>
     /// <param name="tool">The tool.</param>
@@ -142,9 +131,9 @@ public sealed class InputToolRouter
         {
             // CHORDING IS NOT A GESTURE. A press from a DIFFERENT button while one is in flight is the
             // accidental middle-click halfway through a stroke; cancelling there would trade the ink for
-            // a pan nobody asked for. The SAME button pressing again can only mean its release went
-            // missing (a lost capture, a synthetic sequence), and that has to stay recoverable — so it
-            // still closes the stale gesture rather than interleaving two.
+            // an unintended pan. The SAME button pressing again can only mean its release went missing (a
+            // lost capture, a synthetic sequence), and that has to stay recoverable — so it still closes
+            // the stale gesture rather than interleaving two.
             if (e.Button != _gestureButton)
             {
                 return false;
@@ -153,8 +142,8 @@ public sealed class InputToolRouter
             CancelActive();
         }
 
-        // Read ONCE, at press time (D3). Every clause here is a diversion to pan; the button→tool map
-        // below is what the right button uses when nothing diverted it.
+        // Read ONCE, at press time. Every clause here is a diversion to pan; the button→tool map below
+        // is what the right button uses when nothing diverted it.
         bool divert = IsSpaceHeld
                       || (e.Modifiers & ToolModifiers.Space) != 0
                       || (PanOnMiddleButton && e.Button == ToolPointerButton.Middle)
@@ -210,7 +199,7 @@ public sealed class InputToolRouter
         return true;
     }
 
-    /// <summary>Zoom-to-cursor, under every tool (D2).</summary>
+    /// <summary>Zoom-to-cursor, under every tool.</summary>
     /// <param name="e">The wheel sample.</param>
     public void OnWheel(in ToolWheelEvent e) => _panZoom.Wheel(in e, _services);
 

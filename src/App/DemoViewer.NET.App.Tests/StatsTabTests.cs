@@ -27,6 +27,7 @@ namespace DemoViewer.NET.AppTests;
 ///     and a headless Skia render of the view producing a non-blank frame.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class StatsTabTests
 {
     private static readonly string[] _expectedColumns = ["TotalK", "ADR"];

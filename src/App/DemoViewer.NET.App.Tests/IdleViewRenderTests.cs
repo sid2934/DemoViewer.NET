@@ -21,6 +21,7 @@ namespace DemoViewer.NET.AppTests;
 ///     goes through the headless dispatcher.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class IdleViewRenderTests
 {
     [Test]

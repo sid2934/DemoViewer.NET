@@ -12,21 +12,18 @@ namespace DemoViewer.NET.Playback2DTests.Rendering;
 
 /// <summary>
 ///     The phase's headline validation: GPU output must match CPU output within the §7.3 perceptual
-///     tolerance — <b>never</b> byte equality, because a GPU legitimately rounds anti-aliased coverage
+///     tolerance — <b>never</b> byte equality, since a GPU legitimately rounds anti-aliased coverage
 ///     differently from a software rasteriser.
 ///     <para>
 ///         <b>CPU is authoritative.</b> Each fixture is checked twice: against a live CPU render (does
-///         the backend agree with the baseline <i>now</i>) and against the committed CPU golden (has the
-///         corpus drifted). Two failures that look identical from one comparison are two different bugs.
+///         the backend agree with the baseline now) and against the committed CPU golden (has the corpus
+///         drifted). Two failures that look identical from one comparison are two different bugs.
 ///     </para>
 ///     <para>
-///         <b>The corpus is no longer provisional.</b> It used to compare the clear colour plus
-///         <c>DebugGridLayer</c>'s anti-aliased grid lines, because that was the only layer
-///         <c>SceneLayerCatalog</c> could build — the AA-edge case and nothing else. The catalog now
-///         registers the real stack (D6 G-1), so these three fixtures carry what §7.2 asked for: alpha
-///         blended smoke fills, stroked trails, ring geometry and glyph ink, over the same
-///         <c>HeadlessSceneRenderer</c> the goldens are authored through. The measured numbers moved with
-///         them — see the tolerance below, which is where that is written down.
+///         These three fixtures cover the real layer stack registered by <c>SceneLayerCatalog</c>: alpha
+///         blended smoke fills, stroked trails, ring geometry and glyph ink, rendered through the same
+///         <c>HeadlessSceneRenderer</c> the goldens are authored through. The tolerance below documents
+///         the resulting numbers.
 ///     </para>
 /// </summary>
 [Category("Gpu")]
@@ -40,36 +37,22 @@ public class BackendParityTests
 
     /// <summary>
     ///     <see cref="GoldenTolerance.CrossBackend" /> with the single-pixel ceiling raised from 32 to 48,
-    ///     <b>here only</b> — the global policy is untouched, because §7.3 forbids loosening a threshold
-    ///     across the board to accommodate one corpus.
+    ///     <b>here only</b>: §7.3 forbids loosening a global threshold to accommodate one corpus.
     ///     <para>
-    ///         <b>The measurement, re-taken over the real layer stack (D6).</b> On an RTX 4070 Ti SUPER
-    ///         through ANGLE 2.1.27952 / D3D11, this corpus differs from software raster on
-    ///         <b>0.026–0.24 % of pixels</b>, worst single-channel delta <b>46</b>, alpha delta <b>0</b>,
-    ///         mean SSIM <b>0.9995</b>, and a worst 11×11 window of <b>0.899</b>
-    ///         (<c>synthetic-utility@640×360</c>; 0.930 at 1280×720, 0.972 for
-    ///         <c>synthetic-tenplayers</c>). <c>synthetic-empty</c> is identical to the byte on both
-    ///         backends.
+    ///         On an RTX 4070 Ti SUPER through ANGLE 2.1.27952 / D3D11, this corpus differs from software
+    ///         raster on <b>0.026–0.24 % of pixels</b>, worst single-channel delta <b>46</b>, alpha delta
+    ///         <b>0</b>, mean SSIM <b>0.9995</b>, worst 11×11 window <b>0.899</b> (<c>synthetic-utility</c>
+    ///         at 640×360; 0.930 at 1280×720, 0.972 for <c>synthetic-tenplayers</c>). <c>synthetic-empty</c>
+    ///         is byte-identical on both backends.
     ///     </para>
     ///     <para>
-    ///         <b>Why the window floor moved and the ceiling did not.</b> Against the old debug-grid
-    ///         corpus the differing pixels were the RIMS of shapes; against the real stack they include
-    ///         the whole INTERIOR of each alpha-blended smoke disc, because the two backends compose a
-    ///         semi-transparent fill over the background slightly differently. A uniform low-amplitude
-    ///         offset across a flat, structureless region is the one thing SSIM is worst at: it drives a
-    ///         window score down hard while representing no structural difference at all, which the diff
-    ///         image confirms — every element is present, at the same place, in the same colour. So the
-    ///         window floor goes 0.95 → 0.85 and <b>every other limit stays</b>: the 48 ceiling (measured
-    ///         46), <c>aboveCeiling</c> at 0.0000 %, alpha delta 0 against a bound of 2, and the mean SSIM
-    ///         floor. Those four are what would catch a wrong colour, a missing layer or a displaced
-    ///         element; the window floor was never the metric doing that work here.
-    ///     </para>
-    ///     <para>
-    ///         <b>Provisional, and scoped to this file.</b> C2.12 re-measures on the spike machine across
-    ///         driver families and either confirms these numbers or replaces them. Neither value may
-    ///         migrate into <see cref="GoldenTolerance.CrossBackend" /> without that: §7.3 forbids
-    ///         loosening a global threshold to accommodate one corpus, and a 0.85 window floor on the CPU
-    ///         goldens would forgive things it must not.
+    ///         The window floor moved 0.95 → 0.85 because the real layer stack's alpha-blended smoke discs
+    ///         compose slightly differently across their whole interior, not just at shape rims like the
+    ///         old debug-grid corpus: SSIM penalises that flat offset hardest even with no structural
+    ///         difference. Every other limit stays (the 48 ceiling, alpha delta 0, the mean SSIM floor),
+    ///         since those catch a wrong colour, a missing layer or a displaced element. Provisional and
+    ///         scoped to this file: re-measuring on other hardware may confirm or replace these numbers,
+    ///         but neither may migrate into <see cref="GoldenTolerance.CrossBackend" /> without it.
     ///     </para>
     /// </summary>
     private static readonly GoldenTolerance _provisionalCrossBackend =

@@ -110,7 +110,7 @@ public static class Playback2DKeymap
     ///         Deliberately a SECOND list rather than more rows in <see cref="ShellReservedGestures" />:
     ///         that one is asserted character-for-character against <c>MainView.axaml</c>'s own
     ///         <c>KeyBindings</c> block by <c>Playback2DKeybindConflictTests</c>, so anything added to it
-    ///         that the shell does not declare breaks the guard that keeps the two honest.
+    ///         that the shell does not declare breaks the test that keeps the two lists in agreement.
     ///     </para>
     ///     <para>
     ///         <b>Conservative by construction.</b> Only gestures the browser takes at CHROME level and
@@ -260,12 +260,15 @@ public static class Playback2DKeymap
         return false;
     }
 
-    // DISPLAY text, not persistence text: the arrow glyphs and "Esc" below are for human eyes and would
-    // not survive KeyGesture.Parse. Playback2DKeymapProfile.Row writes the parseable form and calls this
-    // for everything a user reads, so one formatter serves both the shipped table and a rebound one.
-    internal static string Format(Key key, KeyModifiers modifiers)
+    // The ONE gesture formatter, in two spellings of the key: display text for human eyes, and the
+    // parseable form Playback2DKeymapProfile.Row persists — the arrow glyphs and "Esc" below would not
+    // survive KeyGesture.Parse. The modifier chain is shared because it has to be: it existed twice, the
+    // copies drifted over Meta, and a macOS user who captured ⌘+K got the right row in settings.json and
+    // read "K" back in every Settings row, reset chip, tooltip and refusal — indistinguishable from a
+    // bare K, and from a DIFFERENT action bound to bare K.
+    internal static string Format(Key key, KeyModifiers modifiers, bool display = true)
     {
-        List<string> parts = new(4);
+        List<string> parts = new(5);
         if (modifiers.HasFlag(KeyModifiers.Control))
         {
             parts.Add("Ctrl");
@@ -281,16 +284,12 @@ public static class Playback2DKeymap
             parts.Add("Alt");
         }
 
-        // Meta, in the same slot and the same spelling Playback2DKeymapProfile.Row persists it in. It
-        // was missing here while Row wrote it, so a macOS user who captured ⌘+K got the right row in
-        // settings.json and read "K" back in every Settings row, reset chip, tooltip and refusal —
-        // indistinguishable from a bare K, and from a DIFFERENT action bound to bare K.
         if (modifiers.HasFlag(KeyModifiers.Meta))
         {
             parts.Add("Meta");
         }
 
-        parts.Add(KeyName(key));
+        parts.Add(display ? KeyName(key) : key.ToString());
         return string.Join("+", parts);
     }
 

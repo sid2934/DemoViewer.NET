@@ -38,8 +38,8 @@ internal sealed class FakeToolServices : IToolServices
 
     /// <summary>
     ///     The monotonic authoring clock, in milliseconds. Settable, and deliberately INDEPENDENT of
-    ///     <see cref="CurrentTick" />: driving one while the other stays frozen is how a test reproduces
-    ///     drawing on a paused demo, which is the case D7 §1 exists for.
+    ///     <see cref="CurrentTick" />, so a test can drive one while the other stays frozen — exactly what
+    ///     happens when drawing on a paused demo.
     /// </summary>
     public long NowMilliseconds { get; set; }
 

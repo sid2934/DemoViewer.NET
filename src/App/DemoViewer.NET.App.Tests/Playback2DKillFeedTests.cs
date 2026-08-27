@@ -98,8 +98,8 @@ public class Playback2DKillFeedTests
     }
 
     /// <summary>
-    ///     Design §11's snapshot test, in the form B4 D5 made possible: the XAML feed and the exported
-    ///     <c>hud.killfeed</c> layer are fed by the SAME <c>KillFeedTimeline.Window</c> call, so at every
+    ///     The snapshot test: the XAML feed and the exported <c>hud.killfeed</c> layer are fed by the SAME
+    ///     <c>KillFeedTimeline.Window</c> call, so at every
     ///     sampled tick their rows must agree exactly — not approximately, not usually.
     ///     <para>
     ///         This is the executable half of "dual-HUD drift is structurally impossible". If someone ever
@@ -333,8 +333,8 @@ public class Playback2DKillFeedTests
         public List<PlayerRosterEntry> Roster { get; } = new();
 
         /// <summary>
-        ///     The side timeline. Empty by default, which is the honest shape of a demo whose sides
-        ///     cannot be resolved — every kill then carries side 0 and both feeds render it neutrally.
+        ///     The side timeline. Empty by default, matching a demo whose sides cannot be resolved —
+        ///     every kill then carries side 0 and both feeds render it neutrally.
         /// </summary>
         public List<GameEventView> TeamTimeline { get; } = new();
 

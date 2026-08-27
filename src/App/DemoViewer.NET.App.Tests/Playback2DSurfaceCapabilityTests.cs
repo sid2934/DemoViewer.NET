@@ -12,17 +12,17 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <b>D6 finding 12 — a gate is not a capability.</b>
+///     <b>A gate is not a capability.</b>
 ///     <para>
 ///         The annotation toolbar's visibility was bound to the <c>playback2d.annotations</c> FEATURE, so
 ///         under <c>DV_PLAYBACK2D_RENDERER=legacy</c> the whole docked tool row rendered over the pre-v2
 ///         viewport — which has no <c>InputToolRouter</c>, no ink layer and no gesture to cancel. Every
 ///         button in it was inert, and one of them was worse than inert: <c>ToolDraw</c> still succeeded,
 ///         so <c>IsDrawingToolActive</c> went true, so the keymap's <c>WhenToolActive</c> rows shadowed the
-///         always-scoped ones — and <c>Space</c> → <c>HoldPan</c> and <c>Esc</c> → <c>CancelGesture</c>
+///         always-scoped ones, and <c>Space</c> → <c>HoldPan</c> and <c>Esc</c> → <c>CancelGesture</c>
 ///         both fell through a <c>is Scene2DHost</c> check and returned <b>without setting
 ///         <c>Handled</c></b>. The user lost play/pause and clear-follow with no visible cause, recoverable
-///         only by pressing D again. D4 made it more likely by docking the toolbar into permanent chrome.
+///         only by pressing D again. Docking the toolbar into permanent chrome made this more likely.
 ///     </para>
 ///     <para>
 ///         These run the REAL view under real headless key events. A view-model test cannot see this: the
@@ -30,6 +30,7 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DSurfaceCapabilityTests
 {
     /// <summary>

@@ -83,19 +83,19 @@ public readonly struct ViewportTransform
     }
 
     /// <summary>
-    ///     Builds an auto-fit transform that frames a world rectangle within the viewport with a margin
-    ///. Uniform scale preserves aspect; zoom resets to 1 and pan to 0 (the "Fit" baseline).
+    ///     Builds an auto-fit transform that frames a world rectangle within the viewport with a margin.
+    ///     Uniform scale preserves aspect; zoom resets to 1 and pan to 0 (the "Fit" baseline).
     ///     A degenerate (zero-area) extent falls back to a unit scale so the grid still renders.
     ///     <para>
     ///         <b>Non-finite in, finite out.</b> Every comparison against a <c>NaN</c> is false, so the
-    ///         degenerate-extent guard below does <i>not</i> fire for one — <c>NaN</c> would flow
-    ///         straight into <see cref="BaseScale" /> and the centre, and from there it is permanent:
-    ///         <c>SliceCamera.IsSettledAt</c> loses every comparison against a <c>NaN</c> delta, so the
-    ///         self-terminating render loop re-arms at display refresh rate forever while nothing draws
-    ///         (D6 finding 8). The producers are filtered too — <c>SceneFrameBuilder.Observe</c> rejects
-    ///         a non-finite sample rather than folding it into the observed extent — but this is the
-    ///         gate every rig funnels through (<c>FitAliveRig</c> derives its rectangle from the markers
-    ///         directly), so the camera cannot be corrupted by a producer nobody has written yet.
+    ///         degenerate-extent guard below does not fire for one: <c>NaN</c> would flow straight into
+    ///         <see cref="BaseScale" /> and the centre, and from there it is permanent, since
+    ///         <c>SliceCamera.IsSettledAt</c> loses every comparison against a <c>NaN</c> delta and the
+    ///         self-terminating render loop re-arms at display refresh rate forever while nothing draws.
+    ///         <c>SceneFrameBuilder.Observe</c> also rejects non-finite samples rather than folding them
+    ///         into the observed extent, but this is the gate every rig funnels through —
+    ///         <c>FitAliveRig</c> derives its rectangle from the markers directly — so a new producer
+    ///         that skips that filter is still caught here.
     ///     </para>
     /// </summary>
     public static ViewportTransform Fit(double viewWidth, double viewHeight,

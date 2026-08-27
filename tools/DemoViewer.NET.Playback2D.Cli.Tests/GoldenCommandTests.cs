@@ -46,16 +46,11 @@ public class GoldenCommandTests
     /// <summary>
     ///     The gate's teeth: one corrupted golden, one mismatch, exit 4, evidence on disk.
     ///     <para>
-    ///         <b>At the shipping tolerance, deliberately.</b> This used to pass <c>--tolerance
-    ///         byte-exact</c>, which made the assertion "a bit flip is not a bit-for-bit match" — true
-    ///         everywhere, and a statement about nothing the gate actually runs at. It also could not
-    ///         hold off Windows: byte-exact judges every OTHER entry too, and Skia's glyph rasteriser
-    ///         differs on Linux, so ubuntu saw all eight text-bearing entries mismatch rather than the
-    ///         one, and this case went red for a reason with nothing to do with the corruption it
-    ///         injects. Run at the per-entry
-    ///         tolerance the CI lane uses, it now asserts what it always claimed to: the budget that
-    ///         forgives cross-OS glyph edges does <b>not</b> forgive a real regression, and the other
-    ///         entries verify clean around it.
+    ///         <b>At the shipping tolerance, deliberately.</b> Skia's glyph rasteriser differs across
+    ///         operating systems, so a whole-corpus <c>--tolerance byte-exact</c> run fails all eight
+    ///         text-bearing entries on Linux, not just the one this test corrupts. Run at the per-entry
+    ///         tolerance the CI lane uses, the budget that forgives cross-OS glyph edges does
+    ///         <b>not</b> forgive a real regression, and the other entries verify clean around it.
     ///     </para>
     ///     <para>
     ///         The corruption lands at (1,1) — the frame's top-left corner, nowhere near a glyph — and
@@ -100,7 +95,7 @@ public class GoldenCommandTests
     ///         every perceptual budget — the ±8 band, both SSIM floors — so the default verify stays
     ///         green; byte-exact refuses the same corpus. Scoped to one entry with <c>--name</c> because
     ///         a whole-corpus byte-exact verify is only green on the platform that authored the PNGs,
-    ///         which is the property this flag exists to let a maintainer check <i>there</i>, not an
+    ///         which is the property this flag exists to let a maintainer check locally, not an
     ///         invariant CI can assert.
     ///     </para>
     /// </summary>
@@ -127,10 +122,9 @@ public class GoldenCommandTests
     }
 
     /// <summary>
-    ///     The glyph budget is reported, and its denominator with it. A budget whose denominator is
-    ///     invisible in the payload is a budget nobody can check against the manifest they are reading —
-    ///     and <c>above_ceiling_fraction</c> is the quantity it is spent on, which was missing from this
-    ///     payload for the whole of the round in which this lane was the one going red.
+    ///     The glyph budget is reported, and its denominator with it: a payload that omits the label
+    ///     count cannot be checked against the manifest a reader has open, and
+    ///     <c>above_ceiling_fraction</c> is the quantity that denominator is spent on.
     /// </summary>
     [Test]
     public async Task Verify_ReportsTheGlyphBudgetAndWhatSpentIt()
@@ -171,9 +165,9 @@ public class GoldenCommandTests
     {
         using CorpusCopy copy = new();
 
-        // Not synthetic-empty: since the C1 merge that entry is `pending` (see its manifest note), and a
-        // pending entry is skipped before its golden is ever looked for — which would make this case
-        // pass for the wrong reason.
+        // Not synthetic-empty: that entry is `pending` (see its manifest note), and a pending entry is
+        // skipped before its golden is ever looked for, which would make this case pass for the wrong
+        // reason.
         File.Delete(Path.Combine(copy.Path, "goldens", "cpu", "synthetic-tenplayers@640x360.png"));
         using TempDirectory diffs = new();
 

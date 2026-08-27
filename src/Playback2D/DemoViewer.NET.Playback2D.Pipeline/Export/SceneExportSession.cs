@@ -22,21 +22,16 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 ///     The export loop — design §5.7. A fixed timestep through the same layer stack the window draws,
 ///     into an <see cref="IRenderSurfaceProvider" />'s surface, out through an <see cref="IFrameSink" />.
 ///     <para>
-///         <b>It draws through <c>HeadlessSceneRenderer</c>, not through a private loop</b> (registry
-///         §3.7: one headless render entry point, never a second render path). That is also what makes a
-///         two-floor Nuke export show two bands instead of one flattened pane. It is the reason this type
-///         lives in Pipeline rather than in <c>…Core.Export</c> with the rest of §5.7's contracts — see
-///         plan deviation 1; every type it takes and every type it throws is Core's.
+///         <b>It draws through <c>HeadlessSceneRenderer</c>, never a private loop</b>: a two-floor Nuke
+///         export shows two bands instead of one flattened pane, the same picture the window draws.
+///         Every type this session takes and every type it throws is Core's.
 ///     </para>
 ///     <para>
 ///         <b>Zero steady-state allocation</b> (design §6): one surface, one pooled RGBA staging buffer,
-///         one pinned handle per frame, and a progress struct. No per-frame bitmap, no per-frame array,
-///         no LINQ.
-///     </para>
-///     <para>
-///         <b>The session disposes the sink</b>, exactly once, in a <c>finally</c> — on success, on
-///         cancellation and on failure alike. That is what kills an ffmpeg subprocess when a user
-///         cancels, so a caller must not wrap the sink in its own <c>await using</c>.
+///         one pinned handle per frame, and a progress struct — no per-frame bitmap, no per-frame array,
+///         no LINQ. <b>The session disposes the sink</b>, exactly once, in a <c>finally</c>, on success,
+///         cancellation and failure alike: that is what kills an ffmpeg subprocess on cancel, so a caller
+///         must not wrap the sink in its own <c>await using</c>.
 ///     </para>
 /// </summary>
 public sealed class SceneExportSession
@@ -45,16 +40,16 @@ public sealed class SceneExportSession
     private static readonly int[] _videoFps = [24, 25, 30, 50, 60, 64];
 
     /// <summary>
-    ///     fps values GIF can express <b>exactly</b> (plan D7). A GIF frame delay is an integer number of
+    ///     fps values GIF can express <b>exactly</b>. A GIF frame delay is an integer number of
     ///     centiseconds, so only divisors of 100 land on the requested rate; 30 and 60 would silently
     ///     become 33.3 and 50.
     /// </summary>
     private static readonly int[] _gifFps = [10, 20, 25, 50];
 
-    /// <summary>The frame ceiling for a GIF (plan D7). Above it, palettegen and ImageSharp both OOM.</summary>
+    /// <summary>The frame ceiling for a GIF. Above it, palettegen and ImageSharp both OOM.</summary>
     public const int GifMaxFrames = 1800;
 
-    /// <summary>The width ceiling for a GIF (plan D7). Wider is technically legal and practically unusable.</summary>
+    /// <summary>The width ceiling for a GIF. Wider is technically legal and practically unusable.</summary>
     public const int GifMaxWidth = 1920;
 
     private readonly SceneCompositor _compositor;
@@ -93,9 +88,9 @@ public sealed class SceneExportSession
     public bool CacheRadarResample { get; set; } = true;
 
     /// <summary>
-    ///     Optional per-stage / per-layer capture (plan <c>P1-perf-instrumentation</c>). Null — the
-    ///     default — leaves the loop byte-for-byte what it was: the compositor's profiler seam stays
-    ///     unattached and each stage costs one predicted null branch.
+    ///     Optional per-stage / per-layer capture. Null, the default, leaves the loop byte-for-byte what
+    ///     it was: the compositor's profiler seam stays unattached and each stage costs one predicted
+    ///     null branch.
     ///     <para>
     ///         With it set the loop is decomposed into <see cref="PerfStage.Source" /> (the tracker decode
     ///         and scene build), <see cref="PerfStage.Advance" />, <see cref="PerfStage.Render" />,
@@ -110,9 +105,9 @@ public sealed class SceneExportSession
     /// <summary>
     ///     The layers that are off unless <see cref="ExportRequest.LayerIds" /> names them explicitly.
     ///     <para>
-    ///         An alias, not a second list (registry §3.1): this and
-    ///         <c>SceneLayerCatalog.CreateSceneStack</c> were two hand-written pairs, and an opt-in id that
-    ///         reached only one of them was force-enabled here on every export.
+    ///         An alias, not a second list: this and <c>SceneLayerCatalog.CreateSceneStack</c> were two
+    ///         hand-written pairs, and an opt-in id that reached only one of them was force-enabled here
+    ///         on every export.
     ///     </para>
     /// </summary>
     public static IReadOnlySet<string> OptInLayerIds => SceneLayerIds.OptIn;
@@ -142,20 +137,19 @@ public sealed class SceneExportSession
 
         Validate(req);
 
-        // GPU export is C2 Stage 1's, and refusing it here is the honest form of "not yet".
+        // GPU export is not supported yet; refusing it here up front is better than failing mid-export.
         //
         // The render loop awaits the sink between frames, so after the first await it resumes on
-        // whatever pool thread the continuation lands on — while GpuSurfaceProvider is thread-affine and
-        // throws the moment its EGL context is touched from a second thread. Before C2 Stage 0 merged,
-        // export only ever saw CpuSurfaceProvider and the question could not arise; with the auto-probe
-        // now finding ANGLE, an unguarded run dies mid-export with "GpuSurfaceProvider is thread-affine:
-        // it was created on thread 2 and was used from thread 33" — a true sentence about an internal
-        // invariant, arriving after the replay, and telling the user nothing they can act on.
+        // whatever pool thread the continuation lands on, while GpuSurfaceProvider is thread-affine and
+        // throws the moment its EGL context is touched from a second thread. An unguarded run with a GPU
+        // surface dies mid-export with "GpuSurfaceProvider is thread-affine: it was created on thread 2
+        // and was used from thread 33" — true, but it arrives after the replay and tells the user nothing
+        // they can act on.
         //
-        // Making it work is not a guard's job: it needs the loop pinned to one thread, which is a
-        // redesign of this method and the measurement C2 owns. Until then this is a refusal, up front,
-        // in the caller's own vocabulary. CLI callers default to CpuRaster so it is never reached by
-        // accident; only an explicit --gpu / --backend angle gets here.
+        // Supporting it needs the loop pinned to one thread, which is a redesign of this method. Until
+        // then this is a refusal, up front, in the caller's own vocabulary. CLI callers default to
+        // CpuRaster so it is never reached by accident; only an explicit --gpu / --backend angle gets
+        // here.
         if (surfaces.Backend != RenderBackend.CpuRaster)
         {
             throw new ExportValidationException(
@@ -212,7 +206,7 @@ public sealed class SceneExportSession
 
                 // The offscreen twin of the host's one-shot fit. An export's panes are born fitted to
                 // WorldBounds.Default (±3000) because Reconcile runs before any frame has been read, and
-                // with AdvanceCameras off and — in both front ends — an empty default camera script,
+                // with AdvanceCameras off and, in both front ends, an empty default camera script,
                 // NOTHING re-framed them afterwards. Every export was framed by a placeholder.
                 //
                 // The policy still has the last word: a user who pinned a camera or asked for "mirror
@@ -364,7 +358,7 @@ public sealed class SceneExportSession
             ((req.Size.Width & 1) != 0 || (req.Size.Height & 1) != 0))
         {
             // libvpx-vp9 and libx264 with -pix_fmt yuv420p subsample chroma 2×2; an odd axis is rejected
-            // by ffmpeg itself, several seconds into an encode. Refuse it here instead (plan D8).
+            // by ffmpeg itself, several seconds into an encode. Refuse it here instead.
             throw new ExportValidationException(string.Create(CultureInfo.InvariantCulture,
                 $"{req.FormatId} needs even width and height; {req.Size.Width}×{req.Size.Height} is odd."));
         }
@@ -388,10 +382,7 @@ public sealed class SceneExportSession
         }
     }
 
-    /// <summary>
-    ///     The frame rates a format supports. GIF gets its own list because its frame delay is an integer
-    ///     number of centiseconds (plan D7); an unknown format id gets the video list.
-    /// </summary>
+    /// <summary>The frame rates a format supports. GIF gets its own list (<see cref="_gifFps" />); an unknown format id gets the video list.</summary>
     /// <param name="formatId">One of <see cref="ExportFormats" />.</param>
     public static IReadOnlyList<int> SupportedFps(string formatId) =>
         string.Equals(formatId, ExportFormats.Gif, StringComparison.Ordinal) ? _gifFps : _videoFps;
@@ -451,7 +442,7 @@ public sealed class SceneExportSession
     ///     Applies <see cref="ExportRequest.LayerIds" /> to the shared compositor for the duration of one
     ///     run and puts every layer back afterwards.
     ///     <para>
-    ///         The compositor belongs to the caller — in the app it is the live window's stack — so an
+    ///         The compositor belongs to the caller (in the app it is the live window's stack), so an
     ///         export that left the vision layer switched off would be a visible bug in the UI after the
     ///         file finished writing.
     ///     </para>

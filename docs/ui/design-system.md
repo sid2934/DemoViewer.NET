@@ -652,7 +652,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   interactive control in the docked toolbar contained in the column and `InputHitTest`-reachable at
   1400/1000/820 px, the collapse actually returning height to the surface, gate-flip stability of everything
   above the gated member, the settings round trip through the fileless (WASM) path, and gesture hints
-  following a rebind. Geometry is the assertion; a container-shape test passes on the broken tree.
+  following a rebind. Geometry is the assertion, for the reason given under
+  [`TimelineControl`](#timelinecontrol)'s footer.
 
 <a id="playback2d-keybinds"></a>
 ### Playback2D keymap (`Modules/Playback2D/Playback2DKeymap.cs`)
@@ -723,7 +724,7 @@ therefore validates, **drops, and reports** instead — `FromOverrides(rows, out
 | `Shift+Q` / `Shift+E` | Always | Previous / next kill | |
 | `F` / `Shift+F` | Always | Cycle the follow target | |
 | `D` | Always | Draw tool (press again for pan) | |
-| `X` | Always | **Erase** tool (press again for pan) | **Not `E`.** Design §7.5 assigned `E` to both round-nav and erase; the keybind audit resolved it in favour of round nav (market parity), and erase pairs coherently with `Ctrl+X` below. B5 D1, pinned by `EraseIsX_NotE`. |
+| `X` | Always | **Erase** tool (press again for pan) | **Not `E`.** Design §7.5 assigned `E` to both round-nav and erase; the keybind audit resolved it in favour of round nav (market parity), and erase pairs coherently with `Ctrl+X` below. B5 D1. The values are pinned by `Playback2DKeymapTests`; that the two never collide again, whatever keys they carry, by `Playback2DKeybindConflictTests.Erase_AndRoundNav_AreDifferentGestures`. |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | Always | Undo / redo an annotation edit | Refused while a stroke is in flight — the gesture is the user's current intent. |
 | `Ctrl+X` | Always | Clear every annotation | CS:DM parity. Collides with Cut inside a focused `TextBox`, which the text-input rule below resolves. |
 | `Esc` | Always | Clear follow + re-fit the camera | |
@@ -1195,8 +1196,7 @@ static mockup or `SvgExporter`, never a promised headless before/after.
     tunnelling `KeyDown` handler (where `Space` still has to mean play). Option (2) `WrapPanel`s both the
     tool row and the overlay row. The header's `Export…`/`Overlays ▾`/collapse cluster right-docks and is
     declared first, the NavStrip's structural reservation. What the rule *cannot* say is the part that
-    mattered most: the strip was over the CANVAS, so it moved into its own docked `Auto` row. **Reflow is
-    the answer to "too wide"; docking is the answer to "in the way."** See
+    mattered most: the strip was over the CANVAS, so it moved into its own docked `Auto` row — see
     [the viewport chrome contract](#playback2d-viewport-chrome).
 
 <a id="match-overview-page"></a>

@@ -16,8 +16,8 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     Real-time ink replay (plan D7): a stroke carrying a captured cadence draws itself on at the speed
-///     it was authored at — pauses included — and dissolves behind itself.
+///     Real-time ink replay: a stroke carrying a captured cadence draws itself on at the speed it was
+///     authored at — pauses included — and dissolves behind itself.
 ///     <para>
 ///         Every case is measured off a <b>rendered surface</b>, never off the run table. The table's own
 ///         arithmetic is <c>StrokeTiming</c>'s contract and is tested where it lives; what is unproven,
@@ -234,7 +234,8 @@ public class RealTimeInkTests
             WidthWorld = 20f
         };
 
-        // A 100-tick lead-in before tick 200. No Timing: this element predates D7 and must not notice it.
+        // A 100-tick lead-in before tick 200. No Timing set: an element authored before the cadence
+        // feature existed must still render correctly.
         using Fixture fixture = Fixture.With(new AnnotationElement(Guid.NewGuid(), AnnotationKind.Freehand,
             style, new SpaceRef.World(0), new TimeEnvelope(200, 400, 100, 0), RealTimeFakes.Line(), null));
 
@@ -290,10 +291,10 @@ public class RealTimeInkTests
     }
 
     /// <summary>
-    ///     §4's costing, kept honest. The plan priced the tail ramp at 117 µs (k=1) → 152 µs (k=8) for a
-    ///     400-sample stroke on a 1080p CPU surface, at 0 B/frame for every k, and the whole "one
-    ///     full-alpha body plus k short tail draws" shape rests on that number staying flat in the sample
-    ///     count.
+    ///     §4's costing, checked against a real run. The plan priced the tail ramp at 117 µs (k=1) →
+    ///     152 µs (k=8) for a 400-sample stroke on a 1080p CPU surface, at 0 B/frame for every k, and the
+    ///     whole "one full-alpha body plus k short tail draws" shape rests on that number staying flat in
+    ///     the sample count.
     ///     <para>
     ///         The microseconds are <b>reported, never gated</b>: a µs gate on a shared runner is a
     ///         referendum on the runner, and the gate that matters — the whole scene inside its draw

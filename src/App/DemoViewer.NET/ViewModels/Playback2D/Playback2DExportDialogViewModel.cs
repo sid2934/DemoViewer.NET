@@ -62,15 +62,9 @@ public delegate Task<FfmpegLocation> FfmpegAcquire(
 ///         installed on the machine running them.
 ///     </para>
 ///     <para>
-///         <b><see cref="ViewModelBase" />, not <c>ObservableObject</c>, and that is load-bearing.</b> The
-///         pane is mounted as <c>&lt;ContentControl Content="{Binding ExportDialog}"/&gt;</c>, which resolves
-///         its view through the app <c>ViewLocator</c> — and the locator's <c>Match</c> is
-///         <c>data is ViewModelBase</c>. As a bare <c>ObservableObject</c> nothing claimed this VM, the
-///         <c>ContentControl</c> fell through to <c>ToString()</c>, and the whole pane rendered as one line
-///         of fully-qualified type name for the life of the feature. The alternative fix — widening
-///         <c>Match</c> to <c>ObservableObject</c> — would have made the locator claim every row and item
-///         view-model in the app, most of which have no <c>…View</c> type and would have started rendering
-///         as "Not Found: …" instead of their template. The base class is the narrow end of that choice.
+///         <b><see cref="ViewModelBase" />, NOT <c>ObservableObject</c>.</b> See
+///         <see cref="ViewLocator.Match" />: a bare <c>ObservableObject</c> is claimed by no view, and the
+///         pane renders as one line of <c>ToString()</c>.
 ///     </para>
 /// </summary>
 public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDisposable
@@ -133,7 +127,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     [ObservableProperty]
     private bool _includeHud = true;
 
-    /// <summary>Whether <c>hud.clock</c> — the score, round and countdown strip — is burned in.</summary>
+    /// <summary>Whether <c>hud.clock</c> (the score, round and countdown strip) is burned in.</summary>
     [ObservableProperty]
     private bool _includeHudClock = true;
 
@@ -141,7 +135,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     [ObservableProperty]
     private bool _includeHudKillFeed = true;
 
-    /// <summary>Whether <c>hud.roster</c> — D3b's player cards down both edges — is burned in.</summary>
+    /// <summary>Whether <c>hud.roster</c> (the player cards down both edges) is burned in.</summary>
     [ObservableProperty]
     private bool _includeHudRoster = true;
 
@@ -194,16 +188,12 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     /// <param name="fileExists">Overwrite probe; defaults to <see cref="File.Exists" />.</param>
     /// <param name="captureInk">
     ///     Freezes the tab's annotation document, called <b>on Start</b> and on the UI thread, exactly like
-    ///     <paramref name="captureLiveCamera" />. The snapshot rides the request rather than a field on the
-    ///     tab: the job service awaits the heavy-job gate before the runner reads the setup, so a second
-    ///     Start — even one the gate then refuses — had already overwritten the ink the first, parked
-    ///     export was going to burn in.
+    ///     <paramref name="captureLiveCamera" />. See <see cref="Scene2DExportRequest.Ink" /> for why the
+    ///     snapshot rides the request rather than a field on the tab.
     /// </param>
     /// <param name="capturePalette">
     ///     Resolves the scene colours, called <b>on Start</b> and on the UI thread for the same reason as
-    ///     <paramref name="captureInk" /> — but a harder one: the theme is a styled property and reading it
-    ///     off the UI thread throws, which is what made every export fail before D9. See
-    ///     <see cref="Scene2DExportRequest.Palette" />.
+    ///     <paramref name="captureInk" /> — but a harder one. See <see cref="Scene2DExportRequest.Palette" />.
     /// </param>
     /// <param name="acquireFfmpeg">
     ///     Fetches the pinned LGPL build for the Download button. Null hides the button entirely, which is
@@ -289,8 +279,8 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     ///     ladder rung by name. Re-listed when the format changes, because the two ladders share no rungs.
     ///     <para>
     ///         <b><c>auto</c> is the only entry that cannot fail for an environment reason.</b> Naming a
-    ///         rung is taken literally and refused if this machine cannot run it (plan D4) — which is the
-    ///         honest behaviour, and the reason the default is not a name.
+    ///         rung is taken literally and refused if this machine cannot run it, which is why the default
+    ///         is not a name.
     ///     </para>
     /// </summary>
     public ObservableCollection<string> AvailableEncoders { get; } = [];
@@ -317,15 +307,13 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     /// <summary>
     ///     True when a pinned LGPL build exists for this machine <b>and</b> something was injected that can
     ///     fetch it, so the Download button is offered.
-    ///     <para>
-    ///         Both halves matter. The old spelling was a static that asked only the first question, and it
-    ///         was bound to a check box that was <b>ticked by default</b> and read by nothing that could
-    ///         act on it — the runner's consent callback was an optional constructor parameter its one
-    ///         production caller omitted, so the download rung short-circuited before it began. A tick box
-    ///         is not consent to fetch a 140 MB binary anyway; this is a button the user presses, and the
-    ///         licence inside the verified archive is shown before anything is written.
-    ///     </para>
     /// </summary>
+    /// <remarks>
+    ///     Both halves matter: a build being pinned for this machine says nothing about whether anything
+    ///     here can drive the download, and a tick box is not consent to fetch a 140 MB binary. This is a
+    ///     button the user presses, and the licence inside the verified archive is shown before anything is
+    ///     written.
+    /// </remarks>
     public bool CanOfferFfmpegDownload => _acquireFfmpeg is not null;
 
     /// <summary>Transfer fraction in [0,1] while the pinned build downloads.</summary>
@@ -443,7 +431,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     ///     Fetches the pinned LGPL build, shows its licence, and installs it only if the user accepts.
     ///     <para>
     ///         <b>Here rather than inside the export.</b> <c>FfmpegAcquisition</c> asks for consent
-    ///         <i>after</i> the transfer, so that the licence a user reads is the one inside the bytes
+    ///         after the transfer, so that the licence a user reads is the one inside the bytes
     ///         whose checksum was just verified — which makes it a foreground action or nothing. Wired
     ///         into the runner it would have meant a background job silently pulling 140 MB minutes after
     ///         the pane closed and then raising a modal over whatever the user had moved on to.
@@ -623,8 +611,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
         if (IncludeHud)
         {
             // Three layers, three answers. One "HUD" checkbox meant a user who wanted the clock and not a
-            // scoreboard down both edges of a 720p clip could only have both or neither, and D3b made that
-            // a real choice by adding a third layer to the same switch.
+            // scoreboard down both edges of a 720p clip could only have both or neither.
             Toggle(ids, IncludeHudClock, SceneLayerIds.HudClock);
             Toggle(ids, IncludeHudKillFeed, SceneLayerIds.HudKillFeed);
             Toggle(ids, IncludeHudRoster, SceneLayerIds.HudRoster);
@@ -632,11 +619,11 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
 
         if (IncludeAnnotations)
         {
-            // B2's ink. The constant, not the string it spells: the literal was the same nine characters
-            // and STILL not an id CreateSceneStack knew, which is how every export under shipped defaults
-            // died on "unknown layer id(s): playback2d.annotations" before it rendered a frame (D3a).
-            // Naming it here is only half of it — the tab has to hand the setup a document too, or the
-            // layer is asked for with nothing to feed it and is skipped.
+            // The constant, not the string it spells: the literal was the same nine characters and STILL
+            // not an id CreateSceneStack knew, so it failed with "unknown layer id(s):
+            // playback2d.annotations" before rendering a frame. Naming it here is only half of it — the tab
+            // has to hand the setup a document too, or the layer is asked for with nothing to feed it and
+            // is skipped.
             ids.Add(SceneLayerIds.Annotations);
         }
 
@@ -787,8 +774,8 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
         ErrorBanner = Validate();
 
         // Computed even when the dialog is refusing for another reason: the two banners answer different
-        // questions and hiding the remark behind the refusal would make it appear only once the refusal
-        // was fixed, which is exactly when it stops being new information.
+        // questions, and hiding the remark behind the refusal would only surface it once the refusal was
+        // fixed.
         NoticeBanner = Notice();
 
         OnPropertyChanged(nameof(CanStart));
@@ -874,9 +861,9 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     }
 
     // No mention of the in-app download here: whether that rung exists on this machine is a question only
-    // CanOfferFfmpegDownload can answer, and the button it gates is right below this text. Naming it in
-    // prose that also renders on macOS and Linux — where nothing is pinned — is how the pane came to
-    // advertise a capability that could not run.
+    // CanOfferFfmpegDownload can answer, and the button it gates is right below this text. This prose also
+    // renders on macOS and Linux, where nothing is pinned, so naming the download here would advertise a
+    // capability that cannot run there.
     private static string BuildFfmpegInstructions()
     {
         string install = OperatingSystem.IsWindows()

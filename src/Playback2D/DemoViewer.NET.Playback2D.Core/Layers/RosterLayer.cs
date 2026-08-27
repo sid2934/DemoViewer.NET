@@ -12,25 +12,19 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 /// <summary>
 ///     The export HUD's player cards: T down one edge of the frame, CT down the other, each card carrying
 ///     the tag, health, armour, weapon, cash and K/D of one player — the strip that makes a 720p export
-///     read as a broadcast clip rather than as dots on a map (plan D3b item 3.1.1).
+///     read as a broadcast clip rather than as dots on a map.
 ///     <para>
-///         <b>Off unless requested</b>, like the other two HUD layers: registered only when
+///         <b>Off unless requested, and drawn once per pane.</b> Registered only when
 ///         <c>ExportRequest.LayerIds</c> names <c>hud.roster</c>, and skipped outright when no HUD source
-///         was supplied to feed it.
+///         was supplied to feed it. Like <see cref="ClockLayer.IsTopBand" />, it renders once per band
+///         rather than once per pane, so a roster on a two-level Nuke export isn't five players claiming
+///         to be in two places.
 ///     </para>
 ///     <para>
-///         <b>One pane, not one per pane</b> — <see cref="ClockLayer.IsTopBand" />, for the same reason the
-///         clock uses it: the compositor renders every layer once per band, and a roster repeated on each
-///         floor of a two-level Nuke export would be five players claiming to be in two places.
-///     </para>
-///     <para>
-///         <b>It yields to the map.</b> The cards are sized against the pane, not against the style, and
-///         when even a shrunk card would take a fifth of the width or a row would fall under legibility the
-///         layer draws <i>nothing</i>. A roster that swallows the radar is worse than no roster, and the
-///         64×48 fixture renders in the export suite are exactly that case.
-///     </para>
-///     <para>
-///         <b>No per-frame shaping</b> (design §6): every composed number is memoised by value, so a
+///         <b>It yields to the map, cheaply.</b> Cards are sized against the pane, not against the style,
+///         and when even a shrunk card would take a fifth of the width or a row would fall under
+///         legibility the layer draws nothing — a roster that swallows the radar is worse than no roster,
+///         the case the 64×48 fixture renders exercise. Every composed number is memoised by value, so a
 ///         steady-state frame reuses ten cards' worth of blobs out of <see cref="TextBlobCache" />'s LRU
 ///         instead of re-shaping forty strings and evicting the rest of the HUD.
 ///     </para>
@@ -48,6 +42,16 @@ public sealed class RosterLayer : ISceneLayer
     // The most of a pane's width one column of cards may take. Two columns therefore never cost the map
     // more than a third of the frame.
     private const float MaxWidthFraction = 0.16f;
+
+    // Preferred card metrics — ceilings, not commitments: the width is clamped against the pane and the
+    // height is fitted to the tallest side.
+    private const float CardWidthPx = 160f;
+    private const float RowHeightPx = 46f;
+    private const float RowGapPx = 5f;
+
+    private const uint MoneyArgb = 0xFF7BC96Fu;    // cash figure
+    private const uint ArmorArgb = 0xFF8FA3B8u;    // armour bar; brighter with a helmet
+    private const uint TrackArgb = 0x66000000u;    // the unfilled remainder of a health/armour bar
 
     private readonly IHudDataSource _data;
     private readonly Dictionary<(int Kills, int Deaths), string> _kd = new(64);
@@ -131,7 +135,7 @@ public sealed class RosterLayer : ISceneLayer
 
         float paneW = ctx.PaneBounds.Width;
         float paneH = ctx.PaneBounds.Height;
-        float cardW = Math.Min(_style.RosterCardWidthPx, paneW * MaxWidthFraction);
+        float cardW = Math.Min(CardWidthPx, paneW * MaxWidthFraction);
         if (cardW < MinCardWidthPx)
         {
             return;
@@ -139,9 +143,9 @@ public sealed class RosterLayer : ISceneLayer
 
         // Height is fitted, not assumed: ten players on a short pane get shorter cards rather than a
         // column that runs off the bottom of the video.
-        float gap = _style.RosterRowGapPx;
+        float gap = RowGapPx;
         float usable = paneH - (_style.MarginPx * 2);
-        float rowH = Math.Min(_style.RosterRowHeightPx, (usable - ((tallest - 1) * gap)) / tallest);
+        float rowH = Math.Min(RowHeightPx, (usable - ((tallest - 1) * gap)) / tallest);
         float top = ctx.PaneBounds.Top + ((paneH - ColumnHeight(tallest, rowH, gap)) / 2);
 
         // ── the kill feed's band ─────────────────────────────────────────────────────────────────────
@@ -149,7 +153,7 @@ public sealed class RosterLayer : ISceneLayer
         // 65, so wherever they meet the feed paints over the cards. On a pane tall enough for a centred
         // roster to clear it — anything from about 552 px with the shipped style — this is a no-op and
         // nothing below runs. On a short one, and a 1280×720 two-level stacked export is one, the strips
-        // move into the band underneath the feed and shrink to fit it (D6 finding 9).
+        // move into the band underneath the feed and shrink to fit it.
         //
         // BOTH columns move, not only CT's: only the right column can actually collide, but two strips at
         // different heights is not a layout, and the roster's whole shape is a matched pair framing the
@@ -264,7 +268,7 @@ public sealed class RosterLayer : ISceneLayer
 
         float innerLeft = x + (accentLeft ? accentW : 0) + padX;
         float innerRight = x + w - (accentLeft ? 0 : accentW) - padX;
-        uint nameArgb = row.IsAlive ? _style.TextArgb : _style.DimTextArgb;
+        uint nameArgb = row.IsAlive ? _style.TextArgb : ClockLayer.DimTextArgb;
 
         float nameSize = _style.FontSizePx * 0.95f;
         float smallSize = _style.FontSizePx * 0.78f;
@@ -291,7 +295,7 @@ public sealed class RosterLayer : ISceneLayer
         if (_text.Get(Small(Math.Clamp(row.Health, 0, 100)), nameSize) is { } health)
         {
             nameHeight = Math.Max(nameHeight, health.Height);
-            _paint.Color = row.IsAlive ? teamColor : new SKColor(_style.DimTextArgb);
+            _paint.Color = row.IsAlive ? teamColor : new SKColor(ClockLayer.DimTextArgb);
             (float hx, float hy) = health.OriginForTopLeft(innerRight - health.Width, lineTop);
             canvas.DrawText(health.Blob, hx, hy, _paint);
         }
@@ -303,7 +307,7 @@ public sealed class RosterLayer : ISceneLayer
 
         DrawBar(canvas, barLeft, barTop, barW, 4f, row.IsAlive ? row.Health / 100f : 0f, teamColor);
         DrawBar(canvas, barLeft, barTop + 5f, barW, 2f, row.IsAlive ? row.Armor / 100f : 0f,
-            new SKColor(_style.ArmorArgb).WithAlpha(row.HasHelmet ? (byte)0xFF : (byte)0x99));
+            new SKColor(ArmorArgb).WithAlpha(row.HasHelmet ? (byte)0xFF : (byte)0x99));
 
         // ── line 2: weapon · K/D · cash, packed right to left so the weapon is what gets clipped ────
         float secondTop = barTop + 9f;
@@ -315,7 +319,7 @@ public sealed class RosterLayer : ISceneLayer
         float cursor = innerRight;
         if (_text.Get(Money(row.Money), smallSize) is { } money)
         {
-            _paint.Color = new SKColor(row.IsAlive ? _style.MoneyArgb : _style.DimTextArgb);
+            _paint.Color = new SKColor(row.IsAlive ? MoneyArgb : ClockLayer.DimTextArgb);
             (float mx, float my) = money.OriginForTopLeft(cursor - money.Width, secondTop);
             canvas.DrawText(money.Blob, mx, my, _paint);
             cursor -= money.Width + 6f;
@@ -323,7 +327,7 @@ public sealed class RosterLayer : ISceneLayer
 
         if (_text.Get(KillsDeaths(row.Kills, row.Deaths), smallSize) is { } kd)
         {
-            _paint.Color = new SKColor(_style.DimTextArgb);
+            _paint.Color = new SKColor(ClockLayer.DimTextArgb);
             (float kx, float ky) = kd.OriginForTopLeft(cursor - kd.Width, secondTop);
             canvas.DrawText(kd.Blob, kx, ky, _paint);
             cursor -= kd.Width + 6f;
@@ -335,8 +339,8 @@ public sealed class RosterLayer : ISceneLayer
         {
             float chip = 6f;
             _paint.Color = row.IsAlive
-                ? new SKColor(_style.MoneyArgb)
-                : new SKColor(_style.MoneyArgb).WithAlpha(0x77);
+                ? new SKColor(MoneyArgb)
+                : new SKColor(MoneyArgb).WithAlpha(0x77);
             canvas.DrawRoundRect(new SKRect(cursor - chip, secondTop + 3f, cursor, secondTop + 3f + chip),
                 1.5f, 1.5f, _paint);
             cursor -= chip + 6f;
@@ -344,7 +348,7 @@ public sealed class RosterLayer : ISceneLayer
 
         if (_text.Get(row.Weapon, smallSize) is { } weapon && innerLeft + weapon.Width <= cursor)
         {
-            _paint.Color = new SKColor(_style.DimTextArgb);
+            _paint.Color = new SKColor(ClockLayer.DimTextArgb);
             (float wx, float wy) = weapon.OriginForTopLeft(innerLeft, secondTop);
             canvas.DrawText(weapon.Blob, wx, wy, _paint);
         }
@@ -352,7 +356,7 @@ public sealed class RosterLayer : ISceneLayer
 
     private void DrawBar(SKCanvas canvas, float x, float y, float w, float h, float fraction, SKColor fill)
     {
-        _paint.Color = new SKColor(_style.TrackArgb);
+        _paint.Color = new SKColor(TrackArgb);
         canvas.DrawRect(x, y, w, h, _paint);
 
         float filled = w * Math.Clamp(fraction, 0f, 1f);

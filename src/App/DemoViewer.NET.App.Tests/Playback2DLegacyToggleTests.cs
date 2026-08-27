@@ -16,8 +16,8 @@ namespace DemoViewer.NET.AppTests;
 ///     The migration escape hatch, end to end: with the toggle OFF (the shipping default) the v2 host is
 ///     the only surface in the tree and it renders; with it ON the pre-v2 control mounts and renders.
 ///     <para>
-///         The second half is what makes the hatch worth having — a parity A/B a user can actually run for
-///         one release — and the first half is the claim the removal plan depends on: nothing constructs
+///         The second half is a parity A/B a user can actually run for one release, and the first half is
+///         the claim the removal plan depends on: nothing constructs
 ///         <c>Playback2DViewport</c> on the default path, so deleting it next release changes no default
 ///         behaviour. Both write a PNG to the artifact dir for eyeball review.
 ///     </para>
@@ -27,6 +27,7 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DLegacyToggleTests
 {
     /// <summary>The escape hatch ships OFF. A default of true would make v2 dead code on every install.</summary>
@@ -50,7 +51,7 @@ public class Playback2DLegacyToggleTests
             {
                 await Assert.That(Playback2DTimelineHarness.Surface(view)).IsTypeOf<Scene2DHost>();
 
-                // The claim the removal plan rests on: the OLD control is not merely hidden, it is never
+                // The claim the removal plan rests on: the OLD control is not hidden, it is never
                 // constructed. A view that built both and showed one would keep the old control's
                 // per-frame work alive behind the toggle.
                 await Assert.That(view.GetVisualDescendants().OfType<Playback2DViewport>().Any()).IsFalse()

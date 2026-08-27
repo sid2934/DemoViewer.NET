@@ -13,7 +13,7 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     D7's <c>Real-time</c> mode as the toolbar actually renders it: its item exists at its own index
+///     The <c>Real-time</c> mode as the toolbar actually renders it: its item exists at its own index
 ///     and is wide enough to read, and picking it opens the three RELATIVE envelope fields without
 ///     opening <c>Custom</c>'s absolute window.
 ///     <para>
@@ -27,6 +27,7 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class RealTimeEnvelopeUiTests
 {
     private const string RealTimeLabel = "Real-time";
@@ -67,8 +68,8 @@ public class RealTimeEnvelopeUiTests
 
     /// <summary>
     ///     Picking Real-time opens <c>in</c>, <c>out</c> and <c>hold</c>, and leaves <c>from</c> /
-    ///     <c>until</c> shut. Per plan D7 §3 each section runs the element's own trapezoid shifted by the
-    ///     offset it was drawn at, so all three keep their meaning per section — while an absolute window
+    ///     <c>until</c> shut. Each section runs the element's own trapezoid shifted by the offset it was
+    ///     drawn at, so all three keep their meaning per section — while an absolute window
     ///     would be a second, contradictory answer to "when".
     /// </summary>
     [Test]
@@ -119,7 +120,7 @@ public class RealTimeEnvelopeUiTests
     ///     <para>
     ///         Which label is LONGEST is re-derived from the box's own items rather than assumed, because
     ///         the constant below is the whole premise: measuring the second-longest label proves nothing,
-    ///         and D8 added a fifth item ("Round") that could have taken the crown.
+    ///         and a fifth item ("Round") was added later that could have taken the crown.
     ///     </para>
     /// </summary>
     [Test]
@@ -141,7 +142,8 @@ public class RealTimeEnvelopeUiTests
             ComboBox box = VisibilityBox(window);
 
             // The SELECTED content, never a popup item: a closed ComboBox has not realized its item
-            // containers, but excluding anything inside a ComboBoxItem keeps this honest if it ever does.
+            // containers, but excluding anything inside a ComboBoxItem keeps the match on the selected
+            // content even if it later does.
             TextBlock label = box.GetVisualDescendants().OfType<TextBlock>()
                                   .FirstOrDefault(t => t.Text == RealTimeLabel
                                                        && !t.GetVisualAncestors().OfType<ComboBoxItem>()

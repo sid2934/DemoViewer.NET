@@ -8,8 +8,8 @@ using DemoViewer.NET.Playback2D.Pipeline.Goldens;
 namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
-///     The manifest reader and its budget arithmetic. (The image comparator itself is B0's, and is
-///     covered by <c>GoldenImageComparerTests</c> in the Playback2D suite — one comparator, one test
+///     The manifest reader and its budget arithmetic. (The image comparator itself is covered
+///     separately, by <c>GoldenImageComparerTests</c> in the Playback2D suite — one comparator, one test
 ///     class.)
 /// </summary>
 public class GoldenCorpusTests
@@ -43,12 +43,12 @@ public class GoldenCorpusTests
     }
 
     /// <summary>
-    ///     <b>D6 G-8: the corpus README's "which fixtures exist has exactly one answer", enforced.</b>
+    ///     <b>The corpus README's "which fixtures exist has exactly one answer", enforced.</b>
     ///     Every committed CPU golden must be named by an entry, at the size that entry declares.
     ///     <para>
     ///         Three things were wrong at once and none of them could be seen from either side alone.
     ///         <c>nuke-multilevel-noradar@900x900.png</c> was committed with no entry at all.
-    ///         <c>nuke-single-upper</c> had goldens at 640×360 <i>and</i> 900×900 with different
+    ///         <c>nuke-single-upper</c> had goldens at 640×360 AND 900×900 with different
     ///         meanings, so one name described two pictures and the manifest could only ever describe
     ///         one of them. And <c>Playback2DGoldenCaptureTests</c> wrote 900×900 captures under
     ///         <c>duel-mirage-b</c> / <c>fitmap-mirage-eco</c> — names the manifest declares at 640×360 —

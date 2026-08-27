@@ -100,7 +100,7 @@ public class Playback2DActionDispatchTests
     [Test]
     public async Task NextRound_RequestsNextEventWithFreezeEndFilter()
     {
-        // D4: rounds OPEN at round_freeze_end, so round nav and the timeline's bands key off the same event.
+        // Rounds OPEN at round_freeze_end, so round nav and the timeline's bands key off the same event.
         (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activated();
 
         vm.ExecuteAction(Playback2DAction.NextRound);

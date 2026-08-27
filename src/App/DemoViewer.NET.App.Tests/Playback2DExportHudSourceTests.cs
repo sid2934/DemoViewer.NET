@@ -119,7 +119,7 @@ public class Playback2DExportHudSourceTests
     }
 
     /// <summary>
-    ///     <b>Where the exported roster's numbers come from</b> (D3b §3.1.1). Health, armour, weapon, cash
+    ///     <b>Where the exported roster's numbers come from.</b> Health, armour, weapon, cash
     ///     and K/D/A used to exist only in the App's <c>PlayerAttributes</c> — a live-viewport panel an
     ///     export cannot see — so <c>hud.roster</c> could not have been built on them. They are read in
     ///     <c>SceneFrameBuilder</c> now, off the export's own replayed entities, and reach the layer as

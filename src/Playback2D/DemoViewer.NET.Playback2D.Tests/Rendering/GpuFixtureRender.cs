@@ -17,31 +17,26 @@ namespace DemoViewer.NET.Playback2DTests.Rendering;
 ///     Shared plumbing for the backend suites: the skip guard every GPU case opens with, and one render
 ///     path both providers go through.
 ///     <para>
-///         The render path is deliberately <i>identical</i> to <c>SceneGoldenTests.Render</c> — same
-///         layer stack, same renderer, same camera pin. A parity suite that assembled the scene
-///         differently would be comparing two pipelines and calling the difference a backend
-///         difference, and <c>GpuMatchesTheCommittedCpuGoldens</c> diffs against the very files that
-///         suite writes.
+///         The render path is deliberately identical to <c>SceneGoldenTests.Render</c>: same layer
+///         stack, same renderer, same camera pin. A parity suite that assembled the scene differently
+///         would be comparing two pipelines and calling the difference a backend difference, and
+///         <c>GpuMatchesTheCommittedCpuGoldens</c> diffs against the very files that suite writes.
 ///     </para>
 ///     <para>
-///         It draws the production stack rather than <c>DebugGridLayer</c> from D6 onward, which is what
-///         C2's own note asked for ("when B1 ports those layers, add the fixtures here rather than
-///         starting a second parity suite"). The corpus stops being "the clear colour plus anti-aliased
-///         grid lines" and becomes alpha-blended smoke, resampled radar art and glyph ink — the three
-///         cases §7.2 wanted a cross-backend answer for.
+///         It draws the production stack rather than a bare <c>DebugGridLayer</c>, so the corpus is
+///         alpha-blended smoke, resampled radar art and glyph ink, not just a clear colour plus
+///         anti-aliased grid lines — the cross-backend cases §7.2 wants an answer for.
 ///     </para>
 /// </summary>
 internal static class GpuFixtureRender
 {
     /// <summary>
     ///     Skips the calling test when this machine has no GPU backend, naming the probe's reason so a
-    ///     skipped run is still a diagnosis. A no-GPU machine reaching this cleanly is itself the test
-    ///     that the probe reports failure as data rather than throwing.
+    ///     skipped run is still a diagnosis.
     ///     <para>
-    ///         <c>DV2D_RENDER_BACKEND=force-gpu</c> turns the skip into a failure. That is the whole
-    ///         point of <see cref="RenderBackendPreference.ForceGpu" />: the self-hosted lane exists to
-    ///         assert it exercised the GPU, and a lane that goes green having silently skipped every GPU
-    ///         case measured nothing while claiming to.
+    ///         <c>DV2D_RENDER_BACKEND=force-gpu</c> turns the skip into a failure: the self-hosted lane
+    ///         asserts it exercised the GPU, so a lane that goes green after silently skipping every GPU
+    ///         case would have measured nothing while claiming to.
     ///     </para>
     /// </summary>
     public static RenderSurfaceProbe RequireGpu()

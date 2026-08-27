@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     The port of the App's <c>Playback2DInterpolationTests</c> onto <see cref="MarkerSmoother" />,
-///     case for case — plus the discontinuity snap B1 adds.
+///     case for case — plus the discontinuity snap this suite adds.
 ///     <para>
 ///         The four original cases are the behaviour a viewer notices immediately when it breaks: a dot
 ///         that flies in from the origin on its first frame, a dot that steps instead of gliding, a dot
@@ -87,7 +87,7 @@ public class MarkerSmoothingTests
     }
 
     /// <summary>
-    ///     B1's addition. The distance rule already catches a big seek, but a SHORT one moves a player
+    ///     The distance rule already catches a big seek, but a SHORT one moves a player
     ///     less than the teleport threshold — and gliding across that gap draws motion that never
     ///     happened. The distance rule stays: it is what the ported cases above pin.
     /// </summary>
@@ -134,7 +134,7 @@ public class MarkerSmoothingTests
 
     /// <summary>
     ///     The settle rule is what lets the render loop stop: once every dot is within half a unit of
-    ///     its sample, nothing is moving and nobody asks for another frame.
+    ///     its sample, nothing is moving and the loop stops requesting another frame.
     /// </summary>
     [Test]
     public async Task Advance_OnceSettled_ReportsNothingMoving_ForeverAfter()
@@ -161,7 +161,17 @@ public class MarkerSmoothingTests
         await Assert.That(smoother.AnyMoving).IsFalse();
     }
 
+    /// <summary>
+    ///     The steady state is allocation-free, which is what lets the smoother run every frame.
+    ///     <para>
+    ///         <b>Tagged Budget because it is an allocation figure</b>, and <c>ci.yml</c> says those
+    ///         belong in the budget lane. Untagged it ran in <c>playback2d-tests</c>, both
+    ///         <c>render-backends</c> passes and the GPU lane — four blocking lanes for one exact-zero
+    ///         assertion that went red once and green on the re-run.
+    ///     </para>
+    /// </summary>
     [Test]
+    [Category("Budget")]
     public async Task Advance_SteadyState_AllocatesNothing()
     {
         MarkerSmoother smoother = new();

@@ -112,10 +112,8 @@ public sealed partial class LevelStripViewModel : ObservableObject
     ///     <para>
     ///         <b>Deliberately NOT a <c>[RelayCommand]</c>.</b> The AUTO chip is a <c>ToggleButton</c> whose
     ///         <c>IsChecked</c> binds straight to <see cref="IsAutoEnabled" />, and a command on it would
-    ///         fight that binding on the un-check half — so a command here could never be the user's path,
-    ///         which is exactly how D6 finding 13 happened: the generated <c>EnableAutoCommand</c> was the
-    ///         only thing that persisted, and nothing bound it. Persistence now lives in
-    ///         <c>OnIsAutoEnabledChanged</c>, on the path the user actually takes.
+    ///         fight that binding on the un-check half, so a command here could never be the user's path.
+    ///         See <see cref="OnIsAutoEnabledChanged(bool)" /> for where persistence actually lives.
     ///     </para>
     /// </summary>
     public void EnableAuto()
@@ -255,11 +253,11 @@ public sealed partial class LevelStripViewModel : ObservableObject
     }
 
     /// <summary>
-    ///     D6 finding 13. The AUTO chip is a <c>ToggleButton</c> bound straight to
-    ///     <see cref="IsAutoEnabled" />, so <b>every real AUTO flip arrives here</b> and none of them ever
-    ///     touched <c>EnableAutoCommand</c> — the only path that used to raise
-    ///     <see cref="SettingsChanged" />. The toggle applied instantly, looked right, and was forgotten on
-    ///     the next launch. Persistence belongs on the path the user takes, not on the one the test drove.
+    ///     Where AUTO's persistence actually lives. The AUTO chip is a <c>ToggleButton</c> bound straight
+    ///     to <see cref="IsAutoEnabled" />, so <b>every real AUTO flip arrives here</b>; a generated
+    ///     <c>EnableAutoCommand</c> used to be the only thing that raised <see cref="SettingsChanged" />,
+    ///     and nothing bound it, so the toggle applied instantly, looked right, and was forgotten on the
+    ///     next launch.
     /// </summary>
     partial void OnIsAutoEnabledChanged(bool value)
     {

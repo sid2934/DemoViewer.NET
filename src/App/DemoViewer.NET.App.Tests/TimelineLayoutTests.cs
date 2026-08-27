@@ -249,7 +249,7 @@ public class TimelineLayoutTests
     }
 
     /// <summary>
-    ///     A USER toggle announces itself so the owner can persist it (B5: the
+    ///     A USER toggle announces itself so the owner can persist it (the
     ///     <c>Playback2D:TimelineShow*</c> keys). Restoring a persisted value must NOT announce — otherwise
     ///     construction writes settings on every launch, and a read-only config dir turns startup into a
     ///     swallowed exception per tab open.
@@ -308,7 +308,7 @@ public class TimelineLayoutTests
     ///     key <c>Playback2D:TimelineShowKills|Bomb|Annotations</c> on. <c>RestoreTrackEnabled</c> and
     ///     <c>SetTrackEnabled</c> both IGNORE an unknown id by contract, and <c>IsTrackEnabled</c> answers
     ///     <c>true</c> for one — so renaming a track's id does not fail anywhere: it just quietly turns the
-    ///     persisted preference back into session state, which is the exact bug B5 was added to fix.
+    ///     persisted preference back into session state, which is the exact bug this guard catches.
     /// </summary>
     [Test]
     public async Task PersistedTrackIds_AreTheOnesTheTracksActuallyCarry()

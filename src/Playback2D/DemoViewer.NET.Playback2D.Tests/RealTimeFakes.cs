@@ -7,12 +7,12 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     Cadence and long-stroke builders for the real-time ink suites (plan D7).
+///     Cadence and long-stroke builders for the real-time ink suites.
 ///     <para>
 ///         Separate from <c>AnnotationFakes</c> on purpose. That type's <c>Stroke</c> is a THREE-sample
 ///         stub, which is the right shape for "is this on the correct floor" and exactly the wrong shape
-///         for a replay: a stroke with three points has no prefix worth revealing, no tail to fade and no
-///         outline cost worth measuring. Everything here is a real one — hundreds of samples, laid out
+///         for a replay: a stroke with three points has no prefix to reveal, no tail to fade and no
+///         outline cost to measure. Everything here is a real one — hundreds of samples, laid out
 ///         left to right so that "how far has the head got" is a pixel column.
 ///     </para>
 /// </summary>
@@ -29,7 +29,7 @@ internal static class RealTimeFakes
 
     /// <summary>
     ///     A run table from explicit <c>(sample, tickOffset)</c> boundaries, the last of which is also the
-    ///     duration. This is what <c>DrawTool</c> commits (D7a); building it by hand here is deliberate —
+    ///     duration. This is what <c>DrawTool</c> commits; building it by hand here is deliberate —
     ///     these suites must be able to author a cadence that no clock could be persuaded to produce.
     /// </summary>
     /// <param name="runs">Boundaries, ordered by sample index, offsets non-decreasing.</param>

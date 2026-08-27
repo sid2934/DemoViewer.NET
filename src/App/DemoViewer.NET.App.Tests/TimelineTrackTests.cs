@@ -10,8 +10,8 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     <see cref="RoundTrack" /> / <see cref="KillTrack" /> / <see cref="BombTrack" /> against a hand-rolled
 ///     <see cref="ITimelineData" />. No host, no Avalonia, no demo — which is the point of the contract
-///     being defined over primitives: these are the tests that must keep passing verbatim after B1 moves the
-///     types to Playback2D.Core.
+///     being defined over primitives: these are the tests that must keep passing verbatim regardless of
+///     which namespace the types live in.
 /// </summary>
 public class TimelineTrackTests
 {
@@ -153,9 +153,9 @@ public class TimelineTrackTests
     ///     ("host, use the kind default") for all of them. A coach reads the bar for momentum, which needs
     ///     the two sides to be two colours.
     ///     <para>
-    ///         <b>The MAPPING, not merely two colours (D6 G-6).</b> This case used to assert only that the
+    ///         <b>The MAPPING, not two colours.</b> This case used to assert only that the
     ///         two were non-zero, different and opaque — under which swapping <c>TintTeamT</c> and
-    ///         <c>TintTeamCt</c> stayed green and every T kill on the bar rendered in the CT blue. D5's
+    ///         <c>TintTeamCt</c> stayed green and every T kill on the bar rendered in the CT blue. The
     ///         entire user-visible claim is "the kill colour reads at a glance", and a colour that reads as
     ///         the wrong side is worse than one colour for both.
     ///     </para>

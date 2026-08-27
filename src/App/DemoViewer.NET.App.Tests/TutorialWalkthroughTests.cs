@@ -29,6 +29,7 @@ namespace DemoViewer.NET.AppTests;
 ///     back / skip), plus a headless render proving the overlay + spotlight land over the real Library region.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class TutorialWalkthroughTests
 {
     private static MainViewModel NewShell()

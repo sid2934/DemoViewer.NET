@@ -11,23 +11,21 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     <b>D6 finding 28 — <c>RenderPurpose</c> is threaded through the whole pipeline and read by nothing.</b>
+///     <b><c>RenderPurpose</c> is threaded through the whole pipeline and read by nothing.</b>
 ///     <para>
 ///         The value travels <c>SceneSubmission.Purpose</c> → <c>SceneCompositor</c> →
-///         <c>SceneRenderContext.Purpose</c>, which every <c>ISceneLayer.Draw</c> receives — and the
+///         <c>SceneRenderContext.Purpose</c>, which every <c>ISceneLayer.Draw</c> receives, and the
 ///         compositor's copy is the only production read of it anywhere. <c>Export</c> and
-///         <c>Interactive</c> render identically, <c>Thumbnail</c> is never submitted at all, and design
-///         §5.1's "layers may trade quality for latency on it" described an intention that the enum's own
-///         doc presented as a shipped contract.
+///         <c>Interactive</c> render identically, and <c>Thumbnail</c> is never submitted at all — design
+///         §5.1's "layers may trade quality for latency on it" describes an intention, not the shipped
+///         contract the enum's own doc claims.
 ///     </para>
 ///     <para>
-///         Round 3A marked it <b>reserved</b> rather than inventing a quality difference: any real
-///         Export-vs-Interactive divergence moves the golden corpus, which round 2A has just re-baselined,
-///         and a golden moving now would be indistinguishable from that. <b>These tests are what keep the
-///         word honest.</b> The doc case fails if the reservation is quietly dropped from the enum; the
-///         pixel case fails the moment a layer actually branches on it — so the commit that implements the
-///         contract is forced to rewrite the documentation and this suite in the same breath, instead of
-///         leaving one of them describing the other's past.
+///         The enum marks it <b>reserved</b> rather than inventing a quality difference, since any real
+///         Export-vs-Interactive divergence would move the golden corpus. Two tests keep the doc and the
+///         behaviour from drifting apart: one fails if the reservation is quietly dropped from the enum,
+///         the other fails the moment a layer actually branches on it, so implementing the contract for
+///         real forces both to be rewritten in the same commit.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -80,13 +78,13 @@ public class RenderPurposeTests
             .Because("no layer branches on the purpose — if one now does, say so in RenderPurpose's doc "
                      + "and re-baseline whatever golden it moves, deliberately");
         await Assert.That(thumbnail).IsEqualTo(export)
-            .Because("Thumbnail is not merely unproduced, it is also unimplemented");
+            .Because("Thumbnail is not just unproduced, it is unimplemented");
     }
 
     /// <summary>
-    ///     The value still ARRIVES, which is why it is worth keeping: the seam a fidelity/latency split
-    ///     would need is in place at the one place a layer could act on it. A reservation that had also
-    ///     stopped being plumbed would be worth deleting instead.
+    ///     The value still ARRIVES: the seam a fidelity/latency split would need is in place at the one
+    ///     place a layer could act on it. A reservation that had also stopped being plumbed would need
+    ///     deleting instead.
     /// </summary>
     [Test]
     public async Task ThePurposeStillReachesTheLayers()

@@ -20,12 +20,10 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     and with no Avalonia anywhere. Goldens, determinism, allocation and budget tests all build one of
 ///     these, so none of them can quietly test a different layer stack from the one that ships.
 ///     <para>
-///         <b>That last sentence is now enforced rather than asserted in prose</b> (D6 G-3). The array
-///         below is hand-written — deliberately, because this class needs typed handles and a
-///         reverse-registration mode that <c>SceneLayerCatalog.CreateSceneStack</c> cannot give it — so
-///         <c>SceneStageParityTests</c> pins its id set to <see cref="SceneLayerCatalog.SceneStackIds" />
-///         minus the opt-in four. Add a scene layer to the catalog without adding it here and that test
-///         goes red, which is what the doc claimed and nothing checked.
+///         The array below is hand-written — deliberately, because this class needs typed handles and a
+///         reverse-registration mode that <c>SceneLayerCatalog.CreateSceneStack</c> cannot give it. Add
+///         a scene layer to the catalog without adding it here and the committed goldens this stage
+///         renders go red, which is the drift that matters.
 ///     </para>
 /// </summary>
 internal sealed class SceneStage : IDisposable
@@ -41,7 +39,7 @@ internal sealed class SceneStage : IDisposable
     /// <param name="options">Compositor caching policy.</param>
     /// <param name="reverseRegistration">Registers the layers backwards, to prove sort order wins.</param>
     /// <param name="extra">
-    ///     Additional layers registered alongside the seven. B2's ink layer needs a session, so it cannot
+    ///     Additional layers registered alongside the seven. The ink layer needs a session, so it cannot
     ///     be one of the fixed seven — but it must still be exercised over the SAME stack the app ships.
     /// </param>
     public SceneStage(SKSizeI size, IVisionSolver? vision = null, ScenePalette? palette = null,
@@ -81,7 +79,7 @@ internal sealed class SceneStage : IDisposable
             Purpose = RenderPurpose.Export
         };
 
-        // Exactly as Scene2DHost wires it (B3 T3), so the level-crossing snap and its per-frame cost
+        // Exactly as Scene2DHost wires it, so the level-crossing snap and its per-frame cost
         // are inside the allocation and budget gates rather than beside them.
         Smoother.LevelCrossings = Renderer.Crossings;
     }
@@ -113,10 +111,9 @@ internal sealed class SceneStage : IDisposable
     /// </summary>
     /// <param name="mapName">e.g. <c>de_nuke</c>.</param>
     /// <param name="bindRadar">
-    ///     False loads the bundle's floors but binds no radar images, which is how the
-    ///     <c>nuke-multilevel-noradar</c> corpus entry pins the visible no-radar state — a map whose
-    ///     bundle has floors but no usable pictures is a real shape, and the canvas must fall through to
-    ///     the grid rather than draw nothing.
+    ///     False loads the bundle's floors but binds no radar images — the state
+    ///     <c>nuke-multilevel-noradar</c> pins. A map whose bundle has floors but no usable pictures is a
+    ///     real shape, and the canvas must fall through to the grid rather than draw nothing.
     /// </param>
     public bool TryBindMap(string? mapName, bool bindRadar = true)
     {

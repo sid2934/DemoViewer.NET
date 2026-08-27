@@ -17,9 +17,9 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     B4 deviation 20, closed. The export dialog's "mirror the live view" camera is a CAPTURE taken once
-///     at Start (B4 D12) — but until the v2 host exposed its panes it captured an empty <c>Fixed</c>
-///     script, so every exported pane silently kept the fit its own level was born with. A user who had
+///     The export dialog's "mirror the live view" camera is a CAPTURE taken once at Start — but until the
+///     v2 host exposed its panes it captured an empty <c>Fixed</c> script, so every exported pane
+///     silently kept the fit its own level was born with. A user who had
 ///     zoomed into A site got a whole-map export and no indication why.
 ///     <para>
 ///         Two halves: the host produces a keyed snapshot of what is actually on screen, and the View
@@ -28,6 +28,7 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DMirrorLiveViewTests
 {
     [Test]
@@ -108,7 +109,7 @@ public class Playback2DMirrorLiveViewTests
                     .IsEqualTo(before.Panes[0].Transform.PanX + 60).Within(0.5);
                 await Assert.That(after.Panes[0].ManualOverride).IsTrue();
 
-                // D12's immutability: the capture is a value, so panning again cannot reach back into it.
+                // The capture is a value, so panning again cannot reach back into it.
                 ImmutableArray<PaneCameraSnapshot> frozen = after.Panes;
                 window.MouseDown(start, MouseButton.Left);
                 window.MouseMove(Playback2DTimelineHarness.ToWindow(host, window, 400, 400));
@@ -160,7 +161,7 @@ public class Playback2DMirrorLiveViewTests
 
     /// <summary>
     ///     Under the legacy escape hatch there are no pane cameras, so nothing is wired and the dialog
-    ///     falls back to the empty <c>Fixed</c> script — the pre-B5 behaviour, kept deliberately rather
+    ///     falls back to the empty <c>Fixed</c> script — the original behaviour, kept deliberately rather
     ///     than stubbed with a lie.
     /// </summary>
     [Test]
@@ -184,7 +185,7 @@ public class Playback2DMirrorLiveViewTests
     }
 
     /// <summary>
-    ///     The other half of the capture. B4 D12 says the snapshot carries the pane cameras <b>plus the
+    ///     The other half of the capture. The snapshot carries the pane cameras <b>plus the
     ///     host's current <c>LevelDisplayMode</c></b>; <c>MirrorLiveView.DisplayMode</c> recorded it and the
     ///     App's export setup hard-coded <c>Stacked</c>, so a user watching a two-floor map in SINGLE mode
     ///     and exporting "mirror the live view" got a stacked video of a framing they had never seen. The

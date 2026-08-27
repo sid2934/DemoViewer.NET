@@ -22,12 +22,13 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <b>B2's exit criterion, one case per clause:</b> "draw / erase / undo survive seek, zoom, level
-///     switch and tab deactivate". Everything provable without a window is proved in the direct-execution
-///     suite instead; what is left here genuinely needs a visual tree, real pointer plumbing and a real
-///     render pass.
+///     <b>The requirement this class covers, one case per clause:</b> "draw / erase / undo survive seek,
+///     zoom, level switch and tab deactivate". Everything provable without a window is proved in the
+///     direct-execution suite instead; what is left here genuinely needs a visual tree, real pointer
+///     plumbing and a real render pass.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DAnnotationHostTests
 {
     [Test]
@@ -46,8 +47,6 @@ public class Playback2DAnnotationHostTests
             // business, and asserting a rendered-layer total would encode that incidental.
             string ids = string.Join(",", f.Host.Compositor.Layers.Select(l => l.Id));
             Console.WriteLine($"[annotations] layers={ids}");
-            await Assert.That(f.Host.Compositor.Layers.Count).IsEqualTo(8)
-                .Because("the ink layer joins B1's seven");
         });
     }
 
@@ -125,8 +124,8 @@ public class Playback2DAnnotationHostTests
     }
 
     /// <summary>
-    ///     Plan decision D6, and the reason the remap is history-transparent: the stroke follows its
-    ///     PHYSICAL floor across a rebuild, and no undo slot is consumed doing it.
+    ///     The remap is history-transparent: the stroke follows its PHYSICAL floor across a rebuild, and
+    ///     no undo slot is consumed doing it.
     /// </summary>
     [Test]
     public async Task Draw_ThenLevelRebuild_StrokeRemapsToSameLevel()
@@ -170,11 +169,10 @@ public class Playback2DAnnotationHostTests
     }
 
     /// <summary>
-    ///     The WIRE B3 could not connect, closing its T8 (B5). B3 built and tested the whole remap —
-    ///     <c>LevelSetChange.TryRemapAnchor</c> → <c>ApplyLevelRebuild</c> →
-    ///     <c>AnnotationDocument.RemapWorldLevels</c> — and nothing in production called it, because B2
-    ///     had not landed. The test above this one drives the VM entry point by hand; this one moves the
-    ///     LEVEL SET and asserts the ink follows on its own.
+    ///     The whole remap chain — <c>LevelSetChange.TryRemapAnchor</c> → <c>ApplyLevelRebuild</c> →
+    ///     <c>AnnotationDocument.RemapWorldLevels</c> — existed and was unit-tested, but nothing in
+    ///     production called it. The test above this one drives the VM entry point by hand; this one
+    ///     moves the LEVEL SET and asserts the ink follows on its own.
     ///     <para>
     ///         It matters because the boundary really does move: the floor split is derived from a Z
     ///         histogram that changes all demo long, and an anchor stamped with the old band's quantized
@@ -304,7 +302,7 @@ public class Playback2DAnnotationHostTests
         });
     }
 
-    /// <summary>Plan decision D3: hold-Space diverts the next press to pan even under the draw tool.</summary>
+    /// <summary>Hold-Space diverts the next press to pan even under the draw tool.</summary>
     [Test]
     public async Task HoldSpace_DuringDrawTool_Pans()
     {
@@ -367,9 +365,9 @@ public class Playback2DAnnotationHostTests
     ///         stroke back on itself on every fast drag.
     ///     </para>
     ///     <para>
-    ///         The event is built through the internal constructor by reflection precisely so this test
-    ///         pins Avalonia's real contract: an upstream flip in ordering fails here rather than
-    ///         shipping as a zig-zag nobody can reproduce.
+    ///         The event is built through the internal constructor by reflection so this test pins
+    ///         Avalonia's real contract: an upstream flip in ordering fails here rather than shipping as
+    ///         an intermittent zig-zag with no deterministic repro.
     ///     </para>
     /// </summary>
     [Test]
@@ -516,7 +514,7 @@ public class Playback2DAnnotationHostTests
     }
 
     /// <summary>
-    ///     D2 §2.2, through the real pointer plumbing. <c>ToolPointerEvent.Button</c> was resolved
+    ///     Right-drag, through the real pointer plumbing. <c>ToolPointerEvent.Button</c> was resolved
     ///     correctly from day one and read by nothing, so a right-drag drew ink identical to a left-drag.
     ///     This is the case that proves the host actually hands the button to the router.
     /// </summary>
@@ -551,7 +549,7 @@ public class Playback2DAnnotationHostTests
 
     /// <summary>
     ///     The right button can be bound to the eraser instead — the ask this unlocks cheaply. Not the
-    ///     shipped default: item 2.2 asked for two PENS, and an out-of-the-box eraser would leave the
+    ///     shipped default: two PENS is what was asked for, and an out-of-the-box eraser would leave the
     ///     second colour inert with nothing to hint that it exists.
     /// </summary>
     [Test]
@@ -577,8 +575,8 @@ public class Playback2DAnnotationHostTests
     }
 
     /// <summary>
-    ///     <b>A chorded button's RELEASE, through the real pointer plumbing.</b> D2 taught
-    ///     <c>OnPressed</c> that chording is not a gesture and never taught <c>OnReleased</c>: letting the
+    ///     <b>A chorded button's RELEASE, through the real pointer plumbing.</b> <c>OnPressed</c> already
+    ///     knows that chording is not a gesture; <c>OnReleased</c> never learned it: letting the
     ///     brushed middle button go committed the stroke at the chord point and dropped capture, so the
     ///     rest of the drag drew nothing and the real left release was a no-op.
     ///     <para>
@@ -669,8 +667,8 @@ public class Playback2DAnnotationHostTests
     }
 
     /// <summary>
-    ///     D2 §2.3, through the real pointer plumbing: the pen may not take the view away. The pane the
-    ///     drag begins on is the one that moves, exactly as under the pan tool.
+    ///     Middle-drag, through the real pointer plumbing: the pen may not take the view away. The pane
+    ///     the drag begins on is the one that moves, exactly as under the pan tool.
     /// </summary>
     [Test]
     public async Task MiddleDrag_PansWhileTheDrawToolIsActive()
@@ -695,8 +693,8 @@ public class Playback2DAnnotationHostTests
     }
 
     /// <summary>
-    ///     D2 §2.1: the recent-colour strip. <c>AnnotationRecentColors</c> was persisted, WASM-flattened
-    ///     and round-trip tested since B2 — and displayed nowhere. This walks the whole chain the fix
+    ///     The recent-colour strip. <c>AnnotationRecentColors</c> was persisted, WASM-flattened
+    ///     and round-trip tested — and displayed nowhere. This walks the whole chain the fix
     ///     added: a committed stroke pushes its colour, the panel mirrors it, and the toolbar realises a
     ///     button for it.
     /// </summary>
@@ -722,7 +720,7 @@ public class Playback2DAnnotationHostTests
             await Assert.That(f.Vm.Annotations.RecentColors[0].Hex).IsEqualTo("#FF112233");
             await Assert.That(strip.IsEffectivelyVisible).IsTrue();
             await Assert.That(strip.GetVisualDescendants().OfType<Button>().Count()).IsEqualTo(1)
-                .Because("the swatch template has to realise, not merely bind");
+                .Because("the swatch template has to realise, not bind");
         });
     }
 

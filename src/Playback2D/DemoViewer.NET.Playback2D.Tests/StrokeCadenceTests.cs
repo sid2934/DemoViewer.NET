@@ -11,8 +11,8 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     Plan D7a: a <see cref="EnvelopeMode.RealTime" /> stroke records WHEN each sample was drawn, as the
-///     sparse run table §2 committed, and commits it on release.
+///     A <see cref="EnvelopeMode.RealTime" /> stroke records WHEN each sample was drawn, as the sparse
+///     run table §2 describes, and commits it on release.
 ///     <para>
 ///         Every case here drives <see cref="FakeToolServices.NowMilliseconds" /> by hand while
 ///         <see cref="FakeToolServices.CurrentTick" /> stays wherever it was put. That separation is the
@@ -53,12 +53,12 @@ public class StrokeCadenceTests
         await Assert.That(timing.DurationTicks).IsEqualTo(62)
             .Because("61 samples 16 ms apart is 976 ms, and 976 ms at 64 tick is 62.46 ticks");
 
-        await AssertMonotonic(timing, element.Points.Count);
+        await AssertMonotonic(timing);
     }
 
     /// <summary>
     ///     <b>The whole feature.</b> An author who stops to think mid-stroke gets a boundary at the stop,
-    ///     and the replayed head <i>stalls</i> there instead of gliding through it.
+    ///     and the replayed head stalls there instead of gliding through it.
     ///     <para>
     ///         The stall is the assertion that matters. A run table that merely recorded the total
     ///         duration would pass "there are boundaries" and still interpolate straight across the
@@ -93,8 +93,9 @@ public class StrokeCadenceTests
         Console.WriteLine($"[cadence] pause: {samples} samples, k={timing.Runs.Count}, "
                           + $"runs={Describe(timing)}");
 
-        int intoThePause = timing.TickOffsetForSample(10);
-        int outOfIt = timing.TickOffsetForSample(11);
+        // The pause is the widest gap between two adjacent boundaries — read off the table rather than
+        // assumed at a sample index, so this still means "the stop" whatever the spacing filter kept.
+        (int intoThePause, int outOfIt) = WidestGap(timing);
         await Assert.That(outOfIt - intoThePause).IsGreaterThanOrEqualTo(36)
             .Because("600 ms of thinking is 38 ticks; a table that ran a single linear fit through the "
                      + "whole stroke would place those two neighbours about 3 ticks apart");
@@ -150,7 +151,7 @@ public class StrokeCadenceTests
         await Assert.That(k * 10).IsLessThan(element.Points.Count)
             .Because("a stamp per point is the +26 % encoding this table was chosen over");
 
-        await AssertMonotonic(timing, element.Points.Count);
+        await AssertMonotonic(timing);
     }
 
     /// <summary>
@@ -187,14 +188,14 @@ public class StrokeCadenceTests
     }
 
     /// <summary>
-    ///     <b>D8 §1's regression.</b> The same hand, the same milliseconds, on a 128-tick parse: the
-    ///     cadence is expressed in the DEMO's ticks, so it carries twice as many of them.
+    ///     The same hand, the same milliseconds, on a 128-tick parse: the cadence is expressed in the
+    ///     DEMO's ticks, so it carries twice as many of them.
     ///     <para>
-    ///         D7a converted through a hard-coded 64. That was honest — nothing on Core's side of the
-    ///         <c>IToolServices</c> seam could read a rate — and it meant a stroke drawn on a 128-tick
-    ///         demo replayed at HALF the speed it was drawn at, because the run table said "one second"
-    ///         where the renderer counted two. Both assertions below fail on the literal, and the second
-    ///         one is the whole bug: same wall clock in, same wall clock back out.
+    ///         A prior conversion through a hard-coded 64 was the best available, since nothing on Core's
+    ///         side of the <c>IToolServices</c> seam could read a rate — but it meant a stroke drawn on a
+    ///         128-tick demo replayed at HALF the speed it was drawn at, because the run table said "one
+    ///         second" where the renderer counted two. Both assertions below fail on the literal, and the
+    ///         second one is the whole bug: same wall clock in, same wall clock back out.
     ///     </para>
     /// </summary>
     [Test]
@@ -233,9 +234,9 @@ public class StrokeCadenceTests
     ///     A coalesced batch carries no times of its own — Avalonia stamps the EVENT — so the samples in
     ///     one are spread across the interval since the previous event.
     ///     <para>
-    ///         Sample 1's offset is what discriminates: interpolated it lands a quarter of the way into
-    ///         the batch's 1000 ms; stamped at the event time, it and its three neighbours would all sit
-    ///         at the far end and the table would open with a boundary at the full 64 ticks.
+    ///         Read through the reveal, which is the only thing that consumes the offsets: a quarter of
+    ///         the batch's 1000 ms has to have revealed a quarter of it. Stamped at the event time
+    ///         instead, all four would sit at the far end and 16 ticks in would still show one sample.
     ///     </para>
     /// </summary>
     [Test]
@@ -253,17 +254,19 @@ public class StrokeCadenceTests
         h.Lift(16);
 
         StrokeTiming timing = h.Committed.Timing!;
-        Console.WriteLine($"[cadence] coalesced: runs={Describe(timing)}, offsets="
-                          + $"{timing.TickOffsetForSample(1)},{timing.TickOffsetForSample(2)},"
-                          + $"{timing.TickOffsetForSample(3)},{timing.TickOffsetForSample(4)}");
+        int samples = h.Committed.Points.Count;
+        Console.WriteLine($"[cadence] coalesced: runs={Describe(timing)}, revealed="
+                          + $"{timing.RevealedCount(16, samples)},{timing.RevealedCount(32, samples)},"
+                          + $"{timing.RevealedCount(48, samples)},{timing.RevealedCount(64, samples)}");
 
-        await Assert.That(timing.TickOffsetForSample(1)).IsEqualTo(16)
-            .Because("250 ms into a 1000 ms batch; stamped at the event instead it would read 64");
-        await Assert.That(timing.TickOffsetForSample(2)).IsEqualTo(32);
-        await Assert.That(timing.TickOffsetForSample(3)).IsEqualTo(48);
-        await Assert.That(timing.TickOffsetForSample(4)).IsEqualTo(64);
+        await Assert.That(timing.RevealedCount(16, samples)).IsEqualTo(2)
+            .Because("250 ms into a 1000 ms batch is one sample past the press; stamped at the event "
+                     + "instead the whole batch would land at 64 ticks and this would still be 1");
+        await Assert.That(timing.RevealedCount(32, samples)).IsEqualTo(3);
+        await Assert.That(timing.RevealedCount(48, samples)).IsEqualTo(4);
+        await Assert.That(timing.RevealedCount(64, samples)).IsEqualTo(5);
 
-        await AssertMonotonic(timing, h.Committed.Points.Count);
+        await AssertMonotonic(timing);
     }
 
     /// <summary>
@@ -307,10 +310,10 @@ public class StrokeCadenceTests
         StrokeTiming timing = h.Committed.Timing!;
         Console.WriteLine($"[cadence] backwards: runs={Describe(timing)}");
 
-        await AssertMonotonic(timing, h.Committed.Points.Count);
+        await AssertMonotonic(timing);
     }
 
-    private static async Task AssertMonotonic(StrokeTiming timing, int sampleCount)
+    private static async Task AssertMonotonic(StrokeTiming timing)
     {
         for (int i = 1; i < timing.Runs.Count; i++)
         {
@@ -321,13 +324,23 @@ public class StrokeCadenceTests
                 .Because("time does not run backwards inside a stroke");
         }
 
-        for (int i = 1; i < sampleCount; i++)
+        await Assert.That(timing.Runs[^1].TickOffset).IsEqualTo(timing.DurationTicks);
+    }
+
+    // The adjacent boundary pair furthest apart in time — the stop the hand made, as the table saw it.
+    private static (int Before, int After) WidestGap(StrokeTiming timing)
+    {
+        int widest = 1;
+        for (int i = 2; i < timing.Runs.Count; i++)
         {
-            await Assert.That(timing.TickOffsetForSample(i))
-                .IsGreaterThanOrEqualTo(timing.TickOffsetForSample(i - 1));
+            if (timing.Runs[i].TickOffset - timing.Runs[i - 1].TickOffset
+                > timing.Runs[widest].TickOffset - timing.Runs[widest - 1].TickOffset)
+            {
+                widest = i;
+            }
         }
 
-        await Assert.That(timing.Runs[^1].TickOffset).IsEqualTo(timing.DurationTicks);
+        return (timing.Runs[widest - 1].TickOffset, timing.Runs[widest].TickOffset);
     }
 
     // A hand whose speed rises and falls smoothly, `cycles` times over `samples` strokes of the pen.

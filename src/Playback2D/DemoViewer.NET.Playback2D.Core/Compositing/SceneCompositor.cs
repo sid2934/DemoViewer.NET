@@ -68,7 +68,7 @@ public sealed class SceneCompositor : IDisposable
     /// <summary>
     ///     The host's render gate, when there is one. Left null by single-threaded consumers (export,
     ///     the CLI, tests); set by <c>Scene2DHost</c>, and then every cache mutation debug-asserts that
-    ///     the caller holds it (plan §5.8).
+    ///     the caller holds it.
     /// </summary>
     public SceneRenderGate? Gate { get; set; }
 
@@ -76,10 +76,10 @@ public sealed class SceneCompositor : IDisposable
     public SceneCompositorStats Stats { get; private set; }
 
     /// <summary>
-    ///     Optional per-layer measurement (plan <c>P1-perf-instrumentation</c> §3.1). Null on the default
-    ///     path — the whole mechanism is then one field read and one predicted branch per layer per
-    ///     phase, no clock and no allocation. See <see cref="ISceneProfiler" /> for why the timestamping
-    ///     lives on the other side of the interface rather than here.
+    ///     Optional per-layer measurement. Null on the default path — the whole mechanism is then one
+    ///     field read and one predicted branch per layer per phase, no clock and no allocation. See
+    ///     <see cref="ISceneProfiler" /> for why the timestamping lives on the other side of the
+    ///     interface rather than here.
     /// </summary>
     public ISceneProfiler? Profiler { get; set; }
 
@@ -119,11 +119,11 @@ public sealed class SceneCompositor : IDisposable
     ///     Registers a resource the compositor should dispose along with its layers — a
     ///     <see cref="TextBlobCache" /> several layers share, and nothing else so far.
     ///     <para>
-    ///         <b>Why this exists.</b> A shared resource cannot be owned by one of the layers sharing it:
-    ///         <see cref="Remove" /> disposes the layer it drops, which would take the font out from
-    ///         under everyone else still drawing with it. Hosts that build their own stack
-    ///         (<c>Scene2DHost</c>, the test stage) hold such resources in a field and dispose them after
-    ///         the compositor; a factory that hands back only a compositor has nowhere else to put them.
+    ///         A shared resource cannot be owned by one of the layers sharing it: <see cref="Remove" />
+    ///         disposes the layer it drops, which would take the font out from under everyone else still
+    ///         drawing with it. Hosts that build their own stack (<c>Scene2DHost</c>, the test stage) hold
+    ///         such resources in a field and dispose them after the compositor; a factory that hands back
+    ///         only a compositor has nowhere else to put them.
     ///     </para>
     /// </summary>
     /// <param name="resource">The resource to dispose at teardown. Disposed after every layer.</param>
@@ -239,7 +239,7 @@ public sealed class SceneCompositor : IDisposable
     ///         cache key's camera component is <c>Pane.CameraEpoch</c> and its pane component is
     ///         <c>Pane.LevelId</c> — both zero on a default snapshot — so every <c>PerCamera</c> layer
     ///         would key to the same entry whatever the camera is doing, and the first frame's
-    ///         pane-local pixels would replay for the life of the compositor (D6 finding 17). Drawing
+    ///         pane-local pixels would replay for the life of the compositor. Drawing
     ///         directly costs a re-record per frame on a path with no production caller; a frozen radar
     ///         under a moving camera costs the picture.
     ///     </para>
@@ -358,9 +358,9 @@ public sealed class SceneCompositor : IDisposable
             _panesRendered++;
         }
 
-        // 3. Band dividers, in HOST coordinates — chrome between panes, not a layer (plan §3.1). The
-        //    pre-v2 rule is "every band except the topmost", i.e. every band whose top edge is not the
-        //    control's own top edge.
+        // 3. Band dividers, in HOST coordinates — chrome between panes, not a layer. The pre-v2 rule is
+        //    "every band except the topmost", i.e. every band whose top edge is not the control's own
+        //    top edge.
         if (!single)
         {
             _divider.Color = submission.Palette.MajorGrid;
@@ -400,18 +400,15 @@ public sealed class SceneCompositor : IDisposable
     ///     Drops every cached picture when the palette this frame draws with is not the palette they
     ///     were recorded under.
     ///     <para>
-    ///         <b>Why not a fifth component on the cache key.</b> A recorded picture bakes in whatever
-    ///         colours the layer read out of <c>ctx.Palette</c> — <c>RadarLayer</c>, the only production
-    ///         <c>PerCamera</c> layer, records the grid with <c>MinorGrid</c>/<c>MajorGrid</c> in it —
-    ///         so a palette swap really does invalidate them all. But the palette is <i>compositor</i>
-    ///         state, not frame state (<see cref="ScenePalette" />'s own words: "the theme changes on a
-    ///         variant switch, not on a tick"), and putting thirty-two colours into a key that is hashed
-    ///         once per layer per pane per frame would pay for a per-frame lookup to catch an event that
-    ///         happens twice a session. One equality test per <i>render</i> catches the same event, and
-    ///         it catches it for every entry point rather than only for the one property whose doc
-    ///         promised it — <c>HeadlessSceneRenderer.Palette</c> claimed to invalidate and was a plain
-    ///         auto-property, while <c>Scene2DHost.RefreshPalette</c> was invalidating by hand, which is
-    ///         the only reason the stale grid never shipped (D6 finding 16).
+    ///         Not a fifth component on the cache key. A recorded picture bakes in whatever colours the
+    ///         layer read out of <c>ctx.Palette</c> — <c>RadarLayer</c>, the only production
+    ///         <c>PerCamera</c> layer, records the grid with <c>MinorGrid</c>/<c>MajorGrid</c> in it — so
+    ///         a palette swap really does invalidate them all. But the palette is compositor state, not
+    ///         frame state (<see cref="ScenePalette" />'s own words: "the theme changes on a variant
+    ///         switch, not on a tick"), and putting thirty-two colours into a key that is hashed once per
+    ///         layer per pane per frame would pay for a per-frame lookup to catch an event that happens
+    ///         twice a session. One equality test per render catches the same event for every entry
+    ///         point, rather than depending on each host to invalidate by hand.
     ///     </para>
     /// </summary>
     /// <param name="palette">The palette this render draws with.</param>

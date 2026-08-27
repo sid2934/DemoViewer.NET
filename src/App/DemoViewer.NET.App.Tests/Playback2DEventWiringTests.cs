@@ -28,54 +28,27 @@ internal sealed record EventContract(
 }
 
 /// <summary>
-///     <b>D6 §4 guard 1 — every public event in the module has a production raiser AND a production
-///     subscriber.</b>
+///     <b>Every public event in the module has a production raiser AND a production subscriber.</b>
+///     A unit test subscribes directly, so it proves nothing about whether production does; a producer
+///     wired to no consumer passes every one of them.
 ///     <para>
-///         G2, "producer wired, consumer never built", is the gap that shipped two P0s.
-///         <c>ExportJobService.StatusChanged</c> marshalled phase, frames, fps, elapsed and the error to the
-///         UI thread on every tick of a multi-minute job, and nothing subscribed — so an export ran
-///         silently, could not be cancelled, and reported its own failure to the floor.
-///         <c>AnnotationTrack.MarkersChanged</c> was raised faithfully by an interface whose doc says "the
-///         host must re-query it", and the host never did — so annotation markers never appeared as the
-///         user drew. Both had passing unit tests: a test subscribes, because subscribing is how a test
-///         observes.
+///         <b>Asked of the CONTRACT, not the implementation.</b> The four <c>MarkersChanged</c>
+///         implementations are one <c>ITimelineTrack.MarkersChanged</c>, and three of them (round, kill,
+///         bomb) legitimately never raise it because their data is fixed for the whole demo.
 ///     </para>
 ///     <para>
-///         <b>Contracts, not events.</b> The four <c>MarkersChanged</c> implementations are one contract —
-///         <c>ITimelineTrack.MarkersChanged</c> — and three of them (round, kill, bomb) legitimately never
-///         raise it, because their data is fixed for the whole demo. Asking each implementation in
-///         isolation would demand a raise those three have nothing to raise, so the question is asked of the
-///         GROUP: somebody raises it, somebody subscribes. That still catches the real defect, because at
-///         the time of the audit NOTHING in production subscribed to any of them.
-///     </para>
-///     <para>
-///         <b>Read from IL, not from source.</b> A grep for <c>MarkersChanged</c> in production matches the
-///         doc comment that describes the subscriber that does not exist — which is how this shipped. The
-///         subscriber is a call to <c>add_X</c>; the raiser is a method that loads the event's backing
-///         field and is not the compiler's own <c>add_X</c>/<c>remove_X</c>. Neither can be faked by a
-///         comment.
+///         <b>Read from IL, not source.</b> A grep for an event name in production also matches the doc
+///         comment describing a subscriber that does not exist. The subscriber is a call to <c>add_X</c>;
+///         the raiser is a method that loads the event's backing field and is not the compiler's own
+///         <c>add_X</c>/<c>remove_X</c> — neither can be faked by a comment.
 ///     </para>
 /// </summary>
 public class Playback2DEventWiringTests
 {
     /// <summary>
-    ///     Events knowingly left with no production subscriber. <b>The reason is the entry</b> — a bare
-    ///     name here is how this guard becomes the thing it was written to prevent.
-    ///     <para>
-    ///         <b>Empty, and that is the point.</b> Round 3A took the routed decision on both entries and
-    ///         it was DELETE, in each case for the reason the entry named:
-    ///         <c>AnnotationSession.WetChanged</c> was raised four times per stroke and every raise was
-    ///         immediately followed by the caller's own <c>RequestRender()</c>, so a subscriber would have
-    ///         repainted twice per pointer sample; <c>InputToolRouter.ActiveToolChanged</c> was a second
-    ///         copy of a selection the annotation panel already owns and drives INTO the router, so
-    ///         subscribing would have closed a loop rather than carried information.
-    ///     </para>
-    /// </summary>
-    private static readonly Dictionary<string, string> _unsubscribedByDesign = new(StringComparer.Ordinal);
-
-    /// <summary>
     ///     The guard. Every event contract in the module — App-side view-models and services, Core, and
-    ///     Pipeline — must have both halves.
+    ///     Pipeline — must have both halves, with no exceptions: no event may be allow-listed out instead
+    ///     of wired.
     /// </summary>
     [Test]
     public async Task EveryModuleEvent_HasAProductionRaiser_AndAProductionSubscriber()
@@ -95,7 +68,7 @@ public class Playback2DEventWiringTests
                      + "guard in the same commit that adds one");
 
         List<string> dead = contracts
-            .Where(c => !c.IsWired && !_unsubscribedByDesign.ContainsKey(c.Key))
+            .Where(c => !c.IsWired)
             .Select(c => c.Describe())
             .OrderBy(s => s, StringComparer.Ordinal)
             .ToList();
@@ -104,31 +77,6 @@ public class Playback2DEventWiringTests
             .Because("an event with no production subscriber is a feature that computes its answer and "
                      + "throws it away — and one with no production raiser is a subscriber that will "
                      + "never run");
-    }
-
-    /// <summary>
-    ///     The allow-list has to be load-bearing. If every entry in it became wired, this guard would keep
-    ///     passing while quietly protecting nothing — so the entries are asserted to be exactly the events
-    ///     that fail without them.
-    /// </summary>
-    [Test]
-    public async Task TheUnsubscribedAllowList_NamesExactlyTheEventsThatWouldFail()
-    {
-        (List<EventContract> contracts, List<string> _) =
-            Analyse(Playback2DWholeGraph.ModuleTypes, Playback2DWholeGraph.ProductionAssemblies);
-
-        HashSet<string> failing = contracts.Where(c => !c.IsWired).Select(c => c.Key)
-            .ToHashSet(StringComparer.Ordinal);
-
-        Console.WriteLine($"[event-wiring] without the allow-list: {string.Join(", ", failing)}");
-
-        List<string> stale = _unsubscribedByDesign.Keys.Where(k => !failing.Contains(k)).ToList();
-        await Assert.That(string.Join(", ", stale)).IsEqualTo("")
-            .Because("an allow-list entry for an event that is now wired is dead weight — delete it, and "
-                     + "read its reason first in case the new subscriber is the wrong one");
-
-        await Assert.That(_unsubscribedByDesign.Values.All(r => r.Length > 40)).IsTrue()
-            .Because("§4: an allow-list entry must carry WHY, not just a name");
     }
 
     /// <summary>
@@ -180,8 +128,8 @@ public class Playback2DEventWiringTests
         await Assert.That(Playback2DWholeGraph.ModuleTypes.Count()).IsGreaterThan(100);
         await Assert.That(contracts.Count).IsGreaterThanOrEqualTo(12);
 
-        // The two the audit named, by key: a rename that silently drops them from the scan is caught here
-        // rather than by the absence of a failure.
+        // StatusChanged and MarkersChanged, pinned by key: a rename that silently drops them from the
+        // scan is caught here rather than by the absence of a failure.
         await Assert.That(contracts.Any(c => c.Key.EndsWith(".StatusChanged", StringComparison.Ordinal)))
             .IsTrue();
         await Assert.That(contracts.Any(c => c.Key.EndsWith(".MarkersChanged", StringComparison.Ordinal)))

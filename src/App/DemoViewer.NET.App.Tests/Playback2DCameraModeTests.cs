@@ -27,6 +27,7 @@ namespace DemoViewer.NET.AppTests;
 ///     same practice as <see cref="Playback2DHeadlessSmokeTests" />.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DCameraModeTests
 {
     private const byte BgR = 0x15, BgG = 0x18, BgB = 0x1C;
@@ -63,7 +64,7 @@ public class Playback2DCameraModeTests
                 ctx.Push(new ModeSnapshot(frame, frame * 64, players));
             }
 
-            // Carried-forward suite: pin the LEGACY surface (plan §6.3). B1 mounts the surface in
+            // Carried-forward suite: pin the LEGACY surface. Mounting the surface happens in
             // code, so a view built without this would get the v2 host.
             Playback2DRenderer.ResetForTest(Playback2DRendererKind.Legacy);
             Playback2DView view = new()
@@ -147,7 +148,7 @@ public class Playback2DCameraModeTests
                 ModePlayer(1, 3, -2200, 1600, 64, 0)
             }));
 
-            // Carried-forward suite: pin the LEGACY surface (plan §6.3). B1 mounts the surface in
+            // Carried-forward suite: pin the LEGACY surface. Mounting the surface happens in
             // code, so a view built without this would get the v2 host.
             Playback2DRenderer.ResetForTest(Playback2DRendererKind.Legacy);
             Playback2DView view = new()
@@ -206,7 +207,7 @@ public class Playback2DCameraModeTests
                 ModePlayer(0, 2, 0, 0, 64, 0)
             }));
 
-            // Carried-forward suite: pin the LEGACY surface (plan §6.3). B1 mounts the surface in
+            // Carried-forward suite: pin the LEGACY surface. Mounting the surface happens in
             // code, so a view built without this would get the v2 host.
             Playback2DRenderer.ResetForTest(Playback2DRendererKind.Legacy);
             Playback2DView view = new()
@@ -233,8 +234,8 @@ public class Playback2DCameraModeTests
         });
     }
 
-    // B1 mounts the surface in code rather than declaring it in XAML, so it comes out of the
-    // ContentControl slot. This suite is carried forward against the LEGACY control (plan §6.3) — the
+    // The surface mounts in code rather than declaring it in XAML, so it comes out of the
+    // ContentControl slot. This suite is carried forward against the LEGACY control — the
     // v2 host's equivalents live in Scene2DHostInputTests.
     private static Playback2DViewport FindViewport(Playback2DView view) =>
         Playback2DTimelineHarness.Viewport(view);

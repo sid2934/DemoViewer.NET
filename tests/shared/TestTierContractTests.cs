@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Testing.Tiers;
 /// <summary>
 ///     Tests about the tests: the guard that stops the tier taxonomy rotting silently.
 ///     <para>
-///         Everything a tier does is <i>exclusion by category string</i>, and every failure mode of that
+///         Everything a tier does is exclusion by category string, and every failure mode of that
 ///         design is silent. A mistyped <c>[Category("Bugdet")]</c> compiles, runs, and quietly promotes
 ///         a benchmark into the fast tier. A tier definition that drifts out of step with
 ///         <c>scripts/test.sh</c> means the documented tier and the executed tier are different things.
@@ -69,8 +69,8 @@ public partial class TestTierContractTests
         await Assert.That(standard.Except(fast, StringComparer.Ordinal)).IsEmpty();
         await Assert.That(full.Except(standard, StringComparer.Ordinal)).IsEmpty();
         await Assert.That(full).IsEmpty();
-        // Strictly widening, not merely non-narrowing: two tiers that ran the same set would be one
-        // tier with two names, and the cheaper one would be paying for a distinction it does not make.
+        // Strictly widening: two tiers that ran the same set would be one tier with two names, and the
+        // cheaper one would be paying for a distinction it does not make.
         await Assert.That(fast.Length).IsGreaterThan(standard.Length);
         await Assert.That(standard.Length).IsGreaterThan(full.Length);
     }
@@ -153,11 +153,11 @@ public partial class TestTierContractTests
     ///     <see cref="TestTiers.Integration" />, which already excludes them everywhere
     ///     <see cref="TestTiers.RealDemo" /> would.
     ///     <para>
-    ///         <b>Scope, stated honestly:</b> this is a per-class guard driven by a source scan. It
-    ///         catches the case that actually happens — a whole new demo-reading class arriving with no
-    ///         tag — and does not catch a demo-reading method added to an already-tagged class where
-    ///         the tag sits on the siblings rather than the class. That narrower case is left to review;
-    ///         the alternative is parsing C# in a test, which trades a real guard for a brittle one.
+    ///         <b>Scope:</b> this is a per-class guard driven by a source scan. It catches a whole new
+    ///         demo-reading class arriving with no tag, but not a demo-reading method added to an
+    ///         already-tagged class where the tag sits on the siblings rather than the class. That
+    ///         narrower case is left to review; the alternative is parsing C# in a test, which trades a
+    ///         real guard for a brittle one.
     ///     </para>
     /// </summary>
     [Test]
@@ -197,8 +197,63 @@ public partial class TestTierContractTests
     }
 
     /// <summary>
+    ///     Any source file that constructs a headless Avalonia window or rasterises a visual tree
+    ///     declares test classes that must be tagged out of <see cref="TestTiers.Fast" /> — normally
+    ///     with <see cref="TestTiers.Render" />, but any tag that tier already drops will do, on the
+    ///     same reasoning as the demo clause above.
+    ///     <para>
+    ///         Before this guard, <c>fast</c> and <c>standard</c> discovered the identical 929 tests on
+    ///         the App suite, because the window-booting classes carried no category at all: the tier
+    ///         whose whole purpose is "no pixels" was paying for every one of them.
+    ///     </para>
+    ///     <para>
+    ///         The markers are the Avalonia ones — a <c>Window</c> construction, a window handed back by
+    ///         a harness, a <c>CaptureRenderedFrame</c> — so this guards the App suite, where the hole
+    ///         was. It says nothing about the direct-execution suites, which rasterise through Skia with
+    ///         no window and tag themselves. Unlike the demo clause it attributes per class rather than
+    ///         per file: three suites share <c>Playback2DExportSurfaceTests.cs</c> and only some of them
+    ///         boot a window.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task EveryClassThatBootsAWindow_IsTaggedOutOfTheFastTier()
+    {
+        string projectDirectory = RequireProjectDirectory();
+        Dictionary<string, ImmutableArray<string>> byClass = CategoriesByClass();
+        ImmutableArray<string> droppedByFast = TestTiers.Exclusions[TestTiers.Fast];
+
+        List<string> offenders = [];
+        foreach (string file in Directory.EnumerateFiles(projectDirectory, "*.cs", SearchOption.AllDirectories))
+        {
+            string source = await File.ReadAllTextAsync(file);
+            foreach ((string name, string body) in TopLevelClassBodies(source))
+            {
+                if (!BootsAWindow().IsMatch(body))
+                {
+                    continue;
+                }
+
+                if (!byClass.TryGetValue(name, out ImmutableArray<string> categories))
+                {
+                    continue;   // Declares no tests in this assembly — a helper, a fake, a harness.
+                }
+
+                if (!categories.Intersect(droppedByFast, StringComparer.Ordinal).Any())
+                {
+                    offenders.Add($"{Path.GetFileName(file)}::{name} constructs a window but carries no "
+                                  + $"category the fast tier drops — add [Category(\"{TestTiers.Render}\")]");
+                }
+            }
+        }
+
+        // The count alone is useless when this goes red, and it goes red on a whole suite at a time.
+        offenders.ForEach(Console.WriteLine);
+        await Assert.That(offenders).IsEmpty();
+    }
+
+    /// <summary>
     ///     <c>[Explicit]</c> is banned outright, because on the pinned TUnit (0.25.21) it breaks
-    ///     filtering rather than extending it: when a filter's match set contains <i>both</i> explicit
+    ///     filtering rather than extending it: when a filter's match set contains both explicit
     ///     and non-explicit tests, <c>TestFilterService</c> discards the filter and runs every
     ///     non-explicit test in the assembly instead. A single <c>[Explicit]</c> test is therefore
     ///     enough to turn <c>-t fast</c> into a full run with no error and no warning — the exact
@@ -283,6 +338,22 @@ public partial class TestTierContractTests
         return accumulator.ToDictionary(kv => kv.Key, kv => kv.Value.ToImmutableArray(), StringComparer.Ordinal);
     }
 
+    /// <summary>
+    ///     Each top-level class declaration paired with the source that follows it, up to the next one.
+    ///     Crude, and deliberately so — a private nested type stays inside its owner's slice, which is
+    ///     what attributes a fixture's <c>Window</c> to the suite that uses it.
+    /// </summary>
+    /// <param name="source">One C# file.</param>
+    private static IEnumerable<(string Name, string Body)> TopLevelClassBodies(string source)
+    {
+        MatchCollection declarations = ClassDeclaration().Matches(source);
+        for (int i = 0; i < declarations.Count; i++)
+        {
+            int end = i + 1 < declarations.Count ? declarations[i + 1].Index : source.Length;
+            yield return (declarations[i].Groups["name"].Value, source[declarations[i].Index..end]);
+        }
+    }
+
     /// <summary>The repo root, or a skip when this assembly is running detached from a checkout.</summary>
     /// <exception cref="SkipTestException">No <c>DemoViewer.NET.slnx</c> above the test binaries.</exception>
     private static string RequireRepoRoot() =>
@@ -324,4 +395,12 @@ public partial class TestTierContractTests
     [GeneratedRegex(@"^\s*(?:public|internal)\s+(?:sealed\s+|abstract\s+|static\s+|partial\s+)*class\s+(?<name>\w+)",
         RegexOptions.Multiline)]
     private static partial Regex ClassDeclaration();
+
+    /// <summary>
+    ///     Constructing a <c>Window</c> (both spellings, target-typed included), taking one back out of
+    ///     a harness by deconstruction or return type, or rasterising a visual tree.
+    /// </summary>
+    [GeneratedRegex(@"\bnew\s+Window\s*[({]|\bWindow\s+\w+\s*=\s*new\b|\(\s*Window\s+\w+\s*,"
+                    + @"|\bCaptureRenderedFrame\s*\(")]
+    private static partial Regex BootsAWindow();
 }

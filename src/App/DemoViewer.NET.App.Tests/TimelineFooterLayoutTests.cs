@@ -25,6 +25,7 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class TimelineFooterLayoutTests
 {
     /// <summary>

@@ -647,7 +647,7 @@ public class App : Application
                 sp.GetService<IOptionsMonitor<AppSettings>>(),
                 sp.GetRequiredService<SettingsService>(),
                 // Generate hands off to the background reel service. Null on
-                // Browser/tests → the primary degrades to a disabled control with an honest tip.
+                // Browser/tests → the primary degrades to a disabled control with a tip saying why.
                 Shell().ReelJob,
                 // Single-CS2 interlock: a live sync session owns the game, so a render must ask first.
                 () => Shell().LiveSync?.State.IsSessionActive ?? false,

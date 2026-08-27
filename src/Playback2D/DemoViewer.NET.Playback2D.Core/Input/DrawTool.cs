@@ -13,8 +13,8 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 ///     <para>
 ///         <b>The anchor is chosen at press time and never revisited.</b> A stroke started on a player
 ///         (with entity anchoring on) follows them by SteamId for the rest of the demo; otherwise it is
-///         pinned to the level the pane is showing, keyed by that level's <i>quantized</i> lower Z so a
-///         later floor-split rebuild still finds it (plan correction 10).
+///         pinned to the level the pane is showing, keyed by that level's quantized lower Z so a later
+///         floor-split rebuild still finds it.
 ///     </para>
 /// </summary>
 public sealed class DrawTool : IPointerTool
@@ -94,9 +94,7 @@ public sealed class DrawTool : IPointerTool
         session.Wet.TryAppend(new InkPoint(e.World.X, e.World.Y, e.Pressure), spacing, nowMs);
         _lastEventMs = nowMs;
 
-        // Unconditional, as it always effectively was: the repaint below runs whether or not the spacing
-        // filter kept the sample, so the `appended` flag existed only to gate AnnotationSession's
-        // WetChanged — an event nothing ever subscribed to (D6 §3), now deleted.
+        // Unconditional: the repaint below runs whether or not the spacing filter kept the sample.
         s.RequestRender();
     }
 
@@ -127,9 +125,8 @@ public sealed class DrawTool : IPointerTool
                 ? [.. samples]
                 : [samples[0], samples[0]];
 
-            // Null for every mode but RealTime, and that is what keeps the rest byte-identical: the DTO
-            // writes WhenWritingNull, so an element without a cadence emits no field at all and the
-            // pinned v1 schema sample does not move.
+            // Null for every mode but RealTime: the DTO writes WhenWritingNull, so an element without a
+            // cadence emits no field at all and the pinned v1 schema sample does not move.
             // The session's rate, not a literal: on a 128-tick parse a stroke converted at 64 replays at
             // half the speed it was drawn at, and the host writes the real rate off the demo's clock.
             StrokeTiming? timing = session.Wet.IsRecordingCadence

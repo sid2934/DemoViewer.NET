@@ -84,8 +84,8 @@ public struct SliceCamera
 
     // `a + (b - a) * t` is NaN for every t when a is NaN, so a camera that has already been poisoned
     // can never lerp its way back to a finite target — it stays unsettled, and CameraAdvancer keeps the
-    // render loop armed forever (D6 finding 8). ViewportTransform.Fit and SceneFrameBuilder.Observe
-    // stop the two known producers; this is what lets a camera that was corrupted anyway RECOVER, on
-    // the first frame with a finite target, by landing on it instead of interpolating from nothing.
+    // render loop armed forever. ViewportTransform.Fit and SceneFrameBuilder.Observe stop the two known
+    // producers; this is what lets a camera that was corrupted anyway RECOVER, on the first frame with a
+    // finite target, by landing on it instead of interpolating from nothing.
     private static double Lerp(double a, double b, double t) => double.IsFinite(a) ? a + (b - a) * t : b;
 }

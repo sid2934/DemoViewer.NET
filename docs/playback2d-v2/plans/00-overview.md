@@ -292,15 +292,10 @@ collisions: `Q`/`E` = round nav, **`X` = erase**, `Ctrl+X` = clear all; `Space` 
 while a drawing tool is active (then hold-to-pan); `Esc` = gesture bail when a tool is active, else
 clear follow. Text-input suppression is A1's single global rule, not a per-binding flag.
 
-> **`RenderBackend`'s status, so the gap is not rediscovered a third time.** The key is in the list
-> below and C2 built the entire stack behind it, but no property exists, and D6 round 3A looked and chose
-> not to add one: nothing in the app can consume it. The scene host draws through Avalonia's own
-> compositor and never asks for a render-surface provider, and the export session refuses any provider
-> that is not CPU raster (design §0 **O2** / C2 Stage 1). A property today would be a preference whose
-> every value behaved identically except `gpu`, which would turn every export into a validation failure
-> — this audit's own defect class. The line stays because the key is still the intended name, and
-> the settings-consumption guard carries a load-bearing allow-list entry that **names** the gap so it is
-> not merely silent about it. Delete both in the commit that gives the key a consumer.
+> **`RenderBackend` is listed below but has no property.** The key is still the intended name; nothing
+> in the app can consume it yet, and the reasons are in the `Playback2DSettings` class doc in
+> `AppSettings.cs`. `Playback2DSettingsConsumptionTests` carries a matching allow-list entry. Delete both
+> in the commit that gives the key a consumer (design §0 **O2** / C2 Stage 1).
 
 > **Editing the paragraph below.** `Playback2DSettingsConsumptionTests.RegistryKeys` parses it — from the
 > `AppSettings.Playback2D` marker to the next `---` — and treats **every backticked PascalCase token in

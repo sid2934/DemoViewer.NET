@@ -8,11 +8,10 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests.Rendering;
 
 /// <summary>
-///     The perceptual half of the comparator, which C2 fills in: the outlier budget, the alpha bound and
-///     SSIM (plans/C2-gpu-provider.md §7.1, §7.3).
+///     The perceptual half of the comparator: the outlier budget, the alpha bound and SSIM.
 ///     <para>
 ///         <b>A comparator has to be trustworthy before it is allowed to judge anything.</b> The
-///         discriminating case is the one-pixel translation: every pixel is close to <i>a</i> pixel, so a
+///         discriminating case is the one-pixel translation: every pixel is close to a pixel, so a
 ///         per-channel tolerance passes an entire scene that has slid sideways. That case is the whole
 ///         reason SSIM is in the policy, and it is pinned below.
 ///     </para>
@@ -36,7 +35,7 @@ public class GoldenPerceptualToleranceTests
 
     /// <summary>
     ///     A uniform lift inside the 8/255 band passes — on a mid-to-bright base. SSIM's luminance term
-    ///     is a <i>ratio</i>, so the same absolute step is a larger relative change on a dark base; the
+    ///     is a ratio, so the same absolute step is a larger relative change on a dark base; the
     ///     companion case below pins that, because it is the sort of asymmetry a future reader would
     ///     otherwise rediscover as a mysterious flake.
     /// </summary>
@@ -88,7 +87,7 @@ public class GoldenPerceptualToleranceTests
     }
 
     /// <summary>
-    ///     Two percent of pixels lifted by 20: under the 32 ceiling, so the <i>fraction</i> rule is what
+    ///     Two percent of pixels lifted by 20: under the 32 ceiling, so the fraction rule is what
     ///     must catch it. Distinguishing the two failures matters — one means "a few edges rounded
     ///     differently", the other means "something moved".
     /// </summary>
@@ -125,7 +124,7 @@ public class GoldenPerceptualToleranceTests
     }
 
     /// <summary>
-    ///     The boundary the plan asks to be pinned. A lone pixel lifted 30 levels sits <i>under</i> both
+    ///     The boundary case this policy pins. A lone pixel lifted 30 levels sits under both
     ///     per-channel rules — under the 32 ceiling and far under the 0.5 % budget — and still fails, on
     ///     the worst-window SSIM.
     ///     <para>
@@ -177,7 +176,7 @@ public class GoldenPerceptualToleranceTests
     }
 
     /// <summary>
-    ///     Alpha gets its own, far tighter bound: a backend that disagrees about <i>coverage</i> is a real
+    ///     Alpha gets its own, far tighter bound: a backend that disagrees about coverage is a real
     ///     bug, not an anti-aliasing difference.
     /// </summary>
     [Test]
@@ -261,16 +260,13 @@ public class GoldenPerceptualToleranceTests
     ///     The other half of the formula — the contrast/structure term, which the flat case leaves at
     ///     exactly 1 and therefore cannot test at all.
     ///     <para>
-    ///         A period-2 checkerboard of <c>m ± d</c> has, under <i>any</i> symmetric normalised window,
+    ///         A period-2 checkerboard of <c>m ± d</c> has, under any symmetric normalised window,
     ///         μ = m and σ² = d²; shifting it one pixel flips its sign, giving σxy = −d² while μ is
-    ///         unchanged. The luminance term is then exactly 1 and SSIM reduces to
-    ///         <c>(−2d² + C₂) / (2d² + C₂)</c> with <c>C₂ = (0.03·255)² = 58.5225</c>. For d = 3 that is
-    ///         <c>40.5225 / 76.5225 = 0.529554…</c>.
-    ///     </para>
-    ///     <para>
-    ///         So this pins the covariance path, <c>C₂</c>, and the separable two-pass convolution
-    ///         together: a horizontal/vertical pass that failed to compose into a true 2-D window would
-    ///         not land on this number.
+    ///         unchanged. SSIM then reduces to <c>(−2d² + C₂) / (2d² + C₂)</c> with
+    ///         <c>C₂ = (0.03·255)² = 58.5225</c>, which for d = 3 is
+    ///         <c>40.5225 / 76.5225 = 0.529554…</c> — pinning the covariance path, <c>C₂</c>, and the
+    ///         separable two-pass convolution together, since a pass that failed to compose into a true
+    ///         2-D window would not land on this number.
     ///     </para>
     /// </summary>
     [Test]
@@ -292,9 +288,10 @@ public class GoldenPerceptualToleranceTests
     }
 
     // ── The glyph tier ──────────────────────────────────────────────────────────────────────────────
-    // GoldenTolerance.ForTextBearingGolden resolves per platform, so asserting the RULES through it
-    // would test one branch on Windows and the other on Linux. These use the open tier as a literal
-    // instead, and the platform policy itself is pinned separately below.
+    // GoldenTolerance.ForLabelledFrame resolves per platform, so asserting the comparator's RULES
+    // through it would test one branch on Windows and the other on Linux. These use an open tier as a
+    // literal instead — a stand-in for the shape the factory produces, not its numbers — and the
+    // factory's own policy is pinned separately below.
 
     private static readonly GoldenTolerance _openGlyphTier =
         GoldenTolerance.DefaultPerceptual with
@@ -337,14 +334,19 @@ public class GoldenPerceptualToleranceTests
     }
 
     /// <summary>
-    ///     The platform policy, stated as an assertion rather than left implicit in a property: on the
+    ///     The platform policy, stated as an assertion rather than left implicit in a factory: on the
     ///     machine that authored the corpus a text-bearing golden is judged by exactly the default
-    ///     budget, and off it by the default budget plus three named, bounded allowances.
+    ///     budget, and off it by the default budget plus three named, bounded allowances — the third of
+    ///     which is counted in labels, so a frame that draws none gets no allowance on any platform.
     /// </summary>
     [Test]
-    public async Task ForTextBearingGolden_RelaxesNothing_OnTheAuthoringPlatform()
+    public async Task ForLabelledFrame_RelaxesNothing_OnTheAuthoringPlatform()
     {
-        GoldenTolerance resolved = GoldenTolerance.ForTextBearingGolden;
+        GoldenTolerance resolved = GoldenTolerance.ForLabelledFrame(900, 900, 10);
+
+        await Assert.That(GoldenTolerance.ForLabelledFrame(900, 900, 0))
+            .IsEqualTo(GoldenTolerance.DefaultPerceptual)
+            .Because("no text means no allowance, on the authoring platform and off it");
 
         if (GoldenTolerance.GlyphsMatchTheCorpus)
         {
@@ -352,7 +354,10 @@ public class GoldenPerceptualToleranceTests
             return;
         }
 
-        await Assert.That(resolved).IsEqualTo(_openGlyphTier);
+        await Assert.That(resolved.GlyphOutlierChannelDelta).IsEqualTo(96);
+        await Assert.That(resolved.MinWindowSsim).IsEqualTo(0.88);
+        await Assert.That(resolved.MaxGlyphOutlierFraction).IsEqualTo(60 / 810_000.0).Within(1e-12)
+            .Because("six pixels a label, over the frame the comparer wants a fraction of");
 
         // Everything the tier does NOT touch, so a future edit widening it has to come through here.
         await Assert.That(resolved.MaxChannelDelta)

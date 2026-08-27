@@ -243,10 +243,15 @@ public class AnnotationStoreTests
         // Rewritten by span rather than by Replace: the run table and the duration hold the same numbers
         // (a duration IS the last offset), so a textual substitution would land in whichever came first.
         string path = store.ResolvePath(tree.DemoPath)!;
-        string text = File.ReadAllText(path);
+        string text = await File.ReadAllTextAsync(path);
+
+        // The spacing is the writer's WriteIndented; asserted rather than assumed, so a serializer change
+        // says so here instead of throwing out of a range expression six characters later.
+        await Assert.That(text).Contains("\"runs\": [");
+
         int start = text.IndexOf("\"runs\": [", StringComparison.Ordinal);
         int end = text.IndexOf(']', start);
-        File.WriteAllText(path, text[..start] + "\"runs\": [0, 0, 40, 128, 77" + text[end..]);
+        await File.WriteAllTextAsync(path, text[..start] + "\"runs\": [0, 0, 40, 128, 77" + text[end..]);
 
         AnnotationLoadResult loaded = await store.LoadAsync(tree.DemoPath, tree.Clock);
 
@@ -256,8 +261,8 @@ public class AnnotationStoreTests
     }
 
     /// <summary>
-    ///     The cadence costs O(boundaries), never O(samples) — which is the entire reason plan D7 §2
-    ///     chose a sparse run table over a fourth float on every <c>InkPoint</c> (+0.9 % against +26 %).
+    ///     The cadence costs O(boundaries), never O(samples): a sparse run table was chosen over a
+    ///     fourth float on every <c>InkPoint</c> (+0.9 % against +26 %).
     ///     <para>
     ///         Asserted as a SHAPE rather than a byte budget: the same run table on a stroke four times
     ///         as long must cost exactly the same number of bytes. A percentage would drift with the
@@ -426,9 +431,7 @@ public class AnnotationStoreTests
         AnnotationStore store = new(tree.AppData);
         await store.SaveAsync(tree.DemoPath, tree.Demo, tree.Clock, [AnnotationFakes.Stroke()]);
 
-        string path = store.ResolvePath(tree.DemoPath)!;
-        File.WriteAllText(path, File.ReadAllText(path).Replace("\"schemaVersion\": 1",
-            "\"schemaVersion\": 99", StringComparison.Ordinal));
+        await Rewrite(store.ResolvePath(tree.DemoPath)!, "\"schemaVersion\": 1", "\"schemaVersion\": 99");
 
         AnnotationLoadResult loaded = await store.LoadAsync(tree.DemoPath, tree.Clock);
 
@@ -460,9 +463,9 @@ public class AnnotationStoreTests
         AnnotationStore store = new(tree.AppData);
         await store.SaveAsync(tree.DemoPath, tree.Demo, tree.Clock, [AnnotationFakes.Stroke()]);
 
-        string path = store.ResolvePath(tree.DemoPath)!;
-        File.WriteAllText(path, File.ReadAllText(path)
-            .Replace("\"kind\": \"Freehand\"", $"\"kind\": \"{edited}\"", StringComparison.Ordinal));
+        // Guarded, because this is the one edit whose no-op is invisible: the file would still say
+        // Freehand, the assertion below expects Freehand, and the fence would go untested.
+        await Rewrite(store.ResolvePath(tree.DemoPath)!, "\"kind\": \"Freehand\"", $"\"kind\": \"{edited}\"");
 
         AnnotationLoadResult loaded = await store.LoadAsync(tree.DemoPath, tree.Clock);
 
@@ -548,7 +551,7 @@ public class AnnotationStoreTests
     }
 
     /// <summary>
-    ///     Plan decision D10. A clock mismatch is a WARNING, not a discard: static elements are unaffected
+    ///     A clock mismatch is a WARNING, not a discard: static elements are unaffected
     ///     by the clock at all, and throwing away a session's telestration because a re-parse produced a
     ///     different frame count would be the worst possible response.
     /// </summary>
@@ -605,7 +608,7 @@ public class AnnotationStoreTests
         await Assert.That(loaded.Elements.Count).IsEqualTo(2);
     }
 
-    /// <summary>Plan decision D12: a failed write is a status string, never an exception mid-gesture.</summary>
+    /// <summary>A failed write is a status string, never an exception mid-gesture.</summary>
     [Test]
     public async Task Save_OnIoFailure_ReturnsFalse_DoesNotThrow()
     {
@@ -658,6 +661,27 @@ public class AnnotationStoreTests
             StringComparison.Ordinal)).IsTrue();
         await Assert.That(calls).IsGreaterThan(0)
             .Because("the App passes its cached hash in; nothing here may hash on the UI thread");
+    }
+
+    /// <summary>
+    ///     A textual edit to a sidecar, refusing to no-op.
+    ///     <para>
+    ///         <b>Every one of these depends on the writer's <c>WriteIndented = true</c> spacing.</b> If
+    ///         that flips, <c>Replace</c> changes nothing and the assertions that follow run against the
+    ///         unedited file — which for a test expecting the value it started with is a green that
+    ///         proves nothing.
+    ///     </para>
+    /// </summary>
+    /// <param name="path">The sidecar to rewrite.</param>
+    /// <param name="find">The exact text to replace; asserted present first.</param>
+    /// <param name="replacement">What to put in its place.</param>
+    private static async Task Rewrite(string path, string find, string replacement)
+    {
+        string text = await File.ReadAllTextAsync(path);
+        await Assert.That(text).Contains(find)
+            .Because("the edit below would silently no-op, and the test would pass on the original file");
+
+        await File.WriteAllTextAsync(path, text.Replace(find, replacement, StringComparison.Ordinal));
     }
 
     private static void InjectUnknownFields(string path, Guid elementId)

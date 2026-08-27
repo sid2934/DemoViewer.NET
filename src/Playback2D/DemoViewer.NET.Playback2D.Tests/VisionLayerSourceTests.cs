@@ -9,11 +9,11 @@ using DemoViewer.NET.Playback2D.Core.Vision;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     D6 round 3 — <see cref="VisionLayer" /> has <b>two</b> sources, and the guard is that it reads
-///     whichever one has data.
+///     <see cref="VisionLayer" /> has <b>two</b> sources, and the guard is that it reads whichever one
+///     has data.
 ///     <para>
-///         The defect this pins is the audit's signature shape: a layer wired into three shipped
-///         commands, registered by name, drawing nothing. <c>VisionLayer</c> read an
+///         The defect this pins: a layer wired into three shipped commands, registered by name, drawing
+///         nothing. <c>VisionLayer</c> read an
 ///         <see cref="IVisionSolver" /> and only that, while <c>SceneVision</c>'s own doc said the layer
 ///         "only draws the result" of a solve done upstream — so a fixture carrying two solved cones
 ///         rendered an empty frame, and <c>dv2d golden verify</c> compared that empty frame against a

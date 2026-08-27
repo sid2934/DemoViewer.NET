@@ -110,8 +110,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
     ///         state and knows nothing about the platform; modules read the same ids through
     ///         <c>ShellModuleFeatureGate</c>, which ANDs the platform in. So the browser showed a live,
     ///         ON "Video export" toggle for a capability forced off one layer out, and flipping it
-    ///         persisted an override that nothing would ever honour (D6 §4b, recorded in
-    ///         <c>wasm-matrix.md</c> as a D4 follow-up that D4 shipped without).
+    ///         persisted an override that nothing would ever honour.
     ///     </para>
     /// </summary>
     public bool IsPlatformUnavailable { get; }

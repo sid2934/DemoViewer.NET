@@ -83,7 +83,7 @@ public class AnnotationLayerTests
     }
 
     /// <summary>
-    ///     <b>Design §10 risk 5, at the one seam that actually loses the ink.</b> A floor lost and
+    ///     <b>The one seam that actually loses the ink.</b> A floor lost and
     ///     re-found across rebuilds is minted a NEW key, because <c>MapSpace.Mint</c> walks past every key
     ///     it has ever issued — after which <c>level.Id != MapSpace.IdForZMin(level.ZMin)</c>. This layer
     ///     derived the id from the anchor's Z, so the stroke matched no pane at all and simply vanished;
@@ -284,13 +284,13 @@ public class AnnotationLayerTests
 
     /// <summary>
     ///     §6's budget. 512 Advance+Render frames with no active stroke must allocate nothing — measured
-    ///     on the SECOND of two identical windows, for the reason B1 records in its deviation 14.
+    ///     on the SECOND of two identical windows, so JIT warmup on the first cannot register as a leak.
     ///     <para>
-    ///         The mix carries a mid-replay real-time stroke (plan D7) as well as the cached, the
-    ///         entity-anchored and the fading cases, because that is the only element whose section table
-    ///         is rebuilt on every single frame. <c>RealTimeInkTests</c> measures that case on its own,
-    ///         at a realistic sample count; here it is in the shipped mix, where a per-section list or a
-    ///         closure would show up against everything else the layer does.
+    ///         The mix carries a mid-replay real-time stroke as well as the cached, entity-anchored and
+    ///         fading cases, because that is the only element whose section table is rebuilt on every
+    ///         frame. <c>RealTimeInkTests</c> measures that case alone, at a realistic sample count; here
+    ///         it sits in the shipped mix, where a per-section list or a closure would show up against
+    ///         everything else the layer does.
     ///     </para>
     /// </summary>
     [Test]

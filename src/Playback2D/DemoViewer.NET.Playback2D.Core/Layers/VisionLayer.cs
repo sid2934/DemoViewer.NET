@@ -13,27 +13,19 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///     them, so the marker discs above stay readable. Port of <c>DrawViewCones</c> / <c>DrawOneCone</c>
 ///     / <c>DrawSightlines</c> (viewport lines 987-1057).
 ///     <para>
-///         <b>The raycasts moved from Render to Advance</b> (plan decision D-13). The pre-v2 code ran 26
-///         raycasts per player <i>inside</i> <c>Control.Render</c> — once per pane, so a two-floor Nuke
-///         paid for them twice — and called into the visibility engine from the render thread. Solving
-///         once in Advance is pixel-identical (same rays, same eye, same range), strictly cheaper, and
-///         the only way the Advance/Render purity split can hold.
+///         <b>The raycasts moved from Render to Advance.</b> The pre-v2 code ran 26 raycasts per player
+///         inside <c>Control.Render</c> — once per pane, so a two-floor Nuke paid for them twice — and
+///         called into the visibility engine from the render thread. Solving once in Advance is
+///         pixel-identical (same rays, same eye, same range), strictly cheaper, and the only way the
+///         Advance/Render purity split can hold. The solve itself lives in Pipeline:
+///         <c>VisibilityEngine</c> is a CS2DemoKit type and Core references SkiaSharp only.
 ///     </para>
 ///     <para>
-///         The solve itself lives in Pipeline (decision D-2): <c>VisibilityEngine</c> is a CS2DemoKit
-///         type and Core references SkiaSharp only.
-///     </para>
-///     <para>
-///         <b>Two sources, and it draws whichever one has data</b> (D6 round 3). An
-///         <see cref="IVisionSolver" /> is the live path the app takes, and it wins whenever it produces
-///         a solution. A <see cref="Scene2DFrame" /> can also arrive with <see cref="SceneVision" />
-///         <i>already solved</i> — that is the shape a serialized fixture carries, and what
-///         <c>SceneVision</c>'s own doc has always said this layer draws. It did not: the layer read the
-///         solver and nothing else, so <c>dv2d render</c>/<c>golden</c>/<c>bench</c> registered
-///         <c>playback2d.vision</c>, fed it no solver, and drew nothing while the fixture sat there
-///         holding cones. The projection below is that missing half. It is a fallback rather than a
-///         merge because two sources drawn at once would double every cone on the one frame that
-///         carried both.
+///         <b>Two sources, and it draws whichever one has data.</b> An <see cref="IVisionSolver" /> is the
+///         live path the app takes, and it wins whenever it produces a solution. A
+///         <see cref="Scene2DFrame" /> can also arrive with <see cref="SceneVision" /> already solved —
+///         the shape a serialized fixture carries. It is a fallback rather than a merge because two
+///         sources drawn at once would double every cone on the one frame that carried both.
 ///     </para>
 /// </summary>
 public sealed class VisionLayer : ISceneLayer
@@ -47,8 +39,8 @@ public sealed class VisionLayer : ISceneLayer
     /// <summary>Creates the layer.</summary>
     /// <param name="solver">
     ///     The solve seam. Null is not "draw nothing" — the layer then draws whatever the frame carries
-    ///     pre-solved in <see cref="Scene2DFrame.Vision" />, which is how a headless fixture render gets
-    ///     its cones.
+    ///     pre-solved in <see cref="Scene2DFrame.Vision" />. A headless fixture render supplies its cones
+    ///     this way.
     /// </param>
     /// <param name="smoother">
     ///     The shared marker smoothing, so cone apexes and sightline endpoints sit on the drawn dots
@@ -73,7 +65,7 @@ public sealed class VisionLayer : ISceneLayer
         };
     }
 
-    /// <summary>The last solved geometry. Test hook, and what B4's HUD reads for a "seen by" count.</summary>
+    /// <summary>The last solved geometry. Test hook, and what the HUD reads for a "seen by" count.</summary>
     public VisionSolution Solution { get; } = new();
 
     /// <summary>Could-see segments solved for the last advance — the pre-v2 <c>SightlineCount</c> hook.</summary>
@@ -93,12 +85,9 @@ public sealed class VisionLayer : ISceneLayer
 
     /// <inheritdoc />
     /// <remarks>
-    ///     <b>Defaults on, like the other eleven layers.</b> It was the one layer in the stack that
-    ///     defaulted <c>false</c>, which is the second half of why <c>dv2d</c> drew no cones (D6 round 3):
-    ///     even fed a solver, a registered vision layer stayed dark until somebody enabled it, and only
-    ///     <c>Scene2DHost</c> ever did. The app is unaffected — <c>SyncFromViewModel</c> pushes
-    ///     <c>vm.ShowVision</c> through <c>SetEnabled</c> on every frame, so the toggle, not this default,
-    ///     is what decides there.
+    ///     <b>Defaults on, like the other eleven layers.</b> The default only matters before
+    ///     <c>SetEnabled</c> is called: in the app, <c>SyncFromViewModel</c> pushes <c>vm.ShowVision</c>
+    ///     through it on every frame, so the toggle, not this default, decides there.
     /// </remarks>
     public bool IsEnabled { get; set; } = true;
 

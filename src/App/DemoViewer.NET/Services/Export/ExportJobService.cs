@@ -15,7 +15,7 @@ namespace DemoViewer.NET.Services.Export;
 ///         session on <see cref="HeavyJobGate" /> → <i>re-check</i> LiveSync (a session could have started
 ///         during the entry) → run → release the gate → publish the terminal status. Publishing last is
 ///         the <c>ReelJobService</c> pattern: <c>IsRunning</c> stays true until the machine is actually
-///         free, so an interlock reading this status during wind-down reads honestly.
+///         free, so an interlock reading this status during wind-down cannot see it as available early.
 ///     </para>
 ///     <para>
 ///         <b>Refusal is start-time only</b> (plan D11, matching design §5.7's wording). A LiveSync

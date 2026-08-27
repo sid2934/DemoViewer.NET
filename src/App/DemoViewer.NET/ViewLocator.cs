@@ -39,19 +39,16 @@ public class ViewLocator : IDataTemplate
         };
     }
 
-    /// <summary>
-    ///     Match.
-    ///     <para>
-    ///         <b><see cref="ViewModelBase" />, deliberately, not <c>ObservableObject</c>.</b> This template
-    ///         is registered on the <c>Application</c>, so it is the last-resort match for every bound
-    ///         object in the app — and most <c>ObservableObject</c>s here are row and item view-models with
-    ///         no <c>…View</c> type at all, which <see cref="Build" /> would render as "Not Found: …". The
-    ///         base class is therefore an opt-in: <b>a view-model hosted by a bare
-    ///         <c>ContentControl</c> must derive from <see cref="ViewModelBase" /></b> or it silently
-    ///         renders as its own <c>ToString()</c>. That is not hypothetical —
-    ///         <c>Playback2DExportDialogViewModel</c> shipped as an <c>ObservableObject</c> and the entire
-    ///         2D export pane rendered as one line of fully-qualified type name.
-    ///     </para>
-    /// </summary>
+    /// <summary>Match.</summary>
+    /// <remarks>
+    ///     <b><see cref="ViewModelBase" />, deliberately, not <c>ObservableObject</c>.</b> This template is
+    ///     registered on the <c>Application</c>, so it is the last-resort match for every bound object in
+    ///     the app, and most <c>ObservableObject</c>s here have no <c>…View</c> type at all, which
+    ///     <see cref="Build" /> would render as "Not Found: …". A view-model hosted by a bare
+    ///     <c>ContentControl</c> must derive from <see cref="ViewModelBase" /> or it silently renders as its
+    ///     own <c>ToString()</c> — <c>Playback2DExportDialogViewModel</c> shipped as an
+    ///     <c>ObservableObject</c> once and the entire 2D export pane rendered as one line of
+    ///     fully-qualified type name.
+    /// </remarks>
     public bool Match(object? data) => data is ViewModelBase;
 }

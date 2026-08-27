@@ -22,7 +22,8 @@ namespace DemoViewer.NET.Playback2D.Cli;
 ///     <para>
 ///         What "within tolerance" means here is <see cref="ToleranceFor" />, and it is not a constant:
 ///         eight of the nine entries this command judges draw text, and Skia's glyph rasteriser is not
-///         the same code on every operating system. <c>GoldenAttributionTests</c> keeps that honest.
+///         the same code on every operating system. <c>GoldenAttributionTests</c> verifies the allowance
+///         is spent on glyph ink and nothing else.
 ///     </para>
 /// </summary>
 internal static class GoldenCommand
@@ -214,16 +215,15 @@ internal static class GoldenCommand
     ///     caller's to dispose.
     ///     <para>
     ///         <c>defaultBackend: ForceCpu</c>. The committed corpus is <c>goldens/cpu/</c> and CPU is
-    ///         authoritative (00-overview.md §3.9), so an unqualified <c>dv2d golden verify</c> must not
-    ///         auto-probe onto a GPU and report a rasteriser difference as a pixel regression.
-    ///         <c>--gpu</c> / <c>--backend</c> / <c>DV2D_RENDER_BACKEND</c> still override, for the
-    ///         parity lane.
+    ///         authoritative, so an unqualified <c>dv2d golden verify</c> must not auto-probe onto a GPU
+    ///         and report a rasteriser difference as a pixel regression. <c>--gpu</c> / <c>--backend</c> /
+    ///         <c>DV2D_RENDER_BACKEND</c> still override, for the parity lane.
     ///     </para>
     ///     <para>
     ///         Extracted from <see cref="Run" /> rather than inlined because
-    ///         <c>GoldenAttributionTests</c> has to render these entries <i>through this exact
-    ///         plan</i> — with one layer silenced — to prove what the glyph tier forgives. A proof that
-    ///         renders a lookalike stack proves nothing about the stack the gate judges.
+    ///         <c>GoldenAttributionTests</c> has to render these entries through this exact plan, with
+    ///         one layer silenced, to prove what the glyph tier forgives. A proof that renders a
+    ///         lookalike stack proves nothing about the stack the gate judges.
     ///     </para>
     /// </summary>
     /// <param name="args">The parsed arguments, for the backend / assets / layer flags.</param>
@@ -267,12 +267,12 @@ internal static class GoldenCommand
     ///         on the budget as well as on the pixels.
     ///     </para>
     ///     <para>
-    ///         Marker labels only. The floor caption <c>FloorLabelLayer</c> draws is glyph ink too — and
-    ///         a long string, some 400-500 px of it per pane against ~57 px for a two-letter initial —
-    ///         so on the two stacked entries it spends a budget it earns nothing towards. That is
-    ///         deliberate: it makes the budget <i>tighter</i> where there is more text, never looser,
-    ///         and both entries still measure comfortably inside it (1.20 and 3.20 px per marker label
-    ///         against the 6 allowed). Counting captions would be the change that needs justifying.
+    ///         Marker labels only. The floor caption <c>FloorLabelLayer</c> draws is glyph ink too, and
+    ///         a long string, some 400-500 px of it per pane against ~57 px for a two-letter initial — so
+    ///         on the two stacked entries it spends a budget it earns nothing towards. That is
+    ///         deliberate: it makes the budget tighter where there is more text, never looser, and both
+    ///         entries still measure comfortably inside it (1.20 and 3.20 px per marker label against
+    ///         the 6 allowed). Counting captions would be the change that needs justifying.
     ///     </para>
     /// </summary>
     /// <param name="fixture">The scene about to be drawn.</param>
@@ -286,21 +286,17 @@ internal static class GoldenCommand
     ///     The budget one entry is judged at: <see cref="GoldenTolerance.ByteExact" /> when the entry or
     ///     the caller asks for it, and otherwise <see cref="GoldenTolerance.ForLabelledFrame" />.
     ///     <para>
-    ///         It was <see cref="GoldenTolerance.DefaultPerceptual" />, which is the same value on the
-    ///         platform that authored the corpus and a wrong one everywhere else: eight of the nine
-    ///         entries carry labelled markers, and Skia's glyph rasteriser is not the same code on
-    ///         Linux, so ubuntu failed the whole clean corpus on text and nothing else — every one of
-    ///         those eight on <c>max channel delta</c>, the first rule, at 45 to 94 against a 32
-    ///         ceiling. The reasoning
-    ///         and the measurements are on <see cref="GoldenTolerance.ForLabelledFrame" />; the proof
-    ///         that the allowance is spent on glyph ink and nothing else is
-    ///         <c>GoldenAttributionTests</c>.
+    ///         Not <see cref="GoldenTolerance.DefaultPerceptual" />: eight of the nine entries carry
+    ///         labelled markers, and Skia's glyph rasteriser is not the same code on every operating
+    ///         system, so ubuntu failed the whole clean corpus on text alone — every one of those eight
+    ///         on <c>max channel delta</c>, the first rule, at 45 to 94 against a 32 ceiling. The
+    ///         reasoning and the measurements are on <see cref="GoldenTolerance.ForLabelledFrame" />;
+    ///         <c>GoldenAttributionTests</c> proves the allowance is spent on glyph ink and nothing else.
     ///     </para>
     ///     <para>
-    ///         <c>--tolerance</c> keeps its exact meaning: it overrides the <i>mode</i> the manifest
-    ///         states, not the budget that mode resolves to. So <c>byte-exact</c> is still every channel
-    ///         of every pixel, and <c>perceptual</c> still means whatever a manifest entry saying
-    ///         "perceptual" means — which is the point of an override.
+    ///         <c>--tolerance</c> overrides the mode the manifest states, not the budget that mode
+    ///         resolves to: <c>byte-exact</c> is still every channel of every pixel, and
+    ///         <c>perceptual</c> still means whatever a manifest entry saying "perceptual" means.
     ///     </para>
     /// </summary>
     /// <param name="entry">The entry, for its size and its declared mode.</param>

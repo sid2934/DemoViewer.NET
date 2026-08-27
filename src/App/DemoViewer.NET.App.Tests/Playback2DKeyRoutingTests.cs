@@ -12,11 +12,12 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Key routing — the D12 regression suite. A tunneling handler is the only way transport keys can beat a
+///     Key routing, the regression suite. A tunneling handler is the only way transport keys can beat a
 ///     focused control inside the playback surface, and it is also the only way to silently break a text
 ///     field, so all three focus states are pinned here.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DKeyRoutingTests
 {
     [Test]
@@ -27,7 +28,7 @@ public class Playback2DKeyRoutingTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
-            // The overlay toggles ship CLOSED since D4 (they were "always displayed, taking up screen
+            // The overlay toggles ship CLOSED (they were once "always displayed, taking up screen
             // area"), so the hazard has to be set up rather than assumed: the check boxes are still
             // FOCUSABLE and still inside the tunnel, which is exactly what this test exists to prove.
             vm.IsOverlayBarOpen = true;
@@ -89,8 +90,8 @@ public class Playback2DKeyRoutingTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
-            // Inject a text field INSIDE the tunnel's subtree — outside it the guard would never be reached,
-            // so an in-subtree field is the only honest form of this test.
+            // Inject a text field INSIDE the tunnel's subtree — outside it the guard would never be
+            // reached, so an in-subtree field is the only form of this test that proves anything.
             TextBox field = new()
             {
                 Width = 120,

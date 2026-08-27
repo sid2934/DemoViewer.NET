@@ -13,30 +13,16 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Headless;
 
 /// <summary>
 ///     The one place a headless consumer builds a layer stack. <c>dv2d</c> never reads a feature gate
-///     or an <c>AppSettings</c> value (design §7.7) — it takes explicit ids — so the set of layers a
+///     or an <c>AppSettings</c> value (design §7.7); it takes explicit ids, so the set of layers a
 ///     render can contain has to be enumerable from Pipeline alone.
 ///     <para>
-///         <b>One table, one entry point</b> (D6 G-1/G-3). This class used to hold two: a
-///         <c>_registrations</c> list holding B0's single <c>playback2d.debuggrid</c> that
-///         <c>Create()</c> served to <c>render</c>/<c>golden</c>/<c>bench</c>, and
-///         <see cref="SceneStackIds" /> — the real eleven — that only <c>export</c> ever reached. The
-///         split was deliberate and temporary: growing <c>Create</c>'s default set moves every
-///         committed golden, and B1 was to fold the tables together in the PR that re-baselines the
-///         corpus. It did not, so for four phases <b>CI's only pixel-regression gate re-rendered every
-///         corpus entry as a debug grid</b> and the frame-budget gate measured that grid against a
-///         16 ms budget. This is that fold: <see cref="SceneStackIds" /> is now the only table, and
-///         <c>dv2d render --layers markers</c> draws markers.
+///         <b>One table, one entry point.</b> <see cref="SceneStackIds" /> is the only table of layer
+///         ids, and <see cref="CreateSceneStack" /> is the only place that builds a stack from it — a
+///         second table would let a golden and a real render draw different stacks without anyone
+///         asking for that. <c>playback2d.debuggrid</c> is not one of the registered ids: it stays a
+///         smoke layer that Core's own test suites construct directly.
 ///     </para>
-///     <para>
-///         <c>playback2d.debuggrid</c> is gone from the catalog with it. <c>DebugGridLayer</c>'s own doc
-///         says it is <c>internal</c> "so it can never become a production dependency"; while it was the
-///         only id three shipped CLI commands could name, that sentence was false. It stays where it
-///         belongs — a smoke layer three Core test suites construct directly.
-///     </para>
-///     <para>
-///         The registered ids are the persisted keys from <c>plans/00-overview.md</c> §3.3 and are
-///         never renamed.
-///     </para>
+///     <para>The registered ids are the persisted keys from the design doc and are never renamed.</para>
 /// </summary>
 public static class SceneLayerCatalog
 {
@@ -47,7 +33,7 @@ public static class SceneLayerCatalog
     ///     Every layer id this build can register — an alias for
     ///     <see cref="SceneStackIds" /> and not a second table. The name survives the fold because it is
     ///     what <c>--layers</c>'s refusal text and <c>dv2d.md</c> call the set, and because
-    ///     <see cref="UnknownIds" /> reads more honestly against "known" than against "scene stack".
+    ///     <see cref="UnknownIds" /> tests membership against "known" ids, not "the scene stack".
     /// </summary>
     public static IReadOnlyList<string> KnownLayerIds => SceneStackIds;
 
@@ -83,25 +69,22 @@ public static class SceneLayerCatalog
     {
         ArgumentNullException.ThrowIfNull(id);
 
-        // Any id that already carries a namespace is left alone. B4's HUD ids are "hud.clock" /
-        // "hud.killfeed" — deliberately not playback2d-prefixed, because they are HUD layers rather
-        // than 2D-playback overlays — and blindly prepending would invent "playback2d.hud.clock".
+        // Any id that already carries a namespace is left alone. The HUD ids are "hud.clock" /
+        // "hud.killfeed", deliberately not playback2d-prefixed because they are HUD layers rather than
+        // 2D-playback overlays, and blindly prepending would invent "playback2d.hud.clock".
         return id.Contains('.', StringComparison.Ordinal) ? id : IdPrefix + id;
     }
 
     /// <summary>
-    ///     <b>The table.</b> The ids <see cref="CreateSceneStack" /> can register: B1's seven scene
-    ///     layers, B2's ink, and the three HUD layers. The last four are
+    ///     <b>The table.</b> The ids <see cref="CreateSceneStack" /> can register: the seven scene
+    ///     layers, the ink, and the three HUD layers. The last four are
     ///     <see cref="SceneLayerIds.OptIn" />. Every other layer list in the repository is asserted
     ///     against this one by <c>SceneLayerListParityTests</c> rather than hand-maintained beside it.
     ///     <para>
-    ///         <b>Registration order, NOT draw order</b> — this said "in draw order" and was wrong about
-    ///         one pair. The compositor sorts on <c>(Slot, Order, Id)</c>, which puts
-    ///         <c>playback2d.annotations</c> (Overlay/100) <i>before</i> <c>playback2d.floorlabel</c>
-    ///         (Hud/60), the reverse of the order below: ink is world content the floor caption must stay
-    ///         legible over. Registration order does not matter here — <c>SceneCompositor</c> re-sorts,
-    ///         and <c>SceneStage</c> has a case that registers the whole stack backwards to prove it — so
-    ///         the list stays as it is and the claim about it is what changed.
+    ///         <b>Registration order is not draw order.</b> The compositor sorts every layer on
+    ///         <c>(Slot, Order, Id)</c>, so <c>playback2d.annotations</c> (Overlay/100) draws before
+    ///         <c>playback2d.floorlabel</c> (Hud/60) even though it is registered after it below — ink is
+    ///         world content the floor caption must stay legible over.
     ///     </para>
     /// </summary>
     public static IReadOnlyList<string> SceneStackIds { get; } =
@@ -123,16 +106,15 @@ public static class SceneLayerCatalog
     ///     Builds the <b>full v2 scene stack</b> — what the window draws, plus the export HUD.
     ///     <para>
     ///         <b>The only entry point.</b> <c>dv2d render</c>, <c>golden</c>, <c>bench</c> and
-    ///         <c>export</c> all arrive here, so a pixel gate and a video cannot be drawn by two
-    ///         different stacks — which is exactly what happened while <c>Create()</c> served the first
-    ///         three from a second table (D6 G-1).
+    ///         <c>export</c> all arrive here, so a pixel gate and a video are always drawn by the same
+    ///         stack.
     ///     </para>
     ///     <para>
-    ///         The <see cref="SceneLayerIds.OptIn" /> layers — the three HUD layers and the ink — are
+    ///         The <see cref="SceneLayerIds.OptIn" /> layers (the three HUD layers and the ink) are
     ///         registered only when named in <paramref name="include" /> AND only when the source that
-    ///         feeds them was supplied. An export never burns in a scoreboard, or someone else's
-    ///         telestration, by accident (<c>SceneExportSession.OptInLayerIds</c> enforces the same rule on
-    ///         the request).
+    ///         feeds them was supplied, so an export never burns in a scoreboard or someone else's
+    ///         telestration by accident; <c>SceneExportSession.OptInLayerIds</c> enforces the same rule
+    ///         on the request.
     ///     </para>
     /// </summary>
     /// <param name="include">Ids to register; null registers the seven scene layers and nothing opt-in.</param>
@@ -214,8 +196,8 @@ public static class SceneLayerCatalog
     }
 
     // Which source an opt-in id starves without. Everything opt-in EXCEPT the ink feeds from the HUD
-    // source, so D3b's hud.roster needs no line here — only a genuinely new kind of source would. The
-    // check is what lets BuildLayer keep its `hud!` / `annotations!`: an unfed layer never reaches it.
+    // source, so hud.roster needs no line here — only a genuinely new kind of source would. The check
+    // is what lets BuildLayer keep its `hud!` / `annotations!`: an unfed layer never reaches it.
     private static bool Starved(string id, IHudDataSource? hud, AnnotationSession? annotations) =>
         string.Equals(id, SceneLayerIds.Annotations, StringComparison.Ordinal)
             ? annotations is null

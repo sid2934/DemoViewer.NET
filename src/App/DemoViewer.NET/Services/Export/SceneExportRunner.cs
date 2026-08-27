@@ -71,12 +71,12 @@ public sealed class SceneExportRunner : IExportRunner
     /// <summary>
     ///     The message shown when a video format was asked for and no ffmpeg exists.
     ///     <para>
-    ///         It used to end "…or let DemoViewer download the LGPL build", which was advertising, in a
-    ///         refusal, the exact rung that had just silently not happened: acquiring ffmpeg was an
-    ///         optional constructor parameter the one production caller omitted. Acquisition is now a
-    ///         foreground action in the export pane — <c>FfmpegAcquisition</c> asks for consent only
-    ///         <i>after</i> the transfer, so it can never be something a background job does on a user's
-    ///         behalf — and the refusal points at the pane instead of promising to act.
+    ///         It used to end "…or let DemoViewer download the LGPL build", advertising in a refusal the
+    ///         exact rung that had just silently not happened: acquiring ffmpeg was an optional constructor
+    ///         parameter the one production caller omitted. Acquisition is now a foreground action in the
+    ///         export pane — <c>FfmpegAcquisition</c> asks for consent only after the transfer, so it can
+    ///         never be something a background job does on a user's behalf. The refusal now points at the
+    ///         pane instead of promising to act.
     ///     </para>
     /// </summary>
     public const string NoFfmpegRefusal =

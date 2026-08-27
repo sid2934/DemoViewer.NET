@@ -48,13 +48,13 @@ public class DemoLibraryServiceTests
 
     /// <summary>
     ///     Whether the platform refused to create a link rather than failing for a reason about this
-    ///     test. On Windows a symlink needs <c>SeCreateSymbolicLinkPrivilege</c> — Developer Mode, or an
-    ///     elevated shell — and without it the call throws
+    ///     test. On Windows a symlink needs <c>SeCreateSymbolicLinkPrivilege</c> (Developer Mode, or an
+    ///     elevated shell), and without it the call throws
     ///     <c>IOException: A required privilege is not held by the client</c> (win32 1314). That is a
-    ///     property of the host account, so the honest outcome is a skip with the reason attached; the
-    ///     cases below FAILED on any ordinary Windows checkout before D6 round 3, which is a red suite
-    ///     nobody can act on. A filesystem that genuinely cannot link (some containers, some network
-    ///     mounts) refuses the same way.
+    ///     property of the host account, so the outcome is a skip with the reason attached: without this
+    ///     check, the cases below failed on any ordinary Windows checkout, a red suite with no actionable
+    ///     signal. A filesystem that genuinely cannot link (some containers, some network mounts) refuses
+    ///     the same way.
     /// </summary>
     private static bool IsSymlinkPrivilegeRefusal(Exception e) =>
         e is UnauthorizedAccessException or PlatformNotSupportedException ||
@@ -65,13 +65,13 @@ public class DemoLibraryServiceTests
     ///     and of a half-written file, because it is polled while a worker thread is writing it — the
     ///     point is the transition to 2, not any single read.
     ///     <para>
-    ///         <b><c>FileShare.ReadWrite | FileShare.Delete</c>, and this is the load-bearing detail.</b>
+    ///         <b><c>FileShare.ReadWrite | FileShare.Delete</c> is the load-bearing detail.</b>
     ///         <c>File.ReadAllText</c> opens with <c>FileShare.Read</c>, which forbids a concurrent
-    ///         <i>writer</i>. <c>DemoLibraryService.Save</c> is <c>File.WriteAllText</c> inside a
-    ///         <c>catch { /* best-effort */ }</c>, on a queue worker — so a poller using the obvious
-    ///         helper does not merely observe the race, it CAUSES a lost write, silently, and then times
-    ///         out waiting for the write it prevented. Observed exactly that: <c>rows=0 parses=2
-    ///         states=[Indexed,Indexed] backlog=[]</c> — everything done, nothing on disk.
+    ///         writer. <c>DemoLibraryService.Save</c> is <c>File.WriteAllText</c> inside a
+    ///         <c>catch { /* best-effort */ }</c>, on a queue worker, so a poller using the obvious
+    ///         helper CAUSES a lost write, silently, and then times out waiting for the write it
+    ///         prevented. Observed exactly that: <c>rows=0 parses=2 states=[Indexed,Indexed]
+    ///         backlog=[]</c> — everything done, nothing on disk.
     ///     </para>
     /// </summary>
     private static int FullyIndexedInCacheFile(string dataPath)
@@ -101,10 +101,10 @@ public class DemoLibraryServiceTests
     ///         The assertion these replace was <c>File.ReadAllText(settings.json).Contains(folder)</c>,
     ///         and it was wrong about the writer rather than about the behaviour: JSON escapes a
     ///         backslash, so a Windows temp path is on disk as <c>C:\\Users\\…\\dvlib_ab12</c> and the raw
-    ///         path is never a substring of it. It passed on Linux and failed on every Windows run
-    ///         (D6 round 3). The negative half was worse — <c>.Contains(folder) == false</c> was
-    ///         <b>vacuously true</b> there, so "the removed folder must not linger" asserted nothing at
-    ///         all on the platform where it was green.
+    ///         path is never a substring of it. It passed on Linux and failed on every Windows run. The
+    ///         negative half was worse — <c>.Contains(folder) == false</c> was <b>vacuously true</b>
+    ///         there, so "the removed folder must not linger" asserted nothing at all on the platform
+    ///         where it was green.
     ///     </para>
     /// </summary>
     private static string[] PersistedFolders(string settingsPath)
@@ -155,27 +155,13 @@ public class DemoLibraryServiceTests
     ///     queue (returning before it drains), and the END-OF-BACKLOG Save persists the cache so a second
     ///     launch loads from cache WITHOUT re-parsing. Uses a fake queue parser so no real demo is needed.
     ///     <para>
-    ///         <b>What made this flake under the full suite</b> (D6 round 3, and why the fix is a stronger
-    ///         assertion rather than a longer sleep). It waited on
-    ///         <c>State == DemoIndexState.Indexed</c>, which <c>IndexTier2Core</c> posts <i>before</i>
-    ///         <c>ClearTier2Backlog</c> sees the backlog drain and calls <c>Save()</c> — on a queue worker
-    ///         thread. So the wait could return with the cache not yet written, and the
-    ///         <c>File.Exists(dataPath)</c> that followed proved nothing about it, because
-    ///         <c>AddFoldersAsync</c> has already written that same file once to persist the FOLDER list
-    ///         with an empty cache. The second launch then found an uncached demo, submitted it to the
-    ///         throwing parser, and its entry went Failed. Nothing was shared between test classes; the
-    ///         contended resource was the CPU, and the window only opens when the machine is busy enough
-    ///         to deschedule that worker — a full parallel suite, never a solo run, which is why this
-    ///         passed on its own for as long as anyone had looked.
-    ///     </para>
-    ///     <para>
-    ///         So it now waits for the persisted CACHE, which is the thing the name promises, inside the
-    ///         <c>using</c> so a Save that only happened at Dispose would still fail. Read
-    ///         <see cref="FullyIndexedInCacheFile" /> before changing how that poll opens the file — the
-    ///         first attempt at this fix made the flake WORSE and the comment there says why.
-    ///         <c>[Category("Environmental")]</c> goes with the race: nothing here depends on machine
-    ///         state, and the class's own <c>[Category("Integration")]</c> already keeps it out of the
-    ///         fast and standard tiers, so no tier's contents change.
+    ///         <b>Waits for the persisted CACHE, never for <c>State == DemoIndexState.Indexed</c>.</b>
+    ///         <c>IndexTier2Core</c> posts that state before <c>ClearTier2Backlog</c> drains the backlog
+    ///         and calls <c>Save()</c> on a queue worker thread, and <c>File.Exists(dataPath)</c> proves
+    ///         nothing either: <c>AddFoldersAsync</c> already wrote that file once to persist the FOLDER
+    ///         list with an empty cache. The wait lives inside the <c>using</c> so a Save that only happens
+    ///         at Dispose still fails, and it must not be a plain read — see
+    ///         <see cref="FullyIndexedInCacheFile" />.
     ///     </para>
     /// </summary>
     [Test]
@@ -297,7 +283,7 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Dedup (Phase 1, canonical path): the SAME physical file reachable from two registered folders —
+    ///     Dedup, canonical path: the SAME physical file reachable from two registered folders —
     ///     here a real folder plus a directory symlink pointing at it — must appear as ONE card and be
     ///     processed ONCE. Before canonicalization the two registrations produced distinct path strings
     ///     (real/a.dem vs link/a.dem) → two cards + two full parses.
@@ -364,7 +350,7 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Coordinator cutover (Phase 3a): a demo whose parse THROWS is marked Failed and its tier-2 backlog
+    ///     Coordinator cutover: a demo whose parse THROWS is marked Failed and its tier-2 backlog
     ///     entry is cleared synchronously, so a subsequent CapacityAvailable / ConsiderAll does NOT re-submit
     ///     it. Guards the infinite-reparse trap (Wants must go false on failure, not just on success).
     /// </summary>
@@ -412,10 +398,10 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Interactive-open fan-out (Phase 4a): a pending library demo that the queue REJECTED to the
+    ///     Interactive-open fan-out: a pending library demo that the queue REJECTED to the
     ///     coordinator backlog (its background tier was full) and is then OPENED interactively must fill its
-    ///     card from the open's already-parsed demo — never a second background parse. This is the exact
-    ///     double-parse Phase 4a kills: after <see cref="DemoLibraryService.OnParsedOpportunistically" /> the
+    ///     card from the open's already-parsed demo — never a second background parse. This guards exactly
+    ///     that double-parse: after <see cref="DemoLibraryService.OnParsedOpportunistically" /> the
     ///     demo is no longer <see cref="DemoLibraryService.Wants" />-ed, so the capacity re-feed skips it.
     /// </summary>
     [Test]
@@ -492,7 +478,7 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Content dedup (Phase 4b): the SAME bytes copied into two DIFFERENT real folders (not a symlink —
+    ///     Content dedup: the SAME bytes copied into two DIFFERENT real folders (not a symlink —
     ///     a genuine copy, which canonical-path dedup cannot catch) must appear as ONE card and be processed
     ///     ONCE. The primary is the lexicographically-smallest path; the other folder surfaces as a copy hint.
     /// </summary>
@@ -552,14 +538,15 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Interactive-open fan-out over a REAL demo (Phase 4a, real-frame coverage): the synthetic sibling
-    ///     proves the no-reparse control flow; this proves the actual work — handing a real, fully-parsed
-    ///     demo to <see cref="DemoLibraryService.OnParsedOpportunistically" /> runs the real entity-decode
-    ///     score replay through the opportunistic hook and fills the card (players + duration + final score),
+    ///     Interactive-open fan-out over a REAL demo: the synthetic sibling proves the no-reparse control
+    ///     flow; this proves the actual work — handing a real, fully-parsed demo to
+    ///     <see cref="DemoLibraryService.OnParsedOpportunistically" /> runs the real entity-decode score
+    ///     replay through the opportunistic hook and fills the card (players + duration + final score),
     ///     while the background queue never parses the file. As in the synthetic sibling, the demo is held in
     ///     the coordinator BACKLOG (rejected — the single background slot is occupied by a blocking sacrifice
     ///     file), which is exactly the case fan-out uniquely covers (a queued item would instead coalesce
-    ///     onto the foreground open). Closes the gap where every other Phase-4 test used an empty-frame demo.
+    ///     onto the foreground open). Closes the gap where every other test in this group used an
+    ///     empty-frame demo.
     /// </summary>
     [Test]
     public async Task OpenFanOut_RealDemo_FillsCardFromHeldParse_NoBackgroundParse()
@@ -682,7 +669,7 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Shadow promotion (Phase 4b): when the PRIMARY copy (smallest path) is deleted, a surviving shadow
+    ///     Shadow promotion: when the PRIMARY copy (smallest path) is deleted, a surviving shadow
     ///     becomes the new primary. It may never have been parsed on its own path, so it must enter the
     ///     tier-2 backlog and index — the card must not go blank / stuck Pending.
     /// </summary>

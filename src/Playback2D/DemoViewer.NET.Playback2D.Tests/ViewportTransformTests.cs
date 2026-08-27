@@ -132,7 +132,7 @@ public class ViewportTransformTests
         // The degenerate-extent guard above is `w <= double.Epsilon`, and EVERY comparison against a NaN
         // is false — so a NaN corner skipped it and flowed into BaseScale and the centre. From there it
         // is permanent: IsSettledAt loses every comparison, the camera never settles, and the render loop
-        // spins forever drawing nothing (D6 finding 8).
+        // spins forever drawing nothing.
         (string Name, double MinX, double MinY, double MaxX, double MaxY)[] poisoned =
         [
             ("NaN maxX", -1000, -1000, double.NaN, 1000),

@@ -168,7 +168,7 @@ public class DrawToolTests
     }
 
     /// <summary>
-    ///     Plan D7: a cadence is what <see cref="EnvelopeMode.RealTime" /> means and nothing else has one.
+    ///     A cadence is what <see cref="EnvelopeMode.RealTime" /> means and nothing else has one.
     ///     Null here is load-bearing — the DTO writes <c>WhenWritingNull</c>, so an element without one
     ///     emits no field and the pinned v1 schema sample does not move.
     /// </summary>
@@ -216,8 +216,8 @@ public class DrawToolTests
 
     /// <summary>
     ///     The cadence flag is captured at PRESS, with the ink and the anchor and for the same reason:
-    ///     recording has to begin at the first sample, so a toolbar flip mid-drag cannot decide
-    ///     retroactively that this stroke had a cadence nobody was accumulating.
+    ///     recording has to begin at the first sample, so a toolbar flip mid-drag cannot retroactively
+    ///     assign this stroke a cadence that was never being recorded.
     /// </summary>
     [Test]
     public async Task VisibilityChosenAtPress_SurvivesAModeChangeMidGesture()
@@ -268,7 +268,7 @@ public class DrawToolTests
     }
 
     /// <summary>
-    ///     D2 §2.2. <c>ToolPointerEvent.Button</c> reached the tools from day one and nothing read it, so
+    ///     <c>ToolPointerEvent.Button</c> reached the tools from day one and nothing read it, so
     ///     a right-drag drew ink identical to a left-drag. The button picks the pen.
     /// </summary>
     [Test]

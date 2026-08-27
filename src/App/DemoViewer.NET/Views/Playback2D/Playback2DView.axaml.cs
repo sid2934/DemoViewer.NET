@@ -29,9 +29,9 @@ public partial class Playback2DView : UserControl
     private readonly IPlayback2DSurface? _surface;
 
     // The ink half of the mounted surface, or null under the legacy escape hatch. Every "can this thing
-    // draw?" question below asks THIS rather than `_surface is Scene2DHost`: the three tool entry points
-    // were each testing the concrete type, and the toolbar that offers them was testing the feature gate
-    // instead — which is how a complete, inert tool row shipped over a surface with no router (D6 #12).
+    // draw?" question below asks THIS rather than `_surface is Scene2DHost`, so the tool entry points and
+    // the toolbar that offers them cannot disagree — a concrete-type check on one side and a feature-gate
+    // check on the other ships a complete, inert tool row over a surface with no router.
     private readonly IAnnotationSurface? _toolSurface;
 
     private Playback2DTabViewModel? _boundViewModel;
@@ -213,7 +213,7 @@ public partial class Playback2DView : UserControl
         }
 
         // A drawing tool being active is what makes the keymap's tool-scoped rows shadow the always-scoped
-        // ones, which is how B2 takes Space and Esc back without editing A1's table.
+        // ones — the mechanism by which Space and Esc change meaning without a second table.
         bool toolActive = vm.IsAnnotationsEnabled && vm.Annotations.IsDrawingToolActive;
 
         // The VM's RESOLVED profile, not the shipped static table: the table is the default this composes
@@ -230,8 +230,8 @@ public partial class Playback2DView : UserControl
         // the mounted surface cannot host ink. The `_toolSurface is null` arms below are therefore
         // unreachable in a shipped build; they stay because leaving the key UNHANDLED is the right
         // answer if a future surface ever reports capable and then isn't, and because the previous
-        // spelling of this (`_surface is Scene2DHost` with an implicit fall-through) is precisely what
-        // swallowed Space and Escape when the toolbar let a tool be selected over the legacy viewport.
+        // spelling of this (`_surface is Scene2DHost` with an implicit fall-through) is what swallowed
+        // Space and Escape when the toolbar let a tool be selected over the legacy viewport.
         switch (action)
         {
             case Playback2DAction.HoldPan:

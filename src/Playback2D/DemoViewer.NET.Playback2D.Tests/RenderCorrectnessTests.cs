@@ -18,8 +18,8 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     D6 wave 3 — render, camera and resource correctness. One case per finding, each of them a defect
-///     the 1594-test suite already had, because every one of them lives in a <b>relationship</b> a unit
+///     Render, camera and resource correctness: one case per finding, each of them a defect the
+///     1594-test suite already had, because every one of them lives in a <b>relationship</b> a unit
 ///     test does not instantiate: a producer feeding a camera, a palette outliving a picture, two HUD
 ///     layers claiming one rectangle, a cache describing a handle that has already been freed.
 /// </summary>
@@ -191,7 +191,7 @@ public class RenderCorrectnessTests
         byte[] light = Snapshot(surface);
 
         await Assert.That(light).IsNotEquivalentTo(dark)
-            .Because("a dark grid after a light swap at the same epoch is the audit's exact repro");
+            .Because("a dark grid surviving a light swap at the same epoch is exactly the cache-key defect this guards");
     }
 
     // ── 17 · the single-pane Render pins every PerCamera key to a default pane ───────────────────────
@@ -481,8 +481,8 @@ public class RenderCorrectnessTests
     [Test]
     public async Task TwoFramesAtOneTick_EachSeeTheirOwnClock()
     {
-        // The same cache, and the half that was wrong before D3b ever touched it: LastGameInfo moves with
-        // the frame, not with the tick.
+        // The same cache, and the half that used to be wrong: LastGameInfo moves with the frame, not
+        // with the tick.
         ClockReading reading = ClockReading.From(new SceneGameInfo("Live", "—", 7, 6, 30, "0:30",
             false, false, "—", double.NaN, "—", 3, 2));
         TimelineHudDataSource source = new([], TickRate, _ => reading);
@@ -505,8 +505,8 @@ public class RenderCorrectnessTests
         // FloorSplitter.Observe marks the histogram dirty for EVERY marker, so the Slices read below
         // recomputed in full every frame — a List, an int[] and two more Lists, measured at 552 B/frame.
         //
-        // Kept out of [Category("Budget")] on purpose: this is a hundred milliseconds, it is the one gate
-        // for the branch, and burying it behind a tier nobody runs by default is how it got missed.
+        // Kept out of [Category("Budget")] on purpose: this is a hundred milliseconds, and it is the one
+        // gate for the branch.
         MapSpaceFactory factory = new();
         Scene2DFrame frame = TwoFloorFrame();
 
@@ -525,8 +525,7 @@ public class RenderCorrectnessTests
         // Two identical windows, and the SECOND is asserted on — the same discipline BudgetTests uses and
         // for the same reason: the first window occasionally shows one small allocation at a varying
         // iteration, which is the runtime tiering the loop body rather than the code under test. Charging
-        // that to the budget would make the gate flaky or push it above zero, and zero is the assertion
-        // worth having.
+        // that to the budget would make the gate flaky or push it above zero.
         long warm = MeasureUpdates(factory, frame);
         long steady = MeasureUpdates(factory, frame);
 

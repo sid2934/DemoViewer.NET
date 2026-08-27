@@ -90,16 +90,11 @@ internal sealed class AnnotationElementDto
 
     public string? Text { get; set; }
 
-    /// <summary>
-    ///     The authoring cadence for an <c>EnvelopeMode.RealTime</c> stroke (plan D7), absent for every
-    ///     other element.
-    ///     <para>
-    ///         <b>Nullable, and that is the whole compatibility story.</b> The context below writes with
-    ///         <c>DefaultIgnoreCondition = WhenWritingNull</c>, so an element with no cadence emits no
-    ///         field and the pinned v1 sample does not move by a byte — which is why this is an additive
-    ///         field inside schema 1 rather than a version bump every document would have carried.
-    ///     </para>
-    /// </summary>
+    /// <summary>The authoring cadence for an <c>EnvelopeMode.RealTime</c> stroke; absent for every other element.</summary>
+    /// <remarks>
+    ///     Nullable: with <c>DefaultIgnoreCondition = WhenWritingNull</c> below, an element with no
+    ///     cadence emits no field, so this stays additive within schema 1 rather than a version bump.
+    /// </remarks>
     public AnnotationTimingDto? Timing { get; set; }
 
     [JsonExtensionData]

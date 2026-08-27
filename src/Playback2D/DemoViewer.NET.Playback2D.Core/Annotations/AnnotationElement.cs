@@ -7,8 +7,9 @@ using System.Diagnostics.CodeAnalysis;
 namespace DemoViewer.NET.Playback2D.Core.Annotations;
 
 /// <summary>
-///     What an <see cref="AnnotationElement" /> draws. Only <see cref="Freehand" /> ships in B2; the rest
-///     exist from day one so a later shape tool is an additive branch rather than a schema migration.
+///     What an <see cref="AnnotationElement" /> draws. Only <see cref="Freehand" /> is implemented today;
+///     the rest exist from day one so a later shape tool is an additive branch rather than a schema
+///     migration.
 /// </summary>
 public enum AnnotationKind
 {
@@ -49,14 +50,12 @@ public enum EnvelopeMode
     /// <summary>
     ///     Replays the stroke at the cadence it was authored at, then fades it away behind itself: every
     ///     sample carries the elapsed authoring time at which it was drawn, and each SECTION runs the
-    ///     element's own <see cref="TimeEnvelope" /> trapezoid shifted by that offset (plan D7).
+    ///     element's own <see cref="TimeEnvelope" /> trapezoid shifted by that offset.
     ///     <para>
     ///         The offsets are elapsed <b>authoring wall-clock</b>, re-based at <c>Time.FromTick</c> — not
-    ///         the tick each sample was drawn at, which is not a well-defined quantity. The playhead is
-    ///         frozen while the demo is paused, which is when most annotation happens, so every sample of
-    ///         a paused stroke shares one tick; and at <c>--speed 0.5</c> the hand moves at 1× while the
-    ///         clock moves at 0.5×. Re-basing is what makes the replay a pure function of tick, which is
-    ///         what keeps the export determinism gate green.
+    ///         the tick each sample was drawn at, for the reasons on <c>IToolServices.NowMilliseconds</c>.
+    ///         Re-basing makes the replay a pure function of tick, which is what keeps the export
+    ///         determinism gate green.
     ///     </para>
     /// </summary>
     RealTime,
@@ -68,9 +67,9 @@ public enum EnvelopeMode
     ///     at the far end — which is what "to the end of the demo" already means to a
     ///     <see cref="TimeEnvelope" />.
     ///     <para>
-    ///         COMPUTED like <see cref="Fade" />, not typed like <see cref="Custom" />, and that is why it
-    ///         is a mode rather than a button that fills Custom's window: a coach wants every callout to
-    ///         last its own round without clicking anything per stroke. Rounds are a demo fact Core cannot
+    ///         COMPUTED like <see cref="Fade" />, not typed like <see cref="Custom" />: a coach wants
+    ///         every callout to last its own round without clicking anything per stroke. Rounds are a
+    ///         demo fact Core cannot
     ///         see, so the bounds arrive through <c>AnnotationSession.RoundWindowResolver</c>; a demo that
     ///         carries no <c>round_freeze_end</c> degrades to <see cref="Fade" />'s pinned trapezoid.
     ///     </para>
@@ -93,15 +92,16 @@ public readonly record struct TimingRun(int SampleIndex, int TickOffset);
 ///         A boundary is emitted only where the authoring speed actually changed, so a stroke that was
 ///         drawn in one continuous motion carries two entries and one that paused three times carries
 ///         eight. Measured on a 1200-world-unit stroke, that is <b>+0.9 %</b> of the persisted document
-///         against <b>+26 %</b> for a fourth float on every <see cref="InkPoint" /> — and it is the
-///         better encoding, not the cheaper one: what a viewer reads as "it is replaying me" is the
-///         PAUSES, and speed variation inside one continuous motion is invisible at 64 Hz through a
-///         fading tail. A per-point stamp spends 400 near-identical deltas to record something nobody
-///         sees.
+///         against <b>+26 %</b> for a fourth float on every <see cref="InkPoint" />. It is the better
+///         encoding, not the cheaper one: what a viewer reads as "it is replaying me" is the PAUSES, and
+///         speed variation inside one continuous motion is invisible at 64 Hz through a fading tail — a
+///         per-point stamp would spend 400 near-identical deltas recording motion the render never
+///         shows.
 ///     </para>
 ///     <para>
-///         Both queries are pure and allocation-free: they are called once per stroke per frame, on the
-///         render path that <c>AnnotationLayerTests.SteadyState_ZeroAllocations</c> holds at 0 B/frame.
+///         <see cref="RevealedCount" /> is pure and allocation-free: it is called once per stroke per
+///         frame, on the render path that <c>AnnotationLayerTests.SteadyState_ZeroAllocations</c> holds
+///         at 0 B/frame.
 ///     </para>
 /// </summary>
 /// <param name="Runs">Boundaries, ordered by <see cref="TimingRun.SampleIndex" />. May be empty.</param>
@@ -110,46 +110,6 @@ public sealed record StrokeTiming(IReadOnlyList<TimingRun> Runs, int DurationTic
 {
     /// <summary>No cadence recorded — the whole stroke appears at once. What a non-RealTime element has.</summary>
     public static readonly StrokeTiming Instant = new([], 0);
-
-    /// <summary>
-    ///     Ticks after the stroke began at which <paramref name="sampleIndex" /> was drawn, interpolated
-    ///     linearly inside its run. Clamped at both ends, so an index outside the table is the nearest
-    ///     boundary's answer rather than an exception — a truncated table must degrade, not throw.
-    /// </summary>
-    /// <param name="sampleIndex">Index into the element's points.</param>
-    public int TickOffsetForSample(int sampleIndex)
-    {
-        if (Runs.Count == 0)
-        {
-            return 0;
-        }
-
-        if (sampleIndex <= Runs[0].SampleIndex)
-        {
-            return Runs[0].TickOffset;
-        }
-
-        for (int i = 1; i < Runs.Count; i++)
-        {
-            TimingRun hi = Runs[i];
-            if (sampleIndex > hi.SampleIndex)
-            {
-                continue;
-            }
-
-            TimingRun lo = Runs[i - 1];
-            int span = hi.SampleIndex - lo.SampleIndex;
-            if (span <= 0)
-            {
-                return hi.TickOffset;
-            }
-
-            long numerator = (long)(hi.TickOffset - lo.TickOffset) * (sampleIndex - lo.SampleIndex);
-            return lo.TickOffset + (int)(numerator / span);
-        }
-
-        return Runs[^1].TickOffset;
-    }
 
     /// <summary>
     ///     How many samples have been drawn <paramref name="elapsedTicks" /> after the stroke began.
@@ -261,7 +221,7 @@ public abstract record SpaceRef
     /// <summary>
     ///     Default anchor: a map level, keyed by its QUANTIZED lower Z
     ///     (<c>MapSpace.QuantizeZ(level.ZMin)</c>), never a slice index. Quantizing is what lets an anchor
-    ///     written before a level-set rebuild still find its own floor (plan correction 10).
+    ///     written before a level-set rebuild still find its own floor.
     /// </summary>
     /// <param name="LevelMinZ">The quantized lower world Z of the level this element belongs to.</param>
     [SuppressMessage("Design", "CA1034:Nested types should not be visible",
@@ -289,11 +249,11 @@ public abstract record SpaceRef
 /// <summary>
 ///     When an element is visible, as a Kinovea-style trapezoid over the DV FRAME CLOCK.
 ///     <para>
-///         <b>The fades sit OUTSIDE the window</b> (plan decision D5): full opacity over
-///         <c>[FromTick, UntilTick]</c>, a 0→1 lead-in over <c>[FromTick − FadeInTicks, FromTick)</c>, a
-///         1→0 lead-out over <c>(UntilTick, UntilTick + FadeOutTicks]</c>, and 0 outside all three. A
-///         null bound is ±∞. That is what makes <c>default</c> — null bounds, zero fades — a constant
-///         1.0, which is exactly what <see cref="Static" /> has to be.
+///         <b>The fades sit OUTSIDE the window.</b> Full opacity over <c>[FromTick, UntilTick]</c>, a
+///         0→1 lead-in over <c>[FromTick − FadeInTicks, FromTick)</c>, a 1→0 lead-out over
+///         <c>(UntilTick, UntilTick + FadeOutTicks]</c>, and 0 outside all three. A null bound is ±∞, so
+///         <c>default</c> (null bounds, zero fades) is a constant 1.0, exactly what <see cref="Static" />
+///         has to be.
 ///     </para>
 ///     <para>
 ///         <b>Ticks here are DV frame-clock ticks, never CS2 server ticks.</b> LiveSync's servo bends the
@@ -308,7 +268,7 @@ public readonly record struct TimeEnvelope(int? FromTick, int? UntilTick, int Fa
 {
     /// <summary>
     ///     Always visible at full opacity. Structurally <c>default</c> — design §5.4 requires exactly
-    ///     that, which is why the fades sit outside the window (D5) rather than inside it.
+    ///     that, which is why the fades sit outside the window rather than inside it.
     /// </summary>
     public static readonly TimeEnvelope Static;
 
@@ -383,8 +343,8 @@ public readonly record struct TimeEnvelope(int? FromTick, int? UntilTick, int Fa
 /// <param name="Points">Raw WORLD-space samples, oldest first. Never empty for a committed element.</param>
 /// <param name="Text">Label content for <see cref="AnnotationKind.Text" />; null otherwise.</param>
 /// <param name="Timing">
-///     The authoring cadence for <see cref="EnvelopeMode.RealTime" />, or null for every other element
-///     (plan D7). TRAILING and defaulted on purpose: every existing construction site is positional, and
+///     The authoring cadence for <see cref="EnvelopeMode.RealTime" />, or null for every other element.
+///     TRAILING and defaulted on purpose: every existing construction site is positional, and
 ///     a nullable property is also what keeps the persisted v1 schema byte-identical — the DTO writes
 ///     with <c>DefaultIgnoreCondition = WhenWritingNull</c>, so an element without a cadence emits no
 ///     field and <c>AnnotationSchemaSnapshotTests</c> does not move.

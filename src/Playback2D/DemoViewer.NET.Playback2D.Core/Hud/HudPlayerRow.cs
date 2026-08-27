@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Core.Hud;
 
 /// <summary>
-///     One player card in the export HUD's roster (registry D0 §3.2).
+///     One player card in the export HUD's roster.
 ///     <para>
 ///         A <b>Core</b> type for the same reason <c>HudSnapshot</c> is one: <see cref="IHudDataSource" />
 ///         returns it and Core cannot see Pipeline. Nothing in Pipeline may declare a second shape.
@@ -9,9 +9,9 @@ namespace DemoViewer.NET.Playback2D.Core.Hud;
 ///     <para>
 ///         <b>None of this reaches the scene through <c>PlayerMarker</c>.</b> A marker carries only what
 ///         the canvas needs to place a disc — slot, team, position, yaw, alive, label. Health, armour,
-///         weapon, money and K/D/A existed <i>only</i> app-side in <c>PlayerAttributes</c>, which an export
-///         cannot see; D3b lifted those entity reads into <c>SceneFrameBuilder</c> so the app, the export
-///         and <c>dv2d</c> read them once, from the same place.
+///         weapon, money and K/D/A exist only app-side in <c>PlayerAttributes</c>, which an export cannot
+///         see; <c>SceneFrameBuilder</c> reads them once so the app, the export and <c>dv2d</c> share the
+///         same source.
 ///     </para>
 /// </summary>
 /// <param name="Slot">Roster slot — the stable join key, and the marker's.</param>

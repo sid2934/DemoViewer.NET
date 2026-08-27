@@ -8,8 +8,8 @@ behind itself: the head advances at the original speed, including the pauses whe
 stopped to think, and each section runs the element's own fade trapezoid shifted by the offset at
 which it was drawn.
 
-For scale: B2 — the entire annotation subsystem — was 2.5 wk. This is a fraction of it, because four
-of the five things that look hard are already solved in the code.
+For scale: B2, the entire annotation subsystem, was 2.5 wk. Four of the five things that look hard
+here are already solved in the code.
 
 ---
 
@@ -56,9 +56,9 @@ public sealed record AnnotationElement(..., string? Text, StrokeTiming? Timing =
 **Why a sparse run table, not a stamp per point.** A boundary is emitted only where the authoring
 speed changed, so a continuous stroke carries two entries and one with three pauses carries eight.
 Measured on a 1200-world-unit stroke: **+0.9 %** of the persisted document, against **+26 %** for a
-fourth float on every `InkPoint`. And it is the *better* encoding, not merely the cheaper one — what
-a viewer reads as "it is replaying me" is the **pauses**; speed variation inside one continuous
-motion is invisible at 64 Hz through a fading tail.
+fourth float on every `InkPoint`. It is also the better encoding: what a viewer reads as "it is
+replaying me" is the **pauses**, and speed variation inside one continuous motion is invisible at
+64 Hz through a fading tail.
 
 `Timing` is trailing and nullable so every existing positional construction site compiles, and so the
 DTO's `WhenWritingNull` leaves the persisted v1 schema byte-identical. It is in `Equals` **and**
@@ -152,8 +152,7 @@ can only arrive via `extra`. `AnnotationLayerTests.SteadyState_ZeroAllocations` 
 only, on **3-sample** strokes.
 
 So the timing gate has zero annotation coverage today. D7b adds a real-stroke ink fixture to
-`BudgetTests` regardless of what the rest of this plan does — it is the reason the perf story here is
-not already closed, and it is worth having even if D7 were abandoned.
+`BudgetTests` regardless of what the rest of this plan does.
 
 ---
 

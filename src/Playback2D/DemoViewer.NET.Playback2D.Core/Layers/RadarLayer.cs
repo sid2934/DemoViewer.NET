@@ -12,10 +12,10 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///     none. Port of <c>TryDrawRadar</c> (viewport lines 1066-1091) and <c>DrawGrid</c> (1118-1153),
 ///     preserving the radar-else-grid structure of line 868 exactly.
 ///     <para>
-///         <b>Cached <c>PerCamera</c>, both halves in one picture</b> (plan decision D-5). The radar is
-///         a single <c>DrawImage</c> and the grid is up to 800 <c>DrawLine</c>s; splitting them so the
-///         image could be <c>Static</c> would be contortion for no gain, because the grid dominates and
-///         only ever draws when the image is absent.
+///         <b>Cached <c>PerCamera</c>, both halves in one picture.</b> The radar is a single
+///         <c>DrawImage</c> and the grid is up to 800 <c>DrawLine</c>s; splitting them so the image could
+///         be <c>Static</c> would be contortion for no gain, because the grid dominates and only ever
+///         draws when the image is absent.
 ///     </para>
 /// </summary>
 public sealed class RadarLayer : ISceneLayer
@@ -49,9 +49,8 @@ public sealed class RadarLayer : ISceneLayer
             Color = new SKColor(255, 255, 255, (byte)(SceneDefaults.RadarOpacity * 255)),
             // SkiaSharp 2.88.9 predates SKSamplingOptions — sampling is a paint property here. High is
             // not a default-by-habit: measured against the pre-v2 golden, it is the closest match of the
-            // four (93.1% of pixels within ±1, versus 78.9% for Medium/Low and 76.5% for None), which
-            // says Avalonia's DrawImage resamples the same way. Changing it re-baselines every radar
-            // golden — see docs/playback2d-v2/plans/B1-text-metrics-review.md.
+            // four (93.1% of pixels within ±1, versus 78.9% for Medium/Low and 76.5% for None), matching
+            // how Avalonia's DrawImage resamples. Changing it re-baselines every radar golden.
             FilterQuality = SKFilterQuality.High,
             IsAntialias = true
         };
@@ -105,31 +104,25 @@ public sealed class RadarLayer : ISceneLayer
 
     /// <summary>
     ///     Whether the resampled radar is cached at its on-screen size instead of being re-resampled on
-    ///     every draw.
-    ///     <para>
-    ///         <b>Off by default, and turned on only by <c>SceneExportSession</c>.</b> The cached path
-    ///         resamples into a whole-pixel intermediate and then blits, where the direct path resamples
-    ///         once into a fractional rectangle — mathematically close, but not identical, and B1's
-    ///         pre-v2 parity gate measures exactly that difference (it drops from 99.45 % to 98.70 % of
-    ///         pixels within ±8 with the cache on). An interactive frame has 8 ms of budget and does not
-    ///         need it; an export renders thousands of frames back to back and does. So the trade is
-    ///         taken where it pays and declined where it would move a golden.
-    ///     </para>
-    ///     <para>
-    ///         <b>Why it exists (B4 measurement).</b> The radar is one <c>DrawImage</c> of a ~2 000 px
-    ///         bundle layer at <see cref="SKFilterQuality.High" />, and <c>LayerCacheHint.PerCamera</c>
-    ///         caches the <i>picture</i>, not its pixels — so replaying that picture re-runs the bicubic
-    ///         resample every single frame. Measured on <c>assets/tour/sample-de_nuke.dem</c> at 1920×1080
-    ///         with <c>dv2d export --no-encode</c>: <b>21.8 fps with the bundle, 143.7 fps without it</b>.
-    ///         One layer was five sixths of the frame. Caching the resample makes the export path meet its
-    ///         budget and costs one image per pane per camera epoch.
-    ///     </para>
+    ///     every draw. Off by default; <c>SceneExportSession</c> turns it on.
     /// </summary>
+    /// <remarks>
+    ///     The cached path resamples into a whole-pixel intermediate and then blits, where the direct path
+    ///     resamples once into a fractional rectangle — mathematically close but not identical, so an
+    ///     interactive frame (which has budget to spare and must not move a golden) leaves it off, while an
+    ///     export (which renders thousands of frames back to back) turns it on.
+    ///     <para>
+    ///         Exists because <c>LayerCacheHint.PerCamera</c> caches the picture, not its pixels: replaying
+    ///         it re-runs the bicubic resample every frame, and on a ~2 000 px bundle layer at
+    ///         <see cref="SKFilterQuality.High" /> that one <c>DrawImage</c> was five sixths of the export
+    ///         frame budget. Caching the resample instead costs one image per pane per camera epoch.
+    ///     </para>
+    /// </remarks>
     public bool CacheScaledImage { get; set; }
 
     /// <summary>
     ///     Test seam: how <see cref="ScaledFor" /> obtains its resample intermediate. Returning null (or
-    ///     throwing) is how the fault path of D6 finding 22 is exercised — see that method's doc.
+    ///     throwing) exercises its fault path — see that method's own doc.
     /// </summary>
     /// <param name="factory">The replacement factory. Null restores <c>SKSurface.Create</c>.</param>
     internal void SetSurfaceFactoryForTest(Func<SKImageInfo, SKSurface?>? factory) =>
@@ -200,7 +193,7 @@ public sealed class RadarLayer : ISceneLayer
 
         // Top-left pixel is world (MinX, MaxY); bottom-right is (MaxX, MinY) — Y is inverted by the
         // transform. Computed in SCREEN space, exactly as line 1081, so the image is never sampled
-        // under a world matrix (risk R4 never arises).
+        // under a world matrix.
         (double x0, double y0) = ctx.Transform.WorldToScreen(bounds.MinX, bounds.MaxY);
         (double x1, double y1) = ctx.Transform.WorldToScreen(bounds.MaxX, bounds.MinY);
         SKRect destination = new((float)x0, (float)y0, (float)x1, (float)y1);
@@ -238,14 +231,12 @@ public sealed class RadarLayer : ISceneLayer
     ///     <para>
     ///         <b>The cache is forgotten before the replacement is attempted, not after it succeeds.</b>
     ///         Disposing <c>_scaled</c> while <c>_scaledFrom</c>/<c>_scaledWidth</c>/<c>_scaledHeight</c>
-    ///         still described it left the hit branch above trusting a dead handle the moment anything
-    ///         between the dispose and the reassignment failed — a null from
-    ///         <c>SKSurface.Create</c> (this asks for up to
-    ///         <see cref="MaxScaledEdge" />² × 4 bytes, and <c>CacheScaledImage</c> is on for every
-    ///         export) or a throw out of the resample. Handing a disposed <see cref="SKImage" /> to
-    ///         <c>DrawImage</c> is an access violation inside Skia, not an exception the frame loop can
-    ///         catch (D6 finding 22). Falling back to <paramref name="source" /> draws the right pixels
-    ///         by the un-cached route; there is no wrong-pixels branch here at all.
+    ///         still described it would leave the hit branch above trusting a dead handle if anything
+    ///         between dispose and reassignment failed — a null from <c>SKSurface.Create</c> or a throw
+    ///         out of the resample. Handing a disposed <see cref="SKImage" /> to <c>DrawImage</c> is an
+    ///         access violation inside Skia, not an exception the frame loop can catch. Falling back to
+    ///         <paramref name="source" /> draws the right pixels by the un-cached route; there is no
+    ///         wrong-pixels branch here.
     ///     </para>
     /// </summary>
     private SKImage ScaledFor(SKImage source, SKRect destination)

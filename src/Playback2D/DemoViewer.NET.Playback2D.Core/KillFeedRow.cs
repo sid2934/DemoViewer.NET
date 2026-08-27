@@ -4,11 +4,10 @@ namespace DemoViewer.NET.Playback2D.Core;
 ///     One kill in the scene's kill feed, with the modifiers the event factory enriched. Tick-granular
 ///     (the parse carries no sub-tick timing for events).
 ///     <para>
-///         This is the <b>one</b> declaration of the row shape: B4's <c>KillFeedTimeline.Window</c> and
-///         its HUD layer operate on this record and must not redeclare it in Pipeline (registry
-///         correction 5). B4 also deleted the App's parallel <c>KillFeedEntry</c> and pointed the XAML
-///         feed's <c>DataTemplate</c> straight at this record (D5), so there is now exactly one row shape
-///         between the window, the view and the exported HUD.
+///         This is the <b>one</b> declaration of the row shape: <c>KillFeedTimeline.Window</c> and its HUD
+///         layer operate on this record and must not redeclare it in Pipeline. The XAML feed's
+///         <c>DataTemplate</c> binds straight to it too, so there is exactly one row shape between the
+///         window, the view and the exported HUD.
 ///     </para>
 /// </summary>
 /// <param name="Tick">The DV frame clock the kill happened on.</param>
@@ -29,9 +28,9 @@ namespace DemoViewer.NET.Playback2D.Core;
 ///     feed cannot disagree about which side gets the colour.
 ///     <para>
 ///         <b>Trailing and defaulted, deliberately.</b> This record is the one row shape the XAML feed and
-///         the exported <c>hud.killfeed</c> layer share (D5), so widening it in the middle would be a
-///         source break for every construction site at once. 0 is a first-class answer: a demo that never
-///         emitted <c>player_team</c> for a slot must still get its kill drawn, in the neutral colour.
+///         the exported <c>hud.killfeed</c> layer share, so widening it in the middle would break every
+///         construction site at once. 0 is a first-class answer: a demo that never emitted
+///         <c>player_team</c> for a slot must still get its kill drawn, in the neutral colour.
 ///     </para>
 /// </param>
 /// <param name="VictimTeam">The victim's side at the kill's own tick, same encoding.</param>

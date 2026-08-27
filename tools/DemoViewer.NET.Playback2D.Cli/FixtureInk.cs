@@ -47,7 +47,8 @@ internal static class FixtureInk
         }
 
         // AnnotationStore.ResolvePath appends the extension, so it is handed the stem. Asserting the
-        // suffix rather than trimming blindly keeps `--ink some.png` an honest refusal.
+        // suffix rather than trimming blindly means `--ink some.png` is refused with a clear error
+        // instead of silently mishandled.
         if (!sidecarPath.EndsWith(AnnotationStore.SidecarExtension, StringComparison.OrdinalIgnoreCase))
         {
             throw new CliUsageException(
@@ -75,7 +76,7 @@ internal static class FixtureInk
     }
 
     /// <summary>
-    ///     The corpus sidecar for an entry — <c>annotations/&lt;name&gt;.dvann.json</c> — or null when
+    ///     The corpus sidecar for an entry (<c>annotations/&lt;name&gt;.dvann.json</c>) or null when
     ///     the entry ships none. By convention rather than by manifest field: the manifest already keys
     ///     scenes and goldens off the entry name, and a fourth path column that could only ever hold one
     ///     value is a place for the two to disagree.

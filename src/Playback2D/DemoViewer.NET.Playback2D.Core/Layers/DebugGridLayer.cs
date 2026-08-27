@@ -8,21 +8,16 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Core.Layers;
 
 /// <summary>
-///     The trivial smoke layer B0's exit criterion is proved with: a world-space grid plus one filled
-///     disc per marker. It draws no text, so it needs no font and produces byte-identical output on a
-///     CI container with no fontconfig.
+///     A trivial smoke layer: a world-space grid plus one filled disc per marker, proving the render
+///     pipeline draws end to end. It draws no text, so it needs no font and produces byte-identical
+///     output on a CI container with no fontconfig.
 ///     <para>
 ///         Deliberately <c>internal</c> (with <c>InternalsVisibleTo</c> for the test project) so it can
-///         never become a production dependency.
-///     </para>
-///     <para>
-///         <b>That sentence was false from B0 until D6.</b> <c>SceneLayerCatalog</c> registered this and
-///         only this, so it was the one layer <c>dv2d render</c>, <c>golden</c> and <c>bench</c> could
-///         draw — every committed CPU golden was a picture of it, and the frame-budget gate was timing
-///         it. The catalog now registers the real stack (D6 G-1) and nothing in Pipeline names this
-///         type; its remaining callers are <c>SceneGoldenTests</c>' single-pane smoke render,
-///         <c>SceneRendererTests</c>, <c>SceneSmokeRenderTests</c> and the GPU parity harness, all of
-///         which construct it directly and all of which want a layer with no font and no state.
+///         never become a production dependency. <c>SceneLayerCatalog</c> does not register it, and
+///         nothing in Pipeline names this type; its remaining callers are <c>SceneGoldenTests</c>'
+///         single-pane smoke render, <c>SceneRendererTests</c>, <c>SceneSmokeRenderTests</c> and the GPU
+///         parity harness, all of which construct it directly and all of which want a layer with no font
+///         and no state.
 ///     </para>
 /// </summary>
 internal sealed class DebugGridLayer : ISceneLayer
@@ -126,16 +121,15 @@ internal sealed class DebugGridLayer : ISceneLayer
     ///     Snaps a 1px un-antialiased stroke onto the centre of the pixel column or row it falls in.
     ///     <para>
     ///         Without this, a line whose screen coordinate lands on an exact integer covers two pixels by
-    ///         exactly half each, and <i>which</i> one wins is a rasteriser tie-break: software raster
-    ///         picks the right/lower pixel and ANGLE picks the left/upper one. That is a 1px displacement
-    ///         with no defensible answer, and C2's cross-backend parity suite found it on the origin
-    ///         cross of every fixture.
+    ///         exactly half each, and which one wins is a rasteriser tie-break: software raster picks the
+    ///         right/lower pixel and ANGLE picks the left/upper one. That is a 1px displacement with no
+    ///         defensible answer, and the cross-backend parity suite found it on the origin cross of every
+    ///         fixture.
     ///     </para>
     ///     <para>
     ///         Snapping changes nothing anywhere else: an un-antialiased hairline already resolves to the
     ///         pixel containing its coordinate, which is exactly the pixel this centres it in — the
-    ///         committed CPU goldens are byte-identical across this change, and that is the check that
-    ///         proves it.
+    ///         committed CPU goldens stay byte-identical across this change.
     ///     </para>
     /// </summary>
     /// <param name="screen">The line's screen coordinate along the axis it is perpendicular to.</param>

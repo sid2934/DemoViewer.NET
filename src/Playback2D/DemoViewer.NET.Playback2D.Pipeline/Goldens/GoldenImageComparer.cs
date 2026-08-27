@@ -8,9 +8,9 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Pipeline.Goldens;
 
 /// <summary>
-///     The one image comparator in the repo. B0's capture test, B1's parity gate, C1's
-///     <c>dv2d golden</c> command and C2's cross-backend lane all call this — a second implementation
-///     would mean two different definitions of "the goldens are green".
+///     The one image comparator in the repo. The capture test, the parity gate, <c>dv2d golden</c> and
+///     the cross-backend lane all call this — a second implementation would mean two different
+///     definitions of "the goldens are green".
 /// </summary>
 public static class GoldenImageComparer
 {
@@ -110,10 +110,10 @@ public static class GoldenImageComparer
         // fail a frame; half a percent of them must.
         //
         // The glyph tier adds a SECOND ceiling above that one, open only when a tolerance asks for it
-        // (GoldenTolerance.ForTextBearingGolden, off the platform that authored the corpus). With the
-        // tier closed — every tolerance in the repo except that one — `ceiling` is
-        // OutlierChannelDelta and MaxGlyphOutlierFraction is 0, so the two rules below collapse back
-        // into the single "nothing may exceed the ceiling" rule this file has always had.
+        // (GoldenTolerance.ForLabelledFrame, off the platform that authored the corpus). With the tier
+        // closed (every tolerance in the repo except that one), `ceiling` is OutlierChannelDelta and
+        // MaxGlyphOutlierFraction is 0, so the two rules below collapse back into the single "nothing
+        // may exceed the ceiling" rule this file has always had.
         int ceiling = Math.Max(tolerance.OutlierChannelDelta, tolerance.GlyphOutlierChannelDelta);
         string? reason = tolerance.Mode switch
         {
@@ -201,15 +201,13 @@ public static class GoldenImageComparer
     ///     The full per-pixel delta distribution, rather than the pass/fail verdict
     ///     <see cref="Compare" /> gives.
     ///     <para>
-    ///         <b>Why a distribution is the right tool for a cross-renderer comparison.</b>
     ///         <see cref="GoldenComparison.MaxChannelDelta" /> is the worst single pixel in the frame, and
     ///         a single anti-aliased edge pixel whose sub-pixel coverage rounds the other way produces a
     ///         full-amplitude difference — so on two different rasterisers the maximum is always large and
     ///         says nothing. <see cref="GoldenComparison.MismatchedFraction" /> counts any difference at
     ///         all, including ±1, so it is always large too. What actually distinguishes "the same picture"
     ///         from "a regression" is the shape of the curve: how much of the frame is within a delta a
-    ///         human could see. B1's parity gate is written against that, and C2's SSIM lane will want it
-    ///         too.
+    ///         human could see. The parity gate is written against exactly that distribution.
     ///     </para>
     ///     <para>Returns null when either image cannot be decoded or the sizes disagree.</para>
     /// </summary>

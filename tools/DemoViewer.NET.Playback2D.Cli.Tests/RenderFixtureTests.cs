@@ -58,10 +58,10 @@ public class RenderFixtureTests
         await Assert.That(bitmap.Width).IsEqualTo(entry.Size.Width);
         await Assert.That(bitmap.Height).IsEqualTo(entry.Size.Height);
 
-        // `synthetic-empty` is exactly that: no players, no map bundle, and therefore — since the C1
-        // merge put dv2d on B1's pane pipeline — no derived floor band, no pane, and a background-only
-        // frame. That is the shipping behaviour of the app for a scene with nothing in it, not a
-        // regression in the CLI, so the entry named "empty" is the one entry allowed to be uniform.
+        // `synthetic-empty` is exactly that: no players, no map bundle, and therefore no derived floor
+        // band, no pane, and a background-only frame. That is the shipping behaviour of the app for a
+        // scene with nothing in it, not a regression in the CLI, so the entry named "empty" is the one
+        // entry allowed to be uniform.
         if (!string.Equals(name, "synthetic-empty", StringComparison.Ordinal))
         {
             await Assert.That(IsUniform(bitmap)).IsFalse();
@@ -89,7 +89,7 @@ public class RenderFixtureTests
     }
 
     /// <summary>
-    ///     <b>D6 G-1, from the command line.</b> <c>dv2d render --layers markers</c> answered
+    ///     <b>From the command line.</b> <c>dv2d render --layers markers</c> answered
     ///     <i>"unknown layer id(s): markers. Known: playback2d.debuggrid"</i> for four phases, while
     ///     <c>dv2d.md</c> documented this command as the design-iteration loop for "a marker style, a
     ///     cone fill, an ink outline". Asserted through the reported <c>layers</c> array rather than a
@@ -145,7 +145,7 @@ public class RenderFixtureTests
     ///     <c>CreateSceneStack</c> skips a starved opt-in id on purpose — an export request naming
     ///     <c>hud.clock</c> against a source with no clock should draw no HUD rather than an empty box —
     ///     but on a command line, "I asked for it and got a PNG" must not be able to mean "it was not
-    ///     there". Both refusals name the command that <i>can</i> draw the layer.
+    ///     there". Both refusals name the command that CAN draw the layer.
     /// </summary>
     /// <param name="layerId">The opt-in id to ask for.</param>
     /// <param name="expectedHint">A phrase the refusal must carry.</param>

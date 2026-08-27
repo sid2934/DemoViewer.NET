@@ -18,23 +18,16 @@
 #     swallowed and the ENTIRE suite runs, reporting success. Everything must go through
 #     `-- --treenode-filter`, and this script is the only place that string is written.
 #
-#  2. The tree-node filter parser CRASHES on the obvious spelling of a boolean. Inside `[...]`,
-#     `&` and `|` bind TIGHTER than `=`, so `[Category!=A&Category!=B]` throws
-#     `System.InvalidOperationException` out of `TreeNodeFilter.ProcessStackOperator` before a
-#     single test runs. Every operand must be individually parenthesised —
-#     `[(Category!=A)&(Category!=B)]` — which is what TIER_FILTER below emits. Worse spellings fail
-#     SILENTLY rather than loudly: top-level `|` between two whole paths matches EVERYTHING, top-level
-#     `&` drops the second clause, and unary `!` is not a token at all on this platform version, so
-#     `[!(Category=A)]` also matches everything. Do not invent a shorthand.
+#  2. The tree-node filter parser CRASHES on the obvious spelling of a boolean. Inside `[...]`, `&`
+#     and `|` bind TIGHTER than `=`, so `[Category!=A&Category!=B]` throws InvalidOperationException
+#     out of `TreeNodeFilter.ProcessStackOperator`. Parenthesise every operand instead. Worse
+#     spellings fail SILENTLY: top-level `|` between two whole paths matches EVERYTHING, top-level `&`
+#     drops the second clause, and unary `!` is not a token, so `[!(Category=A)]` also matches all.
 #
 #  3. `dotnet test` collapses every platform exit code to MSBuild's `1`, which loses the distinction
 #     between "tests failed" (2), "the filter matched nothing" (8) and "bad arguments" (5) — exactly
 #     the distinctions a tier runner has to report. `dotnet run` preserves them, so `dotnet run` is
 #     what this script uses.
-#
-# The filter strings below are asserted against their canonical definition in
-# tests/shared/TestTiers.cs by TestTierContractTests, so editing one here without editing the other
-# turns every suite red rather than quietly changing what a tier means.
 set -u
 
 TIER=standard
@@ -59,9 +52,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT" || exit 2
 
 # ── Tier definitions ────────────────────────────────────────────────────────────────────────────────
-# Mirrors tests/shared/TestTiers.cs exactly (TestTierContractTests asserts it, character for
-# character). Exclusion, never inclusion: an untagged test is in every tier, so a new unit test is
-# covered the moment it is written.
+# Asserted character-for-character against tests/shared/TestTiers.cs by TestTierContractTests: edit
+# one without the other and every suite turns red. Exclusion, never inclusion — an untagged test is
+# in every tier, so a new unit test is covered the moment it is written.
 case "$TIER" in
   fast)
     TIER_FILTER='/*/*/*/*[(Category!=Budget)&(Category!=Environmental)&(Category!=Gpu)&(Category!=Integration)&(Category!=RealDemo)&(Category!=Render)]'

@@ -221,7 +221,7 @@ public class Playback2DAnnotationPersistenceTests
     ///     it, and the user reads a filename as a promise the next reload breaks. Design §8: annotations
     ///     work in session, a reload loses them, and the UI says so.
     ///     <para>
-    ///         Found by B5's WASM verification pass on the published head — with a demo attached, the
+    ///         Found by a WASM verification pass on the published head — with a demo attached, the
     ///         panel read "saving to /sample-de_nuke.dem.dvann.json" in a browser tab.
     ///     </para>
     /// </summary>
@@ -246,10 +246,10 @@ public class Playback2DAnnotationPersistenceTests
     }
 
     /// <summary>
-    ///     <b>D6 finding 26 — <c>AnnotationAutoSave</c> had a reader and no writer.</b> The key was
-    ///     honoured at runtime, carried a <c>WriteInMemory</c> row, and nothing in the app could set it:
-    ///     a user who wanted session-only ink had to hand-edit <c>settings.json</c>, and every reader only
-    ///     ever saw the default. Round 3A gave it the toolbar toggle and the writer.
+    ///     <b><c>AnnotationAutoSave</c> had a reader and no writer.</b> The key was honoured at runtime,
+    ///     carried a <c>WriteInMemory</c> row, and nothing in the app could set it: a user who wanted
+    ///     session-only ink had to hand-edit <c>settings.json</c>, and every reader only ever saw the
+    ///     default. It now has the toolbar toggle and the writer.
     ///     <para>
     ///         The check also MOVED, from the schedule to <see cref="AnnotationSessionController" />'s save
     ///         itself: <c>FlushAsync</c> is called on a demo swap, on tab deactivation and at shutdown, and
@@ -295,8 +295,8 @@ public class Playback2DAnnotationPersistenceTests
     }
 
     /// <summary>
-    ///     The other direction: the toggle WRITES the key. Before round 3A nothing did, which is why the
-    ///     branch above could only ever be reached by hand-editing the file.
+    ///     The other direction: the toggle WRITES the key. Previously nothing did, so the branch above
+    ///     could only ever be reached by hand-editing the file.
     /// </summary>
     [Test]
     public async Task Controller_TogglingAutoSave_PersistsTheKey()

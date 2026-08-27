@@ -14,10 +14,11 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     A rebind is only real if it survives the whole route — settings → profile → the view's tunnelling
 ///     handler → <c>ExecuteAction</c>. These run the real controls under real headless key events, because
-///     the two failure modes D1 can introduce are both invisible to a unit test of the profile: the view
+///     two failure modes are both invisible to a unit test of the profile: the view
 ///     still calling the SHIPPED static table, and the KeyUp half of hold-to-pan still hard-coded to Space.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DKeybindRoutingTests
 {
     [Test]
@@ -173,11 +174,19 @@ public class Playback2DKeybindRoutingTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            vm.ApplyKeymapOverrides(["", "NextRound", "NextRound=Bogus", "Teleport=Y",
-                "NextRound=Ctrl+O", "NextRound=D", "FitCamera=G"]);
+            string[] bad = ["NextRound", "NextRound=Bogus", "Teleport=Y", "NextRound=Ctrl+O",
+                "NextRound=D", "FitCamera=G"];
+            vm.ApplyKeymapOverrides(["", .. bad]);
 
-            await Assert.That(vm.KeymapRejections.Count).IsEqualTo(6);
             Console.WriteLine("[keybind-routing] " + string.Join(" | ", vm.KeymapRejections));
+
+            // Which rows, not how many — the blank one is skipped silently and every other is named.
+            foreach (string row in bad)
+            {
+                await Assert.That(vm.KeymapRejections.Any(
+                    r => r.StartsWith(row + ":", StringComparison.Ordinal))).IsTrue()
+                    .Because($"the tab has to name the row it dropped: {row}");
+            }
 
             (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             view.Focus();

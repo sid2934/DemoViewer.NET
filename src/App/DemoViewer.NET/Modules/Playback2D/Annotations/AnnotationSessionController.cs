@@ -15,23 +15,18 @@ namespace DemoViewer.NET.Modules.Playback2D.Annotations;
 ///     Owns the annotation session for the 2D tab: the document, the sidecar, the settings that seed the
 ///     ink style, and the feature gate.
 ///     <para>
-///         <b>The gate is read through <see cref="IModuleContext.Features" /></b> (registry §3.10), never
-///         through an injected <c>IFeatureGate</c>, and a null projection fails OPEN. With the gate off
-///         nothing is loaded, nothing is autosaved and nothing is written on flush — "gated off touches
-///         no disk" is a testable claim, not a comment.
+///         <b>The gate is read through <see cref="IModuleContext.Features" /></b>, never through an
+///         injected <c>IFeatureGate</c>, and a null projection fails OPEN. With the gate off nothing is
+///         loaded, autosaved or written on flush.
 ///     </para>
 ///     <para>
-///         <b>Autosave is debounced and off the UI thread.</b> A stroke commits one document change; a
-///         drag-erase across thirty strokes commits one too. Writing on each would put a file write in
-///         the middle of a gesture, so changes coalesce into one save after
-///         <see cref="AutoSaveDelay" />. <see cref="StateChanged" /> may therefore be raised from a
+///         <b>Autosave and preference writes are both debounced, off the UI thread.</b> A drag-erase
+///         across thirty strokes commits one change, and writing on each would put a file write inside a
+///         gesture; the ink pickers are louder still, raising a change on every pointer sample, and
+///         <c>SettingsService.Write</c> is a synchronous write-and-reload whose reload re-composes the
+///         keymap and the Settings page inline. See <see cref="AutoSaveDelay" /> and
+///         <see cref="StylePersistDelay" />. <see cref="StateChanged" /> may therefore be raised from a
 ///         thread-pool thread — the view-model marshals.
-///     </para>
-///     <para>
-///         <b>Preference writes are debounced too</b>, for the same reason and a louder trigger: the ink
-///         pickers raise a change on every pointer sample, and <c>SettingsService.Write</c> is a
-///         synchronous write-and-reload whose reload re-composes the keymap and the Settings page inline.
-///         See <see cref="PersistSettings" /> and <see cref="StylePersistDelay" />.
 ///     </para>
 /// </summary>
 public sealed class AnnotationSessionController : IDisposable
@@ -102,19 +97,12 @@ public sealed class AnnotationSessionController : IDisposable
     /// <summary>
     ///     Whether the document is written to its sidecar automatically — the live face of
     ///     <c>AppSettings.Playback2D.AnnotationAutoSave</c>.
-    ///     <para>
-    ///         D6 finding 26: the key was READ here and written by nothing, with no UI anywhere, so a
-    ///         user who wanted session-only ink had to hand-edit <c>settings.json</c> — and every reader
-    ///         of the key only ever saw its default. It is surfaced rather than deleted because the
-    ///         branch it drives is correct behaviour somebody wants (a clean demo folder, a shared
-    ///         machine); what was missing was one checkbox, not the feature.
-    ///     </para>
-    ///     <para>
-    ///         Held here, not re-read from settings per change, because the panel writes it through
-    ///         <see cref="PersistSettings" />'s debounce like every other preference — a per-change read
-    ///         would race the 250 ms window and answer with the pre-toggle value.
-    ///     </para>
     /// </summary>
+    /// <remarks>
+    ///     Held here rather than re-read from settings per change, because the panel writes it through
+    ///     <see cref="PersistSettings" />'s debounce like every other preference — a per-change read would
+    ///     race the 250 ms window and answer with the pre-toggle value.
+    /// </remarks>
     public bool AutoSave { get; set; } = true;
 
     /// <summary>
@@ -304,7 +292,7 @@ public sealed class AnnotationSessionController : IDisposable
 
         Session.Style = new AnnotationStyle(prefs.AnnotationColorArgb, width, opacity);
 
-        // The two pens share width and opacity by construction — only the colour is per-button — so a
+        // The two pens share width and opacity by construction (only the colour is per-button), so a
         // user who widens the pen never discovers that the right one stayed thin.
         Session.SecondaryStyle = new AnnotationStyle(prefs.AnnotationSecondaryColorArgb, width, opacity);
         Session.SecondaryTool = ParseSecondaryTool(prefs.AnnotationSecondaryTool);
@@ -312,8 +300,8 @@ public sealed class AnnotationSessionController : IDisposable
         // Enum.IsDefined as well as TryParse, for the reason AnnotationStore.ToElement fences its kind:
         // this is a hand-editable string AND Enum.TryParse accepts any NUMBER in range, so "7" would
         // parse to an EnvelopeMode nothing switches on — a session whose mode reaches the toolbar's
-        // ComboBox as an out-of-range SelectedIndex and silently deselects. Always is the degrade, which
-        // is also what a mode written by a newer build should look like from here.
+        // ComboBox as an out-of-range SelectedIndex and silently deselects. Falling back to Always also
+        // covers a mode written by a newer build.
         Session.DefaultVisibility =
             Enum.TryParse(prefs.AnnotationDefaultVisibility, ignoreCase: true, out EnvelopeMode mode)
             && Enum.IsDefined(mode)
@@ -343,8 +331,8 @@ public sealed class AnnotationSessionController : IDisposable
 
     // "Same" and every unrecognised string mean "no override" — the right button then runs the selected
     // tool with the secondary ink. PanZoom is refused on purpose: middle and Ctrl+drag already pan under
-    // every tool (D2 §2.3), and a third way to pan bound to the button that is supposed to draw would be
-    // a setting whose only effect is to take the second pen away.
+    // every tool, and a third way to pan bound to the button that is supposed to draw would be a setting
+    // whose only effect is to take the second pen away.
     private static ToolKind? ParseSecondaryTool(string? name) =>
         Enum.TryParse(name, ignoreCase: true, out ToolKind kind) && kind != ToolKind.PanZoom
             ? kind
@@ -359,14 +347,14 @@ public sealed class AnnotationSessionController : IDisposable
     /// <summary>
     ///     Persists the current ink style, envelope defaults and tool. Best-effort, and <b>debounced</b>.
     ///     <para>
-    ///         <b>Why it cannot write inline.</b> <c>SettingsService.Write</c> is a synchronous
+    ///         <c>SettingsService.Write</c> is a synchronous
     ///         read-serialize-temp-write-<c>File.Move</c>-<c>Reload()</c>, and the reload fires
     ///         <c>IOptionsMonitor.OnChange</c> on this thread — which re-composes the 2D keymap profile
     ///         and, with Settings open, re-reflects thirty properties and twenty-one keybind rows. This
-    ///         method's loudest caller is a <c>ColorPicker</c> drag, which raises a change on <i>every
-    ///         pointer move through its spectrum</i> — the same fact <see cref="RememberNewestColor" />
-    ///         was written around, applied to the swatch list and not to the file. A one-second drag was
-    ///         a few hundred full cycles on the UI thread.
+    ///         method's loudest caller is a <c>ColorPicker</c> drag, which raises a change on every
+    ///         pointer move through its spectrum, the same fact <see cref="RememberNewestColor" /> was
+    ///         written around for the swatch list. A one-second drag was a few hundred full cycles on the
+    ///         UI thread.
     ///     </para>
     ///     <para>
     ///         The snapshot is taken HERE, on the calling thread, because the session is UI-thread state;
@@ -471,8 +459,8 @@ public sealed class AnnotationSessionController : IDisposable
                 s.Playback2D.AnnotationSecondaryColorArgb = style.SecondaryColorArgb;
                 s.Playback2D.AnnotationSecondaryTool = style.SecondaryTool;
 
-                // The WRITER AnnotationAutoSave shipped without (D6 finding 26). The key had a reader
-                // and a WriteInMemory row from B2, so it round-tripped perfectly and could never change.
+                // The key previously had a reader but no writer, so it round-tripped its own default
+                // forever; this line is what lets a user's toggle actually reach the file.
                 s.Playback2D.AnnotationAutoSave = style.AutoSave;
 
                 // The window is read back OFF the composed envelope, so what is persisted is what the
@@ -600,8 +588,8 @@ public sealed class AnnotationSessionController : IDisposable
     // "Recent" means recently DRAWN WITH, not recently hovered in the picker. A ColorPicker raises a
     // change on every pointer move through its spectrum, so remembering there filled the strip with
     // eight shades of one drag and buried the colours the user had actually committed to. One new
-    // element is one use — of whichever pen drew it, which is how the secondary ink earns its place in
-    // the strip too. A LOAD is not a use, and neither is a batch: only a single-element growth counts.
+    // element is one use, of whichever pen drew it — the secondary ink included. A LOAD is not a use, and
+    // neither is a batch: only a single-element growth counts.
     private void RememberNewestColor()
     {
         int count = Session.Document.Elements.Count;
@@ -670,8 +658,8 @@ public sealed class AnnotationSessionController : IDisposable
         }
 
         // The AUTHORITATIVE auto-save check, and deliberately here rather than only at the schedule.
-        // Every automatic write funnels through this method — the debounce, FlushAsync on a demo swap or
-        // a tab deactivate, and the blocking flush at shutdown — and only the first of those was gated
+        // Every automatic write funnels through this method (the debounce, FlushAsync on a demo swap or
+        // a tab deactivate, and the blocking flush at shutdown), and only the first of those was gated
         // before. "Session only" that still writes the sidecar when you close the tab is not session
         // only; it is the same file arriving at a moment the user is even less likely to notice.
         if (!AutoSave)
@@ -822,8 +810,7 @@ public sealed class AnnotationSessionController : IDisposable
             : "";
 
         // With the toggle off nothing reaches that path at all — not on a stroke, not on a demo swap,
-        // not at shutdown. Leaving "saving to <path>" standing would be a promise the setting revoked,
-        // which is the shape of defect this whole audit is about.
+        // not at shutdown. Leaving "saving to <path>" standing would be a promise the setting revoked.
         return prefix + (AutoSave ? "saving to " : "auto-save off · would save to ") + path;
     }
 }

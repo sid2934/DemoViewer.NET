@@ -9,10 +9,10 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     <b>Design risk 5, as a test suite.</b> A level's identity must survive a boundary that drifts —
-///     which is what the density-valley histogram does for the whole demo — and must NOT survive a
-///     genuine floor split, because two floors sharing one identity is one camera, one picture cache and
-///     (from B2) one annotation anchor pointing at the wrong storey.
+///     A level's identity must survive a boundary that drifts — which is what the density-valley
+///     histogram does for the whole demo — and must NOT survive a genuine floor split, because two
+///     floors sharing one identity is one camera, one picture cache and one annotation anchor pointing
+///     at the wrong storey.
 /// </summary>
 public class MapSpaceRemapTests
 {
@@ -66,7 +66,7 @@ public class MapSpaceRemapTests
 
     /// <summary>
     ///     The whole point of overlap-carry: the boundary between two bands moves by a bucket as the
-    ///     histogram accumulates, and both identities hold. Under the pre-B3 key-equality rule the upper
+    ///     histogram accumulates, and both identities hold. Under a plain ZMin key-equality rule the upper
     ///     band's ZMin changed, so it was Removed and re-Added — losing its camera every time the
     ///     histogram twitched.
     /// </summary>
@@ -140,10 +140,9 @@ public class MapSpaceRemapTests
     /// <summary>
     ///     <b>The other side of <see cref="MintedKeys_NeverCollide_AfterRemoveThenAdd" />.</b> The bump
     ///     that protects a departed level's identity also breaks the equation every annotation consumer
-    ///     used to rely on — <c>level.Id == IdForZMin(level.ZMin)</c> — so an anchor resolved by the
-    ///     minting rule stops matching the pane that is visibly drawing it. Design §10 risk 5's stated
-    ///     mitigation is ZMin-keyed level identity; <see cref="MapSpace.IdForAnchor" /> is where that
-    ///     identity now actually lives.
+    ///     used to rely on, <c>level.Id == IdForZMin(level.ZMin)</c>, so an anchor resolved by the minting
+    ///     rule stops matching the pane that is visibly drawing it. <see cref="MapSpace.IdForAnchor" /> is
+    ///     where ZMin-keyed level identity now actually lives.
     /// </summary>
     [Test]
     public async Task IdForAnchor_FollowsTheCarriedIdentity_NotTheMintingRule()
@@ -225,7 +224,7 @@ public class MapSpaceRemapTests
 
         panes.RetainUnarranged(change);
         await Assert.That(panes.Panes).IsEmpty()
-            .Because("every floor of the outgoing demo is gone, not merely off screen");
+            .Because("every floor of the outgoing demo is gone, not just off screen");
 
         // Nothing to rebase an annotation anchor ONTO, so the rebase path stands down rather than
         // rewriting the closing demo's sidecar.
@@ -317,7 +316,7 @@ public class MapSpaceRemapTests
 
     /// <summary>
     ///     A malformed authoritative bundle can publish a zero-width band; <c>Rebuild</c> widens it so
-    ///     nothing downstream divides by a zero span. The <i>same</i> list fed again must still be a
+    ///     nothing downstream divides by a zero span. The same list fed again must still be a
     ///     no-op — otherwise every frame that re-derives the levels raises
     ///     <c>LevelSetChanged</c>, and every frame drops the compositor's picture caches with it.
     /// </summary>
@@ -353,7 +352,7 @@ public class MapSpaceRemapTests
     /// <summary>
     ///     Level bands stay RAW. The quantum mints identity; snapping the band itself would move a
     ///     player standing between the raw and quantized boundary onto the other floor, and the pre-v2
-    ///     assignment is what every golden contains (plan deviation 1).
+    ///     assignment is what every golden contains.
     /// </summary>
     [Test]
     public async Task RebuiltBands_KeepTheirRawZ_SoAssignmentIsUnchanged()

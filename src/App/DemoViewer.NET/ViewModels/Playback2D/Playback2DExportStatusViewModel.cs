@@ -40,7 +40,7 @@ public sealed partial class Playback2DExportStatusViewModel : ViewModelBase, IDi
     private readonly Action<string>? _openFolder;
 
     // Bounded: ffmpeg writes a progress line roughly once a second for the whole render, so an unbounded
-    // list would be a slow leak that only long exports — the ones most worth diagnosing — could produce.
+    // list would be a slow leak that only long exports (the ones hardest to diagnose) could produce.
     private readonly Queue<string> _log = new();
 
     private bool _disposed;
@@ -114,8 +114,8 @@ public sealed partial class Playback2DExportStatusViewModel : ViewModelBase, IDi
 
     /// <summary>
     ///     A paste-ready block for a failed export: the phase, how far it got, the file, and the log tail
-    ///     ffmpeg actually printed. The tail is the point — a bare "ffmpeg exited with code 1" sends
-    ///     nobody anywhere.
+    ///     ffmpeg actually printed. The tail matters because a bare "ffmpeg exited with code 1" gives
+    ///     nothing to act on.
     /// </summary>
     public string CopyDiagnosticsText
     {

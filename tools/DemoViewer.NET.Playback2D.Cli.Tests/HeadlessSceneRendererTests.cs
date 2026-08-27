@@ -67,10 +67,9 @@ public class HeadlessSceneRendererTests
     }
 
     /// <summary>
-    ///     Named ids, not <c>KnownLayerIds[0]</c>. The old spelling derived its input from the catalog's
-    ///     own first entry, so it passed identically whether the catalog held one layer or eleven —
-    ///     which is precisely why nothing in this suite noticed that <c>dv2d</c> could only draw a debug
-    ///     grid (D6 G-6). These name the layer.
+    ///     Named ids, <b>never <c>KnownLayerIds[0]</c></b>. Deriving the input from the catalog's own
+    ///     first entry passes identically whether the catalog holds one layer or eleven, so it cannot
+    ///     tell that the stack has shrunk to a debug grid.
     /// </summary>
     [Test]
     public async Task Catalog_AcceptsBareAndPrefixedSpellings()
@@ -97,8 +96,8 @@ public class HeadlessSceneRendererTests
 
     /// <summary>
     ///     The default stack is <b>the scene</b> — the seven non-opt-in ids — and the four opt-in ones
-    ///     are absent unless named AND fed. This is the assertion G-1 would have failed: with the debug
-    ///     grid registered the count was 1.
+    ///     are absent unless named AND fed. This is the assertion that would have failed with the debug
+    ///     grid registered: the count was 1.
     /// </summary>
     [Test]
     public async Task Catalog_DefaultStackIsTheSevenSceneLayers()

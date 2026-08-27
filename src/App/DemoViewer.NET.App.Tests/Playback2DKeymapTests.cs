@@ -11,11 +11,19 @@ namespace DemoViewer.NET.AppTests;
 ///     The declarative keymap. The table is conflict-checked in its own static constructor, so the first
 ///     test here is really "the type could be loaded at all"; the rest pin the two design decisions that
 ///     were direct collisions in the spec (Q/E round nav vs E erase; Space play/pause vs hold-to-pan).
+///     <b>Both of those resolutions live here and nowhere else</b> — a second copy in the conflict suite
+///     was character-identical.
 /// </summary>
 public class Playback2DKeymapTests
 {
+    /// <summary>
+    ///     <b>The only place the shipped table's conflict-freedom is asserted</b>, because the static
+    ///     constructor already throws on one: touching <c>Default</c> at all is the real assertion, and a
+    ///     duplicate gesture takes this whole file down with a <c>TypeInitializationException</c> before
+    ///     any of it runs. Three tests used to re-issue the same call from two files.
+    /// </summary>
     [Test]
-    public async Task DefaultTable_HasNoInternalConflicts()
+    public async Task TheShippedTable_LoadsAndHasNoConflicts()
     {
         IReadOnlyList<string> conflicts =
             Playback2DKeymap.FindConflicts(Playback2DKeymap.Default, Playback2DKeymap.ShellReservedGestures);
@@ -34,19 +42,9 @@ public class Playback2DKeymapTests
     }
 
     [Test]
-    public async Task TryResolve_SpaceIsTogglePlay()
-    {
-        bool ok = Playback2DKeymap.TryResolve(Key.Space, KeyModifiers.None, false,
-            out Playback2DAction action);
-
-        await Assert.That(ok).IsTrue();
-        await Assert.That(action).IsEqualTo(Playback2DAction.TogglePlay);
-    }
-
-    [Test]
     public async Task TryResolve_ShiftE_IsNextKill_NotNextRound()
     {
-        // The D6/D9 regression: bare E is round nav, Shift+E is kill nav, and the erase tool takes X.
+        // Bare E is round nav, Shift+E is kill nav, and the erase tool takes X.
         await Assert.That(Resolve(Key.E, KeyModifiers.None)).IsEqualTo(Playback2DAction.NextRound);
         await Assert.That(Resolve(Key.E, KeyModifiers.Shift)).IsEqualTo(Playback2DAction.NextKill);
         await Assert.That(Resolve(Key.Q, KeyModifiers.None)).IsEqualTo(Playback2DAction.PrevRound);
@@ -56,7 +54,7 @@ public class Playback2DKeymapTests
     [Test]
     public async Task TryResolve_ReservedGesture_ReturnsFalse()
     {
-        // Home is still DECLARED-not-routed (the conflict checker guards it; B3 binds it). A reserved
+        // Home is still DECLARED-not-routed (the conflict checker guards it; the shell binds it). A reserved
         // binding resolves to nothing, so the view leaves the key unhandled rather than pretending.
         await Assert.That(Playback2DKeymap.TryResolve(Key.Home, KeyModifiers.None, false,
             out Playback2DAction fit)).IsFalse();
@@ -64,9 +62,9 @@ public class Playback2DKeymapTests
     }
 
     /// <summary>
-    ///     A1 declared the annotation gestures reserved; B2 binds them. This is the moment the reservation
-    ///     paid off — the gestures were guarded from the day the table shipped, so binding them here is a
-    ///     flag flip rather than a collision hunt.
+    ///     The annotation gestures were declared reserved before they had any binding. This is the moment
+    ///     the reservation paid off — the gestures were guarded from the day the table shipped, so binding
+    ///     them here is a flag flip rather than a collision hunt.
     /// </summary>
     [Test]
     public async Task TryResolve_AnnotationGestures_AreBoundByB2()
@@ -83,8 +81,8 @@ public class Playback2DKeymapTests
     [Test]
     public async Task TryResolve_ToolActive_PrefersToolScopedBinding()
     {
-        // D7: Space is play/pause normally, but the tool-scoped HoldPan SHADOWS it while a drawing tool
-        // is active. B2 bound HoldPan, so the shadow now resolves to the action rather than to nothing.
+        // Space is play/pause normally, but the tool-scoped HoldPan SHADOWS it while a drawing tool
+        // is active. HoldPan is bound, so the shadow now resolves to the action rather than to nothing.
         await Assert.That(Playback2DKeymap.TryResolve(Key.Space, KeyModifiers.None, false,
             out Playback2DAction idle)).IsTrue();
         await Assert.That(idle).IsEqualTo(Playback2DAction.TogglePlay);
@@ -93,7 +91,7 @@ public class Playback2DKeymapTests
             out Playback2DAction drawing)).IsTrue();
         await Assert.That(drawing).IsEqualTo(Playback2DAction.HoldPan);
 
-        // D8: same for Esc — clear-follow normally, gesture bail while a drawing tool is active.
+        // Same for Esc — clear-follow normally, gesture bail while a drawing tool is active.
         await Assert.That(Resolve(Key.Escape, KeyModifiers.None)).IsEqualTo(Playback2DAction.ClearFollow);
         await Assert.That(Playback2DKeymap.TryResolve(Key.Escape, KeyModifiers.None, true,
             out Playback2DAction bail)).IsTrue();

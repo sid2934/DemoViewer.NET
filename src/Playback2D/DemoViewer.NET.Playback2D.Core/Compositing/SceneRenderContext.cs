@@ -10,9 +10,9 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 /// <summary>
 ///     Everything a layer needs to draw one pane, and nothing it could mutate.
 ///     <para>
-///         <b>One type, extended in place.</b> B1 adds <c>Pane</c> (<c>LevelPaneSnapshot</c>) and
-///         <c>LevelIndexFor</c>; B3 adds <c>Levels</c> (<c>MapSpace</c>) and <c>LevelCrossings</c>.
-///         Extending means adding members to <i>this</i> record, never declaring a second one.
+///         <b>One type, extended in place.</b> <c>Pane</c> (<c>LevelPaneSnapshot</c>), <c>LevelIndexFor</c>,
+///         <c>Levels</c> (<c>MapSpace</c>) and <c>LevelCrossings</c> are members on this record. Extending
+///         means adding members here, never declaring a second one.
 ///     </para>
 /// </summary>
 /// <param name="Frame">The frame being drawn. Valid only for the enclosing render call.</param>
@@ -40,29 +40,25 @@ public readonly record struct SceneRenderContext(
     ScenePalette Palette,
     float RenderScaling)
 {
-    /// <summary>
-    ///     The pane being drawn, as captured at submission. Added by B1 (integrator correction 2);
-    ///     default before the compositor's multi-pane path fills it.
-    /// </summary>
+    /// <summary>The pane being drawn, as captured at submission. Default before the compositor's multi-pane path fills it.</summary>
     public LevelPaneSnapshot Pane { get; init; }
 
     /// <summary>
-    ///     The level set this pane belongs to, or null on a context built without one (B0's fixtures,
-    ///     a single-level render). Needed because <see cref="LevelIndexFor" /> must reproduce
+    ///     The level set this pane belongs to, or null on a context built without one (a fixture render
+    ///     or a single-level render). Needed because <see cref="LevelIndexFor" /> must reproduce
     ///     <c>FloorSplitter.SliceIndexFor</c>'s nearest-band fallback, which a lone Z band cannot.
     /// </summary>
     public MapSpace? Levels { get; init; }
 
     /// <summary>
-    ///     Which entities changed level on this frame, when the frame owner keeps a tracker. Added by
-    ///     B3; null on a context built without one.
+    ///     Which entities changed level on this frame, when the frame owner keeps a tracker. Null on a
+    ///     context built without one.
     ///     <para>
-    ///         For layers holding <i>per-entity temporal state</i> — B1's marker smoothing (which reads
-    ///         it through <c>MarkerSmoother.LevelCrossings</c> rather than here, because it mutates in
-    ///         <c>Advance</c> where there is no context) and, from B2, entity-anchored annotations. A
-    ///         layer whose content is a pure function of the frame does not need it: grenade trails carry
-    ///         their own per-point Z and are split across bands at draw time by
-    ///         <c>TrailGeometry.FloorSegmentRuns</c>.
+    ///         For layers holding per-entity temporal state — marker smoothing (which reads it through
+    ///         <c>MarkerSmoother.LevelCrossings</c> rather than here, because it mutates in
+    ///         <c>Advance</c> where there is no context) and entity-anchored annotations. A layer whose
+    ///         content is a pure function of the frame does not need it: grenade trails carry their own
+    ///         per-point Z and are split across bands at draw time by <c>TrailGeometry.FloorSegmentRuns</c>.
     ///     </para>
     /// </summary>
     public LevelCrossingTracker? LevelCrossings { get; init; }
@@ -84,7 +80,7 @@ public readonly record struct SceneRenderContext(
     ///     <para>
     ///         <b>This is an assignment test, not a band test.</b> The pre-v2 filter is
     ///         <c>_floors.SliceIndexFor(z) == sliceIndex</c>, and <c>SliceIndexFor</c> snaps a Z that
-    ///         falls in a gap — or above the highest band — to the <i>nearest</i> band. A plain
+    ///         falls in a gap — or above the highest band — to the nearest band. A plain
     ///         <c>z ∈ [min, max)</c> test would make a player on a ramp, or a grenade arcing above the
     ///         map, belong to no pane at all and simply vanish. Parity invariant 1.
     ///     </para>

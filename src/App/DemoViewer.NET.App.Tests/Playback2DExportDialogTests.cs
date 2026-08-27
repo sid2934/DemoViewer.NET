@@ -79,7 +79,7 @@ public class Playback2DExportDialogTests
         vm.CustomHeightText = "1081";
 
         // A user typing 1921 meant 1920. yuv420p's chroma subsampling is not something they should have
-        // to know about, so the dialog snaps instead of refusing (plan D8).
+        // to know about, so the dialog snaps instead of refusing.
         await Assert.That(vm.ResolvedSize.Width).IsEqualTo(1920);
         await Assert.That(vm.ResolvedSize.Height).IsEqualTo(1080);
         await Assert.That(vm.CanStart).IsTrue();
@@ -122,8 +122,8 @@ public class Playback2DExportDialogTests
     }
 
     /// <summary>
-    ///     One checkbox for three layers was too coarse the moment D3b added the third: a user who wants
-    ///     the score strip but not a scoreboard down both edges of a 720p clip could only have both or
+    ///     One checkbox for three layers is too coarse once a third layer exists: a user who wants the
+    ///     score strip but not a scoreboard down both edges of a 720p clip could only have both or
     ///     neither.
     /// </summary>
     [Test]
@@ -187,9 +187,8 @@ public class Playback2DExportDialogTests
     }
 
     /// <summary>
-    ///     The whole point of the roster being an id rather than a flag: naming it, with a HUD source on
-    ///     hand, produces a registered layer. D3a's <c>Starved()</c> routes it — no new source kind, no new
-    ///     line in the catalog.
+    ///     The roster is an id rather than a flag: naming it, with a HUD source on hand, produces a
+    ///     registered layer. <c>Starved()</c> routes it — no new source kind, no new line in the catalog.
     /// </summary>
     [Test]
     public async Task TheRosterId_BuildsALayer_WhenAHudSourceIsSupplied()
@@ -273,8 +272,8 @@ public class Playback2DExportDialogTests
             return new CameraScript.FollowPlayer(42);
         });
 
-        // Plan D12: mirroring the live view is a CAPTURE. Taking it when the user picked the option would
-        // mean panning between then and Start silently changed the export.
+        // Mirroring the live view is a CAPTURE. Taking it when the user picked the option would mean
+        // panning between then and Start silently changed the export.
         vm.SelectedFormat = ExportFormats.Mp4;
         vm.SelectedFps = 30;
         await Assert.That(captures).IsEqualTo(0);
@@ -299,9 +298,9 @@ public class Playback2DExportDialogTests
     {
         Playback2DExportDialogViewModel vm = Dialog();
 
-        // P2 D4. `auto` is the only value that cannot fail for an environment reason: it walks the
-        // ladder and lands on tuned software where no hardware verifies. A named rung is taken literally
-        // and refused if this machine cannot run it, which is honest but is not a default.
+        // `auto` is the only value that cannot fail for an environment reason: it walks the ladder and
+        // lands on tuned software where no hardware verifies. A named rung is taken literally and refused
+        // if this machine cannot run it, which is accurate but is not a default.
         await Assert.That(vm.SelectedEncoder).IsEqualTo(EncoderLadder.Auto);
         await Assert.That(vm.SelectedQuality).IsEqualTo(ExportQualities.Standard);
     }
@@ -402,8 +401,8 @@ public class Playback2DExportDialogTests
         vm.SelectedEncoder = EncoderLadder.Software;
         vm.StartCommand.Execute(null);
 
-        // They ride the REQUEST, not the runner — plan D5's per-session shape, and what lets two exports
-        // in one process disagree about which rung they are on.
+        // They ride the REQUEST, not the runner: each request carries its own per-session shape, letting
+        // two exports in one process disagree about which rung they are on.
         await Assert.That(job.Started).IsNotNull();
         await Assert.That(job.Started!.Quality).IsEqualTo(ExportQualities.Draft);
         await Assert.That(job.Started.EncoderOverride).IsEqualTo(EncoderLadder.Software);
@@ -490,8 +489,8 @@ public class Playback2DExportDialogTests
 
     /// <summary>
     ///     Start must put the resolved palette on the request, because the setup that consumes it runs on
-    ///     the export's pool thread and cannot resolve a theme there — that threw "Call from invalid
-    ///     thread" for every export until D9.
+    ///     the export's pool thread and cannot resolve a theme there — that used to throw "Call from
+    ///     invalid thread" for every export.
     ///     <para>
     ///         Dropping this wiring does NOT crash: the setup falls back to a correct-but-wrong-theme
     ///         palette, so a dark-theme user would silently get a light video. A silent wrong answer needs
@@ -567,11 +566,9 @@ public class Playback2DExportDialogTests
     }
 
     /// <summary>
-    ///     <b>Cross-surface layer parity, the app half.</b> Its counterpart is
-    ///     <c>ExportLayerParityTests</c> in the dv2d suite, which pins <c>ExportCommand.BuildLayerIds</c>
-    ///     to the same two Core-derived expressions from the other side. Adding a layer to
-    ///     <c>SceneStackIds</c> moves both; changing one front end's defaults moves only one, and that is
-    ///     the drift these exist to catch.
+    ///     <b>Cross-surface layer parity, the app half.</b> The dialog's shipped set is derived from
+    ///     <c>SceneStackIds</c>, so adding a layer moves it; changing this front end's defaults does not —
+    ///     this test catches exactly that drift.
     /// </summary>
     [Test]
     public async Task TheShippedIncludeSet_IsTheCliesFullOverlaySet()
@@ -595,8 +592,8 @@ public class Playback2DExportDialogTests
         vm.IncludeHud = false;
         vm.IncludeAnnotations = false;
 
-        // The bare `dv2d export` set. Vision used to be in the CLI's and never in the app's, which is one
-        // request producing two different videos depending on which front end ran it.
+        // The bare `dv2d export` set. Vision must match between the CLI and the app's default, or one
+        // request produces two different videos depending on which front end ran it.
         await Assert.That(vm.BuildRequest(vm.Ranges[0]).LayerIds.Order())
             .IsEquivalentTo(BareSceneSet().Order());
     }
@@ -966,8 +963,8 @@ public class Playback2DExportFeatureGateTests
     {
         await Assert.That(ShellModuleFeatureGate.DesktopOnlyIds.Contains("playback2d.export")).IsTrue();
 
-        // B5 D4: the !OperatingSystem.IsBrowser() AND for module-facing ids lives here and nowhere else.
-        // A second shim would be a second answer to the same question.
+        // The !OperatingSystem.IsBrowser() AND for module-facing ids lives here and nowhere else. A
+        // second shim would be a second answer to the same question.
         foreach (string id in ShellModuleFeatureGate.DesktopOnlyIds)
         {
             await Assert.That(FeatureCatalog.All.Any(d => d.Id == id)).IsTrue();

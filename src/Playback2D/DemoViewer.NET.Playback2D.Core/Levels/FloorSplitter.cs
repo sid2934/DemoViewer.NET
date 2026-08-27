@@ -40,7 +40,7 @@ public sealed class FloorSplitter
 
     // Sparse running histogram: bucket index → observed count. Sparse because Z spans can be large.
     //
-    // Deliberately NOT a SortedDictionary, which is what this was. Nothing needs the keys in order —
+    // Deliberately NOT a SortedDictionary. Nothing needs the keys in order —
     // ComputeSlices scatters them into an indexed array and reads that in order — and enumerating a
     // SortedDictionary allocates a Stack<Node> inside the tree walker EVERY time, measured at 72 B on
     // each recompute. On the histogram branch that is once a frame, forever.
@@ -54,8 +54,7 @@ public sealed class FloorSplitter
 
     // ComputeSlices' working set, hoisted to fields. It runs on EVERY frame the histogram moved — which
     // is every frame with a live player — and a fresh List + int[] + two more Lists per frame is the
-    // 552 B/frame design §6 forbids and the budget gate missed, because the gate called
-    // SetAuthoritativeFloors first and measured the short-circuit instead (D6 finding 24).
+    // 552 B/frame design §6 forbids.
     private readonly List<int> _boundaries = new(8);
     private readonly List<int> _peaks = new(8);
     private readonly List<FloorSlice> _scratch = new(4);
@@ -261,8 +260,7 @@ public sealed class FloorSplitter
     {
         // (int)Math.Floor(NaN / w) is 0 under .NET's saturating conversions, so an unfiltered bad sample
         // does not throw — it invents a phantom dwell band at Z ∈ [0, BucketWidth) and can split a
-        // single-floor map in two. Same family as D6 finding 8, same answer: a Z that is not a number is
-        // not a position.
+        // single-floor map in two: a Z that is not a number is not a position.
         if (!double.IsFinite(z))
         {
             return;

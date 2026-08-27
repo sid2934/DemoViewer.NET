@@ -32,9 +32,9 @@ public class Playback2DAnnotationSettingsTests
 
             await Assert.That(prefs.LastTool).IsEqualTo("PanZoom");
             await Assert.That(prefs.AnnotationColorArgb).IsEqualTo(0xFFFFC107u);
-            // 6, not 8: the settings key used to disagree with AnnotationStyle.Default.WidthWorld about
+            // 6, not 8: the settings key once disagreed with AnnotationStyle.Default.WidthWorld about
             // what the shipped pen is, and Core's constant — the one every test, the wet stroke and a
-            // session-only run already use — is the one that won (D2).
+            // session-only run already use — is the one that won.
             await Assert.That(prefs.AnnotationWidth).IsEqualTo(6d);
             await Assert.That(prefs.AnnotationOpacity).IsEqualTo(1d);
             await Assert.That(prefs.AnnotationDefaultVisibility).IsEqualTo("Always");
@@ -45,10 +45,10 @@ public class Playback2DAnnotationSettingsTests
             await Assert.That(prefs.AnnotationAutoSave).IsTrue();
             await Assert.That(prefs.AnnotationRecentColors).IsEmpty();
 
-            // D2's four. "Same" is the shipped right-button binding — item 2.2 asked for two PENS, and a
-            // right button that erased out of the box would leave the secondary swatch inert with no
-            // hint that a second colour exists. The Custom window ships non-empty on purpose: a mode
-            // whose default is [0,0] would still look like a second spelling of Always.
+            // The shipped default set of four. "Same" is the shipped right-button binding — two PENS were
+            // asked for, and a right button that erased out of the box would leave the secondary swatch
+            // inert with no hint that a second colour exists. The Custom window ships non-empty on
+            // purpose: a mode whose default is [0,0] would still look like a second spelling of Always.
             await Assert.That(prefs.AnnotationSecondaryColorArgb).IsEqualTo(0xFF29B6F6u);
             await Assert.That(prefs.AnnotationSecondaryTool).IsEqualTo("Same");
             await Assert.That(prefs.AnnotationCustomFromTick).IsEqualTo(0);

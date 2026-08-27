@@ -27,6 +27,7 @@ namespace DemoViewer.NET.AppTests;
 ///     both empty states), and a headless Skia render of the OPEN overlay.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class PlayerDetailsTests
 {
     private static readonly string[] _expectedChains = ["ace", "clutch_1v3"];

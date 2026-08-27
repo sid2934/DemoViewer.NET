@@ -14,8 +14,8 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     D1's persistence and its Settings surface. The array half is proved on the FILELESS path as well as
-///     the file one: on WASM there is no <c>settings.json</c>, only the in-memory provider
+///     Keybind persistence and its Settings surface. The array half is proved on the FILELESS path as well
+///     as the file one: on WASM there is no <c>settings.json</c>, only the in-memory provider
 ///     <c>SettingsService.WriteInMemory</c> populates by hand, and a property missing from that method binds
 ///     fine, writes fine, and forgets itself on the next read with nothing to see anywhere.
 ///     <para>

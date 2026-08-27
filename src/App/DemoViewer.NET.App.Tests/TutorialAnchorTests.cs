@@ -20,6 +20,7 @@ namespace DemoViewer.NET.AppTests;
 ///     <see cref="NotInParallelAttribute" /> and asserts against its OWN mounted control by reference.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class TutorialAnchorTests
 {
     private static void Pump()

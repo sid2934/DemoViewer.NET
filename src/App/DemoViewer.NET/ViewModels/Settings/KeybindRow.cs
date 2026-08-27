@@ -9,7 +9,7 @@ using DemoViewer.NET.Modules.Playback2D;
 namespace DemoViewer.NET.ViewModels.Settings;
 
 /// <summary>
-///     One row in Settings' "2D playback controls" list (D1): an action, the gesture currently resolving
+///     One row in Settings' "2D playback controls" list: an action, the gesture currently resolving
 ///     to it, and the affordances to rebind or reset it.
 ///     <para>
 ///         The row is <b>display state only</b> — every write goes back through the owning

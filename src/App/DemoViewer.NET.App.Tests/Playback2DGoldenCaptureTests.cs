@@ -24,35 +24,23 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Pins the CURRENT control's output as the corpus B1 must match, and captures the paired
-///     <c>SceneFixture</c> from the same push, so the JSON and the PNG describe the same world state —
-///     which is the entire point of the B1 parity gate.
+///     Pins the CURRENT control's output as the corpus this parity gate must match, and captures the
+///     paired <c>SceneFixture</c> from the same push, so the JSON and the PNG describe the same world
+///     state.
 ///     <para>
-///         <b>Determinism.</b> Only <see cref="CameraMode.Fit" /> is deterministic (the smooth modes lerp
-///         per render frame), and marker interpolation seeds ON the player at first appearance, so the
-///         first captured frame has no glide. The capture asserts both — that every smoothed marker
-///         position equals its raw position — and refuses to write a golden it cannot reproduce.
+///         Only <see cref="CameraMode.Fit" /> is deterministic (the smooth modes lerp per render frame),
+///         and marker interpolation seeds ON the player at first appearance, so the first captured frame
+///         has no glide. The capture asserts both: every smoothed marker position must equal its raw
+///         position, and it refuses to write a golden it cannot reproduce. A missing golden is a FAILURE
+///         unless <c>PB2D_GOLDEN_UPDATE=1</c> is set; see <c>scripts/update-playback2d-goldens.sh</c>.
 ///     </para>
 ///     <para>
-///         <b>Regeneration.</b> A missing golden is a FAILURE unless <c>PB2D_GOLDEN_UPDATE=1</c> is set;
-///         a golden that silently rewrites itself is a test that no longer tests. See
-///         <c>scripts/update-playback2d-goldens.sh</c>.
-///     </para>
-///     <para>
-///         <b>The scene is behind the same guard as the PNG</b> (D6 G-5). It was not: the fixture write
-///         sat outside it, and the tour sample ships in every checkout, so <i>any</i> App-suite run
-///         rewrote <c>scenes/nuke-multilevel.scene.json</c> — the input to <c>GoldenParityTests</c> and
-///         <c>LevelGoldenTests</c>. The class doc's own sentence about a golden that rewrites itself was
-///         true of its <i>input</i>.
-///     </para>
-///     <para>
-///         <b>Corpus names.</b> These captures own the <c>prev2-</c> namespace and nothing else. They
-///         used to be named <c>duel-mirage-b</c> and <c>fitmap-mirage-eco</c> — which are two
-///         <i>hand-authored</i> 640×360 dv2d fixtures — so on any machine with those Mirage demos
-///         staged, a capture overwrote a hand-written scene with a pre-v2 900×900 one and wrote its PNG
-///         to a path the manifest never reads (D6 G-8). <c>nuke-multilevel</c> keeps its name because
-///         that pair genuinely is this harness's: the scene, the golden and
-///         <c>GoldenParityTests</c>' expectation all came from here.
+///         <b>The scene write shares the PNG's regeneration guard</b>, or an App-suite run silently
+///         rewrites <c>scenes/nuke-multilevel.scene.json</c> — the input to <c>GoldenParityTests</c> and
+///         <c>LevelGoldenTests</c> — because the tour sample ships in every checkout. These captures own
+///         the <c>prev2-</c> namespace exclusively, so a capture on a machine with Mirage demos staged
+///         cannot overwrite a hand-authored dv2d fixture. <c>nuke-multilevel</c> keeps its name because
+///         that scene, golden and expectation all originate here.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -77,8 +65,8 @@ public class Playback2DGoldenCaptureTests
                 // Repo-relative, and therefore present in EVERY checkout and on CI: the bundled tour
                 // sample is the first 3 rounds of a pro de_nuke GOTV demo (docs/tour-sample-demo.md),
                 // trimmer-verified and app-loadable. DemoTestHelper does not search assets/tour, so
-                // without this entry the one fixture that most needs a two-floor map — and with it
-                // B1's whole parity gate — would sit empty waiting on a demo nobody has staged.
+                // without this entry the one fixture that most needs a two-floor map, and this parity
+                // gate with it, would sit empty because no such demo is staged anywhere.
                 "assets/tour/sample-de_nuke.dem"
             ]);
 
@@ -117,8 +105,8 @@ public class Playback2DGoldenCaptureTests
     ///     Resolves one demo candidate. A bare file name goes through the usual
     ///     <see cref="DemoTestHelper" /> search (<c>DEMO_PATH</c> → <c>TestData/</c> →
     ///     <c>demos/benchmarks/</c> → <c>demos/</c>); a candidate containing a separator is treated as
-    ///     repo-relative, which is how a demo committed to the tree (rather than staged by a developer)
-    ///     is reachable. Returns null when neither locates a file.
+    ///     repo-relative, so a demo committed to the tree — rather than staged by a developer — is
+    ///     reachable. Returns null when neither locates a file.
     /// </summary>
     /// <param name="candidate">A bare demo file name, or a repo-relative path.</param>
     private static string? ResolveDemo(string candidate)
@@ -182,10 +170,9 @@ public class Playback2DGoldenCaptureTests
                     "-- --treenode-filter \"/*/*/Playback2DGoldenCaptureTests/*\").");
             }
 
-            // The fixture is written from the SAME push that produced the PNG, so B1 can re-render this
-            // JSON and diff against this image — which is only true if the two are written TOGETHER, and
-            // therefore only under the guard. Outside it this ran on every App-suite run and silently
-            // re-authored the input the parity and level suites read (D6 G-5).
+            // The fixture is written from the SAME push that produced the PNG, so the parity and level
+            // suites can diff JSON against image knowing both came from one run — gated identically to
+            // the PNG for the same reason described on the class.
             Directory.CreateDirectory(Path.GetDirectoryName(scenePath)!);
             SceneFixtureSerializer.WriteFile(new SceneFixture
             {
@@ -245,9 +232,8 @@ public class Playback2DGoldenCaptureTests
 
         // Calibrate the game clock, exactly as the shell does on load. Without it CurtimeSeconds is the
         // naive tick/tickRate and every round/bomb timer in the captured fixture is offset by clockBase
-        // — which is how nuke-multilevel came to record a 7:14 round clock on a 1:55 round. Nothing in
-        // the PICTURE depends on it (the clock is XAML chrome, and B4's HUD layers are not built yet),
-        // but a fixture whose game info is wrong is a fixture that will mislead whoever reads it next.
+        // — measured once as a 7:14 round clock on a 1:55 round. Nothing in the PICTURE depends on it,
+        // but a fixture whose game info is wrong will mislead whoever reads it next.
         int firstFreezeEnd = FindFirstFreezeEndFrame(frames);
         (double clockBase, bool clockValid) = GameClock.ComputeClockBase(frames, firstFreezeEnd, 64);
         context.SetGameClock(clockBase);

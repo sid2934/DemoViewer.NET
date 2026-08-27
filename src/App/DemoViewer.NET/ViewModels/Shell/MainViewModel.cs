@@ -2141,7 +2141,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    // Reveals a finished job's output ("Open folder") — the reel chip and, since D6, the 2D export chip.
+    // Reveals a finished job's output ("Open folder") — the reel chip and the 2D export chip.
     // Desktop-only (both features are), and best-effort: a launcher failure must never crash the UI thread.
     internal void OpenOutputFolder(string path)
     {

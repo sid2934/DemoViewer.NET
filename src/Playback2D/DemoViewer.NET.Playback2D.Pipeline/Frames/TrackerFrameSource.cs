@@ -265,13 +265,11 @@ public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSour
 
     /// <summary>
     ///     The player cards of the frame <see cref="FrameAt" /> built most recently, or empty before the
-    ///     first one — <c>hud.roster</c>'s half of what <see cref="LastGameInfo" /> is to <c>hud.clock</c>
-    ///     (D3b, registry D0 §3.2).
+    ///     first one — <c>hud.roster</c>'s half of what <see cref="LastGameInfo" /> is to <c>hud.clock</c>.
     ///     <para>
-    ///         It exists for the same reason and is ordered correctly for the same reason: a HUD layer is a
-    ///         function of tick, <c>SceneExportSession.RunAsync</c> is strictly <c>FrameAt</c> →
-    ///         <c>Advance</c> → <c>Render</c>, and a layer asks its data source during <c>Advance</c>. Wire
-    ///         it as the roster half of a <c>TimelineHudDataSource</c>:
+    ///         Ordered correctly for the same reason as <see cref="LastGameInfo" />: a HUD layer is a
+    ///         function of tick and asks its data source during <c>Advance</c>. Wire it as the roster
+    ///         half of a <c>TimelineHudDataSource</c>:
     ///         <c>new TimelineHudDataSource(kills, rate, _ =&gt; ClockReading.From(src.LastGameInfo),
     ///         rosterAt: _ =&gt; src.LastRoster)</c>.
     ///     </para>

@@ -30,6 +30,7 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DHeadlessSmokeTests
 {
     // Background fill of the viewport (#15181C) — markers must introduce pixels distinct from it.
@@ -75,7 +76,7 @@ public class Playback2DHeadlessSmokeTests
             await Assert.That(vm.Markers.Count).IsEqualTo(2);
 
             // Render the View standalone.
-            // Carried-forward suite: pin the LEGACY surface (plan §6.3). B1 mounts the surface in
+            // Carried-forward suite: pin the LEGACY surface. Mounting the surface happens in
             // code, so a view built without this would get the v2 host.
             Playback2DRenderer.ResetForTest(Playback2DRendererKind.Legacy);
             Playback2DView view = new()

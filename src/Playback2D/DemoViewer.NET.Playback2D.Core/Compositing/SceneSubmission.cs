@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 
 /// <summary>
 ///     Everything the draw op is allowed to see, captured on the UI thread inside the render gate and
-///     then immutable (plan §5.8).
+///     then immutable.
 ///     <para>
 ///         The mutable <c>PaneSet</c> / <c>LevelPane</c> never cross the thread boundary: each pane
 ///         arrives as a <see cref="LevelPaneSnapshot" /> value. <see cref="Frame" /> is a reference but
@@ -18,8 +18,7 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 ///     </para>
 ///     <para>
 ///         <see cref="SubmissionId" /> is monotonic. It is what the gate stress test uses to prove that
-///         a rendered frame corresponds to exactly one submitted state and never a blend of two
-///         (design risk 2).
+///         a rendered frame corresponds to exactly one submitted state and never a blend of two.
 ///     </para>
 /// </summary>
 /// <param name="SubmissionId">Monotonic id of this submission.</param>

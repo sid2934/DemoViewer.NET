@@ -230,7 +230,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     [ObservableProperty]
     private bool _showVision;
 
-    // ── Viewport chrome (D4) ─────────────────────────────────────────────────────────────────────────
+    // ── Viewport chrome ──────────────────────────────────────────────────────────────────────────────
     // Two bits, because the user's complaint had two halves: the drawing tools were permanently OVER the
     // map (answered structurally, by docking them into their own Auto row) and the six overlay check
     // boxes were permanently displayed (answered here, by defaulting them closed behind one toggle).
@@ -332,8 +332,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     // OperatingSystem.IsBrowser() is a JIT-folded intrinsic, so the WASM branch of ExportUnavailableNote
     // cannot be reached from a desktop test without a seam. Same shape as ShellModuleFeatureGate's and
-    // AnnotationSessionController's, and a desktop-only refusal nobody has proved is a refusal nobody
-    // has tested.
+    // AnnotationSessionController's: without the seam, the desktop-only refusal path has no test
+    // exercising it.
     internal Func<bool> IsBrowserHost { get; set; } = OperatingSystem.IsBrowser;
 
     /// <summary>
@@ -341,16 +341,16 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     <para>
     ///         The button's <c>IsVisible</c> is <see cref="CanExport" />, and <see cref="CanExport" /> has
     ///         three inputs — the gate, the host, the demo. It simply vanished, so a browser user could
-    ///         not tell "not available here" from "open a demo first" (D6 finding 12b). The codebase does
-    ///         this correctly elsewhere: <c>SettingsView.axaml</c>'s folder picker says
+    ///         not tell "not available here" from "open a demo first". The codebase does this correctly
+    ///         elsewhere: <c>SettingsView.axaml</c>'s folder picker says
     ///         "(unavailable in the browser)" rather than disappearing.
     ///     </para>
     ///     <para>
     ///         Empty when the FEATURE is switched off, deliberately: that one the user did on purpose, in
     ///         a screen that lists it by name, and re-announcing it beside every gated affordance is
     ///         noise. Empty too when the only thing missing is the export HOST while a demo is open —
-    ///         that combination is the designer and the test harness, never a shipped desktop build, and
-    ///         there is nobody there to tell.
+    ///         that combination is the designer and the test harness, never a shipped desktop build, so
+    ///         there is no user present who would need telling.
     ///     </para>
     /// </summary>
     public string ExportUnavailableNote { get; private set; } = "";
@@ -380,9 +380,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                 return "";
             }
 
-            // The browser check comes FIRST because on that head BOTH the gate and the host say no —
-            // ShellModuleFeatureGate.DesktopOnlyIds forces the feature off and App.axaml.cs wires no
-            // host — and "you switched it off" would be a lie about a decision nobody made.
+            // The browser check comes FIRST because on that head BOTH the gate and the host say no
+            // (ShellModuleFeatureGate.DesktopOnlyIds forces the feature off and App.axaml.cs wires no
+            // host) — and "you switched it off" would misattribute the state to a choice the user never made.
             if (IsBrowserHost())
             {
                 return "Export video — unavailable in the browser";
@@ -415,7 +415,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///         Built beside the job and handed to the shell through <c>Playback2DExportHost.MountStatusChip</c>,
     ///         which is the only route a lazily-built module tab has to the status strip. It is the
     ///         <b>subscriber</b> <c>ExportJobService.StatusChanged</c> spent its whole life without:
-    ///         progress, throughput, the ETA, the failure message and — the one that mattered — a Cancel
+    ///         progress, throughput, the ETA, the failure message and, the one that mattered, a Cancel
     ///         button were all computed and marshalled to the UI thread, and none of them had anywhere to
     ///         land. Internal, so a test can reach the chip the same way the shell does.
     ///     </para>
@@ -439,21 +439,18 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             // this composition omitted, so all of it went to the floor and a failed export could say
             // nothing more useful than the exception's own one-liner.
             //
-            // EVERY seam is named, including the two whose value is the constructor's own default. That
-            // is D6 §4 guard 4's rule and the whole of gap G1: C# materialises an omitted optional
-            // argument AT THE CALL SITE, so a one-argument construction and the fully-spelled form below
-            // compile to identical IL — an omission is not a fact about the program, and nothing
-            // distinguishes "this composition chose the default" from "this composition forgot the
-            // parameter". Four of the nine P0/P1 export defects were the second one.
+            // EVERY seam is named, including the two whose value is the constructor's own default: C#
+            // materialises an omitted optional argument AT THE CALL SITE, so a one-argument construction
+            // and the fully-spelled form below compile to identical IL. An omission is not a fact about the
+            // program, and nothing distinguishes "this composition chose the default" from "this
+            // composition forgot the parameter".
             _exportJob = new ExportJobService(
                 new SceneExportRunner(
                     request => BuildExportSetup(host, request),
 
-                    // CPU, chosen rather than defaulted to. SceneExportSession refuses any non-CpuRaster
-                    // provider outright — its loop crosses threads between frames and GpuSurfaceProvider
-                    // is bound to the thread that made it (design §0 O2) — so this is the only value that
-                    // exports at all today, and it is spelled out so the day C2 Stage 1 lifts that
-                    // refusal, this is the line the AppSettings.Playback2D.RenderBackend key lands on.
+                    // CPU, chosen rather than defaulted to — the only value that exports at all today. See
+                    // Playback2DSettings.RenderBackend's remarks (AppSettings.cs) for why, and spelled out
+                    // here so a future RenderBackend consumer lands on this line.
                     surfaces: RenderSurfaceProviderFactory.CreateCpu,
 
                     // The same directory CsvgWebHost downloads into, so one managed ffmpeg serves reels
@@ -463,7 +460,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                     log: AppendExportLog,
 
                     // Process-wide, so an app session pays for one two-frame test encode per rung rather
-                    // than one per export (plan P2 D1).
+                    // than one per export.
                     encoderProbe: EncoderProbeCache.Shared),
                 host.Gate,
                 host.IsLiveSyncBusy,
@@ -558,9 +555,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     <para>
     ///         Internal for the mirror-live-view test: the display mode used to be hard-coded
     ///         <c>Stacked</c>, so a user watching Nuke in SINGLE mode and exporting "mirror the live view"
-    ///         got a two-band stacked video of a view they were not looking at. B4 D12 says the capture
-    ///         carries "plus the host's current <c>LevelDisplayMode</c>" — <c>MirrorLiveView.DisplayMode</c>
-    ///         recorded it and nothing read it, which is the second half of B4 deviation 20.
+    ///         got a two-band stacked video of a view they were not looking at. The capture now carries the
+    ///         host's current <c>LevelDisplayMode</c> too — <c>MirrorLiveView.DisplayMode</c> previously
+    ///         recorded it and nothing read it.
     ///     </para>
     /// </summary>
     /// <param name="host">The shell's export host.</param>
@@ -627,14 +624,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         ?? new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>());
 
     // The scene colours, resolved at Start beside the camera and the ink, and for a harder reason than
-    // either: Application.ActualThemeVariant is a STYLED PROPERTY, so reading it off the UI thread throws
-    // "Call from invalid thread" out of AvaloniaObject.VerifyAccess. BuildExportSetup runs on the export's
-    // pool thread by contract — its own doc comment says so — and resolved the palette there, so every
-    // export died before frame zero. It went unseen because the dialog did not render and the layer set
-    // threw first (D6 findings 1 and 2); fixing those is what made this reachable.
-    //
-    // A ScenePalette is a plain record of SKColor, so once resolved it crosses threads freely. It is the
-    // READ that is thread-affine, never the value.
+    // either — see Scene2DExportRequest.Palette (IExportJobService.cs) for why reading the theme off the
+    // export's pool thread throws. A ScenePalette is a plain record of SKColor, so once resolved it crosses
+    // threads freely: it is the READ that is thread-affine, never the value.
     internal ScenePalette CaptureExportPalette() => LivePalette();
 
     // Falls back to Dark rather than throwing, for the two callers that legitimately have no request: the
@@ -777,19 +769,16 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///         A walk over consecutive <c>round_freeze_end</c> pairs, the same shape
     ///         <see cref="BuildExportRanges" /> uses for the export dialog — but over the TICK axis, not
     ///         the frame axis, because a <c>TimeEnvelope</c> is ticks. <c>EventsOfType</c> carries both,
-    ///         so no conversion is needed and none is invented.
+    ///         so no conversion is needed.
     ///     </para>
     ///     <para>
     ///         Two answers are deliberately null. <b>Before the first freeze-end</b> is warmup, which is
-    ///         not a round — <c>RoundTrack</c> bands it as <c>wu</c> for the same reason — and pinning a
+    ///         not a round (<c>RoundTrack</c> bands it as <c>wu</c> for the same reason), and pinning a
     ///         warmup stroke into round 1 would put it somewhere the user was not looking. <b>A demo with
-    ///         no freeze-ends at all</b> has no rounds to speak of. Both fall through to the pinned
-    ///         trapezoid in <c>EnvelopeForNewElement</c>, which is a window that works.
-    ///     </para>
-    ///     <para>
-    ///         The LAST round has no following freeze-end, so its <c>Until</c> is null: the round runs to
-    ///         the end of the demo, which is exactly what an open <c>TimeEnvelope</c> bound already means
-    ///         — and the timeline contract exposes no last-TICK to close it against anyway.
+    ///         no freeze-ends at all</b> has no rounds to speak of; both fall through to the pinned
+    ///         trapezoid in <c>EnvelopeForNewElement</c>. The LAST round has no following freeze-end
+    ///         either, so its <c>Until</c> is null: the round runs to the end of the demo, and the timeline
+    ///         contract exposes no last tick to close it against anyway.
     ///     </para>
     /// </summary>
     /// <param name="tick">The playhead, in DV frame-clock ticks.</param>
@@ -828,17 +817,17 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     Whether annotations are live: the <c>playback2d.annotations</c> feature is on AND the mounted
     ///     surface can host ink. Fail-open, live.
     ///     <para>
-    ///         Delegated to the panel rather than re-reading the gate here. Two independent reads of one
-    ///         question is how the surface half went missing on this side while the toolbar had it — and
-    ///         this property is what <c>Playback2DView.OnKeyDown</c> multiplies into <c>toolActive</c>,
-    ///         which is what decides whether the keymap's tool-scoped rows take Space and Escape.
+    ///         Delegated to the panel rather than re-reading the gate here: two independent reads of one
+    ///         question let the surface half go missing on this side while the toolbar still had it. This
+    ///         property is also what <c>Playback2DView.OnKeyDown</c> multiplies into <c>toolActive</c>,
+    ///         which decides whether the keymap's tool-scoped rows take Space and Escape.
     ///     </para>
     /// </summary>
     public bool IsAnnotationsEnabled => Annotations.IsEnabled;
 
     /// <summary>
     ///     Told by the View which surface it mounted. The gate cannot answer "is there anything to draw
-    ///     on"; only the View knows, because only the View mounts the surface (D6 finding 12).
+    ///     on"; only the View knows, because only the View mounts the surface.
     /// </summary>
     /// <param name="canAnnotate">Whether the mounted surface implements <c>IAnnotationSurface</c>.</param>
     internal void SetSurfaceCapabilities(bool canAnnotate)
@@ -1159,7 +1148,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///         <c>FollowPlayerCommand</c> — every caller invokes this directly (the card list's
     ///         <c>OnSelectedPlayerChanged</c> hook, the keymap, the SplitButton submenu through
     ///         <see cref="NotifyFollowSlotChanged" />), so the wrapper was generated surface with no
-    ///         consumer. D6 §4 guard 2 named it; this is the deletion that entry was routed for.
+    ///         consumer.
     ///     </para>
     /// </summary>
     /// <param name="slot">The roster slot to follow.</param>
@@ -1610,7 +1599,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
     }
 
-    // ── Keymap (D1) ──────────────────────────────────────────────────────────
+    // ── Keymap ───────────────────────────────────────────────────────────────
     // Read at construction AND kept live. The keymap is the one 2D setting a user edits while the tab is
     // open and then immediately tests, so "applies on next activation" would read as the rebind having
     // silently failed. IOptionsMonitor is resolved through the same lazy locator as SettingsService —
@@ -1768,7 +1757,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
     }
 
-    // ── Viewport chrome persistence (D4) ─────────────────────────────────────────────────────────────
+    // ── Viewport chrome persistence ──────────────────────────────────────────────────────────────────
     // The guard is not ceremony: the generated setters call back into SaveChromeSettings, so seeding the
     // two properties from settings would write them straight back — on every construction of every tab,
     // including the ones a headless test throws away.
@@ -1914,7 +1903,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // camera silently changed player — while FollowStatus still read "following bravo · requested"
         // and no card was highlighted, because SelectedPlayer still referenced a PlayerAttributes
         // instance that is no longer in Attributes at all. Three pieces of state disagreeing about one
-        // fact (D6 finding 11).
+        // fact.
         //
         // TWO inputs, one clear. `demoChanged` is the explicit DemoReset signal; the path comparison
         // catches the case that signal cannot see — a demo swapped while this tab was DEACTIVATED, whose

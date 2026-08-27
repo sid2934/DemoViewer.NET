@@ -15,28 +15,27 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The 2D viewport's chrome contract. Until D4 every toolbar floated over the canvas in ONE grid cell
-///     as a sibling of everything else in it, so an overlap was invisible in the XAML and total at runtime:
-///     the LATER sibling paints over the earlier one AND wins its hit tests, which is exactly how B2
-///     mounted the annotation toolbar underneath A4's overlay-toggle strip in the shared top-left corner.
-///     D4 moved the persistent chrome into its own docked <c>Auto</c> row, which retires the corner fight
-///     but adds two of its own: a docked strip is measured against the COLUMN rather than the window, and a
-///     collapse bit that does not actually give the height back is a chevron that lies.
+///     The 2D viewport's chrome contract. When toolbars share ONE grid cell as siblings, an overlap is
+///     invisible in the XAML and total at runtime: <b>the LATER sibling paints over the earlier one AND
+///     wins its hit tests.</b> Docking the persistent chrome into its own <c>Auto</c> row retires that
+///     corner fight but adds two of its own: a docked strip is measured against the COLUMN rather than
+///     the window, and a collapse bit that does not give the height back is a chevron that lies.
 ///     <para>
-///         Geometry is the only honest assertion here — an "is it in the right container" test would have
-///         passed on the broken tree, because everything was in the right container the whole time.
+///         Geometry is the only assertion that catches this: an "is it in the right container" test
+///         passes on the broken tree, because everything is in the right container the whole time.
 ///     </para>
 ///     <para>
 ///         <b>Every case pins the SCENE surface.</b> <c>Playback2DTimelineHarness.Show</c> defaults to the
-///         legacy escape hatch, because it was written for the carried-forward parity suites; this suite's
-///         subject is D4's docked chrome, which is v2's. It mattered from round 3A on: the annotation
-///         toolbar's visibility is now the feature gate AND the mounted surface's capability, so under the
-///         legacy viewport — which has no router, no ink layer and no gesture to cancel —
-///         <c>AnnotationToolbarHost</c> correctly is not there at all, and a layout suite measuring the
-///         default surface would have been measuring the escape hatch's chrome all along.
+///         legacy escape hatch, written for the carried-forward parity suites; this suite's subject is the
+///         docked chrome, which belongs to v2. The annotation toolbar's visibility is now the feature gate
+///         AND the mounted surface's capability, so under the legacy viewport, which has no router, no ink
+///         layer and no gesture to cancel, <c>AnnotationToolbarHost</c> correctly is not there at all, and
+///         a layout suite measuring the default surface would have been measuring the escape hatch's
+///         chrome all along.
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DHudLayoutTests
 {
     // Every interactive chrome region in the left column, at the level where they are SIBLINGS — the
@@ -70,7 +69,7 @@ public class Playback2DHudLayoutTests
                 Console.WriteLine($"[chrome-layout] {name} = {rect}");
             }
 
-            // The two the B2 regression was about have to be on screen, or the test is vacuous.
+            // AnnotationToolbarHost and OverlayToggles have to be on screen, or the test is vacuous.
             await Assert.That(boxes.Select(b => b.Name)).Contains("AnnotationToolbarHost");
             await Assert.That(boxes.Select(b => b.Name)).Contains("OverlayToggles");
 
@@ -94,7 +93,7 @@ public class Playback2DHudLayoutTests
     }
 
     /// <summary>
-    ///     The toolbar has to be REACHABLE, not merely non-overlapping: a control the shell reports as
+    ///     The toolbar has to be REACHABLE — non-overlapping is not enough: a control the shell reports as
     ///     covered at its own centre point is unclickable however good its Bounds look.
     /// </summary>
     [Test]
@@ -181,11 +180,10 @@ public class Playback2DHudLayoutTests
                     continue;
                 }
 
-                // D6 finding 31 / G-6. This used to `continue` on a 0x0 control — and 0x0 is exactly what
-                // a VISIBLE control with no control theme measures, because there is no template to
-                // measure. So the themeless ColorPicker sailed from B2 to D4 through every run of this
-                // very case, which is the one that exists to notice it. A zero-sized visible control is
-                // now the failure, not the skip.
+                // A visible control with no control theme measures 0×0, because there is no template to
+                // measure — this is exactly what a themeless ColorPicker looks like (FluentTheme does not
+                // ship the ColorPicker control theme). Skipping 0×0 controls here would hide that case, so
+                // a zero-sized visible control is now a failure, not a skip.
                 if (control.Bounds.Width <= 0 || control.Bounds.Height <= 0)
                 {
                     unmeasured.Add($"{Describe(control)} ({control.GetType().Name})");
@@ -229,20 +227,20 @@ public class Playback2DHudLayoutTests
                          + "below unless this one refuses to skip it");
 
             // 3 tools + 2 pickers + R⌫ + 2 sliders + combo + Pin + Track + 3 undo/redo/clear + 4 envelope
-            // boxes + ⌖now + 6 overlays + Overlays▾ + Export + collapse. A floor, not an exact count — but
-            // raised from 25 to the 28 actually present (D6 finding 31): a floor three below the real
-            // count is three controls that could vanish without this case noticing.
+            // boxes + ⌖now + 6 overlays + Overlays▾ + Export + collapse. A floor, not an exact count,
+            // pinned at the 28 controls actually present: any lower floor is that many controls that
+            // could vanish without this case noticing.
             await Assert.That(probed).IsGreaterThanOrEqualTo(28);
         });
     }
 
     /// <summary>
     ///     The self-check for the rule above. A control with no template is <b>visible, laid out, and
-    ///     0×0</b> — it occupies the tree and none of the screen — and that is the exact state
-    ///     <see cref="EveryDockedControl_IsInsideTheColumn_AndHitTestable" /> used to skip. Until D4 the
-    ///     ink <c>ColorPicker</c> was in precisely this state, and it survived from B2 to D4 through every
-    ///     CI run of the case written to catch it. Without this canary, "unmeasured must be empty" would
-    ///     be an assertion about a condition nobody has shown to be reachable.
+    ///     0×0</b> — it occupies the tree and none of the screen. The ink <c>ColorPicker</c> is in exactly
+    ///     this state, because FluentTheme does not ship its control theme, so
+    ///     <see cref="EveryDockedControl_IsInsideTheColumn_AndHitTestable" /> must treat it as a failure
+    ///     rather than skip it. Without this canary, "unmeasured must be empty" would be an assertion
+    ///     about a condition never shown to be reachable.
     /// </summary>
     [Test]
     public async Task ATemplatelessControl_IsVisibleAndMeasuresZero()
@@ -398,9 +396,9 @@ public class Playback2DHudLayoutTests
     }
 
     /// <summary>
-    ///     The toolbar's gesture hints follow the KEYMAP, not a literal. D1 made keys configurable and left
-    ///     five tooltips spelling "(D)", "(X)", "Ctrl+Z", "Ctrl+Shift+Z" and "Ctrl+X" — each of them wrong
-    ///     for anyone who rebound that action, in the one place a user looks to learn what the key is.
+    ///     The toolbar's gesture hints follow the KEYMAP, not a literal: keys are configurable, so a
+    ///     hardcoded tooltip like "(D)" or "Ctrl+Z" is wrong for anyone who rebound that action, in the
+    ///     one place a user looks to learn what the key is.
     /// </summary>
     [Test]
     public async Task ToolbarGestureHints_FollowARebind()

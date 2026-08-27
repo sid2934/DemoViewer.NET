@@ -154,7 +154,7 @@ public class Playback2DFollowFunnelTests
     }
 
     /// <summary>
-    ///     D6 finding 11. A slot is only meaningful inside one demo, and every piece of follow state is
+    ///     A slot is only meaningful inside one demo, and every piece of follow state is
     ///     slot-keyed — so a swap has to clear all of it or the three disagree: the ring and the camera
     ///     silently re-point at whoever the NEW demo has in that slot, the footer keeps naming the OLD
     ///     player, and no card highlights because <c>SelectedPlayer</c> still references a row that is no
@@ -196,7 +196,7 @@ public class Playback2DFollowFunnelTests
     }
 
     /// <summary>
-    ///     The other half, and the reason the clear is not simply unconditional: the View is DESTROYED and
+    ///     The other half, and the reason the clear is not unconditional: the View is DESTROYED and
     ///     rebuilt from the descriptor's factory on every tab activation, and <c>OnActivated</c> re-runs
     ///     the same resync. Follow surviving that is what <c>Playback2DView.BindViewModel</c>'s
     ///     re-projection exists for.

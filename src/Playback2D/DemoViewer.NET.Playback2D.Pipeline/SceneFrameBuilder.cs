@@ -14,15 +14,15 @@ namespace DemoViewer.NET.Playback2D.Pipeline;
 
 /// <summary>
 ///     Turns one tick of host state (players + entities) into a <see cref="Scene2DFrame" />. Lifted
-///     wholesale out of <c>Playback2DTabViewModel.BuildFrame</c> in B0 with no logic changes — field
-///     paths, defaults, ordering and fallbacks are identical, because the App's Playback2D suite is the
+///     wholesale out of <c>Playback2DTabViewModel.BuildFrame</c> with no logic changes — field paths,
+///     defaults, ordering and fallbacks are identical, because the App's Playback2D suite is the
 ///     behaviour-identity gate for this extraction.
 ///     <para>
-///         <b>Double-buffered (decision D6).</b> Two <see cref="Scene2DFrame" /> instances, each wired
-///         once to its own pooled backing lists, are refilled in place and published alternately, so a
-///         steady-state <see cref="Build" /> allocates only the two clock strings. A returned frame is
-///         valid until the second-next <see cref="Build" /> on this instance; the documented contract is
-///         the stricter "until the next", so nothing may rely on the extra generation.
+///         <b>Double-buffered.</b> Two <see cref="Scene2DFrame" /> instances, each wired once to its own
+///         pooled backing lists, are refilled in place and published alternately, so a steady-state
+///         <see cref="Build" /> allocates only the two clock strings. A returned frame is valid until
+///         the second-next <see cref="Build" /> on this instance; the documented contract is the
+///         stricter "until the next", so nothing may rely on the extra generation.
 ///     </para>
 /// </summary>
 public sealed class SceneFrameBuilder
@@ -46,8 +46,7 @@ public sealed class SceneFrameBuilder
     // How many pushes to keep re-reading m_MinimapVerticalSectionHeights before concluding the map does
     // not publish it. The array is networked in the first few ticks on a map that HAS one; a map that
     // does not (every single-floor map, i.e. most of them) would otherwise re-scan eight field paths on
-    // every push, for the whole demo, forever — the retry was unbounded, and it is a per-frame
-    // allocation on the common case (B0 review carry-forward (a), fixed in B1).
+    // every push, for the whole demo, forever.
     private const int MaxSectionHeightAttempts = 256;
 
     // The field paths, built once. String interpolation inside the scan allocated eight strings per
@@ -124,19 +123,19 @@ public sealed class SceneFrameBuilder
     public WorldBounds ObservedBounds => _observed;
 
     /// <summary>
-    ///     The export HUD's player cards for the frame <see cref="Build" /> produced most recently, in slot
-    ///     order (D3b, registry D0 §3.2). Empty before the first build.
+    ///     The export HUD's player cards for the frame <see cref="Build" /> produced most recently, in
+    ///     slot order. Empty before the first build.
     ///     <para>
-    ///         <b>A sibling of the frame, not a member of it.</b> <c>Scene2DFrame</c> is B0's record and
+    ///         <b>A sibling of the frame, not a member of it.</b> <c>Scene2DFrame</c> is a record, and
     ///         adding to it is "a guaranteed merge conflict for no gain" in <c>IHudDataSource</c>'s own
-    ///         words; the HUD is a function of tick queried through <c>IHudDataSource</c>, and this is the
-    ///         property that function reads — exactly as <c>TrackerFrameSource.LastGameInfo</c> is for the
-    ///         clock.
+    ///         words; the HUD is a function of tick queried through <c>IHudDataSource</c>, and this is
+    ///         the property that function reads — exactly as <c>TrackerFrameSource.LastGameInfo</c> is
+    ///         for the clock.
     ///     </para>
     ///     <para>
-    ///         Borrowed on the frame's own terms (decision D6): the list is one of the two pooled slots and
-    ///         is refilled in place, so it is valid until the next <see cref="Build" /> on this builder.
-    ///         Never retain it.
+    ///         Borrowed on the frame's own terms: the list is one of the two pooled slots and is refilled
+    ///         in place, so it is valid until the next <see cref="Build" /> on this builder. Never retain
+    ///         it.
     ///     </para>
     /// </summary>
     public IReadOnlyList<HudPlayerRow> LastRoster { get; private set; } = [];
@@ -145,10 +144,9 @@ public sealed class SceneFrameBuilder
     ///     Clears trails, ring history, last-known positions and the once-per-demo section-height read.
     ///     Call on demo reset / re-activation.
     ///     <para>
-    ///         Deliberately does <b>not</b> clear the networked map bounds: the pre-v2 view-model's resync
-    ///         did not either (<c>ReadMapBoundsOnce</c> latches on first success and its resync path reset
-    ///         only the section heights), and B0 is a behaviour-identical extraction. Revisit in B3, which
-    ///         owns map identity.
+    ///         Deliberately does <b>not</b> clear the networked map bounds: <c>ReadMapBoundsOnce</c>
+    ///         latches on first success, and its resync path only ever reset the section heights,
+    ///         matching the pre-v2 view-model this builder was extracted from behaviour-identically.
     ///     </para>
     /// </summary>
     public void Reset()
@@ -166,13 +164,13 @@ public sealed class SceneFrameBuilder
         // The roster is a cache like every other one cleared above, and it was the one exception:
         // TrackerFrameSource.LastRoster is assigned straight from here, so after a demo reset it went
         // on pointing at the PREVIOUS demo's pooled list until the next Build — a HUD source reading it
-        // in that window burns the old match's cards into the new one's frames (D6 finding 32).
+        // in that window burns the old match's cards into the new one's frames.
         LastRoster = [];
     }
 
     /// <summary>
     ///     Builds the scene for one tick. The returned frame is valid until the next call on this
-    ///     instance (decision D6) — never retain it.
+    ///     instance — never retain it.
     /// </summary>
     /// <param name="input">This tick's host state.</param>
     public Scene2DFrame Build(in SceneFrameInput input)
@@ -236,7 +234,7 @@ public sealed class SceneFrameBuilder
     //
     // The roster is built in this same pass rather than beside it: health is already read here for the
     // ring state and was thrown away afterwards, and a second sweep would re-walk the same pooled facades
-    // for the same fields. D3b's whole point is that the export HUD reads the entities ONCE, from the one
+    // for the same fields. The whole point is that the export HUD reads the entities ONCE, from the one
     // place both the app and dv2d already go through.
     private void BuildMarkers(in SceneFrameInput input, List<PlayerMarker> markers, List<HudPlayerRow> roster)
     {
@@ -312,10 +310,10 @@ public sealed class SceneFrameBuilder
         }
     }
 
-    // One player card. The field paths are the ones Playback2DTabViewModel.UpdateAttributes reads for the
-    // app's attributes panel, verbatim — pawn for condition, controller for the cumulative scoreboard —
-    // because the panel and the burnt-in card disagreeing about a player's health is the same class of bug
-    // B4 D5 removed from the kill feed.
+    // One player card. The field paths are the ones Playback2DTabViewModel.UpdateAttributes reads for
+    // the app's attributes panel, verbatim (pawn for condition, controller for the cumulative
+    // scoreboard), because the panel and the burnt-in card disagreeing about a player's health is the
+    // same class of bug the kill feed had.
     //
     // Emitted for EVERY roster row including the dead and the sideless: the layer decides who gets an edge
     // of the frame, and dropping a dead player here would make his card vanish the instant it matters most.
@@ -374,8 +372,8 @@ public sealed class SceneFrameBuilder
     // re-seeded: WorldBounds.Extend is Math.Min/Math.Max, both of which propagate NaN, so a single bad
     // sample poisons the extent for the whole demo — and from there ViewportTransform.Fit hands the
     // camera a NaN centre and scale, IsSettledAt never settles, and the render loop spins at refresh
-    // rate showing nothing, across seeks included (D6 finding 8). A position that is not a number is not
-    // a position; dropping the sample costs one marker's contribution to the fallback rectangle.
+    // rate showing nothing, across seeks included. A position that is not a number is not a position;
+    // dropping the sample costs one marker's contribution to the fallback rectangle.
     private void Observe(float worldX, float worldY)
     {
         if (!float.IsFinite(worldX) || !float.IsFinite(worldY))

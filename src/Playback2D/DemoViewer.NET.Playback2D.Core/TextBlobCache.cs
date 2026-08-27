@@ -10,23 +10,21 @@ namespace DemoViewer.NET.Playback2D.Core;
 /// <summary>
 ///     Shaped, measured, reusable text. The pre-v2 control built one Avalonia <c>FormattedText</c> per
 ///     marker per frame and one per floor band — ten-plus shaping passes and ten-plus allocations every
-///     frame, for strings that change only when the roster does (plan §4 T15 items 1).
+///     frame, for strings that change only when the roster does.
 ///     <para>
-///         <b>The typeface is embedded, never resolved from the host</b> (integrator correction 6).
-///         <c>SKTypeface.Default</c> is the platform UI font, so the same scene rasterises differently on
-///         a developer's Windows box and on the ubuntu golden lane and every text-bearing golden becomes
-///         machine-specific. One <c>Inter-Regular.ttf</c> ships inside this assembly instead — see
-///         <c>THIRD-PARTY-NOTICES.md</c> §d and <c>docs/playback2d-v2/plans/B1-skia-api-notes.md</c> §3.
+///         <b>The typeface is embedded, never resolved from the host.</b> <c>SKTypeface.Default</c> is
+///         the platform UI font, so the same scene rasterises differently on a developer's Windows box
+///         and on the ubuntu golden lane and every text-bearing golden becomes machine-specific. One
+///         <c>Inter-Regular.ttf</c> ships inside this assembly instead — see
+///         <c>THIRD-PARTY-NOTICES.md</c> §d for the license.
 ///     </para>
 ///     <para>
 ///         <b>Not thread-safe by design.</b> <see cref="Get" /> both reads and MUTATES — a miss shapes,
 ///         measures, files and evicts — and every layer calls it from <c>Render</c>, never from
 ///         <c>Advance</c>: the strings a layer draws are composed in <c>Render</c>, from the snapshot
-///         <c>Advance</c> captured. So the discipline that makes this safe is the host's render gate,
-///         which serialises <c>Render</c>, and nothing else. (The doc here used to say entries were built
-///         during <c>Advance</c>; they never were, and stating the wrong invariant is worse than stating
-///         none, because the next reader adds a call on the strength of it — D6, wave 3.) A cache that
-///         locked would be lying about where mutation happens.
+///         <c>Advance</c> captured. The discipline that makes this safe is the host's render gate, which
+///         serialises <c>Render</c>, and nothing else. A cache that locked would be lying about where
+///         mutation happens.
 ///     </para>
 /// </summary>
 public sealed class TextBlobCache : IDisposable
@@ -118,9 +116,8 @@ public sealed class TextBlobCache : IDisposable
     ///         The ownership test is the whole point: <see cref="LoadEmbeddedTypeface" /> falls back to
     ///         <see cref="SKTypeface.Default" />, which is a process-wide Skia singleton, and several
     ///         caches exist at once (every layer builds its own when no shared one is passed). Disposing
-    ///         it here unref'd the singleton once per cache and killed text rendering for the whole
-    ///         process — from a packaging fault whose only intended cost was the wrong font (D6 finding
-    ///         23).
+    ///         it here would unref the singleton once per cache and kill text rendering for the whole
+    ///         process — from a packaging fault whose only intended cost should have been the wrong font.
     ///     </para>
     /// </summary>
     public void Dispose()
@@ -202,8 +199,8 @@ public sealed class TextBlobCache : IDisposable
     /// <summary>
     ///     Measures one freshly shaped run.
     ///     <para>
-    ///         <b>Not <c>SKTextBlob.Bounds</c>.</b> Skia computes a blob's bounds
-    ///         <i>conservatively</i>, from the font's global glyph bounding box rather than from the
+    ///         <b>Not <c>SKTextBlob.Bounds</c>.</b> Skia computes a blob's bounds conservatively, from
+    ///         the font's global glyph bounding box rather than from the
     ///         glyphs actually in the run: <c>Left</c> is the same large negative number for every
     ///         string, <c>Top</c>/<c>Bottom</c> are exactly <c>SKFontMetrics.Top</c>/<c>Bottom</c>, and
     ///         the width runs several times the real ink. Centring on that rect is correct arithmetic
@@ -211,9 +208,8 @@ public sealed class TextBlobCache : IDisposable
     ///     </para>
     ///     <para>
     ///         <c>SKFont.MeasureText(ReadOnlySpan&lt;ushort&gt;, out SKRect)</c> <b>does</b> exist in
-    ///         2.88.9 — it takes glyph ids rather than a string, which is the only reason the port
-    ///         originally believed it did not — and returns the run's advance plus its tight ink box.
-    ///         See <c>docs/playback2d-v2/plans/B1-skia-api-notes.md</c> §Text.
+    ///         2.88.9 — it takes glyph ids rather than a string, which is easy to miss — and returns the
+    ///         run's advance plus its tight ink box.
     ///     </para>
     /// </summary>
     /// <param name="blob">The shaped run to file.</param>
@@ -336,8 +332,8 @@ public sealed class TextBlobCache : IDisposable
 ///     font's vertical metrics. A value type so the hot path hands back no allocation; the blob itself
 ///     is owned by the <see cref="TextBlobCache" />.
 ///     <para>
-///         <b>Why three measurements and not one rectangle.</b> Text is positioned two different ways
-///         and they want two different numbers. Horizontal placement uses the <b>advance</b>, so a
+///         Three measurements, not one rectangle: text is positioned two different ways and they want
+///         two different numbers. Horizontal placement uses the <b>advance</b>, so a
 ///         string's position does not jitter with which glyphs happen to have side bearings — "AA" and
 ///         "WW" centre the same way. Vertical placement uses the font's <b>metrics</b>, so every label
 ///         in a scene shares one baseline instead of each one centring its own ink (which would put

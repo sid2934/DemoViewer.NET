@@ -16,31 +16,18 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Headless;
 ///     the panes, advance the cameras and the layers, and draw one multi-pane submission into an
 ///     offscreen surface.
 ///     <para>
-///         <b>One headless render entry point.</b> Goldens, the frame-budget benchmark and (from C1) the
+///         <b>One headless render entry point.</b> Goldens, the frame-budget benchmark and the
 ///         <c>dv2d</c> commands all go through this, so an offscreen picture and an on-screen one cannot
 ///         diverge through a second, subtly different loop. It is a facade over Core's
-///         <c>SceneCompositor</c>, never a competing renderer.
+///         <c>SceneCompositor</c>, never a competing renderer. The surface is created once for a given
+///         <see cref="Size" /> and reused, because the frame budget is measured on this class and
+///         allocating a full-frame surface per iteration would be measuring the allocator.
 ///     </para>
 ///     <para>
-///         That sentence was <b>false when D6 audited it and is true again</b>, which is worth recording
-///         because it was false in the way documentation usually is — quietly, and about the one case that
-///         mattered. <c>SceneGoldenTests</c> wrote three of the corpus PNGs through Core's single-pane
-///         <c>SceneRenderer</c> instead, and agreed with <c>dv2d golden</c> only because both stacks then
-///         held one <c>DebugGridLayer</c> (G-1). Round 2 retargeted it here. Today the only
-///         <c>SceneRenderer</c> callers left anywhere are tests, and none of them writes a golden.
-///     </para>
-///     <para>
-///         The surface is created once for a given <see cref="Size" /> and reused, because the frame
-///         budget is measured on this class and allocating a full-frame surface per iteration would be
-///         measuring the allocator.
-///     </para>
-///     <para>
-///         <b>C1 merge:</b> the CLI's single-pane facade of the same name was withdrawn into this class
-///         (merge note 1). C1 deviation (1) predicted exactly that — "B1 adds the layout/map parameters
-///         when it lands those types" — so the convenience members <c>dv2d</c> was written against
-///         (<see cref="Camera" />, <see cref="RenderPng" />, <see cref="RenderInto" />, the
-///         <see cref="Backend" /> passthrough) sit here as thin wrappers over the pane pipeline rather
-///         than as a second, level-blind render path.
+///         The convenience members <c>dv2d</c> was written against (<see cref="Camera" />,
+///         <see cref="RenderPng" />, <see cref="RenderInto" />, the <see cref="Backend" /> passthrough)
+///         are thin wrappers over the pane pipeline, not a second, level-blind render path — the CLI's
+///         own single-pane facade of the same name was folded into this class.
 ///     </para>
 /// </summary>
 public sealed class HeadlessSceneRenderer : IDisposable
@@ -95,9 +82,9 @@ public sealed class HeadlessSceneRenderer : IDisposable
     /// <summary>
     ///     A camera to pin every pane to, re-applied after each <see cref="Advance" />.
     ///     <para>
-    ///         Null — the default — leaves the panes wherever <see cref="SetAllCameras" /> or
-    ///         <see cref="FitAll" /> put them. Setting it is how a caller that renders a scene <i>once</i>
-    ///         (a golden, a <c>dv2d render</c>) gets a camera that survives the pane reconciliation the
+    ///         Null, the default, leaves the panes wherever <see cref="SetAllCameras" /> or
+    ///         <see cref="FitAll" /> put them. Setting it is how a caller that renders a scene once (a
+    ///         golden, a <c>dv2d render</c>) gets a camera that survives the pane reconciliation the
     ///         first advance performs, without the advance-set-advance dance a stateful caller does.
     ///     </para>
     /// </summary>
@@ -114,9 +101,9 @@ public sealed class HeadlessSceneRenderer : IDisposable
     /// <summary>
     ///     A policy that owns every pane's camera, applied inside <see cref="Advance" /> after
     ///     reconciliation and before the submission snapshot — the general form of <see cref="Camera" />,
-    ///     added by B4 for export camera scripts (per-level transforms, a follow target that steps).
+    ///     for export camera scripts (per-level transforms, a follow target that steps).
     ///     <para>
-    ///         Null by default, so B1's own construction sites and <c>dv2d</c> are unchanged. When both
+    ///         Null by default, so existing construction sites and <c>dv2d</c> are unchanged. When both
     ///         this and <see cref="Camera" /> are set, the pin runs first and the policy has the last
     ///         word.
     ///     </para>
@@ -131,15 +118,12 @@ public sealed class HeadlessSceneRenderer : IDisposable
     ///         one-shot fit (<c>Scene2DHost</c>: "one-shot auto-fit once real positions exist").
     ///     </para>
     ///     <para>
-    ///         Without it an export is framed by <c>WorldBounds.Default</c> — the ±3000 placeholder every
-    ///         pane is <i>born</i> fitted to in <c>PaneSet.Reconcile</c>, before any frame has been read.
-    ///         Nothing else in the export path ever re-frames: the camera script is empty in both front
-    ///         ends unless the user pinned one, and <c>AdvanceCameras</c> is off so no rig runs. The map
-    ///         landed wherever ±3000 put it, which on de_inferno is a corner of the frame.
-    ///     </para>
-    ///     <para>
-    ///         It runs BEFORE <see cref="Camera" /> and <see cref="CameraPolicy" />, so an explicit camera
-    ///         still has the last word — a mirrored live view is not overruled by a fit.
+    ///         Without it an export is framed by <c>WorldBounds.Default</c>, the ±3000 placeholder every
+    ///         pane is born fitted to before any frame has been read: the camera script is empty in both
+    ///         front ends unless the user pinned one, <c>AdvanceCameras</c> is off so no rig runs, and the
+    ///         map lands wherever ±3000 put it — a corner of the frame on de_inferno. It runs BEFORE
+    ///         <see cref="Camera" /> and <see cref="CameraPolicy" />, so an explicit camera still has the
+    ///         last word: a mirrored live view is not overruled by a fit.
     ///     </para>
     /// </summary>
     public bool AutoFitOnFirstMapBounds { get; set; }
@@ -152,10 +136,9 @@ public sealed class HeadlessSceneRenderer : IDisposable
     ///     render, inside <c>SceneCompositor</c>, which compares the palette it is handed against the one
     ///     the live pictures were recorded under.
     ///     <para>
-    ///         It is worth saying where, because this property used to make the claim and be a plain
-    ///         auto-property that did nothing of the sort: a <c>PerCamera</c> layer bakes palette colours
-    ///         into its recording, so a swap at an unchanged camera epoch replayed the OLD theme's grid
-    ///         forever (D6 finding 16).
+    ///         This matters because a <c>PerCamera</c> layer bakes palette colours into its recording, so
+    ///         without that invalidation a swap at an unchanged camera epoch would replay the old theme's
+    ///         grid forever.
     ///     </para>
     /// </summary>
     public ScenePalette Palette { get; set; }
@@ -236,7 +219,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
 
             // Every cached assignment describes bands that no longer exist. Re-resolving from scratch
             // is also what stops a rebuild from reporting a phantom crossing for an entity that merely
-            // got re-keyed (B3 remap algorithm, step 10).
+            // got re-keyed.
             Crossings.Reset();
         }
 
@@ -362,7 +345,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     ///         <c>Time</c> and the source's <c>TimeAt</c> are not the same value —
     ///         <c>TrackerFrameSource.TimeAt</c> derives <c>DeltaSeconds</c> from fps/speed and authors
     ///         <c>IsDiscontinuity</c>. A render stamped from the frame would silently discard what the
-    ///         caller injected (C1 deviation 18).
+    ///         caller injected.
     ///     </para>
     /// </summary>
     /// <param name="surface">The destination surface.</param>

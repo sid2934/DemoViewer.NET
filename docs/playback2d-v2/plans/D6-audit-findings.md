@@ -60,7 +60,7 @@ means it is still there and nobody has claimed it.
 | 22 | `RadarLayer.ScaledFor` leaves a disposed `SKImage` | **FIXED** (R1) — *and the SUSPECTED label was right*; a fault-injecting surface factory settled it | `AFailedResample_LeavesNoCacheEntry_RatherThanADisposedHandle` |
 | 23 | `TextBlobCache` can dispose `SKTypeface.Default` | **FIXED** (R1) — ownership is tracked | `AMissingTypefaceResource_BorrowsTheFallback_AndNeverDisposesIt` |
 | 24 | 552 B/frame on the histogram floor path | **FIXED** (R1) — and the budget gate widened to cover that branch | `BudgetTests.FullScene_HistogramFloors_SteadyState_AllocatesNothing` |
-| 25 | `RenderBackend` — the key the registry pins — does not exist | **ROUTED (R3), deliberately not built** | `Playback2DRenderBackendTests` pins the absence; allow-list entry in guard 3 carries the reason; `AppSettings.cs` and `00-overview.md` §3.10 both say so |
+| 25 | `RenderBackend` — the key the registry pins — does not exist | **ROUTED (R3), deliberately not built** | allow-list entry in guard 3 carries the reason; `AppSettings.cs` and `00-overview.md` §3.10 both say so. The suite that pinned the absence was deleted in P3: it compared a constant to itself and regexed production source text. |
 | 26 | `AnnotationAutoSave` read, never written, no UI | **FIXED** (R3) — writer + toolbar toggle | `Playback2DAnnotationPersistenceTests`; guard 3 |
 | 27 | `IncludeVision` is the only export checkbox that does not persist | **FIXED** (R3) | `Playback2DExportDialogTests` |
 | 28 | `RenderPurpose` threaded everywhere, read by nothing | **ROUTED (R3)** — kept as a reserved seam, and now *pinned* as inert rather than assumed live | `RenderPurposeTests.EveryPurpose_RendersTheSamePixels` |
@@ -75,7 +75,7 @@ means it is still there and nobody has claimed it.
 |---|---|---|
 | G-1 | `render`/`golden`/`bench` could only draw B0's debug grid | **FIXED (R2 + R3).** One table, one entry point; six goldens re-captured; `--budget-bytes-per-frame` dropped. Recorded in `design.md` §0 as **O6** — round 3 added it there, because §0 is where a reader looks and it was the one place this never appeared. Round 3 closed the last hole the fold exposed: `playback2d.vision` was in the default stack and drew nothing. |
 | G-2 | `App.Tests` ran in no CI job | **FIXED (R2 + R3).** New `app-tests` job, standard blocking + full reporting. R3 fixed the six `Environmental` failures the reporting step was carrying, and extended the **budget** lane to `Playback2D.Cli.Tests` — the complementary `Category=Budget` / `Category!=Budget` pair had only ever been applied to one of the two projects, which is why G-4 could hide. |
-| G-3 | Six hand-written layer lists, one derived | **FIXED (R2).** `SceneLayerListParityTests`, `SceneStageParityTests`, `ExportLayerParityTests` assert every other list against the catalog. R3 added `hud.roster` to the §3.3 registry, which had listed ten of the eleven ids. |
+| G-3 | Six hand-written layer lists, one derived | **FIXED (R2).** `SceneLayerListParityTests` asserts the one shipping list against the catalog. R3 added `hud.roster` to the §3.3 registry, which had listed ten of the eleven ids. P3 dropped the two assertions that only re-stated a production expression, or pinned a test fixture rather than the app. |
 | G-4 | `BenchAllocationTests` permanently red where no lane runs it | **FIXED (R2 + R3).** A live gate at 0 B/frame since R2; R3 added the lane that runs it. |
 | G-5 | Golden capture rewrites its own scene fixtures | **FIXED (R2).** The scene write is inside the `PB2D_GOLDEN_UPDATE` guard with the PNG. |
 | G-6 | Assertions too loose to fail | **FIXED (R2).** Kill tints pinned exactly; the timeline metric rewritten over the timeline's own rect; `HeadlessSceneRendererTests` takes named ids rather than `KnownLayerIds[0]`. |
@@ -86,8 +86,8 @@ means it is still there and nobody has claimed it.
 
 | What | Why it is still here |
 |---|---|
-| **25 — `RenderBackend`** | Routed, not fixed. Nothing in the app can consume the key: the scene host never asks for an `IRenderSurfaceProvider`, and `SceneExportSession` refuses a non-CPU provider because its loop crosses threads between frames. Lands with C2 Stage 1 (design §0 **O2**). |
-| **28 — `RenderPurpose`** | Routed as a reserved seam. `Export` and `Interactive` render identically and a test now says so, which is the honest state; deleting it would cost the export/interactive distinction the pipeline may still want. |
+| **25 — `RenderBackend`** | Routed, not fixed. No consumer exists for the key — reasons in the `Playback2DSettings` class doc. Lands with C2 Stage 1 (design §0 **O2**). |
+| **28 — `RenderPurpose`** | Routed as a reserved seam. `Export` and `Interactive` render identically and a test now says so; deleting it would cost the export/interactive distinction the pipeline may still want. |
 | **§3 — `WetChanged`, `ActiveToolChanged`** | Still raised, still unsubscribed, both allow-listed in guard 1 with a deletion condition. |
 | **§3 — `SceneRenderer`** | Still test-only, and **its doc still claims `HeadlessSceneRenderer` is "a facade over this — never a second render path"**, which is backwards: the facade is the real path and this is the dead one. Round 3 did not own that file. One doc comment. |
 | **§3 — `LayerCacheHint.Static`** | Still produced by nothing but a test layer, so the world-space cull and matrix replay behind it are production-dead. |
@@ -98,9 +98,8 @@ means it is still there and nobody has claimed it.
 
 ## 1. The shape of what was found
 
-The single most useful output is not the list; it is **why a suite of 1594 passing tests saw none of
-it**. Four whole-graph gaps, each invisible to a unit test *by construction*, because a unit test's
-job is to instantiate the thing directly:
+A suite of 1594 passing tests saw none of it. Four whole-graph gaps, each invisible to a unit test *by
+construction*, because a unit test's job is to instantiate the thing directly:
 
 | # | Gap | Instances |
 |---|---|---|
@@ -109,12 +108,11 @@ job is to instantiate the thing directly:
 | **G3** | **The XAML binds around the code path that does the extra work.** `IsChecked="{Binding IsAutoEnabled}"` reaches the property but skips the command that also persists. String-based binding makes "is this command used?" invisible to the compiler, the analyzer, and a C#-only grep — and the test drove the command the UI does not take. | A5 (AUTO toggle); two further commands are bound nowhere |
 | **G4** | **The one mechanical settings guard tests transport, not consumption.** `SettingsWasmRoundTripTests` reflects over every `Playback2DSettings` property and proves each survives a fileless round trip. There is no equivalent for *something reads it*, *something writes it*, or *the user can reach it*. | A4 (key absent entirely), A6, A10 |
 
-**Four architecture tests close all four gaps mechanically.** They are §4 of this plan, and they are
-worth more than any individual fix below, because they are what stops the next one.
+**Four architecture tests close all four gaps mechanically.** They are §4 of this plan.
 
-A fifth, narrower pattern is worth naming because it produced the worst single finding: **a test that
-asserts on the service instead of through the surface**. `ExportJobServiceTests` asserts
-`service.Status.Phase` directly, which is why nobody noticed that no view ever reads it.
+A fifth, narrower pattern produced the worst single finding: **a test that asserts on the service
+instead of through the surface**. `ExportJobServiceTests` asserts `service.Status.Phase` directly, so
+no view had to read it for the suite to pass.
 
 ---
 
@@ -191,7 +189,7 @@ Not bugs today; recorded so the next reader does not mistake them for load-beari
 
 > **Round 3 re-check.** Four of these were followed up. `AnnotationSession.WetChanged` and
 > `InputToolRouter.ActiveToolChanged` are **still dead and now allow-listed** in guard 1, each with the
-> condition for deleting the entry — which is the point: the guard names them rather than staying quiet.
+> condition for deleting the entry, so the guard names them rather than staying quiet.
 > `LayerCacheHint.Static` is **still produced by nothing but a test layer**. `SceneRenderer` is **still
 > test-only**, and the false half of its doc — "`HeadlessSceneRenderer` is a facade over this — never a
 > second render path" — **is still there**; the facade is the shipped path and this is the dead one.
@@ -227,19 +225,12 @@ share one analyser: `Playback2DWholeGraph.cs`.
 **Two lenses, deliberately.** Anything expressible in IL is read from IL — `System.Reflection.Metadata`
 over the three production assemblies (App, Core, Pipeline), following `BannedApiTests`' two-pass
 token scan. A *source* grep for an event name also matches the `<see cref>` in the doc comment that
-**describes the missing half**, which is how several of these defects shipped in the first place. Only
-the two questions IL genuinely cannot answer fall back to source, and that corpus has every `///` line
-blanked before it is searched:
-
-- *does an `.axaml` string binding name this command?* — a binding compiles to nothing;
-- *does this call site mention this constructor parameter?* — C# materialises omitted optional
-  arguments **at the call site**, so `new SceneExportRunner(setup)` and
-  `new SceneExportRunner(setup, null, null, null, null)` are byte-identical IL. An omission is
-  literally not a fact about the compiled program.
-
-The corpus is `src/**` + `tools/**`, excluding `bin`/`obj` and every `*.Tests` / `*.TestSupport` /
-`*.UiCapture` directory — each of those constructs the module's types the way a test does, with
-hand-supplied collaborators, which is exactly the evidence these guards must not accept.
+**describes the missing half** — the shape several of these defects shipped in. Only the two questions
+IL genuinely cannot answer fall back to source — an `.axaml` string binding, which compiles to nothing,
+and whether a call site mentions an optional parameter — and that corpus has every `///` line blanked
+before it is searched. The corpus is `src/**` + `tools/**`, excluding `bin`/`obj` and every `*.Tests` /
+`*.TestSupport` / `*.UiCapture` directory: each of those constructs the module's types the way a test
+does, with hand-supplied collaborators.
 
 | # | Guard | Asserts | Proof it can fail |
 |---|---|---|---|
@@ -247,11 +238,6 @@ hand-supplied collaborators, which is exactly the evidence these guards must not
 | 2 | `Playback2DCommandBindingTests` | Every `CommunityToolkit.Mvvm.Input` command property on a module type is named by an `.axaml` or by production C#. | A canary command that exists in no production source is reported; `ToggleDisplayModeCommand` (bound in `Playback2DView.axaml`) is not. The matcher is separately checked against a synthetic corpus for word boundaries and doc-comment blanking. |
 | 3 | `Playback2DSettingsConsumptionTests` | Every `Playback2DSettings` property has a `get_X` call and a `set_X` call outside `DemoViewer.NET.Configuration` (which is exactly `AppSettings.cs` + `SettingsService.cs`). **Plus** every key registry §3.10 names exists on the class. | Three canary properties — read+written, read-only, written-only — classified correctly. The registry parse asserts it found >20 keys, so a moved heading fails rather than passing over nothing. |
 | 4 | `Playback2DCompositionTests` | Every production `new T(...)` of an App-side module service **mentions** every null-defaulted optional parameter, positionally or by name. | The argument reader is checked against handcrafted call lists (lambdas, collection expressions, ternaries, comments between arguments, a `)` inside a string, an unbalanced list). IL separately answers *is it constructed at all*, so a call site the parser cannot read is **reported**, not assumed absent. |
-
-**Rule for guard 4 is MENTION, not non-null.** `fileExists: null` at a call site is a decision a reader
-can see; leaving the parameter out is the thing that is invisible, and G1 is precisely about nothing
-distinguishing "the test does not need this" from "production forgot it". Explicit nulls are printed
-beside the omissions so neither is silent.
 
 **Guard 1 groups by contract, not by event.** The four `MarkersChanged` implementations are one
 `ITimelineTrack.MarkersChanged`, and three of them (round, kill, bomb) legitimately never raise it —
@@ -302,7 +288,7 @@ themeless `ColorPicker` was in from B2 to D4 while passing this very case on eve
 | `TimelineTrackTests.cs:151` | kill tints only *non-zero, different, opaque* — swapping `TintTeamT`/`TintTeamCt` stayed green | the exact mapping (`team 2 → 0xFFE0A030`, `team 3 → 0xFF4A90D9`), plus a new case pinning that `RoundTrack` and `KillTrack` use the same RGB per side at their two different alphas |
 | `Playback2DTimelineRenderTests.cs:53` | `nonBg > 100` counting any non-zero channel, over the full window width — `Pb2dPanelBg` alone scored 53 404 | the timeline's own rect; the modal colour is taken as the fill and `ink` counts what is drawn *on* it (30 192 px, 939 colours). The old metric is still computed and asserted **trivially true**, so the reason this was rewritten cannot be lost by restoring it |
 | `ExportHudAndLadderTests.cs` `ItReusesTheDestination_AndAllocatesNothingOnceWarm` | one allocation window after a warmup loop; failed once in round 1 and passed on retry | `BudgetTests`' two-window form — warm window measured and printed, steady window asserted |
-| `TimelineLayoutTests.cs:135` `KillMarkerBrushes_DifferBySide_AndFallBackToTheKindDefault` | asserted the *fallback literal* `0xFFF44336`, which `Token` returns only when no `Application.Current` exists or the call is off the UI thread — a property of what else has run in the process. Observed failing ~1 run in 10 | the two tints exactly, plus "an uncolourable kill takes the same token a bomb explosion takes", compared between two view-models built in the same call. True in either environment. **Out of my file list, taken anyway**: it was about to sit in a required lane |
+| `TimelineLayoutTests.cs:135` `KillMarkerBrushes_DifferBySide_AndFallBackToTheKindDefault` | asserted the *fallback literal* `0xFFF44336`, which `Token` returns only when no `Application.Current` exists or the call is off the UI thread — a property of what else has run in the process. Observed failing ~1 run in 10 | the two tints exactly, plus "an uncolourable kill takes the same token a bomb explosion takes", compared between two view-models built in the same call. True in either environment. Outside the audit's file list, taken because it was about to sit in a required lane |
 
 ### G-2 — the CI wiring
 
@@ -330,7 +316,7 @@ grepping `$PROJ` only — but `tests/shared` is compiled into every test assembl
 check, the tier-nesting proof) was **in no batch at all**. The batched run executed 862 of the 868 the
 suite holds, and the script's own partition audit could not see it: `--list-tests` counts a
 parametrized test once while the run expands it, so "ran ≥ listed" was satisfied with room to spare.
-The lane would have selected on tier filters while never running the test that keeps them honest.
+The lane would have selected on tier filters while never running the guard over those filters.
 
 Fixed in the same commit: the grep walks `tests/shared` too, and a new **discovery audit** lists the
 tests under the class filter and requires it to equal the unfiltered listing exactly — both sides count
@@ -375,28 +361,24 @@ parenthetical was **false when written** and is accidentally true now that D2 bu
 **G-1 is missing from §0 entirely** — recorded only in a `ci.yml` comment and in two closed phases'
 plans.
 
-**Disposition (round 3).** The four browser-honesty items are **FIXED**: the keybinding editor carries a
-session-only caution on the browser head, `Playback2DKeymap.BrowserReservedGestures` refuses a rebind
-onto a gesture Chrome eats, `FeatureToggleRow.IsPlatformUnavailable` makes the browser's Video-export
-row non-interactive and labels it *"unavailable in the browser"*, and the export affordance's absence is
-explained rather than silent. `ci.yml:99`'s artefact list gained `Avalonia.Controls.ColorPicker` and
-`AvaloniaEdit`. The `dv2d`/app export parity gap and `export.md`'s two false claims were round 1's.
-`design.md` §0 is re-stamped: O3 rewritten (the two names it called open are hand-authored dv2d fixtures
-that have been gated since C1 — what is actually blocked is a *de_mirage pre-v2 capture* — and the
-"byte-exact" claim is corrected to the delta distribution `GoldenParityTests` really uses), O5's
-parenthetical annotated with the fact that it was false when written, and **G-1 recorded as O6**.
-`wasm-matrix.md` is re-stamped honestly rather than re-ticked: its payload figures were re-measured
-(63.5 MiB / 16.4 MiB, and the unit stated, because the same number has been quoted as 66.5 in decimal
-MB), its `⚠️` legend no longer claims "and the UI says so" over two rows where it does not, and **the
-manual checklist is cleared to unticked** — it has not been run since B5, and leaving ten ticks on
-through the whole D track is how the file got here.
+**Disposition (round 3).**
+
+| Item | State |
+|---|---|
+| Browser keybinding overrides are memory-only | **FIXED.** The keybinding editor carries a session-only caution on the browser head. |
+| `ShellReservedGestures` has no browser set | **FIXED.** `Playback2DKeymap.BrowserReservedGestures` refuses a rebind onto a gesture Chrome eats. |
+| Settings shows a live Video-export toggle | **FIXED.** `FeatureToggleRow.IsPlatformUnavailable` makes the row non-interactive and labels it *"unavailable in the browser"*. |
+| Export button vanishes unexplained | **FIXED.** The absence is explained rather than silent. |
+| `ci.yml:99` artefact list | **FIXED.** Gained `Avalonia.Controls.ColorPicker` and `AvaloniaEdit`. |
+| `dv2d`/app export parity, `export.md`'s false claims | Round 1's. |
+| `design.md` §0 stale | **RE-STAMPED.** O3 rewritten (the two names it called open are hand-authored dv2d fixtures gated since C1; what is blocked is a *de_mirage pre-v2 capture*, and "byte-exact" is corrected to the delta distribution `GoldenParityTests` uses), O5's parenthetical annotated as false when written, **G-1 recorded as O6**. |
+| `wasm-matrix.md` | **RE-MEASURED**, not re-ticked: payload 63.5 MiB / 16.4 MiB with the unit stated (the same number has been quoted as 66.5 in decimal MB), the `⚠️` legend no longer claims "and the UI says so" over two rows where it does not, and the manual checklist is **cleared to unticked** — it has not been run since B5. |
 
 ---
 
 ## 5. Fix order — and what each round actually did
 
-The plan and the outcome, side by side, because the ordering decision was the substantive one and it
-held.
+The plan and the outcome, side by side.
 
 **Round 1 — the product defects, in parallel (file-disjoint).** *Planned:*
 - *Wave 1, export end to end:* 1, 2, 3, 4, 14, 15, 27, 29, plus the CLI/app parity gap and
@@ -417,21 +399,19 @@ and G-2's CI wiring. Second on purpose: **registering the real layers re-baselin
 golden that moved for that reason must not be confused with one that moved because Round 1 changed a
 pixel. Round 1 agents were therefore forbidden from touching a golden PNG.
 
-*Landed:* all eight gates and all four guards. The ordering rule paid for itself twice — once for the
-six goldens, and again in round 3, where the vision layer moved exactly three more and each one could
-be attributed to a single named cause. The guards found 13 on their first run and routed six more with
-reasons; guard 4's rule (**mention, not non-null**) is what turned finding 4's omitted `consent` from
-an invisible omission into a decision someone had to write down. G-2's wiring turned up a G-2-shaped
-finding of its own: `tests/shared` is linked source, so `TestTierContractTests` — the guard that keeps
-the tiers honest — was in no batch at all.
+*Landed:* all eight gates and all four guards. The ordering rule held twice — once for the six goldens,
+and again in round 3, where the vision layer moved exactly three more, each attributable to a single
+named cause. The guards found 13 on their first run and routed six more with reasons; guard 4's rule
+(**mention, not non-null**) turned finding 4's omitted `consent` into a decision someone had to write
+down. G-2's wiring turned up a G-2-shaped finding of its own: `tests/shared` is linked source, so
+`TestTierContractTests` was in no batch at all.
 
 **Round 3 — the tail and the record.** *Planned:* 11, 12, 13, 20, 25, 26, 28, 31; the browser-honesty
 items in §4b; and re-stamping `design.md` §0 (correcting O3, adding G-1 as O6), `export.md`,
 `dv2d.md`, `wasm-matrix.md` and `00-overview.md`'s layer registry.
 
 *Landed:* the tail as planned — with 25 and 28 **routed rather than built**, each with a test that
-pins the absence and states why, which is the outcome this document's own §1 argues for over a silent
-gap. Plus three things the plan did not have:
+pins the absence and states why. Plus three things the plan did not have:
 
 1. **`playback2d.vision` drew nothing** — found by round 2 while registering the real layers. The layer
    read an `IVisionSolver` and ignored the pre-solved `SceneVision` a frame carries, while
@@ -448,7 +428,6 @@ gap. Plus three things the plan did not have:
    where the host cannot create a symlink; one was a genuine race between a backlog draining and its
    best-effort save. Two lost the tag with the fix.
 
-**What the record says about the tag.** `Environmental` was doing a `[Skip]`'s job in four places, the
-same way `[Category("Budget")]` was doing it for `BenchAllocationTests` (G-4). That is worth naming as
-a pattern: **a category that excludes a test from every lane anyone runs is a skip without the word
-"skip" in it**, and nothing makes you justify it.
+**The tag.** `Environmental` was doing a `[Skip]`'s job in four places, the same way
+`[Category("Budget")]` was doing it for `BenchAllocationTests` (G-4). **A category that excludes a test
+from every lane anyone runs is a skip that nothing makes you justify.**

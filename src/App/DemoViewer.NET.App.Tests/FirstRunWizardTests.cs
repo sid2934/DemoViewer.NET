@@ -26,6 +26,7 @@ namespace DemoViewer.NET.AppTests;
 ///     shares the single headless UI session.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class FirstRunWizardTests
 {
     private static string NewTempDir()

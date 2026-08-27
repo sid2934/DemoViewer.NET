@@ -12,10 +12,10 @@ namespace DemoViewer.NET.AppTests;
 ///     at the byte cap, and retains at most <c>maxFiles</c> rolled files (bounded disk). Uses the
 ///     internal directory seam so no real app-data path is touched. Dispose drains the async pump.
 ///     <para>
-///         <b>All three keep <c>[Category("Environmental")]</c> after D6 round 3, and now for the reason
-///         the tag means.</b> What used to fail here was an illegal path this class built for itself —
-///         see <c>NewTempDir</c> — which is a bug, not an environment. What remains is genuine: they
-///         create and delete real directories under the OS temp root, and
+///         <b>All three keep <c>[Category("Environmental")]</c>, now for the reason the tag actually
+///         means.</b> The tag once covered an unrelated bug — an illegal path this class built for
+///         itself (see <c>NewTempDir</c>) — not a real environment dependency. What remains under it
+///         is genuine: they create and delete real directories under the OS temp root, and
 ///         <see cref="ReadTail_Works_WhileSinkHoldsFileOpen" /> deliberately does <b>not</b> dispose the
 ///         sink first, so it waits a wall-clock 150 ms for the async pump and asserts the platform's
 ///         file-sharing semantics while the handle is still open. Neither belongs in a blocking lane.
@@ -33,8 +33,8 @@ public class DiagnosticsFileLogTests
         // illegal in an NTFS path component. `Directory.CreateDirectory` then throws
         // `IOException: The directory name is invalid`, which reads like a filesystem problem rather
         // than a name the test itself built, and all three cases in this class failed on every Windows
-        // run (D6 round 3). The `[Category("Environmental")]` tag was covering it: the tag says "this
-        // depends on machine state", and an illegal path is not machine state.
+        // run. The `[Category("Environmental")]` tag was covering it: the tag says "this depends on
+        // machine state", and an illegal path is not machine state.
         string dir = Path.Combine(Path.GetTempPath(), "dvnet-difilelog-test",
             SafeName(TestContext.Current?.TestDetails.TestId));
         if (Directory.Exists(dir))

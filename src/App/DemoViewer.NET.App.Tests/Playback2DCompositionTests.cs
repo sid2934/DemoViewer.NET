@@ -24,50 +24,26 @@ internal sealed record CompositionSite(
 }
 
 /// <summary>
-///     <b>D6 §4 guard 4 — a production composition site names every seam the service offers.</b>
-///     <para>
-///         G1, <b>the optional constructor parameter</b>, is the gap that produced the worst finding of the
-///         audit. <c>SceneExportRunner(setup, surfaces = null, ffmpegDir = null, consent = null, log =
-///         null, probe = null)</c> had one production caller passing <b>one</b> argument. Tests supplied
-///         the rest, so the suite proved every branch while the shipped composition took none of them: the
-///         in-app ffmpeg download could never run, the GPU backend was unreachable, and every line the
-///         encoder and ffmpeg wrote went to the floor. Nothing in the language, the compiler or the suite
-///         distinguishes <i>"the test does not need this"</i> from <i>"production forgot it"</i>.
-///     </para>
-///     <para>
-///         <b>The rule is MENTION, not non-null.</b> <c>fileExists: null</c> at a call site is a decision
-///         somebody made and a reader can see; leaving the parameter out is the thing that is invisible.
-///         So the guard asks that every null-defaulted parameter appear — positionally or by name — and
-///         prints the explicit nulls beside the omissions so neither is silent.
-///     </para>
+///     <b>A production composition site names every seam the service offers.</b> The rule is MENTION,
+///     not non-null: an optional parameter left out of a call is invisible, while <c>fileExists: null</c>
+///     is a decision a reader can see. Scope is the App head's own Playback2D services and view-models —
+///     Core's layers take <c>HudStyle? style = null</c> and <c>TextBlobCache? text = null</c> as genuine
+///     styling defaults and are built by <c>SceneLayerCatalog</c>, not by app composition.
 ///     <para>
 ///         <b>Source for the arguments, IL for the existence.</b> C# materialises omitted optional
 ///         arguments AT THE CALL SITE, so the IL for <c>new SceneExportRunner(setup)</c> and for
-///         <c>new SceneExportRunner(setup, null, null, null, null)</c> is identical — an omission is
-///         literally not a fact about the compiled program. The argument list therefore has to be read from
-///         source. IL still answers the other half: whether production constructs the type at all, so a
-///         call site the source parser cannot read is REPORTED rather than counted as absent.
-///     </para>
-///     <para>
-///         <b>Scope</b> is the App head's own Playback2D services and view-models — the things composed by
-///         <c>App.axaml.cs</c> and by the module's tab. Core's layers take <c>HudStyle? style = null</c>
-///         and <c>TextBlobCache? text = null</c> as genuine styling defaults and are built by
-///         <c>SceneLayerCatalog</c>, not by app composition; sweeping them in would make this a list of 20
-///         non-defects, which is how a guard gets switched off.
+///         <c>new SceneExportRunner(setup, null, null, null, null)</c> is identical — an omission is not a
+///         fact about the compiled program, so the argument list has to be read from source. IL answers the
+///         other half: whether production constructs the type at all, so a call site the source parser
+///         cannot read is REPORTED rather than counted as absent.
 ///     </para>
 /// </summary>
 public class Playback2DCompositionTests
 {
     /// <summary>
-    ///     Seams knowingly left unmentioned. The reason is the entry.
-    ///     <para>
-    ///         <b>Empty, and that is the point.</b> Round 3A spelled out all three of
-    ///         <c>SceneExportRunner</c>'s seams at the sole production composition —
-    ///         <c>surfaces: RenderSurfaceProviderFactory.CreateCpu</c> (the only backend
-    ///         <c>SceneExportSession</c> accepts, and now the landing site for the <c>RenderBackend</c>
-    ///         key when C2 Stage 1 lifts that refusal), <c>managedFfmpegDirectory</c> and
-    ///         <c>encoderProbe</c> — and the three entries that named them went with the omissions.
-    ///     </para>
+    ///     Seams knowingly left unmentioned. The reason is the entry. Currently empty: the sole production
+    ///     composition of <c>SceneExportRunner</c> names all three of <c>surfaces</c>,
+    ///     <c>managedFfmpegDirectory</c> and <c>encoderProbe</c>.
     /// </summary>
     private static readonly Dictionary<string, string> _omittedByDesign = new(StringComparer.Ordinal);
 
@@ -110,15 +86,11 @@ public class Playback2DCompositionTests
 
         Console.WriteLine($"[composition] without the allow-list: {string.Join(", ", failing)}");
 
-        // The reach check is "the scan CLASSIFIED seams", not "the scan found a defect".
-        //
-        // It used to be `failing.IsNotEmpty()`, which was true only while SceneExportRunner's three
-        // omissions stood — so closing them (round 3A) would have turned a guard green into a guard red
-        // for the best possible reason. A guard whose passing condition is that a defect still exists
-        // cannot survive the defect being fixed, and this one has a better question available: the
+        // The reach check is "the scan CLASSIFIED seams", NOT "the scan found a defect": a guard whose
+        // passing condition is that a defect still exists cannot survive the defect being fixed. The
         // parameter reader is exercised whenever a site names a seam explicitly, and
-        // Playback2DExportDialogViewModel names three nulls. If seams stop being classified at all, the
-        // guard above has gone quiet, and that is what this now catches.
+        // Playback2DExportDialogViewModel names three nulls, so zero classified seams means the guard
+        // above has gone quiet.
         List<CompositionSite> classified =
             [.. sites.Where(s => s.Omitted.Count + s.ExplicitlyNull.Count > 0)];
         Console.WriteLine($"[composition] sites with classified seams: {classified.Count}");

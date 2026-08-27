@@ -114,6 +114,45 @@ the rest came.
 `--size` is deliberately **not** accepted here: a golden is named for its size, so an override would
 compare one image against a differently-named other.
 
+#### Where the glyph allowance comes from
+
+`GoldenTolerance.GlyphOutlierPixelsPerLabel` is **6**, and this is the measurement behind it. Taken by
+comparing the committed goldens against the frames the ubuntu llvmpipe runner produces — FreeType
+rather than the Windows text stack — as pixels over the strict 32 ceiling per two-letter label:
+
+| Entry | Size | Over 32 / labels | Rate |
+|---|---|---|---|
+| `synthetic-tenplayers` | 640×360, no map | 40 / 10 | **4.00** |
+| `synthetic-utility` | 640×360, no map | 7 / 2 | 3.50 |
+| `fitmap-mirage-eco` | 640×360 over baked radar | 12 / 10 | 1.20 |
+| `bomb-planted-inferno` | 640×360 over baked radar | 7 / 4 | 1.75 |
+| `duel-mirage-b`, `annotated-mirage-b` | 640×360 over baked radar | 2 / 5 | 0.40 |
+| `nuke-single-upper` | 640×360 over baked radar | 12 / 10 | 1.20 |
+| `nuke-multilevel-upper`, `-noradar` | 900×900, two-floor bundle | 14 / 10 | 1.40 |
+| `full-scene-budget` | 1920×1080 | 32 / 10 | 3.20 |
+
+The attribution tests measure the other half of the ratio: marker ink is 58.5-59.2 px per label on the
+synthetics and 44-57 px per label on the radar-backed entries, so the cross-OS disagreement is **at
+most 6.8 % of the glyph ink** across frames whose areas differ ninefold and whose text loads differ
+fivefold. Both quantities come out per-label and neither per-area, which is why the budget is stated
+per label.
+
+6 is 1.5× the worst observed rate and about a tenth of one label's ink. The two ceilings are the tight
+ones and neither moved: worst 11×11 window 0.89976 against the 0.88 floor (no other entry below
+0.90547), worst single channel **94** on `fitmap-mirage-eco` against the 96 the tier allows. That 94
+is deterministic per runner image, not a flake — but it is the number to re-read first if a runner
+bump turns the lane red, and the fix is then a measurement rather than a round-up. Everything else sat
+inside `DefaultPerceptual` and was left there: worst 0.2083 % of pixels over ±8 against the 0.5 %
+budget, worst mean SSIM 0.99979 against the 0.995 floor, alpha delta exactly 0 on every entry.
+
+Outside the glyph mask an ubuntu render is byte-identical to the committed golden on seven of the
+eight text-bearing entries and differs by exactly **1** on the eighth — at both sizes, over baked
+radar art and over the grid fallback, with trails, smokes, bomb rings, view cones and burned-in ink in
+the picture.
+
+The attribution tests print the per-label rate they observe, so these numbers are re-measured off any
+CI log rather than trusted.
+
 Entries marked `"pending": true` in the manifest are **skipped**, not failed. That is what lets a
 later phase register the fixture it will author before it can render it.
 

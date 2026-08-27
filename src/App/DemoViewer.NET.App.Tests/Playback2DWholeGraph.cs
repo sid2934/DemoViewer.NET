@@ -51,20 +51,20 @@ internal readonly record struct IlSite(
 }
 
 /// <summary>
-///     The shared machinery behind D6 §4's four architecture guards. Each of those guards asks a
-///     <b>whole-graph reachability</b> question — is this event subscribed, is this command bound, is this
-///     setting written, is this seam supplied — and every one of them is invisible to a unit test <i>by
-///     construction</i>, because a unit test's job is to instantiate the thing directly and hand it what it
-///     needs. Five audits found ~50 defects against 1594 green tests for exactly that reason.
+///     The shared machinery behind four architecture guards. Each asks a <b>whole-graph reachability</b>
+///     question — is this event subscribed, is this command bound, is this setting written, is this seam
+///     supplied — and every one of them is invisible to a unit test by construction, because a unit
+///     test's job is to instantiate the thing directly and hand it what it needs. Five audits found ~50
+///     defects against 1594 green tests for exactly that reason.
 ///     <para>
 ///         <b>Two lenses, deliberately.</b> Anything expressible in IL is read from IL (below), never from
 ///         source text: a source grep for an event name also matches the <c>&lt;see cref&gt;</c> in the doc
-///         comment that <i>describes</i> the missing half — which is precisely how several of these defects
-///         shipped with a comment claiming the wiring existed. Only the two questions IL genuinely cannot
-///         answer — "does an <c>.axaml</c> string binding name this command?" and "does this call site
-///         mention this constructor parameter?" (the C# compiler materialises omitted optional arguments at
-///         the call site, so IL cannot tell an omission from an explicit <c>null</c>) — fall back to source,
-///         and those strip doc comments first.
+///         comment that describes the missing half, how several of these defects shipped with a comment
+///         claiming the wiring existed. Only two questions IL genuinely cannot answer fall back to source,
+///         and those strip doc comments first: "does an <c>.axaml</c> string binding name this command?"
+///         and "does this call site mention this constructor parameter?" (the C# compiler materialises
+///         omitted optional arguments at the call site, so IL cannot tell an omission from an explicit
+///         <c>null</c>).
 ///     </para>
 /// </summary>
 internal static class Playback2DWholeGraph
@@ -94,7 +94,7 @@ internal static class Playback2DWholeGraph
     ///     <para>
     ///         <c>DemoViewer.NET.Services.Export</c> is in it explicitly: <c>ExportJobService</c> and
     ///         <c>SceneExportRunner</c> are the 2D module's services in every sense except the folder they
-    ///         landed in, and both of D6's G1 exemplars are theirs.
+    ///         landed in.
     ///     </para>
     /// </summary>
     public static IEnumerable<Type> ModuleTypes =>

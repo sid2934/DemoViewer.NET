@@ -31,24 +31,18 @@ internal sealed record SettingConsumption(
 ///     <b>D6 §4 guard 3 — every <see cref="Playback2DSettings" /> key has a production reader AND a
 ///     production writer.</b>
 ///     <para>
-///         G4: <b>the one mechanical settings guard tests transport, not consumption.</b>
-///         <see cref="SettingsWasmRoundTripTests" /> reflects over every property and proves each survives
-///         a fileless round trip — that the value can TRAVEL. It never proves anybody sends or receives
-///         it. So <c>AnnotationAutoSave</c> shipped read at runtime, with a <c>WriteInMemory</c> row, and
-///         with no writer and no UI anywhere: a setting the user cannot reach, whose default is the only
-///         value it will ever hold.
+///         <see cref="SettingsWasmRoundTripTests" /> tests transport, not consumption: it proves every
+///         property survives a fileless round trip, never that anybody sends or receives it. A setting can
+///         therefore ship read at runtime, with a <c>WriteInMemory</c> row, and with no writer and no UI.
 ///     </para>
 ///     <para>
-///         <b>Read from IL.</b> A read is a call to <c>get_X</c> and a write is a call to <c>set_X</c>,
+///         <b>Read from IL.</b> A read is a call to <c>get_X</c> and a write a call to <c>set_X</c>,
 ///         attributed to the calling method, with everything in <c>DemoViewer.NET.Configuration</c>
 ///         excluded — that namespace is exactly <c>AppSettings.cs</c> and <c>SettingsService.cs</c>, whose
 ///         job is to move the value, not to mean anything by it. The binder's reflective writes are
 ///         invisible to IL, which is correct: <c>IConfiguration</c> filling a property is transport too.
-///     </para>
-///     <para>
-///         The registry check below closes the half a reflection test structurally cannot see — a key that
-///         does not exist at all has no property to reflect over, which is why <c>RenderBackend</c> was
-///         invisible to every gate in the repo while being pinned in the registry.
+///         The registry check below covers what reflection structurally cannot see — a key with no property
+///         at all.
 ///     </para>
 /// </summary>
 public class Playback2DSettingsConsumptionTests
@@ -78,24 +72,13 @@ public class Playback2DSettingsConsumptionTests
     private static readonly Dictionary<string, string> _registryKeysNotYetBuilt = new(StringComparer.Ordinal)
     {
         ["RenderBackend"] =
-            "D6 finding 25 / A4, ROUTED to round 3. The registry pins `RenderBackend` (auto|cpu|gpu) and "
-            + "the whole GPU stack is built and tested — but the key does not exist, the app hard-codes "
-            + "CpuSurfaceProvider, and the backend is reachable only from `dv2d --backend`. This entry is "
-            + "the guard NAMING the gap rather than not asking; delete it when the key lands, and expect "
-            + "the reader/writer assertion above to take over. "
-            + "ROUND 3A LOOKED AND DELIBERATELY DID NOT ADD IT. Nothing in the app can consume it: "
-            + "Scene2DHost draws through Avalonia's own compositor and never asks for an "
-            + "IRenderSurfaceProvider, and SceneExportSession REFUSES any provider whose backend is not "
-            + "CpuRaster, because its loop crosses threads between frames while GpuSurfaceProvider is "
-            + "thread-affine (design §0 O2, C2 Stage 1's work). The key would therefore be a preference "
-            + "whose every value behaves identically except `gpu`, which would turn every export into a "
-            + "validation failure — this audit's own defect class, one layer in. What round 3A did "
-            + "instead: the app's export composition now NAMES its surface provider "
-            + "(Playback2DTabViewModel.OpenExport, `surfaces:`), so the landing site is one argument "
-            + "rather than a search, and AppSettings' class doc says all of this where the next person to "
-            + "add the property will read it. DELETE THIS ENTRY in the commit that pins the export loop "
-            + "to one thread and gives the key a reader; §3.10 wants the same amendment, which is a doc "
-            + "change round 3A does not own."
+            "The registry pins `RenderBackend` (auto|cpu|gpu) and the GPU stack behind it is built and "
+            + "tested, but the key has no property: the app hard-codes CpuSurfaceProvider and the backend "
+            + "is reachable only from `dv2d --backend`. Deliberately not added — see the "
+            + "Playback2DSettings class doc for why nothing in the app can consume it yet. The landing "
+            + "site is Playback2DTabViewModel.OpenExport's `surfaces:` argument. Delete this entry in the "
+            + "commit that pins the export loop to one thread and gives the key a reader; §3.10 of the "
+            + "overview wants the same amendment."
     };
 
     [Test]
@@ -289,12 +272,9 @@ public class Playback2DSettingsConsumptionTests
         int end = text.IndexOf("\n---", start, StringComparison.Ordinal);
         string block = end < 0 ? text[start..] : text[start..end];
 
-        // BLOCKQUOTE lines are commentary, not the registry line, and they are dropped before the shape
-        // filter runs. §3.10 grew a `>` callout explaining RenderBackend's status, whose prose names
-        // `Scene2DHost`, `IRenderSurfaceProvider`, `SceneExportSession` and `CpuRaster` — every one of
-        // them a bare PascalCase identifier in backticks, and therefore a "key" this guard then demanded
-        // the settings class declare. A parse that reads an explanation as a contract is worse than no
-        // parse: it fails for reasons nobody can act on, which is how a gate stops being believed.
+        // BLOCKQUOTE lines are commentary, not registry lines, and are dropped BEFORE the shape filter.
+        // §3.10 carries `>` callouts whose prose names types in backticks — every one a bare PascalCase
+        // identifier, and so a "key" this guard would otherwise demand the settings class declare.
         block = string.Join('\n', block.Split('\n')
             .Where(l => !l.TrimStart().StartsWith('>')));
 

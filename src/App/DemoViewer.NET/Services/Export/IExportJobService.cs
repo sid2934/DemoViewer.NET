@@ -64,25 +64,22 @@ public interface IExportJobService
 /// <param name="Ink">
 ///     The annotation document to burn in, frozen on the UI thread at Start, or null for no ink.
 ///     <para>
-///         <b>On the request, not on the tab.</b> It used to be a field the dialog's camera callback wrote
-///         and the runner's setup closure read — but <c>ExportJobService.RunAsync</c> awaits the heavy-job
-///         gate <i>before</i> that closure runs, so a second Start (even one the gate then refused) had
-///         already replaced the document the first, still-parked export was going to draw. The request is
-///         the only object that is one-per-run, so it is the only correct place to carry it. It also stops
-///         the tab retaining a frozen document for its whole lifetime, across demo resets.
+///         <b>On the request, not a mutable field.</b> <c>ExportJobService.RunAsync</c> awaits the heavy-job
+///         gate before the runner's setup closure reads the document, so a field the dialog wrote could be
+///         replaced by a second Start before the first, still-parked export ever read it. The request is the
+///         only object that is one-per-run, so it is the only safe place to carry it.
 ///     </para>
 /// </param>
 /// <param name="Palette">
 ///     The scene colours to render with, resolved on the UI thread at Start, or null to let the setup
 ///     decide.
 ///     <para>
-///         <b>Here for a harder reason than the ink.</b> The setup is built on the export's pool thread by
-///         contract, and it resolved the palette from <c>Application.Current.ActualThemeVariant</c> — a
-///         styled property, so <c>AvaloniaObject.VerifyAccess</c> threw <i>"Call from invalid thread"</i>
-///         before frame zero. Every export failed that way; nobody saw it, because until D6 the dialog
-///         never rendered and the layer set threw first. A <c>ScenePalette</c> is a plain record of
-///         <c>SKColor</c>, so once resolved it crosses threads freely — the theme is only reachable where
-///         it is read, which is why the read has to happen at Start and travel.
+///         <b>Here for a harder reason than the ink.</b> The setup is built on the export's pool thread, and
+///         it resolved the palette from <c>Application.Current.ActualThemeVariant</c> — a styled property, so
+///         <c>AvaloniaObject.VerifyAccess</c> threw <i>"Call from invalid thread"</i> before frame zero. A
+///         <c>ScenePalette</c> is a plain record of <c>SKColor</c>, so once resolved it crosses threads
+///         freely: the theme is only reachable where it is read, so the read has to happen at Start and
+///         travel with the request.
 ///     </para>
 /// </param>
 public sealed record Scene2DExportRequest(
@@ -105,9 +102,8 @@ public sealed record Scene2DExportRequest(
 /// <param name="OutputPath">The file being written.</param>
 /// <param name="Error">The failure or refusal message, when there is one.</param>
 /// <param name="Eta">
-///     Estimated time remaining, or null before the session can measure one. It is the number a user
-///     watching a multi-minute render actually wants; <c>SceneExportSession</c> has computed it on every
-///     report since B4 and the App contract had nowhere to put it, so it was dropped on the floor.
+///     Estimated time remaining, or null before the session can measure one — the figure a user watching a
+///     multi-minute render most wants to see.
 /// </param>
 public readonly record struct ExportJobStatus(
     ExportPhase Phase,

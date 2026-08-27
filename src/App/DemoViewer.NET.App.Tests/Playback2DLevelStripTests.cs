@@ -18,11 +18,12 @@ namespace DemoViewer.NET.AppTests;
 ///     new chrome at all, and that a manual pick actually changes what the canvas draws.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DLevelStripTests
 {
     /// <summary>
-    ///     Plan decision D9. Most maps have one floor, and they must look exactly as they did — no
-    ///     buttons, no gutter, nothing.
+    ///     Most maps have one floor, and they must look exactly as they did — no buttons, no gutter,
+    ///     nothing.
     /// </summary>
     [Test]
     public async Task Strip_IsCollapsed_OnSingleLevelMap()
@@ -48,17 +49,16 @@ public class Playback2DLevelStripTests
     }
 
     /// <summary>
-    ///     D6 finding 13. The AUTO chip is a <c>ToggleButton</c> with
-    ///     <c>IsChecked="{Binding IsAutoEnabled}"</c>, so a user's flip sets the PROPERTY and never touches
-    ///     the command — which was the only thing that raised <c>SettingsChanged</c>. AUTO applied
-    ///     instantly, looked right, and was gone on the next launch. The old test drove the command,
-    ///     i.e. the one path the UI does not take.
+    ///     The AUTO chip is a <c>ToggleButton</c> with <c>IsChecked="{Binding IsAutoEnabled}"</c>, so a
+    ///     user's flip sets the PROPERTY and never touches the command — which was the only thing that
+    ///     raised <c>SettingsChanged</c>. AUTO applied instantly, looked right, and was gone on the next
+    ///     launch. The old test drove the command, i.e. the one path the UI does not take.
     ///     <para>
     ///         Three things at once, because each of them is a way the fix could be wrong: the property
     ///         path persists; it persists ONCE per flip (a raise is a full settings read-serialize-write-
-    ///         move-reload, and this view-model is one click away from D6 finding 7's write storm); and a
-    ///         <b>gate</b> going off does not persist, or shipping the gate off would take a real
-    ///         preference away for good.
+    ///         move-reload, and this view-model is one click away from a write storm); and a <b>gate</b>
+    ///         going off does not persist, or shipping the gate off would take a real preference away for
+    ///         good.
     ///     </para>
     /// </summary>
     [Test]
@@ -188,8 +188,8 @@ public class Playback2DLevelStripTests
     }
 
     /// <summary>
-    ///     Plan decision D8: the gate covers AutoFollow only. The strip still picks floors with it off —
-    ///     a manual picker is not worth a permanent persisted key of its own.
+    ///     The gate covers AutoFollow only. The strip still picks floors with it off — a manual picker
+    ///     does not need a permanent persisted key of its own.
     /// </summary>
     [Test]
     public async Task AutoChip_Hidden_WhenFeatureGateOff()
@@ -297,7 +297,7 @@ public class Playback2DLevelStripTests
 
             // Releasing the pin — re-arming AUTO — hands the decision back to the followed player.
             // A method, not a command: the AUTO chip is a ToggleButton bound to IsAutoEnabled, so the
-            // generated command was never on the user's path (D6 finding 13).
+            // generated command was never on the user's path.
             vm.LevelStrip.EnableAuto();
             bool released = PushUntil(ctx, () => host.ActiveLevelId == upper);
             Console.WriteLine($"[autofollow] AUTO re-arm -> active={host.ActiveLevelId} " +

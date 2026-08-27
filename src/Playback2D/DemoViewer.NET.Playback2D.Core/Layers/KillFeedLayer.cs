@@ -13,31 +13,22 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///     The export HUD's kill feed: up to six rows in the top-right corner, carrying the same modifiers the
 ///     XAML feed shows — headshot, wallbang, no-scope, through-smoke, blind, airborne, flash assist.
 ///     <para>
-///         <b>Its glyphs are not always the XAML feed's.</b> The exported feed draws through the embedded
-///         Latin-only Inter (<see cref="TextBlobCache" />), and the panel draws through the platform UI
-///         font; two of the panel's symbols have no glyph in Inter and were rasterising as .notdef boxes.
-///         Where they differ the export uses a token that exists — the modifier is the contract, the
-///         character is not.
-///     </para>
-///     <para>
-///         <b>The rows are not computed here.</b> They come from the same
+///         <b>One source, and its glyphs are not always the XAML feed's.</b> Rows come from the same
 ///         <c>KillFeedTimeline.Window</c> the view-model calls, through an <see cref="IHudDataSource" />,
-///         which is what makes design risk 8 (the XAML feed and the exported feed drifting apart)
-///         structurally impossible for the row <i>set</i>. This layer only decides how a row looks.
+///         so the feed and the export can't disagree about which kills to show — this layer only decides
+///         how a row looks. It draws through the embedded Latin-only Inter (<see cref="TextBlobCache" />)
+///         rather than the platform UI font; two of the panel's symbols have no glyph in Inter, so where
+///         they differ the export uses a token that exists — the modifier is the contract, the character
+///         is not.
 ///     </para>
 ///     <para>
-///         <b>Three runs per row, not one</b> (D3b item 3.1.3). Attacker and victim are drawn in their own
-///         side's colour and the weapon and modifiers between them in the secondary text colour, which is
-///         what turns a wall of white into "our side is trading". That needs the two names shaped
-///         separately from the middle, so a row costs three cache entries; the composed parts are memoised
-///         per row exactly as the single line used to be, so it costs no more shaping per frame.
-///     </para>
-///     <para>
-///         A row whose side the demo could not resolve (<c>KillFeedRow.AttackerTeam == 0</c>) keeps the
-///         neutral colour the whole feed used to have. <b>No kill loses its row over a missing team.</b>
-///     </para>
-///     <para>
-///         Like <see cref="ClockLayer" />, it is opt-in and draws in the topmost band only.
+///         <b>Three runs per row, not one.</b> Attacker and victim are drawn in their own side's colour,
+///         the weapon and modifiers between them in the secondary text colour, so a wall of white reads as
+///         "our side is trading". Each run is memoised through <see cref="TextBlobCache" />, so three runs
+///         cost no more than one. A row whose side the demo could not resolve
+///         (<c>KillFeedRow.AttackerTeam == 0</c>) keeps the neutral colour —
+///         <b>no kill loses its row over a missing team.</b> Like <see cref="ClockLayer" />, it is opt-in
+///         and draws in the topmost band only.
 ///     </para>
 /// </summary>
 public sealed class KillFeedLayer : ISceneLayer
@@ -150,7 +141,7 @@ public sealed class KillFeedLayer : ISceneLayer
 
             float x = right - rowW - padX;
             x = DrawRun(canvas, attacker, x, y, SideColor(ctx, row.AttackerTeam));
-            x = DrawRun(canvas, middle, x, y, new SKColor(_style.DimTextArgb));
+            x = DrawRun(canvas, middle, x, y, new SKColor(ClockLayer.DimTextArgb));
             DrawRun(canvas, victim, x, y, SideColor(ctx, row.VictimTeam));
 
             y += lineHeight;
@@ -175,9 +166,7 @@ public sealed class KillFeedLayer : ISceneLayer
     ///         claims the same right edge; the feed is <see cref="Order" /> 80 against the roster's 65, so
     ///         where they meet the feed paints straight over the cards. With the shipped
     ///         <see cref="HudStyle" /> and a five-a-side roster they meet on any pane shorter than about
-    ///         552 px — which includes the top band of a 1280×720 two-level stacked export, the exact case
-    ///         both layers' own doc comments cite (D6 finding 9). Neither layer saw it because every test
-    ///         of either one mounted it alone.
+    ///         552 px, which includes the top band of a 1280×720 two-level stacked export.
     ///     </para>
     ///     <para>
     ///         Sized from <see cref="MaxRows" /> rather than from the live row count, deliberately: a
@@ -199,7 +188,7 @@ public sealed class KillFeedLayer : ISceneLayer
     /// <summary>
     ///     The one-line form of a kill row — the three drawn runs, concatenated. Public so the snapshot
     ///     test can assert the export's text against the same row the XAML feed binds, rather than against
-    ///     a picture; the split into runs is a colour concern and must not change what a row <i>says</i>.
+    ///     a picture; the split into runs is a colour concern and must not change what a row says.
     /// </summary>
     /// <param name="row">The kill to render.</param>
     public static string Format(KillFeedRow row)

@@ -12,31 +12,25 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <b>D6 G-3.</b> Six places named a layer stack and exactly one derived it from
-///     <see cref="SceneLayerCatalog" />, so adding a scene layer meant editing four hand-written arrays
-///     and a new layer that learned three of them shipped missing from the fourth. Two of the six are
-///     gone (the catalog's second registration table, and <c>ExportCommand.BuildLayerIds</c>, which now
-///     projects <see cref="SceneLayerCatalog.SceneStackIds" />); the remaining hand-written ones are
-///     <c>Scene2DHost.BuildScene</c> — asserted here — and <c>SceneStage</c>, asserted by
-///     <c>SceneStageParityTests</c> in the project that can see it.
+///     Six places name a layer stack and only one derives it from <see cref="SceneLayerCatalog" />, so a
+///     new layer can ship missing from one of the hand-written arrays. The one that ships is
+///     <c>Scene2DHost.BuildScene</c>, asserted here directly against the catalog.
 ///     <para>
-///         <b>Why an assertion and not a shared factory.</b> Neither list is a copy that <i>should</i>
-///         be deleted. <c>Scene2DHost</c> holds typed fields for the three layers it re-binds per frame
-///         and hands <c>VisionLayer</c> a live <c>VisibilityEngineSolver</c>; <c>SceneStage</c> needs the
-///         same handles plus a reverse-registration mode that proves draw order beats registration
-///         order. Forcing both through <c>CreateSceneStack</c> would trade a drift risk for a worse
-///         one — a factory with two callers and five opinions. What must not differ is the <b>id set</b>,
-///         and that is exactly what these assert.
+///         The list is not a copy safe to delete in favor of a shared factory: <c>Scene2DHost</c> holds
+///         typed fields for the layers it re-binds per frame and hands <c>VisionLayer</c> a live
+///         <c>VisibilityEngineSolver</c>, so forcing it through <c>CreateSceneStack</c> would trade one
+///         drift risk for a worse one — a factory with two callers and five opinions. What must not
+///         differ is the <b>id set</b>.
 ///     </para>
 ///     <para>
-///         <b>What legitimately differs, and why each difference is spelled out rather than tolerated:</b>
-///         the four <see cref="SceneLayerIds.OptIn" /> ids are absent from every scene stack (they need a
-///         HUD source or an ink document that only an export supplies), and <c>Scene2DHost</c> mounts
-///         <c>playback2d.annotations</c> <i>later</i>, when a session is attached — which is why the
-///         claim under test is "the non-opt-in set is identical", not "the lists are equal".
+///         The four <see cref="SceneLayerIds.OptIn" /> ids are absent from every scene stack (they need a
+///         HUD source or an ink document only an export supplies), and <c>Scene2DHost</c> mounts
+///         <c>playback2d.annotations</c> later, when a session attaches. The claim under test is "the
+///         non-opt-in set is identical", not "the lists are equal".
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class SceneLayerListParityTests
 {
     /// <summary>The seven ids a scene stack must hold: every catalog id that is not opt-in.</summary>
@@ -63,14 +57,14 @@ public class SceneLayerListParityTests
 
             // The SCENE half, exactly. Split rather than compared whole because the host mounts one
             // opt-in layer the CLI cannot: AttachAnnotationsToCurrentDemo binds an AnnotationSession
-            // after BuildScene and adds playback2d.annotations then, which is the live document the user
-            // is drawing into. An export gets a frozen copy instead, which is why the catalog leaves the
-            // id opt-in rather than making it one of the seven.
+            // after BuildScene and adds playback2d.annotations then — the live document the user is
+            // drawing into. An export gets a frozen copy instead, so the catalog leaves the id opt-in
+            // rather than making it one of the seven.
             string[] scene = [.. mounted.Where(id => !SceneLayerIds.OptIn.Contains(id))];
             await Assert.That(scene).IsEquivalentTo(SceneIds.Order().ToArray());
 
-            // Not a restatement: it is the assertion that would have failed while the catalog registered
-            // playback2d.debuggrid and nothing else, which is the shape of G-1.
+            // Not a restatement: an equivalence check would still pass against an accidentally short
+            // catalog, so the count is pinned independently.
             await Assert.That(scene.Length).IsEqualTo(7);
 
             // And the ONLY opt-in id a window may hold. The three HUD layers are burned-in export
@@ -106,8 +100,8 @@ public class SceneLayerListParityTests
 
         await Assert.That(SceneLayerCatalog.SceneStackIds.ToArray()).IsEquivalentTo(expected);
 
-        // KnownLayerIds is an alias, not a second table — the whole point of the D6 fold. Asserted by
-        // reference so a future "helpful" copy of the list is caught rather than a divergence later.
+        // KnownLayerIds is an alias, not a second table, so a rename only has one place to happen.
+        // Asserted by reference so a future "helpful" copy of the list is caught, not just a divergence.
         await Assert.That(ReferenceEquals(SceneLayerCatalog.KnownLayerIds,
             SceneLayerCatalog.SceneStackIds)).IsTrue();
     }

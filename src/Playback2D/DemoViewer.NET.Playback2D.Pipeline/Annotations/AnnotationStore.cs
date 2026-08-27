@@ -20,15 +20,11 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Annotations;
 ///     </para>
 ///     <para>
 ///         <b>Identity is checked, never assumed.</b> A demo-hash mismatch means the file describes a
-///         different demo that happens to share a path: it is ignored and never overwritten. A clock
-///         mismatch means the tick anchors were authored against a different parse: everything loads,
-///         static elements are unaffected, and the caller warns instead of silently mis-placing every
-///         time-anchored stroke.
-///     </para>
-///     <para>
-///         <b>Writes are best-effort and never throw into the UI</b>, matching the existing
-///         <c>GraphBreakpointStore.Save</c> and <c>SettingsService.SaveSession</c> behaviour: a failed
-///         write becomes <c>false</c> plus a status string, never an exception mid-gesture.
+///         different demo sharing this path, and is ignored, never overwritten. A clock mismatch means
+///         the tick anchors were authored against a different parse: everything loads, static elements
+///         are unaffected, and the caller warns instead of silently mis-placing a time-anchored stroke.
+///         Writes are best-effort and never throw into the UI, matching <c>GraphBreakpointStore.Save</c>:
+///         a failed write returns <c>false</c> plus a status string, never an exception mid-gesture.
 ///     </para>
 /// </summary>
 public sealed class AnnotationStore
@@ -44,8 +40,8 @@ public sealed class AnnotationStore
 
     // Every dictionary below is reached from BOTH the UI thread (ResolvePath, for the panel's status
     // line) and a thread-pool thread (the debounced autosave, and LoadAsync's continuation). A plain
-    // Dictionary read racing a write does not merely lose an entry — it can spin forever inside bucket
-    // traversal — so all three live behind one gate. They are touched once per demo, never per frame.
+    // Dictionary read racing a write can spin forever inside bucket traversal, so all three live behind
+    // one gate. They are touched once per demo, never per frame.
     private readonly Lock _state = new();
 
     private readonly Dictionary<string, bool> _writableByDirectory = new(StringComparer.OrdinalIgnoreCase);

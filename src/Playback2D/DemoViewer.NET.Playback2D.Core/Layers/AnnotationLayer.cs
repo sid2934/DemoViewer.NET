@@ -14,43 +14,36 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///     Draws the annotation document: cached "dry" ink, per-frame animated ink, and the "wet" stroke
 ///     under the pointer.
 ///     <para>
-///         <b>The split is by what can change</b> (plan decision D7). An element that is both
-///         <see cref="TimeEnvelope.Static" /> and <see cref="SpaceRef.World" /> can never move or fade, so
-///         it is recorded once per level into a WORLD-space <see cref="SKPicture" /> and replayed under
-///         the pane's camera — re-recorded only when the document's <c>Version</c> changes, which is what
-///         stops a drag-erase across thirty strokes from re-recording thirty times. Everything else —
-///         time-anchored fades, entity-anchored telestration — is prepared in <see cref="Advance" /> and
-///         drawn per frame, because its geometry and its opacity are functions of the clock.
+///         <b>The split is by what can change.</b> A <see cref="TimeEnvelope.Static" /> +
+///         <see cref="SpaceRef.World" /> element can never move or fade, so it is recorded once per level
+///         into a WORLD-space <see cref="SKPicture" /> and replayed under the pane's camera, re-recorded
+///         only when the document's <c>Version</c> changes. Everything else is prepared in
+///         <see cref="Advance" /> and drawn per frame, since its geometry and opacity are functions of the
+///         clock.
 ///     </para>
 ///     <para>
-///         <b>Real-time ink</b> (plan D7) rides the second half of that split. An element carrying a
-///         <see cref="StrokeTiming" /> draws only the prefix its run table says has been reached, and the
-///         prefix is cut into a full-alpha body plus a fixed number of tail bands, each running the
-///         element's own <see cref="TimeEnvelope" /> shifted by the offset its samples were drawn at. The
-///         whole thing is a pure function of <c>SceneTime.Tick</c> — no accumulated <c>DeltaSeconds</c>
-///         and no one-tick pulses — which is what keeps a 30 fps export (where
-///         <c>ticksPerOutputFrame ≈ 2.13</c>, so ticks are skipped) identical to a 64 fps one.
-///     </para>
-///     <para>
-///         The layer's own <see cref="Cache" /> is <see cref="LayerCacheHint.Dynamic" />: the compositor
-///         must not try to record the whole layer, because the wet stroke changes every frame.
+///         <b>Real-time ink</b> rides the second half of that split: an element carrying a
+///         <see cref="StrokeTiming" /> draws only the prefix its run table says has been reached, cut into
+///         a full-alpha body plus a fixed number of tail bands, each running the element's own
+///         <see cref="TimeEnvelope" /> shifted by its samples' draw offset. It is a pure function of
+///         <c>SceneTime.Tick</c> — no accumulated <c>DeltaSeconds</c>, no one-tick pulses — so a 30 fps
+///         export (<c>ticksPerOutputFrame ≈ 2.13</c>, ticks skipped) matches a 64 fps one exactly.
+///         <see cref="Cache" /> is <see cref="LayerCacheHint.Dynamic" />: the wet stroke changes every
+///         frame, so the compositor must not record the whole layer.
 ///     </para>
 /// </summary>
 public sealed class AnnotationLayer : ISceneLayer
 {
-    /// <summary>The stable, persisted layer id. B4's export toggles annotations by this string.</summary>
+    /// <summary>The stable, persisted layer id. An export toggles annotations by this string.</summary>
     public const string LayerId = SceneLayerIds.Annotations;
 
-    // How many alpha steps a real-time stroke's fading tail is drawn in (plan D7 §4).
+    // How many alpha steps a real-time stroke's fading tail is drawn in.
     //
     // The visible window is always CONTIGUOUS — nothing past the head has been drawn yet, nothing behind
     // the tail is left — so the ramp lives only at the older end and the step count is a CONSTANT rather
-    // than a function of the sample count. §4 costed a 400-sample stroke at 1080p at 117 µs (k=1),
-    // 152 µs (k=8) and 316 µs (k=64), at 0 B/frame throughout;
-    // RealTimeInkTests.OneRealTimeStroke_CostsAboutWhatSection4Costed measures the shipped thing at
-    // ~116 µs whole against ~123 µs for body + 8 bands, because the bands span only the fade-out ramp
-    // and are therefore short. 8 is where a 12.5 % alpha step stops being visible and the cost is still
-    // single-digit microseconds against a 2.75 ms full-scene p99.
+    // than a function of the sample count. 8 is where a 12.5 % alpha step stops being visible, and the
+    // cost stays single-digit microseconds against a 2.75 ms full-scene p99 — see
+    // RealTimeInkTests.OneRealTimeStroke_CostsAboutWhatSection4Costed for the measured numbers.
     private const int TailSteps = 8;
 
     // Generous world-space cull for the dry recordings — the same bound the compositor uses for its own
@@ -480,11 +473,11 @@ public sealed class AnnotationLayer : ISceneLayer
     // accepts a prefix of the point list, and that is still the reason both features share it. -1 means
     // "all of them".
     //
-    //   • A captured cadence (plan D7) asks its own run table, so the head advances at the speed the
-    //     stroke was authored at, pauses included.
+    //   • A captured cadence asks its own run table, so the head advances at the speed the stroke was
+    //     authored at, pauses included.
     //   • Style.RevealOnFadeIn keeps its own, different meaning: a LINEAR sweep across the fade-in ramp,
-    //     with no cadence recorded anywhere. It predates D7, it is in the published schema and the
-    //     pinned sample, and dropping it would be a format break for no gain (D7 §9).
+    //     with no cadence recorded anywhere. It is in the published schema, and dropping it would be a
+    //     format break for no gain.
     private static int RevealCount(AnnotationElement element, int tick)
     {
         if (element.Kind != AnnotationKind.Freehand || element.Time.FromTick is not { } from)
@@ -514,10 +507,10 @@ public sealed class AnnotationLayer : ISceneLayer
 
     // ── Per-section fade: the element's own trapezoid, shifted by when each sample was drawn. ────────
 
-    // The section decomposition (plan D7 §3 and §4), appended to _sections. Returns how many.
+    // The section decomposition, appended to _sections. Returns how many.
     //
     // Everything WITHOUT a captured cadence is one section over its revealed prefix at the element's own
-    // opacity — byte for byte what this layer drew before D7, which is the point.
+    // opacity, unchanged from what this layer always drew for it.
     //
     // A real-time element is a contiguous window walked back from the head, in ELAPSED space (ticks
     // since the stroke began), because RevealedCount is exactly the inverse map from an elapsed value to
@@ -638,9 +631,9 @@ public sealed class AnnotationLayer : ISceneLayer
     // cull gates on, because a real-time element's own envelope closes while its head is still drawing.
     //
     // It is the NEWEST sample's: the run table's offsets are non-decreasing, so effective ticks fall as
-    // the index rises, and the trapezoid is monotone everywhere right of its plateau. DurationTicks
-    // rather than TickOffsetForSample(n−1) deliberately — RevealedCount clamps its answer up by one so
-    // the head can sit a hair past its own offset, and the duration is what the capture recorded.
+    // the index rises, and the trapezoid is monotone everywhere right of its plateau. DurationTicks is
+    // that newest offset by construction — the last sample is always a boundary — and it is what the
+    // capture recorded.
     private static double PeakOpacity(AnnotationElement element, int tick)
     {
         if (TimingOf(element) is not { } timing || element.Time.FromTick is not { } from)
@@ -708,7 +701,7 @@ public sealed class AnnotationLayer : ISceneLayer
         int SectionCount);
 
     // One contiguous run of samples drawn at one alpha. Start/Count index into the element's own point
-    // list, and Opacity already carries Style.Opacity — exactly what Prepared.Opacity used to hold, so a
-    // non-real-time element's single section resolves to the same colour it always did.
+    // list, and Opacity already carries Style.Opacity, so a non-real-time element's single section
+    // resolves to the same colour it always did.
     private readonly record struct Section(int Start, int Count, float Opacity);
 }

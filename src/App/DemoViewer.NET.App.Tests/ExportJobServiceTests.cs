@@ -204,9 +204,9 @@ public class ExportJobServiceTests
         service.Start(Request());
         await runner.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        // Plan D11: refusal is start-time only. An export never touches the shared clock, so it cannot
-        // corrupt a sync session — and throwing away minutes of finished render to enforce a rule that
-        // was about STARTING would be worse than the overlap.
+        // Refusal is start-time only. An export never touches the shared clock, so it cannot corrupt a
+        // sync session — and throwing away minutes of finished render to enforce a rule that was about
+        // STARTING would be worse than the overlap.
         liveSyncBusy = true;
         runner.Block.SetResult();
 

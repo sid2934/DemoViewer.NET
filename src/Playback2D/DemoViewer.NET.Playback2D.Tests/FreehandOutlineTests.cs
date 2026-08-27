@@ -38,7 +38,7 @@ public class FreehandOutlineTests
 
         await Assert.That(points.Count).IsEqualTo(reference.StrokePoints.Count)
             .Because($"{name}: stroke-point COUNT differs — the streamline/minimum-length stage is " +
-                     "structurally wrong, not merely imprecise");
+                     "structurally wrong, not just imprecise");
 
         for (int i = 0; i < points.Count; i++)
         {
@@ -183,10 +183,10 @@ public class FreehandOutlineTests
     ///         <c>GC.GetAllocatedBytesForCurrentThread</c> measures the THREAD, not this method, so a
     ///         sibling test whose async continuation lands on the same pool thread between the two reads
     ///         is counted as this outliner's allocation. Observed once in a busy six-project run and
-    ///         green on every isolated one, which is the signature: it fails for a reason nobody can act
-    ///         on, and a required lane that does that gets muted. The repo already made this call twice
-    ///         in round 2 (<c>ExportHudAndLadderTests</c>' two-window rewrite,
-    ///         <c>TimelineLayoutTests</c>' environment-dependent literal).
+    ///         green on every isolated one: it fails for a reason internal to the test runner's thread
+    ///         reuse, not this outliner's code, and a required lane that flakes like that gets muted. The
+    ///         repo already made this same call twice before (<c>ExportHudAndLadderTests</c>' two-window
+    ///         rewrite, <c>TimelineLayoutTests</c>' environment-dependent literal).
     ///     </para>
     /// </summary>
     [Test]

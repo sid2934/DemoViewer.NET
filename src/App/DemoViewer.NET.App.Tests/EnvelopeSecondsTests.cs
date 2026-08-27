@@ -11,8 +11,8 @@ using DemoViewer.NET.ViewModels.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     D8 §§1–2: the envelope DURATIONS are authored in seconds, stored in ticks, and converted at the
-///     LOADED DEMO'S rate rather than at a literal 64.
+///     The envelope DURATIONS are authored in seconds, stored in ticks, and converted at the LOADED
+///     DEMO'S rate rather than at a literal 64.
 ///     <para>
 ///         Those two halves are one test suite because they are one defect. A tick is not a unit a user
 ///         can reason about, so the toolbar shows seconds; and the moment it does, the rate stops being
@@ -25,9 +25,9 @@ namespace DemoViewer.NET.AppTests;
 public class EnvelopeSecondsTests
 {
     /// <summary>
-    ///     <b>The sharp one.</b> Five seconds of hold on a 128-tick session is 640 ticks. At D7a's
-    ///     literal it would be 320 — a hold half as long as the one the user asked for, in a control that
-    ///     now says "5.00" either way.
+    ///     <b>The sharp one.</b> Five seconds of hold on a 128-tick session is 640 ticks. At a hard-coded
+    ///     64-tick rate it would be 320 — a hold half as long as the one the user asked for, in a control
+    ///     that now says "5.00" either way.
     /// </summary>
     [Test]
     [Arguments(64, 320)]

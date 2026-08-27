@@ -25,6 +25,7 @@ namespace DemoViewer.NET.AppTests;
 ///     VM. Z-named so it sorts late (the headless platform / fonts are fully initialised by then).
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class ZTrajectoryRenderTests
 {
     [Test]

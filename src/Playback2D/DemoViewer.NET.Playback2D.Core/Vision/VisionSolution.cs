@@ -80,11 +80,11 @@ public sealed class ConePolygon
 
 /// <summary>
 ///     A could-see relationship between two players. <b>Endpoints are normally absent</b>: the pre-v2
-///     overlay drew the line between the two <i>smoothed</i> marker dots (lines 998-1002) so the line
-///     meets the players it describes, and the smoothed positions are not known until render time. A
-///     live <see cref="IVisionSolver" /> therefore names slots and lets the layer resolve them.
+///     overlay drew the line between the two smoothed marker dots so the line meets the players it
+///     describes, and the smoothed positions are not known until render time. A live
+///     <see cref="IVisionSolver" /> therefore names slots and lets the layer resolve them.
 ///     <para>
-///         <b>The four endpoint fields exist for geometry that was solved somewhere else</b> (D6 round 3):
+///         <b>The four endpoint fields exist for geometry that was solved somewhere else.</b>
 ///         <c>SceneVision.Sightline</c>, the shape a serialized <see cref="Scene2DFrame" /> carries,
 ///         holds world endpoints and no target slot at all, because whoever solved it had already
 ///         resolved both ends. Left <see cref="float.NaN" /> — which is what the five-argument form
@@ -210,11 +210,11 @@ public sealed class VisionSolution
 /// <summary>
 ///     Where the line-of-sight solve happens. Core declares it and draws the answer; Pipeline's
 ///     <c>VisibilityEngineSolver</c> implements it, because the visibility engine is a CS2DemoKit type
-///     and Core references SkiaSharp only (plan decision D-2).
+///     and Core references SkiaSharp only.
 ///     <para>
 ///         This is also the escape hatch for §6's budget risk: if the solve is too slow on baseline
-///         hardware, a <c>DeferredVisionSolver</c> wraps this interface to compute into the <i>next</i>
-///         frame's solution off the UI thread. B1 deliberately does not build that — the seam is the
+///         hardware, a <c>DeferredVisionSolver</c> wraps this interface to compute into the next frame's
+///         solution off the UI thread. Nothing implements that today, deliberately — the seam is the
 ///         deliverable.
 ///     </para>
 /// </summary>

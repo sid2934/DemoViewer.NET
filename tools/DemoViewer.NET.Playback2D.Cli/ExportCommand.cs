@@ -27,7 +27,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     <c>dv2d export</c> — the headless front end to B4's <c>SceneExportSession</c>.
+///     <c>dv2d export</c> — the headless front end to <c>SceneExportSession</c>.
 ///     <para>
 ///         It is argument parsing and nothing more: the range, the format, the size and the camera become
 ///         an <c>ExportRequest</c>, the frames come from <c>TrackerFrameSource</c>, the sink is chosen by
@@ -94,23 +94,23 @@ internal static class ExportCommand
 
         ExportQuality quality = ExportQualities.ParseOrDefault(qualityRequest);
 
-        // Renders and reads back every frame but encodes nothing. The only way to answer "is the RENDERER
-        // fast enough" separately from "is libvpx fast enough" — and the measurement C2 compares a GPU
-        // provider against, since a GPU cannot make an encoder quicker.
+        // Renders and reads back every frame but encodes nothing: the only way to answer "is the
+        // RENDERER fast enough" separately from "is libvpx fast enough". A GPU provider's speed is
+        // measured against this baseline, since a GPU cannot make an encoder quicker.
         bool noEncode = args.Flag("no-encode");
         bool perf = PerfOutput.Requested(args);
         IReadOnlyList<string>? layers = args.List("layers");
         AssetsRoot assets = AssetsRootResolver.Resolve(args);
         // ForceCpu as the bottom rung, like the golden lane above it and for the same kind of reason: an
-        // auto-probe that finds ANGLE would hand SceneExportSession a thread-affine provider, and the
-        // session refuses it (C2 Stage 1 owns making it work). Auto-probing into a guaranteed refusal is
-        // not a default. An explicit --gpu still reaches that refusal, and says so.
+        // auto-probe that finds ANGLE would hand SceneExportSession a thread-affine provider, which the
+        // session refuses. Auto-probing into a guaranteed refusal is not a default; an explicit --gpu
+        // still reaches that refusal, and says so.
         ResolvedBackend backend = BackendResolver.Resolve(args, RenderBackendPreference.ForceCpu);
         args.ThrowIfUnconsumed();
 
-        // SceneExportSession refuses this too — it has to, because the app can reach it without going
-        // through here — but the refusal it throws is an ExportValidationException, which lands on exit
-        // 3. "This build cannot export on a GPU" is an environment answer, exit 6, the same code
+        // SceneExportSession refuses this too, because the app can reach it without going through here.
+        // But the refusal it throws is an ExportValidationException, which lands on exit 3.
+        // "This build cannot export on a GPU" is an environment answer, exit 6 — the same code
         // `--layout single` gives for the same kind of reason: a real feature, not in this build yet.
         if (backend.Backend != RenderBackend.CpuRaster)
         {
@@ -261,10 +261,10 @@ internal static class ExportCommand
                 ["encoder"] = noEncode ? "none" : ffmpeg.Found ? "ffmpeg" : "imagesharp-gif",
                 ["ffmpeg_origin"] = ffmpeg.Origin.ToString(),
 
-                // Additive (P2 D4). `encoder` above keeps its old meaning — WHICH PROGRAM encodes — and
-                // these say which codec inside it, chosen how. A hardware encoder is not bit-reproducible
-                // (plan D6), so the file's bytes are a function of this machine: writing the machine's
-                // answer down is what makes a file comparable to another one later.
+                // Additive: `encoder` above keeps its old meaning (WHICH PROGRAM encodes), and these say
+                // which codec inside it, chosen how. A hardware encoder is not bit-reproducible, so the
+                // file's bytes are a function of this machine — writing the machine's answer down is
+                // what makes a file comparable to another one later.
                 ["video_encoder"] = encoder?.Encoder.Name,
                 ["video_encoder_kind"] = encoder is null
                     ? null
@@ -346,8 +346,8 @@ internal static class ExportCommand
         return array;
     }
 
-    // 20 for GIF because a GIF frame delay is a whole number of centiseconds and 20 divides 100; 60 for
-    // video. SceneExportSession.SupportedFps is the authority, and it refuses anything else.
+    // 20 for GIF (divides the 100-centisecond frame delay evenly, see SceneExportSession's _gifFps);
+    // 60 for video. SceneExportSession.SupportedFps is the authority and refuses anything else.
     private static int DefaultFps(string format) =>
         string.Equals(format, ExportFormats.Gif, StringComparison.Ordinal) ? 20 : 60;
 
@@ -399,8 +399,9 @@ internal static class ExportCommand
     /// <summary>
     ///     The default id set, plus whatever the flags opted into. <b>The CLI half of the export's
     ///     cross-surface parity</b>, and the counterpart of
-    ///     <c>Playback2DExportDialogViewModel.BuildLayerIds</c> — <c>ExportLayerParityTests</c> pins the
-    ///     two to the same Core-derived expression from both sides.
+    ///     <c>Playback2DExportDialogViewModel.BuildLayerIds</c>: both project
+    ///     <see cref="SceneLayerCatalog.SceneStackIds" /> rather than listing ids, so one request cannot
+    ///     mean two different videos.
     /// </summary>
     /// <param name="layers">An explicit <c>--layers</c> list, or null for the default set.</param>
     /// <param name="hud">Whether <c>--hud</c> was given.</param>
@@ -408,21 +409,21 @@ internal static class ExportCommand
     internal static HashSet<string> BuildLayerIds(IReadOnlyList<string>? layers, bool hud, bool hasInk)
     {
         // The opt-in set, not a "hud." prefix test. The prefix spelling was self-maintaining for HUD
-        // ids and blind to every other opt-in layer, so the day D3a made playback2d.annotations a
-        // SceneStackId, a no --layers export started NAMING the ink in its default set and in the
-        // sidecar manifest's `layers` array. One source: SceneLayerIds.OptIn.
+        // ids and blind to every other opt-in layer: once playback2d.annotations became a SceneStackId,
+        // a no --layers export started NAMING the ink in its default set and in the sidecar manifest's
+        // `layers` array. One source: SceneLayerIds.OptIn.
         //
         // Vision comes out for the same reason and one more. It is NOT opt-in in the catalog, so a
-        // default export named it — while the app's dialog ships it OFF, because the solve is the
-        // frame's biggest per-frame cost. Two front ends, one request, two different videos. And the
-        // CLI has no visibility engine to hand VisionLayer anyway, so every one of those manifests
-        // listed a layer that drew nothing. `--layers` can still name it explicitly; that is a choice.
+        // default export named it, while the app's dialog ships it OFF because the solve is the frame's
+        // biggest per-frame cost — two front ends, one request, two different videos. And the CLI has no
+        // visibility engine to hand VisionLayer anyway, so every one of those manifests listed a layer
+        // that drew nothing. `--layers` can still name it explicitly; that is a choice.
         //
-        // That last sentence is about EXPORT only, and stays true after D6 round 3. VisionLayer now
-        // falls back to a frame's pre-solved SceneVision, which is why `render`/`golden`/`bench` draw
-        // cones from a fixture — but an export's frames come off SceneFrameBuilder, whose Vision input
-        // nothing fills, so `dv2d export --layers …,playback2d.vision` is still an empty layer. Feeding
-        // it means constructing a VisibilityEngine for the demo's map here; nobody has needed it yet.
+        // That last sentence is about EXPORT only. VisionLayer now falls back to a frame's pre-solved
+        // SceneVision, which is why `render`/`golden`/`bench` draw cones from a fixture — but an
+        // export's frames come off SceneFrameBuilder, whose Vision input nothing fills, so `dv2d export
+        // --layers …,playback2d.vision` is still an empty layer. Feeding it means constructing a
+        // VisibilityEngine for the demo's map here; nobody has needed it yet.
         HashSet<string> ids = layers is null
             ?
             [
@@ -458,7 +459,7 @@ internal static class ExportCommand
     };
 
     // The demo's own '.dvann.json', through the same store the app writes it with. A missing, truncated
-    // or foreign sidecar is not an error — AnnotationStore returns an empty result for all three — but an
+    // or foreign sidecar is not an error (AnnotationStore returns an empty result for all three), but an
     // EMPTY one returns null here, so the caller can keep the annotation id out of the layer set rather
     // than naming a layer with nothing behind it.
     private static async Task<AnnotationSession?> LoadInkAsync(string demoPath, int tickRate,
@@ -484,23 +485,20 @@ internal static class ExportCommand
         return new AnnotationSession(document);
     }
 
-    // The clock is the SOURCE's own game info — the round and the score SceneFrameBuilder read off
-    // CCSGameRulesProxy and the two CCSTeam entities for the frame being drawn. It used to be a constant
-    // ClockReading.Unknown, which renders "Round —  T 0 : 0 CT" over every frame of every CLI export,
-    // however far into the match the range was.
+    // The clock reads the SOURCE's own game info — the round and the score SceneFrameBuilder reads off
+    // CCSGameRulesProxy and the two CCSTeam entities for the frame being drawn — rather than a captured
+    // SceneGameInfo value, which would freeze the scoreboard at frame 0.
     //
-    // Reading it through the source is what keeps the clock a pure function of the frame:
-    // SceneExportSession calls FrameAt immediately before Advance, and ClockLayer asks during Advance,
-    // so LastGameInfo is the drawn frame's. Capturing a SceneGameInfo VALUE here instead would freeze
-    // the scoreboard at frame 0 — which is the app-side half of this same bug.
+    // Reading it through the source keeps the clock a pure function of the frame: SceneExportSession
+    // calls FrameAt immediately before Advance, and ClockLayer asks during Advance, so LastGameInfo is
+    // always the drawn frame's.
     //
-    // The kill feed is still empty, and that is the CLI's remaining gap: kill rows come from a parsed
-    // event timeline the app builds from AllGameEvents, and the CLI has no equivalent. --hud on the CLI
-    // draws a true clock over an empty feed; inventing rows would be worse than the absence.
-    // Internal, not private: the closure IS the bug. A test that rebuilt an equivalent delegate would
-    // have passed against the broken constant too.
+    // The kill feed is still empty: kill rows come from a parsed event timeline the app builds from
+    // AllGameEvents, and the CLI has no equivalent. --hud on the CLI draws a true clock over an empty
+    // feed; inventing rows would be worse than the absence. Internal, not private, so a test can call
+    // this exact closure rather than a reimplemented equivalent.
     //
-    // The roster is NOT the feed's gap: it comes off the same frame the clock does, so `--hud` on the
+    // The roster is not the feed's gap: it comes off the same frame the clock does, so `--hud` on the
     // CLI draws real cards even though it has no kill rows to draw.
     internal static TimelineHudDataSource BuildHud(TrackerFrameSource source, int tickRate) =>
         new([], tickRate, _ => ClockReading.From(source.LastGameInfo),

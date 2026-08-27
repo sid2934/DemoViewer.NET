@@ -32,13 +32,12 @@ internal sealed class Playback2DFakeContext : IModuleContext
 
     public bool HasDemo { get; set; } = true;
 
-    // Settable since round 3A: the follow target is slot-keyed and only meaningful inside ONE demo, so
-    // Playback2DTabViewModel's resync clears it when this changes. A permanently-null path could not
-    // express "a different demo arrived", which is the whole of D6 finding 11.
+    // The follow target is slot-keyed and only meaningful inside ONE demo, so Playback2DTabViewModel's
+    // resync clears it when this changes. A permanently-null path could not express "a different demo
+    // arrived".
     public string? DemoPath { get; set; }
-    // Settable since D8: the annotation session's tick rate is sourced from this, through the
-    // ClockIdentity the tab builds, and a fake that could only ever be 64-tick is a fake that cannot
-    // reproduce the bug D8 §1 exists to fix.
+    // The annotation session's tick rate is sourced from this, through the ClockIdentity the tab builds,
+    // so a fake that could only ever be 64-tick could not reproduce a tick-rate-dependent bug.
     public int TickRate { get; set; } = 64;
     public int CurrentFrameIndex { get; set; }
     public int CurrentTick { get; set; }

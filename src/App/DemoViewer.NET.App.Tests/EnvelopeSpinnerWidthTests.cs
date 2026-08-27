@@ -29,10 +29,11 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class EnvelopeSpinnerWidthTests
 {
-    // TWO unit domains since D8, and the worst case is measured in each rather than in whichever one the
-    // test happened to be written against.
+    // TWO unit domains, and the worst case is measured in each rather than in whichever one the test
+    // happened to be written against.
     //
     // TICKS (from/until): six digits covers any tick a real demo produces — the reference Nuke demo is
     // 19 237 frames, five digits — and both fields accept eight.
@@ -40,8 +41,8 @@ public class EnvelopeSpinnerWidthTests
 
     // SECONDS (in/out/hold): the spinners' own Maximum, which is what the control clamps anything larger
     // down to, so nothing wider can ever appear in one. "600.00" is five digits and a period where the
-    // tick fields ask for six digits — the seconds domain is the CHEAPER of the two, which is why D8
-    // moved no width.
+    // tick fields ask for six digits, so the seconds domain is the CHEAPER of the two and needed no width
+    // change.
     private const double WidestSeconds = 600;
 
     /// <summary>Every spinner visible in the Custom envelope renders its widest value unclipped.</summary>

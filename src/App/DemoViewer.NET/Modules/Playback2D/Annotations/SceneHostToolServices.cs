@@ -23,9 +23,9 @@ namespace DemoViewer.NET.Modules.Playback2D.Annotations;
 internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession session) : IToolServices
 {
     // Stopwatch, not DateTime: its timestamp counts from an arbitrary origin on a monotonic counter, so
-    // an NTP correction or a DST step landing mid-stroke cannot walk it backwards and hand D7's cadence
-    // accumulator a negative offset. Banned in Core, which is exactly why the clock is an IToolServices
-    // member implemented out here in the app rather than read where it is used.
+    // an NTP correction or a DST step landing mid-stroke cannot walk it backwards and hand the cadence
+    // accumulator a negative offset. Banned in Core, which is why the clock is an IToolServices member
+    // implemented out here in the app rather than read where it is used.
     private readonly long _origin = Stopwatch.GetTimestamp();
 
     /// <summary>The session the tools mutate. Re-pointed when the host binds a new view-model.</summary>

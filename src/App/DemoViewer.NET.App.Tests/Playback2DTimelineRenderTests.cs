@@ -15,10 +15,11 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Render probes for the docked timeline: it draws SOMETHING where it is supposed to, and nothing at all
-///     when its feature gate is off. Non-blank probes rather than goldens — the golden corpus starts at B0 on
-///     the CPU surface provider.
+///     when its feature gate is off. Non-blank probes rather than goldens — the golden corpus exists only
+///     for the CPU surface provider.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DTimelineRenderTests
 {
     [Test]
@@ -56,13 +57,13 @@ public class Playback2DTimelineRenderTests
                               + $"bands={vm.Timeline.Bands.Count} markers={vm.Timeline.Markers.Count} "
                               + $"-> {path}");
 
-            // D6 G-6: this used to assert `nonBg > 100`, where nonBg counted pixels with ANY non-zero
-            // channel. Pb2dPanelBg is #1A1E24 — every channel non-zero — so the opaque panel fill alone
-            // satisfied it several thousand times over, on a completely empty timeline. The line below
-            // records that the old metric is still trivially true, so the reason this case was rewritten
-            // cannot be lost by someone restoring it.
+            // This used to assert `nonBg > 100`, where nonBg counted pixels with ANY non-zero channel.
+            // Pb2dPanelBg is #1A1E24 — every channel non-zero — so the opaque panel fill alone satisfied
+            // it several thousand times over, on a completely empty timeline. The line below records that
+            // the old metric is still trivially true, so the reason this case was rewritten cannot be
+            // lost by someone restoring it.
             await Assert.That(scan.AnyChannelNonZero).IsGreaterThan(scan.Area * 9 / 10)
-                .Because("the panel fill is opaque and non-black, which is precisely why counting "
+                .Because("the panel fill is opaque and non-black, which is why counting "
                          + "non-black pixels measured nothing");
 
             // The fill is found rather than hard-coded, so a re-themed panel does not re-baseline this.

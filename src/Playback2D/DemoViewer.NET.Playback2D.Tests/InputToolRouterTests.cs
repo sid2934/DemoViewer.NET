@@ -12,8 +12,8 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     The tool router: one active tool, per-pane pan capture, router-level wheel, hold-Space diversion
-///     and Esc bail. Every case here is a behaviour the pre-v2 viewport had (or that B2's decisions add
-///     on top of it) and that a mis-wired router would silently lose.
+///     and Esc bail. Every case here is a behaviour the pre-v2 viewport had, or one this router adds on
+///     top of it, that a mis-wired router would silently lose.
 /// </summary>
 public class InputToolRouterTests
 {
@@ -73,7 +73,7 @@ public class InputToolRouterTests
         await Assert.That(pane.Camera.ManualOverride).IsTrue();
     }
 
-    /// <summary>Plan decision D2: wheel is router-level, so zoom-to-cursor survives every tool.</summary>
+    /// <summary>Wheel handling is router-level, so zoom-to-cursor survives every tool.</summary>
     [Test]
     [Arguments(ToolKind.PanZoom)]
     [Arguments(ToolKind.Draw)]
@@ -100,7 +100,7 @@ public class InputToolRouterTests
         await Assert.That(Math.Abs(worldAfter.Y - worldUnder.Y)).IsLessThan(0.01f);
     }
 
-    /// <summary>Plan decision D3: hold-Space diverts the NEXT press to pan.</summary>
+    /// <summary>Holding Space diverts the NEXT press to pan.</summary>
     [Test]
     public async Task SpaceHeld_DivertsNextPressToPan()
     {
@@ -120,8 +120,8 @@ public class InputToolRouterTests
     }
 
     /// <summary>
-    ///     D3's other half. Releasing (or pressing) Space mid-gesture must not re-route the gesture: a
-    ///     half-committed stroke is worse than a missed pan.
+    ///     The other half of Space-diversion: releasing (or pressing) Space mid-gesture must not re-route
+    ///     the gesture, since a half-committed stroke is worse than a missed pan.
     /// </summary>
     [Test]
     public async Task SpaceHeld_DoesNotHijackOpenGesture()
@@ -182,11 +182,11 @@ public class InputToolRouterTests
     }
 
     /// <summary>
-    ///     The SESSION mirror is the whole of what <c>SetActive</c> publishes since round 3A deleted
-    ///     <c>ActiveToolChanged</c> (D6 §3 dead surface — the app's toolbar already owns the selection and
-    ///     drives it INTO the router, so the event was a second, unread copy of the fact). This case used
-    ///     to assert the event fired exactly once; it now asserts the mirror lands and that a redundant
-    ///     re-select is still a no-op, which is what the once-only check was really protecting.
+    ///     The SESSION mirror is the whole of what <c>SetActive</c> publishes now that
+    ///     <c>ActiveToolChanged</c> is gone: the app's toolbar already owns the selection and drives it
+    ///     INTO the router, so the event was a second, unread copy of the fact. This case used to assert
+    ///     the event fired exactly once; it now asserts the mirror lands and that a redundant re-select is
+    ///     still a no-op, which is what the once-only check was really protecting.
     /// </summary>
     [Test]
     public async Task SetActive_MirrorsOntoTheSession_AndARepeatIsANoOp()
@@ -212,8 +212,8 @@ public class InputToolRouterTests
     }
 
     /// <summary>
-    ///     D2 §2.3: the middle button pans under EVERY tool. A pen that takes the wheel button hostage
-    ///     leaves no way back to the view except putting it down.
+    ///     The middle button pans under EVERY tool. A pen that takes the wheel button hostage leaves no
+    ///     way back to the view except putting it down.
     /// </summary>
     [Test]
     [Arguments(ToolKind.Draw)]
@@ -235,7 +235,7 @@ public class InputToolRouterTests
             .Because("neither the pen nor the eraser may open a document gesture on a middle-drag");
     }
 
-    /// <summary>The other half of D2 §2.3, for the pointing device that has no middle button.</summary>
+    /// <summary>The other half of middle-button panning, for the pointing device with no middle button.</summary>
     [Test]
     [Arguments(ToolKind.Draw)]
     [Arguments(ToolKind.Erase)]
@@ -294,7 +294,7 @@ public class InputToolRouterTests
     }
 
     /// <summary>
-    ///     <b>The other end of the chord, which D2 never taught the router.</b> <c>OnPressed</c> refused
+    ///     <b>The other end of the chord.</b> <c>OnPressed</c> refused
     ///     the middle press; <c>OnReleased</c> closed on whatever came up, so letting the middle button go
     ///     committed the stroke at the chord point and dropped capture — the rest of the drag drew
     ///     nothing and the real left release was a no-op.
@@ -383,7 +383,7 @@ public class InputToolRouterTests
         await Assert.That(pane.Camera.Current.PanX).IsEqualTo(0);
     }
 
-    /// <summary>D2 §2.2: the right button is a tool binding, not a second left button.</summary>
+    /// <summary>The right button is a tool binding, not a second left button.</summary>
     [Test]
     public async Task RightPress_RoutesToTheSecondaryTool()
     {

@@ -20,7 +20,7 @@ namespace DemoViewer.NET.ViewModels.Playback2D;
 /// <summary>
 ///     One recently used ink colour, ready to paint. Carries an <see cref="ImmutableSolidColorBrush" />
 ///     and never a <c>SolidColorBrush</c>: that constructor asserts UI-thread affinity, which would make
-///     the panel untestable off the dispatcher for the sake of a brush nobody mutates (D21).
+///     the panel untestable off the dispatcher for the sake of a brush the panel never mutates.
 /// </summary>
 public sealed class AnnotationSwatch
 {
@@ -108,12 +108,11 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     ///     Whether the toolbar should exist: the <c>playback2d.annotations</c> feature is on AND the
     ///     mounted surface can actually host ink. Fails open on both halves.
     ///     <para>
-    ///         The second half is D6 finding 12. The gate answers "is the user allowed to draw"; it
-    ///         cannot answer "is there anything to draw on", and under the legacy renderer the answer to
-    ///         the second is no. Binding the toolbar to the gate alone rendered a complete, completely
-    ///         inert tool row — and selecting a tool in it took <c>Space</c> and <c>Esc</c> away from
-    ///         transport and follow, because the keymap's tool-scoped rows key off
-    ///         <see cref="IsDrawingToolActive" />, which key off this.
+    ///         The gate alone answers "is the user allowed to draw"; it cannot answer "is there anything
+    ///         to draw on", and under the legacy renderer the answer to the second is no. Binding the
+    ///         toolbar to the gate alone rendered a complete, inert tool row — and selecting a tool in it
+    ///         took <c>Space</c> and <c>Esc</c> away from transport and follow, because the keymap's
+    ///         tool-scoped rows key off <see cref="IsDrawingToolActive" />, which key off this.
     ///     </para>
     /// </summary>
     public bool IsEnabled => _controller.IsEnabled && IsSurfaceCapable;
@@ -142,8 +141,8 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
 
         if (!capable)
         {
-            // Not merely hidden: a tool left selected over an incapable surface is exactly the state
-            // that makes IsDrawingToolActive true with nothing able to service the gesture.
+            // A tool left selected over an incapable surface is exactly the state that makes
+            // IsDrawingToolActive true with nothing able to service the gesture.
             SelectTool(ToolKind.PanZoom);
         }
 
@@ -167,10 +166,9 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     private Color _secondaryInkColor = Color.FromUInt32(AnnotationSession.DefaultSecondaryColorArgb);
 
     /// <summary>
-    ///     Whether the right button erases instead of drawing. Off by default: item 2.2 asked for two
-    ///     PENS, and shipping right-erase would leave the secondary swatch inert on first run with no
-    ///     hint that a second colour exists at all. One click here turns it into the eraser people expect
-    ///     from every other telestration tool.
+    ///     Whether the right button erases instead of drawing. Off by default: shipping right-erase would
+    ///     leave the secondary swatch inert on first run with no hint that a second colour exists at all.
+    ///     One click here turns it into the eraser people expect from every other telestration tool.
     /// </summary>
     [ObservableProperty]
     private bool _rightButtonErases;
@@ -189,8 +187,8 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
 
     // The three ramps are SHARED by Fade and RealTime, and deliberately not duplicated per mode: a
     // RealTime element runs the very same trapezoid, once per section, shifted by the offset that
-    // section was drawn at (plan D7 §3). A second set of "real-time in/out/hold" keys would be a second
-    // spelling of these three, with nothing to distinguish them but which mode last wrote them.
+    // section was drawn at. A second set of "real-time in/out/hold" keys would be a second spelling of
+    // these three, with nothing to distinguish them but which mode last wrote them.
 
     /// <summary>Lead-in ticks for <see cref="EnvelopeMode.Fade" /> and <see cref="EnvelopeMode.RealTime" />.</summary>
     [ObservableProperty]
@@ -212,13 +210,13 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     // STORAGE stays in ticks — the persisted key names and their units are forever, TimeEnvelope is
     // tick-based end to end, and a tick is the clock's own unit. What changed is that a tick is not a
     // unit anyone can reason about: "320" answers "how long does this stay up" only if you also know the
-    // parse's rate, and D8 §1 is the finding that the code did not know it either.
+    // parse's rate.
     //
     // TICKS ARE THE SOURCE OF TRUTH on both sides of the pair. The seconds are re-derived from them every
     // time rather than held beside them: two stored values for one quantity, each re-rounded against the
     // other on every panel reload, is exactly the creep the tick value cannot have. Round-to-nearest on
-    // the way IN makes the composition idempotent — ticks → seconds → ticks is the same tick for every
-    // tick — so the only error a user ever meets is the one-time half-tick their typed value is quantized
+    // the way IN makes the composition idempotent (ticks → seconds → ticks is the same tick for every
+    // tick), so the only error a user ever meets is the one-time half-tick their typed value is quantized
     // by, which at 64 tick is 7.8 ms and at 128 is 3.9.
     //
     // from/until are deliberately NOT here. They are absolute POSITIONS in the demo, not durations, and
@@ -278,16 +276,15 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
 
     /// <summary>
     ///     Whether the document is written to its sidecar automatically. The user-reachable face of
-    ///     <c>AppSettings.Playback2D.AnnotationAutoSave</c>, which shipped read-only with no UI at all
-    ///     (D6 finding 26) — the branch worked, and nobody could get to it.
+    ///     <c>AppSettings.Playback2D.AnnotationAutoSave</c>, which previously shipped read-only with no
+    ///     UI reaching it.
     /// </summary>
     [ObservableProperty]
     private bool _autoSaveSidecar = true;
 
     /// <summary>
-    ///     Whether a sidecar could be written here at all (a demo is attached, a store exists, the host
-    ///     has a filesystem). Drives the toggle's enabled state: offering "auto-save" where nothing can
-    ///     be saved would be the same lie one layer down.
+    ///     Whether a sidecar could be written here at all. See
+    ///     <see cref="AnnotationSessionController.CanAutoSave" />; drives the toggle's enabled state.
     /// </summary>
     public bool CanAutoSave => _controller.CanAutoSave;
 
@@ -377,25 +374,15 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     ///     Whether the <c>hold</c> spinner is offered — <see cref="EnvelopeMode.Fade" /> and
     ///     <see cref="EnvelopeMode.RealTime" />, the two modes whose window is relative to a moment
     ///     rather than typed in absolute ticks.
-    ///     <para>
-    ///         A SEPARATE bool from <see cref="IsFadeEnvelope" /> even though it started as its twin: that
-    ///         one answers "which mode is this", which the two per-mode spinner groups key off, and this
-    ///         one answers "does this control belong on the row". Binding a control to the mode question
-    ///         is what makes a third mode that wants the same control an edit in two places with one of
-    ///         them easy to miss.
-    ///     </para>
-    ///     <para>
-    ///         RealTime wants it for the reason plan D7 §3 gives: each section runs the element's own
-    ///         trapezoid shifted by the offset it was drawn at, so a hold that outlasts the draw shows the
-    ///         whole stroke at once and then dissolves from the start, and one that does not makes the
-    ///         stroke chase its own tail. Both are useful, and the same number produces them.
-    ///     </para>
-    ///     <para>
-    ///         <see cref="EnvelopeMode.Round" /> does NOT want it, and that is the payoff of the split
-    ///         above: its window is the round, so a hold would be a second, contradictory answer to
-    ///         "how long" — and excluding it was one edit here, not one here and one in the XAML.
-    ///     </para>
     /// </summary>
+    /// <remarks>
+    ///     A separate bool from <see cref="IsFadeEnvelope" />: that one answers "which mode is this",
+    ///     which the per-mode spinner groups key off, and this one answers "does this control belong on
+    ///     the row". RealTime wants a hold because each section replays its own trapezoid shifted by its
+    ///     draw offset, so the hold decides whether the stroke shows whole and dissolves, or chases its
+    ///     own tail. <see cref="EnvelopeMode.Round" /> does not want it: its window is the round itself, so
+    ///     a hold would be a second, contradictory answer to "how long".
+    /// </remarks>
     public bool IsHoldEnvelope => Visibility is EnvelopeMode.Fade or EnvelopeMode.RealTime;
 
     /// <summary>True while a drawing tool owns the surface — what shadows Space and Esc in the keymap.</summary>
@@ -416,14 +403,15 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     /// <summary>Whether redo is available.</summary>
     public bool CanRedo => RedoDepth > 0;
 
-    // ── Gesture hints (D4, closing D1's follow-up) ───────────────────────────────────────────────────
+    // ── Gesture hints ────────────────────────────────────────────────────────────────────────────────
     // Every gesture the toolbar names used to be spelled out in the XAML — "(D)", "Ctrl+Z", "Space to
-    // pan". Keys became user-configurable in D1, so each of those went stale the first time anyone
-    // rebound one, silently and in the one place a user goes to LEARN the gesture.
+    // pan". Keys became user-configurable, so each of those went stale the first time anyone rebound
+    // one, silently and in the one place a user goes to LEARN the gesture.
     //
     // The profile is PUSHED here by the tab (ApplyKeymap) rather than pulled through a $parent binding:
     // the toolbar binds this panel, and it is also mounted directly in tests. Seeding with the shipped
-    // Default means a panel nobody pushed to still shows the real shipped gestures instead of blanks.
+    // Default means a panel that never received a push still shows the real shipped gestures instead of
+    // blanks.
 
     private Playback2DKeymapProfile _keymap = Playback2DKeymapProfile.Default;
 
@@ -654,8 +642,8 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
         Session.FadeInTicks = Math.Max(0, value);
 
         // The seconds companion is a projection of this, so it is raised HERE and not from its own
-        // setter: a tick value that moved for any other reason — a settings seed, a demo attach that
-        // changed the rate — has to re-reach the spinner too.
+        // setter: a tick value that moved for any other reason (a settings seed, a demo attach that
+        // changed the rate) has to re-reach the spinner too.
         OnPropertyChanged(nameof(FadeInSeconds));
         PushCustomWindow();
     }
@@ -715,7 +703,7 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     }
 
     // Only when the controller says the list moved: RefreshFromController runs on every document change,
-    // and rebuilding eight bindings per stroke would be churn nobody can see.
+    // and rebuilding eight bindings per stroke would be churn with no visible effect.
     private void SyncRecentColors()
     {
         if (_recentColorsVersion == _controller.RecentColorsVersion)
@@ -790,8 +778,8 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     // on every document change, and the rate changes once per demo.
     //
     // It has to be watched at all because it is the ONE thing on this panel a demo attach changes with no
-    // tick moving anywhere — a 128-tick parse replacing a 64-tick one leaves every stored duration
-    // exactly where it was and every DISPLAYED one wrong — so no [ObservableProperty] setter would fire.
+    // tick moving anywhere: a 128-tick parse replacing a 64-tick one leaves every stored duration exactly
+    // where it was and every DISPLAYED one wrong, so no [ObservableProperty] setter would fire.
     private void SyncTickRate()
     {
         if (_lastTicksPerSecond == Session.TicksPerSecond)

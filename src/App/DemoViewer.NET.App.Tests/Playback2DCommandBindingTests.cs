@@ -22,45 +22,30 @@ internal sealed record CommandBinding(string Owner, string Name, IReadOnlyList<s
 }
 
 /// <summary>
-///     <b>D6 §4 guard 2 — every generated command on a Playback2D view-model is reachable from production.</b>
+///     <b>Every generated command on a Playback2D view-model is reachable from production.</b> The AUTO
+///     level-follow chip is a <c>ToggleButton</c> with <c>IsChecked="{Binding IsAutoEnabled}"</c>, which
+///     reaches the property and skips <c>EnableAutoCommand</c> — the only path that raised
+///     <c>SettingsChanged</c>. AUTO applied instantly, looked right, and was forgotten on the next launch,
+///     because a string-based binding makes "is this command used?" invisible to the compiler, the
+///     analyzer and a C#-only grep.
 ///     <para>
-///         G3: <b>the XAML binds around the code path that does the extra work.</b> The AUTO level-follow
-///         chip is a <c>ToggleButton</c> with <c>IsChecked="{Binding IsAutoEnabled}"</c>, which reaches the
-///         property and skips <c>EnableAutoCommand</c> — the only path that raised <c>SettingsChanged</c>.
-///         So AUTO applied instantly, looked right, and was forgotten on the next launch. A string-based
-///         binding makes "is this command used?" invisible to the compiler, to the analyzer and to a
-///         C#-only grep, and the test drove the command the UI does not take.
+///         Which commands exist is metadata (a public get-only property in
+///         <c>CommunityToolkit.Mvvm.Input</c>); whether anything names one is text, because an
+///         <c>.axaml</c> binding is a string that compiles to nothing. Doc comments are stripped from the
+///         corpus first, so <c>&lt;see cref="EnableAutoCommand" /&gt;</c> does not count as a binding.
 ///     </para>
 ///     <para>
-///         <b>Reflection for the question, source for the answer.</b> Which commands exist is metadata (a
-///         public get-only property in <c>CommunityToolkit.Mvvm.Input</c>); whether anything names one is
-///         text, because an <c>.axaml</c> binding is a string and compiles to nothing. Doc comments are
-///         stripped from the corpus first — <c>&lt;see cref="EnableAutoCommand" /&gt;</c> is not a binding.
-///     </para>
-///     <para>
-///         <b>Known limitation, stated rather than hidden:</b> the match is by name, so two view-models
-///         with a same-named command share evidence (<c>SelectCommand</c> exists on both
-///         <c>LevelStripViewModel</c> and the shell's inspector card). That can only ever HIDE a defect,
-///         never invent one, and every match is printed with its file so an implausible attribution is
-///         visible in the log.
+///         The match is by name, so two view-models with a same-named command share evidence
+///         (<c>SelectCommand</c> exists on both <c>LevelStripViewModel</c> and the shell's inspector
+///         card). That can only hide a defect, never invent one, and every match is printed with its file.
 ///     </para>
 /// </summary>
 public class Playback2DCommandBindingTests
 {
     /// <summary>
-    ///     Commands knowingly reachable from nowhere. The reason is the entry; a bare name defeats the guard.
-    ///     <para>
-    ///         <b>Empty, and that is the point.</b> Round 3A dropped <c>[RelayCommand]</c> from
-    ///         <c>Playback2DTabViewModel.FollowPlayer</c> and <c>.ClearFollow</c> — both were always
-    ///         called as methods (the card list's selection hook, the Escape binding, the follow funnel),
-    ///         so the generated wrappers were surface with no consumer — and the two entries that named
-    ///         them went with the attributes. An entry added here needs a reason and a delete-condition;
-    ///         <c>TheUnboundAllowList_NamesExactlyTheCommandsThatWouldFail</c> deletes it for you the day
-    ///         it stops being true.
-    ///     </para>
+    ///     The sweep exempts nothing: <c>Playback2DTabViewModel.FollowPlayer</c> and <c>.ClearFollow</c>
+    ///     are plain methods, not commands, because every caller invokes them directly.
     /// </summary>
-    private static readonly Dictionary<string, string> _unboundByDesign = new(StringComparer.Ordinal);
-
     [Test]
     public async Task EveryPlayback2dCommand_IsNamedByAnAxamlOrByProductionCSharp()
     {
@@ -76,7 +61,7 @@ public class Playback2DCommandBindingTests
             .Because("the module's view-models carry the D-track command set, not a stub");
 
         List<string> unbound = commands
-            .Where(c => !c.IsReachable && !_unboundByDesign.ContainsKey($"{c.Owner}.{c.Name}"))
+            .Where(c => !c.IsReachable)
             .Select(c => c.Describe())
             .OrderBy(s => s, StringComparer.Ordinal)
             .ToList();
@@ -84,59 +69,6 @@ public class Playback2DCommandBindingTests
         await Assert.That(string.Join("; ", unbound)).IsEqualTo("")
             .Because("a command bound nowhere is either dead surface or — the AUTO toggle's case — a "
                      + "control that reaches the property and skips the work the command also does");
-    }
-
-    /// <summary>
-    ///     <b>D6 round 3A, findings from the guard's own allow-list.</b> <c>FollowPlayer(int)</c> and
-    ///     <c>ClearFollow()</c> carried <c>[RelayCommand]</c> and nothing anywhere bound the generated
-    ///     wrappers — every caller invokes the METHODS directly (the card list's selection hook, the
-    ///     Escape binding, the follow funnel, the demo-reset path).
-    ///     <para>
-    ///         Named explicitly rather than left to the sweep above, because the sweep proves "no command
-    ///         is unreachable" and this proves "these two commands are gone". A future edit that
-    ///         re-attaches the attribute AND binds the wrapper somewhere would satisfy the sweep while
-    ///         re-introducing two paths to the follow funnel — which is the thing worth refusing.
-    ///     </para>
-    /// </summary>
-    [Test]
-    [Arguments("FollowPlayerCommand")]
-    [Arguments("ClearFollowCommand")]
-    public async Task TheFollowMethods_ExposeNoGeneratedCommand(string command)
-    {
-        PropertyInfo? property = typeof(Playback2DTabViewModel)
-            .GetProperty(command, BindingFlags.Public | BindingFlags.Instance);
-
-        Console.WriteLine($"[command-binding] {command} → {(property is null ? "absent" : "PRESENT")}");
-
-        await Assert.That(property).IsNull()
-            .Because("a command on a method every caller invokes directly is generated surface with no "
-                     + "consumer — and a second route into the single follow funnel besides");
-
-        // The method itself must survive: this was a deletion of the attribute, never of the behaviour.
-        await Assert.That(typeof(Playback2DTabViewModel)
-                .GetMethod(command[..^"Command".Length], BindingFlags.Public | BindingFlags.Instance))
-            .IsNotNull();
-    }
-
-    /// <summary>
-    ///     The allow-list must name exactly the commands that would fail without it, and each entry must
-    ///     say why. An entry that has become stale is deleted, not left as cover.
-    /// </summary>
-    [Test]
-    public async Task TheUnboundAllowList_NamesExactlyTheCommandsThatWouldFail()
-    {
-        HashSet<string> failing = Analyse(Playback2DWholeGraph.ModuleTypes)
-            .Where(c => !c.IsReachable)
-            .Select(c => $"{c.Owner}.{c.Name}")
-            .ToHashSet(StringComparer.Ordinal);
-
-        Console.WriteLine($"[command-binding] without the allow-list: {string.Join(", ", failing)}");
-
-        await Assert.That(string.Join(", ", _unboundByDesign.Keys.Where(k => !failing.Contains(k))))
-            .IsEqualTo("")
-            .Because("an allow-list entry for a command that IS bound now is dead weight");
-        await Assert.That(_unboundByDesign.Values.All(r => r.Length > 40)).IsTrue()
-            .Because("§4: an allow-list entry must carry WHY, not just a name");
     }
 
     /// <summary>
@@ -171,7 +103,7 @@ public class Playback2DCommandBindingTests
     /// <summary>
     ///     The matcher itself, against a synthetic corpus. Whole-word or nothing (so
     ///     <c>UndoCommand</c> is not evidence for <c>RedoCommand</c>), and a doc comment is not a binding —
-    ///     the mistake this whole audit is about is believing a comment that describes the missing half.
+    ///     a comment describing the missing half must not count as one.
     /// </summary>
     [Test]
     public async Task TheMatcher_IgnoresDocComments_AndDoesNotMatchInsideALongerIdentifier()
@@ -230,8 +162,8 @@ public class Playback2DCommandBindingTests
 /// <summary>
 ///     The canary for
 ///     <see cref="Playback2DCommandBindingTests.TheScan_ReportsACommandNothingBinds_AndClearsOneTheXamlDoesBind" />.
-///     Its command name appears in no production source, which is the whole point — if this ever starts
-///     coming back "reachable", the corpus has grown to include something it must not.
+///     Its command name appears in no production source by design — if this ever starts coming back
+///     "reachable", the corpus has grown to include something it must not.
 /// </summary>
 internal sealed class CommandGuardCanaryViewModel
 {

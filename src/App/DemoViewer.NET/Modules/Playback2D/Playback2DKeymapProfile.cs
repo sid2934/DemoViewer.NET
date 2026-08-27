@@ -11,7 +11,6 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///     <see cref="Playback2DKeymap" /> table with the user's
 ///     <c>Playback2DSettings.KeybindOverrides</c> composed over it.
 ///     <para>
-///         <b>Why this is a second type rather than a mutable static table.</b>
 ///         <see cref="Playback2DKeymap" />'s static constructor THROWS on a conflicting table. That is
 ///         right for a table compiled into the binary — a collision is a bug, and it should fail at first
 ///         touch. It is fatal for one assembled from a hand-editable JSON settings file: a single typo
@@ -83,7 +82,7 @@ public sealed class Playback2DKeymapProfile
     public bool IsOverridden(Playback2DAction action) => _overridden.Contains(action);
 
     /// <summary>
-    ///     Composes <paramref name="overrides" /> — <c>"Action=Gesture"</c> rows, e.g. <c>"NextRound=Shift+R"</c> —
+    ///     Composes <paramref name="overrides" /> (<c>"Action=Gesture"</c> rows, e.g. <c>"NextRound=Shift+R"</c>)
     ///     over the shipped table. NEVER throws: a row that is malformed, names an unknown or reserved
     ///     action, carries an unparseable gesture, shadows a shell accelerator, or duplicates another
     ///     binding within its scope is dropped and reported in <paramref name="rejected" />.
@@ -208,39 +207,15 @@ public sealed class Playback2DKeymapProfile
     }
 
     /// <summary>
-    ///     Builds the persisted row for a gesture. Written with the tokens <see cref="KeyGesture.Parse" />
-    ///     accepts, never the display text — <c>"←"</c> and <c>"Esc"</c> are for human eyes and would not
-    ///     survive the next load.
+    ///     Builds the persisted row for a gesture. The gesture itself comes from the one formatter the
+    ///     display text also comes from, asked for the tokens <see cref="KeyGesture.Parse" /> accepts
+    ///     rather than the human ones — <c>"←"</c> and <c>"Esc"</c> would not survive the next load.
     /// </summary>
     /// <param name="action">The action being rebound.</param>
     /// <param name="key">The key.</param>
     /// <param name="modifiers">The modifiers.</param>
-    public static string Row(Playback2DAction action, Key key, KeyModifiers modifiers)
-    {
-        List<string> parts = new(5);
-        if (modifiers.HasFlag(KeyModifiers.Control))
-        {
-            parts.Add("Ctrl");
-        }
-
-        if (modifiers.HasFlag(KeyModifiers.Shift))
-        {
-            parts.Add("Shift");
-        }
-
-        if (modifiers.HasFlag(KeyModifiers.Alt))
-        {
-            parts.Add("Alt");
-        }
-
-        if (modifiers.HasFlag(KeyModifiers.Meta))
-        {
-            parts.Add("Meta");
-        }
-
-        parts.Add(key.ToString());
-        return $"{action}={string.Join("+", parts)}";
-    }
+    public static string Row(Playback2DAction action, Key key, KeyModifiers modifiers) =>
+        $"{action}={Playback2DKeymap.Format(key, modifiers, display: false)}";
 
     /// <summary>
     ///     Resolves a keypress against THIS profile. Same two rules as the shipped table: a tool-scoped

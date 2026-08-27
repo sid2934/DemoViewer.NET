@@ -16,28 +16,29 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <b>D6 §4b — the browser head, and telling the user the truth about it.</b>
+///     <b>The browser head, and telling the user the truth about it.</b>
 ///     <para>
 ///         The WASM gate itself is complete: a sweep found no ungated desktop-only capability. Every
 ///         defect here is about a surface that behaves differently in the browser and says nothing. A
 ///         grep of every Settings view for <c>session only|not saved|forgets|reload</c> returned <b>zero
-///         hits</b> before round 3A, while B5 had already written exactly that sentence for annotations.
+///         hits</b> at one point, even though the same sentence already existed for annotations.
 ///     </para>
 ///     <para>
 ///         <c>OperatingSystem.IsBrowser()</c> is a JIT-folded intrinsic that cannot be faked from
 ///         outside, so every surface under test takes an injected host predicate — the same seam
-///         <c>ShellModuleFeatureGate</c> and <c>AnnotationSessionController</c> use. Without it these are
-///         sentences nobody has ever seen rendered, which is how the last three shipped.
+///         <c>ShellModuleFeatureGate</c> and <c>AnnotationSessionController</c> use. Without it, none of
+///         these sentences are exercised by anything.
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DBrowserHonestyTests
 {
     /// <summary>
-    ///     <b>D1's keybinding overrides are memory-only in the browser.</b> <c>SettingsService</c> takes
+    ///     <b>Keybinding overrides are memory-only in the browser.</b> <c>SettingsService</c> takes
     ///     its fileless in-memory provider on the browser head, so a user can rebind twenty gestures,
-    ///     watch every one apply live, and lose the lot on refresh. B5 fixed this exact class for
-    ///     annotations; D1 shipped a new persisted surface without repeating it.
+    ///     watch every one apply live, and lose the lot on refresh. The same fix already shipped for
+    ///     annotations; keybindings shipped a new persisted surface without repeating it.
     /// </summary>
     [Test]
     public async Task Keybindings_SayTheyAreSessionOnly_OnTheBrowserHeadAndNowhereElse()
@@ -52,10 +53,11 @@ public class Playback2DBrowserHonestyTests
 
                 await Assert.That(browser.KeybindsPersist).IsFalse();
                 await Assert.That(browser.KeybindPersistenceNote).IsNotEmpty()
-                    .Because("a rebind that dies on refresh with nothing said is D1's whole §4b entry");
+                    .Because("a rebind that dies on refresh with nothing said is exactly the defect this "
+                             + "guards against");
                 await Assert.That(browser.KeybindPersistenceNote).Contains("Session only");
                 await Assert.That(browser.KeybindPersistenceNote).Contains("reload")
-                    .Because("B5's annotation sentence names the reload, because that is the moment the "
+                    .Because("the annotation sentence names the reload, because that is the moment the "
                              + "user loses the work");
             }
 
@@ -111,8 +113,7 @@ public class Playback2DBrowserHonestyTests
     ///     platform.</b> Modules read the same ids through <c>ShellModuleFeatureGate</c>, whose
     ///     <c>DesktopOnlyIds</c> forces a set of them off on the browser — so the browser showed a live,
     ///     ON "Video export" toggle for a capability refused one layer out, and flipping it persisted an
-    ///     override nothing would ever honour. <c>wasm-matrix.md</c> recorded this as a D4 follow-up;
-    ///     D4 shipped without it.
+    ///     override nothing would ever honour. This was a known gap that shipped unfixed.
     /// </summary>
     [Test]
     public async Task TheFeatureList_ShowsADesktopOnlyFeatureAsUnavailable_OnTheBrowserHead()

@@ -12,13 +12,13 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     <b>The byte-exact half of B1's exit criterion.</b> The parity gate proves the port landed where
-///     the pre-v2 control was; this proves it stays there. Same fixture, same <c>dt</c>, same pixels —
-///     every time, on this machine, in this process.
+///     <b>The byte-exact half of the port's exit criterion.</b> The parity gate proves the port landed
+///     where the pre-v2 control was; this proves it stays there. Same fixture, same <c>dt</c>, same
+///     pixels — every time, on this machine, in this process.
 ///     <para>
 ///         It is also what makes export trustworthy: a frame rendered twice must be the same frame, or
-///         an encoder's inter-frame compression is being fed noise and a "deterministic export" is a
-///         claim nobody checked.
+///         an encoder's inter-frame compression is being fed noise and "deterministic export" is an
+///         unverified claim.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -51,7 +51,7 @@ public class SceneDeterminismTests
     /// <summary>
     ///     Draw order is <c>(Slot, Order, Id)</c>, so the sequence is a pure function of the registered
     ///     set. Registering the same layers in a different order must therefore produce the same image —
-    ///     otherwise a golden silently depends on construction order, and B2 or B4 adding a layer would
+    ///     otherwise a golden silently depends on construction order, and adding a layer would
     ///     re-baseline the corpus for no visible reason.
     /// </summary>
     [Test]
@@ -89,7 +89,7 @@ public class SceneDeterminismTests
     ///     reports. Fed the same <c>dt</c>, they must agree: the drawing is a function of the frame and
     ///     the injected clock, never of why somebody asked for it.
     ///     <para>
-    ///         <c>RenderPurpose</c> is <b>reserved</b> — no layer branches on it at all (D6 finding 28),
+    ///         <c>RenderPurpose</c> is <b>reserved</b> — no layer branches on it at all,
     ///         which <see cref="RenderPurposeTests" /> owns end to end including <c>Thumbnail</c>. This
     ///         case stays because it asks a different question: determinism across the two purposes
     ///         production actually submits.
@@ -175,7 +175,7 @@ public class SceneDeterminismTests
 ///     produces it, and writes the file when <c>PB2D_GOLDEN_UPDATE=1</c>.
 ///     <para>
 ///         The budget scene is authored in code (<see cref="SyntheticScenes" />) rather than captured,
-///         but it is still a corpus entry: C1's <c>dv2d</c> loads it by name and B4 exports it. Two
+///         but it is still a corpus entry: <c>dv2d</c> loads it by name and export renders it. Two
 ///         copies of a fixture that can drift is worse than either, so this asserts they agree and
 ///         regenerates on request.
 ///     </para>

@@ -15,6 +15,7 @@ namespace DemoViewer.NET.AppTests;
 ///     hop; this covers the wiring between them.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DFollowCardRenderTests
 {
     [Test]

@@ -22,8 +22,8 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The kill-feed window. Ported verbatim from the view-model's own cases, because the point of
-///     B4 D5 is that there is now exactly ONE of these and both feeds go through it.
+///     The kill-feed window. Ported verbatim from the view-model's own cases, because the point is
+///     that there is now exactly ONE of these and both feeds go through it.
 /// </summary>
 public class KillFeedTimelineTests
 {
@@ -92,11 +92,11 @@ public class KillFeedTimelineTests
     ///     Two identical windows, and the SECOND is the one asserted on — the form
     ///     <see cref="BudgetTests.FullScene_SteadyState_AllocatesNothing" /> uses and documents.
     ///     <para>
-    ///         This case used to measure ONE window after a warmup loop, and it failed once during D6
-    ///         round 1 and passed on retry. That is the JIT-tiering hazard <c>BudgetTests</c> describes:
-    ///         a single small allocation appears at a varying iteration while the runtime re-tiers the
-    ///         loop body, whatever the body does, and never recurs. Charging it to the budget either makes
-    ///         the gate flaky or forces the budget above zero, and zero is the assertion worth having.
+    ///         This case used to measure ONE window after a warmup loop, and it failed once and passed
+    ///         on retry. That is the JIT-tiering hazard <c>BudgetTests</c> describes: a single small
+    ///         allocation appears at a varying iteration while the runtime re-tiers the loop body,
+    ///         whatever the body does, and never recurs. Charging it to the budget either makes the gate
+    ///         flaky or forces the budget above zero.
     ///     </para>
     /// </summary>
     [Test]
@@ -169,8 +169,8 @@ public class TimelineHudDataSourceTests
         // The readers are not, and this assertion is the correction: they answer for whatever FRAME the
         // source built most recently, not for the tick. CS2 emits several demo frames per tick, so two
         // consecutive output frames can share one — and a snapshot cached by tick alone handed the second
-        // of them the first one's scoreboard and the first one's roster (D6 finding 32). Re-asking costs
-        // two delegate calls over state the frame source has already computed.
+        // of them the first one's scoreboard and the first one's roster. Re-asking costs two delegate
+        // calls over state the frame source has already computed.
         await Assert.That(clockCalls).IsEqualTo(4);
     }
 
@@ -363,15 +363,14 @@ public class FfmpegAcquisitionTests
             await Assert.That(offer).IsNotNull();
             await Assert.That(offer!.LicenseName).IsEqualTo("LGPL-2.1");
 
-            // Never a "-latest-" asset: BtbN re-points those, and a pin that moves is not a pin (plan R5).
+            // Never a "-latest-" asset: BtbN re-points those, and a pin that moves is not a pin.
             await Assert.That(offer.Url).DoesNotContain("-latest-");
             await Assert.That(offer.Url).Contains(FfmpegAcquisition.ReleaseTag);
             await Assert.That(offer.ArchiveSha256.Length).IsEqualTo(64);
         }
         else
         {
-            // macOS and Linux get install instructions and the GIF floor, not a download (plan D9 plus
-            // the .tar.xz deviation).
+            // macOS and Linux get install instructions and the GIF floor, not a download.
             await Assert.That(offer).IsNull();
         }
     }
@@ -470,8 +469,8 @@ public class FfmpegAcquisitionTests
             failure = ex;
         }
 
-        // A 404 on the pin is a "recheck the pin each release" event (R5), and to the user it must read
-        // as "install ffmpeg or export GIF", not as a stack trace.
+        // A 404 on the pin is a "recheck the pin each release" event, and to the user it must read as
+        // "install ffmpeg or export GIF", not as a stack trace.
         await Assert.That(failure).IsNotNull();
         await Assert.That(failure!.Message).Contains("GIF");
     }
@@ -539,7 +538,7 @@ public class FfmpegAcquisitionTests
 }
 
 /// <summary>
-///     The B4.16 seam proof: the whole export path drives from Pipeline alone. If this ever needs an App
+///     The seam proof: the whole export path drives from Pipeline alone. If this ever needs an App
 ///     type, <c>dv2d export</c> cannot exist and the CLI front end is a fiction.
 /// </summary>
 public class ExportSeamHeadlessTests

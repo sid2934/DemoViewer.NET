@@ -29,6 +29,7 @@ namespace DemoViewer.NET.AppTests;
 ///     <see cref="NotInParallelAttribute" /> because the render cases share the single headless UI session.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class SettingsViewModelTests
 {
     private static string NewTempDir()

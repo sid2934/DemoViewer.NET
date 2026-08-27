@@ -9,25 +9,21 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Hud;
 
 /// <summary>
 ///     An <see cref="IHudDataSource" /> over a pre-built kill timeline plus a caller-supplied clock
-///     function. The production implementation of plan D4's "HUD is a pure function of tick".
+///     function — the production implementation of "HUD state is a pure function of tick".
 ///     <para>
 ///         The clock half is a delegate rather than a second timeline because its source differs by
 ///         caller: the app already has <c>SceneGameInfo</c> per frame, while <c>dv2d</c> derives it from
 ///         the tracker. Both hand this type the same tuple, so the exported clock and the XAML clock
-///         cannot disagree about what "round 13, 1:55" means.
+///         cannot disagree about what "round 13, 1:55" means. The roster half is a delegate for the same
+///         reason: the production reader is one expression, <c>rosterAt: _ =&gt; src.LastRoster</c>, over
+///         the export's own <c>TrackerFrameSource</c>. Left null the roster is empty and
+///         <c>hud.roster</c> draws nothing, which is what a fixture render and a clock-only export both
+///         want.
 ///     </para>
 ///     <para>
-///         <b>One list, reused.</b> <see cref="At" /> caches its last answer by tick, so the three HUD
-///         layers asking for the same frame do the windowing once and neither the window nor the
-///         snapshot allocates per frame (design §6).
-///     </para>
-///     <para>
-///         <b>The roster half is a delegate for the same reason the clock half is</b> (D3b): its source
-///         differs by caller, it is a function of the frame being drawn rather than of a pre-built
-///         timeline, and the production reader is one expression —
-///         <c>rosterAt: _ =&gt; src.LastRoster</c> over the export's own
-///         <c>TrackerFrameSource</c>. Left null the roster is empty and <c>hud.roster</c> draws nothing,
-///         which is what a fixture render and a clock-only export both want.
+///         <b>One list, reused.</b> <see cref="At" /> caches its last answer by tick (design §6), so the
+///         three HUD layers asking for the same frame do the windowing once and neither the window nor
+///         the snapshot allocates per frame.
 ///     </para>
 /// </summary>
 public sealed class TimelineHudDataSource : IHudDataSource
@@ -89,7 +85,7 @@ public sealed class TimelineHudDataSource : IHudDataSource
         // moved on. Caching the whole snapshot by tick alone meant the second of those frames drew the
         // first one's cards and the first one's scoreboard — invisible in the app, where the roster is
         // the builder's pooled list, but not in an export: SceneFrameBuilder double-buffers, so the
-        // stale snapshot holds the OTHER slot's list, still carrying the previous frame (D6 finding 32).
+        // stale snapshot holds the OTHER slot's list, still carrying the previous frame.
         //
         // Re-asking costs two delegate calls and nothing else — both readers hand back state the frame
         // source already computed, and ClockReading.From memoises the one string it formats.
@@ -134,9 +130,9 @@ public readonly record struct ClockReading(
 {
     // Round numbers as strings, filled on demand. int.ToString allocates, and this runs once per HUD
     // layer per frame — three times a frame on a full export stack, since TimelineHudDataSource.At
-    // re-asks its readers rather than trusting a tick-keyed cache (D6 finding 32). A match has a few
-    // dozen rounds; the array covers every one of them and overtime besides. A benign race on a slot
-    // costs two identical strings, never a wrong one.
+    // re-asks its readers every time (see its own comment). A match has a few dozen rounds; the array
+    // covers every one of them and overtime besides. A benign race on a slot costs two identical
+    // strings, never a wrong one.
     private static readonly string[] _roundText = new string[128];
 
     /// <summary>The reading for a tick with no game-rules state. Renders placeholders.</summary>

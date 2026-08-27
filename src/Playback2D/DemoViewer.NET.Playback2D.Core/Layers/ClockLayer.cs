@@ -14,32 +14,32 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///     round number beneath them, and — while a defuse is under way — the defuse-versus-detonation race,
 ///     all exactly as <c>SceneGameInfo</c> defines it.
 ///     <para>
-///         <b>What D3b changed and why.</b> The strip was one grey line reading
-///         <c>"Round 12    T 7 : 5 CT"</c> over a countdown at the same weight, and it never drew
-///         <c>DefuseInProgress</c> / <c>DefuseSeconds</c> at all — the two fields that decide the round.
-///         Colour and size carry the hierarchy now (there is no bold face to reach for; see
-///         <see cref="TextBlobCache" />): the countdown is the largest thing on screen, each side's score
-///         sits on its own team token, and the defuse line is drawn in the colour of whoever is winning
-///         the race.
+///         <b>Colour and size carry the hierarchy.</b> There is no bold face to reach for (see
+///         <see cref="TextBlobCache" />), so the countdown is the largest thing on screen, each side's
+///         score sits on its own team token, and the defuse line is drawn in the colour of whoever is
+///         winning the race. Strings are composed into two small keyed caches and shaped once by
+///         <see cref="TextBlobCache" />, so there is no per-frame shaping cost.
 ///     </para>
 ///     <para>
-///         <b>Off unless requested.</b> Registered by the export session only when
-///         <c>ExportRequest.LayerIds</c> names <c>hud.clock</c>; an export never burns in a scoreboard by
-///         accident.
-///     </para>
-///     <para>
-///         <b>One pane, not one per pane.</b> The compositor renders every layer once per band, and a
-///         clock repeated on each floor of a two-level Nuke export would be wrong. It draws only in the
-///         band whose top edge is the host's, which is exactly one pane under any tiling layout — and is
-///         also the single-pane case, whose default snapshot has a zero rectangle.
-///     </para>
-///     <para>
-///         <b>No per-frame shaping</b> (design §6): strings are composed into two small keyed caches and
-///         shaped once by <see cref="TextBlobCache" />.
+///         <b>Off unless requested, and drawn once per pane.</b> Registered by the export session only
+///         when <c>ExportRequest.LayerIds</c> names <c>hud.clock</c>; an export never burns in a
+///         scoreboard by accident. The compositor renders every layer once per band, so a clock repeated
+///         on each floor of a two-level Nuke export would be wrong — it draws only in the band whose top
+///         edge is the host's, which is exactly one pane under any tiling layout, and also the
+///         single-pane case, whose default snapshot has a zero rectangle.
 ///     </para>
 /// </summary>
 public sealed class ClockLayer : ISceneLayer
 {
+    /// <summary>
+    ///     Secondary HUD text — the round caption, a kill row's middle run, a card's weapon and K/D/A.
+    ///     Shared by all three HUD layers because it is one typographic role, not three.
+    /// </summary>
+    internal const uint DimTextArgb = 0xFF9AA4AFu;
+
+    // Text drawn ON a team-coloured fill; DrawScoreBox's caller says why it is near-black.
+    private const uint OnTeamArgb = 0xFF12161Au;
+
     private readonly Dictionary<CountdownKey, string> _countdowns = new(256);
     private readonly IHudDataSource _data;
     private readonly Dictionary<int, string> _defuses = new(128);
@@ -172,7 +172,7 @@ public sealed class ClockLayer : ISceneLayer
         float below = rowTop + topRowH;
         if (caption is { } roundCaption)
         {
-            _paint.Color = new SKColor(_style.DimTextArgb);
+            _paint.Color = new SKColor(DimTextArgb);
             (float rx, float ry) = roundCaption.OriginForTopLeft(
                 centreX - (roundCaption.Width / 2), below);
             canvas.DrawText(roundCaption.Blob, rx, ry, _paint);
@@ -205,7 +205,7 @@ public sealed class ClockLayer : ISceneLayer
         _paint.Color = team;
         canvas.DrawRoundRect(new SKRect(left, top, left + boxW, top + boxH), 3f, 3f, _paint);
 
-        _paint.Color = new SKColor(_style.OnTeamArgb);
+        _paint.Color = new SKColor(OnTeamArgb);
         (float x, float y) = score.OriginForTopLeft(
             left + ((boxW - score.Width) / 2), top + ((boxH - score.Height) / 2));
         canvas.DrawText(score.Blob, x, y, _paint);
