@@ -69,6 +69,7 @@ public class TextBlobCacheTests
     }
 
     [Test]
+    [Category("Budget")]
     public async Task Get_SteadyState_AllocatesNothing()
     {
         using TextBlobCache cache = new();

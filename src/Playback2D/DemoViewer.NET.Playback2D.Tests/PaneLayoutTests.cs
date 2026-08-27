@@ -145,6 +145,7 @@ public class PaneLayoutTests
     ///     written.
     /// </summary>
     [Test]
+    [Category("Budget")]
     public async Task Reconcile_WithNothingChanged_IsAllocationFreeAndReturnsFalse()
     {
         PaneSet panes = Build(2, 800, 600);
@@ -169,6 +170,7 @@ public class PaneLayoutTests
     }
 
     [Test]
+    [Category("Budget")]
     public async Task CopySnapshots_IsAllocationFreeAfterTheListHasGrown()
     {
         PaneSet panes = Build(2, 800, 600);

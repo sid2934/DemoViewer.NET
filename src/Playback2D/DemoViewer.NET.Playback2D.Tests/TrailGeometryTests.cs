@@ -88,6 +88,7 @@ public class TrailGeometryTests
     }
 
     [Test]
+    [Category("Budget")]
     public async Task NonAllocatingOverload_AllocatesNothingOnceTheBufferHasGrown()
     {
         GrenadeTrailPoint[] points = new GrenadeTrailPoint[256];

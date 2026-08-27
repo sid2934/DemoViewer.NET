@@ -498,6 +498,7 @@ public class RenderCorrectnessTests
     // ── 24 · MapSpaceFactory.Update allocates on the histogram path ──────────────────────────────────
 
     [Test]
+    [Category("Budget")]
     public async Task TheHistogramPath_AllocatesNothingPerFrame()
     {
         // The branch every user without a baked map bundle is on, and the one the §6 budget gate has
@@ -505,8 +506,8 @@ public class RenderCorrectnessTests
         // FloorSplitter.Observe marks the histogram dirty for EVERY marker, so the Slices read below
         // recomputed in full every frame — a List, an int[] and two more Lists, measured at 552 B/frame.
         //
-        // Kept out of [Category("Budget")] on purpose: this is a hundred milliseconds, and it is the one
-        // gate for the branch.
+        // Budget, like every other allocation figure in this repo. It stays the one gate for the branch
+        // — the budget lane is simply where that gate runs.
         MapSpaceFactory factory = new();
         Scene2DFrame frame = TwoFloorFrame();
 

@@ -179,6 +179,7 @@ public class PaneSetLevelRetentionTests
     }
 
     [Test]
+    [Category("Budget")]
     public async Task SingleMode_SteadyStateReconcile_IsAllocationFree()
     {
         MapSpace space = Three();

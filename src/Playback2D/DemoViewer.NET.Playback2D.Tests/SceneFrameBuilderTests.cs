@@ -446,6 +446,7 @@ public class SceneFrameBuilderTests
     }
 
     [Test]
+    [Category("Budget")]
     public async Task Build_TwiceInARow_AllocatesUnderTheSteadyStateBudget()
     {
         SceneFrameBuilder builder = new();
@@ -506,6 +507,7 @@ public class SceneFrameBuilderTests
     ///     </para>
     /// </summary>
     [Test]
+    [Category("Budget")]
     public async Task MapWithoutSectionHeights_StopsRetrying()
     {
         SceneFrameBuilder builder = new();

@@ -125,6 +125,7 @@ public class LevelCrossingTrackerTests
     }
 
     [Test]
+    [Category("Budget")]
     public async Task Update_AllocatesNothing_InTheSteadyState()
     {
         MapSpace space = Two();

@@ -68,7 +68,12 @@ public class RenderFixtureTests
         }
     }
 
+    // Budget, for the same reason every allocation figure is: a wall-clock ceiling measures the
+    // machine as much as the code. This failed three times in one session at 1.6 s, 2.4 s and 6.4 s
+    // while concurrent builds loaded the box, and passed alone at 12 s for the whole suite. The
+    // budget lane is where a figure that can be wrong about a correct build belongs.
     [Test]
+    [Category("Budget")]
     public async Task WarmRender_IsUnderOneSecond()
     {
         string fixturePath = Path.Combine(Dv2d.CorpusDirectory, "scenes", "synthetic-empty.scene.json");

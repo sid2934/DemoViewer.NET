@@ -100,6 +100,7 @@ public class KillFeedTimelineTests
     ///     </para>
     /// </summary>
     [Test]
+    [Category("Budget")]
     public async Task ItReusesTheDestination_AndAllocatesNothingOnceWarm()
     {
         List<KillFeedRow> all = [];

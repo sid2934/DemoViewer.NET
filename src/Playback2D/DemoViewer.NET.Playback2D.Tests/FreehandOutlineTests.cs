@@ -191,6 +191,7 @@ public class FreehandOutlineTests
     /// </summary>
     [Test]
     [NotInParallel]
+    [Category("Budget")]
     public async Task NoAllocation_OnWarmLists()
     {
         InkPoint[] input = new InkPoint[64];

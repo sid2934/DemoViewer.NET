@@ -252,6 +252,76 @@ public partial class TestTierContractTests
     }
 
     /// <summary>
+    ///     A test that asserts an allocation figure must carry <see cref="TestTiers.Budget" />, the one
+    ///     tag the <c>playback2d-budget</c> lane selects back after every correctness lane has dropped it.
+    ///     <para>
+    ///         An exact-zero allocation window is GC- and JIT-timing sensitive, and three of them went
+    ///         red once and green on the re-run inside a single day. Untagged, each was running in
+    ///         <c>playback2d-tests</c>, both <c>render-backends</c> passes and the GPU lane — four
+    ///         blocking lanes for a figure the budget lane exists to measure, once, with
+    ///         <c>DV2D_BUDGET_SCALE</c> set.
+    ///     </para>
+    ///     <para>
+    ///         <b>Per method, and aimed at the assertion rather than at the counter.</b> An allocation
+    ///         window is normally one or two methods inside an otherwise behavioural class, so a
+    ///         class-scoped rule would drag their siblings out of the standard tier to silence itself. A
+    ///         method that reads the counter and only prints the number gates nothing and does not
+    ///         offend; what offends is an <c>Assert.That</c> on a value the counter produced, including
+    ///         one handed back by a measuring helper in the same class.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task EveryTestThatAssertsAnAllocationFigure_IsTaggedBudget()
+    {
+        string projectDirectory = RequireProjectDirectory();
+        Dictionary<string, ImmutableArray<string>> byMethod = CategoriesByMethod();
+
+        // Budget is the required tag because the standard tier drops it AND the budget lane selects it
+        // back; any other cost tag would drop the test out of the correctness lanes into nothing.
+        // Derived rather than assumed, so a change to the exclusion sets fails here rather than silently.
+        ImmutableArray<string> droppedByStandard = TestTiers.Exclusions[TestTiers.Standard];
+        await Assert.That(droppedByStandard.Contains(TestTiers.Budget, StringComparer.Ordinal)).IsTrue();
+
+        List<string> offenders = [];
+        foreach (string file in Directory.EnumerateFiles(projectDirectory, "*.cs", SearchOption.AllDirectories))
+        {
+            // Comment lines go before anything is matched, so a file that only DISCUSSES the counter is
+            // skipped, and a doc comment naming it is attributed to no member at all.
+            string code = WithoutCommentLines(await File.ReadAllTextAsync(file));
+            if (!MeasuresAllocation().IsMatch(code))
+            {
+                continue;
+            }
+
+            foreach ((string className, string classBody) in TopLevelClassBodies(code))
+            {
+                (string Name, string Body)[] members = [..MemberBodies(classBody)];
+                HashSet<string> measuring = MeasuringMembers(members);
+
+                foreach ((string name, string body) in members)
+                {
+                    if (!byMethod.TryGetValue($"{className}.{name}", out ImmutableArray<string> categories))
+                    {
+                        continue;   // Not a [Test] in this assembly — a helper, a fixture, a constructor.
+                    }
+
+                    if (!AssertsAMeasurement(body, measuring)
+                        || categories.Contains(TestTiers.Budget, StringComparer.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    offenders.Add($"{Path.GetFileName(file)}::{className}.{name} asserts an allocation "
+                                  + $"figure but carries no [Category(\"{TestTiers.Budget}\")]");
+                }
+            }
+        }
+
+        offenders.ForEach(Console.WriteLine);
+        await Assert.That(offenders).IsEmpty();
+    }
+
+    /// <summary>
     ///     <c>[Explicit]</c> is banned outright, because on the pinned TUnit (0.25.21) it breaks
     ///     filtering rather than extending it: when a filter's match set contains both explicit
     ///     and non-explicit tests, <c>TestFilterService</c> discards the filter and runs every
@@ -338,6 +408,166 @@ public partial class TestTierContractTests
         return accumulator.ToDictionary(kv => kv.Key, kv => kv.Value.ToImmutableArray(), StringComparer.Ordinal);
     }
 
+    /// <summary><c>Class.Method</c> → the effective categories of that one test.</summary>
+    private static Dictionary<string, ImmutableArray<string>> CategoriesByMethod()
+    {
+        Dictionary<string, ImmutableArray<string>> byMethod = new(StringComparer.Ordinal);
+        foreach ((MethodInfo method, ImmutableArray<string> categories) in DiscoverTests())
+        {
+            if (method.DeclaringType?.Name is { } name)
+            {
+                byMethod[$"{name}.{method.Name}"] = categories;
+            }
+        }
+
+        return byMethod;
+    }
+
+    /// <summary>
+    ///     Each member declaration in a class body paired with the source that follows it, up to the
+    ///     next one — <see cref="TopLevelClassBodies" /> one level down, and just as crude: a field
+    ///     between two methods lands in the earlier method's slice, which changes no answer here.
+    /// </summary>
+    /// <param name="classBody">One slice from <see cref="TopLevelClassBodies" />.</param>
+    private static IEnumerable<(string Name, string Body)> MemberBodies(string classBody)
+    {
+        MatchCollection declarations = MemberDeclaration().Matches(classBody);
+        for (int i = 0; i < declarations.Count; i++)
+        {
+            int end = i + 1 < declarations.Count ? declarations[i + 1].Index : classBody.Length;
+            yield return (declarations[i].Groups["name"].Value, classBody[declarations[i].Index..end]);
+        }
+    }
+
+    /// <summary>
+    ///     The members of one class that hand back an allocation figure: those that read the counter,
+    ///     plus everything that calls one of those, to a fixed point. One hop is not enough — the tree
+    ///     already has a <c>Window</c> that runs a <c>Measure</c> twice and returns the second.
+    /// </summary>
+    private static HashSet<string> MeasuringMembers(IReadOnlyList<(string Name, string Body)> members)
+    {
+        HashSet<string> measuring = new(StringComparer.Ordinal);
+        foreach ((string name, string body) in members)
+        {
+            if (MeasuresAllocation().IsMatch(body))
+            {
+                measuring.Add(name);
+            }
+        }
+
+        for (bool grew = true; grew;)
+        {
+            grew = false;
+            foreach ((string name, string body) in members)
+            {
+                if (!measuring.Contains(name) && measuring.Any(m => MentionsWord(body, m)))
+                {
+                    grew = measuring.Add(name);
+                }
+            }
+        }
+
+        return measuring;
+    }
+
+    /// <summary>
+    ///     Whether one member's body asserts on an allocation figure rather than merely producing one.
+    ///     <para>
+    ///         Every local bound to a figure is collected first — read straight off the counter, handed
+    ///         back by a measuring member, or computed from one already bound — and that last arm is why
+    ///         it iterates to a fixed point: the per-frame numbers divide a delta by a frame count one
+    ///         statement after the delta exists.
+    ///     </para>
+    /// </summary>
+    /// <param name="body">One slice from <see cref="MemberBodies" />, already stripped of comments.</param>
+    /// <param name="measuring">The measuring members of the declaring class.</param>
+    private static bool AssertsAMeasurement(string body, HashSet<string> measuring)
+    {
+        HashSet<string> measured = new(StringComparer.Ordinal);
+        for (bool grew = true; grew;)
+        {
+            grew = false;
+            foreach (Match binding in LocalBinding().Matches(body))
+            {
+                string name = binding.Groups["name"].Value;
+                string right = binding.Groups["rhs"].Value;
+                if (measured.Contains(name))
+                {
+                    continue;
+                }
+
+                if (MeasuresAllocation().IsMatch(right)
+                    || measuring.Any(m => MentionsWord(right, m))
+                    || measured.Any(m => MentionsWord(right, m)))
+                {
+                    grew = measured.Add(name);
+                }
+            }
+        }
+
+        return measured.Count > 0
+               && AssertionSubjects(body).Any(subject => measured.Any(m => MentionsWord(subject, m)));
+    }
+
+    /// <summary>The argument of each <c>Assert.That(…)</c> in a body, parens balanced.</summary>
+    private static IEnumerable<string> AssertionSubjects(string body)
+    {
+        const string call = "Assert.That(";
+        for (int at = body.IndexOf(call, StringComparison.Ordinal);
+             at >= 0;
+             at = body.IndexOf(call, at + call.Length, StringComparison.Ordinal))
+        {
+            int start = at + call.Length;
+            int depth = 1;
+            int end = start;
+            while (end < body.Length && depth > 0)
+            {
+                depth += body[end] switch
+                {
+                    '(' => 1,
+                    ')' => -1,
+                    _ => 0
+                };
+                end++;
+            }
+
+            yield return body[start..(depth == 0 ? end - 1 : end)];
+        }
+    }
+
+    /// <summary>Whether <paramref name="text" /> contains <paramref name="word" /> as a whole identifier.</summary>
+    private static bool MentionsWord(string text, string word)
+    {
+        for (int at = text.IndexOf(word, StringComparison.Ordinal);
+             at >= 0;
+             at = text.IndexOf(word, at + 1, StringComparison.Ordinal))
+        {
+            int after = at + word.Length;
+            if ((at == 0 || !IsIdentifierChar(text[at - 1]))
+                && (after == text.Length || !IsIdentifierChar(text[after])))
+            {
+                return true;
+            }
+        }
+
+        return false;
+
+        static bool IsIdentifierChar(char c) => char.IsLetterOrDigit(c) || c == '_';
+    }
+
+    /// <summary>
+    ///     The source with every whole-line comment removed, line structure intact. Trailing comments
+    ///     after code on the same line survive, which no rule here depends on.
+    /// </summary>
+    private static string WithoutCommentLines(string source) =>
+        string.Join('\n', source.Split('\n').Where(line =>
+        {
+            string trimmed = line.TrimStart();
+            return !trimmed.StartsWith("//", StringComparison.Ordinal)
+                   && !trimmed.StartsWith("/*", StringComparison.Ordinal)
+                   && !trimmed.StartsWith('*');
+        }));
+
     /// <summary>
     ///     Each top-level class declaration paired with the source that follows it, up to the next one.
     ///     Crude, and deliberately so — a private nested type stays inside its owner's slice, which is
@@ -403,4 +633,24 @@ public partial class TestTierContractTests
     [GeneratedRegex(@"\bnew\s+Window\s*[({]|\bWindow\s+\w+\s*=\s*new\b|\(\s*Window\s+\w+\s*,"
                     + @"|\bCaptureRenderedFrame\s*\(")]
     private static partial Regex BootsAWindow();
+
+    /// <summary>
+    ///     A member declaration: an access modifier, then the <b>last</b> name on the line that is
+    ///     followed by an open paren, with no <c>=</c> before it so an initialised field cannot pass as
+    ///     a method. Last rather than first, because a tuple return type puts a paren in front of the
+    ///     name — <c>private static (double Micros, long Bytes) Cost(…)</c> reads as a member called
+    ///     <c>static</c> under the other spelling, and <c>static</c> then matches every sibling.
+    /// </summary>
+    [GeneratedRegex(@"^[ \t]+(?:public|private|internal|protected)\s[^\n=]*\b(?<name>\w+)\s*\(",
+        RegexOptions.Multiline)]
+    private static partial Regex MemberDeclaration();
+
+    /// <summary>A numeric local and the expression it is bound to, on one line.</summary>
+    [GeneratedRegex(@"^[ \t]*(?:long|double|float|int|decimal|var)\s+(?<name>\w+)\s*=\s*(?<rhs>[^;\r\n]*);",
+        RegexOptions.Multiline)]
+    private static partial Regex LocalBinding();
+
+    /// <summary>Reading one of the runtime's cumulative allocation counters.</summary>
+    [GeneratedRegex(@"\bGC\.Get(?:AllocatedBytesForCurrentThread|TotalAllocatedBytes)\s*\(")]
+    private static partial Regex MeasuresAllocation();
 }

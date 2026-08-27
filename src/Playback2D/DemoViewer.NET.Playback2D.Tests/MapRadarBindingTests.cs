@@ -145,6 +145,7 @@ public class MapRadarBindingTests
     ///     B3's level hysteresis will call it more often than B1 does.
     /// </summary>
     [Test]
+    [Category("Budget")]
     public async Task Bind_AllocatesNothingOnceTheDestinationListsHaveGrown()
     {
         MapRadarBinder binder = new(Asset(
@@ -175,6 +176,7 @@ public class MapRadarBindingTests
     ///     property read, and the viewport read it once per push (plan §4 T15 item 7).
     /// </summary>
     [Test]
+    [Category("Budget")]
     public async Task LoadedMapAsset_Floors_IsCachedNotRebuiltPerRead()
     {
         LoadedMapAsset asset = Asset([], [],
