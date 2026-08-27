@@ -227,7 +227,7 @@
                 <NumericUpDown x:Name="HoldBox" Width="140" Minimum="0" Maximum="600" Increment="0.5"
                                FormatString="0.00" Value="{Binding HoldSeconds, Mode=TwoWay}"
                                IsVisible="{Binding IsHoldEnvelope}"
-                               ToolTip.Tip="How long an annotation stays fully opaque, in seconds — the whole element in Fade, each drawn section in Real-time." />
+                               ToolTip.Tip="How long an annotation stays fully opaque, in seconds — the whole element in Fade, each drawn section in Real-time. Set it below your drawing time and a Real-time stroke dissolves behind the pen as you draw." />
 
                 <TextBlock Text="from (tick)" Foreground="{DynamicResource Pb2dTextDim}"
                            FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center"
