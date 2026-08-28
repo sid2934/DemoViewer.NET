@@ -89,7 +89,7 @@ public readonly record struct GoldenTolerance(
 
     /// <summary>The reviewed-difference budget for cross-backend and cross-OS comparisons.</summary>
     public static readonly GoldenTolerance DefaultPerceptual =
-        new(GoldenMode.Perceptual, 8, 0.005, 0.995, 32, 2, 0.95);
+        new(GoldenMode.Perceptual, 8, 0.005, 0.995);
 
     /// <summary>Alias for <see cref="DefaultPerceptual" /> — the name C2's parity lane uses.</summary>
     public static GoldenTolerance CrossBackend => DefaultPerceptual;
@@ -237,7 +237,7 @@ public readonly record struct GoldenDeltaProfile(
     }
 
     /// <summary>A one-line summary for a test log or a review write-up.</summary>
-    public string Describe() => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+    public string Describe() => string.Create(CultureInfo.InvariantCulture,
         $"identical {IdenticalPixels / (double)TotalPixels:P2}, " +
         $"within±1 {FractionWithin(1):P2}, within±2 {FractionWithin(2):P2}, " +
         $"within±8 {FractionWithin(8):P2}, within±32 {FractionWithin(32):P2}, " +

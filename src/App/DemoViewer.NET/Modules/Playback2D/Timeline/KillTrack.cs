@@ -18,9 +18,8 @@ public sealed class KillTrack : ITimelineTrack
 
     private const string KillGlyph = "×";
 
-    // The crediting side's colour, mirroring RoundTrack.ApplyWinnerTints — a track may not reach for a
-    // brush (this folder is renderer-independent), so it hands back ARGB and the host themes everything
-    // else. 0 means "host, use the kind default", which is what an unknown side keeps.
+    // The crediting side's colour, mirroring RoundTrack.ApplyWinnerTints: ARGB, not a brush. 0 means
+    // "host, use the kind default", where an unknown side lands.
     //
     // FULL alpha, not RoundTrack's 0x38 wash. The wash exists because a band is a 300 px rectangle behind
     // a label, where a fifth of an alpha still reads as a side; a marker is an eight-pixel glyph, and the
@@ -75,7 +74,7 @@ public sealed class KillTrack : ITimelineTrack
     public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) => Array.Empty<TimelineBand>();
 
     /// <inheritdoc />
-    // Declared but never raised in A1 — see RoundTrack.MarkersChanged.
+    // Never raised; see RoundTrack.MarkersChanged.
 #pragma warning disable CS0067
     public event Action? MarkersChanged;
 #pragma warning restore CS0067

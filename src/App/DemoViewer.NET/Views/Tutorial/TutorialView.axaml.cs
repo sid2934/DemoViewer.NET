@@ -1,8 +1,6 @@
 #region
 
-using System;
 using System.ComponentModel;
-using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
@@ -28,15 +26,6 @@ public partial class TutorialView : UserControl
 
     private INotifyPropertyChanged? _observed;
 
-    /// <summary>
-    ///     Whether the spotlight's breathing pulse animation is enabled. True at runtime (the <c>.pulsing</c>
-    ///     class is applied whenever a step is spotlighted); a headless capture sets this false and pins
-    ///     <see cref="SetStaticPulse" /> to inspect a fixed phase deterministically (the animation runs at
-    ///     Animation priority and would otherwise override a static <see cref="SpotlightScrim.Pulse" />).
-    ///     Visual-only — the same "presentation derived from bound state" category as the layout code below.
-    /// </summary>
-    public bool AnimatePulse { get; set; } = true;
-
     public TutorialView()
     {
         InitializeComponent();
@@ -52,6 +41,15 @@ public partial class TutorialView : UserControl
         };
         DataContextChanged += OnDataContextChanged;
     }
+
+    /// <summary>
+    ///     Whether the spotlight's breathing pulse animation is enabled. True at runtime (the <c>.pulsing</c>
+    ///     class is applied whenever a step is spotlighted); a headless capture sets this false and pins
+    ///     <see cref="SetStaticPulse" /> to inspect a fixed phase deterministically (the animation runs at
+    ///     Animation priority and would otherwise override a static <see cref="SpotlightScrim.Pulse" />).
+    ///     Visual-only — the same "presentation derived from bound state" category as the layout code below.
+    /// </summary>
+    public bool AnimatePulse { get; set; } = true;
 
     private void OnDataContextChanged(object? sender, EventArgs e)
     {

@@ -6,11 +6,10 @@ using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.TestSupport;
 using TimeoutException = System.TimeoutException;
 
 #endregion
-
-using DemoViewer.NET.TestSupport;
 
 namespace DemoViewer.NET.AppTests;
 
@@ -45,7 +44,7 @@ public class DemoLibraryCacheRepairTests
         List<GameEvent> events = [];
         for (int i = 0; i < rounds; i++)
         {
-            events.Add(TestGameEvents.RoundFreezeEnd(frameNumber: i, serverTick: i * 100, gameTick: i * 100, eventId: 0));
+            events.Add(TestGameEvents.RoundFreezeEnd(i, i * 100, i * 100, 0));
         }
 
         return SyntheticParsedDemo.Create(

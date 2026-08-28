@@ -3,9 +3,9 @@
 using System.Collections.Concurrent;
 using System.Collections.Specialized;
 using System.Text.Json;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Library;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.TestSupport;
@@ -58,11 +58,11 @@ public class DemoLibraryServiceTests
     /// </summary>
     private static bool IsSymlinkPrivilegeRefusal(Exception e) =>
         e is UnauthorizedAccessException or PlatformNotSupportedException ||
-        (e is IOException && OperatingSystem.IsWindows());
+        e is IOException && OperatingSystem.IsWindows();
 
     /// <summary>
     ///     How many fully-indexed rows <c>library.json</c> currently holds. Tolerant of "not there yet"
-    ///     and of a half-written file, because it is polled while a worker thread is writing it — the
+    ///     and of a half-written file, because it is polled while a worker thread is writing it: the
     ///     point is the transition to 2, not any single read.
     ///     <para>
     ///         <b><c>FileShare.ReadWrite | FileShare.Delete</c> is the load-bearing detail.</b>
@@ -70,8 +70,12 @@ public class DemoLibraryServiceTests
     ///         writer. <c>DemoLibraryService.Save</c> is <c>File.WriteAllText</c> inside a
     ///         <c>catch { /* best-effort */ }</c>, on a queue worker, so a poller using the obvious
     ///         helper CAUSES a lost write, silently, and then times out waiting for the write it
-    ///         prevented. Observed exactly that: <c>rows=0 parses=2 states=[Indexed,Indexed]
-    ///         backlog=[]</c> — everything done, nothing on disk.
+    ///         prevented. Observed exactly that:
+    ///         <c>
+    ///             rows=0 parses=2 states=[Indexed,Indexed]
+    ///             backlog=[]
+    ///         </c>
+    ///         : everything done, nothing on disk.
     ///     </para>
     /// </summary>
     private static int FullyIndexedInCacheFile(string dataPath)
@@ -91,7 +95,7 @@ public class DemoLibraryServiceTests
         }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
         {
-            return 0; // absent, mid-write, or momentarily locked — poll again
+            return 0; // absent, mid-write, or momentarily locked: poll again
         }
     }
 
@@ -102,7 +106,7 @@ public class DemoLibraryServiceTests
     ///         and it was wrong about the writer rather than about the behaviour: JSON escapes a
     ///         backslash, so a Windows temp path is on disk as <c>C:\\Users\\…\\dvlib_ab12</c> and the raw
     ///         path is never a substring of it. It passed on Linux and failed on every Windows run. The
-    ///         negative half was worse — <c>.Contains(folder) == false</c> was <b>vacuously true</b>
+    ///         negative half was worse: <c>.Contains(folder) == false</c> was <b>vacuously true</b>
     ///         there, so "the removed folder must not linger" asserted nothing at all on the platform
     ///         where it was green.
     ///     </para>
@@ -160,7 +164,7 @@ public class DemoLibraryServiceTests
     ///         and calls <c>Save()</c> on a queue worker thread, and <c>File.Exists(dataPath)</c> proves
     ///         nothing either: <c>AddFoldersAsync</c> already wrote that file once to persist the FOLDER
     ///         list with an empty cache. The wait lives inside the <c>using</c> so a Save that only happens
-    ///         at Dispose still fails, and it must not be a plain read — see
+    ///         at Dispose still fails, and it must not be a plain read: see
     ///         <see cref="FullyIndexedInCacheFile" />.
     ///     </para>
     /// </summary>
@@ -283,7 +287,7 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Dedup, canonical path: the SAME physical file reachable from two registered folders —
+    ///     Dedup, canonical path: the SAME physical file reachable from two registered folders,
     ///     here a real folder plus a directory symlink pointing at it — must appear as ONE card and be
     ///     processed ONCE. Before canonicalization the two registrations produced distinct path strings
     ///     (real/a.dem vs link/a.dem) → two cards + two full parses.
@@ -400,7 +404,7 @@ public class DemoLibraryServiceTests
     /// <summary>
     ///     Interactive-open fan-out: a pending library demo that the queue REJECTED to the
     ///     coordinator backlog (its background tier was full) and is then OPENED interactively must fill its
-    ///     card from the open's already-parsed demo — never a second background parse. This guards exactly
+    ///     card from the open's already-parsed demo, never a second background parse. This guards exactly
     ///     that double-parse: after <see cref="DemoLibraryService.OnParsedOpportunistically" /> the
     ///     demo is no longer <see cref="DemoLibraryService.Wants" />-ed, so the capacity re-feed skips it.
     /// </summary>
@@ -478,7 +482,7 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Content dedup: the SAME bytes copied into two DIFFERENT real folders (not a symlink —
+    ///     Content dedup: the SAME bytes copied into two DIFFERENT real folders (not a symlink,
     ///     a genuine copy, which canonical-path dedup cannot catch) must appear as ONE card and be processed
     ///     ONCE. The primary is the lexicographically-smallest path; the other folder surfaces as a copy hint.
     /// </summary>
@@ -539,7 +543,7 @@ public class DemoLibraryServiceTests
 
     /// <summary>
     ///     Interactive-open fan-out over a REAL demo: the synthetic sibling proves the no-reparse control
-    ///     flow; this proves the actual work — handing a real, fully-parsed demo to
+    ///     flow; this proves the actual work: handing a real, fully-parsed demo to
     ///     <see cref="DemoLibraryService.OnParsedOpportunistically" /> runs the real entity-decode score
     ///     replay through the opportunistic hook and fills the card (players + duration + final score),
     ///     while the background queue never parses the file. As in the synthetic sibling, the demo is held in
@@ -848,7 +852,7 @@ public class DemoLibraryServiceTests
     ///         Windows, but nothing here depends on the host: it read the settings file as a string and
     ///         looked for a raw path inside escaped JSON. See <see cref="PersistedFolders" />. The class's
     ///         own <c>[Category("Integration")]</c> already keeps it out of the fast and standard tiers, so
-    ///         dropping the second tag changes no tier's contents — only what the tag claims.
+    ///         dropping the second tag changes no tier's contents, only what the tag claims.
     ///     </para>
     /// </summary>
     [Test]

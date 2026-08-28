@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Playback2D.Cli;
 using SkiaSharp;
 
 #endregion
@@ -9,7 +8,7 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
 ///     The hand-rolled parser. Both repo styles must mean the same thing, and an unknown option must be
-///     an error rather than a silent no-op — a typo in a CI golden invocation has to fail loudly.
+///     an error rather than a silent no-op; a typo in a CI golden invocation has to fail loudly.
 /// </summary>
 public class CliArgsTests
 {

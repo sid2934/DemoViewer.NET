@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
+using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.TestSupport;
@@ -52,19 +53,17 @@ internal readonly record struct IlSite(
 
 /// <summary>
 ///     The shared machinery behind four architecture guards. Each asks a <b>whole-graph reachability</b>
-///     question — is this event subscribed, is this command bound, is this setting written, is this seam
-///     supplied — and every one of them is invisible to a unit test by construction, because a unit
-///     test's job is to instantiate the thing directly and hand it what it needs. Five audits found ~50
-///     defects against 1594 green tests for exactly that reason.
+///     question (is this event subscribed, is this command bound, is this setting written, is this seam
+///     supplied), and every one of them is invisible to a unit test by construction, because a unit
+///     test's job is to instantiate the thing directly and hand it what it needs.
 ///     <para>
 ///         <b>Two lenses, deliberately.</b> Anything expressible in IL is read from IL (below), never from
 ///         source text: a source grep for an event name also matches the <c>&lt;see cref&gt;</c> in the doc
-///         comment that describes the missing half, how several of these defects shipped with a comment
-///         claiming the wiring existed. Only two questions IL genuinely cannot answer fall back to source,
-///         and those strip doc comments first: "does an <c>.axaml</c> string binding name this command?"
-///         and "does this call site mention this constructor parameter?" (the C# compiler materialises
-///         omitted optional arguments at the call site, so IL cannot tell an omission from an explicit
-///         <c>null</c>).
+///         comment that describes the missing half. Only two questions IL cannot answer fall back to
+///         source, and those strip doc comments first: "does an <c>.axaml</c> string binding name this
+///         command?" and "does this call site mention this constructor parameter?" (the C# compiler
+///         materialises omitted optional arguments at the call site, so IL cannot tell an omission from
+///         an explicit <c>null</c>).
 ///     </para>
 /// </summary>
 internal static class Playback2DWholeGraph
@@ -73,7 +72,7 @@ internal static class Playback2DWholeGraph
     // Desktop/Browser only set AppHostHooks, and LiveSync cannot see this module at all.
     private static readonly Lazy<SysAssembly[]> _production = new(() =>
     [
-        typeof(Configuration.AppSettings).Assembly,
+        typeof(AppSettings).Assembly,
         typeof(Scene2DFrame).Assembly,
         typeof(SceneFrameBuilder).Assembly
     ]);
@@ -106,7 +105,7 @@ internal static class Playback2DWholeGraph
         && (ns.Contains("Playback2D", StringComparison.Ordinal)
             || string.Equals(ns, "DemoViewer.NET.Services.Export", StringComparison.Ordinal));
 
-    /// <summary>The repo root, or a skip — a source-reading guard has nothing to say about a stray binary.</summary>
+    /// <summary>The repo root, or a skip: a source-reading guard says nothing about a stray binary.</summary>
     public static string RepoRoot() =>
         DemoTestHelper.FindRepoRoot()
         ?? throw new SkipTestException("repo root not found (no DemoViewer.NET.slnx above the test binary)");
@@ -154,7 +153,7 @@ internal static class Playback2DWholeGraph
                 MemberReference member = reader.GetMemberReference(handle);
                 if (member.Parent.Kind != HandleKind.TypeReference)
                 {
-                    continue; // TypeSpec (generic instantiation) / ModuleRef — no target of ours is one
+                    continue; // TypeSpec (generic instantiation) / ModuleRef: no target of ours is one
                 }
 
                 string type = TypeName(reader, (TypeReferenceHandle)member.Parent);
@@ -239,7 +238,7 @@ internal static class Playback2DWholeGraph
         return sites;
     }
 
-    /// <summary>Types this assembly can actually load — a missing optional dependency must not be fatal.</summary>
+    /// <summary>Types this assembly can load: a missing optional dependency must not be fatal.</summary>
     private static IEnumerable<Type> SafeTypes(SysAssembly assembly)
     {
         try
@@ -254,10 +253,10 @@ internal static class Playback2DWholeGraph
 
     private static IlAccess OpcodeAccess(byte opcode) => opcode switch
     {
-        0x28 or 0x6F => IlAccess.Call,        // call, callvirt
-        0x73 => IlAccess.New,                 // newobj
+        0x28 or 0x6F => IlAccess.Call, // call, callvirt
+        0x73 => IlAccess.New, // newobj
         0x7B or 0x7C or 0x7E or 0x7F => IlAccess.LoadField, // ldfld, ldflda, ldsfld, ldsflda
-        0x7D or 0x80 => IlAccess.StoreField,  // stfld, stsfld
+        0x7D or 0x80 => IlAccess.StoreField, // stfld, stsfld
         _ => IlAccess.None
     };
 
@@ -296,7 +295,10 @@ internal static class Playback2DWholeGraph
         string root = RepoRoot();
         List<SourceFile> files = [];
 
-        foreach (string top in new[] { "src", "tools" })
+        foreach (string top in new[]
+                 {
+                     "src", "tools"
+                 })
         {
             string dir = Path.Combine(root, top);
             if (!Directory.Exists(dir))
@@ -341,7 +343,7 @@ internal static class Playback2DWholeGraph
     }
 
     // Test projects, the screenshot harness and the shared test support are all EXCLUDED: each of them
-    // constructs the module's types the way a test does — with hand-supplied collaborators — which is
+    // constructs the module's types the way a test does (with hand-supplied collaborators), which is
     // exactly the evidence these guards must not accept. bin/obj are build output, and the source
     // generators' *.g.cs under obj/ would otherwise "use" every command they generate.
     private static bool IsProductionSourcePath(string path)
@@ -366,8 +368,8 @@ internal static class Playback2DWholeGraph
         return true;
     }
 
-    // A `/// <see cref="StatusChanged" />` promising a subscriber that does not exist is the exact shape
-    // several of these defects shipped in, so the corpus these guards search never contains one.
+    // A `/// <see cref="StatusChanged" />` promising a subscriber that does not exist would satisfy a
+    // source grep, so the corpus these guards search never contains one.
     private static string StripDocComments(string text)
     {
         if (!text.Contains("///", StringComparison.Ordinal))

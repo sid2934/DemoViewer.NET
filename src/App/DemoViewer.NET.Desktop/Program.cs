@@ -8,6 +8,7 @@ using DemoViewer.NET.LiveSync;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Options;
+using Velopack;
 
 #endregion
 
@@ -35,7 +36,7 @@ internal sealed class Program
         // exits the process before any Avalonia/CSVG/SynchronizationContext init would run. On a
         // normal launch it returns immediately. Unpackaged/dev runs (no Velopack metadata) are a
         // no-op, so this is safe under `dotnet run` and the headless UI-capture host too.
-        Velopack.VelopackApp.Build().Run();
+        VelopackApp.Build().Run();
 
         // Last-chance crash log: an unhandled exception aborts the process, and on macOS the OS
         // report (.ips) carries only unsymbolicated JIT frames — persist the MANAGED stack.

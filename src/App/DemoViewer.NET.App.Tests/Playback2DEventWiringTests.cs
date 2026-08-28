@@ -40,14 +40,14 @@ internal sealed record EventContract(
 ///         <b>Read from IL, not source.</b> A grep for an event name in production also matches the doc
 ///         comment describing a subscriber that does not exist. The subscriber is a call to <c>add_X</c>;
 ///         the raiser is a method that loads the event's backing field and is not the compiler's own
-///         <c>add_X</c>/<c>remove_X</c> — neither can be faked by a comment.
+///         <c>add_X</c>/<c>remove_X</c>. Neither can be faked by a comment.
 ///     </para>
 /// </summary>
 public class Playback2DEventWiringTests
 {
     /// <summary>
-    ///     The guard. Every event contract in the module — App-side view-models and services, Core, and
-    ///     Pipeline — must have both halves, with no exceptions: no event may be allow-listed out instead
+    ///     The guard. Every event contract in the module (App-side view-models and services, Core, and
+    ///     Pipeline) must have both halves, with no exceptions: no event may be allow-listed out instead
     ///     of wired.
     /// </summary>
     [Test]
@@ -81,10 +81,9 @@ public class Playback2DEventWiringTests
 
     /// <summary>
     ///     The self-check. <see cref="Playback2DKeymapTests.FindConflicts_DetectsADuplicateGestureAndAShellCollision" />'s
-    ///     rule: a guard that has never been shown to fail is a guard nobody has any reason to believe.
-    ///     Three canary events in THIS assembly — one wired, one raised but never subscribed, one
-    ///     subscribed but never raised — must be classified correctly, which pins both directions of the
-    ///     scan at once.
+    ///     rule: a guard that has never been shown to fail may not be testing anything. Three canary
+    ///     events in THIS assembly (one wired, one raised but never subscribed, one subscribed but never
+    ///     raised) must be classified correctly, which pins both directions of the scan at once.
     /// </summary>
     [Test]
     public async Task TheScan_DetectsAnUnsubscribedEvent_AndClearsAWiredOne()
@@ -176,7 +175,10 @@ public class Playback2DEventWiringTests
                 if (!groups.TryGetValue(key, out (HashSet<string>, HashSet<string>, string) group))
                 {
                     group = (new HashSet<string>(StringComparer.Ordinal),
-                        new HashSet<string>(StringComparer.Ordinal) { contract.FullName! },
+                        new HashSet<string>(StringComparer.Ordinal)
+                        {
+                            contract.FullName!
+                        },
                         evt.Name);
                     groups[key] = group;
                 }
@@ -198,8 +200,8 @@ public class Playback2DEventWiringTests
             groups.Values.SelectMany(g => g.Implementers).ToHashSet(StringComparer.Ordinal);
 
         List<IlSite> sites = Playback2DWholeGraph.Scan(scope, (type, member) =>
-            (addNames.Contains(member) && addOwners.Contains(type))
-            || (fieldNames.Contains(member) && fieldOwners.Contains(type)));
+            addNames.Contains(member) && addOwners.Contains(type)
+            || fieldNames.Contains(member) && fieldOwners.Contains(type));
 
         List<EventContract> contracts = [];
         foreach ((string key, (HashSet<string> implementers, HashSet<string> owners, string name)) in groups)
@@ -275,8 +277,8 @@ public class Playback2DEventWiringTests
 
 /// <summary>
 ///     The canary for <see cref="Playback2DEventWiringTests.TheScan_DetectsAnUnsubscribedEvent_AndClearsAWiredOne" />.
-///     Three events with three different wirings, so the scan is shown to separate them rather than merely
-///     to report nothing.
+///     Three events with three different wirings, so the scan is shown to separate them rather than to
+///     report nothing.
 /// </summary>
 internal sealed class EventGuardCanary
 {
@@ -287,7 +289,7 @@ internal sealed class EventGuardCanary
     public event Action? RaisedNeverSubscribedCanary;
 
     // CS0067 is the compiler noticing the very thing this canary exists to be: an event with no raise
-    // anywhere in its declaring type. Suppressed here and NOWHERE else — a real one must stay loud.
+    // anywhere in its declaring type. Suppressed here and NOWHERE else: a real one must stay loud.
 #pragma warning disable CS0067
     /// <summary>The mirror image: a handler attached to something that can never fire.</summary>
     public event Action? SubscribedNeverRaisedCanary;

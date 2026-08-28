@@ -22,11 +22,10 @@ namespace DemoViewer.NET.Playback2D.Cli;
 /// </summary>
 internal sealed class SceneRenderPlan : IDisposable
 {
+    private readonly IReadOnlyList<MapRadarImage> _radars;
     private bool _disposed;
     private Scene2DFrame? _enriched;
     private Scene2DFrame? _enrichedFrom;
-
-    private readonly IReadOnlyList<MapRadarImage> _radars;
 
     private SceneRenderPlan(ResolvedBackend backend, SceneCompositor compositor,
         HeadlessSceneRenderer renderer, IReadOnlyList<string> layerIds, AssetsRoot assets,
@@ -103,13 +102,13 @@ internal sealed class SceneRenderPlan : IDisposable
     ///     usage error it is.
     /// </param>
     /// <param name="defaultBackend">
-    ///     What "no backend was requested" means. <c>Auto</c> everywhere except the golden lane — see
+    ///     What "no backend was requested" means. <c>Auto</c> everywhere except the golden lane; see
     ///     <see cref="BackendResolver.Resolve" />.
     /// </param>
     /// <param name="annotations">
     ///     Ink to burn in, or null. A single-frame render has no demo and therefore no sidecar of its
     ///     own, so this arrives from <c>--ink</c> (<c>render</c>) or from the corpus convention
-    ///     <c>annotations/&lt;name&gt;.dvann.json</c> (<c>golden</c>, <c>bench</c>) — see
+    ///     <c>annotations/&lt;name&gt;.dvann.json</c> (<c>golden</c>, <c>bench</c>). See
     ///     <see cref="FixtureInk" />.
     /// </param>
     public static SceneRenderPlan Build(CliArgs args, SKSizeI defaultSize, string? mapName,
@@ -133,7 +132,7 @@ internal sealed class SceneRenderPlan : IDisposable
         {
             RequireFeedableOptIns(include, annotations);
 
-            // The SAME builder `dv2d export` and the app's export use — a second table would let a
+            // The SAME builder `dv2d export` and the app's export use. A second table would let a
             // golden and a real export draw two different stacks silently.
             compositor = SceneLayerCatalog.CreateSceneStack(include, exclude, annotations: annotations);
         }
@@ -162,9 +161,8 @@ internal sealed class SceneRenderPlan : IDisposable
         };
 
         // Bound exactly as SceneStage and Scene2DHost bind it: authoritative nav floors override the Z
-        // histogram, and the binder gives each band its radar image. Skipping this would make dv2d
-        // derive a different level set from the app for the same frame — the one thing a headless
-        // reproduction of the app's picture must not do.
+        // histogram, and the binder gives each band its radar image. Skip it and dv2d derives a
+        // different level set from the app for the same frame.
         string[] layerIds = [.. compositor.Layers.Select(static l => l.Id)];
         SceneRenderPlan plan = new(backend, compositor, renderer, layerIds, assets, mapAssets, size);
         renderer.Levels.SetAuthoritativeFloors(plan.AuthoritativeFloors);
@@ -271,9 +269,9 @@ internal sealed class SceneRenderPlan : IDisposable
     }
 
     // `single` and a per-level selection need the level model's single-level layout, which is not
-    // implemented: accepting either and quietly rendering the stacked set would be the worst outcome —
-    // a golden captured "with --level 1" that in fact shows every level. So anything but the default
-    // stacked layout refuses with exit 6 instead.
+    // implemented. Accepting either and quietly rendering the stacked set gives you a golden captured
+    // "with --level 1" that in fact shows every level, so anything but the default stacked layout
+    // refuses with exit 6.
     private static void RequireSingleLevelLayout(CliArgs args)
     {
         string layout = args.String("layout") ?? "stacked";

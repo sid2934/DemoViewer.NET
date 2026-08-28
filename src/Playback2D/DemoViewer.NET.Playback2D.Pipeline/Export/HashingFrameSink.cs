@@ -18,14 +18,14 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 ///     </para>
 ///     <para>
 ///         With a null inner sink it is also the cheapest way to run the whole pipeline with no
-///         encoder — what the CPU-throughput measurement uses to isolate render cost from encode cost.
+///         encoder: what the CPU-throughput measurement uses to isolate render cost from encode cost.
 ///     </para>
 /// </summary>
 public sealed class HashingFrameSink : IFrameSink
 {
+    private readonly byte[] _digest = new byte[32];
     private readonly List<string> _hashes = [];
     private readonly IFrameSink? _inner;
-    private readonly byte[] _digest = new byte[32];
     private bool _disposed;
 
     /// <summary>Creates the decorator.</summary>

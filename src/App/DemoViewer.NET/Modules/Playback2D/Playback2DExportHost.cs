@@ -3,6 +3,7 @@
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.ViewModels.Playback2D;
 
 #endregion
 
@@ -14,7 +15,7 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///     something else already owns the machine.
 ///     <para>
 ///         It is not on <c>IModuleContext</c> because that interface deliberately exposes no
-///         <c>EntityTracker</c>, no raw buffer and no parser — a module has no API to corrupt state. An
+///         <c>EntityTracker</c>, no raw buffer and no parser: a module has no API to corrupt state. An
 ///         export is a first-party capability the shell hands the 2D tab explicitly, the same way it
 ///         hands it the live-sync HUD projection and the speed lock.
 ///     </para>
@@ -29,7 +30,7 @@ namespace DemoViewer.NET.Modules.Playback2D;
 /// </param>
 /// <param name="Gate">
 ///     The heavy-job gate. The export takes its own session kind on it, which pauses background parses
-///     and refuses a reel — see <c>HeavyJobGate.EnterExportSessionAsync</c>.
+///     and refuses a reel; see <c>HeavyJobGate.EnterExportSessionAsync</c>.
 /// </param>
 /// <param name="IsLiveSyncBusy">
 ///     True while a Live Sync session is active OR still owns its resources. A predicate rather than a
@@ -57,5 +58,5 @@ public sealed record Playback2DExportHost(
     Func<bool>? IsReelRunning,
     Func<AppSettings> Settings,
     Action<Action<AppSettings>> PersistSettings,
-    Action<ViewModels.Playback2D.Playback2DExportStatusViewModel>? MountStatusChip = null,
+    Action<Playback2DExportStatusViewModel>? MountStatusChip = null,
     Action<string>? OpenExportFolder = null);

@@ -7,8 +7,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Clips;
 using DemoViewer.NET.Configuration;
-using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Controls;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.LiveSync;
 
@@ -70,10 +71,6 @@ public sealed partial class HighlightReelDialogViewModel : ViewModelBase
         new("600p · 800×600 (4:3)", 800, 600),
         ReelResolutionOption.Custom
     ];
-    private readonly Func<string, bool> _fileExists;
-    private readonly Func<bool>? _isLiveSyncSessionActive;
-    private readonly Action<Action<AppSettings>>? _persistDefaults;
-    private readonly IReelJobService? _reelJob;
 
     // ── ffmpeg pre-flight (v0.6.0) ────────────────────────────────────────────
     // CSVG's capture/concat path needs ffmpeg (resolved from PATH or the app-managed folder);
@@ -81,14 +78,10 @@ public sealed partial class HighlightReelDialogViewModel : ViewModelBase
     // Null locator (pure-VM tests) = assume present, keeping those tests filesystem-free; the
     // composition root passes FfmpegDependency.Locate.
     private readonly Func<FfmpegStatus>? _ffmpegLocator;
-
-    // The tray contents, IN TRAY ORDER. Not readonly any more: the pane outlives any one tray state, and
-    // SetSelections swaps it whenever the user stages, un-stages, or reorders.
-    private IReadOnlyList<HighlightSelection> _selections;
-
-    // The last auto-suggested base name. BaseFileName re-seeds from the tray only while it still equals this
-    // — once the user types their own name, a later staging must not silently overwrite it.
-    private string _seededBaseName;
+    private readonly Func<string, bool> _fileExists;
+    private readonly Func<bool>? _isLiveSyncSessionActive;
+    private readonly Action<Action<AppSettings>>? _persistDefaults;
+    private readonly IReelJobService? _reelJob;
 
     [ObservableProperty]
     private string _baseFileName;
@@ -108,6 +101,14 @@ public sealed partial class HighlightReelDialogViewModel : ViewModelBase
     [ObservableProperty]
     private int _crf;
 
+    /// <summary>Custom height (px); see <see cref="CustomWidth" />.</summary>
+    [ObservableProperty]
+    private int _customHeight;
+
+    /// <summary>Custom width (px), editable only when <see cref="SelectedResolution" /> is the Custom sentinel.</summary>
+    [ObservableProperty]
+    private int _customWidth;
+
     /// <summary>Clamp the lead-in to the round-start tick. OFF by default (allow pre-round context).</summary>
     [ObservableProperty]
     private bool _dontCrossRoundStart;
@@ -123,6 +124,27 @@ public sealed partial class HighlightReelDialogViewModel : ViewModelBase
 
     private bool _interlockConfirmed;
 
+    /// <summary>
+    ///     Whether the ENCODING section is offered. The <c>highlights.encoding</c> SubFeature
+    ///     (<c>Defaults(false, true, true)</c>) binds here: CRF/bitrate are OBS-encoder knobs a
+    ///     consumer cannot reason about. A settable property, not an inline category check — the gate is the
+    ///     feature system's job and this is only where it lands. The tab VM applies the gate on construction
+    ///     AND re-applies it on <c>IFeatureGate.Changed</c>; it defaults visible so a host with no gate
+    ///     (tests, UiCapture) never silently loses a section.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isEncodingVisible = true;
+
+    // ── ffmpeg pre-flight (v0.6.0) ────────────────────────────────────────────
+
+    /// <summary>
+    ///     True when the pre-flight found NO ffmpeg (neither on PATH nor the app-managed folder).
+    ///     Only ever true on a real-capture host with a real reel service — dry-run walks the plan
+    ///     without rendering, and the browser head has no reel path at all.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isFfmpegMissing;
+
     // ── Padding ───────────────────────────────────────────────────────────────
 
     [ObservableProperty]
@@ -133,11 +155,6 @@ public sealed partial class HighlightReelDialogViewModel : ViewModelBase
 
     private int _mergedCount;
     private int _movedCount;
-
-    // Clips whose player could not be resolved to a spectate name (the demo's cached roster carries no slot
-    // attribution — see HighlightScanService's roster repair). CSVG spectates BY NAME, so an empty name makes
-    // a clip unrenderable; these block Generate with an actionable banner instead of a raw CSVG validation dump.
-    private int _unresolvedCount;
 
     // ── Display preset ────────────────────────────────────────────────────────
 
@@ -154,7 +171,21 @@ public sealed partial class HighlightReelDialogViewModel : ViewModelBase
     // any clip whose demo has moved (those also BLOCK Generate via the pre-flight banner, so this never ships a
     // silently-partial reel).
     private List<ReelClip> _plan = [];
+
+    // The last auto-suggested base name. BaseFileName re-seeds from the tray only while it still equals this
+    // — once the user types their own name, a later staging must not silently overwrite it.
+    private string _seededBaseName;
     private int _selectedCount;
+
+    // ── Resolution — capture geometry ─────────────────────────────────────────
+
+    /// <summary>The chosen capture resolution (a preset or the Custom sentinel). Drives the request Width/Height.</summary>
+    [ObservableProperty]
+    private ReelResolutionOption? _selectedResolution;
+
+    // The tray contents, IN TRAY ORDER. Not readonly any more: the pane outlives any one tray state, and
+    // SetSelections swaps it whenever the user stages, un-stages, or reorders.
+    private IReadOnlyList<HighlightSelection> _selections;
 
     // ── Single-CS2 interlock ──────────────────────────────────────────────────
 
@@ -164,25 +195,16 @@ public sealed partial class HighlightReelDialogViewModel : ViewModelBase
 
     private IStorageProvider? _storageProvider;
 
+    // Clips whose player could not be resolved to a spectate name (the demo's cached roster carries no slot
+    // attribution — see HighlightScanService's roster repair). CSVG spectates BY NAME, so an empty name makes
+    // a clip unrenderable; these block Generate with an actionable banner instead of a raw CSVG validation dump.
+    private int _unresolvedCount;
+
     // ── Encoding — CRF ⊕ Bitrate, UI-enforced ─────────────────────────────────
 
     /// <summary>CRF mode selected (radio). When true the bitrate field is disabled; when false CRF is disabled.</summary>
     [ObservableProperty]
     private bool _useCrf;
-
-    // ── Resolution — capture geometry ─────────────────────────────────────────
-
-    /// <summary>The chosen capture resolution (a preset or the Custom sentinel). Drives the request Width/Height.</summary>
-    [ObservableProperty]
-    private ReelResolutionOption? _selectedResolution;
-
-    /// <summary>Custom width (px), editable only when <see cref="SelectedResolution" /> is the Custom sentinel.</summary>
-    [ObservableProperty]
-    private int _customWidth;
-
-    /// <summary>Custom height (px); see <see cref="CustomWidth" />.</summary>
-    [ObservableProperty]
-    private int _customHeight;
 
     /// <summary>
     ///     Builds the dialog VM over the tab's current reel selection and the seeded reel defaults.
@@ -291,39 +313,6 @@ public sealed partial class HighlightReelDialogViewModel : ViewModelBase
     /// <summary>True once anything is staged — gates the tray body against its empty state.</summary>
     public bool HasClips => _selectedCount > 0;
 
-    /// <summary>
-    ///     Whether the ENCODING section is offered. The <c>highlights.encoding</c> SubFeature
-    ///     (<c>Defaults(false, true, true)</c>) binds here: CRF/bitrate are OBS-encoder knobs a
-    ///     consumer cannot reason about. A settable property, not an inline category check — the gate is the
-    ///     feature system's job and this is only where it lands. The tab VM applies the gate on construction
-    ///     AND re-applies it on <c>IFeatureGate.Changed</c>; it defaults visible so a host with no gate
-    ///     (tests, UiCapture) never silently loses a section.
-    /// </summary>
-    [ObservableProperty]
-    private bool _isEncodingVisible = true;
-
-    /// <summary>
-    ///     Replaces the tray contents and rebuilds the plan. Called by the tab on every stage / un-stage /
-    ///     reorder — the ORDER of <paramref name="selections" /> is load-bearing (see <see cref="Recompute" />).
-    /// </summary>
-    /// <param name="selections">The staged highlights, in tray order.</param>
-    public void SetSelections(IReadOnlyList<HighlightSelection> selections)
-    {
-        ArgumentNullException.ThrowIfNull(selections);
-        _selections = selections;
-
-        // Re-seed the output name from the new head of the tray — but only while the field is still the name
-        // WE suggested. The modal was constructed per-invocation so its one-shot seed was always right; a
-        // long-lived pane seeded from an EMPTY tray would otherwise read "reel" forever.
-        if (string.Equals(BaseFileName, _seededBaseName, StringComparison.Ordinal))
-        {
-            _seededBaseName = SuggestBaseName(selections);
-            BaseFileName = _seededBaseName;
-        }
-
-        Recompute();
-    }
-
     /// <summary>Footer line, e.g. "Total ~24s across 2 clips".</summary>
     public string TotalDurationText
     {
@@ -387,16 +376,6 @@ public sealed partial class HighlightReelDialogViewModel : ViewModelBase
     public string DryRunCaption { get; } =
         "Developer/testing — walks the clip plan without recording. Real reels need Windows and ffmpeg.";
 
-    // ── ffmpeg pre-flight (v0.6.0) ────────────────────────────────────────────
-
-    /// <summary>
-    ///     True when the pre-flight found NO ffmpeg (neither on PATH nor the app-managed folder).
-    ///     Only ever true on a real-capture host with a real reel service — dry-run walks the plan
-    ///     without rendering, and the browser head has no reel path at all.
-    /// </summary>
-    [ObservableProperty]
-    private bool _isFfmpegMissing;
-
     /// <summary>The ffmpeg strip is shown: missing, on a host where a real reel could otherwise run.</summary>
     public bool ShowFfmpegStrip => IsFfmpegMissing;
 
@@ -410,6 +389,45 @@ public sealed partial class HighlightReelDialogViewModel : ViewModelBase
     ///     already knows to look in — <c>CsvgWebHost</c> points CSVG there automatically.
     /// </summary>
     public string FfmpegInstructions { get; } = BuildFfmpegInstructions();
+
+    // ── Commands ──────────────────────────────────────────────────────────────
+
+    // A reel is already rendering. The modal could ignore this — the shell simply refused to OPEN a second
+    // one — but an embedded pane has no open/close gate, so the primary button would happily fire into an
+    // IReelJobService that throws. Machine-exclusive resource, one job at a time.
+    private bool JobRunning => _reelJob?.Status.IsRunning ?? false;
+
+    private bool CanGenerate => _movedCount == 0 && _unresolvedCount == 0 && _plan.Count > 0
+                                && !string.IsNullOrWhiteSpace(OutputFolder)
+                                && IsResolutionValid && !JobRunning && !IsFfmpegMissing;
+
+    /// <summary>The CRF numeric field is editable only in CRF mode (CRF ⊕ bitrate).</summary>
+    public bool CrfEnabled => UseCrf;
+
+    /// <summary>The bitrate numeric field is editable only in bitrate mode (CRF ⊕ bitrate).</summary>
+    public bool BitrateEnabled => !UseCrf;
+
+    /// <summary>
+    ///     Replaces the tray contents and rebuilds the plan. Called by the tab on every stage / un-stage /
+    ///     reorder — the ORDER of <paramref name="selections" /> is load-bearing (see <see cref="Recompute" />).
+    /// </summary>
+    /// <param name="selections">The staged highlights, in tray order.</param>
+    public void SetSelections(IReadOnlyList<HighlightSelection> selections)
+    {
+        ArgumentNullException.ThrowIfNull(selections);
+        _selections = selections;
+
+        // Re-seed the output name from the new head of the tray — but only while the field is still the name
+        // WE suggested. The modal was constructed per-invocation so its one-shot seed was always right; a
+        // long-lived pane seeded from an EMPTY tray would otherwise read "reel" forever.
+        if (string.Equals(BaseFileName, _seededBaseName, StringComparison.Ordinal))
+        {
+            _seededBaseName = SuggestBaseName(selections);
+            BaseFileName = _seededBaseName;
+        }
+
+        Recompute();
+    }
 
     private static string BuildFfmpegInstructions()
     {
@@ -441,7 +459,7 @@ public sealed partial class HighlightReelDialogViewModel : ViewModelBase
     /// <summary>Opens the ffmpeg download page in the default browser.</summary>
     [RelayCommand]
     private static void OpenFfmpegDownloadPage() =>
-        Controls.OpenExternal.OpenUri("https://ffmpeg.org/download.html");
+        OpenExternal.OpenUri("https://ffmpeg.org/download.html");
 
     /// <summary>
     ///     Re-runs the ffmpeg probe after the user installs it, so Generate unblocks in place
@@ -455,23 +473,6 @@ public sealed partial class HighlightReelDialogViewModel : ViewModelBase
         UpdateValidation();
         GenerateCommand.NotifyCanExecuteChanged();
     }
-
-    // ── Commands ──────────────────────────────────────────────────────────────
-
-    // A reel is already rendering. The modal could ignore this — the shell simply refused to OPEN a second
-    // one — but an embedded pane has no open/close gate, so the primary button would happily fire into an
-    // IReelJobService that throws. Machine-exclusive resource, one job at a time.
-    private bool JobRunning => _reelJob?.Status.IsRunning ?? false;
-
-    private bool CanGenerate => _movedCount == 0 && _unresolvedCount == 0 && _plan.Count > 0
-                                                 && !string.IsNullOrWhiteSpace(OutputFolder)
-                                                 && IsResolutionValid && !JobRunning && !IsFfmpegMissing;
-
-    /// <summary>The CRF numeric field is editable only in CRF mode (CRF ⊕ bitrate).</summary>
-    public bool CrfEnabled => UseCrf;
-
-    /// <summary>The bitrate numeric field is editable only in bitrate mode (CRF ⊕ bitrate).</summary>
-    public bool BitrateEnabled => !UseCrf;
 
     /// <summary>Raised when the dialog should close (Cancel, or a successful Generate hand-off).</summary>
     public event EventHandler? Closed;
@@ -855,7 +856,12 @@ public sealed partial class HighlightReelDialogViewModel : ViewModelBase
     }
 
     private readonly record struct DemoFacts(
-        string? Sha256, int TickRate, string MapDisplay, string? MapName, string FileName, bool Exists);
+        string? Sha256,
+        int TickRate,
+        string MapDisplay,
+        string? MapName,
+        string FileName,
+        bool Exists);
 
     // A staged highlight and the clip candidate it produced, kept together so the tray can show provenance
     // (source tick) and offer a per-clip ✕ (the HighlightKey). ClipWindows.Candidate is a protected-by-policy

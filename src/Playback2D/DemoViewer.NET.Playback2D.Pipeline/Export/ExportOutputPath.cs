@@ -7,7 +7,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 ///         is missing (<c>Error opening output …: No such file or directory</c>) and ImageSharp's
 ///         <c>Image.Save(path)</c> throws <see cref="DirectoryNotFoundException" />. Both failures
 ///         arrive <b>after</b> the whole range has been replayed and rendered, which is minutes of work
-///         thrown away for a directory that takes a syscall to make — and it is exactly what
+///         thrown away for a directory that takes a syscall to make, and it is exactly what
 ///         <c>dv2d export --out artifacts/playback2d-export/ci-smoke.gif</c> hits on a clean checkout,
 ///         where <c>artifacts/playback2d-export/</c> does not exist yet.
 ///     </para>
@@ -25,7 +25,7 @@ internal static class ExportOutputPath
     {
         string? directory = Path.GetDirectoryName(Path.GetFullPath(outputPath));
 
-        // Null only for a root ("C:\"), which is not a file the sink can write anyway — let the open
+        // Null only for a root ("C:\"), which is not a file the sink can write anyway: let the open
         // fail with its own message rather than inventing one here.
         if (!string.IsNullOrEmpty(directory))
         {

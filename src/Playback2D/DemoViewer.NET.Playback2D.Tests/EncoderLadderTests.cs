@@ -10,7 +10,8 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     A probe that answers from a script instead of from a machine — plan <c>P2-export-throughput</c> §5.
+///     A probe that answers from a script instead of from a machine. See
+///     <c>docs/playback2d-v2/plans/P2-export-throughput.md</c>.
 ///     <para>
 ///         This is what makes the fallback behaviour assertable on a CI runner with no GPU, no driver and
 ///         no ffmpeg. Every case below runs identically on a workstation with an RTX card and on a hosted
@@ -44,8 +45,8 @@ public class EncoderLadderTests
     [Test]
     public async Task EveryLadder_EndsInSoftware()
     {
-        // The load-bearing invariant. `auto` on a machine with no working hardware encoder — which is
-        // every CI runner and most laptops — has to land somewhere, and "somewhere" is the last rung.
+        // The load-bearing invariant. `auto` on a machine with no working hardware encoder (every CI
+        // runner and most laptops) has to land somewhere, and "somewhere" is the last rung.
         foreach (string format in ExportFormats.All)
         {
             IReadOnlyList<VideoEncoder> rungs = EncoderLadder.For(format);
@@ -64,7 +65,13 @@ public class EncoderLadderTests
         // go in a WebM at all, while AV1 has been legal in it since 2018. That is what lets the hardware
         // rung keep the .webm extension, the format id and every persisted default exactly as they were.
         await Assert.That(rungs.Select(r => r.Name).ToList())
-            .IsEquivalentTo(new List<string> { "av1_nvenc", "av1_qsv", "av1_amf", "libvpx-vp9" });
+            .IsEquivalentTo(new List<string>
+            {
+                "av1_nvenc",
+                "av1_qsv",
+                "av1_amf",
+                "libvpx-vp9"
+            });
 
         foreach (VideoEncoder rung in rungs)
         {
@@ -76,23 +83,34 @@ public class EncoderLadderTests
     public async Task Mp4_PrefersH264Hardware_ThenX264()
     {
         await Assert.That(EncoderLadder.For(ExportFormats.Mp4).Select(r => r.Name).ToList())
-            .IsEquivalentTo(new List<string> { "h264_nvenc", "h264_qsv", "h264_amf", "libx264" });
+            .IsEquivalentTo(new List<string>
+            {
+                "h264_nvenc",
+                "h264_qsv",
+                "h264_amf",
+                "libx264"
+            });
     }
 
     [Test]
     public async Task VendorOrder_PutsTheDiscreteCardFirst()
     {
-        // NVENC, then QSV, then AMF, on both ladders. Not a quality claim — on a box with a discrete
+        // NVENC, then QSV, then AMF, on both ladders. Not a quality claim: on a box with a discrete
         // NVIDIA card AND an iGPU, the discrete card is the one that is not also drawing the desktop.
-        foreach (string format in new[] { ExportFormats.WebM, ExportFormats.Mp4 })
+        foreach (string format in new[]
+                 {
+                     ExportFormats.WebM, ExportFormats.Mp4
+                 })
         {
             List<EncoderAcceleration> order =
                 [.. EncoderLadder.For(format).Select(r => r.Acceleration)];
 
             await Assert.That(order).IsEquivalentTo(new List<EncoderAcceleration>
             {
-                EncoderAcceleration.Nvenc, EncoderAcceleration.QuickSync,
-                EncoderAcceleration.Amf, EncoderAcceleration.Software
+                EncoderAcceleration.Nvenc,
+                EncoderAcceleration.QuickSync,
+                EncoderAcceleration.Amf,
+                EncoderAcceleration.Software
             });
         }
     }
@@ -105,7 +123,7 @@ public class EncoderLadderTests
         await Assert.That(rungs.Count).IsEqualTo(1);
         await Assert.That(rungs[0].IsHardware).IsFalse();
 
-        // Plan B4 D6's palettegen/paletteuse chain IS the encoder, so there is no -c:v and no quality
+        // The palettegen/paletteuse filter chain IS the encoder, so there is no -c:v and no quality
         // ladder to map. The rung exists so a GIF export reports through the same shape as every other.
         await Assert.That(rungs[0].ArgumentsFor(ExportQuality.Best)).IsEmpty();
     }
@@ -131,15 +149,18 @@ public class EncoderLadderTests
 }
 
 /// <summary>
-///     Plan D3's quality table, asserted as arguments. These strings were measured — throughput, output
-///     bitrate and SSIM per cell — so a change to one of them is a change to a number in the plan.
+///     The quality table, asserted as arguments. Every string here is measured (throughput, output
+///     bitrate and SSIM per cell), so changing one changes a published number.
 /// </summary>
 public class EncoderQualityTests
 {
     [Test]
     public async Task EveryVideoRung_MapsAllThreeQualities_ToSomethingDifferent()
     {
-        foreach (string format in new[] { ExportFormats.WebM, ExportFormats.Mp4 })
+        foreach (string format in new[]
+                 {
+                     ExportFormats.WebM, ExportFormats.Mp4
+                 })
         {
             foreach (VideoEncoder rung in EncoderLadder.For(format))
             {
@@ -151,7 +172,7 @@ public class EncoderQualityTests
                 await Assert.That(standard).IsNotEmpty();
                 await Assert.That(best).IsNotEmpty();
 
-                // Three ids that mapped onto two settings would be a menu with a decoy on it.
+                // Three ids mapping onto two settings is a menu with a decoy on it.
                 await Assert.That(draft).IsNotEqualTo(standard);
                 await Assert.That(standard).IsNotEqualTo(best);
             }
@@ -161,15 +182,18 @@ public class EncoderQualityTests
     [Test]
     public async Task Nvenc_UsesConstantQualityVbr_WithAZeroBitrate()
     {
-        foreach (VideoEncoder rung in new[] { EncoderLadder.Av1Nvenc, EncoderLadder.H264Nvenc })
+        foreach (VideoEncoder rung in new[]
+                 {
+                     EncoderLadder.Av1Nvenc, EncoderLadder.H264Nvenc
+                 })
         {
             foreach (ExportQuality quality in Enum.GetValues<ExportQuality>())
             {
                 string arguments = rung.ArgumentsFor(quality);
 
                 // -rc vbr with -b:v 0 IS NVENC's constant-quality mode. Without the zero bitrate, -cq is
-                // silently ignored and the encoder goes CBR at its default rate — an export that "works"
-                // and looks wrong, which is the worst shape a defect can take here.
+                // silently ignored and the encoder goes CBR at its default rate: an export that "works"
+                // and looks wrong.
                 await Assert.That(arguments).Contains("-rc vbr");
                 await Assert.That(arguments).Contains("-b:v 0");
                 await Assert.That(arguments).Contains("-cq ");
@@ -185,8 +209,7 @@ public class EncoderQualityTests
         {
             string arguments = EncoderLadder.Vp9.ArgumentsFor(quality);
 
-            // The regression this phase exists to prevent: before P2 this rung carried neither flag, so
-            // it ran at libvpx's slowest setting on a codec whose speed control is exactly this pair.
+            // Without both flags libvpx runs at its slowest setting; they are vp9's whole speed control.
             await Assert.That(arguments).Contains("-deadline ");
             await Assert.That(arguments).Contains("-cpu-used ");
             await Assert.That(arguments).Contains("-row-mt 1");
@@ -261,7 +284,12 @@ public class EncoderSelectorTests
 
         await Assert.That(selection.Encoder).IsEqualTo(EncoderLadder.H264Amf);
         await Assert.That(probe.Calls.Select(c => c.Encoder).ToList())
-            .IsEquivalentTo(new List<string> { "h264_nvenc", "h264_qsv", "h264_amf" });
+            .IsEquivalentTo(new List<string>
+            {
+                "h264_nvenc",
+                "h264_qsv",
+                "h264_amf"
+            });
         await Assert.That(selection.Reason).Contains("rung 3 of 4");
     }
 
@@ -269,7 +297,10 @@ public class EncoderSelectorTests
     public async Task NullRequest_MeansAuto()
     {
         // The settings file, the dialog and the CLI all have their own way of spelling "nothing chosen".
-        foreach (string? request in new[] { null, "", "   ", "auto", "AUTO" })
+        foreach (string? request in new[]
+                 {
+                     null, "", "   ", "auto", "AUTO"
+                 })
         {
             EncoderSelection selection = new EncoderSelector(new FakeEncoderProbe("av1_nvenc"))
                 .Select(ExportFormats.WebM, request, ExportQuality.Standard, null);
@@ -288,7 +319,7 @@ public class EncoderSelectorTests
         await Assert.That(selection.Quality).IsEqualTo(ExportQuality.Draft);
 
         // Not one process was started. `software` is the answer a bisect or a bitrate comparison wants,
-        // and it must not depend on what hardware happens to be in the machine running it — including
+        // and it must not depend on what hardware happens to be in the machine running it, including
         // hardware that WOULD have verified.
         await Assert.That(probe.Calls).IsEmpty();
     }
@@ -301,7 +332,7 @@ public class EncoderSelectorTests
 
         // trustListing is true for exactly the software rung and false for every hardware one. That is
         // what keeps a GPU-less CI export from paying a 600 ms test encode to re-learn that libvpx is
-        // still libvpx — the failure mode a test encode exists for is a DRIVER fact.
+        // still libvpx. The failure mode a test encode exists for is a DRIVER fact.
         foreach ((string encoder, bool trust) in probe.Calls)
         {
             await Assert.That(trust).IsEqualTo(string.Equals(encoder, "libvpx-vp9", StringComparison.Ordinal));
@@ -313,10 +344,9 @@ public class EncoderSelectorTests
     {
         EncoderSelector selector = new(new FakeEncoderProbe("libvpx-vp9"));
 
-        // Plan D4. A user who asked for av1_nvenc and quietly got libvpx has been told a lie about what
-        // their file is — and would go on believing their GPU was doing the work.
-        EncoderUnavailableException thrown = Assert.Throws<EncoderUnavailableException>(
-            () => selector.Select(ExportFormats.WebM, "av1_nvenc", ExportQuality.Standard, null));
+        // A user who asked for av1_nvenc and quietly got libvpx has been told a lie about what their
+        // file is, and goes on believing their GPU did the work.
+        EncoderUnavailableException thrown = Assert.Throws<EncoderUnavailableException>(() => selector.Select(ExportFormats.WebM, "av1_nvenc", ExportQuality.Standard, null));
 
         await Assert.That(thrown.Message).Contains("av1_nvenc");
         await Assert.That(thrown.Message).Contains("no device (fake)");
@@ -328,8 +358,7 @@ public class EncoderSelectorTests
     {
         EncoderSelector selector = new(new FakeEncoderProbe());
 
-        ExportValidationException thrown = Assert.Throws<ExportValidationException>(
-            () => selector.Select(ExportFormats.Mp4, "libaom-av1", ExportQuality.Standard, null));
+        ExportValidationException thrown = Assert.Throws<ExportValidationException>(() => selector.Select(ExportFormats.Mp4, "libaom-av1", ExportQuality.Standard, null));
 
         await Assert.That(thrown.Message).Contains("auto");
         await Assert.That(thrown.Message).Contains("software");
@@ -365,8 +394,8 @@ public class EncoderSelectorTests
     [Test]
     public async Task TwoSelections_AreIndependentValues()
     {
-        // Plan D5, and the thing the future export node needs from this phase: nothing about a selection
-        // is process-global, so two exports in one process may be on two different rungs at once.
+        // Nothing about a selection is process-global, so two exports in one process may be on two
+        // different rungs at once. A future multi-export node depends on that.
         EncoderSelector selector = new(new FakeEncoderProbe("av1_nvenc", "libvpx-vp9"));
 
         EncoderSelection hardware =
@@ -431,8 +460,8 @@ public class EncoderProbeCacheTests
 
 /// <summary>
 ///     The real probe against the real ffmpeg. Skips cleanly when there is none, the way
-///     <c>FfmpegAcquisitionTests</c> and <c>ExportFailureTests</c> already do — CI has no GPU and may
-///     have no ffmpeg, and neither is a failure.
+///     <c>FfmpegAcquisitionTests</c> and <c>ExportFailureTests</c> already do. CI has no GPU and may
+///     have no ffmpeg; neither is a failure.
 /// </summary>
 public class FfmpegEncoderProbeTests
 {
@@ -443,8 +472,8 @@ public class FfmpegEncoderProbeTests
         FfmpegEncoderProbe probe = new();
 
         // trustListing:false forces the actual two-frames-on-stdin encode. Every OTHER caller of this
-        // path is a hardware rung, so without this case the transport itself — rawvideo yuv420p on
-        // stdin, out to -f null - — would only ever be exercised on a machine with a working GPU. If it
+        // path is a hardware rung, so without this case the transport itself (rawvideo yuv420p on
+        // stdin, out to -f null -) would only ever be exercised on a machine with a working GPU. If it
         // were broken, `auto` would silently reject every hardware rung and fall to software forever.
         EncoderProbeResult result = probe.Verify("libvpx-vp9", folder, false, CancellationToken.None);
 
@@ -493,15 +522,14 @@ public class FfmpegEncoderProbeTests
         cancelled.Cancel();
 
         // A cancelled walk says so. It does NOT come back with an empty listing, which is
-        // indistinguishable from "this build carries no encoders" and is the shape that used to get
-        // remembered — EncoderProbeCache already refuses to cache a cancelled RESULT for exactly this
-        // reason, and the listing underneath it has to agree.
+        // indistinguishable from "this build carries no encoders". EncoderProbeCache refuses to cache a
+        // cancelled RESULT for the same reason, and the listing underneath it has to agree.
         Assert.Throws<OperationCanceledException>(() => probe.ListEncoders(folder, cancelled.Token));
 
-        // The app holds ONE EncoderProbeCache for a whole session. If the cancelled read had stuck,
-        // every later export in that session would be told every rung was "not built into this ffmpeg"
-        // and would drop to the software floor — silently, permanently, and triggered by nothing more
-        // exotic than a user pressing Cancel while the ladder was being walked.
+        // The app holds ONE EncoderProbeCache for a whole session. A stuck cancelled read tells every
+        // later export in that session that every rung is "not built into this ffmpeg" and drops it to
+        // the software floor: silently, permanently, and triggered by nothing more exotic than pressing
+        // Cancel while the ladder is being walked.
         IReadOnlySet<string> afterwards = probe.ListEncoders(folder, CancellationToken.None);
 
         await Assert.That(afterwards).Contains("libvpx-vp9");
@@ -529,9 +557,9 @@ public class FfmpegEncoderProbeTests
 
         long elapsedMs = Environment.TickCount64 - startedMs;
 
-        // Handing the token to the stream reads instead of to the process abandoned ffmpeg's pipes
-        // while it was still writing, which blocks the child on a full buffer until the 20 s timeout
-        // kills it. A user who cancels an export waits for the render loop to notice, not for that.
+        // Handing the token to the stream reads instead of to the process abandons ffmpeg's pipes while
+        // it is still writing, blocking the child on a full buffer until the 20 s timeout kills it. A
+        // user who cancels an export waits for the render loop to notice, not for that.
         await Assert.That(elapsedMs).IsLessThan((long)FfmpegEncoderProbe.Timeout.TotalMilliseconds / 4);
     }
 
@@ -590,7 +618,7 @@ public class EncoderArgumentTests
                 new FfmpegSinkOptions("out.mp4", ExportFormats.Mp4, 1280, 720, 60, null, selection));
 
             // faststart is a CONTAINER property (it moves the moov atom to the front), so it has to
-            // survive a rung swap — the reason it is applied outside the encoder branch.
+            // survive a rung swap, so it is applied outside the encoder branch.
             await Assert.That(arguments).Contains("-movflags faststart");
             await Assert.That(arguments).Contains("-c:v " + rung.Name);
         }
@@ -609,17 +637,20 @@ public class EncoderArgumentTests
         await Assert.That(arguments).Contains("paletteuse");
         await Assert.That(arguments).Contains("-loop 0");
 
-        // No -c:v at all: plan B4 D6's filter chain is the encoder, and a ladder rung leaking a codec
-        // flag in here would override it.
+        // No -c:v at all: the filter chain is the encoder, and a ladder rung leaking a codec flag in
+        // here would override it.
         await Assert.That(arguments).DoesNotContain("-c:v ");
     }
 
     [Test]
     public async Task ASinkWithNoSelection_StillEncodes_OnTheSoftwareRung()
     {
-        // A caller that never ran a probe — a test, a headless tool, a future path that has not been
-        // wired yet — gets a working sink rather than a null reference.
-        foreach (string format in new[] { ExportFormats.WebM, ExportFormats.Mp4 })
+        // A caller that never ran a probe (a test, a headless tool, a path not yet wired) gets a
+        // working sink rather than a null reference.
+        foreach (string format in new[]
+                 {
+                     ExportFormats.WebM, ExportFormats.Mp4
+                 })
         {
             FfmpegSinkOptions options = new("out." + format, format, 1280, 720, 60);
 

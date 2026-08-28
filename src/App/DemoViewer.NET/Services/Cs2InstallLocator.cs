@@ -137,6 +137,7 @@ public static partial class Cs2InstallLocator
         {
             yield return @"C:\Program Files (x86)\Steam";
             yield return @"C:\Program Files\Steam";
+
             string? programFilesX86 = Environment.GetEnvironmentVariable("ProgramFiles(x86)");
             if (!string.IsNullOrEmpty(programFilesX86))
             {
@@ -155,6 +156,7 @@ public static partial class Cs2InstallLocator
         if (OperatingSystem.IsMacOS())
         {
             yield return Path.Combine(home, "Library", "Application Support", "Steam");
+
             yield break;
         }
 

@@ -216,8 +216,7 @@ public class MapRadarBindingTests
                 new WorldBoundsDto(-1000, -1000, 1000, 1000),
                 floors ?? [],
                 layers,
-                images,
-                null!),
+                images),
             // Fixtures carry no pixels: the binder's job is choosing NAMES, and every name here is
             // absent from the (empty) decoded map, which is itself the "bundle present, image
             // undecodable" case the pre-v2 code degraded through.

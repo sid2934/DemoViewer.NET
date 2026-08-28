@@ -1,7 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:DemoViewer.NET.ViewModels.Highlights"
-             xmlns:libvm="using:DemoViewer.NET.ViewModels.Library"
              xmlns:theming="using:DemoViewer.NET.Theming"
              xmlns:views="using:DemoViewer.NET.Views.Highlights"
              x:Class="DemoViewer.NET.Views.Highlights.HighlightsTabView"
@@ -94,443 +93,448 @@
          KeyDown (tunnelling from the root) carries Escape → close, which is the only gesture a bound command
          cannot express. -->
     <Panel KeyDown="OnRootKeyDown">
-    <DockPanel Background="{DynamicResource ShellBg}" SizeChanged="OnRootSizeChanged">
+        <DockPanel Background="{DynamicResource ShellBg}" SizeChanged="OnRootSizeChanged">
 
-        <!-- ══ Header ══════════════════════════════════════════════════════════════ -->
-        <Border DockPanel.Dock="Top" Classes="sectionHeader">
-            <DockPanel VerticalAlignment="Center">
-                <TextBlock DockPanel.Dock="Left" Text="REELS" Classes="sectionLabel"
-                           VerticalAlignment="Center" Margin="0 0 12 0" />
+            <!-- ══ Header ══════════════════════════════════════════════════════════════ -->
+            <Border DockPanel.Dock="Top" Classes="sectionHeader">
+                <DockPanel VerticalAlignment="Center">
+                    <TextBlock DockPanel.Dock="Left" Text="REELS" Classes="sectionLabel"
+                               VerticalAlignment="Center" Margin="0 0 12 0" />
 
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
-                            VerticalAlignment="Center" IsVisible="{Binding ShowBrowseSurface}">
-                    <Button Content="+ Add clips…" Classes="chip" FontSize="11" Padding="10 3"
-                            VerticalAlignment="Center" Command="{Binding AddClipsCommand}"
-                            ToolTip.Tip="{Binding AddClipsHint}" />
-                    <Button Content="⟳ Rescan all" Classes="chip" FontSize="11" Padding="8 3"
-                            VerticalAlignment="Center" Command="{Binding RescanAllCommand}"
-                            IsVisible="{Binding CanScan}"
-                            ToolTip.Tip="Re-scan the whole library for highlights" />
-                    <Button Classes="chip" Content="Reel settings ▸" FontSize="11" Padding="8 3"
-                            VerticalAlignment="Center" IsVisible="{Binding ShowConfigButton}"
-                            Command="{Binding ShowConfigCommand}" />
-                    <Button Classes="chip" Content="◀ Back to clips" FontSize="11" Padding="8 3"
-                            VerticalAlignment="Center" IsVisible="{Binding ShowBackButton}"
-                            Command="{Binding BackToTrayCommand}" />
-                </StackPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
+                                VerticalAlignment="Center" IsVisible="{Binding ShowBrowseSurface}">
+                        <Button Content="+ Add clips…" Classes="chip" FontSize="11" Padding="10 3"
+                                VerticalAlignment="Center" Command="{Binding AddClipsCommand}"
+                                ToolTip.Tip="{Binding AddClipsHint}" />
+                        <Button Content="⟳ Rescan all" Classes="chip" FontSize="11" Padding="8 3"
+                                VerticalAlignment="Center" Command="{Binding RescanAllCommand}"
+                                IsVisible="{Binding CanScan}"
+                                ToolTip.Tip="Re-scan the whole library for highlights" />
+                        <Button Classes="chip" Content="Reel settings ▸" FontSize="11" Padding="8 3"
+                                VerticalAlignment="Center" IsVisible="{Binding ShowConfigButton}"
+                                Command="{Binding ShowConfigCommand}" />
+                        <Button Classes="chip" Content="◀ Back to clips" FontSize="11" Padding="8 3"
+                                VerticalAlignment="Center" IsVisible="{Binding ShowBackButton}"
+                                Command="{Binding BackToTrayCommand}" />
+                    </StackPanel>
 
-                <Panel />
-            </DockPanel>
-        </Border>
-
-        <!-- ══ Footer: pre-flight · interlock · job strip · actions ═════════════════ -->
-        <StackPanel DockPanel.Dock="Bottom" Margin="14 8 14 12" Spacing="8"
-                    IsVisible="{Binding ShowBrowseSurface}">
-
-            <!-- Inline pre-flight banner (tinted glyph + neutral text; disables Generate). -->
-            <Border IsVisible="{Binding ReelConfig.ShowErrorBanner}" Background="{DynamicResource CardBg}"
-                    BorderBrush="{DynamicResource BorderAccent}" BorderThickness="1" CornerRadius="6"
-                    Padding="10 6">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="⚠" Foreground="{DynamicResource AccentError}" FontSize="12"
-                               VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding ReelConfig.ErrorBanner}" Foreground="{DynamicResource TextValue}"
-                               FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
-                </StackPanel>
+                    <Panel />
+                </DockPanel>
             </Border>
 
-            <!-- ffmpeg pre-flight (v0.6.0): reel capture/concat needs ffmpeg, and without this strip a
+            <!-- ══ Footer: pre-flight · interlock · job strip · actions ═════════════════ -->
+            <StackPanel DockPanel.Dock="Bottom" Margin="14 8 14 12" Spacing="8"
+                        IsVisible="{Binding ShowBrowseSurface}">
+
+                <!-- Inline pre-flight banner (tinted glyph + neutral text; disables Generate). -->
+                <Border IsVisible="{Binding ReelConfig.ShowErrorBanner}" Background="{DynamicResource CardBg}"
+                        BorderBrush="{DynamicResource BorderAccent}" BorderThickness="1" CornerRadius="6"
+                        Padding="10 6">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="⚠" Foreground="{DynamicResource AccentError}" FontSize="12"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding ReelConfig.ErrorBanner}" Foreground="{DynamicResource TextValue}"
+                                   FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ffmpeg pre-flight (v0.6.0): reel capture/concat needs ffmpeg, and without this strip a
                  missing install surfaced as a raw CSVG failure AFTER CS2 had launched. Guides a
                  SELF-install (winget / download+PATH / drop-in folder) rather than downloading on the
                  user's behalf; Re-check clears the strip in place once ffmpeg is found. -->
-            <Border IsVisible="{Binding ReelConfig.ShowFfmpegStrip}" Background="{DynamicResource CardBg}"
-                    BorderBrush="{DynamicResource AccentCaution}" BorderThickness="1" CornerRadius="6"
-                    Padding="12 10">
-                <StackPanel Spacing="10">
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="⚠" Foreground="{DynamicResource AccentCaution}"
-                                   FontSize="13" VerticalAlignment="Top" Margin="0 1 0 0" />
-                        <StackPanel Grid.Column="1" Spacing="4">
-                            <TextBlock Text="{Binding ReelConfig.FfmpegMissingMessage}"
+                <Border IsVisible="{Binding ReelConfig.ShowFfmpegStrip}" Background="{DynamicResource CardBg}"
+                        BorderBrush="{DynamicResource AccentCaution}" BorderThickness="1" CornerRadius="6"
+                        Padding="12 10">
+                    <StackPanel Spacing="10">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                            <TextBlock Grid.Column="0" Text="⚠" Foreground="{DynamicResource AccentCaution}"
+                                       FontSize="13" VerticalAlignment="Top" Margin="0 1 0 0" />
+                            <StackPanel Grid.Column="1" Spacing="4">
+                                <TextBlock Text="{Binding ReelConfig.FfmpegMissingMessage}"
+                                           Foreground="{DynamicResource TextValue}" FontSize="12" TextWrapping="Wrap" />
+                                <!-- SelectableTextBlock so the winget command / drop-in path can be copied. -->
+                                <SelectableTextBlock Text="{Binding ReelConfig.FfmpegInstructions}"
+                                                     Foreground="{DynamicResource TextMid}" FontSize="11"
+                                                     TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button Content="Open download page" Classes="ghost" Padding="14 5"
+                                    Command="{Binding ReelConfig.OpenFfmpegDownloadPageCommand}"
+                                    ToolTip.Tip="Opens ffmpeg.org/download.html in your browser." />
+                            <Button Content="Re-check" Classes="primary" Padding="14 5"
+                                    Command="{Binding ReelConfig.RecheckFfmpegCommand}"
+                                    ToolTip.Tip="Probe again after installing — clears this notice when ffmpeg is found." />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Single-CS2 interlock confirm strip — TRANSPLANTED UNCHANGED from the modal. -->
+                <Border IsVisible="{Binding ReelConfig.ShowInterlockConfirm}" Background="{DynamicResource CardBg}"
+                        BorderBrush="{DynamicResource AccentCaution}" BorderThickness="1" CornerRadius="6"
+                        Padding="12 10">
+                    <StackPanel Spacing="10">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                            <TextBlock Grid.Column="0" Text="⚠" Foreground="{DynamicResource AccentCaution}"
+                                       FontSize="13" VerticalAlignment="Top" Margin="0 1 0 0" />
+                            <TextBlock Grid.Column="1" Text="{Binding ReelConfig.InterlockMessage}"
                                        Foreground="{DynamicResource TextValue}" FontSize="12" TextWrapping="Wrap" />
-                            <!-- SelectableTextBlock so the winget command / drop-in path can be copied. -->
-                            <SelectableTextBlock Text="{Binding ReelConfig.FfmpegInstructions}"
-                                                 Foreground="{DynamicResource TextMid}" FontSize="11"
-                                                 TextWrapping="Wrap" />
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                            <Button Content="Back" Classes="ghost" Padding="14 5"
+                                    Command="{Binding ReelConfig.CancelInterlockCommand}" />
+                            <Button Content="Continue" Classes="primary" Padding="14 5"
+                                    Command="{Binding ReelConfig.ConfirmInterlockCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Clear-tray guard rail: a confirm strip, not a modal and not an immediate wipe. -->
+                <Border IsVisible="{Binding ShowClearConfirm}" Background="{DynamicResource CardBg}"
+                        BorderBrush="{DynamicResource AccentCaution}" BorderThickness="1" CornerRadius="6"
+                        Padding="12 10">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                        <TextBlock Grid.Column="0" Text="⚠" Foreground="{DynamicResource AccentCaution}"
+                                   FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Foreground="{DynamicResource TextValue}" FontSize="12"
+                                   TextWrapping="Wrap" VerticalAlignment="Center"
+                                   Text="Remove every staged clip? There's no undo." />
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                            <Button Content="Keep them" Classes="ghost" Padding="14 5"
+                                    Command="{Binding CancelClearTrayCommand}" />
+                            <Button Content="Clear tray" Classes="primary" Padding="14 5"
+                                    Command="{Binding ConfirmClearTrayCommand}" />
                         </StackPanel>
                     </Grid>
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <Button Content="Open download page" Classes="ghost" Padding="14 5"
-                                Command="{Binding ReelConfig.OpenFfmpegDownloadPageCommand}"
-                                ToolTip.Tip="Opens ffmpeg.org/download.html in your browser." />
-                        <Button Content="Re-check" Classes="primary" Padding="14 5"
-                                Command="{Binding ReelConfig.RecheckFfmpegCommand}"
-                                ToolTip.Tip="Probe again after installing — clears this notice when ffmpeg is found." />
-                    </StackPanel>
-                </StackPanel>
-            </Border>
+                </Border>
 
-            <!-- Single-CS2 interlock confirm strip — TRANSPLANTED UNCHANGED from the modal. -->
-            <Border IsVisible="{Binding ReelConfig.ShowInterlockConfirm}" Background="{DynamicResource CardBg}"
-                    BorderBrush="{DynamicResource AccentCaution}" BorderThickness="1" CornerRadius="6"
-                    Padding="12 10">
-                <StackPanel Spacing="10">
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="⚠" Foreground="{DynamicResource AccentCaution}"
-                                   FontSize="13" VerticalAlignment="Top" Margin="0 1 0 0" />
-                        <TextBlock Grid.Column="1" Text="{Binding ReelConfig.InterlockMessage}"
-                                   Foreground="{DynamicResource TextValue}" FontSize="12" TextWrapping="Wrap" />
-                    </Grid>
-                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                        <Button Content="Back" Classes="ghost" Padding="14 5"
-                                Command="{Binding ReelConfig.CancelInterlockCommand}" />
-                        <Button Content="Continue" Classes="primary" Padding="14 5"
-                                Command="{Binding ReelConfig.ConfirmInterlockCommand}" />
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-
-            <!-- Clear-tray guard rail: a confirm strip, not a modal and not an immediate wipe. -->
-            <Border IsVisible="{Binding ShowClearConfirm}" Background="{DynamicResource CardBg}"
-                    BorderBrush="{DynamicResource AccentCaution}" BorderThickness="1" CornerRadius="6"
-                    Padding="12 10">
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                    <TextBlock Grid.Column="0" Text="⚠" Foreground="{DynamicResource AccentCaution}"
-                               FontSize="13" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="1" Foreground="{DynamicResource TextValue}" FontSize="12"
-                               TextWrapping="Wrap" VerticalAlignment="Center"
-                               Text="Remove every staged clip? There's no undo." />
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                        <Button Content="Keep them" Classes="ghost" Padding="14 5"
-                                Command="{Binding CancelClearTrayCommand}" />
-                        <Button Content="Clear tray" Classes="primary" Padding="14 5"
-                                Command="{Binding ConfirmClearTrayCommand}" />
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <!-- Inline job strip — a SECOND VIEW of the same ReelJobStatusViewModel the status chip
+                <!-- Inline job strip — a SECOND VIEW of the same ReelJobStatusViewModel the status chip
                  drives. Shown only while a job exists, so it costs zero height at rest. -->
-            <Border IsVisible="{Binding ShowJobStrip}" Background="{DynamicResource CardBg}"
-                    BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1" CornerRadius="6"
-                    Padding="10 6">
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                    <Ellipse Grid.Column="0" Classes="dot" Width="10" Height="10" VerticalAlignment="Center"
-                             Classes.stateOff="{Binding JobStatus.Chip.IsStateOff}"
-                             Classes.stateWorking="{Binding JobStatus.Chip.IsStateWorking}"
-                             Classes.stateGood="{Binding JobStatus.Chip.IsStateGood}"
-                             Classes.stateError="{Binding JobStatus.Chip.IsStateError}"
-                             Classes.pulsing="{Binding JobStatus.IsRunning}" />
-                    <TextBlock Grid.Column="1" Text="{Binding JobStatus.Headline}"
-                               Foreground="{DynamicResource TextValue}" FontSize="12"
-                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                        <Button Classes="ghost" Content="Open folder" FontSize="11" Padding="10 3"
-                                IsVisible="{Binding JobStatus.CanOpenFolder}"
-                                Command="{Binding JobStatus.OpenFolderCommand}" />
-                        <!-- The inline strip shows only the generic headline; Copy error surfaces the full
+                <Border IsVisible="{Binding ShowJobStrip}" Background="{DynamicResource CardBg}"
+                        BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1" CornerRadius="6"
+                        Padding="10 6">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                        <Ellipse Grid.Column="0" Classes="dot" Width="10" Height="10" VerticalAlignment="Center"
+                                 Classes.stateOff="{Binding JobStatus.Chip.IsStateOff}"
+                                 Classes.stateWorking="{Binding JobStatus.Chip.IsStateWorking}"
+                                 Classes.stateGood="{Binding JobStatus.Chip.IsStateGood}"
+                                 Classes.stateError="{Binding JobStatus.Chip.IsStateError}"
+                                 Classes.pulsing="{Binding JobStatus.IsRunning}" />
+                        <TextBlock Grid.Column="1" Text="{Binding JobStatus.Headline}"
+                                   Foreground="{DynamicResource TextValue}" FontSize="12"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                            <Button Classes="ghost" Content="Open folder" FontSize="11" Padding="10 3"
+                                    IsVisible="{Binding JobStatus.CanOpenFolder}"
+                                    Command="{Binding JobStatus.OpenFolderCommand}" />
+                            <!-- The inline strip shows only the generic headline; Copy error surfaces the full
                              diagnostic (same block the flyout copies) so the fault is reportable from here too. -->
-                        <Button Classes="ghost" Content="Copy error" FontSize="11" Padding="10 3"
-                                IsVisible="{Binding JobStatus.HasError}" Click="OnCopyReelErrorClick"
-                                ToolTip.Tip="Copy the full reel diagnostic (phase, clips, error) to the clipboard." />
-                        <Button Classes="ghost" Content="Retry remaining" FontSize="11" Padding="10 3"
-                                IsVisible="{Binding JobStatus.CanRetry}"
-                                Command="{Binding JobStatus.RetryCommand}" />
-                        <Button Classes="ghost" Content="Cancel" FontSize="11" Padding="10 3"
-                                IsVisible="{Binding JobStatus.IsRunning}"
-                                Command="{Binding JobStatus.CancelCommand}" />
-                        <Button Classes="ghost" Content="Dismiss" FontSize="11" Padding="10 3"
-                                IsVisible="{Binding !JobStatus.IsRunning}"
-                                Command="{Binding JobStatus.DismissCommand}" />
+                            <Button Classes="ghost" Content="Copy error" FontSize="11" Padding="10 3"
+                                    IsVisible="{Binding JobStatus.HasError}" Click="OnCopyReelErrorClick"
+                                    ToolTip.Tip="Copy the full reel diagnostic (phase, clips, error) to the clipboard." />
+                            <Button Classes="ghost" Content="Retry remaining" FontSize="11" Padding="10 3"
+                                    IsVisible="{Binding JobStatus.CanRetry}"
+                                    Command="{Binding JobStatus.RetryCommand}" />
+                            <Button Classes="ghost" Content="Cancel" FontSize="11" Padding="10 3"
+                                    IsVisible="{Binding JobStatus.IsRunning}"
+                                    Command="{Binding JobStatus.CancelCommand}" />
+                            <Button Classes="ghost" Content="Dismiss" FontSize="11" Padding="10 3"
+                                    IsVisible="{Binding !JobStatus.IsRunning}"
+                                    Command="{Binding JobStatus.DismissCommand}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Restore / staging notes (e.g. "2 staged clips could not be restored"). -->
+                <TextBlock Text="{Binding StatusMessage}" IsVisible="{Binding HasStatusMessage}"
+                           Foreground="{DynamicResource TextMid}" FontSize="11" TextWrapping="Wrap" />
+
+                <Rectangle Classes="divider" Height="1" />
+
+                <Grid ColumnDefinitions="*,Auto">
+                    <!-- Dry-run caption: tinted ⚠ glyph + NEUTRAL body (tinted body fails AA on Light). -->
+                    <Grid Grid.Column="0" ColumnDefinitions="Auto,*" IsVisible="{Binding ReelConfig.IsDryRunOnly}"
+                          VerticalAlignment="Center" Margin="0 0 12 0">
+                        <TextBlock Grid.Column="0" Text="⚠" Foreground="{DynamicResource AccentCaution}"
+                                   FontSize="12" VerticalAlignment="Top" Margin="0 0 6 0" />
+                        <TextBlock Grid.Column="1" Text="{Binding ReelConfig.DryRunCaption}"
+                                   Foreground="{DynamicResource TextMid}" FontSize="11" TextWrapping="Wrap"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                        <Button Content="Clear tray" Classes="ghost" Padding="16 6"
+                                Command="{Binding ClearTrayCommand}"
+                                ToolTip.Tip="Remove every staged clip" />
+                        <Button Content="{Binding ReelConfig.PrimaryActionLabel}" Classes="primary" Padding="16 6"
+                                Command="{Binding ReelConfig.GenerateCommand}"
+                                ToolTip.Tip="{Binding ReelConfig.ErrorBanner}" />
                     </StackPanel>
                 </Grid>
-            </Border>
+            </StackPanel>
 
-            <!-- Restore / staging notes (e.g. "2 staged clips could not be restored"). -->
-            <TextBlock Text="{Binding StatusMessage}" IsVisible="{Binding HasStatusMessage}"
-                       Foreground="{DynamicResource TextMid}" FontSize="11" TextWrapping="Wrap" />
+            <!-- ══ Body ════════════════════════════════════════════════════════════════ -->
+            <Panel>
 
-            <Rectangle Classes="divider" Height="1" />
+                <Grid IsVisible="{Binding ShowBrowseSurface}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="{Binding TrayColumnWidth, Mode=TwoWay}" MinWidth="280" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="{Binding ConfigColumnWidth, Mode=TwoWay}" MinWidth="260" />
+                    </Grid.ColumnDefinitions>
 
-            <Grid ColumnDefinitions="*,Auto">
-                <!-- Dry-run caption: tinted ⚠ glyph + NEUTRAL body (tinted body fails AA on Light). -->
-                <Grid Grid.Column="0" ColumnDefinitions="Auto,*" IsVisible="{Binding ReelConfig.IsDryRunOnly}"
-                      VerticalAlignment="Center" Margin="0 0 12 0">
-                    <TextBlock Grid.Column="0" Text="⚠" Foreground="{DynamicResource AccentCaution}"
-                               FontSize="12" VerticalAlignment="Top" Margin="0 0 6 0" />
-                    <TextBlock Grid.Column="1" Text="{Binding ReelConfig.DryRunCaption}"
-                               Foreground="{DynamicResource TextMid}" FontSize="11" TextWrapping="Wrap"
-                               VerticalAlignment="Center" />
-                </Grid>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                    <Button Content="Clear tray" Classes="ghost" Padding="16 6"
-                            Command="{Binding ClearTrayCommand}"
-                            ToolTip.Tip="Remove every staged clip" />
-                    <Button Content="{Binding ReelConfig.PrimaryActionLabel}" Classes="primary" Padding="16 6"
-                            Command="{Binding ReelConfig.GenerateCommand}"
-                            ToolTip.Tip="{Binding ReelConfig.ErrorBanner}" />
-                </StackPanel>
-            </Grid>
-        </StackPanel>
+                    <!-- ── TRAY ─────────────────────────────────────────────────────── -->
+                    <DockPanel Grid.Column="0" Grid.ColumnSpan="{Binding TrayColumnSpan}"
+                               IsVisible="{Binding TrayVisible}">
 
-        <!-- ══ Body ════════════════════════════════════════════════════════════════ -->
-        <Panel>
+                        <TextBlock DockPanel.Dock="Top" Text="{Binding ReelConfig.ClipsHeader}"
+                                   Classes="trayHeader" Margin="14 10 14 6" />
 
-            <Grid IsVisible="{Binding ShowBrowseSurface}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="{Binding TrayColumnWidth, Mode=TwoWay}" MinWidth="280" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="{Binding ConfigColumnWidth, Mode=TwoWay}" MinWidth="260" />
-                </Grid.ColumnDefinitions>
-
-                <!-- ── TRAY ─────────────────────────────────────────────────────── -->
-                <DockPanel Grid.Column="0" Grid.ColumnSpan="{Binding TrayColumnSpan}"
-                           IsVisible="{Binding TrayVisible}">
-
-                    <TextBlock DockPanel.Dock="Top" Text="{Binding ReelConfig.ClipsHeader}"
-                               Classes="trayHeader" Margin="14 10 14 6" />
-
-                    <StackPanel DockPanel.Dock="Bottom" IsVisible="{Binding ReelConfig.HasClips}"
-                                Spacing="4" Margin="14 6 14 8">
-                        <!-- A rule above the running total, so a short tray doesn't leave the number
+                        <StackPanel DockPanel.Dock="Bottom" IsVisible="{Binding ReelConfig.HasClips}"
+                                    Spacing="4" Margin="14 6 14 8">
+                            <!-- A rule above the running total, so a short tray doesn't leave the number
                              floating unattached at the bottom of an empty column. -->
-                        <Rectangle Classes="divider" Height="1" />
-                        <TextBlock Text="{Binding ReelConfig.TotalDurationText}"
-                                   Classes="mono" FontSize="11"
-                                   Foreground="{DynamicResource TextMid}" HorizontalAlignment="Right" />
-                    </StackPanel>
+                            <Rectangle Classes="divider" Height="1" />
+                            <TextBlock Text="{Binding ReelConfig.TotalDurationText}"
+                                       Classes="mono" FontSize="11"
+                                       Foreground="{DynamicResource TextMid}" HorizontalAlignment="Right" />
+                        </StackPanel>
 
-                    <Panel>
-                        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                                      IsVisible="{Binding ReelConfig.HasClips}">
-                            <ItemsControl ItemsSource="{Binding ReelConfig.ClipGroups}" Margin="14 0 14 0">
-                                <!-- Virtualized: a tray is small by construction, but a flat row list
+                        <Panel>
+                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                          IsVisible="{Binding ReelConfig.HasClips}">
+                                <ItemsControl ItemsSource="{Binding ReelConfig.ClipGroups}" Margin="14 0 14 0">
+                                    <!-- Virtualized: a tray is small by construction, but a flat row list
                                      virtualizes trivially and this is the shape the redesign chose over the
                                      chunked WrapPanel rows the card grid needed. -->
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <VirtualizingStackPanel />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:ReelClipGroupViewModel">
-                                        <Border Classes="trayGroup" Tag="{Binding}"
-                                                DragDrop.AllowDrop="True">
-                                            <Grid RowDefinitions="Auto,Auto,Auto">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <VirtualizingStackPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ReelClipGroupViewModel">
+                                            <Border Classes="trayGroup" Tag="{Binding}"
+                                                    DragDrop.AllowDrop="True">
+                                                <Grid RowDefinitions="Auto,Auto,Auto">
 
-                                                <!-- Provenance header: map accent dot + player · map, file. -->
-                                                <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto"
-                                                      ColumnSpacing="8">
-                                                    <Border Grid.Column="0" Width="9" Height="9"
-                                                            CornerRadius="2" VerticalAlignment="Center"
-                                                            theming:MapAccent.Key="{Binding MapName}" />
-                                                    <StackPanel Grid.Column="1" Spacing="0">
-                                                        <TextBlock Text="{Binding Header}"
-                                                                   Foreground="{DynamicResource TextValue}"
-                                                                   FontSize="13" FontWeight="SemiBold"
-                                                                   TextTrimming="CharacterEllipsis" />
-                                                        <TextBlock Text="{Binding FileName}"
-                                                                   Foreground="{DynamicResource TextMid}"
-                                                                   FontSize="10" TextTrimming="CharacterEllipsis"
-                                                                   ToolTip.Tip="{Binding FileName}" />
-                                                    </StackPanel>
-                                                    <TextBlock Grid.Column="2" Classes="grip" Text="⠿"
-                                                               FontSize="14" VerticalAlignment="Center"
-                                                               Tag="{Binding GroupKey}"
-                                                               PointerPressed="OnGroupPointerPressed"
-                                                               ToolTip.Tip="Drag to reorder — or use the ▲ ▼ buttons" />
-                                                </Grid>
+                                                    <!-- Provenance header: map accent dot + player · map, file. -->
+                                                    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto"
+                                                          ColumnSpacing="8">
+                                                        <Border Grid.Column="0" Width="9" Height="9"
+                                                                CornerRadius="2" VerticalAlignment="Center"
+                                                                theming:MapAccent.Key="{Binding MapName}" />
+                                                        <StackPanel Grid.Column="1" Spacing="0">
+                                                            <TextBlock Text="{Binding Header}"
+                                                                       Foreground="{DynamicResource TextValue}"
+                                                                       FontSize="13" FontWeight="SemiBold"
+                                                                       TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Text="{Binding FileName}"
+                                                                       Foreground="{DynamicResource TextMid}"
+                                                                       FontSize="10" TextTrimming="CharacterEllipsis"
+                                                                       ToolTip.Tip="{Binding FileName}" />
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="2" Classes="grip" Text="⠿"
+                                                                   FontSize="14" VerticalAlignment="Center"
+                                                                   Tag="{Binding GroupKey}"
+                                                                   PointerPressed="OnGroupPointerPressed"
+                                                                   ToolTip.Tip="Drag to reorder — or use the ▲ ▼ buttons" />
+                                                    </Grid>
 
-                                                <!-- Emitted clips, each listing the highlights it merged. -->
-                                                <ItemsControl Grid.Row="1" ItemsSource="{Binding Rows}"
-                                                              Margin="0 4 0 0">
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate x:DataType="vm:ReelClipRowViewModel">
-                                                            <Border Classes="trayClip">
-                                                                <StackPanel Spacing="2">
-                                                                    <ItemsControl ItemsSource="{Binding Contributors}">
-                                                                        <ItemsControl.ItemTemplate>
-                                                                            <DataTemplate
-                                                                                x:DataType="vm:ReelClipContributorViewModel">
-                                                                                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto"
-                                                                                      ColumnSpacing="8" Margin="0 1">
-                                                                                    <TextBlock Grid.Column="0"
-                                                                                        Text="{Binding Title}"
-                                                                                        Foreground="{DynamicResource TextBright}"
-                                                                                        FontSize="11"
-                                                                                        VerticalAlignment="Center"
-                                                                                        TextTrimming="CharacterEllipsis" />
-                                                                                    <TextBlock Grid.Column="1"
-                                                                                        Text="{Binding RoundDisplay}"
-                                                                                        Classes="metaDim" />
-                                                                                    <TextBlock Grid.Column="2"
-                                                                                        Text="{Binding TickDisplay}"
-                                                                                        Classes="metaDim mono" />
-                                                                                    <TextBlock Grid.Column="3"
-                                                                                        Text="{Binding DurationText}"
-                                                                                        Classes="mono" FontSize="11"
-                                                                                        MinWidth="42"
-                                                                                        TextAlignment="Right"
-                                                                                        VerticalAlignment="Center"
-                                                                                        Foreground="{DynamicResource TextMid}" />
-                                                                                    <Button Grid.Column="4"
-                                                                                        Classes="trayBtn ghost"
-                                                                                        Content="✕"
-                                                                                        AutomationProperties.Name="Remove this clip"
-                                                                                        Command="{Binding RemoveCommand}"
-                                                                                        ToolTip.Tip="Remove this clip" />
-                                                                                </Grid>
-                                                                            </DataTemplate>
-                                                                        </ItemsControl.ItemTemplate>
-                                                                    </ItemsControl>
+                                                    <!-- Emitted clips, each listing the highlights it merged. -->
+                                                    <ItemsControl Grid.Row="1" ItemsSource="{Binding Rows}"
+                                                                  Margin="0 4 0 0">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:ReelClipRowViewModel">
+                                                                <Border Classes="trayClip">
+                                                                    <StackPanel Spacing="2">
+                                                                        <ItemsControl
+                                                                            ItemsSource="{Binding Contributors}">
+                                                                            <ItemsControl.ItemTemplate>
+                                                                                <DataTemplate
+                                                                                    x:DataType="vm:ReelClipContributorViewModel">
+                                                                                    <Grid
+                                                                                        ColumnDefinitions="*,Auto,Auto,Auto,Auto"
+                                                                                        ColumnSpacing="8" Margin="0 1">
+                                                                                        <TextBlock Grid.Column="0"
+                                                                                            Text="{Binding Title}"
+                                                                                            Foreground="{DynamicResource TextBright}"
+                                                                                            FontSize="11"
+                                                                                            VerticalAlignment="Center"
+                                                                                            TextTrimming="CharacterEllipsis" />
+                                                                                        <TextBlock Grid.Column="1"
+                                                                                            Text="{Binding RoundDisplay}"
+                                                                                            Classes="metaDim" />
+                                                                                        <TextBlock Grid.Column="2"
+                                                                                            Text="{Binding TickDisplay}"
+                                                                                            Classes="metaDim mono" />
+                                                                                        <TextBlock Grid.Column="3"
+                                                                                            Text="{Binding DurationText}"
+                                                                                            Classes="mono"
+                                                                                            FontSize="11"
+                                                                                            MinWidth="42"
+                                                                                            TextAlignment="Right"
+                                                                                            VerticalAlignment="Center"
+                                                                                            Foreground="{DynamicResource TextMid}" />
+                                                                                        <Button Grid.Column="4"
+                                                                                            Classes="trayBtn ghost"
+                                                                                            Content="✕"
+                                                                                            AutomationProperties.Name="Remove this clip"
+                                                                                            Command="{Binding RemoveCommand}"
+                                                                                            ToolTip.Tip="Remove this clip" />
+                                                                                    </Grid>
+                                                                                </DataTemplate>
+                                                                            </ItemsControl.ItemTemplate>
+                                                                        </ItemsControl>
 
-                                                                    <!-- Live coalescing feedback, visible WHILE
+                                                                        <!-- Live coalescing feedback, visible WHILE
                                                                          building (the whole point of the tray). -->
-                                                                    <Grid ColumnDefinitions="*,Auto"
-                                                                          IsVisible="{Binding IsMerged}"
-                                                                          Margin="0 1 0 0"
-                                                                          ToolTip.Tip="{Binding SourcesTooltip}">
-                                                                        <TextBlock Grid.Column="0"
-                                                                            Foreground="{DynamicResource TextValue}"
-                                                                            FontSize="11">
-                                                                            <Run Text="→ merged clip:" />
-                                                                            <Run Text="{Binding MergedWindowText}"
-                                                                                 FontFamily="Consolas,Menlo,monospace" />
-                                                                        </TextBlock>
-                                                                        <TextBlock Grid.Column="1"
-                                                                            Text="{Binding MergedDurationText}"
-                                                                            Classes="mono" FontSize="11"
-                                                                            Foreground="{DynamicResource TextMid}" />
-                                                                    </Grid>
+                                                                        <Grid ColumnDefinitions="*,Auto"
+                                                                              IsVisible="{Binding IsMerged}"
+                                                                              Margin="0 1 0 0"
+                                                                              ToolTip.Tip="{Binding SourcesTooltip}">
+                                                                            <TextBlock Grid.Column="0"
+                                                                                    Foreground="{DynamicResource TextValue}"
+                                                                                    FontSize="11">
+                                                                                <Run Text="→ merged clip:" />
+                                                                                <Run Text="{Binding MergedWindowText}"
+                                                                                    FontFamily="Consolas,Menlo,monospace" />
+                                                                            </TextBlock>
+                                                                            <TextBlock Grid.Column="1"
+                                                                                    Text="{Binding MergedDurationText}"
+                                                                                    Classes="mono" FontSize="11"
+                                                                                    Foreground="{DynamicResource TextMid}" />
+                                                                        </Grid>
 
-                                                                    <!-- Staging-time pre-flight: the
+                                                                        <!-- Staging-time pre-flight: the
                                                                          moved demo surfaces HERE, not at
                                                                          Generate. Tinted glyph, neutral text. -->
-                                                                    <StackPanel Orientation="Horizontal"
+                                                                        <StackPanel Orientation="Horizontal"
                                                                                 Spacing="6"
                                                                                 IsVisible="{Binding HasError}"
                                                                                 Margin="0 1 0 0">
-                                                                        <TextBlock Text="⚠"
-                                                                            Foreground="{DynamicResource AccentError}"
-                                                                            FontSize="11"
-                                                                            VerticalAlignment="Center" />
-                                                                        <TextBlock Text="demo moved — fix the path or remove this clip"
-                                                                            Foreground="{DynamicResource TextMid}"
-                                                                            FontSize="11"
-                                                                            VerticalAlignment="Center" />
+                                                                            <TextBlock Text="⚠"
+                                                                                    Foreground="{DynamicResource AccentError}"
+                                                                                    FontSize="11"
+                                                                                    VerticalAlignment="Center" />
+                                                                            <TextBlock
+                                                                                Text="demo moved — fix the path or remove this clip"
+                                                                                Foreground="{DynamicResource TextMid}"
+                                                                                FontSize="11"
+                                                                                VerticalAlignment="Center" />
+                                                                        </StackPanel>
                                                                     </StackPanel>
-                                                                </StackPanel>
-                                                            </Border>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
 
-                                                <!-- Reorder / remove, at the group level (the ordering unit). -->
-                                                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6"
-                                                            HorizontalAlignment="Right" Margin="0 4 0 0">
-                                                    <TextBlock Text="{Binding PositionDisplay}" Classes="metaDim mono"
-                                                               Margin="0 0 4 0"
-                                                               ToolTip.Tip="Position in the rendered reel" />
-                                                    <Button Classes="trayBtn ghost" Content="▲"
-                                                            AutomationProperties.Name="Move earlier in the reel"
-                                                            Command="{Binding MoveUpCommand}"
-                                                            IsEnabled="{Binding CanMoveUp}"
-                                                            ToolTip.Tip="Move earlier in the reel" />
-                                                    <Button Classes="trayBtn ghost" Content="▼"
-                                                            AutomationProperties.Name="Move later in the reel"
-                                                            Command="{Binding MoveDownCommand}"
-                                                            IsEnabled="{Binding CanMoveDown}"
-                                                            ToolTip.Tip="Move later in the reel" />
-                                                    <Button Classes="trayBtn ghost" Content="✕"
-                                                            AutomationProperties.Name="Remove every clip from this player and demo"
-                                                            Command="{Binding RemoveCommand}"
-                                                            ToolTip.Tip="Remove every clip from this player and demo" />
-                                                </StackPanel>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
+                                                    <!-- Reorder / remove, at the group level (the ordering unit). -->
+                                                    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6"
+                                                                HorizontalAlignment="Right" Margin="0 4 0 0">
+                                                        <TextBlock Text="{Binding PositionDisplay}"
+                                                                   Classes="metaDim mono"
+                                                                   Margin="0 0 4 0"
+                                                                   ToolTip.Tip="Position in the rendered reel" />
+                                                        <Button Classes="trayBtn ghost" Content="▲"
+                                                                AutomationProperties.Name="Move earlier in the reel"
+                                                                Command="{Binding MoveUpCommand}"
+                                                                IsEnabled="{Binding CanMoveUp}"
+                                                                ToolTip.Tip="Move earlier in the reel" />
+                                                        <Button Classes="trayBtn ghost" Content="▼"
+                                                                AutomationProperties.Name="Move later in the reel"
+                                                                Command="{Binding MoveDownCommand}"
+                                                                IsEnabled="{Binding CanMoveDown}"
+                                                                ToolTip.Tip="Move later in the reel" />
+                                                        <Button Classes="trayBtn ghost" Content="✕"
+                                                                AutomationProperties.Name="Remove every clip from this player and demo"
+                                                                Command="{Binding RemoveCommand}"
+                                                                ToolTip.Tip="Remove every clip from this player and demo" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
 
-                        <!-- Empty TRAY (never "empty library" — a different emptiness). -->
-                        <ScrollViewer IsVisible="{Binding ShowEmptyTray}" VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled">
-                            <Border Classes="card" MaxWidth="440" Padding="26 22"
-                                    HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16 24">
-                                <StackPanel Spacing="12">
-                                    <TextBlock Text="No clips staged yet." FontSize="18" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextValue}"
-                                               HorizontalAlignment="Center" TextAlignment="Center"
-                                               TextWrapping="Wrap" />
-                                    <TextBlock TextWrapping="Wrap" FontSize="13" TextAlignment="Center"
-                                               HorizontalAlignment="Center"
-                                               Foreground="{DynamicResource TextMid}"
-                                               Text="Open a match on Match Overview and press + on its highlights, or add clips from across your library." />
-                                    <Button Classes="primary" Content="+ Add clips…" HorizontalAlignment="Center"
-                                            Padding="20 8" Command="{Binding AddClipsCommand}"
-                                            ToolTip.Tip="{Binding AddClipsHint}" />
-
-                                    <!-- SECONDARY line only: "nothing staged" and "library not indexed" are
-                                         different emptinesses, and conflating them sends a user who has
-                                         highlights to a full library re-scan. -->
-                                    <StackPanel Spacing="8" IsVisible="{Binding ShowLibraryNotIndexedLine}">
-                                        <Rectangle Classes="divider" Height="1" />
-                                        <TextBlock TextWrapping="Wrap" FontSize="11" TextAlignment="Center"
+                            <!-- Empty TRAY (never "empty library" — a different emptiness). -->
+                            <ScrollViewer IsVisible="{Binding ShowEmptyTray}" VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled">
+                                <Border Classes="card" MaxWidth="440" Padding="26 22"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16 24">
+                                    <StackPanel Spacing="12">
+                                        <TextBlock Text="No clips staged yet." FontSize="18" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextValue}"
+                                                   HorizontalAlignment="Center" TextAlignment="Center"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock TextWrapping="Wrap" FontSize="13" TextAlignment="Center"
                                                    HorizontalAlignment="Center"
                                                    Foreground="{DynamicResource TextMid}"
-                                                   Text="Your library isn't indexed for highlights yet, so there's nothing to add." />
-                                        <Button Classes="ghost" Content="Scan my library"
-                                                HorizontalAlignment="Center"
-                                                IsVisible="{Binding ShowScanCta}"
-                                                Command="{Binding ScanLibraryCommand}" />
+                                                   Text="Open a match on Match Overview and press + on its highlights, or add clips from across your library." />
+                                        <Button Classes="primary" Content="+ Add clips…" HorizontalAlignment="Center"
+                                                Padding="20 8" Command="{Binding AddClipsCommand}"
+                                                ToolTip.Tip="{Binding AddClipsHint}" />
+
+                                        <!-- SECONDARY line only: "nothing staged" and "library not indexed" are
+                                         different emptinesses, and conflating them sends a user who has
+                                         highlights to a full library re-scan. -->
+                                        <StackPanel Spacing="8" IsVisible="{Binding ShowLibraryNotIndexedLine}">
+                                            <Rectangle Classes="divider" Height="1" />
+                                            <TextBlock TextWrapping="Wrap" FontSize="11" TextAlignment="Center"
+                                                       HorizontalAlignment="Center"
+                                                       Foreground="{DynamicResource TextMid}"
+                                                       Text="Your library isn't indexed for highlights yet, so there's nothing to add." />
+                                            <Button Classes="ghost" Content="Scan my library"
+                                                    HorizontalAlignment="Center"
+                                                    IsVisible="{Binding ShowScanCta}"
+                                                    Command="{Binding ScanLibraryCommand}" />
+                                        </StackPanel>
                                     </StackPanel>
-                                </StackPanel>
-                            </Border>
-                        </ScrollViewer>
-                    </Panel>
-                </DockPanel>
+                                </Border>
+                            </ScrollViewer>
+                        </Panel>
+                    </DockPanel>
 
-                <GridSplitter Grid.Column="1" Width="6" ResizeDirection="Columns"
-                              ResizeBehavior="PreviousAndNext" Background="{DynamicResource BorderSubtle}"
-                              IsVisible="{Binding SplitterVisible}" />
+                    <GridSplitter Grid.Column="1" Width="6" ResizeDirection="Columns"
+                                  ResizeBehavior="PreviousAndNext" Background="{DynamicResource BorderSubtle}"
+                                  IsVisible="{Binding SplitterVisible}" />
 
-                <!-- ── CONFIG PANE + ENRICHMENT SLOT ────────────────────────────── -->
-                <ScrollViewer Grid.Column="{Binding ConfigColumn}"
-                              Grid.ColumnSpan="{Binding ConfigColumnSpan}"
-                              IsVisible="{Binding ConfigVisible}"
-                              Background="{DynamicResource PanelBg}"
-                              HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel Spacing="0">
-                        <views:HighlightReelDialogView DataContext="{Binding ReelConfig}" />
+                    <!-- ── CONFIG PANE + ENRICHMENT SLOT ────────────────────────────── -->
+                    <ScrollViewer Grid.Column="{Binding ConfigColumn}"
+                                  Grid.ColumnSpan="{Binding ConfigColumnSpan}"
+                                  IsVisible="{Binding ConfigVisible}"
+                                  Background="{DynamicResource PanelBg}"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Spacing="0">
+                            <views:HighlightReelDialogView DataContext="{Binding ReelConfig}" />
 
-                        <!-- Enrichment slot: registered AT COMPOSITION, rendered by the ViewLocator, and
+                            <!-- Enrichment slot: registered AT COMPOSITION, rendered by the ViewLocator, and
                              ZERO HEIGHT when empty (the container itself is gated, not just its items — an
                              empty ItemsControl still contributes its parent's spacing). -->
-                        <StackPanel IsVisible="{Binding HasEnrichments}" Margin="18 6 18 14" Spacing="10">
-                            <Rectangle Classes="divider" Height="1" />
-                            <TextBlock Text="ENRICHMENTS" Classes="col-label" />
-                            <ItemsControl ItemsSource="{Binding EnrichmentSections}" />
+                            <StackPanel IsVisible="{Binding HasEnrichments}" Margin="18 6 18 14" Spacing="10">
+                                <Rectangle Classes="divider" Height="1" />
+                                <TextBlock Text="ENRICHMENTS" Classes="col-label" />
+                                <ItemsControl ItemsSource="{Binding EnrichmentSections}" />
+                            </StackPanel>
                         </StackPanel>
-                    </StackPanel>
-                </ScrollViewer>
-            </Grid>
+                    </ScrollViewer>
+                </Grid>
 
-            <!-- ══ WASM degraded body (registered + degraded, rewritten copy) ══ -->
-            <Border IsVisible="{Binding ShowWasmNote}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Classes="card" Padding="24 20" MaxWidth="440" Margin="16">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Reels need the desktop app."
-                               Foreground="{DynamicResource TextValue}" FontSize="14" FontWeight="SemiBold"
-                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
-                    <TextBlock
-                        Text="Building a highlight reel records clips from a live CS2 game and writes video files — neither is possible in a browser. You can still see a match's highlights on Match Overview."
-                        Foreground="{DynamicResource TextMid}" FontSize="12"
-                        HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
-        </Panel>
-    </DockPanel>
+                <!-- ══ WASM degraded body (registered + degraded, rewritten copy) ══ -->
+                <Border IsVisible="{Binding ShowWasmNote}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Classes="card" Padding="24 20" MaxWidth="440" Margin="16">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Reels need the desktop app."
+                                   Foreground="{DynamicResource TextValue}" FontSize="14" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+                        <TextBlock
+                            Text="Building a highlight reel records clips from a live CS2 game and writes video files — neither is possible in a browser. You can still see a match's highlights on Match Overview."
+                            Foreground="{DynamicResource TextMid}" FontSize="12"
+                            HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </Panel>
+        </DockPanel>
 
         <!-- ══ ADD-CLIPS PICKER OVERLAY ════════════════════════════════════════════════
              Layered over the dashboard rather than opened as a window: a second window needs

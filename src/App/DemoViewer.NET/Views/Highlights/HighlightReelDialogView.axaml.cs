@@ -1,6 +1,5 @@
 #region
 
-using Avalonia;
 using Avalonia.Controls;
 using DemoViewer.NET.ViewModels.Highlights;
 

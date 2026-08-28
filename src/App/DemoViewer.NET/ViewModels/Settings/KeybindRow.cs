@@ -26,21 +26,21 @@ public sealed partial class KeybindRow : ObservableObject
 {
     private readonly SettingsViewModel _owner;
 
+    /// <summary>Why the last rebind attempt was refused, or "". Shown inline under the row.</summary>
+    [ObservableProperty]
+    private string _conflict = "";
+
     /// <summary>The gesture text currently resolving to this action ("Shift+E"), or "" when unbound.</summary>
     [ObservableProperty]
     private string _gesture = "";
-
-    /// <summary>Whether this row's gesture comes from the user's overrides rather than the shipped table.</summary>
-    [ObservableProperty]
-    private bool _isOverridden;
 
     /// <summary>True while this row is waiting for the next keypress (the capture affordance is armed).</summary>
     [ObservableProperty]
     private bool _isCapturing;
 
-    /// <summary>Why the last rebind attempt was refused, or "". Shown inline under the row.</summary>
+    /// <summary>Whether this row's gesture comes from the user's overrides rather than the shipped table.</summary>
     [ObservableProperty]
-    private string _conflict = "";
+    private bool _isOverridden;
 
     internal KeybindRow(SettingsViewModel owner, Playback2DBinding binding)
     {

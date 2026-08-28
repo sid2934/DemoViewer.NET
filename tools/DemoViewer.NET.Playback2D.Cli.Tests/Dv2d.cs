@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DemoViewer.NET.Playback2D.Cli;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -51,6 +50,9 @@ internal static class Dv2d
     ///     <c>DemoTestHelper</c> finds. Null when neither is present.
     /// </summary>
     public static string? DemoPath { get; } = ResolveDemo();
+
+    /// <summary>The directory the CLI project builds into, e.g. <c>artifacts/bin/…/release</c>.</summary>
+    public static string CliOutputDirectory { get; } = ResolveCliOutputDirectory();
 
     /// <summary>The demo path, or a skip. Demo-dependent cases are skipped, never silently passed.</summary>
     /// <exception cref="SkipTestException">No demo is available.</exception>
@@ -160,9 +162,6 @@ internal static class Dv2d
             stderr.GetAwaiter().GetResult());
     }
 
-    /// <summary>The directory the CLI project builds into, e.g. <c>artifacts/bin/…/release</c>.</summary>
-    public static string CliOutputDirectory { get; } = ResolveCliOutputDirectory();
-
     private static (string FileName, IReadOnlyList<string> Prefix) LaunchTarget()
     {
         string native = Path.Combine(CliOutputDirectory,
@@ -174,7 +173,10 @@ internal static class Dv2d
 
         string managed = Path.Combine(CliOutputDirectory, "dv2d.dll");
         return File.Exists(managed)
-            ? ("dotnet", new[] { managed })
+            ? ("dotnet", new[]
+            {
+                managed
+            })
             : throw new FileNotFoundException($"no dv2d host in {CliOutputDirectory}.", native);
     }
 
@@ -204,8 +206,8 @@ internal static class Dv2d
     private static string? ResolveDemo()
     {
         // assets/tour/sample-de_nuke.dem is committed and app-loadable, but DemoTestHelper's search
-        // order (DEMO_PATH / TestData / demos/) never looks there — so name it explicitly first, and
-        // fall back to whatever a developer has staged.
+        // order (DEMO_PATH / TestData / demos/) never looks there. Name it explicitly first, and fall
+        // back to whatever a developer has staged.
         string? root = DemoTestHelper.FindRepoRoot();
         if (root is not null)
         {

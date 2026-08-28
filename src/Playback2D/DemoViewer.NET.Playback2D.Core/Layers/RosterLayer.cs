@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 
 /// <summary>
 ///     The export HUD's player cards: T down one edge of the frame, CT down the other, each card carrying
-///     the tag, health, armour, weapon, cash and K/D of one player — the strip that makes a 720p export
+///     the tag, health, armour, weapon, cash and K/D of one player: the strip that makes a 720p export
 ///     read as a broadcast clip rather than as dots on a map.
 ///     <para>
 ///         <b>Off unless requested, and drawn once per pane.</b> Registered only when
@@ -23,7 +23,7 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///     <para>
 ///         <b>It yields to the map, cheaply.</b> Cards are sized against the pane, not against the style,
 ///         and when even a shrunk card would take a fifth of the width or a row would fall under
-///         legibility the layer draws nothing — a roster that swallows the radar is worse than no roster,
+///         legibility the layer draws nothing: a roster that swallows the radar is worse than no roster,
 ///         the case the 64×48 fixture renders exercise. Every composed number is memoised by value, so a
 ///         steady-state frame reuses ten cards' worth of blobs out of <see cref="TextBlobCache" />'s LRU
 ///         instead of re-shaping forty strings and evicting the rest of the HUD.
@@ -31,7 +31,7 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 /// </summary>
 public sealed class RosterLayer : ISceneLayer
 {
-    // Below this a card is a coloured smear, not information — the layer withdraws instead.
+    // Below this a card is a coloured smear, not information: the layer withdraws instead.
     private const float MinCardWidthPx = 96f;
     private const float MinRowHeightPx = 22f;
 
@@ -43,15 +43,15 @@ public sealed class RosterLayer : ISceneLayer
     // more than a third of the frame.
     private const float MaxWidthFraction = 0.16f;
 
-    // Preferred card metrics — ceilings, not commitments: the width is clamped against the pane and the
+    // Preferred card metrics: ceilings, not commitments. The width is clamped against the pane and the
     // height is fitted to the tallest side.
     private const float CardWidthPx = 160f;
     private const float RowHeightPx = 46f;
     private const float RowGapPx = 5f;
 
-    private const uint MoneyArgb = 0xFF7BC96Fu;    // cash figure
-    private const uint ArmorArgb = 0xFF8FA3B8u;    // armour bar; brighter with a helmet
-    private const uint TrackArgb = 0x66000000u;    // the unfilled remainder of a health/armour bar
+    private const uint MoneyArgb = 0xFF7BC96Fu; // cash figure
+    private const uint ArmorArgb = 0xFF8FA3B8u; // armour bar; brighter with a helmet
+    private const uint TrackArgb = 0x66000000u; // the unfilled remainder of a health/armour bar
 
     private readonly IHudDataSource _data;
     private readonly Dictionary<(int Kills, int Deaths), string> _kd = new(64);
@@ -144,14 +144,14 @@ public sealed class RosterLayer : ISceneLayer
         // Height is fitted, not assumed: ten players on a short pane get shorter cards rather than a
         // column that runs off the bottom of the video.
         float gap = RowGapPx;
-        float usable = paneH - (_style.MarginPx * 2);
-        float rowH = Math.Min(RowHeightPx, (usable - ((tallest - 1) * gap)) / tallest);
-        float top = ctx.PaneBounds.Top + ((paneH - ColumnHeight(tallest, rowH, gap)) / 2);
+        float usable = paneH - _style.MarginPx * 2;
+        float rowH = Math.Min(RowHeightPx, (usable - (tallest - 1) * gap) / tallest);
+        float top = ctx.PaneBounds.Top + (paneH - ColumnHeight(tallest, rowH, gap)) / 2;
 
         // ── the kill feed's band ─────────────────────────────────────────────────────────────────────
         // hud.killfeed owns the top-right corner of this same pane and is Order 80 against this layer's
         // 65, so wherever they meet the feed paints over the cards. On a pane tall enough for a centred
-        // roster to clear it — anything from about 552 px with the shipped style — this is a no-op and
+        // roster to clear it (anything from about 552 px with the shipped style), this is a no-op and
         // nothing below runs. On a short one, and a 1280×720 two-level stacked export is one, the strips
         // move into the band underneath the feed and shrink to fit it.
         //
@@ -164,7 +164,7 @@ public sealed class RosterLayer : ISceneLayer
         if (top < feedTop)
         {
             float band = ctx.PaneBounds.Bottom - _style.MarginPx - feedTop;
-            float shrunk = Math.Min(rowH, (band - ((tallest - 1) * gap)) / tallest);
+            float shrunk = Math.Min(rowH, (band - (tallest - 1) * gap) / tallest);
 
             // …and the reservation YIELDS when honouring it would cost the roster its existence. On a
             // pane so short that a legible column does not fit under the feed at all — an 800×420
@@ -175,7 +175,7 @@ public sealed class RosterLayer : ISceneLayer
             if (shrunk >= MinRowHeightPx)
             {
                 rowH = shrunk;
-                top = feedTop + ((band - ColumnHeight(tallest, rowH, gap)) / 2);
+                top = feedTop + (band - ColumnHeight(tallest, rowH, gap)) / 2;
             }
         }
 
@@ -192,11 +192,6 @@ public sealed class RosterLayer : ISceneLayer
         DrawColumn(canvas, ctx, roster, 3, rightX, cardW, rowH, gap, ctCount, top, tallestH, false);
     }
 
-    // A column of `count` cards, gaps included. The one place the stack's height is expressed, so the
-    // centring above and the per-side centring below cannot drift apart.
-    private static float ColumnHeight(int count, float rowH, float gap) =>
-        (count * rowH) + ((count - 1) * gap);
-
     /// <inheritdoc />
     public void Dispose()
     {
@@ -206,6 +201,11 @@ public sealed class RosterLayer : ISceneLayer
             _text.Dispose();
         }
     }
+
+    // A column of `count` cards, gaps included. The one place the stack's height is expressed, so the
+    // centring above and the per-side centring below cannot drift apart.
+    private static float ColumnHeight(int count, float rowH, float gap) =>
+        count * rowH + (count - 1) * gap;
 
     private static int Count(IReadOnlyList<HudPlayerRow> roster, int team)
     {
@@ -234,7 +234,7 @@ public sealed class RosterLayer : ISceneLayer
             return;
         }
 
-        float y = bandTop + ((bandHeight - ColumnHeight(count, rowH, gap)) / 2);
+        float y = bandTop + (bandHeight - ColumnHeight(count, rowH, gap)) / 2;
         SKColor teamColor = ctx.Palette.TeamFill(team);
 
         for (int i = 0; i < roster.Count; i++)
@@ -288,7 +288,7 @@ public sealed class RosterLayer : ISceneLayer
             {
                 // A rule through the tag, not a glyph: the embedded face carries no dingbats worth
                 // relying on, and a line is legible at every card size this layer will draw.
-                canvas.DrawRect(innerLeft, ty + (tag.Ascent / 2f) - 0.5f, tag.Width, 1f, _paint);
+                canvas.DrawRect(innerLeft, ty + tag.Ascent / 2f - 0.5f, tag.Width, 1f, _paint);
             }
         }
 
@@ -311,7 +311,7 @@ public sealed class RosterLayer : ISceneLayer
 
         // ── line 2: weapon · K/D · cash, packed right to left so the weapon is what gets clipped ────
         float secondTop = barTop + 9f;
-        if (secondTop + (_style.FontSizePx * 0.78f) > y + h - padY + 2f)
+        if (secondTop + _style.FontSizePx * 0.78f > y + h - padY + 2f)
         {
             return; // a short card keeps the identity line and drops the detail line
         }

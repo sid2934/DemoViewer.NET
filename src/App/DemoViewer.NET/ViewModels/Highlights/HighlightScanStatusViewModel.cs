@@ -13,8 +13,12 @@ namespace DemoViewer.NET.ViewModels.Highlights;
 ///     Library-wide highlight-scan progress as the <b>fourth</b> <c>StatusChip</c> consumer
 ///     (row 2) — the home the card grid's
 ///     <c>ScanQueueSummary</c> badge and its per-card scanning animation were re-assigned to. The design
-///     system says verbatim that three consumers now share the control and <em>"a fourth should extend it,
-///     not fork"</em>, so this owns a <see cref="StatusChipViewModel" /> whose <c>FlyoutContent</c> is this
+///     system says verbatim that three consumers now share the control and
+///     <em>
+///         "a fourth should extend it,
+///         not fork"
+///     </em>
+///     , so this owns a <see cref="StatusChipViewModel" /> whose <c>FlyoutContent</c> is this
 ///     VM and adds nothing to the shared control.
 ///     <para>
 ///         <b>Pure projection — safe to instantiate more than once.</b> Unlike
@@ -36,6 +40,19 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
 {
     private readonly HighlightScanService _scanner;
     private readonly DemoCacheStore _store;
+
+    /// <summary>Demos completed in the current batch (<see cref="BatchTotal" /> − remaining).</summary>
+    [ObservableProperty]
+    private int _batchDone;
+
+    // ── Determinate batch progress (v0.6.0, item 12) ──────────────────────────
+    // The scanner exposes only the REMAINING queue, so the batch size is tracked here: the peak of
+    // (queued + in-flight) since the last idle. New requests joining mid-batch raise the peak, so
+    // the bar never runs backwards; idle resets it for the next batch.
+
+    /// <summary>Total demos in the current scan batch (the peak backlog since last idle).</summary>
+    [ObservableProperty]
+    private int _batchTotal;
 
     private bool _disposed;
 
@@ -70,28 +87,6 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
     [ObservableProperty]
     private string _statusLine = "";
 
-    // ── Determinate batch progress (v0.6.0, item 12) ──────────────────────────
-    // The scanner exposes only the REMAINING queue, so the batch size is tracked here: the peak of
-    // (queued + in-flight) since the last idle. New requests joining mid-batch raise the peak, so
-    // the bar never runs backwards; idle resets it for the next batch.
-
-    /// <summary>Total demos in the current scan batch (the peak backlog since last idle).</summary>
-    [ObservableProperty]
-    private int _batchTotal;
-
-    /// <summary>Demos completed in the current batch (<see cref="BatchTotal" /> − remaining).</summary>
-    [ObservableProperty]
-    private int _batchDone;
-
-    /// <summary>
-    ///     Gates the "N of M" line + bar: meaningful only while work remains AND the batch has more
-    ///     than one demo (a single-demo scan gets adequate feedback from the pulsing dot).
-    /// </summary>
-    public bool HasBatchProgress => BatchTotal > 1 && (IsScanning || QueueDepth > 0);
-
-    /// <summary>"N of M scanned" for the flyout.</summary>
-    public string BatchProgressText => $"{BatchDone} of {BatchTotal} scanned";
-
     /// <summary>
     ///     Builds the projection over the live scanner + cache and seeds it immediately (never blank), then
     ///     tracks both change sources.
@@ -117,6 +112,15 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
         _store.Changed += OnCacheChanged;
         Refresh();
     }
+
+    /// <summary>
+    ///     Gates the "N of M" line + bar: meaningful only while work remains AND the batch has more
+    ///     than one demo (a single-demo scan gets adequate feedback from the pulsing dot).
+    /// </summary>
+    public bool HasBatchProgress => BatchTotal > 1 && (IsScanning || QueueDepth > 0);
+
+    /// <summary>"N of M scanned" for the flyout.</summary>
+    public string BatchProgressText => $"{BatchDone} of {BatchTotal} scanned";
 
     /// <summary>The status-strip chip this VM drives (the shell adds it to <c>MainViewModel.Chips</c>).</summary>
     public StatusChipViewModel Chip { get; }

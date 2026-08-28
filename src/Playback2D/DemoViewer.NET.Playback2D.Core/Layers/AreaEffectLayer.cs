@@ -9,11 +9,11 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 
 /// <summary>
 ///     Smoke clouds and burning inferno cells as translucent world-radius discs. Port of
-///     <c>DrawAreaEffect</c> (viewport lines 1216-1230) plus the level filter at line 892.
+///     <c>DrawAreaEffect</c> plus its level filter.
 ///     <para>
-///         The pre-v2 draw was one <c>DrawEllipse(fill, pen, …)</c>, which fills <i>and</i> strokes.
-///         Skia needs two passes for that, and the order matters — fill first, then the outline over
-///         it — or the outline's inner half is painted over.
+///         The pre-v2 draw was one <c>DrawEllipse(fill, pen, …)</c>, which fills AND strokes. Skia needs
+///         two passes for that, and the order matters: fill first, then the outline over it, or the
+///         outline's inner half is painted over.
 ///     </para>
 /// </summary>
 public sealed class AreaEffectLayer : ISceneLayer

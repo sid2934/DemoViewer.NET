@@ -22,17 +22,16 @@ public sealed class MarkerLayer : ISceneLayer
     private readonly SKPaint _fill;
     private readonly SKPaint _heading;
     private readonly SKPaint _label;
-    private readonly SKPaint _ring;
-    private readonly MarkerSmoother _smoother;
-    private readonly TextBlobCache _text;
     private readonly bool _ownsText;
+    private readonly SKPaint _ring;
+    private readonly TextBlobCache _text;
 
     /// <summary>Creates the layer.</summary>
     /// <param name="smoother">The shared marker smoothing. A fresh one when null.</param>
     /// <param name="text">The shared blob cache. A private one when null, disposed with the layer.</param>
     public MarkerLayer(MarkerSmoother? smoother = null, TextBlobCache? text = null)
     {
-        _smoother = smoother ?? new MarkerSmoother();
+        Smoother = smoother ?? new MarkerSmoother();
         _ownsText = text is null;
         _text = text ?? new TextBlobCache();
 
@@ -60,7 +59,7 @@ public sealed class MarkerLayer : ISceneLayer
     }
 
     /// <summary>The shared smoothing state.</summary>
-    public MarkerSmoother Smoother => _smoother;
+    public MarkerSmoother Smoother { get; }
 
     /// <summary>
     ///     Whether to draw the initials labels. Off is what the byte-exact golden tier renders with —
@@ -87,10 +86,6 @@ public sealed class MarkerLayer : ISceneLayer
     /// <inheritdoc />
     public int ContentVersion => 0;
 
-    /// <summary>The smoothed draw position for a slot — the pre-v2 test hook, same name and shape.</summary>
-    /// <param name="slot">Roster slot.</param>
-    public (float X, float Y)? SmoothedMarkerPosition(int slot) => _smoother.Position(slot);
-
     /// <inheritdoc />
     /// <remarks>
     ///     <b>The sole owner of the shared smoothing.</b> The vision layer reads the same positions but
@@ -100,7 +95,7 @@ public sealed class MarkerLayer : ISceneLayer
     public bool Advance(in SceneTime time, Scene2DFrame frame)
     {
         ArgumentNullException.ThrowIfNull(frame);
-        return _smoother.Advance(frame.Markers, time.DeltaSeconds, time.IsDiscontinuity);
+        return Smoother.Advance(frame.Markers, time.DeltaSeconds, time.IsDiscontinuity);
     }
 
     /// <inheritdoc />
@@ -134,9 +129,13 @@ public sealed class MarkerLayer : ISceneLayer
         }
     }
 
+    /// <summary>The smoothed draw position for a slot — the pre-v2 test hook, same name and shape.</summary>
+    /// <param name="slot">Roster slot.</param>
+    public (float X, float Y)? SmoothedMarkerPosition(int slot) => Smoother.Position(slot);
+
     private void DrawMarker(SKCanvas canvas, PlayerMarker marker, in SceneRenderContext ctx)
     {
-        (float dx, float dy) = _smoother.Position(marker.Slot) ?? (marker.WorldX, marker.WorldY);
+        (float dx, float dy) = Smoother.Position(marker.Slot) ?? (marker.WorldX, marker.WorldY);
         (double sx, double sy) = ctx.Transform.WorldToScreen(dx, dy);
         float cx = (float)sx, cy = (float)sy;
         const float radius = SceneDefaults.MarkerRadius;

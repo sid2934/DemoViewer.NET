@@ -16,7 +16,12 @@ namespace DemoViewer.NET.DemoTrimmer;
 /// <param name="PayloadLength">Payload byte length as written (compressed length when compressed).</param>
 /// <param name="Compressed">Whether the payload is Snappy-compressed.</param>
 internal readonly record struct RawFrame(
-    int Offset, int HeaderLength, int CommandId, int Tick, int PayloadLength, bool Compressed)
+    int Offset,
+    int HeaderLength,
+    int CommandId,
+    int Tick,
+    int PayloadLength,
+    bool Compressed)
 {
     public int PayloadStart => Offset + HeaderLength;
 
@@ -90,7 +95,7 @@ internal sealed record DemoTail(RawFrame? Stop, RawFrame? SpawnGroups, RawFrame?
             return false;
         }
 
-        if (cursor + (long)size > data.Length)
+        if (cursor + size > data.Length)
         {
             return false;
         }

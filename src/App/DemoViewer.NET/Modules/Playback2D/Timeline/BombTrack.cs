@@ -62,7 +62,7 @@ public sealed class BombTrack : ITimelineTrack
     public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) => Array.Empty<TimelineBand>();
 
     /// <inheritdoc />
-    // Declared but never raised in A1 — see RoundTrack.MarkersChanged.
+    // Never raised; see RoundTrack.MarkersChanged.
 #pragma warning disable CS0067
     public event Action? MarkersChanged;
 #pragma warning restore CS0067

@@ -22,10 +22,10 @@ namespace DemoViewer.NET.Views.Playback2D;
 public partial class Playback2DView : UserControl
 {
     private readonly MenuItem? _followMenuItem;
+    private readonly ILevelSurface? _levelSurface;
     private readonly TextBlock? _mapApproxNote;
     private readonly TextBlock? _modeLabel;
     private readonly MenuFlyout? _modeMenuFlyout;
-    private readonly ILevelSurface? _levelSurface;
     private readonly IPlayback2DSurface? _surface;
 
     // The ink half of the mounted surface, or null under the legacy escape hatch. Every "can this thing
@@ -35,6 +35,11 @@ public partial class Playback2DView : UserControl
     private readonly IAnnotationSurface? _toolSurface;
 
     private Playback2DTabViewModel? _boundViewModel;
+
+    // The key that actually STARTED the hold, latched at key-down. Nothing else ever clears the router's
+    // pan flag, so anything that can make the release stop matching — a rebind, an external settings.json
+    // edit, a profile swap — would strand the surface panning forever.
+    private Key? _holdPanKey;
 
     public Playback2DView()
     {
@@ -118,7 +123,7 @@ public partial class Playback2DView : UserControl
             // ink" — which has to be true before the toolbar binds its visibility to it, and before the
             // keymap can compute toolActive off a tool the user selected in a toolbar that should not
             // have been there.
-            _boundViewModel.SetSurfaceCapabilities(canAnnotate: _toolSurface is not null);
+            _boundViewModel.SetSurfaceCapabilities(_toolSurface is not null);
 
             _boundViewModel.FollowSlotChanged += OnFollowSlotChanged;
             _boundViewModel.FitRequested += OnFitRequested;
@@ -262,11 +267,6 @@ public partial class Playback2DView : UserControl
                 return;
         }
     }
-
-    // The key that actually STARTED the hold, latched at key-down. Nothing else ever clears the router's
-    // pan flag, so anything that can make the release stop matching — a rebind, an external settings.json
-    // edit, a profile swap — would strand the surface panning forever.
-    private Key? _holdPanKey;
 
     // The release follows the LATCH, not the binding. Matched on the key alone, modifiers ignored:
     // releasing Shift a frame before the pan key is a normal way to end a gesture, and it must not

@@ -1,7 +1,6 @@
 #region
 
 using System.Collections.Concurrent;
-using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.RegularExpressions;

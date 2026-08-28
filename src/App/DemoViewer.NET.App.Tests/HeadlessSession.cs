@@ -116,6 +116,13 @@ public static class HeadlessSession
     }
 
     /// <summary>
+    ///     True once the assembly warm-up has driven a full isolated-application setup to
+    ///     completion. Lets a test assert that the hook actually ran, rather than inferring it
+    ///     from state that the test's own dispatch would have produced anyway.
+    /// </summary>
+    internal static bool WarmUpBuiltAnApplication => Volatile.Read(ref _warmUpBuiltAnApplication);
+
+    /// <summary>
     ///     Runs one trivial dispatch so the first isolated-application setup happens here, under
     ///     the same retry-and-attribute path as a real test. Never throws: an Avalonia setup fault
     ///     must not fail the ~470 suite members that never touch the UI, so it is recorded and
@@ -133,13 +140,6 @@ public static class HeadlessSession
             Console.WriteLine($"[headless-warmup] warm-up failed; UI tests will fail fast. {ex.Message}");
         }
     }
-
-    /// <summary>
-    ///     True once the assembly warm-up has driven a full isolated-application setup to
-    ///     completion. Lets a test assert that the hook actually ran, rather than inferring it
-    ///     from state that the test's own dispatch would have produced anyway.
-    /// </summary>
-    internal static bool WarmUpBuiltAnApplication => Volatile.Read(ref _warmUpBuiltAnApplication);
 
     private static void EnsureWindowTracking()
     {

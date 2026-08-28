@@ -26,12 +26,41 @@ namespace DemoViewer.NET.ViewModels.Update;
 /// </summary>
 public sealed partial class UpdateViewModel : ViewModelBase
 {
+    private static UpdateViewModel? _shared;
     private readonly IUpdateService? _service;
+
+    /// <summary>The version offered by the last check; drives the banner text.</summary>
+    [ObservableProperty]
+    private string? _availableVersion;
+
+    /// <summary>0–100 download progress, driven by Velopack's reporter.</summary>
+    [ObservableProperty]
+    private int _downloadProgress;
+
+    /// <summary>True while a manual Settings check is in flight (disables the button).</summary>
+    [ObservableProperty]
+    private bool _isChecking;
+
+    /// <summary>True while the package is downloading; the banner swaps to a progress row.</summary>
+    [ObservableProperty]
+    private bool _isDownloading;
+
+    /// <summary>
+    ///     Banner visibility. Set only by a check that found something, and cleared by Later or by a
+    ///     started download — the banner never coexists with progress.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isUpdateAvailable;
+
+    /// <summary>
+    ///     Result line for the Settings pane — "You're up to date", a version, or a failure reason.
+    ///     Empty until the user checks, so the pane does not open with a stale verdict.
+    /// </summary>
+    [ObservableProperty]
+    private string _statusMessage = string.Empty;
 
     /// <summary>Constructs against the host-provided service; null disables every path.</summary>
     public UpdateViewModel(IUpdateService? service) => _service = service;
-
-    private static UpdateViewModel? _shared;
 
     /// <summary>
     ///     The one instance the shell banner and the Settings pane both bind to. They MUST share:
@@ -59,36 +88,6 @@ public sealed partial class UpdateViewModel : ViewModelBase
     ///     empty cell: "not a packaged build" is the useful answer during a dev run.
     /// </summary>
     public string CurrentVersionDisplay => _service?.CurrentVersion ?? "not a packaged build";
-
-    /// <summary>The version offered by the last check; drives the banner text.</summary>
-    [ObservableProperty]
-    private string? _availableVersion;
-
-    /// <summary>
-    ///     Banner visibility. Set only by a check that found something, and cleared by Later or by a
-    ///     started download — the banner never coexists with progress.
-    /// </summary>
-    [ObservableProperty]
-    private bool _isUpdateAvailable;
-
-    /// <summary>True while the package is downloading; the banner swaps to a progress row.</summary>
-    [ObservableProperty]
-    private bool _isDownloading;
-
-    /// <summary>0–100 download progress, driven by Velopack's reporter.</summary>
-    [ObservableProperty]
-    private int _downloadProgress;
-
-    /// <summary>True while a manual Settings check is in flight (disables the button).</summary>
-    [ObservableProperty]
-    private bool _isChecking;
-
-    /// <summary>
-    ///     Result line for the Settings pane — "You're up to date", a version, or a failure reason.
-    ///     Empty until the user checks, so the pane does not open with a stale verdict.
-    /// </summary>
-    [ObservableProperty]
-    private string _statusMessage = string.Empty;
 
     /// <summary>
     ///     The launch check. Silent by design: it writes <see cref="StatusMessage" /> only on

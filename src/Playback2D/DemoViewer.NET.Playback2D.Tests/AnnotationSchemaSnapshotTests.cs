@@ -82,8 +82,10 @@ public class AnnotationSchemaSnapshotTests
         AnnotationElement stat = new(
             Guid.Parse("11111111-1111-4111-8111-111111111111"), AnnotationKind.Freehand,
             new AnnotationStyle(0xFFFFC107, 6f, 1f), new SpaceRef.World(-384), TimeEnvelope.Static,
-            [new InkPoint(-120.5f, 240.25f, 0.5f), new InkPoint(-60f, 260f, 0.62f),
-                new InkPoint(10f, 250f, 0.71f)],
+            [
+                new InkPoint(-120.5f, 240.25f, 0.5f), new InkPoint(-60f, 260f, 0.62f),
+                new InkPoint(10f, 250f, 0.71f)
+            ],
             null);
 
         AnnotationElement tracked = new(
@@ -185,7 +187,7 @@ public class AnnotationSchemaSnapshotTests
         {
             try
             {
-                Directory.Delete(_root, recursive: true);
+                Directory.Delete(_root, true);
             }
             catch (IOException)
             {

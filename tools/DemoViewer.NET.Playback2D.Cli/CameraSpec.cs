@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
 ///     Resolves <c>--camera</c> into a <see cref="ViewportTransform" />. Deliberately a CLI concern:
-///     B4's <c>CameraScript</c> is an export-time animation over several frames, while this is the
+///     <c>CameraScript</c> is an export-time animation over several frames, while this is the
 ///     single-frame framing a designer types.
 /// </summary>
 internal static class CameraSpec

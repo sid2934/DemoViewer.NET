@@ -1,7 +1,5 @@
 #region
 
-using DemoViewer.NET.Playback2D.Cli;
-
 #endregion
 
 namespace DemoViewer.NET.Playback2D.Cli.Tests;

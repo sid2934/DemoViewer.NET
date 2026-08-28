@@ -28,7 +28,6 @@ namespace DemoViewer.NET.Playback2DTests;
 /// </summary>
 internal sealed class SceneStage : IDisposable
 {
-    private readonly SceneCompositor _compositor;
     private readonly CpuSurfaceProvider _provider = new();
     private readonly TextBlobCache _text = new();
 
@@ -61,18 +60,18 @@ internal sealed class SceneStage : IDisposable
             Array.Reverse(layers);
         }
 
-        _compositor = new SceneCompositor(options);
+        Compositor = new SceneCompositor(options);
         foreach (ISceneLayer layer in layers)
         {
-            _compositor.Add(layer);
+            Compositor.Add(layer);
         }
 
         foreach (ISceneLayer layer in extra ?? [])
         {
-            _compositor.Add(layer);
+            Compositor.Add(layer);
         }
 
-        Renderer = new HeadlessSceneRenderer(_compositor, _provider, new StackedLayout(),
+        Renderer = new HeadlessSceneRenderer(Compositor, _provider, new StackedLayout(),
             palette ?? ScenePalette.Dark)
         {
             Size = size,
@@ -84,7 +83,8 @@ internal sealed class SceneStage : IDisposable
         Smoother.LevelCrossings = Renderer.Crossings;
     }
 
-    public SceneCompositor Compositor => _compositor;
+    public SceneCompositor Compositor { get; }
+
     public HeadlessSceneRenderer Renderer { get; }
     public MarkerSmoother Smoother { get; }
     public RadarLayer Radar { get; }
@@ -98,7 +98,7 @@ internal sealed class SceneStage : IDisposable
     public void Dispose()
     {
         Renderer.Dispose();
-        _compositor.Dispose();
+        Compositor.Dispose();
         _text.Dispose();
         _provider.Dispose();
         MapAsset?.Dispose();

@@ -14,8 +14,8 @@ namespace DemoViewer.NET.Playback2D.Pipeline;
 
 /// <summary>
 ///     Turns one tick of host state (players + entities) into a <see cref="Scene2DFrame" />. Lifted
-///     wholesale out of <c>Playback2DTabViewModel.BuildFrame</c> with no logic changes — field paths,
-///     defaults, ordering and fallbacks are identical, because the App's Playback2D suite is the
+///     wholesale out of <c>Playback2DTabViewModel.BuildFrame</c> with no logic changes: field paths,
+///     defaults, ordering and fallbacks are identical. The App's Playback2D suite is the
 ///     behaviour-identity gate for this extraction.
 ///     <para>
 ///         <b>Double-buffered.</b> Two <see cref="Scene2DFrame" /> instances, each wired once to its own
@@ -57,18 +57,17 @@ public sealed class SceneFrameBuilder
     // all carry CBodyComponent cell coords). Built once (static) so the per-frame scan allocates no strings.
     private static readonly string[] _grenadeProjectileClasses =
     {
-        "CHEGrenadeProjectile", "CFlashbangProjectile", "CSmokeGrenadeProjectile", "CMolotovProjectile",
-        "CDecoyProjectile"
+        "CHEGrenadeProjectile", "CFlashbangProjectile", "CSmokeGrenadeProjectile", "CMolotovProjectile", "CDecoyProjectile"
     };
-
-    private readonly FrameSlot _slotA = new();
-    private readonly FrameSlot _slotB = new();
 
     // Last-known world position per slot. When a pawn orphans on death (no live position) a gray marker
     // is held here until respawn. Cleared with the ring cache on backward seek / reset.
     private readonly Dictionary<int, (float X, float Y, float Z)> _lastKnownPos = new(16);
 
     private readonly RingStateTracker _ringTracker;
+
+    private readonly FrameSlot _slotA = new();
+    private readonly FrameSlot _slotB = new();
 
     // Grenade flight trails keyed by the projectile's network Serial (the entity index is reused on
     // detonation; Serial survives it). Cleared wholesale on a discontinuous frame jump so a polyline never
@@ -79,14 +78,14 @@ public sealed class SceneFrameBuilder
     // Weapon class name → short name, resolved once per class. See ActiveWeapon.
     private readonly Dictionary<string, string> _weaponNames = new(32, StringComparer.Ordinal);
 
+    // The round-level HUD state, PERSISTED between frames. See BuildGameInfo for why.
+    private BombMarker? _bomb;
+
     // m:ss formatting cache. FormatClock is the only per-frame allocation left in Build, and the value
     // changes at most once a second, so keying the cached string on the rounded second makes a steady-state
     // frame allocation-free.
     private int _clockCacheSeconds = int.MinValue;
     private string _clockCacheText = "0:00";
-
-    // The round-level HUD state, PERSISTED between frames — see BuildGameInfo for why.
-    private BombMarker? _bomb;
     private string _hudBombState = "—";
     private bool _hudBombTicking;
     private int _hudCtScore;
@@ -96,9 +95,9 @@ public sealed class SceneFrameBuilder
     private string _hudDefuseTime = "—";
     private string _hudPhase = "—";
     private int _hudRoundNumber;
-    private int _hudRoundsPlayed = -1;
     private double _hudRoundSeconds = double.NaN;
     private string _hudRoundTime = "—";
+    private int _hudRoundsPlayed = -1;
     private int _hudTScore;
 
     private int _lastFrameIndex = -1;
@@ -107,9 +106,9 @@ public sealed class SceneFrameBuilder
     private WorldBounds _observed = WorldBounds.Default;
     private bool _observedSeeded;
     private IReadOnlyList<MapRadarImage> _radars = [];
+    private int _sectionHeightAttempts;
     private double[]? _sectionHeights;
     private bool _sectionHeightsRead;
-    private int _sectionHeightAttempts;
     private bool _useSlotB;
 
     /// <summary>Creates a builder.</summary>
@@ -117,8 +116,8 @@ public sealed class SceneFrameBuilder
     public SceneFrameBuilder(int ringDecayFrames = 8) => _ringTracker = new RingStateTracker(ringDecayFrames);
 
     /// <summary>
-    ///     The running extent of every marker position observed since the last <see cref="Reset" /> — the
-    ///     Map-mode fallback when the map publishes no networked bounds. Only ever widened.
+    ///     The running extent of every marker position observed since the last <see cref="Reset" />. The
+    ///     Map-mode fallback when the map publishes no networked bounds; only ever widened.
     /// </summary>
     public WorldBounds ObservedBounds => _observed;
 
@@ -126,11 +125,10 @@ public sealed class SceneFrameBuilder
     ///     The export HUD's player cards for the frame <see cref="Build" /> produced most recently, in
     ///     slot order. Empty before the first build.
     ///     <para>
-    ///         <b>A sibling of the frame, not a member of it.</b> <c>Scene2DFrame</c> is a record, and
-    ///         adding to it is "a guaranteed merge conflict for no gain" in <c>IHudDataSource</c>'s own
-    ///         words; the HUD is a function of tick queried through <c>IHudDataSource</c>, and this is
-    ///         the property that function reads — exactly as <c>TrackerFrameSource.LastGameInfo</c> is
-    ///         for the clock.
+    ///         <b>A sibling of the frame, not a member of it.</b> <c>Scene2DFrame</c> is a record;
+    ///         growing it for the roster buys a merge conflict and nothing else. The HUD is a function
+    ///         of tick queried through <c>IHudDataSource</c>, and this is the property that function
+    ///         reads, exactly as <c>TrackerFrameSource.LastGameInfo</c> is for the clock.
     ///     </para>
     ///     <para>
     ///         Borrowed on the frame's own terms: the list is one of the two pooled slots and is refilled
@@ -161,24 +159,23 @@ public sealed class SceneFrameBuilder
         _observed = WorldBounds.Default;
         _observedSeeded = false;
 
-        // The roster is a cache like every other one cleared above, and it was the one exception:
-        // TrackerFrameSource.LastRoster is assigned straight from here, so after a demo reset it went
-        // on pointing at the PREVIOUS demo's pooled list until the next Build — a HUD source reading it
-        // in that window burns the old match's cards into the new one's frames.
+        // TrackerFrameSource.LastRoster is assigned straight from here. Left set across a demo reset it
+        // points a HUD source at the PREVIOUS demo's pooled list until the next Build, burning the old
+        // match's cards into the new one's frames.
         LastRoster = [];
     }
 
     /// <summary>
     ///     Builds the scene for one tick. The returned frame is valid until the next call on this
-    ///     instance — never retain it.
+    ///     instance. Never retain it.
     /// </summary>
     /// <param name="input">This tick's host state.</param>
     public Scene2DFrame Build(in SceneFrameInput input)
     {
-        // Seek detection, lifted from the view-model's OnAdvanced guards. Backward motion invalidates the
-        // health/shots delta cache (a stale prior sample would manufacture a false ring flash) and the
-        // death-marker positions; any jump larger than a fast normal push invalidates the live-accumulated
-        // trails (otherwise a forward seek into a grenade's flight streaks a line across the map).
+        // Seek detection. Backward motion invalidates the health/shots delta cache (a stale prior sample
+        // would manufacture a false ring flash) and the death-marker positions; any jump larger than a
+        // fast normal push invalidates the live-accumulated trails (otherwise a forward seek into a
+        // grenade's flight streaks a line across the map).
         bool backward = _lastFrameIndex >= 0 && input.FrameIndex < _lastFrameIndex;
         bool jumped = _lastFrameIndex >= 0 && Math.Abs(input.FrameIndex - _lastFrameIndex) > TrailJumpThreshold;
 
@@ -230,12 +227,11 @@ public sealed class SceneFrameBuilder
 
     // Copies out the scalars the scene needs from the transient/pooled player states (lifetime rule: read
     // inside the callback, copy to value types, never retain the pooled instance). Per-player cost is
-    // O(players) via the allocation-free indexer — never EntityState.Fields.
+    // O(players) via the allocation-free indexer, never EntityState.Fields.
     //
     // The roster is built in this same pass rather than beside it: health is already read here for the
-    // ring state and was thrown away afterwards, and a second sweep would re-walk the same pooled facades
-    // for the same fields. The whole point is that the export HUD reads the entities ONCE, from the one
-    // place both the app and dv2d already go through.
+    // ring state, and a second sweep would re-walk the same pooled facades for the same fields. The
+    // export HUD reads the entities ONCE, through the one place both the app and dv2d already go.
     private void BuildMarkers(in SceneFrameInput input, List<PlayerMarker> markers, List<HudPlayerRow> roster)
     {
         Func<int, string> labelFor = input.LabelForSlot;
@@ -246,7 +242,7 @@ public sealed class SceneFrameBuilder
             IReadOnlyEntity? pawn = p.Pawn;
             bool hasPawn = p.HasLivePawn && pawn is not null;
 
-            // Ring-state inputs — all null/seen-tolerant.
+            // Ring-state inputs, all null/seen-tolerant.
             int health = ReadInt(pawn, "m_iHealth", hasPawn ? 100 : 0);
             int shotsFired = ReadInt(pawn, "m_iShotsFired", 0);
             float flash = ReadFloat(pawn, "m_flFlashDuration", 0);
@@ -290,7 +286,7 @@ public sealed class SceneFrameBuilder
             }
             else if (!alive && _lastKnownPos.TryGetValue(p.Slot, out (float X, float Y, float Z) last))
             {
-                // Dead pawn has orphaned (no live position this tick) — hold a gray marker at the death
+                // Dead pawn has orphaned (no live position this tick). Hold a gray marker at the death
                 // spot with the correct roster label until the player respawns (standard death marker).
                 markers.Add(new PlayerMarker(
                     p.Slot,
@@ -310,13 +306,12 @@ public sealed class SceneFrameBuilder
         }
     }
 
-    // One player card. The field paths are the ones Playback2DTabViewModel.UpdateAttributes reads for
-    // the app's attributes panel, verbatim (pawn for condition, controller for the cumulative
-    // scoreboard), because the panel and the burnt-in card disagreeing about a player's health is the
-    // same class of bug the kill feed had.
+    // One player card. The field paths are verbatim the ones Playback2DTabViewModel.UpdateAttributes
+    // reads for the app's attributes panel (pawn for condition, controller for the cumulative
+    // scoreboard), so the panel and the burnt-in card cannot disagree about a player's health.
     //
-    // Emitted for EVERY roster row including the dead and the sideless: the layer decides who gets an edge
-    // of the frame, and dropping a dead player here would make his card vanish the instant it matters most.
+    // Emitted for EVERY roster row including the dead and the sideless: the layer decides who gets an
+    // edge of the frame, and a dead player's card is the one that matters most.
     private void AddRosterRow(List<HudPlayerRow> roster, IPlayerState p, IReadOnlyEntityView entities,
         string label, int health, bool alive)
     {
@@ -342,7 +337,7 @@ public sealed class SceneFrameBuilder
     // One handle hop, and the class name read IMMEDIATELY (the clobber rule: ResolveHandle hands back a
     // SHARED pooled facade, so anything not read before the next resolve is read off the wrong entity).
     // The short name is memoised by class name because WeaponShortName allocates and the answer is fixed
-    // per class — otherwise this is one string per player per frame, in the method §6's budget measures.
+    // per class. Without the memo this is one string per player per frame, inside the allocation budget.
     private string ActiveWeapon(IReadOnlyEntity? pawn, IReadOnlyEntityView entities)
     {
         if (pawn is null || !pawn.TryGet("m_pWeaponServices.m_hActiveWeapon", out ulong handle) ||
@@ -370,10 +365,10 @@ public sealed class SceneFrameBuilder
     // The one entry point into the observed extent, and therefore the one place a non-finite coordinate
     // can be stopped. It has to be stopped HERE because _observed is only ever WIDENED and never
     // re-seeded: WorldBounds.Extend is Math.Min/Math.Max, both of which propagate NaN, so a single bad
-    // sample poisons the extent for the whole demo — and from there ViewportTransform.Fit hands the
-    // camera a NaN centre and scale, IsSettledAt never settles, and the render loop spins at refresh
-    // rate showing nothing, across seeks included. A position that is not a number is not a position;
-    // dropping the sample costs one marker's contribution to the fallback rectangle.
+    // sample poisons the extent for the whole demo, across seeks included. From there
+    // ViewportTransform.Fit hands the camera a NaN centre and scale, IsSettledAt never settles, and the
+    // render loop spins at refresh rate showing nothing. Dropping the sample costs one marker's
+    // contribution to the fallback rectangle.
     private void Observe(float worldX, float worldY)
     {
         if (!float.IsFinite(worldX) || !float.IsFinite(worldY))
@@ -425,14 +420,12 @@ public sealed class SceneFrameBuilder
     // ── Game info, bomb, round clock ────────────────────────────────────────────────────────────────
 
     // Round-level game info, read ONCE per frame (NOT per-player). OfClass allocates a fresh facade per
-    // element — acceptable for this once-per-frame read, never in the per-player hot loop. Paths verified
-    // against a real demo: CCSGameRulesProxy.m_pGameRules.* and CCSTeam.m_iScore filtered by m_iTeamNum.
+    // element: acceptable for this once-per-frame read, never in the per-player hot loop. The paths are
+    // CCSGameRulesProxy.m_pGameRules.* and CCSTeam.m_iScore filtered by m_iTeamNum.
     //
-    // The `_hud` fields PERSIST between frames on purpose. The pre-v2 view-model held this state on an
-    // ObservableObject and mutated it in place, so a frame in which the rules entity is not decoded (a
-    // seek can land there) left every round field at its previous value rather than blanking the panel.
-    // Rebuilding the record from scratch each frame would have changed that, so the record is assembled
-    // from persistent fields instead.
+    // The `_hud` fields PERSIST between frames on purpose. A frame in which the rules entity is not
+    // decoded (a seek can land there) has to leave every round field at its previous value rather than
+    // blank the panel, so the record is assembled from persistent fields rather than rebuilt each frame.
     private SceneGameInfo BuildGameInfo(in SceneFrameInput input)
     {
         IReadOnlyEntityView entities = input.Entities;
@@ -468,7 +461,7 @@ public sealed class SceneFrameBuilder
             // Bomb/round main countdown. Priority: a LIVE ticking CPlantedC4 replaces the round clock with
             // the C4 detonation countdown; otherwise the freeze state; otherwise the round clock. The
             // detonation timer is driven off the ENTITY (m_bBombTicking / m_flC4Blow), not
-            // m_pGameRules.m_bBombPlanted — the entity carries the absolute blow time.
+            // m_pGameRules.m_bBombPlanted: the entity carries the absolute blow time.
             if (UpdateBombTimers(input))
             {
                 // The detonation countdown owns the main timer this frame; the defuse second-timer was set
@@ -515,7 +508,7 @@ public sealed class SceneFrameBuilder
             _hudDefuseSeconds, _hudDefuseTime, _hudTScore, _hudCtScore);
     }
 
-    // Reads CCSGameRulesProxy.m_pGameRules.m_MinimapVerticalSectionHeights[0..N] ONCE — the map's real
+    // Reads CCSGameRulesProxy.m_pGameRules.m_MinimapVerticalSectionHeights[0..N] ONCE: the map's real
     // Z-floor boundaries (e.g. Nuke [1.81, 51.54, 287.0, 376.0]). The engine array is fixed-size; scan a
     // bounded count and stop at the first sentinel (3.4e38 ≈ float.MaxValue) or non-ascending value (an
     // unused trailing 0 slot). A map without floor sections publishes ≤1 usable value → null.
@@ -527,9 +520,9 @@ public sealed class SceneFrameBuilder
         }
 
         // Bounded retry. The array resolves within the first few pushes on a map that publishes one; on
-        // a map that does not, an unbounded retry re-scanned eight field paths on every frame for the
-        // whole demo. Giving up after a few seconds of play is not a loss: a map that has not networked
-        // its section heights by then does not have any.
+        // a map that does not, an unbounded retry re-scans eight field paths on every frame for the whole
+        // demo. Giving up after a few seconds of play costs nothing: a map that has not networked its
+        // section heights by then does not have any.
         if (++_sectionHeightAttempts > MaxSectionHeightAttempts)
         {
             _sectionHeightsRead = true;
@@ -541,7 +534,7 @@ public sealed class SceneFrameBuilder
         {
             if (!rules.TryGet(_sectionHeightPaths[i], out float h))
             {
-                break; // field unseen at this index — end of the published array for this map.
+                break; // field unseen at this index: end of the published array for this map.
             }
 
             if (h >= 3.0e38f) // engine "unused section" sentinel
@@ -573,7 +566,7 @@ public sealed class SceneFrameBuilder
         string[] paths = new string[MaxMinimapSections];
         for (int i = 0; i < MaxMinimapSections; i++)
         {
-            paths[i] = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            paths[i] = string.Create(CultureInfo.InvariantCulture,
                 $"m_pGameRules.m_MinimapVerticalSectionHeights[{i}]");
         }
 
@@ -581,7 +574,7 @@ public sealed class SceneFrameBuilder
     }
 
     // Reads CCSGameRulesProxy.m_pGameRules.m_vMinimapMins / m_vMinimapMaxs (Vector3 world-space radar
-    // bounding box) ONCE — the REAL playable-map X/Y extent. Static per map.
+    // bounding box) ONCE: the REAL playable-map X/Y extent. Static per map.
     private void ReadMapBoundsOnce(IReadOnlyEntity rules)
     {
         if (_networkedBounds is not null)
@@ -597,7 +590,7 @@ public sealed class SceneFrameBuilder
         }
     }
 
-    // Bomb plant/defuse + C4 detonation timers. Finds a live ticking CPlantedC4 (entity-driven —
+    // Bomb plant/defuse + C4 detonation timers. Finds a live ticking CPlantedC4 (entity-driven:
     // m_bBombTicking, NOT m_pGameRules.m_bBombPlanted, which lags the entity) and, when present, replaces
     // the main countdown with the detonation remaining (m_flC4Blow − correctedCurtime). During a
     // defuse-in-progress (m_bBeingDefused) the SECOND timer shows the defuse-completion remaining
@@ -646,7 +639,7 @@ public sealed class SceneFrameBuilder
             _hudDefuseInProgress = true;
             _hudDefuseSeconds = defuseRemain;
             _hudDefuseTime = defuseRemain > 0 ? FormatClock(defuseRemain) : "0:00";
-            // m_flDefuseLength is 5 with a kit, 10 without — surface that as a label.
+            // m_flDefuseLength is 5 with a kit, 10 without. Surface that as a label.
             _hudDefuseKitNote = defuseLen > 0 && defuseLen <= 6 ? "with kit" : "no kit";
 
             beingDefused = true;
@@ -657,7 +650,7 @@ public sealed class SceneFrameBuilder
             ClearDefuseTimer();
         }
 
-        // Bomb ring draw-state — only when its world position reconstructs (CPlantedC4 cell coords, same
+        // Bomb ring draw-state, only when its world position reconstructs (CPlantedC4 cell coords, same
         // encoding as pawns). Null position → no ring (the game-info timer still shows).
         _bomb = ReconstructWorld(c4) is { } pos
             ? new BombMarker(pos.X, pos.Y, pos.Z, detonationFraction, beingDefused, defuseFraction)
@@ -683,8 +676,8 @@ public sealed class SceneFrameBuilder
 
     // ── Area effects ────────────────────────────────────────────────────────────────────────────────
 
-    // Active smoke clouds + burning inferno cells. Once per frame (OfClass allocates a facade per element
-    // — acceptable for a handful of live grenades, never the per-player hot loop). World positions are
+    // Active smoke clouds + burning inferno cells. Once per frame (OfClass allocates a facade per
+    // element: fine for a handful of live grenades, never the per-player hot loop). World positions are
     // networked directly: smoke centre = m_vSmokeDetonationPos (once m_nSmokeEffectTickBegin > 0, i.e.
     // detonated/billowing, not the still-flying projectile); fire cells = m_firePositions[i] for the
     // m_fireCount active cells where m_bFireIsBurning[i].
@@ -727,7 +720,7 @@ public sealed class SceneFrameBuilder
     // LIVE-accumulate each in-flight projectile's reconstructed world position into its Serial-keyed trail,
     // then fade/prune trails whose projectile has stopped. Projectile positions are NOT host-joined (the
     // host only joins player positions), so they are reconstructed from CBodyComponent cells via the
-    // oracle-pinned PositionUtil.Axis — the same path the planted-C4 ring uses. The discontinuous-jump
+    // oracle-pinned PositionUtil.Axis, the same path the planted-C4 ring uses. The discontinuous-jump
     // clear lives in Build (it owns the frame delta); this method only grows + ages trails monotonically.
     private void UpdateTrajectories(IReadOnlyEntityView entities, int tick, int tickRate,
         List<GrenadeTrail> trailViews)
@@ -741,7 +734,7 @@ public sealed class SceneFrameBuilder
             {
                 if (ReconstructWorld(proj) is not { } pos)
                 {
-                    continue; // cells not yet networked — skip until the projectile is positioned
+                    continue; // cells not yet networked; skip until the projectile is positioned
                 }
 
                 if (!_trails.TryGetValue(proj.Serial, out GrenadeTrail? trail))
@@ -753,7 +746,7 @@ public sealed class SceneFrameBuilder
                     _trails[proj.Serial] = trail;
                 }
 
-                // LastTick tracks the last MOVE, not the last sighting — so a landed-but-still-alive smoke
+                // LastTick tracks the last MOVE, not the last sighting, so a landed-but-still-alive smoke
                 // or decoy fades instead of holding forever.
                 bool moved = trail.Points.Count == 0 || !SamePoint(trail.Points[^1], pos);
                 bool advancing = trail.Points.Count == 0 || tick > trail.LastTick;
@@ -790,7 +783,7 @@ public sealed class SceneFrameBuilder
                 t.Alpha = fadeTicks > 0 ? Math.Clamp(1.0 - age / (double)fadeTicks, 0, 1) : 0;
                 if (t.Alpha <= 0.0)
                 {
-                    _trailsToPrune.Add(kv.Key); // faded out — pruned (a persistent projectile re-seeds cleanly)
+                    _trailsToPrune.Add(kv.Key); // faded out, pruned (a persistent projectile re-seeds cleanly)
                     continue;
                 }
             }
@@ -924,7 +917,7 @@ public sealed class SceneFrameBuilder
     }
 
     private static bool ReadBool(IReadOnlyEntity? entity, string path) =>
-        // Bools arrive as Int32 (0/1) on the wire — compare to 0, never `is bool`.
+        // Bools arrive as Int32 (0/1) on the wire. Compare to 0, never `is bool`.
         entity is not null && entity.TryGet(path, out int v) && v != 0;
 
     private static int ReadInt(IReadOnlyEntity? entity, string path, int fallback) =>

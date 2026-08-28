@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using System.Security.Cryptography;
+using System.Text.Json.Nodes;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Compositing;
@@ -31,7 +32,7 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 ///     <para>
 ///         These cases execute <see cref="ExportCommand.BuildHud" /> itself rather than a look-alike
 ///         delegate. A test that rebuilt an equivalent closure would have passed against the constant too,
-///         which is precisely why the bug survived a suite that already covered the kill-feed window, the
+///         so the bug survived a suite that already covered the kill-feed window, the
 ///         <c>ClockReading</c> projection and the layer's ink separately.
 ///     </para>
 /// </summary>
@@ -114,7 +115,7 @@ public class ExportHudClockTests
 
     private static bool Differs(double a, double b) =>
         double.IsNaN(a) != double.IsNaN(b) ||
-        (!double.IsNaN(a) && Math.Abs(a - b) > 1e-6);
+        !double.IsNaN(a) && Math.Abs(a - b) > 1e-6;
 
     /// <summary>
     ///     The pixels, not just the value. <c>ClockLayer</c> fed the real source draws something different
@@ -157,7 +158,7 @@ public class ExportHudClockTests
 
         await Assert.That(run.ExitCode).IsEqualTo(0).Because(run.StdErr);
 
-        System.Text.Json.Nodes.JsonObject json = run.Json();
+        JsonObject json = run.Json();
         await Assert.That(json["ok"]!.GetValue<bool>()).IsTrue();
         await Assert.That(json["frames"]!.GetValue<int>()).IsGreaterThan(0);
 
@@ -187,7 +188,13 @@ public class ExportHudClockTests
             RenderPurpose.Export, ScenePalette.Dark, 1f)
         {
             Pane = new LevelPaneSnapshot(default, 0,
-                new MapLevel { Id = default, Name = "l", ZMin = 0, ZMax = 100 },
+                new MapLevel
+                {
+                    Id = default,
+                    Name = "l",
+                    ZMin = 0,
+                    ZMax = 100
+                },
                 ViewportTransform.Fit(400, 120, -100, -100, 100, 100), default, 0)
         };
 
@@ -208,6 +215,8 @@ public class ExportHudClockTests
         public TimelineHudDataSource Hud { get; }
         public int TickRate { get; }
 
+        public void Dispose() => Source.Dispose();
+
         public static Replay MidMatch()
         {
             ParsedDemo demo = DemoTestHelper.GetOrParse(Dv2d.RequireDemo());
@@ -224,7 +233,5 @@ public class ExportHudClockTests
 
             return new Replay(source, ExportCommand.BuildHud(source, tickRate), tickRate);
         }
-
-        public void Dispose() => Source.Dispose();
     }
 }

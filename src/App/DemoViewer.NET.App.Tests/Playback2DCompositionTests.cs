@@ -2,6 +2,7 @@
 
 using System.Reflection;
 using System.Text.RegularExpressions;
+using DemoViewer.NET.Configuration;
 
 #endregion
 
@@ -11,7 +12,7 @@ namespace DemoViewer.NET.AppTests;
 /// <param name="Type">The constructed type, short name.</param>
 /// <param name="Site">Repo-relative path and line of the call.</param>
 /// <param name="Omitted">Optional null-defaulted parameters the call site does not mention at all.</param>
-/// <param name="ExplicitlyNull">Ones it names and passes <c>null</c> to — a recorded decision, not a gap.</param>
+/// <param name="ExplicitlyNull">Ones it names and passes <c>null</c> to: a recorded decision, not a gap.</param>
 internal sealed record CompositionSite(
     string Type,
     string Site,
@@ -26,13 +27,13 @@ internal sealed record CompositionSite(
 /// <summary>
 ///     <b>A production composition site names every seam the service offers.</b> The rule is MENTION,
 ///     not non-null: an optional parameter left out of a call is invisible, while <c>fileExists: null</c>
-///     is a decision a reader can see. Scope is the App head's own Playback2D services and view-models —
-///     Core's layers take <c>HudStyle? style = null</c> and <c>TextBlobCache? text = null</c> as genuine
-///     styling defaults and are built by <c>SceneLayerCatalog</c>, not by app composition.
+///     is a decision a reader can see. Scope is the App head's own Playback2D services and view-models.
+///     Core's layers take <c>HudStyle? style = null</c> and <c>TextBlobCache? text = null</c> as styling
+///     defaults and are built by <c>SceneLayerCatalog</c>, not by app composition.
 ///     <para>
 ///         <b>Source for the arguments, IL for the existence.</b> C# materialises omitted optional
 ///         arguments AT THE CALL SITE, so the IL for <c>new SceneExportRunner(setup)</c> and for
-///         <c>new SceneExportRunner(setup, null, null, null, null)</c> is identical — an omission is not a
+///         <c>new SceneExportRunner(setup, null, null, null, null)</c> is identical. An omission is not a
 ///         fact about the compiled program, so the argument list has to be read from source. IL answers the
 ///         other half: whether production constructs the type at all, so a call site the source parser
 ///         cannot read is REPORTED rather than counted as absent.
@@ -169,9 +170,9 @@ public class Playback2DCompositionTests
 
     private static (List<CompositionSite> Sites, List<string> Unreadable) Analyse()
     {
-        // The App head's own module services and view-models. Core/Pipeline are excluded deliberately —
+        // The App head's own module services and view-models. Core/Pipeline are excluded deliberately;
         // see the class doc.
-        Type[] candidates = typeof(Configuration.AppSettings).Assembly.GetTypes()
+        Type[] candidates = typeof(AppSettings).Assembly.GetTypes()
             .Where(t => Playback2DWholeGraph.IsModuleNamespace(t.Namespace))
             .Where(t => Seams(t).Length > 0)
             .OrderBy(t => t.Name, StringComparer.Ordinal)
@@ -263,7 +264,7 @@ public class Playback2DCompositionTests
     //  * a numeric or bool default is a tuning knob, not a collaborator production forgot to hand over;
     //  * a type with constructor OVERLOADS has no single "the composition", and no module service has any;
     //  * a POSITIONAL RECORD's trailing optional is a data default (`Annotations = null` on
-    //    ExportSceneSetup means "no ink in this export"), not an injected seam — and records are the shape
+    //    ExportSceneSetup means "no ink in this export"), not an injected seam. Records are the shape
     //    that gets built with a target-typed `new(...)`, which no regex can attribute to a type.
     private static ParameterInfo[] Seams(Type type)
     {
@@ -289,7 +290,7 @@ public class Playback2DCompositionTests
 
     /// <summary>
     ///     Reads the argument list starting at <paramref name="open" /> (the <c>(</c>). Returns null when
-    ///     the list is unbalanced or runs off the end — an unreadable site is reported, never assumed empty.
+    ///     the list is unbalanced or runs off the end: an unreadable site is reported, never assumed empty.
     /// </summary>
     private static (int Positional, HashSet<string> Named)? Read(string text, int open)
     {

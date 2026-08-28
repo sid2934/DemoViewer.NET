@@ -34,14 +34,14 @@ internal sealed class VelopackUpdateService : IUpdateService
     /// </summary>
     private const string RepoUrl = "https://github.com/sid2934/DemoViewer.NET";
 
+    private UpdateManager? _manager;
+
     /// <summary>
     ///     Resolved by the last successful <see cref="CheckAsync" />; consumed by
     ///     <see cref="DownloadAndApplyAsync" />. Velopack's apply step needs the same UpdateInfo the
     ///     check produced, so we hold it rather than re-checking and risking a different answer.
     /// </summary>
     private UpdateInfo? _pending;
-
-    private UpdateManager? _manager;
 
     /// <inheritdoc />
     public string? CurrentVersion => TryGetManager()?.CurrentVersion?.ToString();

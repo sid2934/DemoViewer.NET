@@ -8,13 +8,13 @@ using DemoViewer.NET.Playback2D.Core.Rendering;
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     <c>dv2d probe</c> — asks which render-surface backend this machine can actually provide, and says
-///     why (plans/C2-gpu-provider.md §6.4).
+///     <c>dv2d probe</c>: which render-surface backend this machine can actually provide, and why
+///     (plans/C2-gpu-provider.md §6.4).
 ///     <para>
 ///         It exists because "the GPU lane went green" and "the GPU lane ran on a GPU" are different
 ///         claims. The probe prints <c>GL_RENDERER</c>, so a lane that quietly fell through to WARP or
 ///         llvmpipe is visible in the log rather than hidden inside a plausible frame time. A CPU answer
-///         is <b>not</b> an error — design §10 risk 7 makes CPU the contract baseline — so the command
+///         is <b>not</b> an error (design §10 risk 7 makes CPU the contract baseline), so the command
 ///         exits 0 either way unless <c>--require-gpu</c> says otherwise.
 ///     </para>
 /// </summary>
@@ -35,8 +35,7 @@ internal static class ProbeCommand
 
         // Deliberately Probe(), not Create(): the question is what this machine CAN do, so the answer
         // must not be filtered through a preference. A DV2D_RENDER_BACKEND=cpu shell still gets told
-        // there is a GPU here — reported as `forced_cpu`, which is the fact somebody debugging a slow
-        // CI lane actually needs.
+        // there is a GPU here, reported as `forced_cpu`.
         RenderSurfaceProbe probe = RenderSurfaceProviderFactory.Probe();
         bool forcedCpu = !probe.GpuAvailable &&
                          RenderBackendPreferenceParser.FromEnvironment() ==
@@ -71,9 +70,9 @@ internal static class ProbeCommand
                 $"--require-gpu: no GPU render surface backend is available here ({probe.Reason})."));
         }
 
-        // A software rasterizer IS a GPU backend as far as the code path goes — the parity suites want
-        // exactly that on hosted runners. It is only a throughput measurement that it invalidates, so
-        // the stricter assertion is a separate flag rather than a stricter --require-gpu.
+        // A software rasterizer IS a GPU backend as far as the code path goes, and the parity suites
+        // want exactly that on hosted runners. It only invalidates a throughput measurement, so the
+        // stricter assertion is a separate flag rather than a stricter --require-gpu.
         if (wantsHardware && probe.IsSoftwareRenderer)
         {
             throw new BackendUnavailableException(string.Create(CultureInfo.InvariantCulture,

@@ -90,7 +90,11 @@ public class ExportHudRosterTests
         ];
         IReadOnlyList<HudPlayerRow> fallen =
         [
-            living[0] with { IsAlive = false, Health = 0 }
+            living[0] with
+            {
+                IsAlive = false,
+                Health = 0
+            }
         ];
 
         // A card that vanished on death would take the round's most important fact off the screen, so the
@@ -161,9 +165,12 @@ public class ExportHudRosterTests
     [Test]
     public async Task ADefuseInProgress_IsDrawn_AndItsOutcomeIsTheColour()
     {
-        HudSnapshot idle = ExportFixtures.Hud(0, bombTicking: true);
-        HudSnapshot winning = ExportFixtures.Hud(0, bombTicking: true, defusing: true);
-        HudSnapshot losing = winning with { CountdownSeconds = 1.0 };
+        HudSnapshot idle = ExportFixtures.Hud(0, true);
+        HudSnapshot winning = ExportFixtures.Hud(0, true, defusing: true);
+        HudSnapshot losing = winning with
+        {
+            CountdownSeconds = 1.0
+        };
 
         // DefuseInProgress and DefuseSeconds were in the snapshot and had never been drawn — the two
         // fields that decide the round. Drawn, and drawn in the colour of whoever wins the race, so the
@@ -181,7 +188,7 @@ public class ExportHudRosterTests
     [Test]
     public async Task AKillFeedRow_ColoursAttackerAndVictimByTheirSides()
     {
-        using SKBitmap bitmap = Feed(Kill(attacker: 2, victim: 3));
+        using SKBitmap bitmap = Feed(Kill(2, 3));
 
         await Assert.That(Count(bitmap, ScenePalette.Dark.TeamT)).IsGreaterThan(0);
         await Assert.That(Count(bitmap, ScenePalette.Dark.TeamCt)).IsGreaterThan(0);
@@ -192,14 +199,14 @@ public class ExportHudRosterTests
     {
         // Same names, same weapon, same modifiers — only the sides differ. Anything that passed by
         // accident (a hash of the text, a count of the ink) fails here.
-        await Assert.That(Hash(Kill(attacker: 2, victim: 3)))
-            .IsNotEqualTo(Hash(Kill(attacker: 3, victim: 2)));
+        await Assert.That(Hash(Kill(2, 3)))
+            .IsNotEqualTo(Hash(Kill(3, 2)));
     }
 
     [Test]
     public async Task AnUnknownSide_KeepsTheNeutralColour_AndKeepsItsRow()
     {
-        using SKBitmap unknown = Feed(Kill(attacker: 0, victim: 0));
+        using SKBitmap unknown = Feed(Kill(0, 0));
 
         // GOTV emits player_team only for the halftime swap, so a demo that cannot say who shot is a real
         // case and not a defensive one. It must cost the row its COLOUR, never its row.
@@ -213,9 +220,9 @@ public class ExportHudRosterTests
     public async Task TheRowsText_IsUnchangedByTheSplitIntoColouredRuns()
     {
         KillFeedRow row = new(1000, "neo", "trinity", "smith", "awp",
-            Headshot: true, Penetrated: true, NoScope: true, ThroughSmoke: true,
-            AttackerBlind: true, AttackerInAir: true, AssistedFlash: true,
-            AttackerTeam: 2, VictimTeam: 3);
+            true, true, true, true,
+            true, true, true,
+            2, 3);
 
         // Colour is a rendering concern. Splitting the line into three runs must not change one character
         // of what a row SAYS — Playback2DKillFeedTests compares this text against the XAML feed's.
@@ -242,7 +249,10 @@ public class ExportHudRosterTests
 
     // The shipped size renders 14 px glyphs whose only fully-covered pixels are stems; doubling it gives
     // solid glyph cores, so a colour assertion can be exact instead of needing an arbitrary tolerance.
-    private static HudStyle Bigger() => new HudStyle() with { FontSizePx = 28f };
+    private static HudStyle Bigger() => new HudStyle() with
+    {
+        FontSizePx = 28f
+    };
 
     private static KillFeedRow Kill(int attacker, int victim) =>
         new(1000, "neo", null, "smith", "awp", false, false, false, false, false, false, false,
@@ -250,7 +260,13 @@ public class ExportHudRosterTests
 
     private static SKBitmap Feed(KillFeedRow row) =>
         Render(new KillFeedLayer(new StubHudDataSource(
-            ExportFixtures.Hud(0) with { KillRows = new[] { row } }), Bigger()), default);
+            ExportFixtures.Hud(0) with
+            {
+                KillRows = new[]
+                {
+                    row
+                }
+            }), Bigger()), default);
 
     private static string Hash(KillFeedRow row)
     {
@@ -400,7 +416,13 @@ public class ExportHudRosterTests
             RenderPurpose.Export, ScenePalette.Dark, 1f)
         {
             Pane = new LevelPaneSnapshot(default, 0,
-                new MapLevel { Id = default, Name = "l", ZMin = 0, ZMax = 100 },
+                new MapLevel
+                {
+                    Id = default,
+                    Name = "l",
+                    ZMin = 0,
+                    ZMax = 100
+                },
                 ViewportTransform.Fit(size.Width, size.Height, -100, -100, 100, 100), paneRect, 0)
         };
     }

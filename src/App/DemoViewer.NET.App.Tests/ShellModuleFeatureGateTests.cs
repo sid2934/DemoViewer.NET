@@ -103,10 +103,13 @@ public class ShellModuleFeatureGateTests
     [Test]
     public async Task NullFeatures_FailOpen()
     {
-        using ShellModuleFeatureGate nullGate = new((IFeatureGate?)null);
+        using ShellModuleFeatureGate nullGate = new(null);
         await Assert.That(nullGate.IsEnabled("playback2d.export")).IsTrue();
 
-        Playback2DFakeContext ungated = new() { Gate = null };
+        Playback2DFakeContext ungated = new()
+        {
+            Gate = null
+        };
         await Assert.That(ungated.Features).IsNull()
             .Because("IModuleContext.Features is default-implemented as null so no test double broke");
         await Assert.That(ungated.Features?.IsEnabled("playback2d.annotations") ?? true).IsTrue()

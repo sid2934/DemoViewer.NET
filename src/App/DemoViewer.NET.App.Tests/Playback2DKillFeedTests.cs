@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core;
@@ -100,7 +101,7 @@ public class Playback2DKillFeedTests
     /// <summary>
     ///     The snapshot test: the XAML feed and the exported <c>hud.killfeed</c> layer are fed by the SAME
     ///     <c>KillFeedTimeline.Window</c> call, so at every
-    ///     sampled tick their rows must agree exactly — not approximately, not usually.
+    ///     sampled tick their rows must agree exactly, not approximately, not usually.
     ///     <para>
     ///         This is the executable half of "dual-HUD drift is structurally impossible". If someone ever
     ///         re-introduces a second windowing rule, this is what fails.
@@ -113,7 +114,7 @@ public class Playback2DKillFeedTests
         for (int i = 0; i < 12; i++)
         {
             timeline.Add(Kill(1000 + i * 90, i % 2, (i + 1) % 2, i % 3 == 0 ? "awp" : "ak47",
-                hs: i % 2 == 0, penetrated: i % 4 == 0 ? 1 : 0));
+                i % 2 == 0, i % 4 == 0 ? 1 : 0));
         }
 
         (Playback2DTabViewModel vm, FakeCtx ctx) = Activate([.. timeline]);
@@ -168,7 +169,7 @@ public class Playback2DKillFeedTests
         ClockReading reading = ClockReading.From(info);
 
         await Assert.That(reading.Round).IsEqualTo(info.RoundNumber.ToString(
-            System.Globalization.CultureInfo.InvariantCulture));
+            CultureInfo.InvariantCulture));
         await Assert.That(reading.TScore).IsEqualTo(info.TScore);
         await Assert.That(reading.CtScore).IsEqualTo(info.CtScore);
         await Assert.That(reading.CountdownSeconds).IsEqualTo(info.RoundSeconds);
@@ -179,7 +180,7 @@ public class Playback2DKillFeedTests
     }
 
     /// <summary>
-    ///     On a build with no export host — the browser head, this test harness, the designer — the tab
+    ///     On a build with no export host (the browser head, this test harness, the designer) the tab
     ///     offers nothing. Hidden rather than disabled: a button that starts an export whose LiveSync and
     ///     reel refusals silently do not apply would be worse than no button, and a dead one that
     ///     explains nothing is worse than an absent one.
@@ -211,7 +212,7 @@ public class Playback2DKillFeedTests
 
     /// <summary>
     ///     The sides a kill row carries are resolved AT the kill's own tick, and a kill before the
-    ///     halftime swap reads that swap's <c>OldTeam</c> — GOTV emits <c>player_team</c> only for the
+    ///     halftime swap reads that swap's <c>OldTeam</c>: GOTV emits <c>player_team</c> only for the
     ///     swap, so it is the only record a first-half kill has.
     ///     <para>
     ///         This also pins that the feed does NOT pair itself against
@@ -230,15 +231,25 @@ public class Playback2DKillFeedTests
         GameEventView[] kills =
         [
             Kill(6000, 0, 1, "ak47"), // after the swap: 0 is T, 1 is CT
-            Kill(1000, 0, 1, "m4a1")  // before it:      0 is CT, 1 is T
+            Kill(1000, 0, 1, "m4a1") // before it:      0 is CT, 1 is T
         ];
 
         Playback2DTabViewModel vm = new();
         FakeCtx ctx = new(kills);
-        ctx.Roster.Add(new PlayerRosterEntry { Slot = 0, Name = "Neo", SteamId = 1 });
-        ctx.Roster.Add(new PlayerRosterEntry { Slot = 1, Name = "Smith", SteamId = 2 });
-        ctx.TeamTimeline.Add(TeamSwap(Swap, slot: 0, oldTeam: 3, team: 2));
-        ctx.TeamTimeline.Add(TeamSwap(Swap, slot: 1, oldTeam: 2, team: 3));
+        ctx.Roster.Add(new PlayerRosterEntry
+        {
+            Slot = 0,
+            Name = "Neo",
+            SteamId = 1
+        });
+        ctx.Roster.Add(new PlayerRosterEntry
+        {
+            Slot = 1,
+            Name = "Smith",
+            SteamId = 2
+        });
+        ctx.TeamTimeline.Add(TeamSwap(Swap, 0, 3, 2));
+        ctx.TeamTimeline.Add(TeamSwap(Swap, 1, 2, 3));
         vm.OnActivated(ctx);
 
         ctx.Push(0, 6100);
@@ -333,7 +344,7 @@ public class Playback2DKillFeedTests
         public List<PlayerRosterEntry> Roster { get; } = new();
 
         /// <summary>
-        ///     The side timeline. Empty by default, matching a demo whose sides cannot be resolved —
+        ///     The side timeline. Empty by default, matching a demo whose sides cannot be resolved:
         ///     every kill then carries side 0 and both feeds render it neutrally.
         /// </summary>
         public List<GameEventView> TeamTimeline { get; } = new();

@@ -37,15 +37,17 @@ public sealed partial class Playback2DExportStatusViewModel : ViewModelBase, IDi
     private const int MaxLogLines = 120;
 
     private readonly IExportJobService _job;
-    private readonly Action<string>? _openFolder;
 
     // Bounded: ffmpeg writes a progress line roughly once a second for the whole render, so an unbounded
     // list would be a slow leak that only long exports (the ones hardest to diagnose) could produce.
     private readonly Queue<string> _log = new();
+    private readonly Action<string>? _openFolder;
+
+    /// <summary>"312 / 4 800 frames · 118 fps · 2:41 elapsed · ~3:20 left", or empty when not running.</summary>
+    [ObservableProperty]
+    private string _detail = "";
 
     private bool _disposed;
-
-    private ExportJobStatus _status = ExportJobStatus.Idle;
 
     [ObservableProperty]
     private string? _errorText;
@@ -65,19 +67,17 @@ public sealed partial class Playback2DExportStatusViewModel : ViewModelBase, IDi
     [ObservableProperty]
     private bool _isRunning;
 
+    /// <summary>The tail of the export's own log — the chosen encoder, then ffmpeg's stderr.</summary>
+    [ObservableProperty]
+    private string _logText = "";
+
     [ObservableProperty]
     private string? _outputPath;
 
     [ObservableProperty]
     private double _progressFraction;
 
-    /// <summary>"312 / 4 800 frames · 118 fps · 2:41 elapsed · ~3:20 left", or empty when not running.</summary>
-    [ObservableProperty]
-    private string _detail = "";
-
-    /// <summary>The tail of the export's own log — the chosen encoder, then ffmpeg's stderr.</summary>
-    [ObservableProperty]
-    private string _logText = "";
+    private ExportJobStatus _status = ExportJobStatus.Idle;
 
     /// <summary>Creates the mapper over a running job service and seeds the chip from its CURRENT status.</summary>
     /// <param name="job">The background export job.</param>

@@ -28,15 +28,15 @@ public sealed class RadarLayer : ISceneLayer
     private readonly SKPaint _minor;
     private readonly SKPaint _resample;
 
-    // How the resample intermediate is obtained. A field rather than a direct SKSurface.Create call so
-    // the failure branch in ScaledFor is REACHABLE from a test: Skia decides on its own when an
-    // allocation is too large, and a suite that cannot make it say no cannot prove what happens next.
-    private Func<SKImageInfo, SKSurface?> _surfaceFactory = static info => SKSurface.Create(info);
-
     private SKImage? _scaled;
     private SKImage? _scaledFrom;
     private int _scaledHeight;
     private int _scaledWidth;
+
+    // How the resample intermediate is obtained. A field rather than a direct SKSurface.Create call so
+    // the failure branch in ScaledFor is REACHABLE from a test: Skia decides on its own when an
+    // allocation is too large, and a suite that cannot make it say no cannot prove what happens next.
+    private Func<SKImageInfo, SKSurface?> _surfaceFactory = static info => SKSurface.Create(info);
     private bool _useRadarImage = true;
 
     /// <summary>Creates the layer.</summary>
@@ -120,16 +120,9 @@ public sealed class RadarLayer : ISceneLayer
     /// </remarks>
     public bool CacheScaledImage { get; set; }
 
-    /// <summary>
-    ///     Test seam: how <see cref="ScaledFor" /> obtains its resample intermediate. Returning null (or
-    ///     throwing) exercises its fault path — see that method's own doc.
-    /// </summary>
-    /// <param name="factory">The replacement factory. Null restores <c>SKSurface.Create</c>.</param>
-    internal void SetSurfaceFactoryForTest(Func<SKImageInfo, SKSurface?>? factory) =>
-        _surfaceFactory = factory ?? (static info => SKSurface.Create(info));
-
     /// <summary>The size the live resample cache describes, or (0,0) when it holds nothing. Test hook.</summary>
-    internal (int Width, int Height) ScaledCacheSizeForTest => _scaled is null ? (0, 0)
+    internal (int Width, int Height) ScaledCacheSizeForTest => _scaled is null
+        ? (0, 0)
         : (_scaledWidth, _scaledHeight);
 
     /// <inheritdoc />
@@ -175,6 +168,14 @@ public sealed class RadarLayer : ISceneLayer
         _resample.Dispose();
         DropScaled();
     }
+
+    /// <summary>
+    ///     Test seam: how <see cref="ScaledFor" /> obtains its resample intermediate. Returning null (or
+    ///     throwing) exercises its fault path — see that method's own doc.
+    /// </summary>
+    /// <param name="factory">The replacement factory. Null restores <c>SKSurface.Create</c>.</param>
+    internal void SetSurfaceFactoryForTest(Func<SKImageInfo, SKSurface?>? factory) =>
+        _surfaceFactory = factory ?? (static info => SKSurface.Create(info));
 
     // Placed via the bundle's world bounds through the shared transform. The overview txt's rotate and
     // zoom are in-game minimap-widget hints and are deliberately NOT applied — verified that dust2

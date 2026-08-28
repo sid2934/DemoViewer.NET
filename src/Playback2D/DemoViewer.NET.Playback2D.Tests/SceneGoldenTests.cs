@@ -101,8 +101,11 @@ public class SceneGoldenTests
     }
 
     /// <summary>
-    ///     <b>The proof obligation behind <see cref="GoldenTolerance.ForLabelledFrame" />, for the
-    ///     synthetic corpus</b> — see <see cref="GlyphAttribution" />. <c>synthetic-empty</c> has no ink
+    ///     <b>
+    ///         The proof obligation behind <see cref="GoldenTolerance.ForLabelledFrame" />, for the
+    ///         synthetic corpus
+    ///     </b>
+    ///     — see <see cref="GlyphAttribution" />. <c>synthetic-empty</c> has no ink
     ///     and is therefore held to the unrelaxed gate outright, which is also what
     ///     <see cref="GoldenTolerance.ForLabelledFrame" /> gives it.
     /// </summary>
@@ -205,6 +208,6 @@ public class SceneGoldenTests
         };
 
         SceneTime time = fixture.Time;
-        return renderer.RenderPng(fixture.Frame, in time, size, RenderPurpose.Export);
+        return renderer.RenderPng(fixture.Frame, in time, size);
     }
 }

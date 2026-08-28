@@ -10,14 +10,18 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
 
 /// <summary>
 ///     Decides which baked radar image belongs to which floor band. Replaces the pre-v2
-///     <c>Playback2DViewport.ResolveRadarImage</c> (lines 1096-1115), and is evaluated <b>once per
-///     level-set rebuild</b> instead of once per band per frame — the old version ran an
+///     <c>Playback2DViewport.ResolveRadarImage</c> (lines 1096-1115), and is evaluated
+///     <b>
+///         once per
+///         level-set rebuild
+///     </b>
+///     instead of once per band per frame: the old version ran an
 ///     <c>OrderBy</c> + <c>ToList</c> + <c>First</c> inside the render loop.
 ///     <para>
 ///         <b>Binding is by Z-band overlap, not by count.</b> <c>RadarLayerDto</c> has carried
 ///         <c>MinZ</c>/<c>MaxZ</c> all along; the pre-v2 code index-matched sorted layers to sorted
 ///         bands only when the two counts happened to be equal, and otherwise handed <i>every</i> band
-///         the highest-altitude picture. Three floors and two radar layers — an ordinary shape — put the
+///         the highest-altitude picture. Three floors and two radar layers (an ordinary shape) put the
 ///         upper floor's image under the basement, silently. Overlap answers correctly for every shape,
 ///         and when a band overlaps nothing its level keeps <c>HasRadar == false</c> and the strip says
 ///         so (B3 plan T5).
@@ -25,8 +29,8 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
 /// </summary>
 public sealed class MapRadarBinder : ILevelRadarBinder
 {
-    private readonly LoadedMapAsset? _asset;
     private readonly List<RadarLayerDto> _ascending = [];
+    private readonly LoadedMapAsset? _asset;
 
     /// <summary>Creates a binder over a loaded bundle. A null asset binds nothing.</summary>
     /// <param name="asset">The loaded bundle, or null.</param>
@@ -59,7 +63,7 @@ public sealed class MapRadarBinder : ILevelRadarBinder
             return RadarBindingQuality.None;
         }
 
-        // Rule 1 — no layer metadata at all: one picture is the whole map, so every level gets it. The
+        // Rule 1, no layer metadata at all: one picture is the whole map, so every level gets it. The
         // single-radar case is the overwhelming majority of maps and it is CORRECT there, which is why
         // a lone level reports Exact; several levels sharing one image is the honest Degraded.
         if (_ascending.Count == 0)
@@ -74,7 +78,7 @@ public sealed class MapRadarBinder : ILevelRadarBinder
             return bands.Count <= 1 ? RadarBindingQuality.Exact : RadarBindingQuality.Degraded;
         }
 
-        // Rule 2 — bind each band to the layer it shares the most of itself with. Any positive overlap
+        // Rule 2: bind each band to the layer it shares the most of itself with. Any positive overlap
         // qualifies (a thin band inside a tall layer is a perfect match, not a weak one); ties go to the
         // lower layer, because _ascending is sorted and the comparison is strict.
         bool everyBandBound = true;

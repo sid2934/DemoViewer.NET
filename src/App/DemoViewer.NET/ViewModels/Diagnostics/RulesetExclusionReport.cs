@@ -1,5 +1,6 @@
 #region
 
+using System.Diagnostics.CodeAnalysis;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.RulesetsV2.Resolve;
 using Microsoft.Extensions.Logging;
@@ -32,6 +33,7 @@ internal static class RulesetExclusionReport
     ///     Logs one Warning row per excluded ruleset. No-ops on the common path where every supplied
     ///     document composed.
     /// </summary>
+    [SuppressMessage("Performance", "CA1873:Avoid potentially expensive logging")]
     public static void Report(ILogger logger, BuildResult build)
     {
         IReadOnlyList<ExcludedRuleset> excluded = build.ExcludedRulesets;
@@ -63,13 +65,13 @@ internal static class RulesetExclusionReport
             return "no diagnostic was attached";
         }
 
-        const int cap = 5;
+        const int Cap = 5;
         IEnumerable<string> lines = diagnostics
-            .Take(cap)
+            .Take(Cap)
             .Select(d => d.Position is { } pos ? $"[{d.Code}] {d.Message} ({pos})" : $"[{d.Code}] {d.Message}");
         string body = string.Join("; ", lines);
-        return diagnostics.Count > cap
-            ? $"{body}; +{diagnostics.Count - cap} more"
+        return diagnostics.Count > Cap
+            ? $"{body}; +{diagnostics.Count - Cap} more"
             : body;
     }
 }

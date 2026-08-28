@@ -1,12 +1,12 @@
 #region
 
 using System.Globalization;
-using ChannelClosedException = System.Threading.Channels.ChannelClosedException;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using FFMpegCore;
 using FFMpegCore.Enums;
 using FFMpegCore.Pipes;
+using ChannelClosedException = System.Threading.Channels.ChannelClosedException;
 
 #endregion
 
@@ -20,12 +20,12 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 /// <param name="Fps">Output frame rate.</param>
 /// <param name="BinaryFolder">
 ///     The directory holding <c>ffmpeg</c>, from <see cref="Ffmpeg.FfmpegLocator" />. Null relies on
-///     <c>PATH</c>. Passed <b>per invocation</b>, never through <c>GlobalFFOptions</c> — that is
+///     <c>PATH</c>. Passed <b>per invocation</b>, never through <c>GlobalFFOptions</c>: that is
 ///     process-global mutable state, and a CLI export and an in-app export must be able to disagree.
 /// </param>
 /// <param name="Encoder">
-///     Which rung of the <see cref="Ffmpeg.EncoderLadder" /> encodes, and at what quality — plan
-///     <c>P2-export-throughput</c>. Null means the format's software rung at
+///     Which rung of the <see cref="Ffmpeg.EncoderLadder" /> encodes, and at what quality (plan
+///     <c>P2-export-throughput</c>). Null means the format's software rung at
 ///     <see cref="ExportQuality.Standard" />, so a sink is constructible without a probe ever running.
 ///     <para>
 ///         It is a <b>value carried per sink</b>, never a process-global: two exports in one process may
@@ -46,7 +46,7 @@ public sealed record FfmpegSinkOptions(
     bool DeletePartialOnCancel = true,
     Action<string>? Log = null)
 {
-    /// <summary>The selection, resolved. Never null — see <see cref="Encoder" />.</summary>
+    /// <summary>The selection, resolved. Never null (see <see cref="Encoder" />).</summary>
     public EncoderSelection ResolvedEncoder =>
         Encoder ?? EncoderSelection.SoftwareDefault(FormatId);
 }
@@ -56,7 +56,7 @@ public sealed record FfmpegSinkOptions(
 ///     <para>
 ///         FFMpegCore builds the argument list and owns the process; no ffmpeg code is linked into this
 ///         program, which is what keeps the licence posture clean (see <c>THIRD-PARTY-NOTICES.md</c> §e).
-///         The transport is FFMpegCore's named pipe rather than literal stdin — same mechanism, same
+///         The transport is FFMpegCore's named pipe rather than literal stdin: same mechanism, same
 ///         separateness, and it is what the library supports.
 ///     </para>
 ///     <para>
@@ -71,18 +71,18 @@ public sealed record FfmpegSinkOptions(
 /// </summary>
 public sealed class FfmpegFrameSink : IFrameSink
 {
-    /// <summary>How long <see cref="DisposeAsync" /> waits for ffmpeg to drain before giving up.</summary>
-    public static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(30);
-
     /// <summary>How many trailing stderr lines are kept to explain a failure.</summary>
     private const int StderrTailLines = 6;
+
+    /// <summary>How long <see cref="DisposeAsync" /> waits for ffmpeg to drain before giving up.</summary>
+    public static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(30);
 
     private readonly ChannelVideoFrameSource _frames = new();
     private readonly FfmpegSinkOptions _options;
     private readonly Queue<string> _stderrTail = new(StderrTailLines);
-    private CancellationTokenSource? _kill;
     private bool _disposed;
     private Task<bool>? _encoder;
+    private CancellationTokenSource? _kill;
 
     /// <summary>Creates the sink. No process is started until the first frame arrives.</summary>
     /// <param name="options">Output path, format and encoder settings.</param>
@@ -134,8 +134,8 @@ public sealed class FfmpegFrameSink : IFrameSink
             _kill = CancellationTokenSource.CreateLinkedTokenSource(ct);
             _encoder = BuildProcessor(_kill.Token).ProcessAsynchronously(true, BuildOptions(_options));
 
-            // The pump task is the channel's ONLY reader. If ffmpeg exits early — a bad output path, a
-            // full disk, a codec the located build does not carry — nothing will ever drain the queue
+            // The pump task is the channel's ONLY reader. If ffmpeg exits early (a bad output path, a
+            // full disk, a codec the located build does not carry), nothing will ever drain the queue
             // again, and a writer parked on a full one would wait forever. That is risk R2's deadlock,
             // and it is not covered by DisposeAsync's timeout because disposal is never reached. Ending
             // the encoder therefore ends the frame stream, which turns that wait into the encoder's own
@@ -152,11 +152,64 @@ public sealed class FfmpegFrameSink : IFrameSink
         }
     }
 
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        bool cancelled = _kill?.IsCancellationRequested ?? false;
+        _frames.Complete();
+
+        if (_encoder is not null)
+        {
+            try
+            {
+                // A timeout rather than an unbounded await: R2's failure mode is a deadlock between the
+                // pump and the writer, and a diagnosable "ffmpeg did not exit in 30 s" beats a hang.
+                await _encoder.WaitAsync(ShutdownTimeout).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                cancelled = true;
+            }
+            catch (TimeoutException)
+            {
+                _options.Log?.Invoke("ffmpeg did not exit within 30 s; the output may be truncated.");
+                cancelled = true;
+            }
+            catch (Exception ex)
+            {
+                _options.Log?.Invoke($"ffmpeg failed: {ex.Message}");
+                throw;
+            }
+            finally
+            {
+                _frames.Dispose();
+                _kill?.Dispose();
+
+                if (cancelled && _options.DeletePartialOnCancel)
+                {
+                    TryDeleteOutput();
+                }
+            }
+
+            return;
+        }
+
+        _frames.Dispose();
+        _kill?.Dispose();
+    }
+
     /// <summary>
     ///     Awaits the encoder, turning a failure into one that names the cause.
     ///     <para>
     ///         When ffmpeg refuses its output the pipe breaks before FFMpegCore observes the exit, so the
-    ///         raw fault is <c>IOException: Pipe is broken</c> — true, and useless. ffmpeg has already
+    ///         raw fault is <c>IOException: Pipe is broken</c>. True, and useless. ffmpeg has already
     ///         said what was wrong on stderr, which <see cref="_stderrTail" /> is holding; a failure that
     ///         reads "Error opening output …: No such file or directory" is one a user can act on.
     ///     </para>
@@ -225,63 +278,10 @@ public sealed class FfmpegFrameSink : IFrameSink
 
         if (encoder.IsCompletedSuccessfully)
         {
-            // Normally this is redundant — DisposeAsync completes the stream and only then awaits the
+            // Normally this is redundant: DisposeAsync completes the stream and only then awaits the
             // encoder. It matters when ffmpeg exits 0 on its own, before the render loop is finished.
             frames.Complete();
         }
-    }
-
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-
-        bool cancelled = _kill?.IsCancellationRequested ?? false;
-        _frames.Complete();
-
-        if (_encoder is not null)
-        {
-            try
-            {
-                // A timeout rather than an unbounded await: R2's failure mode is a deadlock between the
-                // pump and the writer, and a diagnosable "ffmpeg did not exit in 30 s" beats a hang.
-                await _encoder.WaitAsync(ShutdownTimeout).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                cancelled = true;
-            }
-            catch (TimeoutException)
-            {
-                _options.Log?.Invoke("ffmpeg did not exit within 30 s; the output may be truncated.");
-                cancelled = true;
-            }
-            catch (Exception ex)
-            {
-                _options.Log?.Invoke($"ffmpeg failed: {ex.Message}");
-                throw;
-            }
-            finally
-            {
-                _frames.Dispose();
-                _kill?.Dispose();
-
-                if (cancelled && _options.DeletePartialOnCancel)
-                {
-                    TryDeleteOutput();
-                }
-            }
-
-            return;
-        }
-
-        _frames.Dispose();
-        _kill?.Dispose();
     }
 
     /// <summary>
@@ -296,11 +296,17 @@ public sealed class FfmpegFrameSink : IFrameSink
         // One stub frame so RawVideoPipeSource can read the format and size it stamps into the input
         // arguments; it is never serialized because no process is started.
         StubFrame stub = new(options.Width, options.Height);
-        return Build(options, new RawVideoPipeSource([stub]) { FrameRate = options.Fps }).Arguments;
+        return Build(options, new RawVideoPipeSource([stub])
+        {
+            FrameRate = options.Fps
+        }).Arguments;
     }
 
     private FFMpegArgumentProcessor BuildProcessor(CancellationToken ct) =>
-        Build(_options, new RawVideoPipeSource(_frames) { FrameRate = _options.Fps })
+        Build(_options, new RawVideoPipeSource(_frames)
+            {
+                FrameRate = _options.Fps
+            })
             .CancellableThrough(ct)
             .NotifyOnError(OnStderr);
 
@@ -316,7 +322,7 @@ public sealed class FfmpegFrameSink : IFrameSink
             // Plan B4 D6: the standard SINGLE-input equivalent of the two-pass palettegen/paletteuse
             // recipe. A literal two-pass would need the input twice, and over a pipe that means
             // spilling a multi-gigabyte rawvideo temp file. There is no -c:v here and no ladder rung
-            // to choose — the filter chain IS the encoder.
+            // to choose: the filter chain IS the encoder.
             arguments
                 .WithCustomArgument(GifFilter(options))
                 .Loop(0)
@@ -356,7 +362,10 @@ public sealed class FfmpegFrameSink : IFrameSink
     private static FFOptions BuildOptions(FfmpegSinkOptions options) =>
         string.IsNullOrEmpty(options.BinaryFolder)
             ? new FFOptions()
-            : new FFOptions { BinaryFolder = options.BinaryFolder };
+            : new FFOptions
+            {
+                BinaryFolder = options.BinaryFolder
+            };
 
     private void TryDeleteOutput()
     {
@@ -402,7 +411,7 @@ public sealed class FfmpegEncodeException : InvalidOperationException
 {
     /// <summary>Creates the exception.</summary>
     /// <param name="message">User-facing copy, normally ffmpeg's stderr tail.</param>
-    /// <param name="inner">The raw failure — usually the broken pipe, not the reason for it.</param>
+    /// <param name="inner">The raw failure: usually the broken pipe, not the reason for it.</param>
     public FfmpegEncodeException(string message, Exception inner) : base(message, inner)
     {
     }

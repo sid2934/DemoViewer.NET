@@ -8,17 +8,16 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Core.Levels;
 
 /// <summary>
-///     The single owner of pane lifetime and camera identity (plan correction 4 — B3's
-///     "LevelPaneStore" is added behaviour on this type, never a second one).
+///     The single owner of pane lifetime and camera identity. A "level pane store" is added behaviour on
+///     this type, never a second one.
 ///     <para>
 ///         <b>Reconciliation is keyed on <see cref="MapLevelId" />, not array position.</b> The pre-v2
-///         <c>EnsureCameras</c> kept cameras by index, so a rebuild that inserted a <i>lower</i> floor
-///         slid every camera down one band and silently handed the upper floor the lower floor's pan.
-///         That is design risk 5, and this is where it is fixed.
+///         <c>EnsureCameras</c> kept cameras by index, so a rebuild that inserted a lower floor slid every
+///         camera down one band and silently handed the upper floor the lower floor's pan.
 ///     </para>
 ///     <para>
 ///         <b>Steady state allocates nothing.</b> <see cref="Reconcile" /> early-outs on the level-set
-///         version, the display mode and the host size, so the common frame — nothing changed — never
+///         version, the display mode and the host size, so the common frame (nothing changed) never
 ///         reaches the layout policy.
 ///     </para>
 /// </summary>
@@ -26,9 +25,9 @@ public sealed class PaneSet
 {
     private readonly List<LevelPane> _panes = [];
 
-    // Camera state for levels that exist but are not currently arranged — everything but the active
-    // level under SingleLayout. Dropped only when the level is genuinely Removed, so a Stacked ⇄ Single
-    // round trip gives the user back the pan and zoom they had on each floor.
+    // Camera state for levels that exist but are not currently arranged: everything but the active level
+    // under SingleLayout. Dropped only when the level is genuinely Removed, so a Stacked ⇄ Single round
+    // trip gives the user back the pan and zoom they had on each floor.
     private readonly Dictionary<MapLevelId, LevelPane> _retained = [];
     private readonly List<LevelPane> _scratch = [];
     private SKSize _host;
@@ -71,6 +70,9 @@ public sealed class PaneSet
         }
     }
 
+    /// <summary>How many levels have camera state held while unarranged. Diagnostics and tests.</summary>
+    public int RetainedCount => _retained.Count;
+
     /// <summary>
     ///     Re-arranges the panes for the current level set and host size, carrying each surviving
     ///     level's camera, manual override and rig across by id.
@@ -79,7 +81,7 @@ public sealed class PaneSet
     /// <param name="mode">The display mode.</param>
     /// <param name="host">Host surface size in device-independent pixels.</param>
     /// <param name="extent">World extent a newly appeared level is fitted to.</param>
-    /// <returns>True when the pane list or their rectangles changed — the caller invalidates caches.</returns>
+    /// <returns>True when the pane list or their rectangles changed; the caller invalidates caches.</returns>
     public bool Reconcile(MapSpace space, LevelDisplayMode mode, SKSize host, WorldBounds extent)
     {
         ArgumentNullException.ThrowIfNull(space);
@@ -105,8 +107,8 @@ public sealed class PaneSet
 
             if (existing is null)
             {
-                // A newly appeared level. Fit it to the current world extent, exactly as the pre-v2
-                // EnsureCameras did for a newly appeared slice (line 516).
+                // A newly appeared level. Fit it to the current world extent, as the pre-v2 EnsureCameras
+                // did for a newly appeared slice.
                 LevelPane pane = new(fresh.Level,
                     new SliceCamera(ViewportTransform.Fit(fresh.ViewportRect.Width, fresh.ViewportRect.Height,
                         extent.MinX, extent.MinY, extent.MaxX, extent.MaxY)),
@@ -121,8 +123,8 @@ public sealed class PaneSet
                 continue;
             }
 
-            // A surviving level keeps its camera identity — pan, zoom and manual override — and is
-            // merely re-viewported onto the (possibly new) band rectangle.
+            // A surviving level keeps its camera identity (pan, zoom, manual override) and is
+            // re-viewported onto the possibly-new band rectangle.
             existing.Level = fresh.Level;
             existing.LevelIndex = fresh.LevelIndex;
             existing.ViewportRect = fresh.ViewportRect;
@@ -160,8 +162,7 @@ public sealed class PaneSet
 
     /// <summary>
     ///     Drops the state of every level the rebuild <b>removed</b>, arranged or retained. Everything
-    ///     else survives — that is the whole difference between "this floor is not on screen right now"
-    ///     and "this floor no longer exists".
+    ///     else survives: "not on screen right now" is not "no longer exists".
     /// </summary>
     /// <param name="change">The rebuild's outcome, from <c>MapSpace.LastChange</c>.</param>
     public void RetainUnarranged(LevelSetChange change)
@@ -221,9 +222,6 @@ public sealed class PaneSet
         return false;
     }
 
-    /// <summary>How many levels have camera state held while unarranged. Diagnostics and tests.</summary>
-    public int RetainedCount => _retained.Count;
-
     private LevelPane? TakeRetained(MapLevelId id)
     {
         if (!_retained.Remove(id, out LevelPane? pane))
@@ -235,8 +233,8 @@ public sealed class PaneSet
     }
 
     /// <summary>
-    ///     Fits every pane to a world extent and clears its manual override — the pre-v2
-    ///     <c>ApplyFitToAllSlices</c> (lines 526-533).
+    ///     Fits every pane to a world extent and clears its manual override, as the pre-v2
+    ///     <c>ApplyFitToAllSlices</c> did.
     /// </summary>
     /// <param name="extent">The world rectangle to frame.</param>
     public void FitAll(WorldBounds extent)
@@ -252,8 +250,8 @@ public sealed class PaneSet
     }
 
     /// <summary>
-    ///     Re-arms every pane's auto camera — the pre-v2 <c>Mode</c> setter (lines 172-175). A mode the
-    ///     user just picked must take effect now, not be held off by a prior manual pan.
+    ///     Re-arms every pane's auto camera. A mode the user just picked must take effect now, not be held
+    ///     off by a prior manual pan.
     /// </summary>
     public void ClearManualOverrides()
     {
@@ -275,10 +273,10 @@ public sealed class PaneSet
     }
 
     /// <summary>
-    ///     The pane under a host-space point — the pre-v2 <c>SliceIndexAtScreenY</c> (lines 464-475),
-    ///     including its "single band swallows every Y" and clamp-to-edge behaviour.
+    ///     The pane under a host-space point. Keeps the pre-v2 <c>SliceIndexAtScreenY</c> behaviour,
+    ///     including "single band swallows every Y" and clamp-to-edge.
     /// </summary>
-    /// <param name="x">Host X. Unused by the stacked policy; part of the contract for B3's layouts.</param>
+    /// <param name="x">Host X. Unused by the stacked policy; part of the contract for the others.</param>
     /// <param name="y">Host Y.</param>
     public LevelPane? PaneAt(float x, float y)
     {

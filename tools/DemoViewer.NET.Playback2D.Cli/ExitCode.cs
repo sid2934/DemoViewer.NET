@@ -10,7 +10,7 @@ internal enum ExitCode
     /// <summary>Everything worked.</summary>
     Success = 0,
 
-    /// <summary>Bad or unknown arguments — including an unknown option, which is never a no-op.</summary>
+    /// <summary>Bad or unknown arguments, including an unknown option, which is never a no-op.</summary>
     Usage = 1,
 
     /// <summary>A required input is absent: demo, fixture, corpus, asset root, ffmpeg.</summary>

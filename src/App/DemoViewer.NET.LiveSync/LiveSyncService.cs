@@ -46,8 +46,8 @@ public sealed class LiveSyncService : ILiveSyncService
 
     private readonly MainViewModel _shell;
     private volatile bool _captureFrameworkLogs;
-    private bool _disposed;
     private Task? _disposeTask;
+    private bool _disposed;
 
     // The in-flight EnableAsync's cancellation — a CS2 launch holds the lifecycle gate for up
     // to ~2 min, so Disable/Dispose/reel-suspend cancel it rather than queueing behind it.

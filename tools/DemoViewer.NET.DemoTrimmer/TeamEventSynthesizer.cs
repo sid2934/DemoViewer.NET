@@ -1,8 +1,8 @@
 #region
 
+using System.Globalization;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using CS2DemoKit.Parser.GameEvents;
 using Google.Protobuf;
 
 #endregion
@@ -71,13 +71,14 @@ internal static class TeamEventSynthesizer
                 continue;
             }
 
-            int team = Convert.ToInt32(teamObj, System.Globalization.CultureInfo.InvariantCulture);
+            int team = Convert.ToInt32(teamObj, CultureInfo.InvariantCulture);
             if (team is not (2 or 3))
             {
                 continue; // spectators / the recorder — the source demo leaves them team 0 too
             }
+
             long pawn = entity.Fields.TryGetValue("m_hPlayerPawn", out object? pawnObj)
-                ? unchecked((long)(uint)Convert.ToUInt64(pawnObj, System.Globalization.CultureInfo.InvariantCulture))
+                ? unchecked((long)(uint)Convert.ToUInt64(pawnObj, CultureInfo.InvariantCulture))
                 : 0;
             string name = entity.Fields.TryGetValue("m_iszPlayerName", out object? nameObj)
                 ? nameObj?.ToString() ?? ""
@@ -188,7 +189,7 @@ internal static class TeamEventSynthesizer
             // field, so each must be WRITTEN to exactly that field.
             switch (key.Type)
             {
-                case 1: k.ValString = value.ToString(System.Globalization.CultureInfo.InvariantCulture); break;
+                case 1: k.ValString = value.ToString(CultureInfo.InvariantCulture); break;
                 case 2: k.ValFloat = value; break;
                 case 3: k.ValLong = (int)value; break;
                 case 4: k.ValShort = (int)value; break;

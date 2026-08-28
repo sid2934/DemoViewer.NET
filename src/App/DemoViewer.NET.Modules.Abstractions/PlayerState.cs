@@ -32,7 +32,7 @@ public interface IPlayerState
 
     /// <summary>
     ///     False for spectators / unassigned / pre-spawn slots (no live pawn) — the module skips these
-    /// rather than rendering a phantom marker.
+    ///     rather than rendering a phantom marker.
     /// </summary>
     bool HasLivePawn { get; }
 

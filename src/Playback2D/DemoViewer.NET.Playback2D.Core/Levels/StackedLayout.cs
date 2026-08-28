@@ -16,10 +16,10 @@ namespace DemoViewer.NET.Playback2D.Core.Levels;
                     "persisted setting to avoid a coincidence with System.Single.")]
 public enum LevelDisplayMode
 {
-    /// <summary>Every level as a horizontal band, highest on top. The pre-v2 behaviour, and B1's only mode.</summary>
+    /// <summary>Every level as a horizontal band, highest on top. The pre-v2 behaviour.</summary>
     Stacked,
 
-    /// <summary>One level filling the host. B3 ships the policy and the level strip that drives it.</summary>
+    /// <summary>One level filling the host. See <see cref="SingleLayout" /> and the level strip.</summary>
     Single,
 
     /// <summary>Reserved. No policy returns it in v1 and nothing should branch on it yet.</summary>
@@ -28,19 +28,18 @@ public enum LevelDisplayMode
 
 /// <summary>
 ///     Decides which levels get panes and where those panes sit. Deliberately separate from
-///     <see cref="PaneSet" />, which owns pane <i>lifetime</i> and camera identity: a layout policy
-///     answers a geometry question and must not be able to lose a user's pan (plan decision D-4).
+///     <see cref="PaneSet" />, which owns pane lifetime and camera identity: a layout policy answers a
+///     geometry question and must not be able to lose a user's pan.
 /// </summary>
 public interface ILevelLayoutPolicy
 {
     /// <summary>
-    ///     Bumped whenever the policy would arrange the same level set differently — B3's
-    ///     <see cref="SingleLayout" /> changing which level it shows, and nothing else today.
+    ///     Bumped whenever the policy would arrange the same level set differently. Today that is only
+    ///     <see cref="SingleLayout" /> changing which level it shows.
     ///     <para>
-    ///         <see cref="PaneSet.Reconcile" /> early-outs on the level-set version, the mode and the
-    ///         host size, so without this a policy whose <i>own</i> state changed would never be asked
-    ///         again. The default is a constant, which is exactly right for a policy that is a pure
-    ///         function of its arguments.
+    ///         <see cref="PaneSet.Reconcile" /> early-outs on the level-set version, the mode and the host
+    ///         size, so without this a policy whose own state changed would never be asked again. The
+    ///         default is a constant, right for a policy that is a pure function of its arguments.
     ///     </para>
     /// </summary>
     int Revision => 0;
@@ -50,7 +49,7 @@ public interface ILevelLayoutPolicy
     /// <param name="mode">The requested display mode.</param>
     /// <param name="host">Host surface size in device-independent pixels.</param>
     /// <returns>
-    ///     Freshly described panes — geometry only. <see cref="PaneSet" /> reconciles them against the
+    ///     Freshly described panes, geometry only. <see cref="PaneSet" /> reconciles them against the
     ///     live panes by level id and discards these.
     /// </returns>
     IReadOnlyList<LevelPane> Arrange(MapSpace space, LevelDisplayMode mode, SKSize host);
@@ -59,7 +58,7 @@ public interface ILevelLayoutPolicy
 /// <summary>
 ///     The pre-v2 band layout, reproduced exactly: <c>bandHeight = host.Height / max(1, levels)</c>, and
 ///     the pane for level <c>i</c> (0 = lowest) occupies band <c>count - 1 - i</c> so the highest floor
-///     renders on top (parity invariant 2, viewport lines 546-548 and 580-584).
+///     renders on top.
 /// </summary>
 public sealed class StackedLayout : ILevelLayoutPolicy
 {

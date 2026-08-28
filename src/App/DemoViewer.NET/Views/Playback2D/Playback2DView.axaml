@@ -3,7 +3,6 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:DemoViewer.NET.Modules.Playback2D"
-             xmlns:p2d="using:DemoViewer.NET.Modules.Playback2D"
              xmlns:controls="using:DemoViewer.NET.Controls"
              xmlns:lv="using:DemoViewer.NET.Modules.Playback2D.Levels"
              xmlns:tl="using:DemoViewer.NET.Views.Playback2D"

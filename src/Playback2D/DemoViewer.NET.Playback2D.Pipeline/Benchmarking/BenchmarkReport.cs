@@ -32,7 +32,7 @@ public sealed record BenchmarkRequest(
 /// </summary>
 /// <param name="P50Ms">Median.</param>
 /// <param name="P95Ms">95th percentile.</param>
-/// <param name="P99Ms">99th percentile — what the budget gates on.</param>
+/// <param name="P99Ms">99th percentile: what the budget gates on.</param>
 /// <param name="MaxMs">Slowest single frame. Reported, never gated.</param>
 /// <param name="MeanMs">Arithmetic mean.</param>
 public readonly record struct FrameTimeStats(
@@ -185,7 +185,7 @@ public sealed record BudgetPolicy(double AdvanceP99Ms, double RenderP99Ms, long 
     /// <summary>
     ///     Baseline with the time budgets scaled by <see cref="ScaleEnvironmentVariable" /> (default
     ///     2.0). A GitHub hosted runner is not the design's mid-tier laptop, and a gate that fires on
-    ///     runner noise gets disabled within a week — so it is deliberately loose enough to catch only
+    ///     runner noise gets disabled within a week; it is deliberately loose enough to catch only
     ///     real regressions (an O(n) blow-up, a re-introduced per-frame allocation).
     ///     <para>
     ///         <b>The allocation ceiling is not scaled.</b> Zero is zero on every machine.

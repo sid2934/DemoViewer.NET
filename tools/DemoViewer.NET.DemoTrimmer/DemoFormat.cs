@@ -44,8 +44,7 @@ internal static class DemoFormat
     /// </remarks>
     public static readonly FrozenSet<string> StreamFrameCommands = new[]
     {
-        "DEM_Packet", "DEM_FullPacket", "DEM_AnimationData", "DEM_AnimationHeader",
-        "DEM_UserCmd", "DEM_Recovery"
+        "DEM_Packet", "DEM_FullPacket", "DEM_AnimationData", "DEM_AnimationHeader", "DEM_UserCmd", "DEM_Recovery"
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>Writes an unsigned LEB128 varint — the frame-header encoding for cmd / tick / size.</summary>

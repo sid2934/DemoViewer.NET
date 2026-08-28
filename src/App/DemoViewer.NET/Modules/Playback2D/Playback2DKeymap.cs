@@ -7,9 +7,9 @@ using Avalonia.Input;
 namespace DemoViewer.NET.Modules.Playback2D;
 
 /// <summary>
-///     Every action the 2D Playback tab's keymap can dispatch. The trailing block is DECLARED here but bound
-///     by a later phase — declaring them now is what lets the conflict checker protect those gestures from
-///     the day the table ships, instead of discovering the collision when the tool arrives.
+///     Every action the 2D Playback tab's keymap can dispatch. The trailing block is DECLARED here but not
+///     yet bound: declaring them now lets the conflict checker protect those gestures from the day the
+///     table ships, instead of discovering the collision when the tool arrives.
 /// </summary>
 public enum Playback2DAction
 {
@@ -64,7 +64,7 @@ public readonly record struct Playback2DBinding(
 ///     than silently shadowing a key at runtime.
 ///     <para>
 ///         Every action a binding dispatches routes through <c>PlaybackController</c> commands or
-///         capability-gated <c>IModuleContext.Request*</c> — the exact surfaces LiveSync's
+///         capability-gated <c>IModuleContext.Request*</c>, the exact surfaces LiveSync's
 ///         <c>SyncStateObserver</c> observes. A parallel path would silently bypass it.
 ///     </para>
 /// </summary>
@@ -79,9 +79,9 @@ public static class Playback2DKeymap
         BrowserReservedGestures = BuildBrowserReserved();
 
         // SHELL only. The shipped table is compiled once and runs on every head, so a browser gesture
-        // has no business failing the desktop build's type initialiser — and none of the shipped
-        // bindings uses one anyway. The browser set exists to refuse a USER'S rebind, which is a
-        // per-host question, and Playback2DKeymapProfile is where that gets asked.
+        // has no business failing the desktop build's type initialiser, and none of the shipped
+        // bindings uses one anyway. The browser set exists to refuse a USER'S rebind, a per-host
+        // question that Playback2DKeymapProfile asks.
         IReadOnlyList<string> conflicts = FindConflicts(Default, ShellReservedGestures);
         if (conflicts.Count > 0)
         {
@@ -104,8 +104,8 @@ public static class Playback2DKeymap
 
     /// <summary>
     ///     Gestures the BROWSER consumes before the page ever sees them. Empty of meaning on a desktop
-    ///     head; on WASM these are the keys a rebind can be offered, accepted, persisted — and then never
-    ///     fire, because Chrome opened a tab instead.
+    ///     head; on WASM these are the keys a rebind can be offered, accepted and persisted for, and then
+    ///     never fire, because Chrome opened a tab instead.
     ///     <para>
     ///         Deliberately a SECOND list rather than more rows in <see cref="ShellReservedGestures" />:
     ///         that one is asserted character-for-character against <c>MainView.axaml</c>'s own
@@ -116,7 +116,7 @@ public static class Playback2DKeymap
     ///         <b>Conservative by construction.</b> Only gestures the browser takes at CHROME level and
     ///         never delivers to the document are here. <c>Ctrl+Z</c>, <c>Ctrl+X</c> and friends are
     ///         editing commands that DO reach the page and are cancellable, so reserving them would
-    ///         refuse a rebind that works perfectly — the mirror image of this defect.
+    ///         refuse a rebind that works perfectly.
     ///     </para>
     /// </summary>
     public static IReadOnlyList<(Key Key, KeyModifiers Modifiers)> BrowserReservedGestures { get; }
@@ -152,14 +152,14 @@ public static class Playback2DKeymap
     }
 
     /// <summary>
-    ///     Resolves a keypress to an action. Pure — the primary, Avalonia-event-free overload. A gesture that
+    ///     Resolves a keypress to an action. Pure: the primary, Avalonia-event-free overload. A gesture that
     ///     resolves to a RESERVED binding returns false: the key is claimed but not yet implemented, so the
     ///     view leaves it unhandled rather than pretending to act.
     /// </summary>
     public static bool TryResolve(Key key, KeyModifiers modifiers, bool toolActive,
         out Playback2DAction action)
     {
-        // Tool-scoped bindings SHADOW the always-scoped ones while a tool is active — that is how B2's
+        // Tool-scoped bindings SHADOW the always-scoped ones while a tool is active. That is how
         // hold-Space-to-pan and Esc-cancels-the-gesture take Space/Esc back without editing this table.
         if (toolActive && TryFind(Playback2DBindingScope.WhenToolActive, key, modifiers,
                 out Playback2DBinding tool))
@@ -261,11 +261,10 @@ public static class Playback2DKeymap
     }
 
     // The ONE gesture formatter, in two spellings of the key: display text for human eyes, and the
-    // parseable form Playback2DKeymapProfile.Row persists — the arrow glyphs and "Esc" below would not
-    // survive KeyGesture.Parse. The modifier chain is shared because it has to be: it existed twice, the
-    // copies drifted over Meta, and a macOS user who captured ⌘+K got the right row in settings.json and
-    // read "K" back in every Settings row, reset chip, tooltip and refusal — indistinguishable from a
-    // bare K, and from a DIFFERENT action bound to bare K.
+    // parseable form Playback2DKeymapProfile.Row persists (the arrow glyphs and "Esc" below would not
+    // survive KeyGesture.Parse). The modifier chain MUST stay shared: a second copy that drops Meta
+    // reads a macOS user's captured ⌘+K back as a bare "K" in every Settings row, reset chip, tooltip
+    // and refusal, indistinguishable from a DIFFERENT action bound to bare K.
     internal static string Format(Key key, KeyModifiers modifiers, bool display = true)
     {
         List<string> parts = new(5);
@@ -320,7 +319,7 @@ public static class Playback2DKeymap
             "Previous playback speed", false),
 
         // ── Navigation (Always). Q/E are ROUND nav, per the CS:DM parity table; the erase tool takes
-        //    bare X (reserved below), which is what resolves design §7.5's Q/E-vs-E collision.
+        //    bare X (reserved below), so the erase tool does not collide with E.
         new(Playback2DAction.PrevRound, Key.Q, KeyModifiers.None, Playback2DBindingScope.Always,
             "Previous round", false),
         new(Playback2DAction.NextRound, Key.E, KeyModifiers.None, Playback2DBindingScope.Always,
@@ -381,11 +380,11 @@ public static class Playback2DKeymap
 
     // The gestures Chrome and Firefox handle in the CHROME and never dispatch to the document, so
     // preventDefault cannot reach them and neither can Avalonia's WASM key pipeline. A user can bind one
-    // in Settings today, watch it persist, and never see it fire — while the Settings copy promises that
+    // in Settings today, watch it persist, and never see it fire, while the Settings copy promises that
     // "keys already taken … are refused with a reason".
     //
-    // Ctrl+W is already a shell accelerator, so it is listed there too; a union of two sets is what the
-    // profile checks, and a gesture in both is refused once.
+    // Ctrl+W is already a shell accelerator, so it is listed there too; the profile checks the union of
+    // the two sets, and a gesture in both is refused once.
     private static (Key Key, KeyModifiers Modifiers)[] BuildBrowserReserved() =>
     [
         (Key.T, KeyModifiers.Control), // new tab

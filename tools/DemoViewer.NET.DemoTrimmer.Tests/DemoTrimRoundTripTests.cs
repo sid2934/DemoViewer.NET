@@ -59,12 +59,12 @@ public sealed class DemoTrimRoundTripTests
     /// </summary>
     [Test]
     public async Task V0_Contiguous_ParsesAndMatchesTheSourceWindow() =>
-        await RunVariant(TrimVariant.V0, includeFromZeroBaseline: true);
+        await RunVariant(TrimVariant.V0, true);
 
     /// <summary>The recommended shipping artifact — smallest candidate a sequential reader can consume.</summary>
     [Test]
     public async Task V3C_ContiguousWithUserCmdsStripped_ParsesAndMatchesTheSourceWindow() =>
-        await RunVariant(TrimVariant.V3C, includeFromZeroBaseline: true);
+        await RunVariant(TrimVariant.V3C, true);
 
     [Test]
     public async Task V1_VerbatimCheckpointEntry_ParsesAndMatchesTheSourceWindow() =>
@@ -82,7 +82,7 @@ public sealed class DemoTrimRoundTripTests
     public async Task V3_EncoderIsBitIdentityOnRealPacketsBeforeAnythingIsDropped()
     {
         (byte[] raw, ParsedDemo demo) = Source();
-        TrimWindow window = WindowSelector.Select(demo, Rounds, enterAtCheckpoint: true);
+        TrimWindow window = WindowSelector.Select(demo, Rounds, true);
 
         // Sample real packets spread across the window rather than the first N, so an encoding branch
         // that only appears late (large type ids, long payloads) is still exercised.
@@ -125,11 +125,14 @@ public sealed class DemoTrimRoundTripTests
         try
         {
             long previous = long.MaxValue;
-            foreach (TrimVariant variant in new[] { TrimVariant.V1, TrimVariant.V2, TrimVariant.V3 })
+            foreach (TrimVariant variant in new[]
+                     {
+                         TrimVariant.V1, TrimVariant.V2, TrimVariant.V3
+                     })
             {
                 TrimWindow window = WindowSelector.Select(demo, Rounds, variant.EnterAtCheckpoint);
                 TrimResult result = DemoTrimWriter.Write(
-                    demo, raw, window, variant, Path.Combine(dir, variant.Id + ".dem"), checkEncoderIdentity: false);
+                    demo, raw, window, variant, Path.Combine(dir, variant.Id + ".dem"), false);
 
                 await Assert.That(result.BytesWritten).IsLessThan(raw.LongLength);
                 await Assert.That(result.BytesWritten).IsLessThanOrEqualTo(previous);

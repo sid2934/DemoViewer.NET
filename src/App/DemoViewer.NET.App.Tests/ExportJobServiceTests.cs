@@ -1,8 +1,8 @@
 #region
 
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Export;
 using SkiaSharp;
@@ -65,12 +65,18 @@ public class ExportJobServiceTests
 
         // Odd height on a yuv420p format. Validated through the SAME validator the CLI uses, so the two
         // front ends cannot disagree about what is exportable.
-        ExportRequest core = Request().Core with { Size = new SKSizeI(1280, 721) };
+        ExportRequest core = Request().Core with
+        {
+            Size = new SKSizeI(1280, 721)
+        };
 
         ExportValidationException? refusal = null;
         try
         {
-            service.Start(Request() with { Core = core });
+            service.Start(Request() with
+            {
+                Core = core
+            });
         }
         catch (ExportValidationException ex)
         {
@@ -84,7 +90,10 @@ public class ExportJobServiceTests
     [Test]
     public async Task ASecondStart_WhileOneIsRunning_IsRefused()
     {
-        FakeRunner runner = new() { Block = new TaskCompletionSource() };
+        FakeRunner runner = new()
+        {
+            Block = new TaskCompletionSource()
+        };
         ExportJobService service = new(runner);
 
         service.Start(Request());
@@ -121,7 +130,10 @@ public class ExportJobServiceTests
     [Test]
     public async Task ASecondStart_InTheWindowBeforeTheFirstJobPublishesAnything_IsStillRefused()
     {
-        FakeRunner runner = new() { Block = new TaskCompletionSource() };
+        FakeRunner runner = new()
+        {
+            Block = new TaskCompletionSource()
+        };
         ExportJobService service = new(runner);
 
         // Deliberately NO await between the two calls: this is the double-click, not the second click a
@@ -170,7 +182,10 @@ public class ExportJobServiceTests
     [Test]
     public async Task ARunnerFailure_BecomesAFailedStatus_CarryingItsMessage()
     {
-        FakeRunner runner = new() { Failure = new InvalidOperationException("the encoder exploded") };
+        FakeRunner runner = new()
+        {
+            Failure = new InvalidOperationException("the encoder exploded")
+        };
         ExportJobService service = new(runner);
 
         service.Start(Request());
@@ -182,7 +197,11 @@ public class ExportJobServiceTests
     [Test]
     public async Task CancellingBeforeTheFirstFrame_EndsCleanly()
     {
-        FakeRunner runner = new() { Block = new TaskCompletionSource(), HonourCancellation = true };
+        FakeRunner runner = new()
+        {
+            Block = new TaskCompletionSource(),
+            HonourCancellation = true
+        };
         ExportJobService service = new(runner);
 
         service.Start(Request());
@@ -198,7 +217,10 @@ public class ExportJobServiceTests
     public async Task ALiveSyncSessionStartingMidExport_DoesNotAbortIt()
     {
         bool liveSyncBusy = false;
-        FakeRunner runner = new() { Block = new TaskCompletionSource() };
+        FakeRunner runner = new()
+        {
+            Block = new TaskCompletionSource()
+        };
         ExportJobService service = new(runner, isLiveSyncBusy: () => liveSyncBusy);
 
         service.Start(Request());

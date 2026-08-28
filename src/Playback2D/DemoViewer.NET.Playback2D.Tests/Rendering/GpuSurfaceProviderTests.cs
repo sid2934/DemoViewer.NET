@@ -111,8 +111,7 @@ public class GpuSurfaceProviderTests
         provider.Dispose();
         provider.Dispose();
 
-        await Assert.That(Assert.Throws<ObjectDisposedException>(
-            () => provider.CreateSurface(new SKSizeI(4, 4)))).IsNotNull();
+        await Assert.That(Assert.Throws<ObjectDisposedException>(() => provider.CreateSurface(new SKSizeI(4, 4)))).IsNotNull();
     }
 
     /// <summary>

@@ -108,7 +108,7 @@ public class ModuleTimelineDataTests
     public async Task EventsOfType_ReadsOldTeamForAKillBeforeTheHalftimeSwap()
     {
         Playback2DFakeContext ctx = Context();
-        ctx.Timelines["player_team"] = [TeamChange(900, 0, 3, oldTeam: 2)];
+        ctx.Timelines["player_team"] = [TeamChange(900, 0, 3, 2)];
         ctx.Timelines["player_death"] =
         [
             Event(100, ("Attacker", 0), ("UserId", 2)),

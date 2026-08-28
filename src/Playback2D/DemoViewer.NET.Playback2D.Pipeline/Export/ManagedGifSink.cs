@@ -4,6 +4,7 @@ using System.Globalization;
 using DemoViewer.NET.Playback2D.Core.Export;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Gif;
+using SixLabors.ImageSharp.Metadata;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing.Processors.Quantization;
 
@@ -32,7 +33,6 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 /// </summary>
 public sealed class ManagedGifSink : IFrameSink
 {
-    private readonly int _frameDelayCentiseconds;
     private readonly int _maxFrames;
     private readonly string _outputPath;
     private bool _cancelled;
@@ -61,14 +61,14 @@ public sealed class ManagedGifSink : IFrameSink
         // that out at Dispose would discard every frame accumulated in memory.
         _outputPath = ExportOutputPath.EnsureDirectory(outputPath);
         _maxFrames = maxFrames;
-        _frameDelayCentiseconds = 100 / fps;
+        FrameDelayCentiseconds = 100 / fps;
     }
 
     /// <summary>Frames accumulated so far.</summary>
     public int FramesWritten { get; private set; }
 
     /// <summary>The centisecond delay stamped on every frame. Test hook for the D7 arithmetic.</summary>
-    public int FrameDelayCentiseconds => _frameDelayCentiseconds;
+    public int FrameDelayCentiseconds { get; }
 
     /// <inheritdoc />
     public ValueTask WriteAsync(ReadOnlyMemory<byte> rgba, int width, int height, CancellationToken ct)
@@ -154,6 +154,6 @@ public sealed class ManagedGifSink : IFrameSink
     /// <summary>Marks the export cancelled so <see cref="DisposeAsync" /> writes nothing.</summary>
     public void Cancel() => _cancelled = true;
 
-    private void Stamp(SixLabors.ImageSharp.Metadata.ImageFrameMetadata metadata) =>
-        metadata.GetGifMetadata().FrameDelay = _frameDelayCentiseconds;
+    private void Stamp(ImageFrameMetadata metadata) =>
+        metadata.GetGifMetadata().FrameDelay = FrameDelayCentiseconds;
 }

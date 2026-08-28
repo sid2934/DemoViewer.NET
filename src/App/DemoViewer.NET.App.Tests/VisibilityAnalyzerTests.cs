@@ -5,7 +5,6 @@ using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
-using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -100,9 +99,9 @@ public class VisibilityAnalyzerTests
             .Where(e => e.Payload is PlayerDeathEvent)
             .Select(e => (Fire: e, Death: (PlayerDeathEvent)e.Payload!))
             .Where(x => x.Death.Penetrated == 0 && x.Death.Attacker >= 0
-                        && x.Death.Attacker != x.Death.UserId
-                        && x.Fire.FrameNumber >= KillLookbackFrames
-                        && x.Fire.FrameNumber < frames.Count)
+                                                && x.Death.Attacker != x.Death.UserId
+                                                && x.Fire.FrameNumber >= KillLookbackFrames
+                                                && x.Fire.FrameNumber < frames.Count)
             .OrderBy(x => x.Fire.FrameNumber)
             .Take(150)
             .ToList();
@@ -197,9 +196,9 @@ public class VisibilityAnalyzerTests
             .Where(e => e.Payload is PlayerDeathEvent)
             .Select(e => (Fire: e, Death: (PlayerDeathEvent)e.Payload!))
             .Where(x => x.Death.Penetrated == 0 && x.Death.Attacker >= 0
-                        && x.Death.Attacker != x.Death.UserId
-                        && x.Fire.FrameNumber >= KillLookbackFrames
-                        && x.Fire.FrameNumber < frames.Count)
+                                                && x.Death.Attacker != x.Death.UserId
+                                                && x.Fire.FrameNumber >= KillLookbackFrames
+                                                && x.Fire.FrameNumber < frames.Count)
             .OrderBy(x => x.Fire.FrameNumber)
             .Take(300)
             .ToList();

@@ -1,12 +1,12 @@
 #region
 
+using System.Globalization;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
-using Avalonia;
-using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Views.Playback2D;
 
 #endregion
@@ -72,7 +72,7 @@ public class Playback2DTimelineScrubTests
 
             // A hover readout the VM computes but the footer never shows is the same as no hover readout.
             await Assert.That(vm.Timeline.HoverText)
-                .Contains(expected.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                .Contains(expected.ToString(CultureInfo.InvariantCulture));
             await Assert.That(readout.Text).IsEqualTo(vm.Timeline.HoverText);
 
             // Hover is a read: it must never move the clock.

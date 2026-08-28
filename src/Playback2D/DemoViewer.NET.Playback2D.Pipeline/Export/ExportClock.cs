@@ -14,7 +14,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 ///         path because motion must be a function of the injected <c>SceneTime</c>; none of what this
 ///         measures reaches a layer. It is a separate type so the reference is attributed to a named
 ///         class under <c>…Pipeline.Export</c> rather than to the compiler-generated state machine
-///         <c>RunAsync</c> becomes — which is what keeps <c>BannedApiTests</c>' exemption a namespace
+///         <c>RunAsync</c> becomes, which is what keeps <c>BannedApiTests</c>' exemption a namespace
 ///         rule instead of a carve-out for a generated name.
 ///     </para>
 /// </summary>

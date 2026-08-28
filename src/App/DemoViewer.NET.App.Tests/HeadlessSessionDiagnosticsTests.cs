@@ -75,12 +75,11 @@ public class HeadlessSessionDiagnosticsTests
     {
         int bodyRuns = 0;
 
-        InvalidOperationException? thrown = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await HeadlessSession.RunOnUi(() =>
-            {
-                bodyRuns++;
-                throw new InvalidOperationException("the body's own failure");
-            }));
+        InvalidOperationException? thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () => await HeadlessSession.RunOnUi(() =>
+        {
+            bodyRuns++;
+            throw new InvalidOperationException("the body's own failure");
+        }));
 
         await Assert.That(thrown!.Message).IsEqualTo("the body's own failure");
         await Assert.That(bodyRuns).IsEqualTo(1);
@@ -95,13 +94,12 @@ public class HeadlessSessionDiagnosticsTests
     {
         int bodyRuns = 0;
 
-        InvalidOperationException? thrown = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await HeadlessSession.RunOnUi(async () =>
-            {
-                bodyRuns++;
-                await Task.Yield();
-                throw new InvalidOperationException("the async body's own failure");
-            }));
+        InvalidOperationException? thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () => await HeadlessSession.RunOnUi(async () =>
+        {
+            bodyRuns++;
+            await Task.Yield();
+            throw new InvalidOperationException("the async body's own failure");
+        }));
 
         await Assert.That(thrown!.Message).IsEqualTo("the async body's own failure");
         await Assert.That(bodyRuns).IsEqualTo(1);

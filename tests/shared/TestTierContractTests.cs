@@ -23,8 +23,8 @@ namespace DemoViewer.NET.Testing.Tiers;
 ///     </para>
 ///     <para>
 ///         This file is compiled into every test assembly (linked, not referenced), so each suite polices
-///         itself with no shared-assembly dependency — which the Playback2D and dv2d suites could not
-///         take without breaking their own "no Avalonia in this process" architecture assertions.
+///         itself with no shared-assembly dependency. The Playback2D and dv2d suites could not take one
+///         without breaking their own "no Avalonia in this process" architecture assertions.
 ///     </para>
 /// </summary>
 public partial class TestTierContractTests
@@ -54,9 +54,8 @@ public partial class TestTierContractTests
     /// <summary>
     ///     The tiers must nest: every test the standard tier runs, the full tier runs, and every test
     ///     the fast tier runs, the standard tier runs. That is a property of the exclusion sets rather
-    ///     than of any particular test, so it is asserted on the sets — a tier that dropped a tag its
-    ///     cheaper neighbour keeps would otherwise make "run the cheaper tier, then the dearer one"
-    ///     stop being a strictly widening operation, and a green fast run would no longer mean anything
+    ///     than of any particular test, so it is asserted on the sets. A tier that dropped a tag its
+    ///     cheaper neighbour keeps would break the widening, and a green fast run would say nothing
     ///     about standard.
     /// </summary>
     [Test]
@@ -69,8 +68,7 @@ public partial class TestTierContractTests
         await Assert.That(standard.Except(fast, StringComparer.Ordinal)).IsEmpty();
         await Assert.That(full.Except(standard, StringComparer.Ordinal)).IsEmpty();
         await Assert.That(full).IsEmpty();
-        // Strictly widening: two tiers that ran the same set would be one tier with two names, and the
-        // cheaper one would be paying for a distinction it does not make.
+        // Strictly widening: two tiers that ran the same set would be one tier with two names.
         await Assert.That(fast.Length).IsGreaterThan(standard.Length);
         await Assert.That(standard.Length).IsGreaterThan(full.Length);
     }
@@ -90,7 +88,7 @@ public partial class TestTierContractTests
         }
 
         await Assert.That(TestTiers.CostCategories.Where(c => !excludedSomewhere.Contains(c))).IsEmpty();
-        // And nothing excluded is outside the vocabulary — the other direction of the same rot.
+        // And nothing excluded is outside the vocabulary: the other direction of the same rot.
         await Assert.That(excludedSomewhere.Where(c => !TestTiers.KnownCategories.Contains(c, StringComparer.Ordinal)))
             .IsEmpty();
     }
@@ -98,13 +96,11 @@ public partial class TestTierContractTests
     /// <summary>
     ///     The scripts are what a human and CI actually run, and they carry the filter strings as
     ///     literal text. This asserts that text is exactly what <see cref="TestTiers" /> derives, so the
-    ///     documented taxonomy and the executed one cannot drift apart — the single most likely way for
-    ///     this design to become a lie.
+    ///     documented taxonomy and the executed one cannot drift apart.
     ///     <para>
     ///         <c>scripts/test.sh</c> carries whole filters; <c>scripts/test-app-suite.sh</c> composes
     ///         the same exclusions onto a class-partition path, so it carries only the bracket. Both
-    ///         are checked, because two hand-maintained copies of one list is precisely the shape of
-    ///         drift this file exists to catch.
+    ///         are checked, because two hand-maintained copies of one list drift.
     ///     </para>
     /// </summary>
     [Test]
@@ -131,7 +127,7 @@ public partial class TestTierContractTests
                     int bracket = filter.IndexOf('[', StringComparison.Ordinal);
                     if (bracket < 0)
                     {
-                        continue;       // The full tier has no bracket to compose.
+                        continue; // The full tier has no bracket to compose.
                     }
 
                     filter = filter[bracket..];
@@ -149,15 +145,14 @@ public partial class TestTierContractTests
 
     /// <summary>
     ///     Any source file that resolves a real <c>.dem</c> declares test classes that must be tagged
-    ///     out of the demo-free tiers — with <see cref="TestTiers.RealDemo" />, or with
+    ///     out of the demo-free tiers: with <see cref="TestTiers.RealDemo" />, or with
     ///     <see cref="TestTiers.Integration" />, which already excludes them everywhere
     ///     <see cref="TestTiers.RealDemo" /> would.
     ///     <para>
     ///         <b>Scope:</b> this is a per-class guard driven by a source scan. It catches a whole new
     ///         demo-reading class arriving with no tag, but not a demo-reading method added to an
     ///         already-tagged class where the tag sits on the siblings rather than the class. That
-    ///         narrower case is left to review; the alternative is parsing C# in a test, which trades a
-    ///         real guard for a brittle one.
+    ///         narrower case is left to review; the alternative is parsing C# inside a test.
     ///     </para>
     /// </summary>
     [Test]
@@ -181,7 +176,7 @@ public partial class TestTierContractTests
                 string name = match.Groups["name"].Value;
                 if (!byClass.TryGetValue(name, out ImmutableArray<string> categories))
                 {
-                    continue;   // Declares no tests in this assembly — a helper, a fake, a harness.
+                    continue; // Declares no tests in this assembly: a helper, a fake, a harness.
                 }
 
                 if (!categories.Contains(TestTiers.RealDemo, StringComparer.Ordinal)
@@ -198,21 +193,19 @@ public partial class TestTierContractTests
 
     /// <summary>
     ///     Any source file that constructs a headless Avalonia window or rasterises a visual tree
-    ///     declares test classes that must be tagged out of <see cref="TestTiers.Fast" /> — normally
+    ///     declares test classes that must be tagged out of <see cref="TestTiers.Fast" />: normally
     ///     with <see cref="TestTiers.Render" />, but any tag that tier already drops will do, on the
     ///     same reasoning as the demo clause above.
     ///     <para>
     ///         Before this guard, <c>fast</c> and <c>standard</c> discovered the identical 929 tests on
-    ///         the App suite, because the window-booting classes carried no category at all: the tier
-    ///         whose whole purpose is "no pixels" was paying for every one of them.
+    ///         the App suite, because the window-booting classes carried no category at all.
     ///     </para>
     ///     <para>
-    ///         The markers are the Avalonia ones — a <c>Window</c> construction, a window handed back by
-    ///         a harness, a <c>CaptureRenderedFrame</c> — so this guards the App suite, where the hole
-    ///         was. It says nothing about the direct-execution suites, which rasterise through Skia with
-    ///         no window and tag themselves. Unlike the demo clause it attributes per class rather than
-    ///         per file: three suites share <c>Playback2DExportSurfaceTests.cs</c> and only some of them
-    ///         boot a window.
+    ///         The markers are the Avalonia ones (a <c>Window</c> construction, a window handed back by
+    ///         a harness, a <c>CaptureRenderedFrame</c>), so this guards the App suite. It says nothing
+    ///         about the direct-execution suites, which rasterise through Skia with no window and tag
+    ///         themselves. Unlike the demo clause it attributes per class rather than per file: three
+    ///         suites share <c>Playback2DExportSurfaceTests.cs</c> and only some of them boot a window.
     ///     </para>
     /// </summary>
     [Test]
@@ -235,7 +228,7 @@ public partial class TestTierContractTests
 
                 if (!byClass.TryGetValue(name, out ImmutableArray<string> categories))
                 {
-                    continue;   // Declares no tests in this assembly — a helper, a fake, a harness.
+                    continue; // Declares no tests in this assembly: a helper, a fake, a harness.
                 }
 
                 if (!categories.Intersect(droppedByFast, StringComparer.Ordinal).Any())
@@ -257,7 +250,7 @@ public partial class TestTierContractTests
     ///     <para>
     ///         An exact-zero allocation window is GC- and JIT-timing sensitive, and three of them went
     ///         red once and green on the re-run inside a single day. Untagged, each was running in
-    ///         <c>playback2d-tests</c>, both <c>render-backends</c> passes and the GPU lane — four
+    ///         <c>playback2d-tests</c>, both <c>render-backends</c> passes and the GPU lane: four
     ///         blocking lanes for a figure the budget lane exists to measure, once, with
     ///         <c>DV2D_BUDGET_SCALE</c> set.
     ///     </para>
@@ -265,9 +258,9 @@ public partial class TestTierContractTests
     ///         <b>Per method, and aimed at the assertion rather than at the counter.</b> An allocation
     ///         window is normally one or two methods inside an otherwise behavioural class, so a
     ///         class-scoped rule would drag their siblings out of the standard tier to silence itself. A
-    ///         method that reads the counter and only prints the number gates nothing and does not
-    ///         offend; what offends is an <c>Assert.That</c> on a value the counter produced, including
-    ///         one handed back by a measuring helper in the same class.
+    ///         method that reads the counter and only prints the number does not offend; what offends
+    ///         is an <c>Assert.That</c> on a value the counter produced, including one handed back by a
+    ///         measuring helper in the same class.
     ///     </para>
     /// </summary>
     [Test]
@@ -295,14 +288,14 @@ public partial class TestTierContractTests
 
             foreach ((string className, string classBody) in TopLevelClassBodies(code))
             {
-                (string Name, string Body)[] members = [..MemberBodies(classBody)];
+                (string Name, string Body)[] members = [.. MemberBodies(classBody)];
                 HashSet<string> measuring = MeasuringMembers(members);
 
                 foreach ((string name, string body) in members)
                 {
                     if (!byMethod.TryGetValue($"{className}.{name}", out ImmutableArray<string> categories))
                     {
-                        continue;   // Not a [Test] in this assembly — a helper, a fixture, a constructor.
+                        continue; // Not a [Test] in this assembly: a helper, a fixture, a constructor.
                     }
 
                     if (!AssertsAMeasurement(body, measuring)
@@ -326,9 +319,8 @@ public partial class TestTierContractTests
     ///     filtering rather than extending it: when a filter's match set contains both explicit
     ///     and non-explicit tests, <c>TestFilterService</c> discards the filter and runs every
     ///     non-explicit test in the assembly instead. A single <c>[Explicit]</c> test is therefore
-    ///     enough to turn <c>-t fast</c> into a full run with no error and no warning — the exact
-    ///     failure this whole taxonomy exists to prevent. Use <c>[Category]</c> and a tier, or
-    ///     <c>[Skip]</c>.
+    ///     enough to turn <c>-t fast</c> into a full run with no error and no warning. Use
+    ///     <c>[Category]</c> and a tier, or <c>[Skip]</c>.
     /// </summary>
     [Test]
     public async Task NoTestIsMarkedExplicit()
@@ -350,7 +342,7 @@ public partial class TestTierContractTests
     // ── Discovery helpers ────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    ///     Every <c>[Test]</c> method in this assembly with its <b>effective</b> category set — method
+    ///     Every <c>[Test]</c> method in this assembly with its <b>effective</b> category set: method
     ///     attributes, then the declaring type and its bases, then the assembly. That is the same
     ///     three-level union TUnit's source generator builds, reproduced here through reflection so the
     ///     guard reads the same categories the filter does.
@@ -376,9 +368,9 @@ public partial class TestTierContractTests
                 }
 
                 yield return (method, [
-                    ..method.GetCustomAttributes<CategoryAttribute>(true).Select(a => a.Category),
-                    ..typeCategories,
-                    ..assemblyCategories
+                    .. method.GetCustomAttributes<CategoryAttribute>(true).Select(a => a.Category),
+                    .. typeCategories,
+                    .. assemblyCategories
                 ]);
             }
         }
@@ -425,7 +417,7 @@ public partial class TestTierContractTests
 
     /// <summary>
     ///     Each member declaration in a class body paired with the source that follows it, up to the
-    ///     next one — <see cref="TopLevelClassBodies" /> one level down, and just as crude: a field
+    ///     next one. <see cref="TopLevelClassBodies" /> one level down, and just as crude: a field
     ///     between two methods lands in the earlier method's slice, which changes no answer here.
     /// </summary>
     /// <param name="classBody">One slice from <see cref="TopLevelClassBodies" />.</param>
@@ -441,7 +433,7 @@ public partial class TestTierContractTests
 
     /// <summary>
     ///     The members of one class that hand back an allocation figure: those that read the counter,
-    ///     plus everything that calls one of those, to a fixed point. One hop is not enough — the tree
+    ///     plus everything that calls one of those, to a fixed point. One hop is not enough: the tree
     ///     already has a <c>Window</c> that runs a <c>Measure</c> twice and returns the second.
     /// </summary>
     private static HashSet<string> MeasuringMembers(IReadOnlyList<(string Name, string Body)> members)
@@ -471,12 +463,12 @@ public partial class TestTierContractTests
     }
 
     /// <summary>
-    ///     Whether one member's body asserts on an allocation figure rather than merely producing one.
+    ///     Whether one member's body asserts on an allocation figure rather than only producing one.
     ///     <para>
-    ///         Every local bound to a figure is collected first — read straight off the counter, handed
-    ///         back by a measuring member, or computed from one already bound — and that last arm is why
-    ///         it iterates to a fixed point: the per-frame numbers divide a delta by a frame count one
-    ///         statement after the delta exists.
+    ///         Every local bound to a figure is collected first: read straight off the counter, handed
+    ///         back by a measuring member, or computed from one already bound. That last arm is why it
+    ///         iterates to a fixed point, since the per-frame numbers divide a delta by a frame count
+    ///         one statement after the delta exists.
     ///     </para>
     /// </summary>
     /// <param name="body">One slice from <see cref="MemberBodies" />, already stripped of comments.</param>
@@ -552,7 +544,10 @@ public partial class TestTierContractTests
 
         return false;
 
-        static bool IsIdentifierChar(char c) => char.IsLetterOrDigit(c) || c == '_';
+        static bool IsIdentifierChar(char c)
+        {
+            return char.IsLetterOrDigit(c) || c == '_';
+        }
     }
 
     /// <summary>
@@ -570,7 +565,7 @@ public partial class TestTierContractTests
 
     /// <summary>
     ///     Each top-level class declaration paired with the source that follows it, up to the next one.
-    ///     Crude, and deliberately so — a private nested type stays inside its owner's slice, which is
+    ///     Crude, and deliberately so: a private nested type stays inside its owner's slice, which is
     ///     what attributes a fixture's <c>Window</c> to the suite that uses it.
     /// </summary>
     /// <param name="source">One C# file.</param>
@@ -638,7 +633,7 @@ public partial class TestTierContractTests
     ///     A member declaration: an access modifier, then the <b>last</b> name on the line that is
     ///     followed by an open paren, with no <c>=</c> before it so an initialised field cannot pass as
     ///     a method. Last rather than first, because a tuple return type puts a paren in front of the
-    ///     name — <c>private static (double Micros, long Bytes) Cost(…)</c> reads as a member called
+    ///     name: <c>private static (double Micros, long Bytes) Cost(…)</c> reads as a member called
     ///     <c>static</c> under the other spelling, and <c>static</c> then matches every sibling.
     /// </summary>
     [GeneratedRegex(@"^[ \t]+(?:public|private|internal|protected)\s[^\n=]*\b(?<name>\w+)\s*\(",

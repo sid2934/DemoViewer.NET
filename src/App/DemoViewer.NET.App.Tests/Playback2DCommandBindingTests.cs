@@ -3,7 +3,6 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Modules.Playback2D;
 
 #endregion
 

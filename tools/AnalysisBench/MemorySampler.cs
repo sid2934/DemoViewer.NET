@@ -19,8 +19,8 @@ namespace AnalysisBench;
 internal sealed class MemorySampler : IDisposable
 {
     private readonly CancellationTokenSource _cts = new();
-    private readonly Process _process = Process.GetCurrentProcess();
     private readonly Task _loop;
+    private readonly Process _process = Process.GetCurrentProcess();
     private long _peakHeap;
     private long _peakRss;
 

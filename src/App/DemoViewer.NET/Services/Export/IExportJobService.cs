@@ -117,7 +117,10 @@ public readonly record struct ExportJobStatus(
 {
     /// <summary>The canonical idle status.</summary>
     public static ExportJobStatus Idle { get; } =
-        new(ExportPhase.Completed, 0, 0, 0, TimeSpan.Zero, null, null) { IsIdle = true };
+        new(ExportPhase.Completed, 0, 0, 0, TimeSpan.Zero, null, null)
+        {
+            IsIdle = true
+        };
 
     /// <summary>True before any job has run. Distinguishes "nothing happened" from "finished".</summary>
     public bool IsIdle { get; init; }

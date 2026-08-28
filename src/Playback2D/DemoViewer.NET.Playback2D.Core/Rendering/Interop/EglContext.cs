@@ -51,10 +51,6 @@ internal sealed class EglContext : IDisposable
     /// <summary><c>GL_VERSION</c>.</summary>
     public string? Version { get; }
 
-    /// <summary>Resolves a GL entry point for Skia's interface assembly.</summary>
-    /// <param name="name">The symbol to resolve.</param>
-    public IntPtr GetProcAddress(string name) => _egl.GetProcAddress(name);
-
     /// <summary>
     ///     Releases the context, the pbuffer and the display, in that order. Idempotent; every call is
     ///     guarded so a double dispose after a driver failure cannot compound it.
@@ -96,4 +92,8 @@ internal sealed class EglContext : IDisposable
         _egl.Terminate(_display);
         _display = IntPtr.Zero;
     }
+
+    /// <summary>Resolves a GL entry point for Skia's interface assembly.</summary>
+    /// <param name="name">The symbol to resolve.</param>
+    public IntPtr GetProcAddress(string name) => _egl.GetProcAddress(name);
 }

@@ -29,11 +29,23 @@ public sealed partial class TutorialViewModel : ViewModelBase
     private readonly Action _skip;
 
     /// <summary>
-    ///     Whether the tour is running. The overlay root binds its <c>IsVisible</c> to this, so setting it
-    ///     false tears the tour down visually. The engine flips it on to start and off on Skip / finish.
+    ///     The region the overlay should actually spotlight right now (engine-set). Usually equals the current
+    ///     step's <see cref="TutorialStep.Target" />, but the gateway overrides it: when the library has a demo
+    ///     to click it points at the first library card (double-click loads it, no dialog), otherwise at the
+    ///     Open-Demo button. The view measures THIS, not the step's static target.
     /// </summary>
     [ObservableProperty]
-    private bool _isActive;
+    private TutorialTarget _activeTarget;
+
+    /// <summary>Whether a previous step exists — gates the callout's Back button (engine-set).</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(BackCommand))]
+    private bool _canGoBack;
+
+    /// <summary>Whether advancing is allowed — gates the callout's Next/Finish button (engine-set).</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(NextCommand))]
+    private bool _canGoNext = true;
 
     /// <summary>
     ///     The step currently shown. The overlay binds <c>CurrentStep.Title</c> / <c>CurrentStep.Body</c> for
@@ -47,40 +59,11 @@ public sealed partial class TutorialViewModel : ViewModelBase
     private TutorialStep? _currentStep;
 
     /// <summary>
-    ///     The spotlight target rectangle <b>in overlay (window) coordinates</b>. The engine measures the
-    ///     anchored control (from <c>CurrentStep.Target</c>) and sets this live; the overlay draws the
-    ///     cut-out hole here and positions the callout beside it. Ignored while <see cref="HasSpotlight" />
-    ///     is false. Default <see cref="Avalonia.Rect" />.Empty is treated as "no hole yet".
+    ///     Whether the tour is running. The overlay root binds its <c>IsVisible</c> to this, so setting it
+    ///     false tears the tour down visually. The engine flips it on to start and off on Skip / finish.
     /// </summary>
     [ObservableProperty]
-    private Rect _spotlightRect;
-
-    /// <summary>1-based index of the current step (engine-set) — the numerator of the step indicator.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StepIndicator))]
-    private int _stepNumber = 1;
-
-    /// <summary>Total steps in the indicator (engine-set) — the denominator of the step indicator.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StepIndicator))]
-    private int _stepCount = 1;
-
-    /// <summary>Whether a previous step exists — gates the callout's Back button (engine-set).</summary>
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(BackCommand))]
-    private bool _canGoBack;
-
-    /// <summary>Whether advancing is allowed — gates the callout's Next/Finish button (engine-set).</summary>
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(NextCommand))]
-    private bool _canGoNext = true;
-
-    /// <summary>
-    ///     Label for the advance button ("Next", or "Get started" / "Finish" on the welcome / outro). The
-    ///     engine typically sets this from <c>CurrentStep.NextLabelOverride</c>.
-    /// </summary>
-    [ObservableProperty]
-    private string _nextLabel = "Next";
+    private bool _isActive;
 
     /// <summary>
     ///     True while the tour is parked on a <see cref="TutorialStep.WaitsForDemo" /> gateway step with no demo
@@ -92,13 +75,30 @@ public sealed partial class TutorialViewModel : ViewModelBase
     private bool _isWaiting;
 
     /// <summary>
-    ///     The region the overlay should actually spotlight right now (engine-set). Usually equals the current
-    ///     step's <see cref="TutorialStep.Target" />, but the gateway overrides it: when the library has a demo
-    ///     to click it points at the first library card (double-click loads it, no dialog), otherwise at the
-    ///     Open-Demo button. The view measures THIS, not the step's static target.
+    ///     Label for the advance button ("Next", or "Get started" / "Finish" on the welcome / outro). The
+    ///     engine typically sets this from <c>CurrentStep.NextLabelOverride</c>.
     /// </summary>
     [ObservableProperty]
-    private TutorialTarget _activeTarget;
+    private string _nextLabel = "Next";
+
+    /// <summary>
+    ///     The spotlight target rectangle <b>in overlay (window) coordinates</b>. The engine measures the
+    ///     anchored control (from <c>CurrentStep.Target</c>) and sets this live; the overlay draws the
+    ///     cut-out hole here and positions the callout beside it. Ignored while <see cref="HasSpotlight" />
+    ///     is false. Default <see cref="Avalonia.Rect" />.Empty is treated as "no hole yet".
+    /// </summary>
+    [ObservableProperty]
+    private Rect _spotlightRect;
+
+    /// <summary>Total steps in the indicator (engine-set) — the denominator of the step indicator.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StepIndicator))]
+    private int _stepCount = 1;
+
+    /// <summary>1-based index of the current step (engine-set) — the numerator of the step indicator.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StepIndicator))]
+    private int _stepNumber = 1;
 
     /// <summary>
     ///     The hint shown in place of the advance button while <see cref="IsWaiting" /> is true (engine-set from

@@ -20,13 +20,13 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 public class ExportLayerParityTests
 {
     /// <summary>
-    ///     A bare export names neither the opt-ins nor vision. Both would be manifest lies — the ink and
+    ///     A bare export names neither the opt-ins nor vision. Both would be manifest lies: the ink and
     ///     the HUD have no source to draw from, and the CLI has no visibility engine at all.
     /// </summary>
     [Test]
     public async Task ABareExport_NamesNeitherTheOptIns_NorVision()
     {
-        HashSet<string> ids = ExportCommand.BuildLayerIds(null, hud: false, hasInk: false);
+        HashSet<string> ids = ExportCommand.BuildLayerIds(null, false, false);
 
         await Assert.That(ids.Contains(SceneLayerIds.Annotations)).IsFalse();
         await Assert.That(ids.Contains(SceneLayerIds.Vision)).IsFalse()
@@ -39,9 +39,12 @@ public class ExportLayerParityTests
         // --layers is the escape hatch, including for vision: naming it is a choice, and the defaults
         // above must not fight it.
         HashSet<string> ids = ExportCommand.BuildLayerIds(
-            [SceneLayerIds.Radar, SceneLayerIds.Vision], hud: false, hasInk: false);
+            [SceneLayerIds.Radar, SceneLayerIds.Vision], false, false);
 
         await Assert.That(ids.Order()).IsEquivalentTo(
-            new[] { SceneLayerIds.Radar, SceneLayerIds.Vision }.Order());
+            new[]
+            {
+                SceneLayerIds.Radar, SceneLayerIds.Vision
+            }.Order());
     }
 }

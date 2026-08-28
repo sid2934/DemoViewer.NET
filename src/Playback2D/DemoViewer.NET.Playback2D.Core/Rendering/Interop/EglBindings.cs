@@ -157,6 +157,7 @@ internal sealed class EglBindings
             // Deliberately the ONLY candidate: an override that silently falls through would test the
             // default build while claiming to test the named one.
             yield return overridePath;
+
             yield break;
         }
 
@@ -166,6 +167,7 @@ internal sealed class EglBindings
             // system/vendor ANGLE a user may have next to a Chromium install.
             yield return "av_libglesv2.dll";
             yield return "libEGL.dll";
+
             yield break;
         }
 

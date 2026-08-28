@@ -25,15 +25,13 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 public sealed class PanZoomGesture
 {
     private const double ZoomStep = 1.1;
-
-    private LevelPane? _pane;
     private float _lastX, _lastY;
 
     /// <summary>Whether a drag is in progress.</summary>
-    public bool IsDragging => _pane is not null;
+    public bool IsDragging => DragPane is not null;
 
     /// <summary>The pane the current drag began on, or null.</summary>
-    public LevelPane? DragPane => _pane;
+    public LevelPane? DragPane { get; private set; }
 
     /// <summary>Begins a drag on the pane under the point.</summary>
     /// <param name="panes">The arranged panes.</param>
@@ -57,10 +55,10 @@ public sealed class PanZoomGesture
     /// <returns>True when a pane was captured.</returns>
     public bool Press(LevelPane? pane, float x, float y)
     {
-        _pane = pane;
+        DragPane = pane;
         _lastX = x;
         _lastY = y;
-        return _pane is not null;
+        return DragPane is not null;
     }
 
     /// <summary>Pans the captured pane by the movement since the last call.</summary>
@@ -69,7 +67,7 @@ public sealed class PanZoomGesture
     /// <returns>True when the camera moved and the host should repaint.</returns>
     public bool Move(float x, float y)
     {
-        if (_pane is not { } pane)
+        if (DragPane is not { } pane)
         {
             return false;
         }
@@ -83,7 +81,7 @@ public sealed class PanZoomGesture
     }
 
     /// <summary>Ends the drag. Safe to call when none is in progress.</summary>
-    public void Release() => _pane = null;
+    public void Release() => DragPane = null;
 
     /// <summary>
     ///     Zooms the pane under the cursor about the <b>pane-local</b> cursor position — the band's

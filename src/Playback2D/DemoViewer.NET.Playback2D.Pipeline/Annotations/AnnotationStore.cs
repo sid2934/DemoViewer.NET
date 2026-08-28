@@ -12,8 +12,8 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Annotations;
 /// <summary>
 ///     Reads and writes the <c>.dvann.json</c> annotation sidecar.
 ///     <para>
-///         <b>Two locations, in order.</b> Beside the demo when its directory is writable — that is where
-///         a user expects a file they can hand to a teammate along with the demo — otherwise under the
+///         <b>Two locations, in order.</b> Beside the demo when its directory is writable (that is where
+///         a user expects a file they can hand to a teammate along with the demo), otherwise under the
 ///         app-data root, keyed by the demo's SHA-256. A read-only Steam replay folder is the common
 ///         case, not the exception. With neither available (WASM) the store is inert and says so, and
 ///         the session's annotations live only as long as the tab does.
@@ -38,6 +38,14 @@ public sealed class AnnotationStore
     private readonly string? _appDataRoot;
     private readonly Func<string, string> _demoKeyResolver;
 
+    private readonly Dictionary<string, Dictionary<Guid, Dictionary<string, JsonElement>>> _elementExtras =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    // Unknown JSON preserved from the last load of a given path, re-emitted on the next save so a v2
+    // field written by a newer build survives a v1 round trip.
+    private readonly Dictionary<string, Dictionary<string, JsonElement>> _rootExtras =
+        new(StringComparer.OrdinalIgnoreCase);
+
     // Every dictionary below is reached from BOTH the UI thread (ResolvePath, for the panel's status
     // line) and a thread-pool thread (the debounced autosave, and LoadAsync's continuation). A plain
     // Dictionary read racing a write can spin forever inside bucket traversal, so all three live behind
@@ -45,14 +53,6 @@ public sealed class AnnotationStore
     private readonly Lock _state = new();
 
     private readonly Dictionary<string, bool> _writableByDirectory = new(StringComparer.OrdinalIgnoreCase);
-
-    // Unknown JSON preserved from the last load of a given path, re-emitted on the next save so a v2
-    // field written by a newer build survives a v1 round trip.
-    private readonly Dictionary<string, Dictionary<string, JsonElement>> _rootExtras =
-        new(StringComparer.OrdinalIgnoreCase);
-
-    private readonly Dictionary<string, Dictionary<Guid, Dictionary<string, JsonElement>>> _elementExtras =
-        new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Creates a store.</summary>
     /// <param name="appDataRoot">
@@ -71,7 +71,7 @@ public sealed class AnnotationStore
         _demoKeyResolver = demoKeyResolver ?? ComputeDemoKey;
     }
 
-    /// <summary>False when nothing can be persisted at all — no app-data root on a read-only demo dir.</summary>
+    /// <summary>False when nothing can be persisted at all: no app-data root on a read-only demo dir.</summary>
     public bool IsPersistent => _appDataRoot is not null;
 
     /// <summary>Computes a demo's identity, streaming the file rather than reading it into memory.</summary>
@@ -105,7 +105,7 @@ public sealed class AnnotationStore
         try
         {
             using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read,
-                bufferSize: 1 << 16, FileOptions.SequentialScan);
+                1 << 16, FileOptions.SequentialScan);
             return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
         }
         catch (IOException)
@@ -146,7 +146,7 @@ public sealed class AnnotationStore
     };
 
     /// <summary>
-    ///     Loads a demo's sidecar. Never throws for a missing, truncated or foreign file — a corrupt
+    ///     Loads a demo's sidecar. Never throws for a missing, truncated or foreign file: a corrupt
     ///     sidecar must not stop a demo from opening.
     /// </summary>
     /// <param name="demoPath">Path to the <c>.dem</c>.</param>
@@ -168,7 +168,7 @@ public sealed class AnnotationStore
         try
         {
             await using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read,
-                bufferSize: 1 << 16, useAsync: true);
+                1 << 16, true);
             dto = await JsonSerializer
                 .DeserializeAsync(stream, AnnotationJsonContext.Default.AnnotationDocumentDto, ct)
                 .ConfigureAwait(false);
@@ -192,7 +192,7 @@ public sealed class AnnotationStore
         }
 
         // A hash mismatch means the file belongs to a DIFFERENT demo that happens to share this path.
-        // Ignore it entirely — and remember nothing about it, so the next save cannot merge its extras
+        // Ignore it entirely, and remember nothing about it, so the next save cannot merge its extras
         // into someone else's document or overwrite it.
         bool demoMismatch = false;
         if (dto.Demo?.Sha256 is { Length: > 0 } recorded && location == AnnotationStoreLocation.DemoSidecar)
@@ -313,14 +313,14 @@ public sealed class AnnotationStore
             }
 
             await using (FileStream stream = new(temp, FileMode.Create, FileAccess.Write, FileShare.None,
-                             bufferSize: 1 << 16, useAsync: true))
+                             1 << 16, true))
             {
                 await JsonSerializer
                     .SerializeAsync(stream, dto, AnnotationJsonContext.Default.AnnotationDocumentDto, ct)
                     .ConfigureAwait(false);
             }
 
-            File.Move(temp, path, overwrite: true);
+            File.Move(temp, path, true);
             return true;
         }
         catch (IOException)
@@ -396,7 +396,7 @@ public sealed class AnnotationStore
 
         // Probe OUTSIDE the gate: a create+delete on a dead network share can block for seconds, and
         // holding the lock across it would stall the UI thread's status line behind an autosave.
-        // A concurrent duplicate probe is harmless — same answer, one extra temp file.
+        // A concurrent duplicate probe is harmless: same answer, one extra temp file.
         bool writable = Probe(directory);
         lock (_state)
         {
@@ -530,7 +530,7 @@ public sealed class AnnotationStore
 
     // A sidecar is hand-editable, so an ODD number of values is a truncated pair rather than an error:
     // the orphan is dropped and everything before it kept, matching StrokeTiming's own contract that a
-    // truncated table degrades instead of throwing. The order is NOT re-sorted — a table somebody
+    // truncated table degrades instead of throwing. The order is NOT re-sorted: a table somebody
     // hand-edited out of order replays oddly, which they can see and fix, where silently re-ordering
     // their file would be this reader inventing data.
     private static StrokeTiming? ToTiming(AnnotationTimingDto? dto)
@@ -545,7 +545,7 @@ public sealed class AnnotationStore
         TimingRun[] runs = new TimingRun[count];
         for (int i = 0; i < count; i++)
         {
-            runs[i] = new TimingRun(flat[i * 2], flat[(i * 2) + 1]);
+            runs[i] = new TimingRun(flat[i * 2], flat[i * 2 + 1]);
         }
 
         return new StrokeTiming(runs, dto.DurationTicks);
@@ -559,13 +559,13 @@ public sealed class AnnotationStore
         }
 
         // A sidecar is a hand-editable file, and every OTHER AnnotationKind is reserved: nothing writes
-        // one, and AnnotationHitTester THROWS NotSupportedException for anything but Freehand — a throw
+        // one, and AnnotationHitTester THROWS NotSupportedException for anything but Freehand: a throw
         // EraseTool does not catch, so it escapes into Avalonia's pointer pipeline on the first erase
         // drag. LevelLayouts.Parse fences its own reserved member with Enum.IsDefined plus an explicit
         // check for exactly this reason; this is the same fence. The points are a polyline either way,
         // so loading a reserved kind AS Freehand draws and erases it rather than losing it.
         // Enum.TryParse also accepts any NUMBER in range, which is what makes IsDefined load-bearing.
-        if (!Enum.TryParse(dto.Kind, ignoreCase: true, out AnnotationKind kind)
+        if (!Enum.TryParse(dto.Kind, true, out AnnotationKind kind)
             || !Enum.IsDefined(kind)
             || kind != AnnotationKind.Freehand)
         {
@@ -581,7 +581,7 @@ public sealed class AnnotationStore
         InkPoint[] points = new InkPoint[count];
         for (int i = 0; i < count; i++)
         {
-            points[i] = new InkPoint(flat[i * 3], flat[(i * 3) + 1], flat[(i * 3) + 2]);
+            points[i] = new InkPoint(flat[i * 3], flat[i * 3 + 1], flat[i * 3 + 2]);
         }
 
         return new AnnotationElement(id, kind,

@@ -3,6 +3,7 @@
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
@@ -17,6 +18,7 @@ using DemoViewer.NET.Modules.RuleWorkbench;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.Tutorial;
 using DemoViewer.NET.Views;
+using Path = System.IO.Path;
 
 #endregion
 
@@ -268,21 +270,21 @@ public class TutorialWalkthroughTests
                 Dispatcher.UIThread.RunJobs();
 
                 await Assert.That(vm.Tutorial.IsWaiting).IsTrue();
-                Avalonia.Rect hole = vm.Tutorial.SpotlightRect;
+                Rect hole = vm.Tutorial.SpotlightRect;
                 await Assert.That(hole.Width).IsGreaterThan(0).Because("the gateway spotlight measured the button");
 
                 // The real Open-Demo button lives under the hole and must be reachable there…
                 Control? hit = window.InputHitTest(hole.Center) as Control;
                 bool overButton = hit is not null
-                    && (TutorialAnchor.TryResolve(TutorialTarget.OpenDemo, out Control btn)
-                        && (ReferenceEquals(hit, btn) || btn.GetVisualDescendants().Contains(hit)
-                            || hit.GetVisualAncestors().Contains(btn)));
+                                  && TutorialAnchor.TryResolve(TutorialTarget.OpenDemo, out Control btn)
+                                  && (ReferenceEquals(hit, btn) || btn.GetVisualDescendants().Contains(hit)
+                                                                || hit.GetVisualAncestors().Contains(btn));
                 await Assert.That(overButton).IsTrue()
                     .Because("a click in the spotlight hole passes through the scrim to the real Open-Demo button");
 
                 // …while a point over the dimmed area (bottom-left, away from both the hole and the callout) is
                 // still blocked by the scrim — the tour stays modal everywhere except the highlighted control.
-                Control? blocked = window.InputHitTest(new Avalonia.Point(80, 720)) as Control;
+                Control? blocked = window.InputHitTest(new Point(80, 720)) as Control;
                 await Assert.That(blocked is SpotlightScrim).IsTrue()
                     .Because("outside the hole the scrim still blocks click-through — the tour stays modal");
             }
@@ -337,7 +339,7 @@ public class TutorialWalkthroughTests
                 await Assert.That(vm.Tutorial.IsWaiting).IsTrue();
                 await Assert.That(vm.Tutorial.ActiveTarget).IsEqualTo(TutorialTarget.FirstLibraryCard)
                     .Because("a library demo is available, so the gateway points at the first card");
-                Avalonia.Rect hole = vm.Tutorial.SpotlightRect;
+                Rect hole = vm.Tutorial.SpotlightRect;
                 await Assert.That(hole.Width).IsGreaterThan(0).Because("the first demo card was measured");
                 await Assert.That(hole.Height).IsGreaterThan(0);
 
@@ -348,7 +350,7 @@ public class TutorialWalkthroughTests
                 await Assert.That(scrim.InteractiveHole).IsTrue();
                 await Assert.That(scrim.HitTest(hole.Center)).IsFalse()
                     .Because("a click over the highlighted card falls through the scrim to the real card");
-                await Assert.That(scrim.HitTest(new Avalonia.Point(hole.X - 60, hole.Center.Y))).IsTrue()
+                await Assert.That(scrim.HitTest(new Point(hole.X - 60, hole.Center.Y))).IsTrue()
                     .Because("outside the card the scrim still blocks — the tour stays modal");
             }
             finally
@@ -407,7 +409,7 @@ public class TutorialWalkthroughTests
                 await Assert.That(vm.Tutorial.IsWaiting).IsTrue();
                 await Assert.That(vm.Tutorial.ActiveTarget).IsEqualTo(TutorialTarget.SampleDemo)
                     .Because("an empty library with a bundled sample points the gateway at the hero CTA");
-                Avalonia.Rect hole = vm.Tutorial.SpotlightRect;
+                Rect hole = vm.Tutorial.SpotlightRect;
                 await Assert.That(hole.Width).IsGreaterThan(0).Because("the sample CTA button was measured");
                 await Assert.That(hole.Height).IsGreaterThan(0);
 
@@ -420,7 +422,7 @@ public class TutorialWalkthroughTests
                 await Assert.That(scrim.InteractiveHole).IsTrue();
                 await Assert.That(scrim.HitTest(hole.Center)).IsFalse()
                     .Because("a click over the highlighted CTA falls through the scrim to the real button");
-                await Assert.That(scrim.HitTest(new Avalonia.Point(hole.X - 60, hole.Center.Y))).IsTrue()
+                await Assert.That(scrim.HitTest(new Point(hole.X - 60, hole.Center.Y))).IsTrue()
                     .Because("outside the CTA the scrim still blocks — the tour stays modal");
             }
             finally
@@ -529,14 +531,14 @@ public class TutorialWalkthroughTests
                 await Assert.That(scrim.Classes.Contains("pulsing")).IsTrue()
                     .Because("a spotlight step applies the breathing-pulse class at runtime");
 
-                Avalonia.Controls.Shapes.Ellipse dot = view.GetVisualDescendants()
-                    .OfType<Avalonia.Controls.Shapes.Ellipse>()
+                Ellipse dot = view.GetVisualDescendants()
+                    .OfType<Ellipse>()
                     .Single(e => e.Classes.Contains("pulsing"));
 
                 // Sample both animations across the same span of render ticks. Several samples so we don't alias
                 // the sine's turning points.
-                var pulse = new System.Collections.Generic.List<double>();
-                var dotOpacity = new System.Collections.Generic.List<double>();
+                List<double> pulse = new();
+                List<double> dotOpacity = new();
                 for (int i = 0; i < 200; i++)
                 {
                     AvaloniaHeadlessPlatform.ForceRenderTimerTick();

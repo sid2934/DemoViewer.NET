@@ -49,7 +49,7 @@ public sealed partial class LevelChipViewModel : ObservableObject
     /// <summary>Whether the map bundle bound a radar image to this level.</summary>
     public bool HasRadar { get; }
 
-    /// <summary>True when there is no baked radar — drives the glyph's visibility.</summary>
+    /// <summary>True when there is no baked radar. Drives the glyph's visibility.</summary>
     public bool HasNoRadar => !HasRadar;
 
     /// <summary>

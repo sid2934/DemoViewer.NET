@@ -65,8 +65,6 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     // Speed, the integer part is how many frames to step this tick, the fraction carries forward.
     private double _frameAccumulator;
 
-    private IReadOnlyList<DemoFrame>? _frames;
-
     [ObservableProperty]
     private bool _isPlaying;
 
@@ -77,7 +75,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     private DispatcherTimer? _timer;
 
     /// <summary>Total frames in the loaded demo, 0 when none loaded.</summary>
-    public int TotalFrames => _frames?.Count ?? 0;
+    public int TotalFrames => Frames?.Count ?? 0;
 
     /// <summary>
     ///     The loaded demo's frame list, or null when none is loaded.
@@ -88,7 +86,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     ///         than exposing the tracker — a caller can read frames, not mutate decode state.
     ///     </para>
     /// </summary>
-    public IReadOnlyList<DemoFrame>? Frames => _frames;
+    public IReadOnlyList<DemoFrame>? Frames { get; private set; }
 
     /// <summary>True once a demo is loaded and has at least one frame.</summary>
     public bool HasDemo => TotalFrames > 0;
@@ -204,7 +202,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     /// </summary>
     public void LoadDemo(IReadOnlyList<DemoFrame> frames, int tickRate)
     {
-        _frames = frames;
+        Frames = frames;
         TickRate = tickRate > 0 ? tickRate : 64;
         Reset();
     }
@@ -217,7 +215,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     /// </summary>
     public void Unload()
     {
-        _frames = null;
+        Frames = null;
         TickRate = 64;
         Reset();
     }
@@ -275,7 +273,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
         }
 
         CurrentFrameIndex = frameIndex;
-        if (_frames is { } f && frameIndex >= 0 && frameIndex < f.Count)
+        if (Frames is { } f && frameIndex >= 0 && frameIndex < f.Count)
         {
             CurrentTick = f[frameIndex].ServerTick;
         }
@@ -293,7 +291,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     /// </summary>
     public int FrameIndexAtTick(int tick)
     {
-        if (_frames is not { } f)
+        if (Frames is not { } f)
         {
             return -1;
         }
@@ -341,7 +339,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     public void StepForward()
     {
         int next = CurrentFrameIndex + 1;
-        if (next < 0 || next >= TotalFrames || _frames is not { } f)
+        if (next < 0 || next >= TotalFrames || Frames is not { } f)
         {
             return;
         }
@@ -536,7 +534,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
 
     private void OnTimerTick(object? sender, EventArgs e)
     {
-        if (!IsPlaying || _frames is not { } f)
+        if (!IsPlaying || Frames is not { } f)
         {
             StopTimer();
             return;
@@ -618,7 +616,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     public void SyncPositionFromShell(int frameIndex)
     {
         CurrentFrameIndex = frameIndex;
-        if (_frames is { } f && frameIndex >= 0 && frameIndex < f.Count)
+        if (Frames is { } f && frameIndex >= 0 && frameIndex < f.Count)
         {
             CurrentTick = f[frameIndex].ServerTick;
         }

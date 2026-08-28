@@ -1,10 +1,14 @@
 #region
 
+using System.Collections;
+using System.Globalization;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.VisualTree;
@@ -16,16 +20,16 @@ using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Views.Playback2D;
+using Pointer = Avalonia.Input.Pointer;
 
 #endregion
 
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <b>The requirement this class covers, one case per clause:</b> "draw / erase / undo survive seek,
-///     zoom, level switch and tab deactivate". Everything provable without a window is proved in the
-///     direct-execution suite instead; what is left here genuinely needs a visual tree, real pointer
-///     plumbing and a real render pass.
+///     One case per clause of "draw / erase / undo survive seek, zoom, level switch and tab deactivate".
+///     Everything provable without a window is proved in the direct-execution suite instead; what is left
+///     here needs a visual tree, real pointer plumbing and a real render pass.
 /// </summary>
 [NotInParallel]
 [Category("Render")]
@@ -169,15 +173,14 @@ public class Playback2DAnnotationHostTests
     }
 
     /// <summary>
-    ///     The whole remap chain — <c>LevelSetChange.TryRemapAnchor</c> → <c>ApplyLevelRebuild</c> →
-    ///     <c>AnnotationDocument.RemapWorldLevels</c> — existed and was unit-tested, but nothing in
+    ///     The whole remap chain (<c>LevelSetChange.TryRemapAnchor</c> → <c>ApplyLevelRebuild</c> →
+    ///     <c>AnnotationDocument.RemapWorldLevels</c>) existed and was unit-tested, but nothing in
     ///     production called it. The test above this one drives the VM entry point by hand; this one
     ///     moves the LEVEL SET and asserts the ink follows on its own.
     ///     <para>
-    ///         It matters because the boundary really does move: the floor split is derived from a Z
-    ///         histogram that changes all demo long, and an anchor stamped with the old band's quantized
-    ///         <c>ZMin</c> stops matching any pane the moment it drifts — the stroke does not move, it
-    ///         vanishes.
+    ///         The boundary really does move: the floor split is derived from a Z histogram that changes
+    ///         all demo long, and an anchor stamped with the old band's quantized <c>ZMin</c> stops
+    ///         matching any pane the moment it drifts. The stroke does not move, it vanishes.
     ///     </para>
     /// </summary>
     [Test]
@@ -188,7 +191,7 @@ public class Playback2DAnnotationHostTests
             using Fixture f = Fixture.Create();
 
             // Quantum multiples, so QuantizeZ is the identity here and the arithmetic below is exact.
-            // A frame push after each rebuild, because the panes are reconciled inside Advance — a bare
+            // A frame push after each rebuild, because the panes are reconciled inside Advance: a bare
             // render tick over an unchanged submission does not re-arrange them, and drawing onto a
             // stale pane would stamp the anchor with the level it is replacing.
             Rebuild(f, -768, -128, 512);
@@ -200,7 +203,7 @@ public class Playback2DAnnotationHostTests
             await Assert.That(before).IsEqualTo(-768).Or.IsEqualTo(-128)
                 .Because("the stroke must be anchored to one of the two floors that exist");
 
-            // The same two floors, both slid down one quantum — identity survives (overlap carry), so
+            // The same two floors, both slid down one quantum: identity survives (overlap carry), so
             // every anchor follows its own band rather than being reassigned by containment.
             Rebuild(f, -832, -192, 448);
 
@@ -276,8 +279,8 @@ public class Playback2DAnnotationHostTests
     }
 
     /// <summary>
-    ///     The undo-scope contract (design risk 13). A seek between the stroke and the Ctrl+Z must not
-    ///     end up on the history stack — the document has no reference to a playhead at all.
+    ///     The undo-scope contract: a seek between the stroke and the Ctrl+Z must not end up on the
+    ///     history stack. The document has no reference to a playhead at all.
     /// </summary>
     [Test]
     public async Task Undo_AfterSeek_UndoesTheStroke_NotTheSeek()
@@ -358,7 +361,7 @@ public class Playback2DAnnotationHostTests
     ///     <b>Coalesced pointer samples must reach the ink oldest-first, exactly once.</b>
     ///     <para>
     ///         Headless <c>MouseMove</c> carries no sub-frame history, so nothing else in this suite ever
-    ///         exercises the coalescing path — but a real 1000 Hz digitiser (and a plain mouse on a 60 Hz
+    ///         exercises the coalescing path. A real 1000 Hz digitiser (and a plain mouse on a 60 Hz
     ///         surface) delivers a dozen points per event. Avalonia 11.3.12's
     ///         <c>GetIntermediatePoints</c> returns them OLDEST-FIRST with THIS event's own point
     ///         appended LAST; consuming that list backwards, or keeping the trailing entry, folds the
@@ -384,12 +387,12 @@ public class Playback2DAnnotationHostTests
             await Assert.That(f.Vm.Annotations.Session.Wet.IsActive).IsTrue();
 
             // Three sub-frame samples between the press and this move, in the order they happened.
-            f.Host.RaiseEvent(PointerMoveWithHistory(f, [220, 240, 260], primary: 280, y: 300));
+            f.Host.RaiseEvent(PointerMoveWithHistory(f, [220, 240, 260], 280, 300));
             Playback2DTimelineHarness.Pump();
 
             IReadOnlyList<InkPoint> samples = f.Vm.Annotations.Session.Wet.Points;
             string xs = string.Join(",", samples.Select(p => p.X.ToString("F0",
-                System.Globalization.CultureInfo.InvariantCulture)));
+                CultureInfo.InvariantCulture)));
             Console.WriteLine($"[coalesced] world x = {xs}");
 
             await Assert.That(samples.Count).IsEqualTo(5)
@@ -410,8 +413,8 @@ public class Playback2DAnnotationHostTests
     {
         Type rawPoint = typeof(PointerPoint).Assembly.GetType("Avalonia.Input.Raw.RawPointerPoint")!;
         Type listType = typeof(List<>).MakeGenericType(rawPoint);
-        System.Collections.IList history = (System.Collections.IList)Activator.CreateInstance(listType)!;
-        System.Reflection.PropertyInfo position = rawPoint.GetProperty("Position")!;
+        IList history = (IList)Activator.CreateInstance(listType)!;
+        PropertyInfo position = rawPoint.GetProperty("Position")!;
 
         foreach (double x in historyX)
         {
@@ -422,19 +425,18 @@ public class Playback2DAnnotationHostTests
 
         Type readOnlyList = typeof(IReadOnlyList<>).MakeGenericType(rawPoint);
         Type lazyType = typeof(Lazy<>).MakeGenericType(readOnlyList);
-        object lazy = Activator.CreateInstance(lazyType,
-            [Delegate.CreateDelegate(typeof(Func<>).MakeGenericType(readOnlyList), history,
-                listType.GetMethod("AsReadOnly")!)])!;
+        object lazy = Activator.CreateInstance(lazyType, Delegate.CreateDelegate(typeof(Func<>).MakeGenericType(readOnlyList), history,
+            listType.GetMethod("AsReadOnly")!))!;
 
-        System.Reflection.ConstructorInfo ctor = typeof(PointerEventArgs)
-            .GetConstructors(System.Reflection.BindingFlags.Public
-                             | System.Reflection.BindingFlags.NonPublic
-                             | System.Reflection.BindingFlags.Instance)
+        ConstructorInfo ctor = typeof(PointerEventArgs)
+            .GetConstructors(BindingFlags.Public
+                             | BindingFlags.NonPublic
+                             | BindingFlags.Instance)
             .Single(c => c.GetParameters().Length == 9);
 
         return (PointerEventArgs)ctor.Invoke([
             InputElement.PointerMovedEvent, f.Host,
-            new Avalonia.Input.Pointer(1, PointerType.Mouse, isPrimary: true), f.Window,
+            new Pointer(1, PointerType.Mouse, true), f.Window,
             f.HostPoint(primary, y), 0UL,
             new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.Other),
             KeyModifiers.None, lazy
@@ -443,7 +445,7 @@ public class Playback2DAnnotationHostTests
 
     /// <summary>
     ///     Ctrl+X is bound while the pointer is captured mid-stroke, and "clear all" opens a gesture of
-    ///     its own — which <c>AnnotationDocument</c> refuses to nest, by design. The toolbar must stand
+    ///     its own, which <c>AnnotationDocument</c> refuses to nest, by design. The toolbar must stand
     ///     down there rather than throw <c>InvalidOperationException</c> out of a key handler.
     /// </summary>
     [Test]
@@ -474,10 +476,10 @@ public class Playback2DAnnotationHostTests
     }
 
     /// <summary>
-    ///     <b>Entity anchoring has to work against the frames the APP builds</b>, not only against
-    ///     hand-made ones. <c>PlayerMarker.SteamId</c> is the whole join key (design §5.4: slots recycle),
-    ///     and both halves of the feature short-circuit on zero — the tool refuses to capture an anchor,
-    ///     and the layer refuses to resolve one. A scene frame built without a slot→SteamId resolver
+    ///     Entity anchoring has to work against the frames the APP builds, not only against hand-made
+    ///     ones. <c>PlayerMarker.SteamId</c> is the whole join key because slots recycle, and both halves
+    ///     of the feature short-circuit on zero: the tool refuses to capture an anchor, and the layer
+    ///     refuses to resolve one. A scene frame built without a slot→SteamId resolver
     ///     therefore makes tracked telestration silently unreachable in the running app while every
     ///     direct-execution test, which injects its own markers, stays green.
     /// </summary>
@@ -516,7 +518,6 @@ public class Playback2DAnnotationHostTests
     /// <summary>
     ///     Right-drag, through the real pointer plumbing. <c>ToolPointerEvent.Button</c> was resolved
     ///     correctly from day one and read by nothing, so a right-drag drew ink identical to a left-drag.
-    ///     This is the case that proves the host actually hands the button to the router.
     /// </summary>
     [Test]
     public async Task RightDrag_DrawsTheSecondaryInk()
@@ -524,8 +525,8 @@ public class Playback2DAnnotationHostTests
         await HeadlessSession.RunOnUi(async () =>
         {
             using Fixture f = Fixture.Create();
-            f.Vm.Annotations.InkColor = Avalonia.Media.Color.FromRgb(0xFF, 0xC1, 0x07);
-            f.Vm.Annotations.SecondaryInkColor = Avalonia.Media.Color.FromRgb(0x29, 0xB6, 0xF6);
+            f.Vm.Annotations.InkColor = Color.FromRgb(0xFF, 0xC1, 0x07);
+            f.Vm.Annotations.SecondaryInkColor = Color.FromRgb(0x29, 0xB6, 0xF6);
             f.Vm.Annotations.SelectTool(ToolKind.Draw);
             Playback2DTimelineHarness.Pump();
 
@@ -548,9 +549,9 @@ public class Playback2DAnnotationHostTests
     }
 
     /// <summary>
-    ///     The right button can be bound to the eraser instead — the ask this unlocks cheaply. Not the
-    ///     shipped default: two PENS is what was asked for, and an out-of-the-box eraser would leave the
-    ///     second colour inert with nothing to hint that it exists.
+    ///     The right button can be bound to the eraser instead. Not the shipped default: two PENS is what
+    ///     was asked for, and an out-of-the-box eraser would leave the second colour inert with nothing to
+    ///     hint that it exists.
     /// </summary>
     [Test]
     public async Task RightDrag_WithTheEraseBinding_ErasesInstead()
@@ -575,14 +576,14 @@ public class Playback2DAnnotationHostTests
     }
 
     /// <summary>
-    ///     <b>A chorded button's RELEASE, through the real pointer plumbing.</b> <c>OnPressed</c> already
-    ///     knows that chording is not a gesture; <c>OnReleased</c> never learned it: letting the
-    ///     brushed middle button go committed the stroke at the chord point and dropped capture, so the
-    ///     rest of the drag drew nothing and the real left release was a no-op.
+    ///     A chorded button's RELEASE, through the real pointer plumbing. <c>OnPressed</c> already knows
+    ///     that chording is not a gesture; <c>OnReleased</c> never learned it: letting the brushed middle
+    ///     button go committed the stroke at the chord point and dropped capture, so the rest of the drag
+    ///     drew nothing and the real left release was a no-op.
     ///     <para>
     ///         This runs through the host on purpose. The router half is pinned in the direct-execution
-    ///         suite; what only a real pointer can prove is that the host names the RELEASED button —
-    ///         <c>InitialPressMouseButton</c> — rather than reading the pressed-button flags, which on a
+    ///         suite; what only a real pointer can prove is that the host names the RELEASED button
+    ///         (<c>InitialPressMouseButton</c>) rather than reading the pressed-button flags, which on a
     ///         release describe what is still DOWN and would report the chord as <c>Left</c>.
     ///     </para>
     /// </summary>
@@ -627,13 +628,13 @@ public class Playback2DAnnotationHostTests
     }
 
     /// <summary>
-    ///     <b>An OS-cancelled contact.</b> A touch or pen lifted out of range, a system gesture, another
-    ///     element taking the pointer — Avalonia says so with <c>PointerCaptureLost</c>, which this
-    ///     control did not handle at all. <c>OnPointerMoved</c> gates only on <c>IsGestureOpen</c> and
-    ///     nothing cleared it, so the stroke stayed open and every later move extended it with no button
-    ///     held.
+    ///     An OS-cancelled contact: a touch or pen lifted out of range, a system gesture, another element
+    ///     taking the pointer. Avalonia says so with <c>PointerCaptureLost</c>, which this control did not
+    ///     handle at all. <c>OnPointerMoved</c> gates only on <c>IsGestureOpen</c> and nothing cleared it,
+    ///     so the stroke stayed open and every later move extended it with no button held.
     /// </summary>
     [Test]
+    [Obsolete("Obsolete")]
     public async Task LostCapture_MidStroke_AbandonsTheGesture()
     {
         await HeadlessSession.RunOnUi(async () =>
@@ -648,7 +649,7 @@ public class Playback2DAnnotationHostTests
             await Assert.That(f.Host.Router.IsGestureOpen).IsTrue();
 
             f.Host.RaiseEvent(new PointerCaptureLostEventArgs(f.Host,
-                new Avalonia.Input.Pointer(1, PointerType.Mouse, isPrimary: true)));
+                new Pointer(1, PointerType.Mouse, true)));
             Playback2DTimelineHarness.Pump();
 
             await Assert.That(f.Host.Router.IsGestureOpen).IsFalse();
@@ -693,10 +694,9 @@ public class Playback2DAnnotationHostTests
     }
 
     /// <summary>
-    ///     The recent-colour strip. <c>AnnotationRecentColors</c> was persisted, WASM-flattened
-    ///     and round-trip tested — and displayed nowhere. This walks the whole chain the fix
-    ///     added: a committed stroke pushes its colour, the panel mirrors it, and the toolbar realises a
-    ///     button for it.
+    ///     The recent-colour strip. <c>AnnotationRecentColors</c> was persisted, WASM-flattened and
+    ///     round-trip tested, and displayed nowhere. This walks the whole chain: a committed stroke pushes
+    ///     its colour, the panel mirrors it, and the toolbar realises a button for it.
     /// </summary>
     [Test]
     public async Task DrawnStroke_PutsItsColourInTheRecentStrip()
@@ -712,9 +712,9 @@ public class Playback2DAnnotationHostTests
             await Assert.That(strip.IsEffectivelyVisible).IsFalse()
                 .Because("an empty strip is chrome with nothing in it");
 
-            f.Vm.Annotations.InkColor = Avalonia.Media.Color.FromRgb(0x11, 0x22, 0x33);
+            f.Vm.Annotations.InkColor = Color.FromRgb(0x11, 0x22, 0x33);
             f.DrawStroke();
-            Playback2DTimelineHarness.Pump(3);
+            Playback2DTimelineHarness.Pump();
 
             await Assert.That(f.Vm.Annotations.RecentColors.Count).IsEqualTo(1);
             await Assert.That(f.Vm.Annotations.RecentColors[0].Hex).IsEqualTo("#FF112233");
@@ -724,14 +724,14 @@ public class Playback2DAnnotationHostTests
         });
     }
 
-    /// <summary>The ink actually reaches the surface — a captured frame, for eyeball review too.</summary>
+    /// <summary>The ink actually reaches the surface. The captured frame is kept for eyeball review.</summary>
     [Test]
     public async Task DrawnStroke_RendersOnTheSurface()
     {
         await HeadlessSession.RunOnUi(async () =>
         {
             using Fixture f = Fixture.Create();
-            f.Vm.Annotations.InkColor = Avalonia.Media.Color.FromRgb(0xFF, 0x00, 0xFF);
+            f.Vm.Annotations.InkColor = Color.FromRgb(0xFF, 0x00, 0xFF);
             f.Vm.Annotations.InkWidth = 40;
             f.DrawStroke();
             Playback2DTimelineHarness.Pump(6);
@@ -801,6 +801,12 @@ public class Playback2DAnnotationHostTests
 
         public AnnotationDocument Document => Vm.Annotations.Document;
 
+        public void Dispose()
+        {
+            Window.Close();
+            Vm.Dispose();
+        }
+
         public static Fixture Create()
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
@@ -851,12 +857,6 @@ public class Playback2DAnnotationHostTests
             Window.MouseMove(HostPoint(400, 320));
             Window.MouseUp(HostPoint(400, 320), MouseButton.Left);
             Playback2DTimelineHarness.Pump();
-        }
-
-        public void Dispose()
-        {
-            Window.Close();
-            Vm.Dispose();
         }
     }
 }

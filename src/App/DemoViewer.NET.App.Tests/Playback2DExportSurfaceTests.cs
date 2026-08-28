@@ -1,5 +1,6 @@
 #region
 
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Configuration;
@@ -11,6 +12,7 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.ViewModels.Playback2D;
+using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Views.Playback2D;
 using SkiaSharp;
 
@@ -19,15 +21,14 @@ using SkiaSharp;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <b>The export pane, through the surface rather than through the view-model.</b>
+///     The export pane, through the surface rather than through the view-model.
 ///     <para>
 ///         Every rule the export dialog applies was already covered by a suite that instantiated the
-///         view-model directly, which never exercised view resolution — so the pane <em>had no view</em>
-///         and nothing caught it. <c>Playback2DView</c> mounts it as a bare <c>ContentControl</c>,
-///         resolution goes through the app <c>ViewLocator</c>, and the locator matches on
-///         <c>ViewModelBase</c> while the view-model derived
-///         from <c>ObservableObject</c> — so the whole pane rendered as one line of fully-qualified type
-///         name next to a Close button, for the life of the feature.
+///         view-model directly, which never exercised view resolution, so the pane had no view and
+///         nothing caught it. <c>Playback2DView</c> mounts it as a bare <c>ContentControl</c>, resolution
+///         goes through the app <c>ViewLocator</c>, and the locator matches on <c>ViewModelBase</c> while
+///         the view-model derived from <c>ObservableObject</c>. The whole pane rendered as one line of
+///         fully-qualified type name next to a Close button, for the life of the feature.
 ///     </para>
 ///     <para>
 ///         The assertion is therefore the real view type in the real visual tree, plus a named control
@@ -104,7 +105,7 @@ public class Playback2DExportPaneMountTests
                 await Assert.That(chrome!.Equals(viewport)).IsFalse()
                     .Because("if the two tokens resolved identically this test would be vacuous");
 
-                // Every dim label in the pane — the section captions and the two hint lines.
+                // Every dim label in the pane: the section captions and the two hint lines.
                 TextBlock[] dim =
                 [
                     .. pane.GetVisualDescendants().OfType<TextBlock>()
@@ -137,15 +138,14 @@ public class Playback2DExportPaneMountTests
 }
 
 /// <summary>
-///     <b>The export's status chip.</b> <c>ExportJobService</c> marshalled phase, frame counts, throughput,
+///     The export's status chip. <c>ExportJobService</c> marshalled phase, frame counts, throughput,
 ///     elapsed and the error to the UI thread and raised <c>StatusChanged</c> on every one of them, and
-///     <em>nothing anywhere subscribed</em>: <c>ExportStatus</c> appeared in two lines repo-wide, no
-///     <c>.axaml</c> bound it, and <c>CancelAsync</c> had zero production call sites — so a started export
-///     could not be stopped and a failed one reported nothing. Three doc comments described this chip as
-///     though it already existed.
+///     nothing anywhere subscribed: <c>ExportStatus</c> appeared in two lines repo-wide, no
+///     <c>.axaml</c> bound it, and <c>CancelAsync</c> had zero production call sites, so a started export
+///     could not be stopped and a failed one reported nothing.
 ///     <para>
-///         These go through the bound surface, not the mapper: asserting <c>service.Status.Phase</c> on the
-///         service is precisely how the whole gap survived 1594 green tests.
+///         These go through the bound surface, not the mapper: asserting <c>service.Status.Phase</c> on
+///         the service proves nothing about the binding.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -178,7 +178,7 @@ public class Playback2DExportStatusSurfaceTests
                 await Assert.That(status.Detail).Contains("left");
                 await Assert.That(status.Detail).Contains("118 fps");
 
-                // Cancel is REACHABLE — a visible, enabled button whose command reaches the job.
+                // Cancel is REACHABLE: a visible, enabled button whose command reaches the job.
                 Button cancel = view.FindControl<Button>("CancelExportButton")!;
                 await Assert.That(cancel.IsVisible).IsTrue();
                 await Assert.That(cancel.IsEffectivelyEnabled).IsTrue();
@@ -204,13 +204,13 @@ public class Playback2DExportStatusSurfaceTests
 
             try
             {
-                // The runner's log sink — the other optional parameter production omitted, which is why a
+                // The runner's log sink: the other optional parameter production omitted, which is why a
                 // dead ffmpeg used to report its exception message and nothing else.
                 status.AppendLog("video encoder: av1_nvenc (hardware)");
                 status.AppendLog("[libvpx] Error: could not open the output pipe");
 
                 job.Push(new ExportJobStatus(ExportPhase.Failed, 40, 1200, 12, TimeSpan.FromSeconds(9),
-                    "clip.webm", "ffmpeg exited with code 1", null));
+                    "clip.webm", "ffmpeg exited with code 1"));
                 Playback2DTimelineHarness.Pump();
 
                 SelectableTextBlock error = view.FindControl<SelectableTextBlock>("ExportErrorText")!;
@@ -242,7 +242,7 @@ public class Playback2DExportStatusSurfaceTests
     {
         FakeExportJob job = new();
         Playback2DExportStatusViewModel status = new(job);
-        ViewModels.Shell.MainViewModel shell = new();
+        MainViewModel shell = new();
 
         shell.AttachPlayback2DExportStatus(status);
         await Assert.That(shell.Chips.Contains(status.Chip)).IsFalse()
@@ -273,7 +273,9 @@ public class Playback2DExportStatusSurfaceTests
         };
         Window window = new()
         {
-            Width = 420, Height = 420, Content = view
+            Width = 420,
+            Height = 420,
+            Content = view
         };
         window.Show();
         Playback2DTimelineHarness.Pump();
@@ -314,13 +316,9 @@ public class Playback2DExportStatusSurfaceTests
 /// </summary>
 public class Playback2DExportSetupTests
 {
-    // This used to run on the UI thread, with a comment explaining that BuildExportSetup resolves the
-    // theme variant off Application.Current and that AvaloniaObject.GetValue verifies dispatcher affinity.
-    // That was the right observation about the wrong subject: the affinity problem belonged to the
-    // PRODUCTION code, which builds this setup on the export's pool thread by contract, not to the test.
-    // Keeping the test on the UI thread hid a crash that killed every real export before frame zero.
-    // It stays here because the ink assertion needs no particular thread; the thread itself is now
-    // pinned by TheSetup_BuildsOffTheUiThread_LikeTheRunnerDoes below.
+    // Stays on the UI thread only because the ink assertion needs no particular thread. The thread
+    // production really builds on is the export's pool thread, pinned by
+    // TheSetup_BuildsOffTheUiThread_LikeTheRunnerDoes below.
     [Test]
     public async Task TheSetupTakesItsInkFromTheRequest_NotFromTheTab() =>
         await HeadlessSession.RunOnUi(async () =>
@@ -339,7 +337,7 @@ public class Playback2DExportSetupTests
             await Assert.That(vm.BuildExportSetup(host, second).Annotations!.Document.Elements.Count)
                 .IsEqualTo(1);
 
-            // And with no request at all — the design-preview path — there is simply no ink, rather than
+            // And with no request at all (the design-preview path) there is simply no ink, rather than
             // whatever the last export left behind.
             await Assert.That(vm.BuildExportSetup(host).Annotations).IsNull();
         });
@@ -349,11 +347,10 @@ public class Playback2DExportSetupTests
     ///     <c>SceneExportRunner.RunAsync</c> calls the factory after the job has been handed to
     ///     <c>Task.Run</c> and has awaited the heavy-job gate.
     ///     <para>
-    ///         It used to resolve the palette from <c>Application.Current.ActualThemeVariant</c> — a
-    ///         styled property — and threw <i>"Call from invalid thread"</i> for every user who pressed
-    ///         Export. The application must be BUILT for this test to mean anything: with no
-    ///         <c>Application.Current</c> the affinity check has nothing to verify and the old code passed
-    ///         off-thread too, which is why the previous test could not have caught it.
+    ///         It used to resolve the palette from <c>Application.Current.ActualThemeVariant</c> (a styled
+    ///         property) and threw "Call from invalid thread" for every user who pressed Export. The
+    ///         application must be BUILT for this test to mean anything: with no <c>Application.Current</c>
+    ///         the affinity check has nothing to verify and the old code passed off-thread too.
     ///     </para>
     /// </summary>
     [Test]
@@ -361,21 +358,23 @@ public class Playback2DExportSetupTests
         // The hop to the pool happens INSIDE the session: the headless harness builds an isolated
         // application per dispatch, so Application.Current exists only for the life of this delegate. Off
         // the pool thread outside it there is nothing for VerifyAccess to object to, and the unfixed code
-        // passes — which is exactly the "worst kind of green" the old comment on the test above described
-        // without recognising it applied here.
+        // passes.
         await HeadlessSession.RunOnUi(async () =>
         {
             Playback2DTabViewModel vm = new();
             Playback2DExportHost host = new(
                 () => null, null, null, null, () => new AppSettings(), _ => { });
 
-            await Assert.That(Avalonia.Application.Current).IsNotNull()
+            await Assert.That(Application.Current).IsNotNull()
                 .Because("with no Application there is no affinity to violate and this proves nothing");
 
-            ScenePalette captured = vm.CaptureExportPalette();   // what Start does, on the UI thread
-            Scene2DExportRequest request = Request(null) with { Palette = captured };
+            ScenePalette captured = vm.CaptureExportPalette(); // what Start does, on the UI thread
+            Scene2DExportRequest request = Request(null) with
+            {
+                Palette = captured
+            };
 
-            // Task.Run, not the dispatcher: this is the runner's thread, and the whole point.
+            // Task.Run, not the dispatcher: this is the runner's thread.
             ExportSceneSetup setup = await Task.Run(() => vm.BuildExportSetup(host, request));
 
             await Assert.That(setup.Palette).IsEqualTo(captured)

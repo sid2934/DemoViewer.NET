@@ -13,24 +13,24 @@ namespace DemoViewer.NET.Playback2D.Core.Levels;
 ///     drives it, and the camera itself.
 ///     <para>
 ///         Lifetime is owned by <see cref="PaneSet" /> and identity is <see cref="MapLevelId" />, not
-///         array position — insert a lower floor and the upper floor's pane keeps its pan, zoom and
-///         manual override (design risk 5).
+///         array position: insert a lower floor and the upper floor's pane keeps its pan, zoom and
+///         manual override.
 ///     </para>
 /// </summary>
 public sealed class LevelPane
 {
-    private ViewportTransform _epochTransform;
-    private SKRect _viewportRect;
-
     /// <summary>
-    ///     The camera that renders this pane. A public <b>field</b> by contract (design §5.3): B2's
-    ///     <c>PanZoomTool</c> mutates it in place through a <c>ref</c>, and a property returning a copy
-    ///     of this struct would make panning silently do nothing.
+    ///     The camera that renders this pane. A public <b>field</b> by contract: <c>PanZoomTool</c>
+    ///     mutates it in place through a <c>ref</c>, and a property returning a copy of this struct would
+    ///     make panning silently do nothing.
     /// </summary>
     [SuppressMessage("Design", "CA1051:Do not declare visible instance fields",
         Justification = "Deliberate: SliceCamera is a mutable struct that pointer tools update in place. " +
                         "A property would hand out a copy and break pan/zoom — design §5.3, plan correction 4.")]
     public SliceCamera Camera;
+
+    private ViewportTransform _epochTransform;
+    private SKRect _viewportRect;
 
     /// <summary>Creates a pane for a level with a starting camera and rig.</summary>
     /// <param name="level">The level this pane shows.</param>
@@ -77,8 +77,8 @@ public sealed class LevelPane
     /// <summary>
     ///     Bumped whenever the camera has moved far enough that a pane-local cached picture would be
     ///     visibly wrong, or the pane resized. <c>LayerPictureCache</c> keys <c>PerCamera</c> entries on
-    ///     it — a per-pixel comparison would re-record every frame, and no comparison at all would
-    ///     freeze the radar mid-pan.
+    ///     it. A per-pixel comparison would re-record every frame; no comparison at all would freeze the
+    ///     radar mid-pan.
     /// </summary>
     public int CameraEpoch { get; internal set; }
 
@@ -89,9 +89,9 @@ public sealed class LevelPane
     public MapSpace? Space { get; internal set; }
 
     /// <summary>
-    ///     How many panes are currently arranged. The pre-v2 rigs only filter by floor when there is
-    ///     more than one band (<c>_cameras.Length > 1</c>, lines 762 and 806) — a single-band render
-    ///     frames every player regardless of Z, and that is a parity behaviour, not an optimisation.
+    ///     How many panes are currently arranged. The pre-v2 rigs only filter by floor when there is more
+    ///     than one band (<c>_cameras.Length > 1</c>): a single-band render frames every player regardless
+    ///     of Z. Parity behaviour, not an optimisation.
     /// </summary>
     public int PaneCount { get; internal set; } = 1;
 
@@ -100,9 +100,8 @@ public sealed class LevelPane
 
     /// <summary>
     ///     Re-evaluates <see cref="CameraEpoch" /> against the camera's current transform, bumping it
-    ///     when the move is material. Called by <see cref="PaneSet" /> after the camera advance and
-    ///     after a pointer gesture — the camera is a public field, so the pane cannot observe writes to
-    ///     it on its own.
+    ///     when the move is material. Called by <see cref="PaneSet" /> after the camera advance and after
+    ///     a pointer gesture. The camera is a public field, so the pane cannot observe writes to it.
     /// </summary>
     /// <returns>True when the epoch was bumped.</returns>
     public bool SyncCameraEpoch()
@@ -125,7 +124,7 @@ public sealed class LevelPane
 
 /// <summary>
 ///     The render thread's view of one pane: value copies only, captured on the UI thread at submission.
-///     The mutable <see cref="LevelPane" /> never crosses the thread boundary (plan §5.8).
+///     The mutable <see cref="LevelPane" /> never crosses the thread boundary.
 /// </summary>
 /// <param name="LevelId">The pane's level identity.</param>
 /// <param name="LevelIndex">Position from the bottom; 0 is lowest.</param>

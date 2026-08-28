@@ -7,7 +7,6 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Views.Playback2D;
@@ -185,8 +184,12 @@ public class Playback2DMirrorLiveViewTests
     }
 
     /// <summary>
-    ///     The other half of the capture. The snapshot carries the pane cameras <b>plus the
-    ///     host's current <c>LevelDisplayMode</c></b>; <c>MirrorLiveView.DisplayMode</c> recorded it and the
+    ///     The other half of the capture. The snapshot carries the pane cameras
+    ///     <b>
+    ///         plus the
+    ///         host's current <c>LevelDisplayMode</c>
+    ///     </b>
+    ///     ; <c>MirrorLiveView.DisplayMode</c> recorded it and the
     ///     App's export setup hard-coded <c>Stacked</c>, so a user watching a two-floor map in SINGLE mode
     ///     and exporting "mirror the live view" got a stacked video of a framing they had never seen. The
     ///     setup is a FACTORY on the runner, evaluated at Start, so reading the live mode there is the same

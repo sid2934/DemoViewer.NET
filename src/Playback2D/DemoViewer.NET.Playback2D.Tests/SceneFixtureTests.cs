@@ -1,6 +1,8 @@
 #region
 
+using System.Collections;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Pipeline;
@@ -88,14 +90,14 @@ public class SceneFixtureTests
                             """;
 
         SceneFixture fixture;
-        using (MemoryStream input = new(System.Text.Encoding.UTF8.GetBytes(json)))
+        using (MemoryStream input = new(Encoding.UTF8.GetBytes(json)))
         {
             fixture = SceneFixtureSerializer.Read(input);
         }
 
         using MemoryStream output = new();
         SceneFixtureSerializer.Write(fixture, output);
-        string written = System.Text.Encoding.UTF8.GetString(output.ToArray());
+        string written = Encoding.UTF8.GetString(output.ToArray());
 
         using JsonDocument document = JsonDocument.Parse(written);
         await Assert.That(document.RootElement.TryGetProperty("futureThing", out JsonElement future)).IsTrue();
@@ -108,7 +110,7 @@ public class SceneFixtureTests
     {
         const string json = """{ "frame": { } }""";
 
-        using MemoryStream input = new(System.Text.Encoding.UTF8.GetBytes(json));
+        using MemoryStream input = new(Encoding.UTF8.GetBytes(json));
         SceneFixture fixture = SceneFixtureSerializer.Read(input);
 
         await Assert.That(fixture.SchemaVersion).IsEqualTo(SceneFixture.CurrentSchemaVersion);
@@ -253,9 +255,12 @@ public class SceneFixtureTests
     public async Task Write_UsesLfLineEndings_OnEveryPlatform()
     {
         using MemoryStream stream = new();
-        SceneFixtureSerializer.Write(new SceneFixture { Frame = SampleFrame() }, stream);
+        SceneFixtureSerializer.Write(new SceneFixture
+        {
+            Frame = SampleFrame()
+        }, stream);
 
-        string json = System.Text.Encoding.UTF8.GetString(stream.ToArray());
+        string json = Encoding.UTF8.GetString(stream.ToArray());
 
         await Assert.That(json).Contains("\n").Because("the writer is indented, so it has line endings");
         await Assert.That(json.Contains('\r')).IsFalse()
@@ -276,11 +281,11 @@ public class SceneFixtureTests
             $"Map({m.MapName},{m.NetworkedBounds},{m.ObservedBounds}," +
             $"{Describe(m.SectionHeights)},{Describe(m.Radars)})",
         SceneVision v => $"Vision({v.IsAvailable},{Describe(v.Cones)},{Describe(v.Sightlines)})",
-        System.Collections.IEnumerable list => "[" + string.Join(", ", Flatten(list)) + "]",
+        IEnumerable list => "[" + string.Join(", ", Flatten(list)) + "]",
         _ => value.ToString() ?? "<null>"
     };
 
-    private static IEnumerable<string> Flatten(System.Collections.IEnumerable list)
+    private static IEnumerable<string> Flatten(IEnumerable list)
     {
         foreach (object? item in list)
         {

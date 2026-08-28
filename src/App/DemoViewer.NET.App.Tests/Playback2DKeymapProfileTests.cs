@@ -12,7 +12,7 @@ namespace DemoViewer.NET.AppTests;
 ///     static constructor throws on a bad table; <see cref="Playback2DKeymapProfile" /> is the one that
 ///     composes a hand-editable settings file over it, and its whole reason to exist is that it must
 ///     <b>never</b> throw. Every case below is therefore a bad row that has to be dropped, reported, and
-///     survived — with everything else still resolving.
+///     survived, with everything else still resolving.
 /// </summary>
 public class Playback2DKeymapProfileTests
 {
@@ -39,7 +39,7 @@ public class Playback2DKeymapProfileTests
         await Assert.That(profile.GestureText(Playback2DAction.NextRound)).IsEqualTo("Shift+R");
         await Assert.That(profile.IsOverridden(Playback2DAction.NextRound)).IsTrue();
 
-        // The vacated key really is vacated — an override that only ADDS a gesture would pass a
+        // The vacated key really is vacated: an override that only ADDS a gesture would pass a
         // "Shift+R works" test while leaving two keys doing the same thing.
         await Assert.That(profile.TryResolve(Key.E, KeyModifiers.None, false, out _)).IsFalse();
 
@@ -54,7 +54,7 @@ public class Playback2DKeymapProfileTests
 
     /// <summary>
     ///     The five ways a settings file can be wrong, in one array. Each is dropped and named, and the
-    ///     surviving profile is still the complete shipped table — the failure mode this type exists to
+    ///     surviving profile is still the complete shipped table: the failure mode this type exists to
     ///     prevent is a bad row taking the tab's keyboard with it.
     /// </summary>
     [Test]
@@ -62,11 +62,11 @@ public class Playback2DKeymapProfileTests
     {
         string[] rows =
         [
-            "NextRoundShift+R",   // malformed — no '='
-            "NextRound=Bogus",    // unparseable gesture
-            "Teleport=Y",         // unknown action
-            "NextRound=Ctrl+O",   // shell accelerator (MainView.axaml's Open)
-            "NextRound=D"         // duplicate within the Always scope (ToolDraw already has D)
+            "NextRoundShift+R", // malformed, no '='
+            "NextRound=Bogus", // unparseable gesture
+            "Teleport=Y", // unknown action
+            "NextRound=Ctrl+O", // shell accelerator (MainView.axaml's Open)
+            "NextRound=D" // duplicate within the Always scope (ToolDraw already has D)
         ];
 
         Playback2DKeymapProfile profile =
@@ -90,7 +90,7 @@ public class Playback2DKeymapProfileTests
         await Assert.That(profile.Bindings).IsEquivalentTo(Playback2DKeymap.Default)
             .Because("no row survived, so the profile is the shipped table exactly");
 
-        // Every shipped gesture still resolves — including the one all five rows were aiming at.
+        // Every shipped gesture still resolves, including the one all five rows were aiming at.
         await Assert.That(Resolve(profile, Key.E, KeyModifiers.None)).IsEqualTo(Playback2DAction.NextRound);
         await Assert.That(Resolve(profile, Key.D, KeyModifiers.None)).IsEqualTo(Playback2DAction.ToolDraw);
         await Assert.That(Resolve(profile, Key.X, KeyModifiers.Control))
@@ -138,7 +138,7 @@ public class Playback2DKeymapProfileTests
         Playback2DKeymapProfile profile = Playback2DKeymapProfile.FromOverrides(
             ["FitCamera=G", "TogglePlay=Home"], out IReadOnlyList<string> rejected);
 
-        // Both rows, each with its own reason — rather than a count and rejected[0], which pinned the
+        // Both rows, each with its own reason, rather than a count and rejected[0], which pinned the
         // order the loader happens to report in and said nothing about the second message at all.
         Console.WriteLine("[keymap-profile] " + string.Join(" | ", rejected));
         await Assert.That(rejected.Single(r => r.StartsWith("FitCamera=G:", StringComparison.Ordinal)))
@@ -158,7 +158,7 @@ public class Playback2DKeymapProfileTests
 
     /// <summary>
     ///     The tool-scoped shadowing rule is what makes Space hold-to-pan and Esc cancel-the-gesture while
-    ///     the pen is out. It has to survive a rebind — otherwise rebinding hold-pan silently turns the
+    ///     the pen is out. It has to survive a rebind, otherwise rebinding hold-pan silently turns the
     ///     drawing surface's most-used key back into play/pause.
     /// </summary>
     [Test]
@@ -176,7 +176,7 @@ public class Playback2DKeymapProfileTests
         // Tool-scoped means tool-scoped: B does nothing with no tool selected.
         await Assert.That(profile.TryResolve(Key.B, KeyModifiers.None, false, out _)).IsFalse();
 
-        // Space is no longer shadowed, so it is play/pause even under the pen — the user asked for that.
+        // Space is no longer shadowed, so it is play/pause even under the pen: the user asked for that.
         await Assert.That(Resolve(profile, Key.Space, KeyModifiers.None, true))
             .IsEqualTo(Playback2DAction.TogglePlay);
 
@@ -188,8 +188,8 @@ public class Playback2DKeymapProfileTests
     }
 
     /// <summary>
-    ///     A tool-scoped binding may share a key with an always-scoped one — that is the whole shadowing
-    ///     mechanism — so the duplicate check must be per SCOPE, not per key.
+    ///     A tool-scoped binding may share a key with an always-scoped one (that is the whole shadowing
+    ///     mechanism), so the duplicate check must be per SCOPE, not per key.
     /// </summary>
     [Test]
     public async Task ARebindMayReuseAKeyFromTheOtherScope()
@@ -235,7 +235,7 @@ public class Playback2DKeymapProfileTests
 
     /// <summary>
     ///     <see cref="Playback2DKeymapProfile.Row" /> writes what the loader reads. The display formatter
-    ///     is NOT that — it spells arrows "←" and Escape "Esc" — so persisting display text would lose
+    ///     is NOT that (it spells arrows "←" and Escape "Esc"), so persisting display text would lose
     ///     every arrow-key rebind on the next launch. Feeding the whole shipped table back through both
     ///     ends proves the writer and the parser agree, for every key shape the table contains.
     /// </summary>

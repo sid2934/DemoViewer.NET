@@ -1,7 +1,6 @@
 #region
 
 using System.Globalization;
-using System.Numerics;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,7 +10,6 @@ using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -31,11 +29,6 @@ namespace DemoViewer.NET.ViewModels.Stats;
 /// </summary>
 public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
 {
-    // Diagnostics-pillar logger (v0.6.0 — failure surfaces show clean text, this carries the real
-    // exception). Lazy: the ambient factory is wired after construction.
-    private ILogger? _diagLog;
-    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.Stats");
-
     // ══ 3D visibility ══════════════════════════════════════════════════════════
     // On-demand compute: NOT part of the evaluation — a Stats-tab action, visible
     // only when the loaded demo's map has a resolvable collision bake. Everything for it lives in this
@@ -49,7 +42,12 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     // the whole demo (the product path). Tests inject a frame window so the LOS replay covers a
     // representative slice instead of the full match.
     private readonly VisibilityAnalyzer.Options? _visibilityOptions;
+
     private string? _collisionTrisPath;
+
+    // Diagnostics-pillar logger (v0.6.0 — failure surfaces show clean text, this carries the real
+    // exception). Lazy: the ambient factory is wired after construction.
+    private ILogger? _diagLog;
 
     // ── Extra tables: configured outputs (F2) + keyed breakdowns (F3) ─────────
 
@@ -169,6 +167,8 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
             analysis.EvaluationCompleted += UpdateFromRun;
         }
     }
+
+    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.Stats");
 
     /// <summary>Match-scoreboard column headers, in catalogue display order.</summary>
     public IReadOnlyList<StatColumn> Columns { get; private set; } = [];
@@ -301,6 +301,14 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     /// <summary>Per-player visibility rows (team-grouped), populated by the compute action.</summary>
     public IReadOnlyList<VisibilityRow> VisibilityRows { get; private set; } = [];
 
+    /// <summary>Cancels and releases any in-flight visibility compute (house VM pattern).</summary>
+    public void Dispose()
+    {
+        _visibilityCts?.Cancel();
+        _visibilityCts?.Dispose();
+        _visibilityCts = null;
+    }
+
     /// <summary>
     ///     Demo-unload reset: cancels the visibility compute and drops every projected table plus the
     ///     retained <c>ParsedDemo</c> the visibility replay holds. Without this a standalone close leaves
@@ -343,14 +351,6 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(DetailPlayers));
         OnPropertyChanged(nameof(VisibilityRows));
         OnPropertyChanged(nameof(CanComputeVisibility));
-    }
-
-    /// <summary>Cancels and releases any in-flight visibility compute (house VM pattern).</summary>
-    public void Dispose()
-    {
-        _visibilityCts?.Cancel();
-        _visibilityCts?.Dispose();
-        _visibilityCts = null;
     }
 
     /// <summary>

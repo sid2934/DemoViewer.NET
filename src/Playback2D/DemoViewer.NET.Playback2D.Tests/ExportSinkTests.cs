@@ -3,9 +3,9 @@
 using System.Buffers;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
+using FFMpegCore;
 using FFMpegCore.Pipes;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Gif;
 
 #endregion
 
@@ -81,7 +81,7 @@ public class FfmpegArgumentTests
     [Test]
     public async Task Gif_IsOnePass_OverOneInput()
     {
-        string arguments = FfmpegFrameSink.DescribeArguments(Options(ExportFormats.Gif, fps: 20));
+        string arguments = FfmpegFrameSink.DescribeArguments(Options(ExportFormats.Gif, 20));
 
         await Assert.That(arguments).Contains("palettegen");
         await Assert.That(arguments).Contains("paletteuse");
@@ -96,12 +96,15 @@ public class FfmpegArgumentTests
     [Test]
     public async Task BuildingArguments_DoesNotTouchGlobalFfOptions()
     {
-        string? before = FFMpegCore.GlobalFFOptions.Current.BinaryFolder;
-        FfmpegFrameSink.DescribeArguments(Options(ExportFormats.WebM) with { BinaryFolder = "/somewhere/else" });
+        string? before = GlobalFFOptions.Current.BinaryFolder;
+        FfmpegFrameSink.DescribeArguments(Options(ExportFormats.WebM) with
+        {
+            BinaryFolder = "/somewhere/else"
+        });
 
         // The binary folder is passed per invocation on purpose: GlobalFFOptions is process-global
         // mutable state, and an in-app export and a dv2d export must be able to disagree about it.
-        await Assert.That(FFMpegCore.GlobalFFOptions.Current.BinaryFolder).IsEqualTo(before);
+        await Assert.That(GlobalFFOptions.Current.BinaryFolder).IsEqualTo(before);
     }
 
     private static FfmpegSinkOptions Options(string format, int fps = 60) =>
@@ -132,7 +135,7 @@ public class ChannelVideoFrameSourceTests
     [Test]
     public async Task TheWriter_WaitsOnceTheChannelIsFull()
     {
-        using ChannelVideoFrameSource bridge = new(capacity: 2);
+        using ChannelVideoFrameSource bridge = new(2);
         byte[] payload = new byte[16];
 
         await bridge.WriteAsync(payload, 2, 2, CancellationToken.None);
@@ -228,8 +231,7 @@ public class ChannelVideoFrameSourceTests
 
         // A second pass would silently produce an empty stream — a video file with no frames and no
         // error, which is a much worse failure than saying so.
-        await Assert.That(SceneExportSessionLoopTests.Throws<InvalidOperationException>(
-            () => bridge.GetEnumerator())).IsNotNull();
+        await Assert.That(SceneExportSessionLoopTests.Throws<InvalidOperationException>(() => bridge.GetEnumerator())).IsNotNull();
     }
 }
 
@@ -244,8 +246,12 @@ public class ManagedGifSinkTests
     ///     <para>
     ///         This is CI's own invocation: the workflow exports to
     ///         <c>artifacts/playback2d-export/ci-smoke.gif</c>, a directory that does not exist on a
-    ///         clean checkout. Neither rung of the ladder creates it — ffmpeg answers <c>Error opening
-    ///         output …: No such file or directory</c> and ImageSharp throws
+    ///         clean checkout. Neither rung of the ladder creates it — ffmpeg answers
+    ///         <c>
+    ///             Error opening
+    ///             output …: No such file or directory
+    ///         </c>
+    ///         and ImageSharp throws
     ///         <see cref="DirectoryNotFoundException" /> — and both refusals land only after the whole
     ///         range has been replayed and drawn. Found at the B4 merge, by running the CI step.
     ///     </para>
@@ -311,8 +317,7 @@ public class ManagedGifSinkTests
     {
         // 30 fps is 3.33 centiseconds. Accepting it would export a 30 fps request at 33.3 fps and say
         // nothing, which is the kind of quiet wrongness a user only notices after uploading it.
-        await Assert.That(SceneExportSessionLoopTests.Throws<ExportValidationException>(
-            () => new ManagedGifSink("x.gif", 30).DisposeAsync().AsTask().GetAwaiter().GetResult()))
+        await Assert.That(SceneExportSessionLoopTests.Throws<ExportValidationException>(() => new ManagedGifSink("x.gif", 30).DisposeAsync().AsTask().GetAwaiter().GetResult()))
             .IsNotNull();
     }
 
@@ -320,7 +325,7 @@ public class ManagedGifSinkTests
     public async Task PastTheFrameCap_ItRefuses()
     {
         string path = Path.Combine(Path.GetTempPath(), $"dv-gif-{Guid.NewGuid():N}.gif");
-        ManagedGifSink sink = new(path, 20, maxFrames: 3);
+        ManagedGifSink sink = new(path, 20, 3);
 
         try
         {
@@ -385,9 +390,18 @@ public class HashingFrameSinkTests
         RecordingFrameSink inner = new();
         HashingFrameSink hashing = new(inner);
 
-        await hashing.WriteAsync(new byte[] { 1, 2, 3, 4 }, 1, 1, CancellationToken.None);
-        await hashing.WriteAsync(new byte[] { 1, 2, 3, 4 }, 1, 1, CancellationToken.None);
-        await hashing.WriteAsync(new byte[] { 9, 9, 9, 9 }, 1, 1, CancellationToken.None);
+        await hashing.WriteAsync(new byte[]
+        {
+            1, 2, 3, 4
+        }, 1, 1, CancellationToken.None);
+        await hashing.WriteAsync(new byte[]
+        {
+            1, 2, 3, 4
+        }, 1, 1, CancellationToken.None);
+        await hashing.WriteAsync(new byte[]
+        {
+            9, 9, 9, 9
+        }, 1, 1, CancellationToken.None);
         await hashing.DisposeAsync();
 
         await Assert.That(inner.Frames.Count).IsEqualTo(3);

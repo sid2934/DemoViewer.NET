@@ -2,7 +2,6 @@
 
 using CS2DemoKit.Analysis.Clips;
 using DemoViewer.NET.Configuration;
-using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.ViewModels.Highlights;
@@ -37,7 +36,15 @@ public class HighlightReelDialogViewModelTests
             TickRate = Rate,
             TickCount = tickCount,
             Sha256 = sha,
-            Players = [new CachedPlayerInfo { Slot = round, Name = name, SteamId64 = steam }]
+            Players =
+            [
+                new CachedPlayerInfo
+                {
+                    Slot = round,
+                    Name = name,
+                    SteamId64 = steam
+                }
+            ]
         };
         CachedHighlightEvent h = new()
         {
@@ -257,7 +264,15 @@ public class HighlightReelDialogViewModelTests
             TickCount = 120_000,
             Sha256 = "sha",
             // Placeholder slot (-1) — the exact shape LegacyCacheMigration writes for a names-only record.
-            Players = [new CachedPlayerInfo { Slot = -1, Name = "Vernon", SteamId64 = "" }]
+            Players =
+            [
+                new CachedPlayerInfo
+                {
+                    Slot = -1,
+                    Name = "Vernon",
+                    SteamId64 = ""
+                }
+            ]
         };
         CachedHighlightEvent h = new()
         {
@@ -338,7 +353,12 @@ public class HighlightReelDialogViewModelTests
     {
         // Seed: a persisted 1280×720 matches the 720p preset (not Custom).
         HighlightReelDialogViewModel seeded = New([Sel("/d/a.dem", "10", "p", 7, 5000, "A")], out _,
-            new HighlightsSettings { ReelOutputDirectory = "/out", ReelWidth = 1280, ReelHeight = 720 });
+            new HighlightsSettings
+            {
+                ReelOutputDirectory = "/out",
+                ReelWidth = 1280,
+                ReelHeight = 720
+            });
         await Assert.That(seeded.SelectedResolution!.IsCustom).IsFalse();
         await Assert.That(seeded.SelectedResolution.Width).IsEqualTo(1280);
         await Assert.That(seeded.IsCustomResolution).IsFalse();
@@ -479,12 +499,20 @@ public class HighlightReelDialogViewModelTests
         HighlightReelDialogViewModel forward = New([a, b], out FakeReelJob jf);
         forward.GenerateCommand.Execute(null);
         await Assert.That(jf.LastRequest!.Clips.Select(c => c.DemoPath).ToList())
-            .IsEquivalentTo(new List<string> { "/d/a.dem", "/d/b.dem" });
+            .IsEquivalentTo(new List<string>
+            {
+                "/d/a.dem",
+                "/d/b.dem"
+            });
 
         HighlightReelDialogViewModel reversed = New([b, a], out FakeReelJob jr);
         reversed.GenerateCommand.Execute(null);
         await Assert.That(jr.LastRequest!.Clips.Select(c => c.DemoPath).ToList())
-            .IsEquivalentTo(new List<string> { "/d/b.dem", "/d/a.dem" });
+            .IsEquivalentTo(new List<string>
+            {
+                "/d/b.dem",
+                "/d/a.dem"
+            });
 
         await Assert.That(reversed.ClipsHeader).IsEqualTo(forward.ClipsHeader)
             .Because("order must not reach ClipWindows.Coalesce");

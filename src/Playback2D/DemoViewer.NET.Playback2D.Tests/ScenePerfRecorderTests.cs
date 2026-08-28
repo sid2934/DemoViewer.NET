@@ -153,14 +153,14 @@ public class ScenePerfRecorderTests
     {
         SceneFixture fixture = SyntheticScenes.FullSceneBudget();
 
-        double attached = MedianFrameMs(fixture, capture: true);
-        double detached = MedianFrameMs(fixture, capture: false);
+        double attached = MedianFrameMs(fixture, true);
+        double detached = MedianFrameMs(fixture, false);
 
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"[perf] frame median: detached {detached:F3} ms, attached {attached:F3} ms " +
             $"(+{(detached > 0 ? (attached - detached) / detached * 100 : 0):F1}%)"));
 
-        await Assert.That(detached).IsLessThanOrEqualTo((attached * 2.0) + 0.5);
+        await Assert.That(detached).IsLessThanOrEqualTo(attached * 2.0 + 0.5);
     }
 
     /// <summary>
@@ -290,13 +290,13 @@ public class ScenePerfRecorderTests
         {
             SceneTime frameTime = time with
             {
-                DeltaSeconds = (1.0 / 64) + (i % 7 * 1e-6)
+                DeltaSeconds = 1.0 / 64 + i % 7 * 1e-6
             };
 
-            long start = System.Diagnostics.Stopwatch.GetTimestamp();
+            long start = Stopwatch.GetTimestamp();
             stage.Renderer.Advance(fixture.Frame, in frameTime);
             stage.Renderer.Render();
-            samples[i] = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+            samples[i] = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
             recorder?.EndFrame();
         }
 
@@ -344,7 +344,7 @@ public class ScenePerfRecorderTests
         {
             SceneTime frameTime = time with
             {
-                DeltaSeconds = (1.0 / 64) + (i % 7 * 1e-6)
+                DeltaSeconds = 1.0 / 64 + i % 7 * 1e-6
             };
             stage.Renderer.Advance(fixture.Frame, in frameTime);
             stage.Renderer.Render();

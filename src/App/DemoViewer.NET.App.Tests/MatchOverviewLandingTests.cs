@@ -6,8 +6,8 @@ using Avalonia.Headless;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CS2DemoKit.Analysis.Output;
-using DemoViewer.NET.Modules;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Modules;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.TestSupport;
@@ -46,12 +46,18 @@ public class MatchOverviewLandingTests
         vm.DurationDisplay = "42:18";
         vm.TickRateDisplay = "64";
         vm.PlayerCountDisplay = "10";
-        foreach (string n in new[] { "s1mple", "b1t", "electroNic", "Perfecto", "BOT Rock" })
+        foreach (string n in new[]
+                 {
+                     "s1mple", "b1t", "electroNic", "Perfecto", "BOT Rock"
+                 })
         {
             vm.CounterTerrorists.Add(new OverviewPlayer(n, n.StartsWith("BOT", StringComparison.Ordinal)));
         }
 
-        foreach (string n in new[] { "ZywOo", "apEX", "flameZ", "mezii", "BOT Wolf" })
+        foreach (string n in new[]
+                 {
+                     "ZywOo", "apEX", "flameZ", "mezii", "BOT Wolf"
+                 })
         {
             vm.Terrorists.Add(new OverviewPlayer(n, n.StartsWith("BOT", StringComparison.Ordinal)));
         }
@@ -82,14 +88,22 @@ public class MatchOverviewLandingTests
 
         if (tier >= DemoCacheTier.Header)
         {
-            r.Header = new TierStamp { Schema = DemoCacheRecord.HeaderSchema, ComputedAtTicks = 1 };
+            r.Header = new TierStamp
+            {
+                Schema = DemoCacheRecord.HeaderSchema,
+                ComputedAtTicks = 1
+            };
             r.Map = "de_dust2";
             r.Server = "FACEIT Server EU #4021";
         }
 
         if (tier >= DemoCacheTier.Parse)
         {
-            r.Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 };
+            r.Parse = new TierStamp
+            {
+                Schema = DemoCacheRecord.ParseSchema,
+                ComputedAtTicks = 1
+            };
             r.DurationSeconds = 2292;
             r.TickRate = 64;
             r.TickCount = 146688;
@@ -99,7 +113,11 @@ public class MatchOverviewLandingTests
             r.TClan = "FaZe";
             for (int i = 0; i < 24; i++)
             {
-                r.Rounds.Add(new CachedRound { Number = i + 1, StartTickFrameClock = 1000 + (i * 5000) });
+                r.Rounds.Add(new CachedRound
+                {
+                    Number = i + 1,
+                    StartTickFrameClock = 1000 + i * 5000
+                });
             }
 
             string[] ct = ["s1mple", "b1t", "electroNic", "Perfecto", "BOT Rock"];
@@ -135,7 +153,11 @@ public class MatchOverviewLandingTests
         r.AnalysisState = analysisState;
         if (tier >= DemoCacheTier.Analysis)
         {
-            r.Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 };
+            r.Analysis = new TierStamp
+            {
+                Schema = DemoCacheRecord.AnalysisSchema,
+                ComputedAtTicks = 1
+            };
             r.AnalysisRoundCount = 22;
             r.CtSideWins = 12;
             r.TSideWins = 10;
@@ -149,7 +171,7 @@ public class MatchOverviewLandingTests
                     Deaths = 10 + i,
                     Assists = 5,
                     Adr = 90.5 - i,
-                    Rating = 1.34 - (i * 0.05)
+                    Rating = 1.34 - i * 0.05
                 });
             }
 
@@ -208,7 +230,11 @@ public class MatchOverviewLandingTests
             ["player_name", "team"],
             ["TotalK", "TotalD", "TotalA", "ADR", "HLTV", "CTW", "TW"],
             rows.Select(r => new MetricRow(
-                    new Dictionary<string, object?> { ["player_name"] = r.Name, ["team"] = r.Team },
+                    new Dictionary<string, object?>
+                    {
+                        ["player_name"] = r.Name,
+                        ["team"] = r.Team
+                    },
                     new Dictionary<string, object?>
                     {
                         ["TotalK"] = r.K,
@@ -277,7 +303,11 @@ public class MatchOverviewLandingTests
             double parsed = content.DesiredSize.Height;
 
             vm.BeginAnalysis(vm.SubjectKey);
-            vm.SetAnalysis(vm.SubjectKey, GameTable(), new Dictionary<int, int?> { [0] = 13, [1] = 9 }, 22);
+            vm.SetAnalysis(vm.SubjectKey, GameTable(), new Dictionary<int, int?>
+            {
+                [0] = 13,
+                [1] = 9
+            }, 22);
             vm.SetTeamScores(vm.SubjectKey, 13, 9);
             Pump();
             double ready = content.DesiredSize.Height;
@@ -330,7 +360,9 @@ public class MatchOverviewLandingTests
             // Every cached tier, including the richest one — an analysis-tier record fills the scoreboard AND
             // the highlight section, which is the state most likely to overflow a reserved slot.
             foreach (DemoCacheTier tier in new[]
-                     { DemoCacheTier.Header, DemoCacheTier.Parse, DemoCacheTier.Analysis })
+                     {
+                         DemoCacheTier.Header, DemoCacheTier.Parse, DemoCacheTier.Analysis
+                     })
             {
                 vm.SetCachedRecord(Record(tier,
                     tier == DemoCacheTier.Analysis ? DemoAnalysisState.Indexed : DemoAnalysisState.Pending));
@@ -530,7 +562,11 @@ public class MatchOverviewLandingTests
             MatchOverviewTabViewModel vm = new();
 
             // Demo A — a complete run, with its authoritative score.
-            Dictionary<int, int?> scores = new() { [0] = 13, [1] = 9 };
+            Dictionary<int, int?> scores = new()
+            {
+                [0] = 13,
+                [1] = 9
+            };
             vm.BeginOpening("first.dem", "Mirage", "Server", "first.dem");
             ApplyParsedStage(vm);
             vm.BeginAnalysis(vm.SubjectKey);
@@ -591,7 +627,11 @@ public class MatchOverviewLandingTests
             vm.SetStage("/demos/alpha.dem", "Parsing demo…", 0.9);
             vm.SetTeamNames("/demos/alpha.dem", "NAVI", "FaZe");
             vm.SetTeamScores("/demos/alpha.dem", 13, 9);
-            vm.SetAnalysis("/demos/alpha.dem", GameTable(), new Dictionary<int, int?> { [0] = 13, [1] = 9 }, 22);
+            vm.SetAnalysis("/demos/alpha.dem", GameTable(), new Dictionary<int, int?>
+            {
+                [0] = 13,
+                [1] = 9
+            }, 22);
             vm.Fail("/demos/alpha.dem", "alpha exploded");
 
             using (Assert.Multiple())
@@ -777,7 +817,11 @@ public class MatchOverviewLandingTests
             // Finishing the load stops the creep and pins the bar at full.
             ApplyParsedStage(vm);
             vm.BeginAnalysis(vm.SubjectKey);
-            vm.SetAnalysis(vm.SubjectKey, GameTable(), new Dictionary<int, int?> { [0] = 13, [1] = 9 }, 22);
+            vm.SetAnalysis(vm.SubjectKey, GameTable(), new Dictionary<int, int?>
+            {
+                [0] = 13,
+                [1] = 9
+            }, 22);
             vm.SetTeamScores(vm.SubjectKey, 13, 9);
             await Assert.That(vm.Progress).IsEqualTo(1.0);
 
@@ -902,8 +946,10 @@ public class MatchOverviewLandingTests
             };
             window.Show();
 
-            static Border Card(MatchOverviewTabView v) =>
-                v.GetVisualDescendants().OfType<Border>().First(b => b.MinHeight == 300);
+            static Border Card(MatchOverviewTabView v)
+            {
+                return v.GetVisualDescendants().OfType<Border>().First(b => b.MinHeight == 300);
+            }
 
             // Empty: holds the reserve.
             vm.SetCachedRecord(Record(DemoCacheTier.Parse));
@@ -920,9 +966,9 @@ public class MatchOverviewLandingTests
                 {
                     RulesetId = "clutch",
                     HighlightId = "multi",
-                    Tick = 10_000 + (i * 500),
+                    Tick = 10_000 + i * 500,
                     PlayerSlot = i % 4,
-                    RoundNumber = (i % 22) + 1,
+                    RoundNumber = i % 22 + 1,
                     RenderedTitle = $"highlight number {i + 1} with a fairly long rendered title"
                 });
             }
@@ -978,7 +1024,11 @@ public class MatchOverviewLandingTests
             ApplyParsedStage(live);
             await Check(live, "live/parsed");
             live.BeginAnalysis(live.SubjectKey);
-            live.SetAnalysis(live.SubjectKey, GameTable(), new Dictionary<int, int?> { [0] = 13, [1] = 9 }, 22);
+            live.SetAnalysis(live.SubjectKey, GameTable(), new Dictionary<int, int?>
+            {
+                [0] = 13,
+                [1] = 9
+            }, 22);
             live.SetTeamScores(live.SubjectKey, 13, 9);
             await Check(live, "live/ready");
             await Assert.That(live.Completeness).IsNotEqualTo(OverviewCompleteness.Full)
@@ -1002,10 +1052,7 @@ public class MatchOverviewLandingTests
             // Every cached tier, including the failed one.
             foreach ((DemoCacheTier tier, DemoAnalysisState st) in new[]
                      {
-                         (DemoCacheTier.Header, DemoAnalysisState.Pending),
-                         (DemoCacheTier.Parse, DemoAnalysisState.Pending),
-                         (DemoCacheTier.Analysis, DemoAnalysisState.Failed),
-                         (DemoCacheTier.Analysis, DemoAnalysisState.Indexed)
+                         (DemoCacheTier.Header, DemoAnalysisState.Pending), (DemoCacheTier.Parse, DemoAnalysisState.Pending), (DemoCacheTier.Analysis, DemoAnalysisState.Failed), (DemoCacheTier.Analysis, DemoAnalysisState.Indexed)
                      })
             {
                 MatchOverviewTabViewModel c = new(computeFullStats: _ => { });
@@ -1096,7 +1143,10 @@ public class MatchOverviewLandingTests
             // intents, and conflating them would make a glance at the cache cost a full load.
             vm.SetCachedRecord(Record(DemoCacheTier.Parse));
             vm.ComputeFullStatsCommand.Execute(null);
-            await Assert.That(computed).IsEquivalentTo(new List<string> { "/demos/cached_de_dust2.dem" });
+            await Assert.That(computed).IsEquivalentTo(new List<string>
+            {
+                "/demos/cached_de_dust2.dem"
+            });
         });
     }
 
@@ -1219,7 +1269,11 @@ public class MatchOverviewLandingTests
 
             vm.SetStage(key, "Parsing demo…", 0.5);
             vm.BeginAnalysis(key);
-            vm.SetAnalysis(key, GameTable(), new Dictionary<int, int?> { [0] = 13, [1] = 9 }, 22);
+            vm.SetAnalysis(key, GameTable(), new Dictionary<int, int?>
+            {
+                [0] = 13,
+                [1] = 9
+            }, 22);
             vm.Fail(key, "boom");
 
             using (Assert.Multiple())
@@ -1252,7 +1306,7 @@ public class MatchOverviewLandingTests
         {
             List<string> opened = [];
             MatchOverviewTabViewModel vm = new(
-                viewStats: () => { }, viewPlayback: () => { }, openDemo: opened.Add);
+                () => { }, () => { }, openDemo: opened.Add);
 
             vm.SetCachedRecord(Record(DemoCacheTier.Analysis, DemoAnalysisState.Indexed));
             using (Assert.Multiple())
@@ -1265,13 +1319,20 @@ public class MatchOverviewLandingTests
             }
 
             vm.OpenDemoCommand.Execute(null);
-            await Assert.That(opened).IsEquivalentTo(new List<string> { "/demos/cached_de_dust2.dem" });
+            await Assert.That(opened).IsEquivalentTo(new List<string>
+            {
+                "/demos/cached_de_dust2.dem"
+            });
 
             // A real open re-enables them through the normal fill path.
             vm.BeginOpening("x.dem", "Nuke", "Server", "/demos/x.dem");
             ApplyParsedStage(vm);
             vm.BeginAnalysis(vm.SubjectKey);
-            vm.SetAnalysis(vm.SubjectKey, GameTable(), new Dictionary<int, int?> { [0] = 13, [1] = 9 }, 22);
+            vm.SetAnalysis(vm.SubjectKey, GameTable(), new Dictionary<int, int?>
+            {
+                [0] = 13,
+                [1] = 9
+            }, 22);
             using (Assert.Multiple())
             {
                 await Assert.That(vm.CanExploreStats).IsTrue();

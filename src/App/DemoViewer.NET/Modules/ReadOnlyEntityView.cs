@@ -1,7 +1,7 @@
 #region
 
-using DemoViewer.NET.Modules.Abstractions;
 using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Modules.Abstractions;
 
 #endregion
 
@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Modules;
 
 /// <summary>
 ///     Transient read-only view over the authoritative <see cref="EntitySet" /> at the current tick
-///. Re-aimed across pushes (no per-push allocation of the view itself). The single
+///     . Re-aimed across pushes (no per-push allocation of the view itself). The single
 ///     lookups (<see cref="BySerial" /> / <see cref="ByIndex" /> / <see cref="ResolveHandle" />) return
 ///     a shared pooled facade; the enumerations (<see cref="All" /> / <see cref="OfClass" />) yield a
 ///     fresh facade per element (on-demand module reads, not the per-tick hot path — the pilot reads

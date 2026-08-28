@@ -1,7 +1,5 @@
 #region
 
-using DemoViewer.NET.Playback2D.Cli;
-
 #endregion
 
 namespace DemoViewer.NET.Playback2D.Cli.Tests;
@@ -56,10 +54,10 @@ public class ProgramDispatchTests
     ///     Every option the export usage block advertises must actually be an option.
     ///     <para>
     ///         The usage text is the only documentation a user of a headless tool reads, and this repo's
-    ///         parser rejects anything it does not consume — so an advertised-but-unimplemented flag is
-    ///         not a cosmetic wart, it is a documented invocation that exits 1 with "unknown option".
-    ///         B4's review found four of them (<c>--round</c>, <c>--camera</c>, <c>--ffmpeg</c>,
-    ///         <c>--progress</c>) shipped alongside three real ones that went unmentioned.
+    ///         parser rejects anything it does not consume, so an advertised-but-unimplemented flag is a
+    ///         documented invocation that exits 1 with "unknown option". Review found four of them
+    ///         (<c>--round</c>, <c>--camera</c>, <c>--ffmpeg</c>, <c>--progress</c>) shipped alongside
+    ///         three real ones that went unmentioned.
     ///     </para>
     /// </summary>
     [Test]
@@ -193,10 +191,9 @@ public class ProgramDispatchTests
     }
 
     /// <summary>
-    ///     B4 landed, so <c>export</c> is a real verb. It now fails the way every other command does when
-    ///     the demo is missing — a runtime failure naming the file — rather than the exit 6 that used to
-    ///     mean "this verb does not exist yet". Replacing the assertion rather than deleting the case
-    ///     keeps the dispatch path covered.
+    ///     <c>export</c> is a real verb now, so a missing demo fails the way it does on every other
+    ///     command: a runtime failure naming the file, not the exit 6 that once meant "this verb does not
+    ///     exist yet".
     /// </summary>
     [Test]
     public async Task Export_WithAMissingDemo_FailsNamingTheFile()

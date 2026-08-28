@@ -125,8 +125,8 @@ public class RenderFixtureTests
     }
 
     /// <summary>
-    ///     The default stack is the seven scene layers, in draw order — what an export draws, minus the
-    ///     opt-in chrome. This is the assertion that would have read <c>["playback2d.debuggrid"]</c>.
+    ///     The default stack is the seven scene layers, in draw order: what an export draws, minus the
+    ///     opt-in chrome. Under the placeholder catalog this read <c>["playback2d.debuggrid"]</c>.
     /// </summary>
     [Test]
     public async Task DefaultStack_IsTheSevenSceneLayers()
@@ -147,8 +147,8 @@ public class RenderFixtureTests
 
     /// <summary>
     ///     An opt-in layer this command cannot feed is <b>refused</b>, not silently dropped.
-    ///     <c>CreateSceneStack</c> skips a starved opt-in id on purpose — an export request naming
-    ///     <c>hud.clock</c> against a source with no clock should draw no HUD rather than an empty box —
+    ///     <c>CreateSceneStack</c> skips a starved opt-in id on purpose (an export request naming
+    ///     <c>hud.clock</c> against a source with no clock should draw no HUD rather than an empty box),
     ///     but on a command line, "I asked for it and got a PNG" must not be able to mean "it was not
     ///     there". Both refusals name the command that CAN draw the layer.
     /// </summary>
@@ -174,9 +174,9 @@ public class RenderFixtureTests
     }
 
     /// <summary>
-    ///     <c>--ink</c> feeds the annotation layer for a render with no demo, which is what makes the
-    ///     <c>annotated-mirage-b</c> corpus entry — the only golden anywhere covering burned-in ink —
-    ///     possible at all. The sidecar is read through the production <c>AnnotationStore</c>, so a
+    ///     <c>--ink</c> feeds the annotation layer for a render with no demo. Without it the
+    ///     <c>annotated-mirage-b</c> corpus entry, the only golden anywhere covering burned-in ink,
+    ///     could not exist. The sidecar is read through the production <c>AnnotationStore</c>, so a
     ///     document the app wrote and one the corpus ships take one code path.
     /// </summary>
     [Test]

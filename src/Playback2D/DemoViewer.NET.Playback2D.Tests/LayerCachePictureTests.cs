@@ -35,13 +35,13 @@ public class LayerCachePictureTests
 
         for (int i = 0; i < 5; i++)
         {
-            compositor.Render(surface.Canvas, Submission(cameraEpoch: 1));
+            compositor.Render(surface.Canvas, Submission(1));
         }
 
         await Assert.That(layer.RenderCalls).IsEqualTo(1);
         await Assert.That(compositor.Stats.PicturesReplayed).IsEqualTo(4);
 
-        compositor.Render(surface.Canvas, Submission(cameraEpoch: 2));
+        compositor.Render(surface.Canvas, Submission(2));
         await Assert.That(layer.RenderCalls).IsEqualTo(2);
     }
 
@@ -55,12 +55,12 @@ public class LayerCachePictureTests
         using CpuSurfaceProvider provider = new();
         using SKSurface surface = provider.CreateSurface(new SKSizeI(64, 64));
 
-        compositor.Render(surface.Canvas, Submission(cameraEpoch: 1));
-        compositor.Render(surface.Canvas, Submission(cameraEpoch: 1));
+        compositor.Render(surface.Canvas, Submission(1));
+        compositor.Render(surface.Canvas, Submission(1));
         await Assert.That(layer.RenderCalls).IsEqualTo(1);
 
         layer.Version++;
-        compositor.Render(surface.Canvas, Submission(cameraEpoch: 1));
+        compositor.Render(surface.Canvas, Submission(1));
         await Assert.That(layer.RenderCalls).IsEqualTo(2);
     }
 
@@ -78,11 +78,11 @@ public class LayerCachePictureTests
         using SKSurface surface = provider.CreateSurface(new SKSizeI(128, 128));
 
         ViewportTransform camera = ViewportTransform.Fit(128, 128, -512, -512, 512, 512);
-        compositor.Render(surface.Canvas, Submission(cameraEpoch: 1, camera: camera));
+        compositor.Render(surface.Canvas, Submission(1, camera));
         int firstCentre = ColumnOfInk(surface);
 
         ViewportTransform panned = camera.WithPanDelta(30, 0);
-        compositor.Render(surface.Canvas, Submission(cameraEpoch: 2, camera: panned));
+        compositor.Render(surface.Canvas, Submission(2, panned));
         int secondCentre = ColumnOfInk(surface);
 
         Console.WriteLine($"[static-cache] ink column {firstCentre} → {secondCentre}, " +
@@ -104,7 +104,7 @@ public class LayerCachePictureTests
 
         for (int i = 0; i < 4; i++)
         {
-            compositor.Render(surface.Canvas, Submission(cameraEpoch: 1));
+            compositor.Render(surface.Canvas, Submission(1));
         }
 
         await Assert.That(layer.RenderCalls).IsEqualTo(4);
@@ -121,8 +121,8 @@ public class LayerCachePictureTests
         using CpuSurfaceProvider provider = new();
         using SKSurface surface = provider.CreateSurface(new SKSizeI(64, 64));
 
-        compositor.Render(surface.Canvas, Submission(cameraEpoch: 1));
-        compositor.Render(surface.Canvas, Submission(cameraEpoch: 1));
+        compositor.Render(surface.Canvas, Submission(1));
+        compositor.Render(surface.Canvas, Submission(1));
 
         await Assert.That(layer.RenderCalls).IsEqualTo(2);
         await Assert.That(compositor.Stats.PicturesRecorded).IsEqualTo(0);
@@ -138,16 +138,16 @@ public class LayerCachePictureTests
         using CpuSurfaceProvider provider = new();
         using SKSurface surface = provider.CreateSurface(new SKSizeI(64, 64));
 
-        compositor.Render(surface.Canvas, Submission(cameraEpoch: 1, levelId: new MapLevelId(1)));
-        compositor.Render(surface.Canvas, Submission(cameraEpoch: 1, levelId: new MapLevelId(2)));
+        compositor.Render(surface.Canvas, Submission(1, levelId: new MapLevelId(1)));
+        compositor.Render(surface.Canvas, Submission(1, levelId: new MapLevelId(2)));
         await Assert.That(layer.RenderCalls).IsEqualTo(2);
 
         compositor.InvalidatePaneCaches(new MapLevelId(1));
 
-        compositor.Render(surface.Canvas, Submission(cameraEpoch: 1, levelId: new MapLevelId(2)));
+        compositor.Render(surface.Canvas, Submission(1, levelId: new MapLevelId(2)));
         await Assert.That(layer.RenderCalls).IsEqualTo(2); // level 2 still cached
 
-        compositor.Render(surface.Canvas, Submission(cameraEpoch: 1, levelId: new MapLevelId(1)));
+        compositor.Render(surface.Canvas, Submission(1, levelId: new MapLevelId(1)));
         await Assert.That(layer.RenderCalls).IsEqualTo(3); // level 1 re-recorded
     }
 
@@ -163,13 +163,13 @@ public class LayerCachePictureTests
 
         for (int epoch = 1; epoch <= 6; epoch++)
         {
-            compositor.Render(surface.Canvas, Submission(cameraEpoch: epoch));
+            compositor.Render(surface.Canvas, Submission(epoch));
         }
 
         await Assert.That(layer.RenderCalls).IsEqualTo(6);
 
         // Epoch 1 was evicted long ago, so it has to be re-recorded rather than replayed.
-        compositor.Render(surface.Canvas, Submission(cameraEpoch: 1));
+        compositor.Render(surface.Canvas, Submission(1));
         await Assert.That(layer.RenderCalls).IsEqualTo(7);
     }
 
@@ -188,7 +188,7 @@ public class LayerCachePictureTests
 
         SceneTime time = default;
         compositor.Advance(in time, Scene2DFrame.Empty);
-        compositor.Render(surface.Canvas, Submission(cameraEpoch: 1));
+        compositor.Render(surface.Canvas, Submission(1));
 
         await Assert.That(layer.AdvanceCalls).IsEqualTo(0);
         await Assert.That(layer.RenderCalls).IsEqualTo(0);

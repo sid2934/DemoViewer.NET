@@ -76,8 +76,18 @@ public class LibraryPreviewTests
                     r.DurationSeconds = 1800;
                     r.Players =
                     [
-                        new CachedPlayerInfo { Slot = 0, Name = "s1mple", Team = 3 },
-                        new CachedPlayerInfo { Slot = 1, Name = "ZywOo", Team = 2 }
+                        new CachedPlayerInfo
+                        {
+                            Slot = 0,
+                            Name = "s1mple",
+                            Team = 3
+                        },
+                        new CachedPlayerInfo
+                        {
+                            Slot = 1,
+                            Name = "ZywOo",
+                            Team = 2
+                        }
                     ];
                     DemoCacheStore.StampParse(r);
                 });

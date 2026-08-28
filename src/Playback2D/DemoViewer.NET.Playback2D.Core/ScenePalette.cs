@@ -37,7 +37,7 @@ public readonly record struct SceneStrokeWidths(
     ///     CA1805, while it actually means "the parameter defaults" — the exact confusion this field exists
     ///     to remove.
     /// </summary>
-    public static readonly SceneStrokeWidths Default = new(1f, 1f, 1f, 2f, 3f, 3f, 1f);
+    public static readonly SceneStrokeWidths Default = new(1f);
 }
 
 /// <summary>

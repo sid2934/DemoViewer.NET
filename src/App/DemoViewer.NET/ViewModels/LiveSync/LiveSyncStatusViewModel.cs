@@ -18,7 +18,7 @@ namespace DemoViewer.NET.ViewModels.LiveSync;
 
 /// <summary>
 ///     Maps the engine-side <see cref="ILiveSyncService" /> state onto the status-strip chip and its flyout
-///. It owns a single reusable
+///     . It owns a single reusable
 ///     <see cref="StatusChipViewModel" /> (the chip the shell shows) whose <c>FlyoutContent</c> is this VM
 ///     itself — the app <c>ViewLocator</c> resolves <c>Views/LiveSync/LiveSyncStatusView</c> for the flyout
 ///     body, so there is no VM→View reference here.
@@ -31,11 +31,6 @@ namespace DemoViewer.NET.ViewModels.LiveSync;
 /// </summary>
 public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable, ILiveSyncHudState
 {
-    // Diagnostics-pillar logger (v0.6.0 — the restore-failure surface shows clean text, this
-    // carries the real exception). Lazy: the ambient factory is wired after construction.
-    private ILogger? _diagLog;
-    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.LiveSync");
-
     // The chrome.livesync gate, folded into the 2D HUD projection's IsActive. Null (tests / capture)
     // ⇒ the gate is treated as enabled, so the HUD shows whenever the session state is non-Disconnected.
     private readonly Func<bool>? _isHudGateEnabled;
@@ -50,6 +45,10 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private string _demoBindingText = "";
+
+    // Diagnostics-pillar logger (v0.6.0 — the restore-failure surface shows clean text, this
+    // carries the real exception). Lazy: the ambient factory is wired after construction.
+    private ILogger? _diagLog;
 
     private bool _disposed;
 
@@ -172,6 +171,8 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
         // the Off flyout BEFORE any session start. Detection never errors (null → no offer).
         _ = ProbeLeftoverModificationsAsync();
     }
+
+    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.LiveSync");
 
     /// <summary>The status-strip chip this VM drives (added to <c>MainViewModel.Chips</c> when gated on).</summary>
     public StatusChipViewModel Chip { get; }

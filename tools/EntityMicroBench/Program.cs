@@ -5,9 +5,9 @@ using BenchmarkDotNet.Running;
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Plugins;
-using CS2OpenDev.Sdk.Entities;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
+using CS2OpenDev.Sdk.Entities;
 
 #endregion
 

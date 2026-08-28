@@ -1,7 +1,7 @@
 #region
 
-using DemoViewer.NET.Modules.Library;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 

@@ -15,9 +15,9 @@ namespace DemoViewer.NET.Playback2D.Core.Levels;
 ///         strip (manual) plus AutoFollow (the followed player's floor) are the two ways to say which.
 ///     </para>
 ///     <para>
-///         An <see cref="ActiveLevelId" /> that no level answers to — the moment after a rebuild removed
-///         it, or before the first selection — falls back to the <b>top-most</b> level, matching the
-///         stacked view's "highest floor on top" reading order rather than silently showing a basement.
+///         An <see cref="ActiveLevelId" /> that no level answers to (just after a rebuild removed it, or
+///         before the first selection) falls back to the <b>top-most</b> level, matching the stacked
+///         view's "highest floor on top" reading order rather than silently showing a basement.
 ///     </para>
 /// </summary>
 public sealed class SingleLayout : ILevelLayoutPolicy
@@ -41,11 +41,11 @@ public sealed class SingleLayout : ILevelLayoutPolicy
         }
     }
 
-    /// <inheritdoc />
-    public int Revision { get; private set; }
-
     /// <summary>The level index this policy last arranged, or -1. Diagnostics and tests.</summary>
     public int ArrangedLevelIndex { get; private set; } = -1;
+
+    /// <inheritdoc />
+    public int Revision { get; private set; }
 
     /// <inheritdoc />
     public IReadOnlyList<LevelPane> Arrange(MapSpace space, LevelDisplayMode mode, SKSize host)
@@ -99,7 +99,7 @@ public static class LevelLayouts
     /// </summary>
     /// <param name="value">The persisted string, or null.</param>
     /// <remarks>
-    ///     <see cref="Enum.TryParse{TEnum}(string,bool,out TEnum)" /> accepts any <i>number</i> inside the
+    ///     <see cref="Enum.TryParse{TEnum}(string,bool,out TEnum)" /> accepts any number inside the
     ///     underlying type's range, so <c>"7"</c> parses to an undefined <see cref="LevelDisplayMode" />
     ///     that <see cref="For" /> then throws on. <see cref="Enum.IsDefined{TEnum}(TEnum)" /> is what
     ///     makes the fallback actually cover a hand-edited settings file.

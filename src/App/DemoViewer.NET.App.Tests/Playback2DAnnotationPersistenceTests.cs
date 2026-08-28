@@ -188,7 +188,7 @@ public class Playback2DAnnotationPersistenceTests
         await controller.AttachDemoAsync(demo.DemoPath, demo.Clock);
         controller.Document.Apply(new DocDelta.Add(Stroke(), 0));
 
-        await controller.AttachDemoAsync(demo.DemoPath, demo.Clock, force: false);
+        await controller.AttachDemoAsync(demo.DemoPath, demo.Clock, false);
 
         await Assert.That(controller.Document.Elements.Count).IsEqualTo(1)
             .Because("a tab RE-activation must not throw away what has not been autosaved yet");
@@ -407,7 +407,7 @@ public class Playback2DAnnotationPersistenceTests
         {
             try
             {
-                Directory.Delete(_root, recursive: true);
+                Directory.Delete(_root, true);
             }
             catch (IOException)
             {

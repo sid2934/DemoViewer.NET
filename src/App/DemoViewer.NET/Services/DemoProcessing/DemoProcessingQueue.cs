@@ -41,6 +41,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // How many terminal items linger in the mirror for UI feedback before the oldest are pruned.
     private const int TerminalHistoryCap = 30;
 
+    // Diagnostics-pillar logger (v0.6.0 — replaced Console.WriteLine). Lazy (the ambient factory is
+    // wired after construction) and static so the static SafeInvoke helper can log through it.
+    private static ILogger? _diagLog;
+
     private readonly List<Entry> _entries = [];
     private readonly HeavyJobGate _gate;
     private readonly ObservableCollection<DemoQueueItem> _items = [];
@@ -61,11 +65,6 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private int _maxQueueSize = 200;
     private bool _paused;
     private long _seq;
-
-    // Diagnostics-pillar logger (v0.6.0 — replaced Console.WriteLine). Lazy (the ambient factory is
-    // wired after construction) and static so the static SafeInvoke helper can log through it.
-    private static ILogger? _diagLog;
-    private static ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger(AppLog.QueueCategory);
 
     /// <param name="gate">The machine-wide heavy-parse gate (concurrency backstop + reel/interactive).</param>
     /// <param name="post">Marshals mirror mutations to the UI thread (inline in tests).</param>
@@ -91,6 +90,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         Items = new ReadOnlyObservableCollection<DemoQueueItem>(_items);
         _gate.MaxConcurrency = _maxConcurrency;
     }
+
+    private static ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger(AppLog.QueueCategory);
 
     public ReadOnlyObservableCollection<DemoQueueItem> Items { get; }
 

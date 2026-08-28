@@ -16,8 +16,8 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 ///     The Pipeline facade. The load-bearing assertion is that its two paths agree: the whole-image
 ///     <c>Render</c> delegates to Core's <c>SceneRenderer</c>, while the split
 ///     <c>Advance</c>/<c>Render(surface, …)</c> pair the bench command needs is a re-statement of the
-///     same body without the surface creation. Pinning them together is what stops the CLI from growing
-///     a second render path by accident.
+///     same body without the surface creation. Pinning them together stops the CLI growing a second
+///     render path by accident.
 /// </summary>
 public class HeadlessSceneRendererTests
 {
@@ -36,10 +36,10 @@ public class HeadlessSceneRendererTests
         };
 
         SceneTime time = fixture.Time;
-        byte[] whole = renderer.RenderPng(fixture.Frame, in time, size, RenderPurpose.Export);
+        byte[] whole = renderer.RenderPng(fixture.Frame, in time, size);
 
         using SKSurface surface = provider.CreateSurface(size);
-        renderer.RenderInto(surface, fixture.Frame, in time, RenderPurpose.Export);
+        renderer.RenderInto(surface, fixture.Frame, in time);
         using SKImage image = surface.Snapshot();
         using MemoryStream stream = new();
         SceneRenderer.WritePng(image, stream);
@@ -50,20 +50,18 @@ public class HeadlessSceneRendererTests
     [Test]
     public async Task Catalog_RejectsAnUnknownLayerId()
     {
-        await Assert.That(Throws.Capture<ArgumentException>(
-            () => SceneLayerCatalog.CreateSceneStack(["not-a-layer"]).Dispose())).IsNotNull();
+        await Assert.That(Throws.Capture<ArgumentException>(() => SceneLayerCatalog.CreateSceneStack(["not-a-layer"]).Dispose())).IsNotNull();
     }
 
     /// <summary>
     ///     A typo in <c>--exclude-layers</c> is exactly as wrong as one in <c>--layers</c>, and silently
     ///     subtracting nothing is the failure mode that hides it. <c>Create</c> checked this side and
-    ///     <c>CreateSceneStack</c> did not; the fold kept the stricter half, and this is what says so.
+    ///     <c>CreateSceneStack</c> did not; the fold kept the stricter half.
     /// </summary>
     [Test]
     public async Task Catalog_RejectsAnUnknownExcludeId()
     {
-        await Assert.That(Throws.Capture<ArgumentException>(
-            () => SceneLayerCatalog.CreateSceneStack(null, ["not-a-layer"]).Dispose())).IsNotNull();
+        await Assert.That(Throws.Capture<ArgumentException>(() => SceneLayerCatalog.CreateSceneStack(null, ["not-a-layer"]).Dispose())).IsNotNull();
     }
 
     /// <summary>
@@ -95,9 +93,8 @@ public class HeadlessSceneRendererTests
     }
 
     /// <summary>
-    ///     The default stack is <b>the scene</b> — the seven non-opt-in ids — and the four opt-in ones
-    ///     are absent unless named AND fed. This is the assertion that would have failed with the debug
-    ///     grid registered: the count was 1.
+    ///     The default stack is <b>the scene</b> (the seven non-opt-in ids) and the four opt-in ones are
+    ///     absent unless named AND fed. With the debug grid registered the count was 1.
     /// </summary>
     [Test]
     public async Task Catalog_DefaultStackIsTheSevenSceneLayers()
@@ -122,7 +119,10 @@ public class HeadlessSceneRendererTests
             [SceneLayerIds.Markers, SceneLayerIds.HudClock, SceneLayerIds.Annotations]);
 
         await Assert.That(starved.Layers.Select(l => l.Id).ToArray())
-            .IsEquivalentTo(new[] { SceneLayerIds.Markers });
+            .IsEquivalentTo(new[]
+            {
+                SceneLayerIds.Markers
+            });
     }
 
     [Test]

@@ -29,6 +29,8 @@ public static class KillFeedTimeline
     /// <summary>How many rows the feed shows at once.</summary>
     public const int DefaultMaxRows = 6;
 
+    private static readonly Comparison<KillFeedRow> ByTick = static (a, b) => a.Tick.CompareTo(b.Tick);
+
     /// <summary>
     ///     Fills <paramref name="into" /> with the rows whose tick is in
     ///     <c>(nowTick − windowSeconds·tickRate, nowTick]</c>, sorted by tick, keeping the most recent
@@ -76,6 +78,4 @@ public static class KillFeedTimeline
             into.RemoveRange(0, excess);
         }
     }
-
-    private static readonly Comparison<KillFeedRow> ByTick = static (a, b) => a.Tick.CompareTo(b.Tick);
 }

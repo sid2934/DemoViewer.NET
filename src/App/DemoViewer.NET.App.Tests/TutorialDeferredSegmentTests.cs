@@ -1,5 +1,6 @@
 #region
 
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
@@ -35,7 +36,7 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
-[Category("RealDemo")]
+[TUnit.Core.Category("RealDemo")]
 public class TutorialDeferredSegmentTests
 {
     [Test]
@@ -91,7 +92,7 @@ public class TutorialDeferredSegmentTests
                 // multi-second parse. Both the gated and ungated paths END on Stats, so only the mid-load
                 // trail discriminates — an end-state assert would pass either way.
                 List<string> tabTrail = new();
-                System.ComponentModel.PropertyChangedEventHandler onTabChanged = (_, e) =>
+                PropertyChangedEventHandler onTabChanged = (_, e) =>
                 {
                     if (e.PropertyName == nameof(MainViewModel.SelectedTab) && vm.SelectedTab is { } t)
                     {

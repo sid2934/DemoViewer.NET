@@ -2,7 +2,7 @@ namespace DemoViewer.NET.Playback2D.Core.Hud;
 
 /// <summary>
 ///     Round-level HUD state as a <b>pure function of tick</b> (design §5.1). No wall clock, no playback
-///     position, no side effects — the same tick answers the same snapshot forever, so an exported HUD is
+///     position, no side effects: the same tick answers the same snapshot forever, so an exported HUD is
 ///     deterministic and a headless render is possible.
 ///     <para>
 ///         A separate type rather than a field on <c>Scene2DFrame</c>: the kill feed is a pre-built
@@ -34,7 +34,7 @@ public interface IHudDataSource
 /// <param name="TScore">T-side score.</param>
 /// <param name="CtScore">CT-side score.</param>
 /// <param name="CountdownSeconds">
-///     The main countdown — the round clock, or the C4 detonation countdown once
+///     The main countdown: the round clock, or the C4 detonation countdown once
 ///     <paramref name="BombTicking" />. <c>NaN</c> when no countdown is running.
 /// </param>
 /// <param name="BombTicking">True while a live ticking C4 owns the main countdown.</param>
@@ -42,7 +42,7 @@ public interface IHudDataSource
 /// <param name="DefuseSeconds">Defuse-completion remaining, or <c>NaN</c>.</param>
 /// <param name="KillRows">The kill rows visible at this tick, oldest first.</param>
 /// <param name="Roster">
-///     Every player card at this tick, in slot order — the two sides are split by the layer, not here, so
+///     Every player card at this tick, in slot order: the two sides are split by the layer, not here, so
 ///     one list serves both edges of the frame. Empty when the source was built without a roster reader,
 ///     which is what a fixture render and a HUD-less export both look like.
 /// </param>
@@ -66,7 +66,7 @@ public readonly record struct HudSnapshot(
 /// <summary>
 ///     Colours and metrics for the export HUD. A record so a caller can <c>with</c> one value; every
 ///     field has a default, so <c>new HudStyle()</c> is the shipped look. Only what a caller actually
-///     varies lives here — the rest of each layer's palette is a constant in the layer that draws it.
+///     varies lives here; the rest of each layer's palette is a constant in the layer that draws it.
 /// </summary>
 /// <param name="FontSizePx">Em size of the HUD text.</param>
 /// <param name="MarginPx">Inset from the pane edge.</param>

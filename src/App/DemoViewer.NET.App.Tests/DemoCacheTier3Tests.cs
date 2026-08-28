@@ -3,9 +3,8 @@
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Output;
-using CS2DemoKit.Analysis.Profiles;
-using DemoViewer.NET.Modules.Highlights;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -38,44 +37,6 @@ public class DemoCacheTier3Tests
         [], [], new Dictionary<int, PlayerInfo>(), null, "de_test",
         0, 1f / 64, "test", "test", "csgo", 0, 0, 0, "valve_demo_2", "", "", DemoProfile.Unknown);
 
-    private sealed class NoopHarvester : IHighlightHarvester
-    {
-        public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate)
-            => ("fp-A@64", new Dictionary<string, string> { ["clutch.ace"] = "h1" });
-
-        public AnalysisRun RunBareAnalysis(ParsedDemo demo) =>
-            throw new NotSupportedException("these tests supply rows via processorOverride");
-
-        public void InvalidateRules()
-        {
-        }
-    }
-
-    // Records WHICH mode the scanner asked for. Both throw: the point is the choice, not the run.
-    private sealed class ModeRecordingHarvester : IHighlightHarvester
-    {
-        public List<string> Calls { get; } = [];
-
-        public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate)
-            => ("fp-A@64", new Dictionary<string, string>());
-
-        public AnalysisRun RunBareAnalysis(ParsedDemo demo)
-        {
-            Calls.Add("bare");
-            throw new NotSupportedException("stop here — the mode is what is under test");
-        }
-
-        public AnalysisRun RunFullAnalysis(ParsedDemo demo)
-        {
-            Calls.Add("full");
-            throw new NotSupportedException("stop here — the mode is what is under test");
-        }
-
-        public void InvalidateRules()
-        {
-        }
-    }
-
     private static List<HighlightFired> Harvest(params int[] ticks) =>
     [
         .. ticks.Select(t => new HighlightFired(
@@ -89,15 +50,38 @@ public class DemoCacheTier3Tests
         Size = 4242,
         ModifiedTicks = localTicks,
         Map = "de_dust2",
-        Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 },
+        Parse = new TierStamp
+        {
+            Schema = DemoCacheRecord.ParseSchema,
+            ComputedAtTicks = 1
+        },
         DurationSeconds = 2298,
         TickRate = 64,
         Players =
         [
-            new CachedPlayerInfo { Slot = 1, Name = "s1mple", SteamId64 = "765", Team = 3 },
-            new CachedPlayerInfo { Slot = 2, Name = "ZywOo", SteamId64 = "766", Team = 2 }
+            new CachedPlayerInfo
+            {
+                Slot = 1,
+                Name = "s1mple",
+                SteamId64 = "765",
+                Team = 3
+            },
+            new CachedPlayerInfo
+            {
+                Slot = 2,
+                Name = "ZywOo",
+                SteamId64 = "766",
+                Team = 2
+            }
         ],
-        Rounds = [new Services.DemoCache.CachedRound { Number = 1, StartTickFrameClock = 5000 }],
+        Rounds =
+        [
+            new CachedRound
+            {
+                Number = 1,
+                StartTickFrameClock = 5000
+            }
+        ],
         CtScore = 13,
         TScore = 9
     };
@@ -241,16 +225,32 @@ public class DemoCacheTier3Tests
             ["TotalK", "TotalD", "TotalA", "ADR", "HLTV", "CTW", "TW"],
             [
                 new MetricRow(
-                    new Dictionary<string, object?> { ["player_slot"] = 1, ["player_name"] = "s1mple", ["team"] = 3 },
                     new Dictionary<string, object?>
                     {
-                        ["TotalK"] = 24, ["TotalD"] = 14, ["TotalA"] = 5,
-                        ["ADR"] = 92.47, ["HLTV"] = 1.34, ["CTW"] = 7, ["TW"] = 6
+                        ["player_slot"] = 1,
+                        ["player_name"] = "s1mple",
+                        ["team"] = 3
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["TotalK"] = 24,
+                        ["TotalD"] = 14,
+                        ["TotalA"] = 5,
+                        ["ADR"] = 92.47,
+                        ["HLTV"] = 1.34,
+                        ["CTW"] = 7,
+                        ["TW"] = 6
                     }),
                 // A totals row carries no slot and must be dropped rather than rendered as a blank name.
                 new MetricRow(
-                    new Dictionary<string, object?> { ["player_name"] = "TOTAL" },
-                    new Dictionary<string, object?> { ["TotalK"] = 100 })
+                    new Dictionary<string, object?>
+                    {
+                        ["player_name"] = "TOTAL"
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["TotalK"] = 100
+                    })
             ]);
 
         List<CachedStatRow> rows = DemoCacheAnalysisProjector.ProjectScoreboard(table);
@@ -340,7 +340,11 @@ public class DemoCacheTier3Tests
             cache.Upsert(new DemoCacheRecord
             {
                 Path = demo,
-                Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 },
+                Analysis = new TierStamp
+                {
+                    Schema = DemoCacheRecord.AnalysisSchema,
+                    ComputedAtTicks = 1
+                },
                 AnalysisState = DemoAnalysisState.Indexed,
                 ConfigFingerprint = "fp-A@64"
             });
@@ -393,7 +397,10 @@ public class DemoCacheTier3Tests
                     [
                         new CachedHighlightEvent
                         {
-                            RulesetId = "clutch", HighlightId = "ace", Tick = 54_000, PlayerSlot = 1
+                            RulesetId = "clutch",
+                            HighlightId = "ace",
+                            Tick = 54_000,
+                            PlayerSlot = 1
                         }
                     ];
                     DemoCacheStore.StampAnalysis(r);
@@ -402,7 +409,15 @@ public class DemoCacheTier3Tests
                 })),
                 Task.Run(() => cache.UpdateExisting(demo, r =>
                 {
-                    r.Scoreboard = [new CachedStatRow { Slot = 1, Team = 3, Kills = 24 }];
+                    r.Scoreboard =
+                    [
+                        new CachedStatRow
+                        {
+                            Slot = 1,
+                            Team = 3,
+                            Kills = 24
+                        }
+                    ];
                     DemoCacheStore.StampAnalysis(r);
                     scoreboardInside.Set();
                     highlightsInside.Wait(patience);
@@ -440,11 +455,27 @@ public class DemoCacheTier3Tests
             ["CTW", "TW"],
             [
                 new MetricRow(
-                    new Dictionary<string, object?> { ["player_slot"] = 1, ["team"] = 3 },
-                    new Dictionary<string, object?> { ["CTW"] = 7, ["TW"] = 6 }),
+                    new Dictionary<string, object?>
+                    {
+                        ["player_slot"] = 1,
+                        ["team"] = 3
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["CTW"] = 7,
+                        ["TW"] = 6
+                    }),
                 new MetricRow(
-                    new Dictionary<string, object?> { ["player_slot"] = 2, ["team"] = 3 },
-                    new Dictionary<string, object?> { ["CTW"] = 5, ["TW"] = 6 })
+                    new Dictionary<string, object?>
+                    {
+                        ["player_slot"] = 2,
+                        ["team"] = 3
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["CTW"] = 5,
+                        ["TW"] = 6
+                    })
             ]);
 
         (int? ct, int? t) = DemoCacheAnalysisProjector.ComputeSideWins(table);
@@ -453,6 +484,47 @@ public class DemoCacheTier3Tests
         {
             await Assert.That(ct).IsNull();
             await Assert.That(t).IsNull();
+        }
+    }
+
+    private sealed class NoopHarvester : IHighlightHarvester
+    {
+        public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate)
+            => ("fp-A@64", new Dictionary<string, string>
+            {
+                ["clutch.ace"] = "h1"
+            });
+
+        public AnalysisRun RunBareAnalysis(ParsedDemo demo) =>
+            throw new NotSupportedException("these tests supply rows via processorOverride");
+
+        public void InvalidateRules()
+        {
+        }
+    }
+
+    // Records WHICH mode the scanner asked for. Both throw: the point is the choice, not the run.
+    private sealed class ModeRecordingHarvester : IHighlightHarvester
+    {
+        public List<string> Calls { get; } = [];
+
+        public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate)
+            => ("fp-A@64", new Dictionary<string, string>());
+
+        public AnalysisRun RunBareAnalysis(ParsedDemo demo)
+        {
+            Calls.Add("bare");
+            throw new NotSupportedException("stop here — the mode is what is under test");
+        }
+
+        public AnalysisRun RunFullAnalysis(ParsedDemo demo)
+        {
+            Calls.Add("full");
+            throw new NotSupportedException("stop here — the mode is what is under test");
+        }
+
+        public void InvalidateRules()
+        {
         }
     }
 }

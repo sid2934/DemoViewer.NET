@@ -9,14 +9,13 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Catalog;
-using CS2DemoKit.Analysis.Config;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.RuleWorkbench;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Views.RuleWorkbench;
@@ -27,7 +26,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Phase 3 gates for the Rulesets v2 authoring Workbench
-///: M0 the module registers a Main-strip
+///     : M0 the module registers a Main-strip
 ///     "Authoring" tab and its View renders; M1 the in-process demo-less checker reports the shipped
 ///     rulesets clean; M2 the editor's file lifecycle (New/Save), buffer-aware inline diagnostics, and
 ///     caret-jump. Filesystem tests pin the rules dirs via the RuleSetLocator env overrides and dispose

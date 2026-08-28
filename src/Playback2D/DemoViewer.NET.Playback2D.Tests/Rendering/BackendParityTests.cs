@@ -56,7 +56,11 @@ public class BackendParityTests
     ///     </para>
     /// </summary>
     private static readonly GoldenTolerance _provisionalCrossBackend =
-        GoldenTolerance.CrossBackend with { OutlierChannelDelta = 48, MinWindowSsim = 0.85 };
+        GoldenTolerance.CrossBackend with
+        {
+            OutlierChannelDelta = 48,
+            MinWindowSsim = 0.85
+        };
 
     [Test]
     [Arguments("synthetic-empty")]

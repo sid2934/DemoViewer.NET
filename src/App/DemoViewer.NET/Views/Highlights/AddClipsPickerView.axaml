@@ -155,7 +155,8 @@
 
                     <!-- Highlight-kind multi-select (editorial track: skill / funny / lowlight). -->
                     <Button Content="{Binding KindFilterSummary}" FontSize="12" MinWidth="76"
-                            VerticalAlignment="Center" Margin="0 3 8 3" ToolTip.Tip="Filter by kind (skill / funny / lowlight)">
+                            VerticalAlignment="Center" Margin="0 3 8 3"
+                            ToolTip.Tip="Filter by kind (skill / funny / lowlight)">
                         <Button.Flyout>
                             <Flyout Placement="Bottom">
                                 <Border Classes="card-flyout" MinWidth="150" MaxWidth="260">

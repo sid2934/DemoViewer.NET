@@ -11,10 +11,9 @@ namespace DemoViewer.NET.Playback2D.Cli;
 /// <summary>
 ///     Loading a <c>.dem</c> and turning <c>--tick</c>/<c>--frame</c> into a frame index.
 ///     <para>
-///         The parse dominates a <c>--demo</c> render (risk R10) — a 400 MB demo is seconds, not
-///         milliseconds — so the elapsed split is always reported. The sub-second exit criterion is the
-///         <c>--fixture</c> path, and printing the breakdown is what keeps the difference visible instead
-///         of looking like a slow renderer.
+///         The parse dominates a <c>--demo</c> render (risk R10): a 400 MB demo is seconds, not
+///         milliseconds. So the elapsed split is always reported. The sub-second exit criterion is the
+///         <c>--fixture</c> path, and without the breakdown a slow parse reads as a slow renderer.
 ///     </para>
 /// </summary>
 internal static class DemoInput

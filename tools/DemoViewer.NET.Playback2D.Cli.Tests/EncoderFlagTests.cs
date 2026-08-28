@@ -7,12 +7,16 @@ using System.Text.Json.Nodes;
 namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
-///     <c>dv2d export --encoder / --quality</c> — plan <c>P2-export-throughput</c> D4.
+///     <c>dv2d export --encoder / --quality</c> (plan <c>P2-export-throughput</c> D4).
 ///     <para>
-///         Every case runs a real subprocess against a real demo and a real ffmpeg, and <b>every one of
-///         them skips cleanly without either</b>. What they assert is the CLI's contract — the argument
+///         Every case runs a real subprocess against a real demo and a real ffmpeg, and
+///         <b>
+///             every one of
+///             them skips cleanly without either
+///         </b>
+///         . What they assert is the CLI's contract: the argument
 ///         parsing, the additive JSON keys, and the fact that a machine with no hardware encoder gets a
-///         normal export rather than a refusal — none of which needs a GPU to be true. The selection
+///         normal export rather than a refusal. None of that needs a GPU to be true. The selection
 ///         LOGIC is asserted GPU-free with a fake probe in <c>EncoderSelectorTests</c>.
 ///     </para>
 /// </summary>
@@ -46,8 +50,8 @@ public class EncoderFlagTests
 
             JsonObject payload = run.Json();
 
-            // Additive, on the same schema_version 1 payload. `encoder` keeps its old meaning — WHICH
-            // PROGRAM encodes — and these say which codec inside it, chosen how.
+            // Additive, on the same schema_version 1 payload. `encoder` keeps its old meaning (WHICH
+            // PROGRAM encodes) and these say which codec inside it, chosen how.
             await Assert.That(payload["schema_version"]!.GetValue<int>()).IsEqualTo(1);
             await Assert.That(payload["encoder"]!.GetValue<string>()).IsEqualTo("ffmpeg");
             await Assert.That(payload["video_encoder"]!.GetValue<string>()).IsNotEmpty();
@@ -59,7 +63,7 @@ public class EncoderFlagTests
             await Assert.That(payload["encoder_attempts"]).IsNotNull();
 
             // A hardware encoder is not bit-reproducible (plan D6), so the file's bytes are a function of
-            // this machine. Writing the machine's answer down is what makes two files comparable later.
+            // this machine. Record the machine's answer or two files cannot be compared later.
             JsonArray attempts = payload["encoder_attempts"]!.AsArray();
             await Assert.That(attempts.Count).IsGreaterThanOrEqualTo(1);
             await Assert.That(attempts[^1]!["works"]!.GetValue<bool>()).IsTrue();
@@ -141,8 +145,8 @@ public class EncoderFlagTests
     [Test]
     public async Task AnEncoderFromTheOtherLadder_IsRefused_WithTheChoices()
     {
-        // h264_nvenc is a real encoder and a real rung — of the MP4 ladder. Asking for it while exporting
-        // a WebM is a request that cannot be honoured, and the message has to say what CAN be.
+        // h264_nvenc is a real encoder and a real rung, but of the MP4 ladder. Asking for it while
+        // exporting a WebM cannot be honoured, and the message has to say what CAN be.
         CliRun run = Dv2d.Subprocess("export", "--demo", Dv2d.RequireDemo(), "--from", "0", "--to", "1",
             "--encoder", "h264_nvenc", "--out", TempOutput("wrong-ladder"));
 

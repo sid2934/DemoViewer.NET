@@ -35,7 +35,7 @@ namespace DemoViewer.NET.LiveSync;
 ///         is cleared so machine state cannot bleed into CSVG's options.
 ///     </para>
 /// </summary>
-internal sealed class CsvgWebHost : IAsyncDisposable
+public sealed class CsvgWebHost : IAsyncDisposable
 {
     /// <summary>The fixed plugin dial-back port.</summary>
     public const int GrpcPort = 50051;
@@ -191,7 +191,7 @@ internal sealed class CsvgWebHost : IAsyncDisposable
 
 /// <summary>
 ///     Port 50051 is owned by another process. The message is the user-facing copy
-///; the flyout offers Retry / Disable.
+///     ; the flyout offers Retry / Disable.
 /// </summary>
 public sealed class LiveSyncPortInUseException(Exception inner) : InvalidOperationException(
     $"Another program is using the CS2 sync port ({CsvgWebHost.GrpcPort}). " +

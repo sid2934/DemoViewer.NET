@@ -200,7 +200,7 @@ public class AnnotationNukeLevelTests
         {
             for (int x = 0; x < _size.Width; x++)
             {
-                int i = (y * _size.Width) + x;
+                int i = y * _size.Width + x;
                 if (match(inked[i]) && !match(baseline[i]))
                 {
                     count++;

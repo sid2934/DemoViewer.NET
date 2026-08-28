@@ -1,10 +1,8 @@
 #region
 
-using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Modules.Playback2D;
+using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 

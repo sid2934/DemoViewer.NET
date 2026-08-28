@@ -1,4 +1,4 @@
-# Playback2D v2 — plan set overview (integration record)
+# Playback2D v2 plan set overview (integration record)
 
 **Design authority:** [`../design.md`](../design.md) · **Branch:** `feature/playback2d-v2`
 **Status:** nine phase plans reconciled. Each plan now opens with an
@@ -22,7 +22,7 @@
 | [`C2-gpu-provider.md`](C2-gpu-provider.md) | C | `GpuSurfaceProvider` (ANGLE/EGL), probe + override precedence, SSIM/perceptual parity, `render-backends` CI matrix, ANGLE packaging + notices | GPU export ≥ 2× realtime at 1080p; CPU parity within perceptual tolerance | 1.5 wk |
 | [`P1-perf-instrumentation.md`](P1-perf-instrumentation.md) | P (post-C, measurement only) | `ISceneProfiler` seam on `SceneCompositor`, `ScenePerfRecorder` + `PerfReport`, `--perf` on `dv2d bench`/`export`, additive `perf` JSON block | Per-layer / per-stage breakdown of an export; §6 gates unchanged with the flag off | 0.5 wk |
 | [`P2-export-throughput.md`](P2-export-throughput.md) | P (post-P1, spends its answer) | `VideoEncoder`/`EncoderLadder`/`EncoderSelector` + the verifying `FfmpegEncoderProbe`, `ExportQuality` presets per encoder, `--encoder`/`--quality`, additive export JSON keys, the export-node seams (design only) | An export picks a verified hardware encoder where one exists, degrades honestly to tuned software where none does, and the determinism gate is unchanged | 0.5 wk |
-| [`P3-test-tiers.md`](P3-test-tiers.md) | P (workflow only — no product code) | `fast`/`standard`/`full` tiers over `[Category]`, the cost-tag vocabulary (`Budget` `Environmental` `Gpu` `Integration` `RealDemo` `Render`), `scripts/test.sh`, the linked `TestTiers` + `TestTierContractTests` guard, and the TUnit 0.25.21 / MTP 1.7.1 filter-grammar findings every other plan's `--treenode-filter` lines depend on | In-flight default runs in 54 s where running everything took 205 s; PR and `main` lanes provably unchanged, by count | 0.5 wk |
+| [`P3-test-tiers.md`](P3-test-tiers.md) | P (workflow only, no product code) | `fast`/`standard`/`full` tiers over `[Category]`, the cost-tag vocabulary (`Budget` `Environmental` `Gpu` `Integration` `RealDemo` `Render`), `scripts/test.sh`, the linked `TestTiers` + `TestTierContractTests` guard, and the TUnit 0.25.21 / MTP 1.7.1 filter-grammar findings every other plan's `--treenode-filter` lines depend on | In-flight default runs in 54 s where running everything took 205 s; PR and `main` lanes provably unchanged, by count | 0.5 wk |
 
 Total ≈ 16 person-weeks, ~12.5 on the A+B critical path (design §9).
 
@@ -123,7 +123,7 @@ public interface ISceneLayer : IDisposable      // …Core.Compositing
 }
 ```
 
-`SceneRenderContext` — one type, extended in place: B0 declares `Frame`, `Time`, `Transform`,
+`SceneRenderContext` is one type, extended in place: B0 declares `Frame`, `Time`, `Transform`,
 `PaneBounds`, `LevelIndex`, `LevelMinZ`, `LevelMaxZ`, `Purpose`, `Palette`, `RenderScaling`,
 `IsSingleLevel`, `BelongsHere(double)`; **B1 adds** `Pane` (`LevelPaneSnapshot`) + `LevelIndexFor`;
 **B3 adds** `Levels` (`MapSpace`) + `LevelCrossings`.
@@ -131,10 +131,10 @@ public interface ISceneLayer : IDisposable      // …Core.Compositing
 `Render(SKCanvas, in SceneRenderContext)` (B0, single pane) / `Render(SKCanvas, in SceneSubmission)`
 (B1 overload, multi-pane) / `InvalidateCaches` / `Dispose`. Sort key `(Slot, Order, Id)`.
 
-**Layer ids** (persisted keys) — **eleven**: `playback2d.radar`, `playback2d.trails`,
+**Layer ids** (persisted keys). All **eleven**: `playback2d.radar`, `playback2d.trails`,
 `playback2d.areaeffects`, `playback2d.vision`, `playback2d.markers`, `playback2d.bomb`,
 `playback2d.floorlabel` (B1), `playback2d.annotations` (B2), `hud.roster` (D3b), `hud.clock`,
-`hud.killfeed` (B4). `hud.roster` was missing from this list until D6 round 3 — the registry is what a
+`hud.killfeed` (B4). `hud.roster` was missing from this list until D6 round 3. The registry is what a
 reader checks a hand-written layer array against, so an id absent from it is an id that can be absent
 from four other places without anyone noticing (G-3).
 
@@ -162,7 +162,7 @@ public sealed class MapSpace {
 ```
 
 `LevelPane.Camera` is a **public field** (B2 mutates it in place) with a justified `CA1051`
-suppression. **`PaneSet` is the only pane-lifetime owner** — B3's "`LevelPaneStore`" is added
+suppression. **`PaneSet` is the only pane-lifetime owner**; B3's "`LevelPaneStore`" is added
 behaviour on it (`RetainUnarranged`, `ResetAll`, `TryGetCamera`), not a second class.
 `ILevelLayoutPolicy.Arrange(MapSpace, LevelDisplayMode, SKSize)` keeps the design's exact signature.
 `FloorSplitter`/`FloorSlice` move into `…Core.Levels` in B1 T1.
@@ -170,7 +170,7 @@ behaviour on it (`RetainUnarranged`, `ResetAll`, `TryGetCamera`), not a second c
 ### 3.5 Timeline (A1 declares, B1 moves to `…Core.Timeline`)
 
 `ITimelineTrack` has **six** members: `Id`, `DisplayName`, `bool IsAvailable(ITimelineData)`,
-`BuildMarkers`, `BuildBands`, `event Action? MarkersChanged`. Every implementer ships all six —
+`BuildMarkers`, `BuildBands`, `event Action? MarkersChanged`. Every implementer ships all six:
 `RoundTrack`, `KillTrack`, `BombTrack` (A1) and `AnnotationTrack` (B2).
 **The timeline x-axis domain is FRAME INDEX** (design §5.6). `TimelineMarker` carries both
 `FrameIndex` and `Tick`; tick-stamped events convert once via `ITimelineData.FrameIndexAtTick` and
@@ -179,18 +179,18 @@ markers resolving to `-1` are dropped. Track ids are bare words: `round`, `kill`
 
 ### 3.6 Input tools (B2 owns; B1 ships only `PanZoomGesture`)
 
-`IPointerTool` is design §5.5 verbatim (four methods, **no wheel member** — wheel is
+`IPointerTool` is design §5.5 verbatim (four methods, **no wheel member**; wheel is
 `InputToolRouter.OnWheel`). `IToolServices`, `ToolPointerEvent`, `InputToolRouter`, `PanZoomTool`,
 `DrawTool`, `EraseTool` live in `…Core.Input`. B1 must not ship a competing tool abstraction.
 
-### 3.7 Render surfaces (B0 declares, C2 extends) — `…Core.Rendering`
+### 3.7 Render surfaces (B0 declares, C2 extends): `…Core.Rendering`
 
 ```csharp
 public enum RenderBackend { CpuRaster, OpenGl, Angle, Vulkan }   // Vulkan declared, unreachable in v1
 public interface IRenderSurfaceProvider : IDisposable            // design §5.8 verbatim
 { RenderBackend Backend { get; } SKSurface CreateSurface(SKSizeI size); void Flush(SKSurface s); }
 ```
-`CpuSurfaceProvider` (B0) · `SceneRenderer` (B0) · `HeadlessSceneRenderer` (`…Pipeline.Headless`) —
+`CpuSurfaceProvider` (B0) · `SceneRenderer` (B0) · `HeadlessSceneRenderer` (`…Pipeline.Headless`),
 **one** headless entry point, **not** a second render path; **owned by B1 as of correction 24**, which
 is the multi-pane form (`SceneCompositor` + `IRenderSurfaceProvider` + `ILevelLayoutPolicy` +
 `ScenePalette`, deriving levels and drawing a `SceneSubmission`). C1's single-pane facade over
@@ -208,7 +208,7 @@ framebuffer and deliberately does **not** use `CpuSurfaceProvider`.
 `IHudDataSource` **and `HudSnapshot`** are `…Core.Hud`; `KillFeedTimeline`,
 `TimelineHudDataSource`, the sinks and the ffmpeg ladder are Pipeline.
 
-**`TrackerFrameSource` is C1's** (`…Pipeline.Frames`), consumed by B4 — one canonical signature:
+**`TrackerFrameSource` is C1's** (`…Pipeline.Frames`), consumed by B4. One canonical signature:
 
 ```csharp
 public TrackerFrameSource(IReadOnlyList<DemoFrame> frames, SceneFrameBuilder builder,
@@ -234,7 +234,7 @@ its own over `() => new EntityTracker()` and never uses `MainViewModel.CreateTra
 (CI 2.0); the zero-allocation assertion is never scaled.
 
 **Perf capture (P1 owns):** `ISceneProfiler` + `LayerPhase` + `PictureCacheOutcome` in
-`…Core.Compositing` (clock-free by construction — Core is banned from `Stopwatch`), attached through
+`…Core.Compositing` (clock-free by construction; Core is banned from `Stopwatch`), attached through
 `SceneCompositor.Profiler`; `ScenePerfRecorder`, `PerfStage`, `PerfReport`, `PerfRow`, `PerfRowKind`
 in `…Pipeline.Benchmarking`, consumed by `ScenePipelineBenchmark.Perf` and `SceneExportSession.Perf`.
 Surfaced as `dv2d bench|export --perf` and an additive `perf` key on the `schema_version: 1` payload.
@@ -242,7 +242,7 @@ Null everywhere by default; the §6 gates run with it detached.
 
 **Encoder selection (P2 owns):** `ExportQuality` (`Draft|Standard|Best`) + `ExportQualities`,
 `VideoEncoder` + `EncoderAcceleration`, `EncoderLadder`, `EncoderSelection` + `EncoderSelector`,
-`IEncoderProbe` + `EncoderProbeResult` + `FfmpegEncoderProbe` + `EncoderProbeCache` — **all in
+`IEncoderProbe` + `EncoderProbeResult` + `FfmpegEncoderProbe` + `EncoderProbeCache`. **All in
 `…Pipeline.Ffmpeg`**, none in Core. `FfmpegSinkOptions` carries `Encoder` + `Quality` in place of
 `Crf` + `H264Preset`. The selection is a **per-session value**, never process-global; the probe cache
 is shared and concurrent because it holds machine facts only. `ExportRequest`, `IFrameSink` and
@@ -271,7 +271,7 @@ string? MapName, string? MapVersion, JsonElement? Annotations, SourceDemoId, Not
 ### 3.10 App-side contracts
 
 **Feature ids** (persisted keys, never renamed), one contiguous `_catalog` block after
-`analysis.breakpoints` and before `// ---- CHROME`, in this order — each phase inserts its own row:
+`analysis.breakpoints` and before `// ---- CHROME`, in this order; each phase inserts its own row:
 `playback2d.annotations` (B2) · `playback2d.timeline` (A1) · `playback2d.levels.auto` (B3) ·
 `playback2d.follow` (A1) · `playback2d.export` (B4). All `SubFeature`, `ParentId
 "tab.playback2d"`, `GroupId null`, `Defaults(true, true, true)`.
@@ -297,12 +297,12 @@ clear follow. Text-input suppression is A1's single global rule, not a per-bindi
 > `AppSettings.cs`. `Playback2DSettingsConsumptionTests` carries a matching allow-list entry. Delete both
 > in the commit that gives the key a consumer (design §0 **O2** / C2 Stage 1).
 
-> **Editing the paragraph below.** `Playback2DSettingsConsumptionTests.RegistryKeys` parses it — from the
-> `AppSettings.Playback2D` marker to the next `---` — and treats **every backticked PascalCase token in
+> **Editing the paragraph below.** `Playback2DSettingsConsumptionTests.RegistryKeys` parses it (from the
+> `AppSettings.Playback2D` marker to the next `---`) and treats **every backticked PascalCase token in
 > that span as a persisted key**. Prose mentioning a type name in backticks there becomes a key the guard
 > then demands on the class. Put commentary above this line, as these two blocks are.
 
-**`AppSettings.Playback2D` — one section, one class, every property flattened into
+**`AppSettings.Playback2D`: one section, one class, every property flattened into
 `SettingsService.WriteInMemory`** (B5 D3; B4's "exclude export keys" is overridden):
 `LastTool`, `AnnotationColorArgb` (uint), `AnnotationWidth`, `AnnotationOpacity`,
 `AnnotationDefaultVisibility` (`Always|Fade|Custom`), `AnnotationFadeInTicks`,
@@ -311,7 +311,7 @@ clear follow. Text-input suppression is A1's single global rule, not a per-bindi
 `AutoLevelFollow` · `TimelineShowKills`, `TimelineShowBomb`, `TimelineShowAnnotations` ·
 `ExportFormatId`, `ExportFps`, `ExportWidth`, `ExportHeight`, `ExportOutputDirectory`,
 `ExportIncludeHud`, `ExportIncludeAnnotations`, **`ExportEncoder`** (`auto|software|<rung>`, P2),
-**`ExportQuality`** (`draft|standard|best`, P2) · `RenderBackend` (`auto|cpu|gpu`) —
+**`ExportQuality`** (`draft|standard|best`, P2) · `RenderBackend` (`auto|cpu|gpu`),
 **pinned here, deliberately NOT on the class** · `LegacyViewport`. First lander creates the class;
 everyone else adds properties.
 
@@ -334,11 +334,11 @@ Reference edges: App → Core, Pipeline, Abstractions.Ui, `Avalonia.Skia`. Pipel
 Modules.Abstractions, `CS2DemoKit.Parser`, `CS2DemoKit.Analysis`. Core → **SkiaSharp only**.
 CLI → Pipeline (**never** `src/App/*`).
 
-### 4.2 `Directory.Packages.props` — the complete delta
+### 4.2 `Directory.Packages.props`: the complete delta
 
 | Package | Version | Added by | Why / policy |
 |---|---|---|---|
-| `SkiaSharp` | `2.88.9` | **B0** | Coherence-pinned to what `Avalonia.Skia 11.3.12` resolves — the Skia lease hands the draw op *Avalonia's* `SKCanvas`, and two `libSkiaSharp` natives in one process is a crash. Bump only with Avalonia. |
+| `SkiaSharp` | `2.88.9` | **B0** | Coherence-pinned to what `Avalonia.Skia 11.3.12` resolves: the Skia lease hands the draw op *Avalonia's* `SKCanvas`, and two `libSkiaSharp` natives in one process is a crash. Bump only with Avalonia. |
 | `SkiaSharp.NativeAssets.Linux` | `2.88.9` | **B0** | CI/test runner native. **Not** `…NoDependencies`: B1 draws text and C1's goldens contain text. CI installs `libfontconfig1`. |
 | `SkiaSharp.NativeAssets.Win32` | `2.88.9` | **C1** | `dv2d` has no Avalonia to bring natives. |
 | `SkiaSharp.NativeAssets.macOS` | `2.88.9` | **C1** | ditto. |
@@ -347,15 +347,15 @@ CLI → Pipeline (**never** `src/App/*`).
 | `SixLabors.ImageSharp` | `3.1.12` (confirm latest 3.1.x) | **B4** | The no-ffmpeg GIF floor only. |
 
 Central Package Management: `PackageReference` items carry **no** `Version=`. Avalonia sub-packages
-move in lockstep; `SkiaSharp` and `Avalonia.Angle.*` are *derived* pins — a lone dependabot bump of
+move in lockstep; `SkiaSharp` and `Avalonia.Angle.*` are *derived* pins, and a lone dependabot bump of
 either is a defect.
 
-### 4.3 `.github/workflows/ci.yml` — the complete delta
+### 4.3 `.github/workflows/ci.yml`: the complete delta
 
 | Job | Added by | Contents |
 |---|---|---|
-| `build` (existing) | — | untouched: `dotnet build src/App/DemoViewer.NET.Desktop -c Release` |
-| `playback2d-tests` | **B0** | `apt-get install -y libfontconfig1`; run `src/Playback2D/DemoViewer.NET.Playback2D.Tests` (`Category!=Budget`). **C1 appends** its CLI test step, `dv2d golden verify --cpu`, and `dv2d bench --gate` (`DV2D_BUDGET_SCALE=2.0`) + artifact upload. **B2/B3/B4 add nothing** — their tests are in that project. |
+| `build` (existing) | none | untouched: `dotnet build src/App/DemoViewer.NET.Desktop -c Release` |
+| `playback2d-tests` | **B0** | `apt-get install -y libfontconfig1`; run `src/Playback2D/DemoViewer.NET.Playback2D.Tests` (`Category!=Budget`). **C1 appends** its CLI test step, `dv2d golden verify --cpu`, and `dv2d bench --gate` (`DV2D_BUDGET_SCALE=2.0`) + artifact upload. **B2/B3/B4 add nothing**; their tests are in that project. |
 | `playback2d-budget` | **B1** | `Category=Budget` lane, `DV2D_BUDGET_SCALE=2.0`, uploads `bench-reports/`. |
 | `render-backends` (matrix ubuntu/windows) | **C2** | probe + parity, `SkipTestException` when no backend. Never required-checks for the GPU throughput number. |
 | `render-backends-gpu` | **C2** | opt-in (`gpu-lane` label / `workflow_dispatch`), self-hosted. |
@@ -364,7 +364,7 @@ either is a defect.
 The App UI suite stays out of CI (`scripts/test-app-suite.sh`, OOM-prone).
 New scripts: `scripts/update-playback2d-goldens.sh` (B0), `scripts/dv2d.sh` (C1).
 `THIRD-PARTY-NOTICES.md`: §d perfect-freehand (B2), §e FFMpegCore + ImageSharp + "ffmpeg (not
-redistributed)" (B4), §f ANGLE (C2) — **append in landing order and renumber then, not now.**
+redistributed)" (B4), §f ANGLE (C2). **Append in landing order and renumber then, not now.**
 
 ---
 
@@ -387,7 +387,7 @@ signature fixes listed.
 | 10 | B0, B1, B2, B3, B4, C1, C2 | Corpus layout + entry names canonicalised under `tests/fixtures/playback2d/{scenes,goldens/cpu,goldens/gpu,annotations}` | Four different golden roots; the same Nuke two-level scene authored under three names. |
 | 11 | B0 (inline), C1 | `SceneFixture` gains `Time`/`Size`/`MapName`/`MapVersion` + `Load`/`Save`; `Camera` stays `ViewportTransform`, `Annotations` stays `JsonElement?` | C1 required fields B0 did not define and types (`CameraScript`, `AnnotationDocument`) that would invert the dependency direction. |
 | 12 | A1 (inline), B2, B3, B4, B5 | Feature-gate seam = `IModuleContext.Features`, shipped by **A1**; no `IFeatureGate` ctor injection anywhere | A1 injected a gate into the module/VM; B5 designed a different seam; B2/B3/B4 each assumed one. Four mechanisms → one. |
-| 13 | A1, B2, B3, B4, B5 | Feature ids form one contiguous block after `analysis.breakpoints`, each phase inserting its own row; B5-1 becomes an audit | B5 added all five and A1/B2/B3/B4 each added theirs — guaranteed duplicate entries. |
+| 13 | A1, B2, B3, B4, B5 | Feature ids form one contiguous block after `analysis.breakpoints`, each phase inserting its own row; B5-1 becomes an audit | B5 added all five and A1/B2/B3/B4 each added theirs, guaranteed duplicate entries. |
 | 14 | B1, B2, B3, B4, B5, C2 | `Playback2DSettings`: one flat class, canonical property names (B5's), `LegacyViewport` not `UseLegacyViewport`, `RenderBackend` not `ExportBackendOverride`, no nested `Export` class, whole section flattened into `WriteInMemory` | Five phases declared overlapping/conflicting shapes; B4 and B5 disagreed on whether export keys are flattened. |
 | 15 | A1, B2 (inline) | `AnnotationTrack` implements all six `ITimelineTrack` members and places markers on the frame-index axis via `FrameIndexAtTick`; track id `annotation` | B2's three-member sketch does not satisfy A1's interface; and a tick-keyed marker on a frame-index axis is a silent mis-placement. |
 | 16 | B2 (inline), B3 | `AnnotationDocument.ApplyMigration(DocDelta)` added to B2 | B3 needed a non-undoable mutation entry point and both plans offered to add it. |
@@ -398,11 +398,11 @@ signature fixes listed.
 | 21 | A1, B2, B4, B5 | `ContractVersion 1.2.0` bumped once, by A1 | A1, B2 and B5 each bumped it to the same value. |
 | 22 | B3 (inline) | `TickAxis` documented as drag-math only; timeline layout stays on A1's frame-index mapping | B3's tick axis would have silently disagreed with A1's control geometry. |
 | 23 | C2 (inline) | Namespace `…Core.Rendering` confirmed for the provider family; B5's `Core/Surfaces/` path corrected | Two homes for `RenderSurfaceProviderFactory`. |
-| 24 | §3.7 (inline), B1, C1 | `HeadlessSceneRenderer` reassigned **C1 → B1**: one class, B1's multi-pane body, with C1's CLI conveniences (`Camera`, `RenderInto`, `RenderPng`, `Backend`, `Compositor`) as wrappers on it | Both phases shipped the type; B1's is what C1's own deviation (1) said B1 would produce, and it is the only one that knows about levels. Resolved at the C1 merge — see C1-cli.md deviation 21. |
+| 24 | §3.7 (inline), B1, C1 | `HeadlessSceneRenderer` reassigned **C1 → B1**: one class, B1's multi-pane body, with C1's CLI conveniences (`Camera`, `RenderInto`, `RenderPng`, `Backend`, `Compositor`) as wrappers on it | Both phases shipped the type; B1's is what C1's own deviation (1) said B1 would produce, and it is the only one that knows about levels. Resolved at the C1 merge; see C1-cli.md deviation 21. |
 | 25 | §3.9 (inline), B1, C1 | `MapAssetPipeline`/`LoadedMapAsset` confirmed **B1's** (the App consumes it); C1's `LoadedMapAssets` withdrawn, its explicit-root `TryLoad(assetsRoot, mapName)` / `TryReadMapVersion` / `TryLocateAssetsRoot` added to B1's class | Add/add collision at the C1 merge; a headless tool told where the art lives must not walk up from `AppContext.BaseDirectory`. C1-cli.md deviation 22. |
 | 26 | B1, C1 | Bench harness unification (correction 8) **executed**: `BenchCommand.Measure` and the CLI's `FrameTimeStats`/`BenchResult` deleted; `dv2d bench` calls `ScenePipelineBenchmark.Run`. B1's harness gains a settable `Camera` and GC collection counts on `BenchmarkReport` (both defaulted) | The seam C1 deviation (7) left for the merge. C1-cli.md deviation 23. |
 
-**Design-doc follow-ups** (one-line edits, owned by the phase that lands first — no plan is blocked
+**Design-doc follow-ups** (one-line edits, owned by the phase that lands first; no plan is blocked
 on them): §12 Q1 → resolved (B4 D1); §12 Q2 → C2's decision doc; §12 Q3 → resolved as B3 (drag
 handles) with B2 shipping the markers; §5.7's "extract it from `MainViewModel`'s wiring" needs the
 correction note; §5.2's placement of `VisionLayer` wholly in Core needs B1's compute/draw split;
@@ -418,25 +418,25 @@ correction note; §5.2's placement of `VisionLayer` wholly in Core needs B1's co
    be written twice.
 2. **B0 next, with two pull-forwards.** (a) The **SkiaSharp-on-WASM spike** (B5 risk 1): the Browser
    head must render one `CpuSurfaceProvider` frame, or the WASM story is discovered broken in the
-   last phase — 1 day, and it can change the packaging. (b) The **`Modules.Abstractions` Avalonia
+   last phase; 1 day, and it can change the packaging. (b) The **`Modules.Abstractions` Avalonia
    split** (D1) is B0's first task and unblocks B4 and C1; do it before anything depends on it.
 3. **B1 and C1 in parallel** once B0's contracts are merged. C1's fixture-only paths (`render`,
    `golden`, `fixture`) need no compositor; its `bench` command lands when B1's harness does. C1
    early also means `TrackerFrameSource` exists before B4 needs it.
-4. **B2 Groups 1 + 4 in parallel with B1** (document model, freehand port, persistence — no B1
+4. **B2 Groups 1 + 4 in parallel with B1** (document model, freehand port, persistence; no B1
    dependency), then Groups 2/3/5 when `Scene2DHost` lands.
-5. **C2 Stage 0 in parallel** with B2 — the whole interface/probe/override/CI surface is no-GPU
+5. **C2 Stage 0 in parallel** with B2: the whole interface/probe/override/CI surface is no-GPU
    work. Its spike (Stages 1–2) needs a machine with a GPU; schedule that separately.
 6. **B3 after B2** (it needs `AnnotationDocument.ApplyMigration` and the level model B1 declared).
 7. **B4 after B1**, consuming C1's `TrackerFrameSource`. Its R3 (1080p CPU ≥ realtime) needs
-   measuring **mid-phase**, not at the end — the three levers are ordered in its plan.
+   measuring **mid-phase**, not at the end; the three levers are ordered in its plan.
 8. **B5 last**, as the audit phase it is. Its settings/gate/keymap contracts are already agreed
    above, so B2–B4 can consume them from day one without waiting.
 
 **Two things the coordinator must decide, not the implementers**
 
 - **The WASM Skia spike (item 2a).** If it fails, Playback2D v2 on browser keeps the Avalonia Skia
-  lease and the offscreen CPU provider becomes desktop-only — a documented degradation, not a
+  lease and the offscreen CPU provider becomes desktop-only, a documented degradation, not a
   blocker, but it changes B5's WASM matrix and should be known before B1 designs the host.
 - **C2's ≥2× realtime exit criterion cannot be closed until B4 lands.** Either accept C2 shipping
   "GPU parity verified, throughput measured against a stub loop" and close the criterion in B4's
@@ -451,7 +451,7 @@ Both open items above are decided:
    `SkiaSharp.NativeAssets.WebAssembly` to the Browser head behind a throwaway branch commit,
    confirm the app boots and a trivial `SKSurface` draw works in-browser, and record the outcome
    in B0's plan under Decisions. If it fails: browser keeps the Avalonia lease only, the offscreen
-   CPU provider is desktop-only, and B5's WASM matrix is updated accordingly — documented
+   CPU provider is desktop-only, and B5's WASM matrix is updated accordingly: documented
    degradation, not a blocker.
 2. **C2 ships with "GPU parity verified, throughput on a stub loop."** The ≥2× realtime exit
    criterion transfers to B4's acceptance checklist (measured with the real `SceneExportSession`

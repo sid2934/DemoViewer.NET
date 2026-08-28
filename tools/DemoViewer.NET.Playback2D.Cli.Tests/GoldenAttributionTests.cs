@@ -21,8 +21,11 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 ///         <c>nuke-single-upper</c>, and the 1080p <c>full-scene-budget</c>.
 ///     </para>
 ///     <para>
-///         <b>It renders through <see cref="GoldenCommand.PlanFor" /> and
-///         <see cref="GoldenCommand.RenderEntry" /></b> — the command's own statements, not a
+///         <b>
+///             It renders through <see cref="GoldenCommand.PlanFor" /> and
+///             <see cref="GoldenCommand.RenderEntry" />
+///         </b>
+///         , the command's own statements, not a
 ///         reproduction of them. A proof that renders a lookalike stack proves nothing about the stack
 ///         the gate judges, and the two owners of these PNGs have drifted apart once already.
 ///     </para>
@@ -37,7 +40,7 @@ public class GoldenAttributionTests
 {
     /// <summary>
     ///     Every entry <c>golden verify</c> actually judges, read off the manifest rather than listed
-    ///     here — so a corpus entry added tomorrow is attributed tomorrow, and cannot be quietly relaxed
+    ///     here, so a corpus entry added tomorrow is attributed tomorrow and cannot be quietly relaxed
     ///     by <see cref="GoldenTolerance.ForLabelledFrame" /> while nothing proves what it forgives.
     ///     <see cref="EveryEntryTheGateJudges_IsAlsoAttributed" /> asserts the two sets are the same.
     /// </summary>
@@ -56,7 +59,7 @@ public class GoldenAttributionTests
     {
         GoldenCorpus corpus = GoldenCorpus.Load(Dv2d.CorpusDirectory);
         GoldenCorpusEntry entry = corpus.Find(name)
-                                 ?? throw new InvalidOperationException($"no corpus entry '{name}'");
+                                  ?? throw new InvalidOperationException($"no corpus entry '{name}'");
         SceneFixture fixture = SceneFixture.Load(entry.ScenePath);
 
         string goldenPath = entry.GoldenPath(RenderBackend.CpuRaster);
@@ -101,10 +104,9 @@ public class GoldenAttributionTests
     }
 
     /// <summary>
-    ///     The set this suite attributes is the set the gate relaxes — asserted, not assumed. Adding a
-    ///     corpus entry that <c>golden verify</c> judges, without it appearing here, means a frame whose
-    ///     glyph allowance nothing accounts for; this is the assertion that makes that impossible to do
-    ///     by accident.
+    ///     The set this suite attributes is the set the gate relaxes, asserted rather than assumed.
+    ///     A corpus entry <c>golden verify</c> judges without appearing here is a frame whose glyph
+    ///     allowance nothing accounts for.
     /// </summary>
     [Test]
     public async Task EveryEntryTheGateJudges_IsAlsoAttributed()

@@ -16,8 +16,12 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The 2D viewport's chrome contract. When toolbars share ONE grid cell as siblings, an overlap is
-///     invisible in the XAML and total at runtime: <b>the LATER sibling paints over the earlier one AND
-///     wins its hit tests.</b> Docking the persistent chrome into its own <c>Auto</c> row retires that
+///     invisible in the XAML and total at runtime:
+///     <b>
+///         the LATER sibling paints over the earlier one AND
+///         wins its hit tests.
+///     </b>
+///     Docking the persistent chrome into its own <c>Auto</c> row retires that
 ///     corner fight but adds two of its own: a docked strip is measured against the COLUMN rather than
 ///     the window, and a collapse bit that does not give the height back is a chevron that lies.
 ///     <para>
@@ -38,7 +42,7 @@ namespace DemoViewer.NET.AppTests;
 [Category("Render")]
 public class Playback2DHudLayoutTests
 {
-    // Every interactive chrome region in the left column, at the level where they are SIBLINGS — the
+    // Every interactive chrome region in the left column, at the level where they are SIBLINGS: the
     // docked toolbar's three stacked members and the canvas cell's three floating ones. Deliberately not
     // ViewportToolbar itself (it contains the first three) and not the kill-feed / live-sync stack (it is
     // IsHitTestVisible=False, so it cannot steal anything).
@@ -93,7 +97,7 @@ public class Playback2DHudLayoutTests
     }
 
     /// <summary>
-    ///     The toolbar has to be REACHABLE — non-overlapping is not enough: a control the shell reports as
+    ///     The toolbar has to be REACHABLE. Non-overlapping is not enough: a control the shell reports as
     ///     covered at its own centre point is unclickable however good its Bounds look.
     /// </summary>
     [Test]
@@ -128,16 +132,16 @@ public class Playback2DHudLayoutTests
     ///     EVERY interactive control in the docked toolbar, at all three widths, fully inside the viewport
     ///     column and reachable at its own centre.
     ///     <para>
-    ///         820 is the tight one: the column is ~490 px there, and nothing in this tab clips — an
+    ///         820 is the tight one: the column is ~490 px there, and nothing in this tab clips. An
     ///         over-wide strip simply runs under the <c>GridSplitter</c> and the roster panel, later
     ///         siblings of the root grid, which take both the paint and the clicks. Docking changed the
     ///         measure (the strip is now sized by the column, not by the window) but not that failure mode.
     ///     </para>
     ///     <para>
     ///         The export button is forced visible here. <c>CanExport</c> needs a real
-    ///         <c>ModuleContext</c> carrying an export host, which the headless fake is not — so the widest
-    ///         realistic header would otherwise never be measured, and the button is precisely the widest
-    ///         thing the header reserves.
+    ///         <c>ModuleContext</c> carrying an export host, which the headless fake is not, so the widest
+    ///         realistic header would otherwise never be measured, and the button is the widest thing the
+    ///         header reserves.
     ///     </para>
     /// </summary>
     /// <param name="windowWidth">Window width; 820 is the responsive floor the chrome contract is pinned at.</param>
@@ -181,7 +185,7 @@ public class Playback2DHudLayoutTests
                 }
 
                 // A visible control with no control theme measures 0×0, because there is no template to
-                // measure — this is exactly what a themeless ColorPicker looks like (FluentTheme does not
+                // measure. That is exactly what a themeless ColorPicker looks like (FluentTheme does not
                 // ship the ColorPicker control theme). Skipping 0×0 controls here would hide that case, so
                 // a zero-sized visible control is now a failure, not a skip.
                 if (control.Bounds.Width <= 0 || control.Bounds.Height <= 0)
@@ -235,8 +239,12 @@ public class Playback2DHudLayoutTests
     }
 
     /// <summary>
-    ///     The self-check for the rule above. A control with no template is <b>visible, laid out, and
-    ///     0×0</b> — it occupies the tree and none of the screen. The ink <c>ColorPicker</c> is in exactly
+    ///     The self-check for the rule above. A control with no template is
+    ///     <b>
+    ///         visible, laid out, and
+    ///         0×0
+    ///     </b>
+    ///     : it occupies the tree and none of the screen. The ink <c>ColorPicker</c> is in exactly
     ///     this state, because FluentTheme does not ship its control theme, so
     ///     <see cref="EveryDockedControl_IsInsideTheColumn_AndHitTestable" /> must treat it as a failure
     ///     rather than skip it. Without this canary, "unmeasured must be empty" would be an assertion
@@ -247,10 +255,21 @@ public class Playback2DHudLayoutTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            Window window = new() { Width = 400, Height = 200 };
+            Window window = new()
+            {
+                Width = 400,
+                Height = 200
+            };
             StackPanel panel = new();
-            Button themed = new() { Content = "ok" };
-            Button themeless = new() { Content = "ok", Template = null };
+            Button themed = new()
+            {
+                Content = "ok"
+            };
+            Button themeless = new()
+            {
+                Content = "ok",
+                Template = null
+            };
             panel.Children.Add(themed);
             panel.Children.Add(themeless);
             window.Content = panel;
@@ -307,7 +326,7 @@ public class Playback2DHudLayoutTests
             await Assert.That(ghost).IsNull();
 
             // The way back is mounted BY the collapsed state, so a persisted "collapsed" can never be a
-            // state with no exit — the hazard MainViewModel.RestoreSession guards against for the shell's
+            // state with no exit, the hazard MainViewModel.RestoreSession guards against for the shell's
             // drawer and debugger rail.
             await Assert.That(restore).IsNotNull();
 
@@ -320,7 +339,7 @@ public class Playback2DHudLayoutTests
     }
 
     /// <summary>
-    ///     Gated off, the annotation toolbar must leave NO trace in the docked stack — not a
+    ///     Gated off, the annotation toolbar must leave NO trace in the docked stack: not a
     ///     collapsed-but-spaced slot that pushes the header around, and nothing hit-testable anywhere.
     /// </summary>
     [Test]
@@ -359,7 +378,7 @@ public class Playback2DHudLayoutTests
     }
 
     /// <summary>
-    ///     The two chrome bits round-trip through the FILELESS provider — the WASM branch, where a key
+    ///     The two chrome bits round-trip through the FILELESS provider, the WASM branch, where a key
     ///     missing from <c>SettingsService.WriteInMemory</c> writes fine and forgets itself on the next
     ///     read with nothing to see anywhere. The 2D tab is browser-reachable, so both halves of the round
     ///     trip go through the production mapping rather than through hand-written assignments.
@@ -449,7 +468,7 @@ public class Playback2DHudLayoutTests
     }
 
     // The element's rect in the VIEW's coordinate space, or null when it is absent / collapsed / not
-    // laid out — an invisible overlay cannot collide with anything.
+    // laid out. An invisible overlay cannot collide with anything.
     private static Rect? Box(Playback2DView view, string name)
     {
         Control? control = view.GetVisualDescendants().OfType<Control>()

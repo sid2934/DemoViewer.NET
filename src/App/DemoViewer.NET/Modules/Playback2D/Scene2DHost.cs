@@ -2,14 +2,14 @@
 
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
-using Avalonia.Styling;
-using CS2DemoKit.Analysis.Visibility;
+using Avalonia.Threading;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
@@ -32,9 +32,9 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///     <see cref="SceneCompositor" /> and submits one immutable frame per paint to a custom draw
 ///     operation.
 ///     <para>
-///         <b>The Advance/Render split is the whole design.</b> Everything that mutates — the level
-///         set, pane reconciliation, camera lerps, marker smoothing, the vision solve — happens on the
-///         UI thread inside <see cref="AdvanceAndSubmit" />, under the render gate. The draw operation
+///         <b>Advance and Render are split.</b> Everything that mutates (the level set, pane
+///         reconciliation, camera lerps, marker smoothing, the vision solve) happens on the UI thread
+///         inside <see cref="AdvanceAndSubmit" />, under the render gate. The draw operation
 ///         then replays immutable state on Avalonia's render thread. The pre-v2 control did all of that
 ///         inside <c>Control.Render</c>, which is why it could not be exported, benchmarked or tested
 ///         without a window.
@@ -47,50 +47,46 @@ namespace DemoViewer.NET.Modules.Playback2D;
 public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IAnnotationSurface,
     IDisposable
 {
-    private readonly LevelCrossingTracker _crossings = new();
+    private readonly List<InkPoint> _coalesced = new(64);
     private readonly SceneRenderGate _gate = new();
-    private readonly MapSpaceFactory _levels = new();
     private readonly LevelSelection _levelSelection;
+    private readonly MapSpaceFactory _levels = new();
     private readonly PaneSet _panes;
     private readonly SingleLayout _singleLayout = new();
-    private readonly StackedLayout _stackedLayout = new();
-    private readonly List<LevelPaneSnapshot> _snapshots = new(4);
     private readonly MarkerSmoother _smoother = new();
-    private LevelDisplayMode _displayMode = LevelDisplayMode.Stacked;
+    private readonly List<LevelPaneSnapshot> _snapshots = new(4);
+    private readonly StackedLayout _stackedLayout = new();
+    private readonly Lock _submissionLock = new();
 
-    // The input path. B2 replaces B1's direct pan handlers with a router (plan decision D1), so pan,
-    // draw and erase all reach the panes through ONE seam and cannot disagree about which pane a
-    // gesture captured. The services start over a throwaway session and are re-pointed at the tab's
-    // real one when a view-model binds — rebuilding the router there would drop a live gesture.
+    // The input path. Pan, draw and erase all reach the panes through the router, ONE seam, so they
+    // cannot disagree about which pane a gesture captured. The services start over a throwaway session
+    // and are re-pointed at the tab's real one when a view-model binds; rebuilding the router there
+    // would drop a live gesture.
     private readonly SceneHostToolServices _toolServices;
-    private readonly InputToolRouter _router;
-    private readonly List<InkPoint> _coalesced = new(64);
 
-    private AnnotationLayer? _annotationLayer;
+    private LoadedMapAsset? _boundAsset;
     private AnnotationSession? _boundSession;
 
     private SceneCompositor _compositor;
-    private RadarLayer _radarLayer;
-    private VisionLayer _visionLayer;
-    private TextBlobCache _text;
+    private LevelDisplayMode _displayMode = LevelDisplayMode.Stacked;
 
     private WriteableBitmap? _fallbackBitmap;
     private int _followSlot = -1;
-    private int _frameLoopArmCount;
     private bool _frameLoopArmed;
+    private int _gateStressFrames;
     private bool _havePrevFrameTime;
     private bool _initialFitApplied;
     private double _lastDt = 1.0 / 60;
     private (int FrameIndex, int Tick) _lastFrameIdentity = (-1, -1);
-    private bool _leaseUnavailable;
-    private bool _released;
+    private SceneSubmission? _lastSubmission;
     private CameraMode _mode = CameraMode.Fit;
     private ScenePalette _palette = ScenePalette.Dark;
     private TimeSpan _prevFrameTime;
-    private readonly Lock _submissionLock = new();
-    private int _gateStressFrames;
-    private SceneSubmission? _lastSubmission;
+    private RadarLayer _radarLayer;
+    private bool _released;
     private long _submissionId;
+    private TextBlobCache _text;
+    private VisionLayer _visionLayer;
     private Playback2DTabViewModel? _vm;
 
     /// <summary>Creates the host and registers the seven scene layers.</summary>
@@ -100,110 +96,28 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         ClipToBounds = true;
 
         _panes = new PaneSet(_stackedLayout);
-        _smoother.LevelCrossings = _crossings;
+        _smoother.LevelCrossings = CrossingsForTest;
 
         _levelSelection = new LevelSelection(_levels.Space);
         _levelSelection.ActiveLevelChanged += OnActiveLevelChanged;
         _levels.Space.LevelSetChanged += OnLevelSetChanged;
 
         _toolServices = new SceneHostToolServices(this, new AnnotationSession(new AnnotationDocument()));
-        _router = new InputToolRouter(_toolServices, new PanZoomTool());
-        _router.Register(new DrawTool());
-        _router.Register(new EraseTool());
+        Router = new InputToolRouter(_toolServices, new PanZoomTool());
+        Router.Register(new DrawTool());
+        Router.Register(new EraseTool());
 
         BuildScene();
     }
 
     /// <summary>The pointer-tool router. The view drives tool selection and gesture cancellation through it.</summary>
-    internal InputToolRouter Router => _router;
+    internal InputToolRouter Router { get; }
 
     /// <summary>The frame currently being shown. Read by the tool services; never retained.</summary>
     internal Scene2DFrame CurrentSceneFrame => _vm?.CurrentFrame ?? Scene2DFrame.Empty;
 
-    /// <summary>The pane under a host-space point, or null. The successor to <c>SliceIndexAtScreenY</c>.</summary>
-    /// <param name="x">Host X.</param>
-    /// <param name="y">Host Y.</param>
-    internal LevelPane? PaneAtHostPoint(float x, float y) => _panes.PaneAt(x, y);
-
-    /// <summary>Repaint request from a pointer tool. Coalesced by Avalonia.</summary>
-    internal void RequestToolRender()
-    {
-        ArmFrameLoopIfNeeded();
-        InvalidateVisual();
-    }
-
-    /// <summary>Hold-to-pan (plan decision D3). The view sets it from the Space key.</summary>
-    /// <param name="held">Whether Space is down.</param>
-    internal void SetSpacePanHeld(bool held) => _router.IsSpaceHeld = held;
-
-    /// <summary>Esc: abandons whatever gesture is in flight.</summary>
-    internal void CancelActiveGesture()
-    {
-        _router.CancelActive();
-        InvalidateVisual();
-    }
-
-    /// <summary>Selects the active pointer tool.</summary>
-    /// <param name="kind">The tool.</param>
-    internal void SetActiveTool(ToolKind kind) => _router.SetActive(kind);
-
-    // The three above ARE IAnnotationSurface; they predate it and are internal, and an implicit
-    // implementation would have to make them public. Explicit forwarding keeps the surface exactly as
-    // wide as it was while letting the view ask "can this thing host ink?" instead of "is this thing a
-    // Scene2DHost?".
-    void IAnnotationSurface.SetActiveTool(ToolKind kind) => SetActiveTool(kind);
-
-    void IAnnotationSurface.SetSpacePanHeld(bool held) => SetSpacePanHeld(held);
-
-    void IAnnotationSurface.CancelActiveGesture() => CancelActiveGesture();
-
     /// <summary>The annotation layer, once a session has been bound. Test hook.</summary>
-    internal AnnotationLayer? AnnotationLayerForTest => _annotationLayer;
-
-    /// <summary>
-    ///     Builds the text cache, the seven layers and the compositor over them.
-    ///     <para>
-    ///         Separate from the constructor because the host <i>releases</i> all of it on detach and
-    ///         has to be able to build it again on a re-attach: Avalonia detaches and re-attaches the
-    ///         same control on a re-parent, a re-template and a presenter recycling its content, and a
-    ///         host that could only be born once renders nothing for the rest of the session.
-    ///     </para>
-    /// </summary>
-    [MemberNotNull(nameof(_compositor), nameof(_radarLayer), nameof(_visionLayer), nameof(_text))]
-    private void BuildScene()
-    {
-        _text = new TextBlobCache();
-        _radarLayer = new RadarLayer();
-        _visionLayer = new VisionLayer(
-            new VisibilityEngineSolver(() => _vm?.VisionEngine, _smoother), _smoother);
-
-        _compositor = new SceneCompositor
-        {
-            Gate = _gate
-        };
-        _compositor.Add(_radarLayer);
-        _compositor.Add(new TrailLayer());
-        _compositor.Add(new AreaEffectLayer());
-        _compositor.Add(_visionLayer);
-        _compositor.Add(new MarkerLayer(_smoother, _text));
-        _compositor.Add(new BombLayer());
-        _compositor.Add(new FloorLabelLayer(_text));
-
-        // The map bundle and the annotation session are re-pulled on the next SyncFromViewModel, so the
-        // fresh layers are bound.
-        _boundAsset = null;
-        _annotationLayer = null;
-        _boundSession = null;
-        _released = false;
-    }
-
-    /// <summary>
-    ///     Releases the compositor, its layers and the fallback bitmap. Also runs on detach: a tab's
-    ///     view is destroyed and rebuilt on every activation, so leaking one compositor's worth of
-    ///     SKPaints, SKPaths and recorded pictures per activation would be a steady native-memory climb.
-    ///     Idempotent.
-    /// </summary>
-    public void Dispose() => ReleaseResources();
+    internal AnnotationLayer? AnnotationLayerForTest { get; private set; }
 
     /// <summary>The layer stack. B2 and B4 register their layers on it.</summary>
     public SceneCompositor Compositor => _compositor;
@@ -215,42 +129,70 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         set => _panes.Policy = value;
     }
 
-    /// <summary>The resolved level set. B3's level strip reads it.</summary>
-    public MapSpace Levels => _levels.Space;
+    /// <summary>
+    ///     Follow-camera deadzone half-extent in world units. B1's one deliberate behaviour change;
+    ///     0 reproduces the pre-v2 feel exactly.
+    /// </summary>
+    public double FollowDeadzoneHalfWorld { get; set; } = 180;
+
+    /// <summary>Test hook: the rendered transform of the lowest pane. Same name as the pre-v2 control's.</summary>
+    internal ViewportTransform PrimaryCameraTransform =>
+        _panes.Panes.Count > 0 ? _panes.Panes[0].Camera.Current : default;
+
+    /// <summary>Test hook: how many panes are arranged. 1 under <c>Single</c>, one per floor under <c>Stacked</c>.</summary>
+    internal int PaneCountForTest => _panes.Panes.Count;
+
+    /// <summary>Test hook: the level the first arranged pane is showing.</summary>
+    internal MapLevelId PrimaryPaneLevelForTest =>
+        _panes.Panes.Count > 0 ? _panes.Panes[0].LevelId : MapLevelId.None;
+
+    /// <summary>Test hook: which entities changed floor on the last advanced frame.</summary>
+    internal LevelCrossingTracker CrossingsForTest { get; } = new();
+
+    /// <summary>Test hook: whether the lowest pane is in manual override.</summary>
+    internal bool PrimaryCameraManual =>
+        _panes.Panes.Count > 0 && _panes.Panes[0].Camera.ManualOverride;
+
+    /// <summary>Test hook: could-see segments solved for the last advance.</summary>
+    internal int SightlineCount => _visionLayer.SightlineCount;
+
+    /// <summary>Test hook: true once the Skia lease failed and the CPU fallback took over.</summary>
+    internal bool LeaseUnavailable { get; private set; }
 
     /// <summary>
-    ///     Freezes the live panes' cameras into a <see cref="CameraScript.MirrorLiveView" /> — B4 D12's
-    ///     "capture once, at Start". Panning the real window afterwards changes nothing about the video,
-    ///     which is what makes an export reproducible from its request alone.
-    ///     <para>
-    ///         The snapshot is taken here rather than assembled by the export dialog because
-    ///         <see cref="PaneSet" /> is the only pane-lifetime owner (registry §3.4) and it is private to
-    ///         this control. Before this existed the dialog captured an empty <c>Fixed</c> script and every
-    ///         exported pane silently kept the fit its own level was born with — right for a whole round,
-    ///         wrong for a user who had zoomed into A site (B4 deviation 20).
-    ///     </para>
-    ///     <para>
-    ///         Keyed by <see cref="MapLevelId" />, never by pane index: a level set that gains a floor
-    ///         mid-export must not slide every camera down one band (design risk 5). Panes with no level
-    ///         yet — the state before the first frame push — produce an empty script, which resolves to
-    ///         the per-level fit exactly as before.
-    ///     </para>
+    ///     Test hook: how many times the animation loop has been armed. The loop is
+    ///     <b>self-terminating</b>: it re-arms only while a camera is settling or a marker is gliding, so
+    ///     on an idle tab this stops growing. A loop that spins forever burns a core in the background
+    ///     and is invisible until someone notices the fan.
     /// </summary>
-    public CameraScript CaptureCameraScript()
-    {
-        IReadOnlyList<LevelPane> panes = _panes.Panes;
-        ImmutableArray<PaneCameraSnapshot>.Builder builder =
-            ImmutableArray.CreateBuilder<PaneCameraSnapshot>(panes.Count);
+    internal int FrameLoopArmCountForTest { get; private set; }
 
-        for (int i = 0; i < panes.Count; i++)
-        {
-            LevelPane pane = panes[i];
-            builder.Add(new PaneCameraSnapshot(pane.LevelId, pane.Camera.Current,
-                pane.Camera.ManualOverride));
-        }
+    /// <summary>Test hook: the id of the most recent submission. Must be strictly monotonic.</summary>
+    internal long LastSubmissionIdForTest => Interlocked.Read(ref _submissionId);
 
-        return new CameraScript.MirrorLiveView(builder.ToImmutable(), _displayMode);
-    }
+    /// <summary>Test hook: how many frames the gate stress worker managed to draw.</summary>
+    internal int GateStressFramesForTest => _gateStressFrames;
+
+    // The three above ARE IAnnotationSurface; they predate it and are internal, and an implicit
+    // implementation would have to make them public. Explicit forwarding keeps the surface exactly as
+    // wide as it was while letting the view ask "can this thing host ink?" instead of "is this thing a
+    // Scene2DHost?".
+    void IAnnotationSurface.SetActiveTool(ToolKind kind) => SetActiveTool(kind);
+
+    void IAnnotationSurface.SetSpacePanHeld(bool held) => SetSpacePanHeld(held);
+
+    void IAnnotationSurface.CancelActiveGesture() => CancelActiveGesture();
+
+    /// <summary>
+    ///     Releases the compositor, its layers and the fallback bitmap. Also runs on detach: a tab's
+    ///     view is destroyed and rebuilt on every activation, so leaking one compositor's worth of
+    ///     SKPaints, SKPaths and recorded pictures per activation would be a steady native-memory climb.
+    ///     Idempotent.
+    /// </summary>
+    public void Dispose() => ReleaseResources();
+
+    /// <summary>The resolved level set. The level strip reads it.</summary>
+    public MapSpace Levels => _levels.Space;
 
     /// <inheritdoc />
     public event Action? LevelStateChanged;
@@ -318,81 +260,6 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         InvalidateVisual();
     }
 
-    /// <summary>
-    ///     Follow-camera deadzone half-extent in world units. B1's one deliberate behaviour change;
-    ///     0 reproduces the pre-v2 feel exactly.
-    /// </summary>
-    public double FollowDeadzoneHalfWorld { get; set; } = 180;
-
-    /// <summary>Test hook: the rendered transform of the lowest pane. Same name as the pre-v2 control's.</summary>
-    internal ViewportTransform PrimaryCameraTransform =>
-        _panes.Panes.Count > 0 ? _panes.Panes[0].Camera.Current : default;
-
-    /// <summary>Test hook: how many panes are arranged. 1 under <c>Single</c>, one per floor under <c>Stacked</c>.</summary>
-    internal int PaneCountForTest => _panes.Panes.Count;
-
-    /// <summary>Test hook: the level the first arranged pane is showing.</summary>
-    internal MapLevelId PrimaryPaneLevelForTest =>
-        _panes.Panes.Count > 0 ? _panes.Panes[0].LevelId : MapLevelId.None;
-
-    /// <summary>Test hook: which entities changed floor on the last advanced frame.</summary>
-    internal LevelCrossingTracker CrossingsForTest => _crossings;
-
-    /// <summary>Test hook: whether the lowest pane is in manual override.</summary>
-    internal bool PrimaryCameraManual =>
-        _panes.Panes.Count > 0 && _panes.Panes[0].Camera.ManualOverride;
-
-    /// <summary>Test hook: could-see segments solved for the last advance.</summary>
-    internal int SightlineCount => _visionLayer.SightlineCount;
-
-    /// <summary>Test hook: true once the Skia lease failed and the CPU fallback took over.</summary>
-    internal bool LeaseUnavailable => _leaseUnavailable;
-
-    /// <summary>Test hook: forces the CPU fallback path on, so it is exercised without a broken backend.</summary>
-    internal void ForceLeaseUnavailableForTest() => _leaseUnavailable = true;
-
-    /// <summary>
-    ///     Test hook: how many times the animation loop has been armed. The loop is
-    ///     <b>self-terminating</b> — it re-arms only while a camera is settling or a marker is gliding —
-    ///     so on an idle tab this stops growing. A loop that spins forever burns a core in the
-    ///     background and is invisible until someone notices the fan.
-    /// </summary>
-    internal int FrameLoopArmCountForTest => _frameLoopArmCount;
-
-    /// <summary>Test hook: the id of the most recent submission. Must be strictly monotonic.</summary>
-    internal long LastSubmissionIdForTest => Interlocked.Read(ref _submissionId);
-
-    /// <summary>Test hook: how many frames the gate stress worker managed to draw.</summary>
-    internal int GateStressFramesForTest => _gateStressFrames;
-
-    /// <summary>
-    ///     Test hook: replays the last submission on the CALLING thread, exactly as the draw operation
-    ///     would. Used by the render-gate stress test to put a real second thread against the compositor
-    ///     while the UI thread advances (design risk 2); there is no other way to exercise that race
-    ///     without a real GPU backend under the headless harness.
-    /// </summary>
-    /// <param name="canvas">A canvas the caller owns.</param>
-    internal void RenderForGateStressTest(SKCanvas canvas)
-    {
-        SceneSubmission submission;
-        lock (_submissionLock)
-        {
-            if (_lastSubmission is not { } captured)
-            {
-                return;
-            }
-
-            submission = captured;
-        }
-
-        using (_gate.Enter())
-        {
-            _compositor.Render(canvas, in submission);
-        }
-
-        Interlocked.Increment(ref _gateStressFrames);
-    }
-
     /// <summary>The active camera mode. Re-arms every pane's auto camera and re-applies the fit.</summary>
     public CameraMode Mode
     {
@@ -436,6 +303,133 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         InvalidateVisual();
     }
 
+    /// <summary>The pane under a host-space point, or null. The successor to <c>SliceIndexAtScreenY</c>.</summary>
+    /// <param name="x">Host X.</param>
+    /// <param name="y">Host Y.</param>
+    internal LevelPane? PaneAtHostPoint(float x, float y) => _panes.PaneAt(x, y);
+
+    /// <summary>Repaint request from a pointer tool. Coalesced by Avalonia.</summary>
+    internal void RequestToolRender()
+    {
+        ArmFrameLoopIfNeeded();
+        InvalidateVisual();
+    }
+
+    /// <summary>Hold-to-pan. The view sets it from the Space key.</summary>
+    /// <param name="held">Whether Space is down.</param>
+    internal void SetSpacePanHeld(bool held) => Router.IsSpaceHeld = held;
+
+    /// <summary>Esc: abandons whatever gesture is in flight.</summary>
+    internal void CancelActiveGesture()
+    {
+        Router.CancelActive();
+        InvalidateVisual();
+    }
+
+    /// <summary>Selects the active pointer tool.</summary>
+    /// <param name="kind">The tool.</param>
+    internal void SetActiveTool(ToolKind kind) => Router.SetActive(kind);
+
+    /// <summary>
+    ///     Builds the text cache, the seven layers and the compositor over them.
+    ///     <para>
+    ///         Separate from the constructor because the host <i>releases</i> all of it on detach and
+    ///         has to be able to build it again on a re-attach: Avalonia detaches and re-attaches the
+    ///         same control on a re-parent, a re-template and a presenter recycling its content, and a
+    ///         host that could only be born once renders nothing for the rest of the session.
+    ///     </para>
+    /// </summary>
+    [MemberNotNull(nameof(_compositor), nameof(_radarLayer), nameof(_visionLayer), nameof(_text))]
+    private void BuildScene()
+    {
+        _text = new TextBlobCache();
+        _radarLayer = new RadarLayer();
+        _visionLayer = new VisionLayer(
+            new VisibilityEngineSolver(() => _vm?.VisionEngine, _smoother), _smoother);
+
+        _compositor = new SceneCompositor
+        {
+            Gate = _gate
+        };
+        _compositor.Add(_radarLayer);
+        _compositor.Add(new TrailLayer());
+        _compositor.Add(new AreaEffectLayer());
+        _compositor.Add(_visionLayer);
+        _compositor.Add(new MarkerLayer(_smoother, _text));
+        _compositor.Add(new BombLayer());
+        _compositor.Add(new FloorLabelLayer(_text));
+
+        // The map bundle and the annotation session are re-pulled on the next SyncFromViewModel, so the
+        // fresh layers are bound.
+        _boundAsset = null;
+        AnnotationLayerForTest = null;
+        _boundSession = null;
+        _released = false;
+    }
+
+    /// <summary>
+    ///     Freezes the live panes' cameras into a <see cref="CameraScript.MirrorLiveView" />: capture
+    ///     once, at Start. Panning the real window afterwards changes nothing about the video, so an
+    ///     export is reproducible from its request alone.
+    ///     <para>
+    ///         The snapshot is taken here rather than assembled by the export dialog because
+    ///         <see cref="PaneSet" /> is the only pane-lifetime owner and it is private to this control.
+    ///         An empty <c>Fixed</c> script leaves every exported pane on the fit its own level was born
+    ///         with: right for a whole round, wrong for a user who had zoomed into A site.
+    ///     </para>
+    ///     <para>
+    ///         Keyed by <see cref="MapLevelId" />, never by pane index: a level set that gains a floor
+    ///         mid-export must not slide every camera down one band. Panes with no level yet, the state
+    ///         before the first frame push, produce an empty script, which resolves to the per-level fit.
+    ///     </para>
+    /// </summary>
+    public CameraScript CaptureCameraScript()
+    {
+        IReadOnlyList<LevelPane> panes = _panes.Panes;
+        ImmutableArray<PaneCameraSnapshot>.Builder builder =
+            ImmutableArray.CreateBuilder<PaneCameraSnapshot>(panes.Count);
+
+        for (int i = 0; i < panes.Count; i++)
+        {
+            LevelPane pane = panes[i];
+            builder.Add(new PaneCameraSnapshot(pane.LevelId, pane.Camera.Current,
+                pane.Camera.ManualOverride));
+        }
+
+        return new CameraScript.MirrorLiveView(builder.ToImmutable(), _displayMode);
+    }
+
+    /// <summary>Test hook: forces the CPU fallback path on, so it is exercised without a broken backend.</summary>
+    internal void ForceLeaseUnavailableForTest() => LeaseUnavailable = true;
+
+    /// <summary>
+    ///     Test hook: replays the last submission on the CALLING thread, exactly as the draw operation
+    ///     would. Used by the render-gate stress test to put a real second thread against the compositor
+    ///     while the UI thread advances (design risk 2); there is no other way to exercise that race
+    ///     without a real GPU backend under the headless harness.
+    /// </summary>
+    /// <param name="canvas">A canvas the caller owns.</param>
+    internal void RenderForGateStressTest(SKCanvas canvas)
+    {
+        SceneSubmission submission;
+        lock (_submissionLock)
+        {
+            if (_lastSubmission is not { } captured)
+            {
+                return;
+            }
+
+            submission = captured;
+        }
+
+        using (_gate.Enter())
+        {
+            _compositor.Render(canvas, in submission);
+        }
+
+        Interlocked.Increment(ref _gateStressFrames);
+    }
+
     /// <summary>Test hook: the smoothed draw position for a slot. Same name as the pre-v2 control's.</summary>
     /// <param name="slot">Roster slot.</param>
     internal (float X, float Y)? SmoothedMarkerPosition(int slot) => _smoother.Position(slot);
@@ -459,7 +453,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         base.OnAttachedToVisualTree(e);
 
         // A re-attach of a host that was released on a previous detach. Rebuild before anything below
-        // touches the compositor — RefreshPalette invalidates its caches on the very next line.
+        // touches the compositor; RefreshPalette invalidates its caches on the very next line.
         if (_released)
         {
             BuildScene();
@@ -501,8 +495,8 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         _fallbackBitmap = null;
     }
 
-    // ── Pointer input. Every gesture goes through the router (plan decision D1); this control's job is
-    //    to turn Avalonia events into pane-and-world coordinates and nothing else.
+    // ── Pointer input. Every gesture goes through the router; this control's job is to turn Avalonia
+    //    events into pane-and-world coordinates and nothing else.
 
     /// <inheritdoc />
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -514,10 +508,10 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         // refreshed from it here, at the one moment the router reads it. Same "sampled at press time"
         // discipline as the divert expression, and it cannot go stale between a toolbar click and the
         // next gesture the way a bind-time or frame-time mirror would while the tab sits paused.
-        _router.SecondaryTool = _boundSession?.SecondaryTool;
+        Router.SecondaryTool = _boundSession?.SecondaryTool;
 
-        ToolPointerEvent sample = Translate(e, includeIntermediate: false);
-        if (_router.OnPressed(in sample))
+        ToolPointerEvent sample = Translate(e, false);
+        if (Router.OnPressed(in sample))
         {
             e.Pointer.Capture(this);
         }
@@ -529,13 +523,13 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         base.OnPointerMoved(e);
         ArgumentNullException.ThrowIfNull(e);
 
-        if (!_router.IsGestureOpen)
+        if (!Router.IsGestureOpen)
         {
             return;
         }
 
-        ToolPointerEvent sample = Translate(e, includeIntermediate: true);
-        _router.OnMoved(in sample);
+        ToolPointerEvent sample = Translate(e, true);
+        Router.OnMoved(in sample);
     }
 
     /// <inheritdoc />
@@ -545,35 +539,35 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         ArgumentNullException.ThrowIfNull(e);
 
         // InitialPressMouseButton, never ButtonOf: the pressed-button flags on a RELEASE describe what is
-        // STILL down, so a plain left release reports None and a chorded middle release reports Left —
+        // STILL down, so a plain left release reports None and a chorded middle release reports Left,
         // the one value that would let a stray middle click close the left stroke. Avalonia names the
         // button this release actually belongs to; the router refuses the rest.
         ToolPointerEvent sample =
-            Translate(e, includeIntermediate: true, ButtonOf(e.InitialPressMouseButton));
+            Translate(e, true, ButtonOf(e.InitialPressMouseButton));
 
         // Capture follows the GESTURE. A refused chord release leaves it held, or the remainder of the
         // drag would arrive at whatever is under the cursor instead of at the stroke that owns it.
-        if (_router.OnReleased(in sample))
+        if (Router.OnReleased(in sample))
         {
             e.Pointer.Capture(null);
         }
     }
 
     /// <summary>
-    ///     An OS-cancelled contact — a touch or pen lifted out of range, a system gesture, another
-    ///     element taking the pointer — <b>abandons</b> the gesture.
+    ///     An OS-cancelled contact (a touch or pen lifted out of range, a system gesture, another element
+    ///     taking the pointer) <b>abandons</b> the gesture.
     ///     <para>
     ///         Cancel, never commit: no button was released, so treating it as a release would write a
-    ///         stroke the user did not finish. And without it the gesture stayed open with capture gone, so
-    ///         <c>OnPointerMoved</c> (which gates only on <c>IsGestureOpen</c>) kept extending the stroke
-    ///         with no button held, for as long as the pointer stayed over the surface.
+    ///         stroke the user did not finish. Without it the gesture stays open with capture gone, and
+    ///         <c>OnPointerMoved</c> (which gates only on <c>IsGestureOpen</c>) keeps extending the stroke
+    ///         with no button held, for as long as the pointer stays over the surface.
     ///     </para>
     /// </summary>
     /// <param name="e">The capture-lost event.</param>
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
-        _router.CancelActive();
+        Router.CancelActive();
     }
 
     /// <inheritdoc />
@@ -589,7 +583,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             return;
         }
 
-        _router.OnWheel(new ToolWheelEvent(pane, new SKPoint((float)p.X, (float)p.Y),
+        Router.OnWheel(new ToolWheelEvent(pane, new SKPoint((float)p.X, (float)p.Y),
             new SKPoint((float)p.X - pane.ViewportRect.Left, (float)p.Y - pane.ViewportRect.Top),
             e.Delta.Y, Translate(e.KeyModifiers)));
         e.Handled = true;
@@ -625,11 +619,11 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             if (points is not null)
             {
                 // Avalonia (11.3.12) returns the sub-frame history OLDEST-FIRST and appends THIS
-                // event's own point LAST — GetIntermediatePoints is literally
+                // event's own point LAST: GetIntermediatePoints is literally
                 // "previous raw points ++ GetCurrentPoint". The ink wants oldest-first and the tool
                 // appends the primary point itself, so the list is walked forwards and the TRAILING
-                // entry is dropped. Walking it backwards folded every fast drag back on itself and
-                // duplicated the primary sample; pinned by
+                // entry is dropped. Walking it backwards folds every fast drag back on itself and
+                // duplicates the primary sample; pinned by
                 // Playback2DAnnotationHostTests.CoalescedSamples_ReachTheInk_OldestFirst_AndOnlyOnce.
                 for (int i = 0; i < points.Count - 1; i++)
                 {
@@ -661,7 +655,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             Pressure = pressure,
             Button = button ?? ButtonOf(e),
             Modifiers = Translate(e.KeyModifiers),
-            Intermediate = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_coalesced)
+            Intermediate = CollectionsMarshal.AsSpan(_coalesced)
         };
     }
 
@@ -690,8 +684,8 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         return properties.IsLeftButtonPressed ? ToolPointerButton.Left : ToolPointerButton.None;
     }
 
-    // The button a release BELONGS to, from PointerReleasedEventArgs.InitialPressMouseButton — which is
-    // the only thing on a release that names the button that came up rather than the ones still held.
+    // The button a release BELONGS to, from PointerReleasedEventArgs.InitialPressMouseButton, the only
+    // thing on a release that names the button that came up rather than the ones still held.
     // The X buttons reach no tool, so they map to None and the router reads that as "the gesture's own".
     private static ToolPointerButton ButtonOf(MouseButton button) => button switch
     {
@@ -740,7 +734,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             submission = AdvanceAndSubmit(bounds);
         }
 
-        if (_leaseUnavailable)
+        if (LeaseUnavailable)
         {
             RenderCpuFallback(context, bounds, in submission);
             return;
@@ -772,7 +766,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         if (discontinuity)
         {
             ResetDeadzones();
-            _crossings.Reset();
+            CrossingsForTest.Reset();
         }
 
         SKSize host = new((float)bounds.Width, (float)bounds.Height);
@@ -783,8 +777,8 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             // picture is keyed on a level id that may now describe a different Z range. The ink layer
             // holds its own per-level pictures, outside the compositor's cache, so it is told too.
             _compositor.InvalidateCaches();
-            _annotationLayer?.InvalidateLevels();
-            _crossings.Reset();
+            AnnotationLayerForTest?.InvalidateLevels();
+            CrossingsForTest.Reset();
             _panes.RetainUnarranged(_levels.Space.LastChange);
         }
 
@@ -818,7 +812,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         keepArmed |= _compositor.Advance(in time, frame);
 
         // A crossing is true for exactly one frame, and everything that cares has now advanced.
-        _crossings.EndFrame();
+        CrossingsForTest.EndFrame();
 
         if (keepArmed)
         {
@@ -848,12 +842,12 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         return submission;
     }
 
-    // ── The CPU fallback (plan T13). ─────────────────────────────────────────────────────────────────
+    // ── The CPU fallback. ────────────────────────────────────────────────────────────────────────────
 
     // Renders into a cached WriteableBitmap on the UI thread and blits it. The SKSurface is created
-    // DIRECTLY over the locked framebuffer, so there is no full-frame ReadPixels copy per frame —
-    // which is also why CpuSurfaceProvider is not used here: that seam is for offscreen consumers that
-    // own their own memory (plan decision D-7).
+    // DIRECTLY over the locked framebuffer, so there is no full-frame ReadPixels copy per frame. That
+    // is also why CpuSurfaceProvider is not used here: that seam is for offscreen consumers that own
+    // their own memory.
     private void RenderCpuFallback(DrawingContext context, Rect bounds, in SceneSubmission submission)
     {
         double scaling = VisualRoot?.RenderScaling ?? 1.0;
@@ -889,14 +883,14 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
     private void OnLeaseUnavailable()
     {
-        if (_leaseUnavailable)
+        if (LeaseUnavailable)
         {
             return;
         }
 
-        _leaseUnavailable = true;
+        LeaseUnavailable = true;
         // The op runs on the render thread; hop back before touching the control.
-        Avalonia.Threading.Dispatcher.UIThread.Post(InvalidateVisual);
+        Dispatcher.UIThread.Post(InvalidateVisual);
     }
 
     // ── Lifecycle + the animation loop. ──────────────────────────────────────────────────────────────
@@ -933,7 +927,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         // A new view-model (or a detach) must not glide markers from a previous demo's positions, and
         // its level split belongs to a different map.
         _smoother.Clear();
-        _crossings.Reset();
+        CrossingsForTest.Reset();
         _levels.Reset();
         _panes.Clear();
         _initialFitApplied = false;
@@ -941,7 +935,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
         // A gesture in flight belongs to the outgoing view-model's document; carrying it across would
         // commit half a stroke into a different demo's annotations.
-        _router.CancelActive();
+        Router.CancelActive();
 
         if (_vm is null)
         {
@@ -991,14 +985,12 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         }
     }
 
-    private LoadedMapAsset? _boundAsset;
-
     // Registers (or drops) the ink layer for the tab's session.
     //
     // Under the render gate on purpose: RenderPane walks the layer list BY INDEX on Avalonia's render
     // thread, and this is the first phase that adds or removes a layer in response to something a user
     // did. An unsynchronized mutation there surfaces as an intermittent ArgumentOutOfRangeException on
-    // the render thread — which no golden would ever catch (B1 review carry-forward 28).
+    // the render thread, which no golden would ever catch.
     private void BindAnnotations(AnnotationSession? session)
     {
         if (ReferenceEquals(_boundSession, session))
@@ -1010,16 +1002,16 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
         using (_gate.Enter())
         {
-            if (_annotationLayer is not null)
+            if (AnnotationLayerForTest is not null)
             {
                 _compositor.Remove(SceneLayerIds.Annotations);
-                _annotationLayer = null;
+                AnnotationLayerForTest = null;
             }
 
             if (session is not null)
             {
-                _annotationLayer = new AnnotationLayer(session);
-                _compositor.Add(_annotationLayer);
+                AnnotationLayerForTest = new AnnotationLayer(session);
+                _compositor.Add(AnnotationLayerForTest);
             }
         }
 
@@ -1029,7 +1021,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         }
 
         _toolServices.Session = session;
-        _router.SetActive(session.ActiveTool);
+        Router.SetActive(session.ActiveTool);
     }
 
     private void ArmFrameLoopIfNeeded()
@@ -1045,7 +1037,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         }
 
         _frameLoopArmed = true;
-        _frameLoopArmCount++;
+        FrameLoopArmCountForTest++;
         top.RequestAnimationFrame(OnAnimationFrame);
     }
 
@@ -1054,8 +1046,8 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         _frameLoopArmed = false;
 
         // The ONE wall-clock reading in the whole pipeline, and it happens here in the App: Core
-        // receives it as data (plan §5.8). Clamped so a long stall — paused, backgrounded, or the very
-        // first frame — cannot make the camera jump.
+        // receives it as data. Clamped so a long stall (paused, backgrounded, or the very first frame)
+        // cannot make the camera jump.
         if (_havePrevFrameTime)
         {
             _lastDt = Math.Clamp((now - _prevFrameTime).TotalSeconds, 1.0 / 240, 1.0 / 15);
@@ -1104,7 +1096,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         IReadOnlyList<PlayerMarker> markers = frame.Markers;
         for (int i = 0; i < markers.Count; i++)
         {
-            _crossings.Update(markers[i].Slot, markers[i].WorldZ, space);
+            CrossingsForTest.Update(markers[i].Slot, markers[i].WorldZ, space);
         }
     }
 
@@ -1117,17 +1109,16 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     }
 
     /// <summary>
-    ///     Rebases level-anchored ink when the level SET moves under it (B3 T8, wired in B5).
+    ///     Rebases level-anchored ink when the level SET moves under it.
     ///     <para>
     ///         An annotation drawn on a floor stores that floor's quantized <c>ZMin</c>, and the
-    ///         histogram that derives the bands moves the boundary all demo long — so without this a
-    ///         stroke drawn on Nuke lower stops matching any pane the first time the split shifts, and
-    ///         silently disappears. B3 built and tested the whole remap (<c>TryRemapAnchor</c> →
-    ///         <c>ApplyLevelRebuild</c> → <c>RemapWorldLevels</c>) but could not connect it: B2 had not
-    ///         landed. This is the missing wire; B3's plan item stays open until it exists.
+    ///         histogram that derives the bands moves the boundary all demo long. Without this a stroke
+    ///         drawn on Nuke lower stops matching any pane the first time the split shifts, and silently
+    ///         disappears. This is the wire into the remap chain (<c>TryRemapAnchor</c> →
+    ///         <c>ApplyLevelRebuild</c> → <c>RemapWorldLevels</c>).
     ///     </para>
     ///     <para>
-    ///         Allocation-free unless a band actually moved, and this is not a per-frame path anyway —
+    ///         Allocation-free unless a band actually moved, and not a per-frame path anyway:
     ///         <c>LevelSetChanged</c> fires on a rebuild that changed something, not on every push.
     ///     </para>
     /// </summary>
@@ -1154,7 +1145,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             }
 
             // Anchors are stamped QUANTIZED (DrawTool: MapSpace.QuantizeZ(pane.Level.ZMin)), so the
-            // map has to be keyed the same way — a raw-Z key would match nothing and rebase nothing.
+            // map has to be keyed the same way; a raw-Z key would match nothing and rebase nothing.
             double oldKey = MapSpace.QuantizeZ(before);
             double newKey = MapSpace.QuantizeZ(after);
             if (oldKey.Equals(newKey))

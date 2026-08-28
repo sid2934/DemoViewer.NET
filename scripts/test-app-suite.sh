@@ -29,7 +29,7 @@ while getopts "c:n:t:x" opt; do
   esac
 done
 
-# Kept character-for-character in step with scripts/test.sh and tests/shared/TestTiers.cs — the
+# Kept character-for-character in step with scripts/test.sh and tests/shared/TestTiers.cs. The
 # contract test asserts the script text, so a drifting copy turns every suite red.
 case "$TIER" in
   fast)     TIER_FILTER='[(Category!=Budget)&(Category!=Environmental)&(Category!=Gpu)&(Category!=Integration)&(Category!=RealDemo)&(Category!=Render)]' ;;
@@ -46,7 +46,7 @@ echo "[batch-runner] building $CONFIG..."
 dotnet build "$PROJ" -c "$CONFIG" -v q --nologo || exit 2
 
 # A local-dev convenience: the fastest signal that the scene core is broken, before the heavy batches
-# start. Pass -x wherever that suite has already run — CI does, since `playback2d-tests` gates on it.
+# start. Pass -x wherever that suite has already run; CI does, since `playback2d-tests` gates on it.
 if [ "$SKIP_PB2D" -eq 0 ]; then
   PB2D_PROJ="$ROOT/src/Playback2D/DemoViewer.NET.Playback2D.Tests"
   echo "[batch-runner] playback2d core+pipeline (direct execution, tier=$TIER)"
@@ -58,8 +58,8 @@ fi
 # harmless (they match zero tests in the filter).
 #
 # TWO ROOTS, not one. tests/shared is compiled into this assembly as LINKED source, so its classes are
-# every bit as much part of the partition as the ones under $PROJ — and walking only $PROJ left
-# TestTierContractTests, the guard that keeps the tier filters honest, in no batch at all.
+# every bit as much part of the partition as the ones under $PROJ. Walking only $PROJ left
+# TestTierContractTests, the guard over the tier filters, in no batch at all.
 SRC_ROOTS=("$PROJ" "$ROOT/tests/shared")
 CLASSES=($(grep -rlE '\[Test\]' "${SRC_ROOTS[@]}" --include="*.cs" \
   | xargs grep -hE "^public (sealed |partial )*class" \
@@ -76,8 +76,8 @@ fi
 
 # The audit the batch TOTALS cannot do. '--list-tests' counts a parametrized test once while the run
 # expands it (200 listed -> 208 run), so the floor comparison at the bottom ("ran >= listed") is
-# satisfied with room to spare even when a whole class is missing — which is exactly how the
-# tests/shared gap above stayed invisible for the life of this script. Listing under the CLASS filter
+# satisfied with room to spare even when a whole class is missing. That is how the tests/shared gap
+# above stayed invisible for the life of this script. Listing under the CLASS filter
 # and comparing it to the same listing unfiltered is EXACT: both sides count the same way, so any
 # difference is a class the grep missed.
 COVERED=$(dotnet run --project "$PROJ" -c "$CONFIG" --no-build -- --list-tests \
@@ -85,7 +85,7 @@ COVERED=$(dotnet run --project "$PROJ" -c "$CONFIG" --no-build -- --list-tests \
   | grep -cE '^  [A-Za-z0-9_]+$')
 if [ "$COVERED" -ne "$EXPECTED" ]; then
   echo "[batch-runner] DISCOVERY AUDIT FAILED: the class list covers $COVERED of the $EXPECTED tests" \
-       "this assembly lists — a class escaped the source grep, and every batch below would silently" \
+       "this assembly lists. A class escaped the source grep, and every batch below would silently" \
        "skip it" >&2
   exit 2
 fi
@@ -105,7 +105,7 @@ for ((b = 1; b <= BATCHES; b++)); do
   done
   # Path alternation for the class segment, then the tier's category filter on the method segment.
   # Both halves in one expression is supported; what is NOT is a boolean between two whole paths, or
-  # an unparenthesised operand inside the brackets — see scripts/test.sh for why.
+  # an unparenthesised operand inside the brackets. See scripts/test.sh for why.
   FILTER="/*/*/($(IFS='|'; echo "${MEMBERS[*]}"))/*$TIER_FILTER"
   echo "[batch-runner] batch $b/$BATCHES: ${#MEMBERS[@]} classes"
   OUT=$(dotnet run --project "$PROJ" -c "$CONFIG" --no-build -- --treenode-filter "$FILTER" 2>&1)
@@ -122,7 +122,7 @@ for ((b = 1; b <= BATCHES; b++)); do
 done
 
 echo "[batch-runner] DONE:$TOTAL_LINE"
-# Floor, not equality — see the exact audit above for why the two counts differ. Running FEWER than
+# Floor, not equality. See the exact audit above for why the two counts differ. Running FEWER than
 # listed means a class escaped the source discovery grep.
 if [ "$TOTAL_RUN" -lt "$EXPECTED" ]; then
   echo "[batch-runner] PARTITION AUDIT FAILED: batches ran $TOTAL_RUN tests, assembly discovers $EXPECTED — a class escaped discovery" >&2

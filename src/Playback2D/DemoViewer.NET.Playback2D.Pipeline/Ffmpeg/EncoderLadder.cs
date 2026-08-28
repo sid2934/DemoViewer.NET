@@ -1,5 +1,6 @@
 #region
 
+using System.Diagnostics.CodeAnalysis;
 using DemoViewer.NET.Playback2D.Core.Export;
 
 #endregion
@@ -26,6 +27,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 ///         milliseconds and the ladder moves on.
 ///     </para>
 /// </summary>
+[SuppressMessage("ReSharper", "StaticMemberInitializerReferesToMemberBelow")]
 public static class EncoderLadder
 {
     /// <summary>
@@ -38,6 +40,10 @@ public static class EncoderLadder
     ///     bisect, a bitrate comparison or a "why does this file look different on my laptop" wants.
     /// </summary>
     public const string Software = "software";
+
+    private static readonly VideoEncoder?[] _webm = [Av1Nvenc, Av1Qsv, Av1Amf, Vp9];
+    private static readonly VideoEncoder?[] _mp4 = [H264Nvenc, H264Qsv, H264Amf, X264];
+    private static readonly VideoEncoder?[] _gif = [Gif];
 
     /// <summary>
     ///     AV1 on NVENC. Ada's AV1 block; on Turing and older the probe fails and the ladder moves on.
@@ -76,8 +82,12 @@ public static class EncoderLadder
     ///     <para>
     ///         <b>The <c>-deadline</c>/<c>-cpu-used</c> pair is the whole point of this rung's rewrite.</b>
     ///         Before P2 this invocation carried neither, which is libvpx's slowest setting on a codec
-    ///         whose speed control is exactly those two flags: 97 fps for CRF 30. <c>-deadline realtime
-    ///         -cpu-used 5</c> at CRF 32 is 526 fps for 15 % more bits and an SSIM still above 0.999
+    ///         whose speed control is exactly those two flags: 97 fps for CRF 30.
+    ///         <c>
+    ///             -deadline realtime
+    ///             -cpu-used 5
+    ///         </c>
+    ///         at CRF 32 is 526 fps for 15 % more bits and an SSIM still above 0.999
     ///         (plan D3). <c>-row-mt 1</c> stays on every rung; it is what lets libvpx use more than one
     ///         core per tile.
     ///     </para>
@@ -132,19 +142,15 @@ public static class EncoderLadder
     public static VideoEncoder Gif { get; } = new(
         "gif", "gif", EncoderAcceleration.Software, "", "", "", "");
 
-    private static readonly VideoEncoder[] _webm = [Av1Nvenc, Av1Qsv, Av1Amf, Vp9];
-    private static readonly VideoEncoder[] _mp4 = [H264Nvenc, H264Qsv, H264Amf, X264];
-    private static readonly VideoEncoder[] _gif = [Gif];
-
     /// <summary>
     ///     The rungs for a format, best first. An unknown format id gets the WebM ladder, matching
     ///     <c>SceneExportSession.SupportedFps</c>'s treatment of the same case.
     /// </summary>
     /// <param name="formatId">One of <see cref="ExportFormats" />.</param>
     public static IReadOnlyList<VideoEncoder> For(string? formatId) =>
-        string.Equals(formatId, ExportFormats.Mp4, StringComparison.Ordinal) ? _mp4
-        : string.Equals(formatId, ExportFormats.Gif, StringComparison.Ordinal) ? _gif
-        : _webm;
+        (string.Equals(formatId, ExportFormats.Mp4, StringComparison.Ordinal) ? _mp4
+            : string.Equals(formatId, ExportFormats.Gif, StringComparison.Ordinal) ? _gif
+            : _webm)!;
 
     /// <summary>
     ///     The software rung of a format's ladder — always its last entry. What

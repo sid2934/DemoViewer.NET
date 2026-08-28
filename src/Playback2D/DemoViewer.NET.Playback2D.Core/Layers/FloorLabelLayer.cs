@@ -10,11 +10,10 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Core.Layers;
 
 /// <summary>
-///     The per-band caption — <c>floor 1  z[-352..-128]</c> — in the pane's top-left corner. Port of
-///     the label built at viewport line 588 and drawn at 927.
+///     The per-band caption (<c>floor 1  z[-352..-128]</c>) in the pane's top-left corner.
 ///     <para>
-///         Renders only on a multi-level layout: the pre-v2 single-floor path passed a null label
-///         (line 577), and a lone band showing "floor 0" over the whole map is noise.
+///         Renders only on a multi-level layout: the pre-v2 single-floor path passed a null label, and a
+///         lone band showing "floor 0" over the whole map is noise.
 ///     </para>
 /// </summary>
 public sealed class FloorLabelLayer : ISceneLayer
@@ -23,9 +22,9 @@ public sealed class FloorLabelLayer : ISceneLayer
     private const float MarginY = 6f;
 
     private readonly Dictionary<LabelKey, string> _captions = new(4);
+    private readonly bool _ownsText;
     private readonly SKPaint _paint;
     private readonly TextBlobCache _text;
-    private readonly bool _ownsText;
 
     /// <summary>Creates the layer.</summary>
     /// <param name="text">The shared blob cache. A private one when null, disposed with the layer.</param>

@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using SkiaSharp;
 
 #endregion
@@ -11,7 +12,7 @@ namespace DemoViewer.NET.Playback2D.Core.Levels;
 ///     world Z on".
 ///     <para>
 ///         <b>Assignment is a parity clone of <see cref="FloorSplitter.SliceIndexFor" />.</b>
-///         Contains-first, then nearest by band centre. That fallback is load-bearing — a player on a
+///         Contains-first, then nearest by band centre. That fallback is load-bearing: a player on a
 ///         ramp between bands, or standing above the highest observed band, must still be drawn
 ///         somewhere, and the pre-v2 control's "nearest" answer is what the goldens contain.
 ///         <c>MapSpaceTests</c> pins the two implementations against each other over a Z table.
@@ -19,7 +20,7 @@ namespace DemoViewer.NET.Playback2D.Core.Levels;
 ///     <para>
 ///         <b>Identity is minted, then CARRIED.</b> A quantized lower Z mints the id of a genuinely new
 ///         band; every rebuild after that matches bands to levels by overlap, so a boundary drifting one
-///         or two buckets — which the density-valley histogram does all demo long — keeps every identity
+///         or two buckets (which the density-valley histogram does all demo long) keeps every identity
 ///         intact. See <see cref="Rebuild" /> and <see cref="MapLevelId" />.
 ///     </para>
 /// </summary>
@@ -74,7 +75,7 @@ public sealed class MapSpace
     /// <summary>
     ///     Quantizes a world Z to the id grid. <b>Half-up, not banker's</b>: CS2 maps sit at negative Z
     ///     routinely, and <c>Math.Round</c>'s round-half-to-even would make the rule asymmetric about
-    ///     zero — a silent identity change at exactly the boundary values.
+    ///     zero: a silent identity change at exactly the boundary values.
     /// </summary>
     /// <param name="z">World Z.</param>
     public static double QuantizeZ(double z) => Math.Floor(z / LevelQuantum + 0.5) * LevelQuantum;
@@ -84,11 +85,15 @@ public sealed class MapSpace
     public static MapLevelId IdForZMin(double zMin) => new((int)Math.Floor(zMin / LevelQuantum + 0.5));
 
     /// <summary>
-    ///     The id of the level a stored <c>SpaceRef.World(LevelMinZ)</c> anchor belongs to <b>in this
-    ///     space</b>. The one function annotation consumers may use to turn an anchor into a level id.
+    ///     The id of the level a stored <c>SpaceRef.World(LevelMinZ)</c> anchor belongs to
+    ///     <b>
+    ///         in this
+    ///         space
+    ///     </b>
+    ///     . The one function annotation consumers may use to turn an anchor into a level id.
     ///     <para>
     ///         Not <see cref="IdForZMin" />: that is the MINTING rule, and <see cref="Mint" /> walks a
-    ///         colliding key upward — so after a floor is lost and re-found,
+    ///         colliding key upward, so after a floor is lost and re-found,
     ///         <c>level.Id != IdForZMin(level.ZMin)</c>. A consumer that derives an id from Z instead of
     ///         asking the space compares a minting key against a carried identity and gets false:
     ///         world-anchored ink vanishes, or draws on whichever floor happens to own the old key.
@@ -165,8 +170,11 @@ public sealed class MapSpace
     }
 
     /// <summary>
-    ///     The level index a world Z belongs on, or 0 when the space is empty. <b>Behaviourally
-    ///     identical to <see cref="FloorSplitter.SliceIndexFor" />.</b>
+    ///     The level index a world Z belongs on, or 0 when the space is empty.
+    ///     <b>
+    ///         Behaviourally
+    ///         identical to <see cref="FloorSplitter.SliceIndexFor" />.
+    ///     </b>
     /// </summary>
     /// <param name="worldZ">World Z.</param>
     public int LevelIndexFor(double worldZ)
@@ -207,13 +215,12 @@ public sealed class MapSpace
     ///     until <paramref name="worldZ" /> has cleared that band by at least
     ///     <see cref="LevelHysteresis.SpatialBand" />.
     ///     <para>
-    ///         This is the spatial half of the hysteresis and carries no dwell — an entity must never lag
-    ///         its own level. The temporal half lives in <see cref="LevelHysteresis" />, which is what
-    ///         AutoFollow's view decision uses. The band comes from
-    ///         <see cref="LevelHysteresisOptions.Default" />: this overload has no options parameter, and
-    ///         its production caller — <see cref="LevelCrossingTracker" /> — has none to give. A caller
-    ///         that carries its own tuning applies the band itself; <see cref="LevelHysteresis.Update" />
-    ///         does exactly that.
+    ///         This is the spatial half of the hysteresis and carries no dwell: an entity must never lag
+    ///         its own level. The temporal half lives in <see cref="LevelHysteresis" />, which AutoFollow's
+    ///         view decision uses. The band comes from <see cref="LevelHysteresisOptions.Default" />: this
+    ///         overload has no options parameter, and its production caller
+    ///         (<see cref="LevelCrossingTracker" />) has none to give. A caller that carries its own tuning
+    ///         applies the band itself, as <see cref="LevelHysteresis.Update" /> does.
     ///     </para>
     ///     <para>
     ///         <b>Drawing does not go through here.</b> <c>SceneRenderContext.BelongsHere</c> uses the
@@ -292,8 +299,8 @@ public sealed class MapSpace
     ///     band overlap and minting an id only for a genuinely new band.
     ///     <para>
     ///         <b>Idempotent</b>: an unchanged band list (same Z to within a thousandth, same radar
-    ///         binding) returns <see cref="LevelSetChange.None" /> and raises nothing, which is what lets
-    ///         the caller run this every frame — and it does, because the map bundle can arrive late.
+    ///         binding) returns <see cref="LevelSetChange.None" /> and raises nothing. The caller does run
+    ///         this every frame, because the map bundle can arrive late.
     ///     </para>
     ///     <para>
     ///         <see cref="LastChange" /> is assigned BEFORE <see cref="LevelSetChanged" /> is raised, so
@@ -304,7 +311,7 @@ public sealed class MapSpace
     /// <param name="radarByLevel">Radar image per band, positionally aligned; null for none.</param>
     /// <param name="quality">How confidently the radar images were matched.</param>
     /// <param name="radarNamesByLevel">
-    ///     Bundle file names for <paramref name="radarByLevel" />, positionally aligned. Optional —
+    ///     Bundle file names for <paramref name="radarByLevel" />, positionally aligned. Optional;
     ///     <see cref="MapLevel.RadarImageName" /> is diagnostics, fixtures and radar placement.
     /// </param>
     public LevelSetChange Rebuild(IReadOnlyList<FloorSlice> bands,
@@ -323,8 +330,7 @@ public sealed class MapSpace
         int oldCount = _levels.Count;
         int newCount = bands.Count;
 
-        // 1. Normalise. A degenerate band can only come from a malformed authoritative bundle; widening
-        //    it by one quantum keeps every downstream Span > 0 rather than dividing by zero later.
+        // 1. Normalise (see NormalizedMax).
         double[] minZ = new double[newCount];
         double[] maxZ = new double[newCount];
         for (int i = 0; i < newCount; i++)
@@ -446,9 +452,9 @@ public sealed class MapSpace
     ///     <para>
     ///         <b>Publishes a real removal.</b> <see cref="Rebuild" />'s contract is that
     ///         <see cref="LastChange" /> describes what happened before <see cref="LevelSetChanged" /> is
-    ///         raised, and a reset removes every level. Publishing <see cref="LevelSetChange.None" />
-    ///         here would tell every handler that reconciles against it — <c>PaneSet.RetainUnarranged</c>,
-    ///         the shipped one — that nothing had gone, so a demo unload would keep a pane, a camera and a
+    ///         raised, and a reset removes every level. Publishing <see cref="LevelSetChange.None" /> here
+    ///         would tell every handler that reconciles against it (<c>PaneSet.RetainUnarranged</c> is the
+    ///         shipped one) that nothing had gone, so a demo unload would keep a pane, a camera and a
     ///         picture cache for every floor of the demo that had just closed.
     ///     </para>
     ///     <para>
@@ -506,7 +512,7 @@ public sealed class MapSpace
 
     // The minting rule plus its collision bump: a key already live, or ever minted by this space, walks
     // upward until it is free. Without the "ever minted" half, removing a level and later re-observing
-    // the same band would hand the newcomer the departed level's identity — and with it whatever camera
+    // the same band would hand the newcomer the departed level's identity, and with it whatever camera
     // or annotation still remembered that id.
     private MapLevelId Mint(double zMin, List<MapLevel> staged)
     {
@@ -541,7 +547,7 @@ public sealed class MapSpace
     private static string NameFor(int index) =>
         index < _names.Length
             ? _names[index]
-            : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"L{index}");
+            : string.Create(CultureInfo.InvariantCulture, $"L{index}");
 
     private bool IsUnchanged(IReadOnlyList<FloorSlice> bands, IReadOnlyList<SKImage?>? radarByLevel,
         RadarBindingQuality quality)
@@ -556,9 +562,9 @@ public sealed class MapSpace
             MapLevel level = _levels[i];
             FloorSlice band = bands[i];
 
-            // Against the NORMALIZED max, not the raw one: Rebuild widens a degenerate band, so
-            // comparing raw would find the widened level "different" from the band it was built from
-            // and rebuild — raising LevelSetChanged and dropping every picture cache — on every call.
+            // Against the NORMALIZED max, not the raw one: Rebuild widens a degenerate band, so comparing
+            // raw would find the widened level "different" from the band it was built from and rebuild on
+            // every call, raising LevelSetChanged and dropping every picture cache.
             if (Math.Abs(level.ZMin - band.MinZ) > 1e-3 ||
                 Math.Abs(level.ZMax - NormalizedMax(band)) > 1e-3)
             {

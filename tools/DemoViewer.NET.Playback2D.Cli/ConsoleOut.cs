@@ -9,19 +9,18 @@ using System.Text.Json.Nodes;
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     The tool's output discipline (C1 decision 8). With <c>--json</c>, <b>stdout carries exactly one
-///     JSON object</b> and every human line moves to stderr, so <c>dv2d … --json | jq</c> works without
+///     The tool's output discipline (C1 decision 8). With <c>--json</c>,
+///     <b>
+///         stdout carries exactly one
+///         JSON object
+///     </b>
+///     and every human line moves to stderr, so <c>dv2d … --json | jq</c> works without
 ///     a filter and a CI log still shows the prose. Without it, humans get stdout as usual.
 /// </summary>
 internal static class ConsoleOut
 {
-    // Relaxed escaping: this output goes to a terminal and a CI log, never into HTML, and a reason
-    // string full of ' is a reason string nobody reads.
-    private static readonly JsonSerializerOptions _pretty = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-    };
+    // Relaxed escaping: this output goes to a terminal and a CI log, never into HTML. The default
+    // encoder escapes quotes and other ASCII punctuation, which makes a reason string unreadable.
 
     private static readonly JsonSerializerOptions _compact = new()
     {
@@ -29,7 +28,11 @@ internal static class ConsoleOut
     };
 
     /// <summary>The indented, relaxed-escaping options every JSON artifact this tool writes uses.</summary>
-    public static JsonSerializerOptions Pretty => _pretty;
+    public static JsonSerializerOptions Pretty { get; } = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
 
     /// <summary>Whether <c>--json</c> was given; set once by <see cref="Program" /> before dispatch.</summary>
     public static bool IsJson { get; set; }
@@ -58,7 +61,7 @@ internal static class ConsoleOut
         }
     }
 
-    /// <summary>A warning. Survives <c>--quiet</c> — a warning nobody sees is not a warning.</summary>
+    /// <summary>A warning. Survives <c>--quiet</c>, which suppresses <see cref="Info" /> only.</summary>
     /// <param name="message">The line, printed after <c>warning: </c>.</param>
     public static void Warn(string message) => Human().WriteLine("warning: " + message);
 
@@ -72,7 +75,7 @@ internal static class ConsoleOut
     {
         ArgumentNullException.ThrowIfNull(payload);
         JsonEmitted = true;
-        Console.Out.WriteLine(payload.ToJsonString(_pretty));
+        Console.Out.WriteLine(payload.ToJsonString(Pretty));
     }
 
     /// <summary>Writes one newline-delimited JSON event to stderr (progress, diagnostics).</summary>

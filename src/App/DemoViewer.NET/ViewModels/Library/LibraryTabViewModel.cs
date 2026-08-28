@@ -108,26 +108,6 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     [ObservableProperty]
     private DemoEntry? _selectedEntry;
 
-    /// <summary>
-    ///     Raised when the user selects a demo card WITHOUT opening it (single click / arrow key). The shell
-    ///     answers by rendering that demo's cached record on Match Overview.
-    ///     <para>
-    ///         <b>This must never start work.</b> Selection is a browsing gesture — it reads the cache and
-    ///         nothing else. Opening stays on double-click, where the multi-second parse is something the user
-    ///         asked for; one heavy parse is machine-wide, so a preview that parsed would make arrow-keying
-    ///         the grid worse than useless.
-    ///     </para>
-    /// </summary>
-    public event Action<DemoEntry>? DemoPreviewRequested;
-
-    partial void OnSelectedEntryChanged(DemoEntry? value)
-    {
-        if (value is not null)
-        {
-            DemoPreviewRequested?.Invoke(value);
-        }
-    }
-
     [ObservableProperty]
     private string _selectedPlayer = AllPlayers;
 
@@ -268,6 +248,20 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     public bool HasActiveFilters =>
         !string.IsNullOrWhiteSpace(SearchText) || SelectedPlayer != AllPlayers || MapFilters.Any(m => m.IsSelected);
 
+    /// <summary>How many demos are waiting on a score re-derivation.</summary>
+    public int ScoreRepairCount => _library.ScoreRepairPendingCount;
+
+    /// <summary>Drives the toolbar action's visibility — absent entirely at zero, which is the normal case.</summary>
+    public bool HasScoreRepairPending => ScoreRepairCount > 0;
+
+    /// <summary>
+    ///     Names the work rather than the mechanism. "Repair" alone reads as fixing something broken; these
+    ///     demos are intact and only their cached score is missing.
+    /// </summary>
+    public string ScoreRepairLabel => ScoreRepairCount == 1
+        ? "Re-derive 1 score"
+        : $"Re-derive {ScoreRepairCount} scores";
+
     public void OnActivated(IModuleContext context)
     {
         // Kick the first scan when the tab is first seen (it's the default tab, so this runs at startup).
@@ -280,6 +274,26 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
     public void OnDeactivated()
     {
+    }
+
+    /// <summary>
+    ///     Raised when the user selects a demo card WITHOUT opening it (single click / arrow key). The shell
+    ///     answers by rendering that demo's cached record on Match Overview.
+    ///     <para>
+    ///         <b>This must never start work.</b> Selection is a browsing gesture — it reads the cache and
+    ///         nothing else. Opening stays on double-click, where the multi-second parse is something the user
+    ///         asked for; one heavy parse is machine-wide, so a preview that parsed would make arrow-keying
+    ///         the grid worse than useless.
+    ///     </para>
+    /// </summary>
+    public event Action<DemoEntry>? DemoPreviewRequested;
+
+    partial void OnSelectedEntryChanged(DemoEntry? value)
+    {
+        if (value is not null)
+        {
+            DemoPreviewRequested?.Invoke(value);
+        }
     }
 
     partial void OnIsCardViewChanged(bool value) => OnPropertyChanged(nameof(IsListView));
@@ -312,20 +326,6 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         _scannedOnce = true;
         await _library.RescanAsync();
     }
-
-    /// <summary>How many demos are waiting on a score re-derivation.</summary>
-    public int ScoreRepairCount => _library.ScoreRepairPendingCount;
-
-    /// <summary>Drives the toolbar action's visibility — absent entirely at zero, which is the normal case.</summary>
-    public bool HasScoreRepairPending => ScoreRepairCount > 0;
-
-    /// <summary>
-    ///     Names the work rather than the mechanism. "Repair" alone reads as fixing something broken; these
-    ///     demos are intact and only their cached score is missing.
-    /// </summary>
-    public string ScoreRepairLabel => ScoreRepairCount == 1
-        ? "Re-derive 1 score"
-        : $"Re-derive {ScoreRepairCount} scores";
 
     /// <summary>
     ///     The explicit half-score repair. Enlists the flagged demos for a full re-parse — potentially

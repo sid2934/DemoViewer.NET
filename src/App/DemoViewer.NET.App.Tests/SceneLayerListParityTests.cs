@@ -2,7 +2,6 @@
 
 using Avalonia.Controls;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Views.Playback2D;

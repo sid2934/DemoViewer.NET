@@ -1,14 +1,13 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core;
 using System.Numerics;
-using DemoViewer.NET.Modules;
-using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Playback2D;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
-using DemoViewer.NET.Services;
+using DemoViewer.NET.Modules;
+using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 

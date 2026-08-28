@@ -105,7 +105,7 @@ internal static class Ssim
                 for (int k = 0; k < window; k++)
                 {
                     double weight = kernel[k];
-                    int index = ((centreRow - radius + k) * width) + column;
+                    int index = (centreRow - radius + k) * width + column;
                     mx += weight * hx[index];
                     my += weight * hy[index];
                     mxx += weight * hxx[index];
@@ -113,12 +113,12 @@ internal static class Ssim
                     mxy += weight * hxy[index];
                 }
 
-                double varianceX = mxx - (mx * mx);
-                double varianceY = myy - (my * my);
-                double covariance = mxy - (mx * my);
+                double varianceX = mxx - mx * mx;
+                double varianceY = myy - my * my;
+                double covariance = mxy - mx * my;
 
-                double numerator = ((2 * mx * my) + C1) * ((2 * covariance) + C2);
-                double denominator = ((mx * mx) + (my * my) + C1) * (varianceX + varianceY + C2);
+                double numerator = (2 * mx * my + C1) * (2 * covariance + C2);
+                double denominator = (mx * mx + my * my + C1) * (varianceX + varianceY + C2);
                 double value = denominator == 0 ? 1.0 : numerator / denominator;
 
                 // Floating-point noise can push an identical window a hair past 1; clamping keeps the

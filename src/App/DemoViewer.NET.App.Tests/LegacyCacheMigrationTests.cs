@@ -32,7 +32,11 @@ public class LegacyCacheMigrationTests
     private static string WriteHighlights(string dir, params LegacyHighlightsRow[] rows)
     {
         string path = Path.Combine(dir, "highlights.json");
-        File.WriteAllText(path, JsonSerializer.Serialize(new { Version = 1, Rows = rows }));
+        File.WriteAllText(path, JsonSerializer.Serialize(new
+        {
+            Version = 1,
+            Rows = rows
+        }));
         return path;
     }
 
@@ -180,9 +184,22 @@ public class LegacyCacheMigrationTests
             {
                 r.Players =
                 [
-                    new CachedPlayerInfo { Slot = 1, Name = "s1mple", Team = 3, SteamId64 = "765" }
+                    new CachedPlayerInfo
+                    {
+                        Slot = 1,
+                        Name = "s1mple",
+                        Team = 3,
+                        SteamId64 = "765"
+                    }
                 ];
-                r.Rounds = [new Services.DemoCache.CachedRound { Number = 1, StartTickFrameClock = 500 }];
+                r.Rounds =
+                [
+                    new CachedRound
+                    {
+                        Number = 1,
+                        StartTickFrameClock = 500
+                    }
+                ];
                 r.TickRate = 64;
                 DemoCacheStore.StampParse(r);
             });
@@ -233,13 +250,26 @@ public class LegacyCacheMigrationTests
                     TickRate = 64,
                     ScanState = LegacyHighlightScanState.Indexed,
                     ConfigFingerprint = "fp-legacy",
-                    Players = [new LegacyCachedPlayer { Slot = 1, Name = "s1mple", SteamId64 = "765", Team = 3 }],
+                    Players =
+                    [
+                        new LegacyCachedPlayer
+                        {
+                            Slot = 1,
+                            Name = "s1mple",
+                            SteamId64 = "765",
+                            Team = 3
+                        }
+                    ],
                     Events =
                     [
                         new LegacyCachedHighlight
                         {
-                            RulesetId = "core", HighlightId = "ace", Tick = 54_000,
-                            PlayerSlot = 1, RoundNumber = 7, RenderedTitle = "ace"
+                            RulesetId = "core",
+                            HighlightId = "ace",
+                            Tick = 54_000,
+                            PlayerSlot = 1,
+                            RoundNumber = 7,
+                            RenderedTitle = "ace"
                         }
                     ]
                 });

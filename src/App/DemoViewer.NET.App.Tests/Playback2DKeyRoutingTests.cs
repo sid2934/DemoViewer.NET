@@ -3,6 +3,7 @@
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Layout;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Views.Playback2D;
@@ -96,8 +97,8 @@ public class Playback2DKeyRoutingTests
             {
                 Width = 120,
                 Height = 24,
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
             };
             ((Grid)view.Content!).Children.Add(field);
             Playback2DTimelineHarness.Pump();

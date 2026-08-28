@@ -211,14 +211,14 @@ public class DemoProcessingQueueTests
     }
 
     /// <summary>
-    ///     <c>max=2</c> admits exactly two workers at once — a floor as well as a ceiling.
+    ///     <c>max=2</c> admits exactly two workers at once: a floor as well as a ceiling.
     ///     <para>
     ///         Held on a gate, not a sleep. This used to give each parse a 120 ms <c>Thread.Sleep</c> and
-    ///         then assert the observed peak had reached 2 — which is a bet that the scheduler overlaps
+    ///         then assert the observed peak had reached 2, which is a bet that the scheduler overlaps
     ///         them. On a two-core runner executing four batches in parallel the first job finished
     ///         before the second started, the peak was 1, and CI went red on a queue that was behaving
     ///         perfectly ("but found 1", 2026-08-26). Blocking every parse until two are inside tests the
-    ///         contract — the queue ADMITS two — rather than the machine's timing.
+    ///         contract (the queue ADMITS two) rather than the machine's timing.
     ///     </para>
     ///     <para>
     ///         The two failure modes stay distinguishable. A queue that admits only one fails on
@@ -233,7 +233,7 @@ public class DemoProcessingQueueTests
         RecordingParser parser = new()
         {
             // Parked INSIDE ParseFile, after the concurrency counter has been incremented, so a blocked
-            // worker counts as in flight — which is what makes the peak observable without a race.
+            // worker counts as in flight, which is what makes the peak observable without a race.
             Block = held
         };
         using DemoProcessingQueue q = NewQueue(parser, out HeavyJobGate gate);
@@ -449,18 +449,18 @@ public class DemoProcessingQueueTests
 
     private sealed class RecordingParser
     {
-        private readonly object _lock = new();
         public readonly HashSet<string> FailPaths = new(StringComparer.OrdinalIgnoreCase);
         public readonly ParsedDemo ForegroundDemo = SyntheticDemo();
         public readonly List<string> Processed = [];
-
-        private int _concurrent;
-        private int _maxConcurrent;
+        private readonly object _lock = new();
         public ManualResetEventSlim? Block; // if set, ParseFile waits on it
         public int ByteCalls;
         public int FileCalls;
         public ParsedDemo? LastFileDemo;
         public int SleepMs;
+
+        private int _concurrent;
+        private int _maxConcurrent;
         public int MaxConcurrent => Volatile.Read(ref _maxConcurrent);
 
         public ParsedDemo ParseFile(string path)

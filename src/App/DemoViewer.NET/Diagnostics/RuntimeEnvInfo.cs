@@ -4,8 +4,8 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime;
 using System.Runtime.InteropServices;
-using DemoViewer.NET.Controls;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Controls;
 
 #endregion
 

@@ -94,9 +94,51 @@ public sealed class GpuSurfaceProvider : IRenderSurfaceProvider
         // Order matters and is the thing a wrong readback blames: record the surface's work, hand it to
         // the driver, then block until the driver has actually done it. Confirmed against hardware in
         // C2.11 — until then this is the conservative sequence, not the fast one.
-        surface.Flush(true, false);
-        _gr.Flush(true, false);
+        surface.Flush(true);
+        _gr.Flush(true);
         _gr.Submit(true);
+    }
+
+    /// <summary>
+    ///     Tears the GPU context down. Unlike every other member this is
+    ///     <b>
+    ///         safe from any thread and
+    ///         never throws
+    ///     </b>
+    ///     , and the asymmetry is deliberate.
+    ///     <para>
+    ///         A guard here would make the type unusable from ordinary asynchronous code: a
+    ///         <c>using</c> whose scope contains an <c>await</c> disposes on whichever thread the
+    ///         continuation resumed on, which is exactly what an export session that writes frames to a
+    ///         sink does. Throwing would also replace the in-flight exception in a failing <c>using</c>
+    ///         block with a less interesting one.
+    ///     </para>
+    ///     <para>
+    ///         It is <i>correct</i> off-thread, not merely quiet: <c>AbandonContext</c> drops Skia's GL
+    ///         objects without issuing a single GL call — the only safe thing to do from a thread with no
+    ///         current context — and the EGL teardown below destroys the context those objects lived in,
+    ///         so nothing leaks. Compare <see cref="CreateSurface" /> and <see cref="Flush" />, where a
+    ///         wrong-thread call is a driver crash in waiting and throwing is the right answer.
+    ///     </para>
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        // GRContext first either way: it holds GL objects that only exist while the EGL context is
+        // current, and tearing the context down under it is how a driver crash on exit gets written.
+        if (Environment.CurrentManagedThreadId != _ownerThreadId)
+        {
+            _gr.AbandonContext();
+        }
+
+        _gr.Dispose();
+        _context.Dispose();
     }
 
     /// <summary>
@@ -141,44 +183,6 @@ public sealed class GpuSurfaceProvider : IRenderSurfaceProvider
             : string.Create(CultureInfo.InvariantCulture,
                 $"all-backends-failed: {string.Join("; ", failures)}");
         return false;
-    }
-
-    /// <summary>
-    ///     Tears the GPU context down. Unlike every other member this is <b>safe from any thread and
-    ///     never throws</b>, and the asymmetry is deliberate.
-    ///     <para>
-    ///         A guard here would make the type unusable from ordinary asynchronous code: a
-    ///         <c>using</c> whose scope contains an <c>await</c> disposes on whichever thread the
-    ///         continuation resumed on, which is exactly what an export session that writes frames to a
-    ///         sink does. Throwing would also replace the in-flight exception in a failing <c>using</c>
-    ///         block with a less interesting one.
-    ///     </para>
-    ///     <para>
-    ///         It is <i>correct</i> off-thread, not merely quiet: <c>AbandonContext</c> drops Skia's GL
-    ///         objects without issuing a single GL call — the only safe thing to do from a thread with no
-    ///         current context — and the EGL teardown below destroys the context those objects lived in,
-    ///         so nothing leaks. Compare <see cref="CreateSurface" /> and <see cref="Flush" />, where a
-    ///         wrong-thread call is a driver crash in waiting and throwing is the right answer.
-    ///     </para>
-    /// </summary>
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-
-        // GRContext first either way: it holds GL objects that only exist while the EGL context is
-        // current, and tearing the context down under it is how a driver crash on exit gets written.
-        if (Environment.CurrentManagedThreadId != _ownerThreadId)
-        {
-            _gr.AbandonContext(false);
-        }
-
-        _gr.Dispose();
-        _context.Dispose();
     }
 
     private static bool TryAttachSkia(EglContext context,

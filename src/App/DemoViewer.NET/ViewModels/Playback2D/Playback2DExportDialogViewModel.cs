@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Controls;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Export;
@@ -38,7 +39,7 @@ public sealed record ExportSizeOption(string Label, int Width, int Height);
 ///     <c>LICENSE.txt</c> read out of the verified bytes, and install only if that returns true.
 ///     <para>
 ///         A delegate rather than a direct <c>FfmpegAcquisition.AcquireAsync</c> call so the dialog's
-///         download flow is testable without a network, a 140 MB transfer, or a Windows-x64 machine — the
+///         download flow is testable without a network, a 140 MB transfer, or a Windows-x64 machine, the
 ///         only platform for which a build is pinned at all.
 ///     </para>
 /// </summary>
@@ -52,8 +53,8 @@ public delegate Task<FfmpegLocation> FfmpegAcquire(
 
 /// <summary>
 ///     The export dialog. <b>Thin by constraint</b>: it collects choices and hands them to
-///     <see cref="IExportJobService" />. Every rule it applies — supported frame rates, even dimensions,
-///     the GIF caps, the range — is <c>SceneExportSession</c>'s, so <c>dv2d export</c> enforces exactly the
+///     <see cref="IExportJobService" />. Every rule it applies (supported frame rates, even dimensions,
+///     the GIF caps, the range) is <c>SceneExportSession</c>'s, so <c>dv2d export</c> enforces exactly the
 ///     same ones without a line of shared UI code.
 ///     <para>
 ///         Every environment dependency is an injected delegate, mirroring
@@ -71,20 +72,14 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
 {
     private readonly FfmpegAcquire? _acquireFfmpeg;
     private readonly Func<AnnotationSession?>? _captureInk;
-    private readonly Func<ScenePalette>? _capturePalette;
     private readonly Func<CameraScript> _captureLiveCamera;
-    private readonly Func<string, bool> _fileExists;
+    private readonly Func<ScenePalette>? _capturePalette;
     private readonly Func<FfmpegLocation>? _ffmpegLocator;
+    private readonly Func<string, bool> _fileExists;
     private readonly Func<bool>? _isLiveSyncSessionActive;
     private readonly IExportJobService? _job;
     private readonly Func<int, int, int, double, int> _outputFrameCount;
     private readonly Action<Action<AppSettings>>? _persistDefaults;
-
-    // Non-null only between the licence arriving and the user answering it. The acquisition is awaiting
-    // this task on a pool thread; Accept / Decline complete it from the UI thread.
-    private TaskCompletionSource<bool>? _licenseAnswer;
-
-    private CancellationTokenSource? _downloadCts;
 
     [ObservableProperty]
     private string _customHeightText = "1080";
@@ -92,25 +87,29 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     [ObservableProperty]
     private string _customWidthText = "1920";
 
+    private CancellationTokenSource? _downloadCts;
+
     /// <summary>
-    ///     The one thing that makes the dialog refuse. <b>Blocking only</b> — see
+    ///     The one thing that makes the dialog refuse. <b>Blocking only</b>: see
     ///     <see cref="NoticeBanner" />.
     /// </summary>
     [ObservableProperty]
     private string? _errorBanner;
 
+    /// <summary>Transfer fraction in [0,1] while the pinned build downloads.</summary>
+    [ObservableProperty]
+    private double _ffmpegDownloadFraction;
+
+    /// <summary>Why the last download attempt did not produce an ffmpeg. Null when it did, or never ran.</summary>
+    [ObservableProperty]
+    private string? _ffmpegDownloadStatus;
+
     /// <summary>
-    ///     A true-but-harmless remark about the current choices. Never gates <see cref="CanStart" />.
-    ///     <para>
-    ///         It exists because "this file already exists and will be overwritten" was returned from
-    ///         <c>Validate</c> as an <see cref="ErrorBanner" />, and <c>CanStart</c> is
-    ///         <c>ErrorBanner is null</c>. The default output path is a constant, so the <b>second export
-    ///         ever attempted</b> opened with a red banner and a dead Export button — the failure mode of
-    ///         one channel carrying two meanings.
-    ///     </para>
+    ///     The <c>LICENSE.txt</c> read out of the verified archive, or null when there is nothing to
+    ///     answer. Non-null is what reveals the accept/decline pair — nothing is extracted until then.
     /// </summary>
     [ObservableProperty]
-    private string? _noticeBanner;
+    private string? _ffmpegLicenseText;
 
     [ObservableProperty]
     private bool _includeAnnotations = true;
@@ -142,8 +141,33 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     [ObservableProperty]
     private bool _includeVision;
 
+    /// <summary>True from the moment Download is pressed until the acquisition settles either way.</summary>
+    [ObservableProperty]
+    private bool _isDownloadingFfmpeg;
+
     [ObservableProperty]
     private bool _isFfmpegMissing;
+
+    // Non-null only between the licence arriving and the user answering it. The acquisition is awaiting
+    // this task on a pool thread; Accept / Decline complete it from the UI thread.
+    private TaskCompletionSource<bool>? _licenseAnswer;
+
+    /// <summary>
+    ///     A true-but-harmless remark about the current choices. Never gates <see cref="CanStart" />.
+    ///     <para>
+    ///         It exists because "this file already exists and will be overwritten" was returned from
+    ///         <c>Validate</c> as an <see cref="ErrorBanner" />, and <c>CanStart</c> is
+    ///         <c>ErrorBanner is null</c>. The default output path is a constant, so the
+    ///         <b>
+    ///             second export
+    ///             ever attempted
+    ///         </b>
+    ///         opened with a red banner and a dead Export button — the failure mode of
+    ///         one channel carrying two meanings.
+    ///     </para>
+    /// </summary>
+    [ObservableProperty]
+    private string? _noticeBanner;
 
     [ObservableProperty]
     private string _outputPath = string.Empty;
@@ -316,25 +340,6 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     /// </remarks>
     public bool CanOfferFfmpegDownload => _acquireFfmpeg is not null;
 
-    /// <summary>Transfer fraction in [0,1] while the pinned build downloads.</summary>
-    [ObservableProperty]
-    private double _ffmpegDownloadFraction;
-
-    /// <summary>True from the moment Download is pressed until the acquisition settles either way.</summary>
-    [ObservableProperty]
-    private bool _isDownloadingFfmpeg;
-
-    /// <summary>
-    ///     The <c>LICENSE.txt</c> read out of the verified archive, or null when there is nothing to
-    ///     answer. Non-null is what reveals the accept/decline pair — nothing is extracted until then.
-    /// </summary>
-    [ObservableProperty]
-    private string? _ffmpegLicenseText;
-
-    /// <summary>Why the last download attempt did not produce an ffmpeg. Null when it did, or never ran.</summary>
-    [ObservableProperty]
-    private string? _ffmpegDownloadStatus;
-
     /// <summary>The frames this export will produce with the current choices.</summary>
     public int EstimatedFrameCount => SelectedRange is { } range
         ? _outputFrameCount(range.StartFrame, range.EndFrame, SelectedFps, 1.0)
@@ -357,6 +362,25 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
             int height = SnapEven(CustomHeightText, 1080);
             return new SKSizeI(width, height);
         }
+    }
+
+    /// <summary>True while a licence is waiting to be accepted or declined.</summary>
+    public bool HasFfmpegLicense => FfmpegLicenseText is not null;
+
+    /// <summary>True when Download would do something: offered, and not already running.</summary>
+    public bool CanDownloadFfmpegNow => _acquireFfmpeg is not null && !IsDownloadingFfmpeg;
+
+    /// <summary>
+    ///     Closing the pane aborts an in-flight ffmpeg download. The export job outlives the dialog by
+    ///     design; the download does not — it is the pane's own foreground action, and there would be
+    ///     nowhere left to show its licence.
+    /// </summary>
+    public void Dispose()
+    {
+        AnswerLicense(false);
+        _downloadCts?.Cancel();
+        _downloadCts?.Dispose();
+        _downloadCts = null;
     }
 
     /// <summary>Starts the export. Refusals surface as <see cref="ErrorBanner" />, never as a crash.</summary>
@@ -395,19 +419,6 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     /// <summary>Raised after a successful hand-off, so the view can close.</summary>
     public event Action? StartRequested;
 
-    /// <summary>
-    ///     Closing the pane aborts an in-flight ffmpeg download. The export job outlives the dialog by
-    ///     design; the download does not — it is the pane's own foreground action, and there would be
-    ///     nowhere left to show its licence.
-    /// </summary>
-    public void Dispose()
-    {
-        AnswerLicense(false);
-        _downloadCts?.Cancel();
-        _downloadCts?.Dispose();
-        _downloadCts = null;
-    }
-
     /// <summary>Re-probes for ffmpeg after the user installs it, without restarting the app.</summary>
     [RelayCommand]
     private void RecheckFfmpeg()
@@ -425,7 +436,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     /// <summary>Opens the ffmpeg download page in the default browser.</summary>
     [RelayCommand]
     private static void OpenFfmpegDownloadPage() =>
-        Controls.OpenExternal.OpenUri("https://ffmpeg.org/download.html");
+        OpenExternal.OpenUri("https://ffmpeg.org/download.html");
 
     /// <summary>
     ///     Fetches the pinned LGPL build, shows its licence, and installs it only if the user accepts.
@@ -458,7 +469,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
         try
         {
             FfmpegLocation located = await acquire(RequestLicenseConsent,
-                new Progress<double>(f => FfmpegDownloadFraction = Math.Clamp(f, 0, 1)), ct)
+                    new Progress<double>(f => FfmpegDownloadFraction = Math.Clamp(f, 0, 1)), ct)
                 .ConfigureAwait(true);
 
             FfmpegDownloadStatus = located.Found
@@ -496,12 +507,6 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     /// <summary>Aborts an in-flight transfer. Leaves no partial file.</summary>
     [RelayCommand(CanExecute = nameof(IsDownloadingFfmpeg))]
     private void CancelFfmpegDownload() => _downloadCts?.Cancel();
-
-    /// <summary>True while a licence is waiting to be accepted or declined.</summary>
-    public bool HasFfmpegLicense => FfmpegLicenseText is not null;
-
-    /// <summary>True when Download would do something: offered, and not already running.</summary>
-    public bool CanDownloadFfmpegNow => _acquireFfmpeg is not null && !IsDownloadingFfmpeg;
 
     // Called by FfmpegAcquisition from a pool thread, after the hash check and before anything is
     // extracted. Publishing on the UI thread and awaiting a gate is what turns a callback into a prompt.
@@ -833,8 +838,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
 
     // The camera a dialog with no live host captures: an empty Fixed script, which leaves every pane on
     // the fit its own level was born with. What a design-preview or a pure-VM test gets.
-    private static CameraScript.Fixed DefaultCamera() =>
-        new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>());
+    private static CameraScript.Fixed DefaultCamera() => new(new Dictionary<MapLevelId, ViewportTransform>());
 
     private static string Normalize(string? formatId) =>
         ExportFormats.All.Contains(formatId, StringComparer.Ordinal) ? formatId! : ExportFormats.WebM;

@@ -15,11 +15,11 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///     The one place the scene reaches Avalonia's render thread: a custom draw operation that leases
 ///     the platform's <see cref="SKCanvas" /> and hands it to the compositor.
 ///     <para>
-///         <b>What this operation may touch</b> is deliberately tiny (plan §5.8): the immutable
-///         <see cref="SceneSubmission" /> captured on the UI thread, the shared compositor — and only
-///         inside the render gate — and the leased canvas. It must never reach for the view-model, a
-///         control, a property, the dispatcher, or the pane set; those all live on the UI thread and
-///         reading them here is the tearing bug design risk 2 is about.
+///         <b>What this operation may touch</b> is deliberately tiny: the immutable
+///         <see cref="SceneSubmission" /> captured on the UI thread, the shared compositor (only inside
+///         the render gate), and the leased canvas. It must never reach for the view-model, a control, a
+///         property, the dispatcher, or the pane set; those all live on the UI thread and reading them
+///         here tears the frame.
 ///     </para>
 ///     <para>
 ///         <b>The lease is probed by failure.</b> There is no way to ask Avalonia in advance whether the
@@ -55,11 +55,10 @@ internal sealed class SceneDrawOperation : ICustomDrawOperation
 
     /// <inheritdoc />
     /// <remarks>
-    ///     True inside the control's bounds. <b>This is load-bearing, not a formality.</b> A control
-    ///     whose only content is a custom draw operation has no other hit-testable geometry, so
-    ///     returning false here makes the whole surface transparent to the pointer — pan and zoom
-    ///     silently stop working while the scene still renders perfectly. The operation paints every
-    ///     pixel of <see cref="Bounds" />, so claiming them is also simply true.
+    ///     True inside the control's bounds. A control whose only content is a custom draw operation has
+    ///     no other hit-testable geometry, so returning false here makes the whole surface transparent to
+    ///     the pointer: pan and zoom silently stop working while the scene still renders perfectly. The
+    ///     operation paints every pixel of <see cref="Bounds" />, so claiming them is also simply true.
     /// </remarks>
     public bool HitTest(Point p) => Bounds.Contains(p);
 

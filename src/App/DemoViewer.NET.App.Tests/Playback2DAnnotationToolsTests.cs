@@ -19,7 +19,7 @@ namespace DemoViewer.NET.AppTests;
 ///     The authoring preferences: the recent-colour strip, the per-button pen and the <c>Custom</c>
 ///     envelope.
 ///     <para>
-///         All three shipped as plumbing with no control on the end of it — a persisted key, a view-model
+///         All three shipped as plumbing with no control on the end of it: a persisted key, a view-model
 ///         property, and nothing a user could ever reach. These are the tests that keep them wired: a
 ///         value the panel writes has to survive a settings round trip, or the surface is decorative
 ///         again.
@@ -45,8 +45,8 @@ public class Playback2DAnnotationToolsTests
 
     /// <summary>
     ///     The swatch row holds eight, stated as a literal. Read off
-    ///     <c>AnnotationSessionController.MaxRecentColors</c> it passed at a cap of 2 and at 500 alike —
-    ///     the number is a UI decision and this is the test that owns it.
+    ///     <c>AnnotationSessionController.MaxRecentColors</c> it passed at a cap of 2 and at 500 alike.
+    ///     The number is a UI decision.
     /// </summary>
     [Test]
     public async Task RecentColors_StopAtTheCap_DroppingTheOldest()
@@ -65,7 +65,7 @@ public class Playback2DAnnotationToolsTests
 
     /// <summary>
     ///     Re-drawing with the colour already at the front is not a change, so it must not bump the
-    ///     version the panel rebuilds off — nor trigger a settings write per stroke.
+    ///     version the panel rebuilds off, nor trigger a settings write per stroke.
     /// </summary>
     [Test]
     public async Task RecentColors_RepeatingTheFrontColour_IsNotAChange()
@@ -99,7 +99,7 @@ public class Playback2DAnnotationToolsTests
         await Assert.That(controller.RecentColors[0]).IsEqualTo("#FF102030");
     }
 
-    /// <summary>The right button's pen earns its swatch on the same terms as the left one's.</summary>
+    /// <summary>The right button's pen gets a swatch on the same terms as the left one's.</summary>
     [Test]
     public async Task ASecondaryInkStroke_PushesItsColourToo()
     {
@@ -117,7 +117,7 @@ public class Playback2DAnnotationToolsTests
     [Test]
     public async Task CustomWindow_RoundTripsThroughSettings()
     {
-        SettingsService settings = new(null); // the fileless WASM branch — the one that forgets things
+        SettingsService settings = new(null); // the fileless WASM branch: the one that forgets things
 
         using (AnnotationSessionController author = new(null, settings))
         {
@@ -144,9 +144,9 @@ public class Playback2DAnnotationToolsTests
     }
 
     /// <summary>
-    ///     <b>Dragging the ink <c>ColorPicker</c> used to rewrite <c>settings.json</c> on every pointer
-    ///     sample.</b> <c>SettingsService.Write</c> is a synchronous read-serialize-temp-write-move-reload,
-    ///     and the reload fires <c>IOptionsMonitor.OnChange</c> INLINE — re-composing the 2D keymap
+    ///     Dragging the ink <c>ColorPicker</c> used to rewrite <c>settings.json</c> on every pointer
+    ///     sample. <c>SettingsService.Write</c> is a synchronous read-serialize-temp-write-move-reload,
+    ///     and the reload fires <c>IOptionsMonitor.OnChange</c> INLINE: re-composing the 2D keymap
     ///     profile and, with the Settings page open, re-reflecting thirty properties and twenty-one
     ///     keybind rows. A one-second colour drag was a few hundred of those on the UI thread.
     ///     <para>
@@ -157,7 +157,7 @@ public class Playback2DAnnotationToolsTests
     [Test]
     public async Task RapidStyleChanges_CoalesceIntoASingleSettingsWrite()
     {
-        SettingsService settings = new(null); // the fileless branch — still writes, still reloads
+        SettingsService settings = new(null); // the fileless branch: still writes, still reloads
         IConfigurationRoot root = (IConfigurationRoot)settings.Configuration;
 
         int reloads = 0;
@@ -166,7 +166,7 @@ public class Playback2DAnnotationToolsTests
 
         using AnnotationSessionController controller = new(null, settings)
         {
-            // Long enough that only an explicit flush can land it — the assertion is about coalescing,
+            // Long enough that only an explicit flush can land it: the assertion is about coalescing,
             // not about how fast a timer runs on a loaded CI box.
             StylePersistDelay = TimeSpan.FromSeconds(30)
         };
@@ -229,7 +229,7 @@ public class Playback2DAnnotationToolsTests
 
     /// <summary>
     ///     The panel is what the toolbar binds to, so the envelope editor's visibility is a contract:
-    ///     Always — the shipped default — must not put four spin boxes in a toolbar that already reflows
+    ///     Always (the shipped default) must not put four spin boxes in a toolbar that already reflows
     ///     at 820 px.
     /// </summary>
     [Test]
@@ -254,10 +254,10 @@ public class Playback2DAnnotationToolsTests
     }
 
     /// <summary>
-    ///     <b>The Real-time mode, through the ComboBox index a user actually moves.</b> The panel's index
+    ///     The Real-time mode, through the ComboBox index a user actually moves. The panel's index
     ///     adapter is the only place the XAML's item order and <c>EnvelopeMode</c>'s declaration order
     ///     have to agree, and a mode that reaches the panel but not the session is a picker that changes
-    ///     nothing — the exact shape the Custom mode once shipped in.
+    ///     nothing, the exact shape the Custom mode once shipped in.
     /// </summary>
     [Test]
     public async Task Panel_RealTime_OffersTheRelativeControls_AndReachesTheSession()
@@ -277,7 +277,7 @@ public class Playback2DAnnotationToolsTests
                          + "setter would snap the picker to the old row. That the XAML's item order IS "
                          + "the enum's is pinned by RealTimeEnvelopeUiTests, which opens the XAML");
 
-            // in / out / hold — the three relative controls, and not Custom's absolute window. Each
+            // in / out / hold: the three relative controls, and not Custom's absolute window. Each
             // section runs the element's own trapezoid shifted by its draw offset, so all three keep
             // their meaning per section, while from/until would be a second answer to "when".
             await Assert.That(panel.IsEnvelopeEditorVisible).IsTrue();
@@ -290,13 +290,13 @@ public class Playback2DAnnotationToolsTests
     }
 
     /// <summary>
-    ///     The mode is persisted by NAME, so a fourth member costs no new key — but only if it actually
+    ///     The mode is persisted by NAME, so a fourth member costs no new key, but only if it actually
     ///     survives the fileless path, which is where a setting quietly forgets itself.
     /// </summary>
     [Test]
     public async Task RealTimeVisibility_RoundTripsThroughSettings()
     {
-        SettingsService settings = new(null); // the fileless WASM branch — the one that forgets things
+        SettingsService settings = new(null); // the fileless WASM branch
 
         using (AnnotationSessionController author = new(null, settings))
         {
@@ -312,7 +312,7 @@ public class Playback2DAnnotationToolsTests
     }
 
     /// <summary>
-    ///     A visibility string this build cannot make sense of degrades to <c>Always</c> — including a
+    ///     A visibility string this build cannot make sense of degrades to <c>Always</c>, including a
     ///     bare NUMBER, which <c>Enum.TryParse</c> accepts for any value in range whether a member is
     ///     defined there or not. That is a mode nothing switches on, arriving at the toolbar's ComboBox
     ///     as an out-of-range index; the same fence <c>AnnotationStore</c> puts on a hand-edited kind.
@@ -353,7 +353,7 @@ public class Playback2DAnnotationToolsTests
             await Assert.That(envelope.UntilTick).IsEqualTo(1900);
             await Assert.That(envelope.FadeInTicks).IsEqualTo(5);
 
-            // "⌖ now" moves the window to the playhead and KEEPS its length — a coach re-using the same
+            // "⌖ now" moves the window to the playhead and KEEPS its length: a coach re-using the same
             // three-second callout on the next round should not have to re-type the length.
             panel.CustomWindowFromNowCommand.Execute(null);
             await Assert.That(panel.CustomFromTick).IsEqualTo(4242);
@@ -364,7 +364,7 @@ public class Playback2DAnnotationToolsTests
     /// <summary>
     ///     Seeding the panel must not destroy what it is seeding FROM. The ramps and the window share the
     ///     same template, so a pull that assigned the ramps first re-composed the template out of the
-    ///     window the panel was still showing — and the persisted Custom window silently became 0..320.
+    ///     window the panel was still showing, and the persisted Custom window silently became 0..320.
     /// </summary>
     [Test]
     public async Task Panel_SeededFromSettings_KeepsTheAuthoredCustomWindow()
@@ -438,7 +438,7 @@ public class Playback2DAnnotationToolsTests
         });
     }
 
-    /// <summary>A malformed persisted row is dropped, not guessed at — and does not take the strip down.</summary>
+    /// <summary>A malformed persisted row is dropped, not guessed at, and does not take the strip down.</summary>
     [Test]
     public async Task Panel_Swatches_DropMalformedPersistedRows()
     {
@@ -476,8 +476,8 @@ public class Playback2DAnnotationToolsTests
     }
 
     /// <summary>
-    ///     <b>The UI half of <c>AnnotationAutoSave</c>.</b> The setting was read at runtime and had no
-    ///     control anywhere — the same shape the opacity slider above was written to close. The toggle
+    ///     The UI half of <c>AnnotationAutoSave</c>. The setting was read at runtime and had no control
+    ///     anywhere, the same shape the opacity slider above was written to close. The toggle
     ///     lives in the toolbar's PERSISTENCE row beside the line that names the destination, because
     ///     "does this get written, and where" is one question.
     /// </summary>
@@ -509,7 +509,7 @@ public class Playback2DAnnotationToolsTests
                                "AutoSaveToggle is not in the toolbar — the key is unreachable again.");
 
             // The control's own binding, evaluated: a property the view-model exposes and no control
-            // binds is exactly what this finding was.
+            // binds reaches nothing.
             toolbar.Measure(new Size(2000, 400));
             Console.WriteLine($"[autosave-ui] checked={box.IsChecked} enabled={box.IsEnabled}");
 

@@ -30,6 +30,15 @@ namespace DemoViewer.NET.Services.Export;
 /// </summary>
 public sealed class ExportJobService : IExportJobService, IDisposable
 {
+    /// <summary>The refusal copy shown when LiveSync holds the machine.</summary>
+    public const string LiveSyncRefusal =
+        "A Live Sync session is running. Video export needs the CPU that CS2 is using — " +
+        "disable Live Sync and try again.";
+
+    /// <summary>The refusal copy shown when a reel job holds the machine.</summary>
+    public const string ReelRefusal =
+        "A highlight reel is being generated — try again when it finishes.";
+
     private readonly HeavyJobGate? _gate;
     private readonly Func<bool>? _isLiveSyncBusy;
     private readonly Func<bool>? _isReelRunning;
@@ -73,14 +82,16 @@ public sealed class ExportJobService : IExportJobService, IDisposable
         _log = log;
     }
 
-    /// <summary>The refusal copy shown when LiveSync holds the machine.</summary>
-    public const string LiveSyncRefusal =
-        "A Live Sync session is running. Video export needs the CPU that CS2 is using — " +
-        "disable Live Sync and try again.";
-
-    /// <summary>The refusal copy shown when a reel job holds the machine.</summary>
-    public const string ReelRefusal =
-        "A highlight reel is being generated — try again when it finishes.";
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        lock (_lifecycle)
+        {
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = null;
+        }
+    }
 
     /// <inheritdoc />
     public ExportJobStatus Status { get; private set; } = ExportJobStatus.Idle;
@@ -141,17 +152,6 @@ public sealed class ExportJobService : IExportJobService, IDisposable
         }
     }
 
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        lock (_lifecycle)
-        {
-            _cts?.Cancel();
-            _cts?.Dispose();
-            _cts = null;
-        }
-    }
-
     private void RefuseIfBusy()
     {
         if (_isLiveSyncBusy?.Invoke() == true)
@@ -171,7 +171,7 @@ public sealed class ExportJobService : IExportJobService, IDisposable
         ExportJobStatus? terminal = null;
 
         SetStatus(new ExportJobStatus(ExportPhase.Preparing, 0, request.Core.FrameCount, 0, TimeSpan.Zero,
-            request.OutputPath, null, null));
+            request.OutputPath, null));
 
         try
         {
@@ -188,17 +188,27 @@ public sealed class ExportJobService : IExportJobService, IDisposable
 
             terminal = Status with
             {
-                Phase = ExportPhase.Completed, FramesDone = Status.FramesTotal, Error = null
+                Phase = ExportPhase.Completed,
+                FramesDone = Status.FramesTotal,
+                Error = null
             };
         }
         catch (OperationCanceledException)
         {
-            terminal = Status with { Phase = ExportPhase.Cancelled, Error = null };
+            terminal = Status with
+            {
+                Phase = ExportPhase.Cancelled,
+                Error = null
+            };
         }
         catch (Exception ex)
         {
             _log?.Invoke($"export failed: {ex}");
-            terminal = Status with { Phase = ExportPhase.Failed, Error = ex.Message };
+            terminal = Status with
+            {
+                Phase = ExportPhase.Failed,
+                Error = ex.Message
+            };
         }
         finally
         {

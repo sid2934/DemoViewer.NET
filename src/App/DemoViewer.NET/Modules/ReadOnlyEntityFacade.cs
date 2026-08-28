@@ -1,8 +1,8 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.Modules.Abstractions;
 using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Modules.Abstractions;
 
 #endregion
 

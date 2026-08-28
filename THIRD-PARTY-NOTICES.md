@@ -63,11 +63,11 @@ Microsoft.Extensions.Logging.Abstractions, CS2OpenDev.Sdk.
 Two of them carry terms worth stating outright because the 2D-playback video export depends on
 them:
 
-- **FFMpegCore** (MIT) — a managed argument builder and process wrapper. It links no ffmpeg code;
+- **FFMpegCore** (MIT): a managed argument builder and process wrapper. It links no ffmpeg code;
   it starts ffmpeg as a **separate program** and pipes raw frames to its standard input. See §g.
-- **SixLabors.ImageSharp** (Six Labors Split License 1.0) — used only by `ManagedGifSink`, the
+- **SixLabors.ImageSharp** (Six Labors Split License 1.0): used only by `ManagedGifSink`, the
   no-ffmpeg GIF floor. The split license grants Apache-2.0 terms to open-source projects, which
-  this repository is (MIT — see `LICENSE`). A closed-source redistribution of this code would need
+  this repository is (MIT; see `LICENSE`). A closed-source redistribution of this code would need
   a commercial Six Labors license; record that before any such change.
 
 ## d. Inter font (SIL Open Font License 1.1)
@@ -90,13 +90,13 @@ modified version be renamed. This project redistributes it unmodified.
 
 The Windows build links ANGLE (`av_libglesv2.dll`) **in-process** to create windowless EGL /
 OpenGL ES contexts for GPU-accelerated offscreen rendering (2D playback video export and headless
-rendering — see `docs/playback2d-v2/design.md` §5.8). The binary is redistributed exactly as
+rendering; see `docs/playback2d-v2/design.md` §5.8). The binary is redistributed exactly as
 published in the `Avalonia.Angle.Windows.Natives` NuGet package, built from
 <https://github.com/AvaloniaUI/angle> (commit `cb8b4e1307a9d8f5ff56b8c5973bea4158ffead8`).
 Upstream project: <https://github.com/google/angle>.
 
 Because the linkage is in-process rather than a separate program, the obligation is to reproduce
-the copyright notice, the licence conditions and the disclaimer — which this section does. Nothing
+the copyright notice, the licence conditions and the disclaimer. This section does that. Nothing
 is bundled on Linux or macOS: there, EGL (when present at all) is a system library supplied by the
 driver stack, and its absence simply makes the probe fall back to the CPU provider.
 
@@ -187,18 +187,18 @@ installed.
 
 ffmpeg is resolved in this order:
 
-1. an `ffmpeg` already on the user's `PATH` — whatever they installed, under whatever licence that
-   build carries;
+1. an `ffmpeg` already on the user's `PATH` (whatever they installed, under whatever licence that
+   build carries);
 2. an optional, explicitly consented in-app download of a **pinned LGPL-2.1 build** produced by the
    [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) project, verified against a pinned
    SHA-256 and extracted under `<config>/tools/ffmpeg`. The consent sheet displays the `LICENSE.txt`
    found inside that archive and links the build's source before anything is written to disk;
-3. no ffmpeg at all — export falls back to `ManagedGifSink`, which uses ImageSharp (§c) and
+3. no ffmpeg at all: export falls back to `ManagedGifSink`, which uses ImageSharp (§c) and
    produces GIF only.
 
 Because the downloaded build is LGPL, it contains no H.264 encoder: MP4/H.264 export requires a
 GPL ffmpeg the user installed themselves, and the export dialog says so rather than failing at
-encode time. WebM/VP9 — the default format — is present in the LGPL build.
+encode time. WebM/VP9 (the default format) is present in the LGPL build.
 
 ffmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg project. This project is
 unaffiliated with it.

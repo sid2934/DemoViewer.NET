@@ -12,9 +12,12 @@ namespace DemoViewer.NET.AppTests;
 ///     at the byte cap, and retains at most <c>maxFiles</c> rolled files (bounded disk). Uses the
 ///     internal directory seam so no real app-data path is touched. Dispose drains the async pump.
 ///     <para>
-///         <b>All three keep <c>[Category("Environmental")]</c>, now for the reason the tag actually
-///         means.</b> The tag once covered an unrelated bug — an illegal path this class built for
-///         itself (see <c>NewTempDir</c>) — not a real environment dependency. What remains under it
+///         <b>
+///             All three keep <c>[Category("Environmental")]</c>, now for the reason the tag actually
+///             means.
+///         </b>
+///         The tag once covered an unrelated bug: an illegal path this class built for
+///         itself (see <c>NewTempDir</c>), not a real environment dependency. What remains under it
 ///         is genuine: they create and delete real directories under the OS temp root, and
 ///         <see cref="ReadTail_Works_WhileSinkHoldsFileOpen" /> deliberately does <b>not</b> dispose the
 ///         sink first, so it waits a wall-clock 150 ms for the async pump and asserts the platform's
@@ -29,7 +32,7 @@ public class DiagnosticsFileLogTests
         // some harness contexts, and the dir is cleaned each run).
         //
         // SANITISED, because a TUnit TestId is not a filename. It is a fully-qualified name with the
-        // argument list appended — `…DiagnosticsFileLogTests.WritesLines_ToActiveFile:0` — and `:` is
+        // argument list appended, `…DiagnosticsFileLogTests.WritesLines_ToActiveFile:0`, and `:` is
         // illegal in an NTFS path component. `Directory.CreateDirectory` then throws
         // `IOException: The directory name is invalid`, which reads like a filesystem problem rather
         // than a name the test itself built, and all three cases in this class failed on every Windows

@@ -2,11 +2,12 @@
 
 using System.IO.Compression;
 using System.Net;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Playback2D.Core.Hud;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Rendering;
@@ -229,7 +230,7 @@ public class HudLayerTests
     public async Task ABombCountdown_DrawsDifferentlyFromARoundClock()
     {
         StubHudDataSource round = new(ExportFixtures.Hud(0));
-        StubHudDataSource bomb = new(ExportFixtures.Hud(0, bombTicking: true));
+        StubHudDataSource bomb = new(ExportFixtures.Hud(0, true));
 
         // The C4 countdown is drawn in the bomb colour, because "0:34 until the round ends" and "0:34
         // until the site goes up" are not the same number.
@@ -257,8 +258,8 @@ public class HudLayerTests
     public async Task ARowsText_CarriesEveryModifierGlyph()
     {
         KillFeedRow row = new(1000, "neo", "trinity", "smith", "awp",
-            Headshot: true, Penetrated: true, NoScope: true, ThroughSmoke: true,
-            AttackerBlind: true, AttackerInAir: true, AssistedFlash: true);
+            true, true, true, true,
+            true, true, true);
 
         string text = KillFeedLayer.Format(row);
         Console.WriteLine($"[hud] row = {text}");
@@ -287,7 +288,13 @@ public class HudLayerTests
             RenderPurpose.Export, ScenePalette.Dark, 1f)
         {
             Pane = new LevelPaneSnapshot(default, 0,
-                new MapLevel { Id = default, Name = "l", ZMin = 0, ZMax = 100 },
+                new MapLevel
+                {
+                    Id = default,
+                    Name = "l",
+                    ZMin = 0,
+                    ZMax = 100
+                },
                 ViewportTransform.Fit(400, 200, -100, -100, 100, 100), paneRect, 0)
         };
 
@@ -358,8 +365,8 @@ public class FfmpegAcquisitionTests
         FfmpegDownloadOffer? offer = FfmpegAcquisition.Offer(Path.GetTempPath());
 
         if (OperatingSystem.IsWindows() &&
-            System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture
-            == System.Runtime.InteropServices.Architecture.X64)
+            RuntimeInformation.ProcessArchitecture
+            == Architecture.X64)
         {
             await Assert.That(offer).IsNotNull();
             await Assert.That(offer!.LicenseName).IsEqualTo("LGPL-2.1");
@@ -568,7 +575,7 @@ public class ExportSeamHeadlessTests
             File.Delete(path);
         }
 
-        foreach (System.Reflection.Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+        foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
             string name = assembly.GetName().Name ?? string.Empty;
             await Assert.That(name.StartsWith("Avalonia", StringComparison.Ordinal)).IsFalse();

@@ -15,6 +15,12 @@ namespace DemoViewer.NET.AppTests;
 /// </summary>
 public class TimelineTrackTests
 {
+    // The two side tints, spelled out here because a test that only says "different" is not a test of
+    // WHICH. They are KillTrack's own private constants and RoundTrack's at full alpha; the shared value
+    // is asserted below, so a re-theme that moves one has to move both or say why.
+    private const uint TintTeamT = 0xFFE0A030; // amber
+    private const uint TintTeamCt = 0xFF4A90D9; // blue
+
     [Test]
     public async Task RoundTrack_BuildsOneBandPerFreezeEnd()
     {
@@ -141,12 +147,6 @@ public class TimelineTrackTests
         await Assert.That(markers.Count).IsEqualTo(1);
         await Assert.That(markers.All(m => m.FrameIndex >= 0)).IsTrue();
     }
-
-    // The two side tints, spelled out here because a test that only says "different" is not a test of
-    // WHICH. They are KillTrack's own private constants and RoundTrack's at full alpha; the shared value
-    // is asserted below, so a re-theme that moves one has to move both or say why.
-    private const uint TintTeamT = 0xFFE0A030;   // amber
-    private const uint TintTeamCt = 0xFF4A90D9;  // blue
 
     /// <summary>
     ///     Every kill used to be the same red, because <see cref="KillTrack" /> handed back <c>Argb = 0</c>

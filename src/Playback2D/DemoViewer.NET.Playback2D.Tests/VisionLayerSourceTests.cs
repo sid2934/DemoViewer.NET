@@ -46,7 +46,11 @@ public class VisionLayerSourceTests
             [
                 new VisionCone
                 {
-                    Slot = 0, Team = 2, ApexX = -2280f, ApexY = 90f, ApexZ = -106f,
+                    Slot = 0,
+                    Team = 2,
+                    ApexX = -2280f,
+                    ApexY = 90f,
+                    ApexZ = -106f,
                     Fan = [new ConePoint(-1700f, 540f), new ConePoint(-1560f, 400f)]
                 }
             ],

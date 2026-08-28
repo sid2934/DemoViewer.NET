@@ -12,11 +12,11 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///     <c>Playback2DSettings.KeybindOverrides</c> composed over it.
 ///     <para>
 ///         <see cref="Playback2DKeymap" />'s static constructor THROWS on a conflicting table. That is
-///         right for a table compiled into the binary — a collision is a bug, and it should fail at first
+///         right for a table compiled into the binary: a collision is a bug, and it should fail at first
 ///         touch. It is fatal for one assembled from a hand-editable JSON settings file: a single typo
 ///         would surface as a <c>TypeInitializationException</c> that takes the 2D tab down with no way
 ///         to fix it from inside the app, and <c>Playback2DTabViewModel</c> is built by a bare
-///         <c>new()</c> with no DI, so there is nowhere useful to catch it. This type validates instead —
+///         <c>new()</c> with no DI, so there is nowhere useful to catch it. This type validates instead:
 ///         every row it cannot honour is DROPPED and REPORTED, and everything that survives still
 ///         resolves. The shipped table stays exactly as it is: the default, and the thing overrides are
 ///         composed over.
@@ -46,17 +46,6 @@ public sealed class Playback2DKeymapProfile
         Default = new Playback2DKeymapProfile([.. Playback2DKeymap.Default], [], []);
     }
 
-    // Which gestures a rebind may not claim on THIS head. Both sets are materialised in the static ctor
-    // rather than composed per call: FromOverrides runs the whole conflict sweep once per accepted row on
-    // the fallback path, and re-concatenating two arrays inside that loop is churn for nothing.
-    private static (Key Key, KeyModifiers Modifiers)[] Reserved(bool isBrowser) =>
-        isBrowser ? _shellAndBrowser : _shell;
-
-    // OperatingSystem.IsBrowser() is a JIT-folded intrinsic, so it cannot be faked from outside — every
-    // public entry point below takes a nullable override instead, which is what lets the WASM branch be
-    // proved on a desktop runner (the same seam ShellModuleFeatureGate and AnnotationSessionController use).
-    private static bool HostIsBrowser(bool? isBrowser) => isBrowser ?? OperatingSystem.IsBrowser();
-
     private Playback2DKeymapProfile(Playback2DBinding[] bindings, HashSet<Playback2DAction> overridden,
         IReadOnlyList<string> rejected)
     {
@@ -65,7 +54,7 @@ public sealed class Playback2DKeymapProfile
         Rejected = rejected;
     }
 
-    /// <summary>The shipped table with no overrides — what a tab with no container, or no settings, routes.</summary>
+    /// <summary>The shipped table with no overrides: what a tab with no container, or no settings, routes.</summary>
     public static Playback2DKeymapProfile Default { get; }
 
     /// <summary>Every binding, bound and reserved, in the shipped table's authored order.</summary>
@@ -76,6 +65,17 @@ public sealed class Playback2DKeymapProfile
     ///     Empty on a clean profile. Surfaced in Settings so a rejected rebind says why.
     /// </summary>
     public IReadOnlyList<string> Rejected { get; }
+
+    // Which gestures a rebind may not claim on THIS head. Both sets are materialised in the static ctor
+    // rather than composed per call: FromOverrides runs the whole conflict sweep once per accepted row on
+    // the fallback path, and re-concatenating two arrays inside that loop is churn for nothing.
+    private static (Key Key, KeyModifiers Modifiers)[] Reserved(bool isBrowser) =>
+        isBrowser ? _shellAndBrowser : _shell;
+
+    // OperatingSystem.IsBrowser() is a JIT-folded intrinsic and cannot be faked from outside. Every
+    // public entry point below takes a nullable override instead, so the WASM branch can be proved on a
+    // desktop runner (the same seam ShellModuleFeatureGate and AnnotationSessionController use).
+    private static bool HostIsBrowser(bool? isBrowser) => isBrowser ?? OperatingSystem.IsBrowser();
 
     /// <summary>Whether <paramref name="action" />'s gesture came from the user rather than the shipped table.</summary>
     /// <param name="action">The action.</param>
@@ -107,7 +107,7 @@ public sealed class Playback2DKeymapProfile
         foreach (string raw in overrides)
         {
             // A blank index carries no intent (a shrunk array, a stray comma in a hand-edited file), so
-            // it is skipped silently — reporting it would bury the row that IS a mistake.
+            // it is skipped silently; reporting it would bury the row that IS a mistake.
             if (string.IsNullOrWhiteSpace(raw))
             {
                 continue;
@@ -131,8 +131,8 @@ public sealed class Playback2DKeymapProfile
         }
 
         // Apply the whole accepted set FIRST. A swap (PrevRound=E together with NextRound=Q) is clean
-        // only as a batch — checked row by row, its first half collides with the second half's not-yet-
-        // replaced default — so this pass is what lets a user exchange two keys at all.
+        // only as a batch: checked row by row, its first half collides with the second half's not-yet-
+        // replaced default. This pass is what lets a user exchange two keys at all.
         Playback2DBinding[] table = [.. Playback2DKeymap.Default];
         foreach ((string _, Playback2DAction action, Key key, KeyModifiers modifiers) in accepted)
         {
@@ -169,7 +169,7 @@ public sealed class Playback2DKeymapProfile
     }
 
     /// <summary>
-    ///     Whether one candidate row could join <paramref name="existing" /> — <c>""</c> when it can,
+    ///     Whether one candidate row could join <paramref name="existing" />: <c>""</c> when it can,
     ///     otherwise the reason, verbatim from <see cref="FromOverrides" />. The Settings rebind affordance
     ///     asks this BEFORE persisting, so a refused rebind can say why instead of vanishing.
     /// </summary>
@@ -209,13 +209,13 @@ public sealed class Playback2DKeymapProfile
     /// <summary>
     ///     Builds the persisted row for a gesture. The gesture itself comes from the one formatter the
     ///     display text also comes from, asked for the tokens <see cref="KeyGesture.Parse" /> accepts
-    ///     rather than the human ones — <c>"←"</c> and <c>"Esc"</c> would not survive the next load.
+    ///     rather than the human ones: <c>"←"</c> and <c>"Esc"</c> would not survive the next load.
     /// </summary>
     /// <param name="action">The action being rebound.</param>
     /// <param name="key">The key.</param>
     /// <param name="modifiers">The modifiers.</param>
     public static string Row(Playback2DAction action, Key key, KeyModifiers modifiers) =>
-        $"{action}={Playback2DKeymap.Format(key, modifiers, display: false)}";
+        $"{action}={Playback2DKeymap.Format(key, modifiers, false)}";
 
     /// <summary>
     ///     Resolves a keypress against THIS profile. Same two rules as the shipped table: a tool-scoped
@@ -282,7 +282,7 @@ public sealed class Playback2DKeymapProfile
 
     /// <summary>
     ///     Display text for an action's gesture (e.g. "Shift+E"), "" when unbound. For tooltips and the
-    ///     Settings rows — resolved from THIS profile, so a rebound key shows the user's gesture rather
+    ///     Settings rows, resolved from THIS profile, so a rebound key shows the user's gesture rather
     ///     than the shipped one.
     /// </summary>
     /// <param name="action">The action.</param>

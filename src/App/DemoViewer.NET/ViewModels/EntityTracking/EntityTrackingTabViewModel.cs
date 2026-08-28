@@ -3,13 +3,12 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Controls;
-using DemoViewer.NET.Models;
+using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser.Models;
-using DemoViewer.NET.Services;
+using DemoViewer.NET.Controls;
+using DemoViewer.NET.Models;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.ViewModels.Common;
 using DemoViewer.NET.ViewModels.Diagnostics;
@@ -37,16 +36,15 @@ namespace DemoViewer.NET.ViewModels.EntityTracking;
 /// </summary>
 public sealed partial class EntityTrackingTabViewModel : ObservableObject
 {
-    // Diagnostics-pillar logger (v0.6.0 — the seek-error surfaces show clean text, this carries
-    // the real exception). Lazy: the ambient factory is wired after construction.
-    private ILogger? _diagLog;
-    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.EntityTracking");
-
     /// <summary>Master node list for the current seek, before the class filter is applied.</summary>
     private List<EntityNode> _allEntityNodes = [];
 
     /// <summary>Active class filter from the browser (null = all classes).</summary>
     private string? _classFilter;
+
+    // Diagnostics-pillar logger (v0.6.0 — the seek-error surfaces show clean text, this carries
+    // the real exception). Lazy: the ambient factory is wired after construction.
+    private ILogger? _diagLog;
 
     [ObservableProperty]
     private int _entityDeltaFieldCount;
@@ -119,6 +117,8 @@ public sealed partial class EntityTrackingTabViewModel : ObservableObject
         EntityList.EntitySelected += node => SelectedEntityItem = node?.Entity;
         ClassBrowser.ClassFilterChanged += OnClassFilterChanged;
     }
+
+    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.EntityTracking");
 
     /// <summary>Full unfiltered field list for the currently selected entity (for delta filter toggle).</summary>
     internal List<PayloadNode>? AllEntityFieldNodes { get; set; }

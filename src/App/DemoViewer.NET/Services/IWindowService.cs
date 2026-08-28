@@ -1,12 +1,10 @@
 #region
 
 using Avalonia.Controls;
-using DemoViewer.NET.ViewModels.Highlights;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Update;
 using DemoViewer.NET.Views;
-using DemoViewer.NET.Views.Highlights;
 using DemoViewer.NET.Views.Settings;
 using DemoViewer.NET.Views.Setup;
 using DemoViewer.NET.Views.Update;
@@ -53,7 +51,6 @@ public interface IWindowService
     ///     an update" moment to gate on).
     /// </summary>
     void ShowWhatsNew(WhatsNewViewModel viewModel);
-
 }
 
 /// <summary>
@@ -197,32 +194,6 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
         ShowOwned(_whatsNewWindow);
     }
 
-    // Shared non-modal show: owned by the main window when it is available (keeps the pop-up above
-    // the shell and closing with it), free-standing otherwise.
-    private void ShowOwned(Window window)
-    {
-        Window? owner = Owner();
-        if (owner is not null)
-        {
-            window.Show(owner);
-        }
-        else
-        {
-            window.Show();
-        }
-    }
-
-    /// <summary>
-    ///     The main window, but ONLY when it can legally act as an owner. Avalonia throws
-    ///     <see cref="InvalidOperationException" /> ("Cannot show window with non-visible owner") from
-    ///     both <c>Show(owner)</c> and <c>ShowDialog(owner)</c> if the owner has not been shown yet or
-    ///     has already closed — and the lookup hands back the main window from the moment it is
-    ///     constructed, well before it is shown. Callers that reach this during framework-init (or
-    ///     after the shell closes) therefore get <c>null</c> and fall back to a free-standing show,
-    ///     which is a cosmetically worse pop-up but never a crash.
-    /// </summary>
-    private Window? Owner() => ownerLookup() is { IsVisible: true } owner ? owner : null;
-
     /// <summary>
     ///     Shows the first-run wizard as a MODAL dialog owned by the main window, so the user completes
     ///     setup before returning to the app. The window closes on the wizard's Completed event.
@@ -259,6 +230,31 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
         }
     }
 
+    // Shared non-modal show: owned by the main window when it is available (keeps the pop-up above
+    // the shell and closing with it), free-standing otherwise.
+    private void ShowOwned(Window window)
+    {
+        Window? owner = Owner();
+        if (owner is not null)
+        {
+            window.Show(owner);
+        }
+        else
+        {
+            window.Show();
+        }
+    }
+
+    /// <summary>
+    ///     The main window, but ONLY when it can legally act as an owner. Avalonia throws
+    ///     <see cref="InvalidOperationException" /> ("Cannot show window with non-visible owner") from
+    ///     both <c>Show(owner)</c> and <c>ShowDialog(owner)</c> if the owner has not been shown yet or
+    ///     has already closed — and the lookup hands back the main window from the moment it is
+    ///     constructed, well before it is shown. Callers that reach this during framework-init (or
+    ///     after the shell closes) therefore get <c>null</c> and fall back to a free-standing show,
+    ///     which is a cosmetically worse pop-up but never a crash.
+    /// </summary>
+    private Window? Owner() => ownerLookup() is { IsVisible: true } owner ? owner : null;
 }
 
 /// <summary>
@@ -327,5 +323,4 @@ public sealed class BrowserWindowService : IWindowService
     {
         // Intentionally empty; see ShowUpdateNotice.
     }
-
 }

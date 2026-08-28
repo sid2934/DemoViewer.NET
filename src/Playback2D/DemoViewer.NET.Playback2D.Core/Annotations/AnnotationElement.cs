@@ -33,7 +33,7 @@ public enum AnnotationKind
 }
 
 /// <summary>
-///     Envelope authoring mode — drives what the UI writes into <see cref="TimeEnvelope" />. Persisted as a
+///     Envelope authoring mode. Drives what the UI writes into <see cref="TimeEnvelope" />. Persisted as a
 ///     string in <c>Playback2DSettings.AnnotationDefaultVisibility</c>, so the member NAMES are a contract.
 /// </summary>
 public enum EnvelopeMode
@@ -52,10 +52,9 @@ public enum EnvelopeMode
     ///     sample carries the elapsed authoring time at which it was drawn, and each SECTION runs the
     ///     element's own <see cref="TimeEnvelope" /> trapezoid shifted by that offset.
     ///     <para>
-    ///         The offsets are elapsed <b>authoring wall-clock</b>, re-based at <c>Time.FromTick</c> — not
-    ///         the tick each sample was drawn at, for the reasons on <c>IToolServices.NowMilliseconds</c>.
-    ///         Re-basing makes the replay a pure function of tick, which is what keeps the export
-    ///         determinism gate green.
+    ///         The offsets are elapsed <b>authoring wall-clock</b>, re-based at <c>Time.FromTick</c>, not
+    ///         the tick each sample was drawn at; see <c>IToolServices.NowMilliseconds</c>. Re-basing makes
+    ///         the replay a pure function of tick, which the export determinism gate requires.
     ///     </para>
     /// </summary>
     RealTime,
@@ -64,14 +63,14 @@ public enum EnvelopeMode
     ///     Lasts the ROUND it was drawn in: the window is <c>[freeze-end, next freeze-end)</c> around the
     ///     playhead, with <see cref="TimeEnvelope.FadeInTicks" /> / <see cref="TimeEnvelope.FadeOutTicks" />
     ///     still ramping it in and out. The last round has no following freeze-end, so its window is open
-    ///     at the far end — which is what "to the end of the demo" already means to a
+    ///     at the far end, which is what "to the end of the demo" already means to a
     ///     <see cref="TimeEnvelope" />.
     ///     <para>
-    ///         COMPUTED like <see cref="Fade" />, not typed like <see cref="Custom" />: a coach wants
-    ///         every callout to last its own round without clicking anything per stroke. Rounds are a
-    ///         demo fact Core cannot
-    ///         see, so the bounds arrive through <c>AnnotationSession.RoundWindowResolver</c>; a demo that
-    ///         carries no <c>round_freeze_end</c> degrades to <see cref="Fade" />'s pinned trapezoid.
+    ///         COMPUTED like <see cref="Fade" />, not typed like <see cref="Custom" />: a coach wants every
+    ///         callout to last its own round without clicking anything per stroke. Rounds are a demo fact
+    ///         Core cannot see, so the bounds arrive through
+    ///         <c>AnnotationSession.RoundWindowResolver</c>; a demo that carries no
+    ///         <c>round_freeze_end</c> degrades to <see cref="Fade" />'s pinned trapezoid.
     ///     </para>
     /// </summary>
     Round
@@ -92,11 +91,9 @@ public readonly record struct TimingRun(int SampleIndex, int TickOffset);
 ///         A boundary is emitted only where the authoring speed actually changed, so a stroke that was
 ///         drawn in one continuous motion carries two entries and one that paused three times carries
 ///         eight. Measured on a 1200-world-unit stroke, that is <b>+0.9 %</b> of the persisted document
-///         against <b>+26 %</b> for a fourth float on every <see cref="InkPoint" />. It is the better
-///         encoding, not the cheaper one: what a viewer reads as "it is replaying me" is the PAUSES, and
-///         speed variation inside one continuous motion is invisible at 64 Hz through a fading tail — a
-///         per-point stamp would spend 400 near-identical deltas recording motion the render never
-///         shows.
+///         against <b>+26 %</b> for a fourth float on every <see cref="InkPoint" />. What reads as a
+///         replay is the PAUSES; speed variation inside one continuous motion is invisible at 64 Hz
+///         through a fading tail.
 ///     </para>
 ///     <para>
 ///         <see cref="RevealedCount" /> is pure and allocation-free: it is called once per stroke per
@@ -108,16 +105,40 @@ public readonly record struct TimingRun(int SampleIndex, int TickOffset);
 /// <param name="DurationTicks">Ticks from the first sample to the last. 0 for an instant stroke.</param>
 public sealed record StrokeTiming(IReadOnlyList<TimingRun> Runs, int DurationTicks)
 {
-    /// <summary>No cadence recorded — the whole stroke appears at once. What a non-RealTime element has.</summary>
+    /// <summary>No cadence recorded; the whole stroke appears at once. What a non-RealTime element has.</summary>
     public static readonly StrokeTiming Instant = new([], 0);
+
+    /// <summary>
+    ///     Structural equality including the run table, for the same reason
+    ///     <see cref="AnnotationElement" /> compares its points element-wise: a save/load round trip must
+    ///     compare equal to what was written.
+    /// </summary>
+    /// <param name="other">The timing to compare against.</param>
+    public bool Equals(StrokeTiming? other)
+    {
+        if (other is null || DurationTicks != other.DurationTicks || Runs.Count != other.Runs.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < Runs.Count; i++)
+        {
+            if (!Runs[i].Equals(other.Runs[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     /// <summary>
     ///     How many samples have been drawn <paramref name="elapsedTicks" /> after the stroke began.
     ///     <para>
-    ///         <b>Monotone and continuous in the tick</b>, which is what keeps an export deterministic:
-    ///         a 30 fps render samples roughly every other tick (<c>ticksPerOutputFrame ≈ 2.13</c>), so a
-    ///         reveal that pulsed on a single tick could be skipped entirely at one frame rate and not
-    ///         another. Never returns 0 for a live stroke — a stroke that has begun has a head.
+    ///         <b>Monotone and continuous in the tick</b>, which keeps an export deterministic: a 30 fps
+    ///         render samples roughly every other tick (<c>ticksPerOutputFrame ≈ 2.13</c>), so a reveal
+    ///         that pulsed on a single tick could be skipped at one frame rate and not another. Never
+    ///         returns 0 for a live stroke.
     ///     </para>
     /// </summary>
     /// <param name="elapsedTicks">Ticks since the stroke began. Negative means not yet started.</param>
@@ -160,30 +181,6 @@ public sealed record StrokeTiming(IReadOnlyList<TimingRun> Runs, int DurationTic
         return sampleCount;
     }
 
-    /// <summary>
-    ///     Structural equality including the run table, for the same reason
-    ///     <see cref="AnnotationElement" /> compares its points element-wise: a save/load round trip must
-    ///     compare equal to what was written.
-    /// </summary>
-    /// <param name="other">The timing to compare against.</param>
-    public bool Equals(StrokeTiming? other)
-    {
-        if (other is null || DurationTicks != other.DurationTicks || Runs.Count != other.Runs.Count)
-        {
-            return false;
-        }
-
-        for (int i = 0; i < Runs.Count; i++)
-        {
-            if (!Runs[i].Equals(other.Runs[i]))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(DurationTicks, Runs.Count);
 }
@@ -199,16 +196,19 @@ public readonly record struct InkPoint(float X, float Y, float Pressure);
 ///     multiplier applied on top of the time envelope.
 /// </summary>
 /// <param name="ColorArgb">Packed ARGB (0xAARRGGBB).</param>
-/// <param name="WidthWorld">Stroke width in world units — ink zooms with the map, like a map pen.</param>
+/// <param name="WidthWorld">Stroke width in world units; ink zooms with the map, like a map pen.</param>
 /// <param name="Opacity">0..1 multiplier applied on top of <see cref="TimeEnvelope.OpacityAt" />.</param>
 /// <param name="RevealOnFadeIn">
 ///     When true a mid-fade-in <see cref="AnnotationKind.Freehand" /> draws only its leading fraction of
-///     points, giving the "draw-on reveal" animation for free (design §5.4).
+///     points, giving the "draw-on reveal" animation for free.
 /// </param>
-public readonly record struct AnnotationStyle(uint ColorArgb, float WidthWorld, float Opacity,
+public readonly record struct AnnotationStyle(
+    uint ColorArgb,
+    float WidthWorld,
+    float Opacity,
     bool RevealOnFadeIn = false)
 {
-    /// <summary>Amber, 6 world units wide, fully opaque, no reveal — the app's default ink.</summary>
+    /// <summary>Amber, 6 world units wide, fully opaque, no reveal. The app's default ink.</summary>
     public static readonly AnnotationStyle Default = new(0xFFFFC107, 6f, 1f);
 }
 
@@ -230,7 +230,7 @@ public abstract record SpaceRef
 
     /// <summary>
     ///     Tracked telestration: the stroke follows a player. Keyed by SteamId because roster SLOTS
-    ///     RECYCLE across a demo, so a slot-keyed anchor silently re-targets (design §5.4).
+    ///     RECYCLE across a demo, so a slot-keyed anchor silently re-targets.
     ///     <para>
     ///         <paramref name="Dx" />/<paramref name="Dy" /> is the offset from the player to the stroke's
     ///         FIRST point at authoring time. Rendering translates the whole stroke so that its first
@@ -267,8 +267,8 @@ public abstract record SpaceRef
 public readonly record struct TimeEnvelope(int? FromTick, int? UntilTick, int FadeInTicks, int FadeOutTicks)
 {
     /// <summary>
-    ///     Always visible at full opacity. Structurally <c>default</c> — design §5.4 requires exactly
-    ///     that, which is why the fades sit outside the window rather than inside it.
+    ///     Always visible at full opacity, and structurally <c>default</c>, which is why the fades sit
+    ///     outside the window rather than inside it.
     /// </summary>
     public static readonly TimeEnvelope Static;
 
@@ -277,7 +277,7 @@ public readonly record struct TimeEnvelope(int? FromTick, int? UntilTick, int Fa
 
     /// <summary>
     ///     The opacity multiplier at a tick. Pure: the same tick always gives the same answer regardless
-    ///     of call order, which is what makes scrubbing backwards identical to scrubbing forwards.
+    ///     of call order, so scrubbing backwards is identical to scrubbing forwards.
     /// </summary>
     /// <param name="tick">A DV frame-clock tick.</param>
     public double OpacityAt(int tick)
@@ -332,8 +332,8 @@ public readonly record struct TimeEnvelope(int? FromTick, int? UntilTick, int Fa
 
 /// <summary>
 ///     One drawn thing: an identity, a shape kind, a paint, a space anchor, a time envelope and the raw
-///     input samples. Immutable — an edit is a <c>DocDelta.Replace</c>, which is what makes undo a stack
-///     of value swaps rather than a diff of mutable objects.
+///     input samples. Immutable: an edit is a <c>DocDelta.Replace</c>, so undo is a stack of value swaps
+///     rather than a diff of mutable objects.
 /// </summary>
 /// <param name="Id">Stable identity. Survives undo/redo, persistence and level remaps.</param>
 /// <param name="Kind">What this element draws.</param>
@@ -344,10 +344,9 @@ public readonly record struct TimeEnvelope(int? FromTick, int? UntilTick, int Fa
 /// <param name="Text">Label content for <see cref="AnnotationKind.Text" />; null otherwise.</param>
 /// <param name="Timing">
 ///     The authoring cadence for <see cref="EnvelopeMode.RealTime" />, or null for every other element.
-///     TRAILING and defaulted on purpose: every existing construction site is positional, and
-///     a nullable property is also what keeps the persisted v1 schema byte-identical — the DTO writes
-///     with <c>DefaultIgnoreCondition = WhenWritingNull</c>, so an element without a cadence emits no
-///     field and <c>AnnotationSchemaSnapshotTests</c> does not move.
+///     TRAILING and defaulted on purpose: every existing construction site is positional, and a nullable
+///     property keeps the persisted v1 schema byte-identical. The DTO writes with
+///     <c>DefaultIgnoreCondition = WhenWritingNull</c>, so an element without a cadence emits no field.
 /// </param>
 public sealed record AnnotationElement(
     Guid Id,
@@ -362,10 +361,9 @@ public sealed record AnnotationElement(
     /// <summary>
     ///     Structural equality, including the samples.
     ///     <para>
-    ///         The synthesized record equality would compare <see cref="Points" /> by REFERENCE, which
-    ///         makes an element that survived a save/load round trip unequal to the one that was written
-    ///         — the exact comparison persistence and export both need to be able to make. The cost is
-    ///         O(n) in the sample count, paid only when something actually compares two elements.
+    ///         The synthesized record equality would compare <see cref="Points" /> by REFERENCE, so an
+    ///         element that survived a save/load round trip would be unequal to the one that was written.
+    ///         The cost is O(n) in the sample count, paid only when something compares two elements.
     ///     </para>
     /// </summary>
     /// <param name="other">The element to compare against.</param>

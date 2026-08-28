@@ -31,9 +31,9 @@ public sealed class AnnotationTrack : ITimelineTrack, IDisposable
     public const string TrackId = "annotation";
 
     private static readonly IReadOnlyList<TimelineBand> _noBands = [];
+    private readonly AnnotationDocument _document;
 
     private readonly List<TimelineMarker> _markers = [];
-    private readonly AnnotationDocument _document;
 
     private bool _disposed;
 
@@ -44,6 +44,18 @@ public sealed class AnnotationTrack : ITimelineTrack, IDisposable
         ArgumentNullException.ThrowIfNull(document);
         _document = document;
         _document.Changed += OnDocumentChanged;
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _document.Changed -= OnDocumentChanged;
     }
 
     /// <inheritdoc />
@@ -102,18 +114,6 @@ public sealed class AnnotationTrack : ITimelineTrack, IDisposable
 
     /// <inheritdoc />
     public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) => _noBands;
-
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        _document.Changed -= OnDocumentChanged;
-    }
 
     private void OnDocumentChanged() => MarkersChanged?.Invoke();
 

@@ -67,9 +67,6 @@ public partial class DemoEntry : ObservableObject
     [ObservableProperty]
     private int _roundCount;
 
-    [ObservableProperty]
-    private string? _serverName;
-
     /// <summary>
     ///     The cache row behind this entry holds a stale half-resolved score, so the score was WITHHELD when
     ///     the row was applied and has not been re-derived yet. Set by <c>DemoLibraryService.ApplyCache</c>;
@@ -77,6 +74,9 @@ public partial class DemoEntry : ObservableObject
     /// </summary>
     [ObservableProperty]
     private bool _scoreRepairPending;
+
+    [ObservableProperty]
+    private string? _serverName;
 
     [ObservableProperty]
     private DemoIndexState _state = DemoIndexState.Pending;

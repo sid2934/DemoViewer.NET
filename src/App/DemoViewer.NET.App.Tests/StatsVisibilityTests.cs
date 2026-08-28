@@ -5,7 +5,6 @@ using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Stats;
 using TUnit.Core.Exceptions;

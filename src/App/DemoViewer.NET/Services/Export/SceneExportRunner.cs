@@ -33,11 +33,26 @@ namespace DemoViewer.NET.Services.Export;
 /// </summary>
 public sealed class SceneExportRunner : IExportRunner
 {
+    /// <summary>
+    ///     The message shown when a video format was asked for and no ffmpeg exists.
+    ///     <para>
+    ///         It used to end "…or let DemoViewer download the LGPL build", advertising in a refusal the
+    ///         exact rung that had just silently not happened: acquiring ffmpeg was an optional constructor
+    ///         parameter the one production caller omitted. Acquisition is now a foreground action in the
+    ///         export pane — <c>FfmpegAcquisition</c> asks for consent only after the transfer, so it can
+    ///         never be something a background job does on a user's behalf. The refusal now points at the
+    ///         pane instead of promising to act.
+    ///     </para>
+    /// </summary>
+    public const string NoFfmpegRefusal =
+        "No ffmpeg was found, so only GIF can be exported. Install ffmpeg — or use the export pane's " +
+        "Download button where one is offered — then press Re-check, or switch the format to GIF.";
+
+    private readonly EncoderSelector _encoders;
     private readonly Action<string>? _log;
     private readonly Func<string?> _managedFfmpegDirectory;
     private readonly Func<Scene2DExportRequest, ExportSceneSetup?> _setup;
     private readonly Func<IRenderSurfaceProvider> _surfaces;
-    private readonly EncoderSelector _encoders;
 
     /// <summary>Creates the runner.</summary>
     /// <param name="setup">Captures the live tab's state for one export. Null means "no demo loaded".</param>
@@ -67,21 +82,6 @@ public sealed class SceneExportRunner : IExportRunner
         _log = log;
         _encoders = new EncoderSelector(encoderProbe);
     }
-
-    /// <summary>
-    ///     The message shown when a video format was asked for and no ffmpeg exists.
-    ///     <para>
-    ///         It used to end "…or let DemoViewer download the LGPL build", advertising in a refusal the
-    ///         exact rung that had just silently not happened: acquiring ffmpeg was an optional constructor
-    ///         parameter the one production caller omitted. Acquisition is now a foreground action in the
-    ///         export pane — <c>FfmpegAcquisition</c> asks for consent only after the transfer, so it can
-    ///         never be something a background job does on a user's behalf. The refusal now points at the
-    ///         pane instead of promising to act.
-    ///     </para>
-    /// </summary>
-    public const string NoFfmpegRefusal =
-        "No ffmpeg was found, so only GIF can be exported. Install ffmpeg — or use the export pane's " +
-        "Download button where one is offered — then press Re-check, or switch the format to GIF.";
 
     /// <inheritdoc />
     public async Task RunAsync(Scene2DExportRequest request, IProgress<ExportProgress> progress,

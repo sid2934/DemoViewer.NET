@@ -152,7 +152,7 @@ public sealed class VisibilityEngineSolver : IVisionSolver
             for (int i = 0; i < rays; i++)
             {
                 float deg = m.YawDegrees - _options.ConeHalfFovDeg
-                                         + 2f * _options.ConeHalfFovDeg * i / (rays - 1);
+                            + 2f * _options.ConeHalfFovDeg * i / (rays - 1);
                 float rad = deg * (MathF.PI / 180f);
                 float cos = MathF.Cos(rad), sin = MathF.Sin(rad);
                 float dist = engine.Raycast(eye, new Vector3(cos, sin, 0f), _options.ConeMaxRange, out float t)

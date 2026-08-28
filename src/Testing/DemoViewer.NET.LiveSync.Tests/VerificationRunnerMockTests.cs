@@ -1,8 +1,8 @@
 #region
 
+using CS2DemoKit.Parser;
 using Cs2VideoGenerator.Core;
 using DemoViewer.NET.Configuration;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.LiveSync;
 using TUnit.Core.Exceptions;
 using TimeoutException = System.TimeoutException;

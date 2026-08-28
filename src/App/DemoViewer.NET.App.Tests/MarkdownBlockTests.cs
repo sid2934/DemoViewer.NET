@@ -24,22 +24,22 @@ public class MarkdownBlockTests
         await HeadlessSession.RunOnUi(() =>
         {
             const string body = """
-                ## What's new in 0.6.0
+                                ## What's new in 0.6.0
 
-                **The notice is a window now.** Hard-wrapped lines
-                join into one paragraph.
+                                **The notice is a window now.** Hard-wrapped lines
+                                join into one paragraph.
 
-                - first bullet with **bold**
-                - second bullet
+                                - first bullet with **bold**
+                                - second bullet
 
-                > A quoted caveat.
+                                > A quoted caveat.
 
-                <details>
-                <summary>What was new in 0.5.4</summary>
+                                <details>
+                                <summary>What was new in 0.5.4</summary>
 
-                Old notes body.
-                </details>
-                """;
+                                Old notes body.
+                                </details>
+                                """;
 
             StackPanel panel = (StackPanel)MarkdownBlock.RenderBlocks(body);
 

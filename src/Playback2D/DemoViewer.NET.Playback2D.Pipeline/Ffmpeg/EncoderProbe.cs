@@ -12,16 +12,20 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 /// <param name="Encoder">The ffmpeg encoder id that was asked about.</param>
 /// <param name="Works">True when it encoded two frames without complaint.</param>
 /// <param name="Detail">
-///     Why, in ffmpeg's own words where there are any. <c>"verified"</c>, <c>"not built into this
-///     ffmpeg"</c>, <c>"listed (software)"</c>, or the encoder's stderr tail.
+///     Why, in ffmpeg's own words where there are any. <c>"verified"</c>,
+///     <c>
+///         "not built into this
+///         ffmpeg"
+///     </c>
+///     , <c>"listed (software)"</c>, or the encoder's stderr tail.
 /// </param>
 /// <remarks>
 ///     <b>There is no duration on this record, deliberately.</b> Pipeline is banned from
 ///     <c>System.Diagnostics.Stopwatch</c> outside <c>…Benchmarking</c> and <c>…Export</c>
-///     (<c>BannedApiTests</c>), and widening a determinism exemption to carry a diagnostic number would
-///     be paying the wrong price for it. What a probe costs is one number for the whole ladder walk, and
-///     the front end that calls <c>EncoderSelector.Select</c> is the thing that can time it —
-///     <c>dv2d export --json</c> reports it as <c>encoder_probe_ms</c>.
+///     (<c>BannedApiTests</c>), and widening a determinism exemption to carry a diagnostic number is the
+///     wrong price. What a probe costs is one number for the whole ladder walk, timed by the front end
+///     that calls <c>EncoderSelector.Select</c>; <c>dv2d export --json</c> reports it as
+///     <c>encoder_probe_ms</c>.
 /// </remarks>
 public readonly record struct EncoderProbeResult(string Encoder, bool Works, string Detail)
 {
@@ -31,7 +35,8 @@ public readonly record struct EncoderProbeResult(string Encoder, bool Works, str
 }
 
 /// <summary>
-///     Answers "can this machine actually run this encoder" — plan <c>P2-export-throughput</c> D1.
+///     Answers "can this machine actually run this encoder". See
+///     <c>docs/playback2d-v2/plans/P2-export-throughput.md</c>.
 ///     <para>
 ///         The seam exists so <see cref="EncoderSelector" />'s ladder walk can be tested with no ffmpeg,
 ///         no GPU and no subprocess, which is the only way the fallback behaviour can be asserted on a
@@ -44,10 +49,10 @@ public interface IEncoderProbe
     /// <param name="encoderName">The ffmpeg encoder id.</param>
     /// <param name="binaryFolder">Where ffmpeg lives, or null to use <c>PATH</c>.</param>
     /// <param name="trustListing">
-    ///     True for software rungs: presence in <c>ffmpeg -encoders</c> is accepted without a test encode.
-    ///     The failure mode a test encode exists for — listed, initialises, then dies on a missing device
-    ///     — is a driver fact, and paying 600 ms per export on a GPU-less runner to re-learn that libvpx
-    ///     is still libvpx would be a tax on the one lane that can never benefit.
+    ///     True for software rungs: presence in <c>ffmpeg -encoders</c> is accepted without a test
+    ///     encode. The failure mode a test encode exists for (listed, initialises, then dies on a missing
+    ///     device) is a driver fact. Paying 600 ms per export on a GPU-less runner to re-learn that
+    ///     libvpx is still libvpx taxes the one lane that can never benefit.
     /// </param>
     /// <param name="ct">Cancels the probe.</param>
     EncoderProbeResult Verify(string encoderName, string? binaryFolder, bool trustListing,
@@ -60,9 +65,10 @@ public interface IEncoderProbe
 ///     <para>
 ///         <b>The listing is necessary and not sufficient.</b> It is a BUILD manifest. On the machine this
 ///         was written against, <c>av1_qsv</c>, <c>h264_qsv</c> and <c>av1_amf</c> are all listed and all
-///         fail at device creation — and <c>av1_amf</c> fails on the same silicon where <c>h264_amf</c>
-///         works, because that Radeon iGPU has an H.264 encode block and no AV1 one. A ladder that trusted
-///         the listing would pick a broken encoder and discover it an hour into a full-match export.
+///         fail at device creation. <c>av1_amf</c> fails on the same silicon where <c>h264_amf</c>
+///         works, because that Radeon iGPU has an H.264 encode block and no AV1 one. A ladder that
+///         trusted the listing would pick a broken encoder and discover it an hour into a full-match
+///         export.
 ///     </para>
 ///     <para>
 ///         <b>The test encode has nothing in it but the encoder.</b> Two 256×256 <c>yuv420p</c> frames of
@@ -73,24 +79,24 @@ public interface IEncoderProbe
 /// </summary>
 public sealed class FfmpegEncoderProbe : IEncoderProbe
 {
-    /// <summary>How long a probe may run before it is killed and reported as unavailable.</summary>
-    public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
-
     /// <summary>The square edge of the test frames. Above every hardware encoder's minimum.</summary>
     public const int ProbeSize = 256;
 
     /// <summary>Frames fed to the test encode. Two, so an encoder that needs a second frame gets one.</summary>
     public const int ProbeFrames = 2;
 
+    /// <summary>How long a probe may run before it is killed and reported as unavailable.</summary>
+    public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
+
     private static readonly char[] _newlines = ['\r', '\n'];
 
     private readonly ConcurrentDictionary<string, IReadOnlySet<string>> _listings =
         new(StringComparer.Ordinal);
 
+    private int _testEncodes;
+
     /// <summary>How many test encodes this probe has actually spawned. Diagnostics and tests.</summary>
     public int TestEncodes => _testEncodes;
-
-    private int _testEncodes;
 
     /// <inheritdoc />
     public EncoderProbeResult Verify(string encoderName, string? binaryFolder, bool trustListing,
@@ -135,13 +141,12 @@ public sealed class FfmpegEncoderProbe : IEncoderProbe
 
         HashSet<string> read = ReadListing(binaryFolder, ct);
 
-        // <b>Only a listing that named something is a fact about the build.</b> An empty one means the
-        // read did not happen — a token tripped mid-walk, a killed process, an ffmpeg caught mid
-        // reinstall — and those are facts about a moment, not about a machine. Remembering one would
-        // answer every later question with "not built into this ffmpeg", which walks the whole ladder
-        // into the software floor; and because the app holds ONE cache for the session, it would stay
-        // that way until the user happened to press Re-check. EncoderProbeCache already refuses to
-        // remember a cancelled RESULT for this exact reason, and the listing underneath it must agree.
+        // Only a listing that named something is a fact about the build. An empty one means the read did
+        // not happen (a token tripped mid-walk, a killed process, an ffmpeg caught mid reinstall), which
+        // is a fact about a moment. Remembering it answers every later question with "not built into
+        // this ffmpeg", walking the whole ladder into the software floor; and because the app holds ONE
+        // cache for the session, it stays that way until the user presses Re-check. EncoderProbeCache
+        // refuses to remember a cancelled RESULT for the same reason, and the listing must agree.
         if (read.Count > 0)
         {
             _listings[key] = read;
@@ -154,9 +159,9 @@ public sealed class FfmpegEncoderProbe : IEncoderProbe
     ///     Forgets the cached <c>-encoders</c> listings, so the next question re-reads them.
     ///     <para>
     ///         Only non-empty listings are ever held (see <see cref="ListEncoders" />), so this is about
-    ///         a build that changed underneath us rather than one that failed to be read — which is
-    ///         exactly what the export dialog's Re-check button means, so
-    ///         <see cref="EncoderProbeCache.Clear" /> reaches through to this.
+    ///         a build that changed underneath us rather than one that failed to be read. That is what
+    ///         the export dialog's Re-check button means, so <see cref="EncoderProbeCache.Clear" />
+    ///         reaches through to this.
     ///     </para>
     /// </summary>
     public void ClearListings() => _listings.Clear();
@@ -218,10 +223,10 @@ public sealed class FfmpegEncoderProbe : IEncoderProbe
         }
 
         // ffmpeg's FIRST error line, not its last. A failing encoder says the useful thing immediately
-        // ("[av1_qsv] Error creating a MFX session: -9" — no Intel device) and then says several
+        // ("[av1_qsv] Error creating a MFX session: -9", i.e. no Intel device) and then says several
         // consequences of it, ending with "[out#0/null] Nothing was written into output file", which is
-        // true, generic, and sends a reader nowhere. Preferring a line that names the encoder itself is
-        // what keeps the cause in front of its own side effects.
+        // true, generic, and sends a reader nowhere. A line that names the encoder is the cause; the
+        // rest are its side effects.
         string cause = FirstCause(stderr, encoderName);
         return (false, cause.Length == 0
             ? string.Create(CultureInfo.InvariantCulture, $"test encode failed (exit {exit})")
@@ -287,8 +292,8 @@ public sealed class FfmpegEncoderProbe : IEncoderProbe
 
             // Cancellation ENDS THE CHILD; it does not stop us reading it. Handing the token to the two
             // reads below instead would abandon the pipes while ffmpeg was still writing to them, and a
-            // full pipe buffer blocks the child forever — so a cancelled probe would sit out the whole
-            // 20 s timeout before reporting a failure nobody was waiting for any more.
+            // full pipe buffer blocks the child forever, so a cancelled probe would sit out the whole
+            // 20 s timeout before reporting a failure nobody is waiting for any more.
             using CancellationTokenRegistration kill =
                 ct.Register(static state => TryKill((Process)state!), process);
 
@@ -305,8 +310,8 @@ public sealed class FfmpegEncoderProbe : IEncoderProbe
                 }
                 catch (IOException)
                 {
-                    // The encoder refused before it read anything — a broken pipe here IS the answer,
-                    // and it is on stderr. Close the pipe and let the exit code speak.
+                    // The encoder refused before it read anything. A broken pipe here IS the answer, and
+                    // it is on stderr. Close the pipe and let the exit code speak.
                 }
             }
 
@@ -362,21 +367,23 @@ public sealed class FfmpegEncoderProbe : IEncoderProbe
 }
 
 /// <summary>
-///     Memoises probe answers per (ffmpeg directory, encoder) — plan <c>P2-export-throughput</c> D1.
+///     Memoises probe answers per (ffmpeg directory, encoder).
 ///     <para>
-///         <b>It caches facts about the machine, not decisions about a session.</b> That is the whole
-///         reason it is safe to share one across concurrent exports, and why <see cref="Shared" /> exists
-///         at all while <c>EncoderSelection</c> is deliberately a per-session value (plan D5). Nothing a
-///         session can do changes what a probe would answer.
+///         <b>It caches facts about the machine, not decisions about a session.</b> That is why one is
+///         safe to share across concurrent exports and why <see cref="Shared" /> exists at all, while
+///         <c>EncoderSelection</c> is deliberately a per-session value. Nothing a session can do changes
+///         what a probe would answer.
 ///     </para>
 /// </summary>
 /// <param name="inner">The probe to memoise. Defaults to a real <see cref="FfmpegEncoderProbe" />.</param>
 public sealed class EncoderProbeCache(IEncoderProbe? inner = null) : IEncoderProbe
 {
+    private readonly IEncoderProbe _inner = inner ?? new FfmpegEncoderProbe();
+
     private readonly ConcurrentDictionary<(string Folder, string Encoder), EncoderProbeResult> _results =
         new();
 
-    private readonly IEncoderProbe _inner = inner ?? new FfmpegEncoderProbe();
+    private int _hits;
 
     /// <summary>
     ///     A process-wide cache, for callers that have no better place to keep one. The app's composition
@@ -387,8 +394,6 @@ public sealed class EncoderProbeCache(IEncoderProbe? inner = null) : IEncoderPro
 
     /// <summary>Answers this cache has served without asking the underlying probe. Diagnostics and tests.</summary>
     public int Hits => _hits;
-
-    private int _hits;
 
     /// <inheritdoc />
     public EncoderProbeResult Verify(string encoderName, string? binaryFolder, bool trustListing,

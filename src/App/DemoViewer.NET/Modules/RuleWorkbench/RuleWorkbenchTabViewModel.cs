@@ -9,24 +9,24 @@ using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Building;
 using CS2DemoKit.Analysis.Catalog;
-using CS2DemoKit.Analysis.Config;
+using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Analysis.Plugins;
 using CS2DemoKit.Analysis.Registry;
-using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.RulesetsV2.Resolve;
 using CS2DemoKit.Analysis.Yaml;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Abstractions;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.Visualization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 // RuleGraphSkeleton / GraphViewModel — authoring graph
 
 #endregion
@@ -44,11 +44,6 @@ namespace DemoViewer.NET.Modules.RuleWorkbench;
 /// </summary>
 public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorkspaceTabViewModel, IDisposable
 {
-    // Diagnostics-pillar logger (v0.6.0 — failure surfaces show clean text, this carries the real
-    // exception). Lazy: the ambient factory is wired after construction.
-    private ILogger? _diagLog;
-    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.RuleWorkbench");
-
     private static readonly Regex _catalogVersionLine =
         new(@"^catalog_version:\s*\d+\s*$", RegexOptions.Multiline | RegexOptions.Compiled);
 
@@ -63,7 +58,12 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     private readonly string? _userDir; // null on WASM / no writable filesystem
 
     private IModuleContext? _context;
+
     private ICurrentDemoSource? _demoSource;
+
+    // Diagnostics-pillar logger (v0.6.0 — failure surfaces show clean text, this carries the real
+    // exception). Lazy: the ambient factory is wired after construction.
+    private ILogger? _diagLog;
 
     [ObservableProperty]
     private string _documentText = "";
@@ -151,6 +151,8 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
                 OnPropertyChanged(nameof(CanSave));
             }));
     }
+
+    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.RuleWorkbench");
 
     // Shipped rulesets are read-only unless developer mode is on. A save on a read-only file
     // prompts for a new name (save-as to the user overlay).

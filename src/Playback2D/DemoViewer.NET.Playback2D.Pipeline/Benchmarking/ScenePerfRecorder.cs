@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Benchmarking;
 public enum PerfStage
 {
     /// <summary>
-    ///     <c>ISceneFrameSource.TimeAt</c> + <c>FrameAt</c> — on a demo-backed run this is the entity
+    ///     <c>ISceneFrameSource.TimeAt</c> + <c>FrameAt</c>: on a demo-backed run this is the entity
     ///     tracker's decode plus <c>SceneFrameBuilder</c>, and on a fixture-backed run it is ~free.
     ///     Separating it is the whole reason "is the exporter slow or is the decoder slow" is answerable.
     /// </summary>
@@ -59,12 +59,12 @@ public enum PerfStage
 ///         <b>Zero steady-state allocation while capturing.</b> Every sample is a raw
 ///         <see cref="Stopwatch.GetTimestamp" /> delta accumulated into a flat <c>long[]</c> and pushed
 ///         once per <see cref="EndFrame" /> into a wrapping ring. Rings are allocated on their first
-///         push — i.e. by the warmup frames — and never again. Nothing is converted, sorted or formatted
+///         push (i.e. by the warmup frames) and never again. Nothing is converted, sorted or formatted
 ///         until <see cref="Snapshot" />, which runs after the measured window.
 ///     </para>
 ///     <para>
 ///         <b>Not thread-safe; one run at a time.</b> The export loop hands off between pool threads
-///         across <c>await</c>, which is fine — the calls are sequential, never concurrent.
+///         across <c>await</c>, which is fine: the calls are sequential, never concurrent.
 ///     </para>
 /// </summary>
 public sealed class ScenePerfRecorder : ISceneProfiler
@@ -152,7 +152,7 @@ public sealed class ScenePerfRecorder : ISceneProfiler
             _layerNames[index] = layerId;
         }
 
-        _layerStart[(index * PhaseCount) + (int)phase] = Stopwatch.GetTimestamp();
+        _layerStart[index * PhaseCount + (int)phase] = Stopwatch.GetTimestamp();
     }
 
     /// <inheritdoc />
@@ -163,7 +163,7 @@ public sealed class ScenePerfRecorder : ISceneProfiler
             return;
         }
 
-        int slot = (index * PhaseCount) + (int)phase;
+        int slot = index * PhaseCount + (int)phase;
 
         // += rather than =: a layer drawn into three panes costs the frame three deltas, and the frame
         // sample is what the layer cost the frame.
@@ -241,7 +241,7 @@ public sealed class ScenePerfRecorder : ISceneProfiler
             _layerAccum[slot] = 0;
         }
 
-        // A caller that drives only the compositor — a test, a host that has no pipeline stages —
+        // A caller that drives only the compositor (a test, a host that has no pipeline stages)
         // still deserves meaningful share percentages, and the layers are the whole frame it can see.
         // With stages present they are the denominator, and the layers stay nested inside them.
         if (!staged)
@@ -263,13 +263,13 @@ public sealed class ScenePerfRecorder : ISceneProfiler
     ///     Zeroes every sample, counter and frame count, keeping the rings and the layer labels.
     ///     <para>
     ///         The benchmark calls this <b>after</b> its warmup, so the rings are allocated by warmup
-    ///         frames and the measured window — the one the §6 bytes/frame gate reads — only ever writes
+    ///         frames and the measured window (the one the §6 bytes/frame gate reads) only ever writes
     ///         into arrays that already exist.
     ///     </para>
     ///     <para>
     ///         The <c>touched</c> flags are part of "every counter" and are cleared with the rest. They
     ///         are what decides whether a row exists at all, so leaving them set would carry a slot that
-    ///         only the warmup ever exercised into the report as a row of zeros — reading as "measured and
+    ///         only the warmup ever exercised into the report as a row of zeros: reading as "measured and
     ///         free" when the truth is "not measured". Absent, not zero, is the honest answer, and it is
     ///         the same rule the stage rows already follow: a stage a harness never drives does not appear.
     ///     </para>
@@ -297,7 +297,7 @@ public sealed class ScenePerfRecorder : ISceneProfiler
 
     /// <summary>
     ///     Projects the captured ticks into a report: milliseconds, nearest-rank percentiles, totals,
-    ///     share-of-frame and the cache counters. Allocates — deliberately, and only here, outside any
+    ///     share-of-frame and the cache counters. Allocates: deliberately, and only here, outside any
     ///     measured window.
     /// </summary>
     public PerfReport Snapshot()
@@ -332,7 +332,7 @@ public sealed class ScenePerfRecorder : ISceneProfiler
             FrameTimeStats stats = Stats(_layerRing[slot], _layerCount[slot], _layerHead[slot], scratch,
                 out double sum);
 
-            // Cache counters are per layer, not per phase, and belong on the Render row — the only phase
+            // Cache counters are per layer, not per phase, and belong on the Render row: the only phase
             // a picture cache is consulted in.
             bool render = phase == LayerPhase.Render;
             layers.Add(new PerfRow(
@@ -362,7 +362,7 @@ public sealed class ScenePerfRecorder : ISceneProfiler
         _ => "encode"
     };
 
-    // The ring is allocated on its first push — that is, during warmup — and never again. Every push
+    // The ring is allocated on its first push (that is, during warmup) and never again. Every push
     // after that is a store into an array that already exists.
     private void Push(long[]?[] rings, int[] heads, int[] counts, int slot, long ticks)
     {

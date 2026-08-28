@@ -6,8 +6,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Clips;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.Library;
 
 #endregion
@@ -16,8 +16,12 @@ namespace DemoViewer.NET.ViewModels.Highlights;
 
 /// <summary>
 ///     The cross-demo <b>Add clips</b> picker — the
-///     reason multi-demo reels still work with the card grid gone. A <b>flat, virtualized highlight-ROW
-///     list</b> spanning every cached demo, because the unit of work here is a clip, not a demo; that also
+///     reason multi-demo reels still work with the card grid gone. A
+///     <b>
+///         flat, virtualized highlight-ROW
+///         list
+///     </b>
+///     spanning every cached demo, because the unit of work here is a clip, not a demo; that also
 ///     retires the chunked <c>CardRow</c> machinery, which only ever existed because <c>WrapPanel</c> has no
 ///     virtualizing counterpart.
 ///     <para>
@@ -45,11 +49,6 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     private readonly Action<IReadOnlyList<HighlightSelection>> _stage;
     private readonly Action<HighlightKey> _unstage;
 
-    // Filter re-application is O(rows); the constructor builds three filter lists and each one raises
-    // PropertyChanged per item, so a naive hook would run the whole filter pass a few hundred times before
-    // the picker is even visible.
-    private bool _suppressApply = true;
-
     /// <summary>Free-text needle matched against map, player, demo file name and highlight title.</summary>
     [ObservableProperty]
     private string _searchText = "";
@@ -57,6 +56,11 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     /// <summary>A transient note shown in the footer (e.g. after <c>Rescan all</c> re-queues the library).</summary>
     [ObservableProperty]
     private string _statusNote = "";
+
+    // Filter re-application is O(rows); the constructor builds three filter lists and each one raises
+    // PropertyChanged per item, so a naive hook would run the whole filter pass a few hundred times before
+    // the picker is even visible.
+    private bool _suppressApply = true;
 
     /// <summary>
     ///     Builds the picker over a snapshot of the highlights cache.
@@ -157,7 +161,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     public int TotalHighlights { get; }
 
     /// <summary>How many demos contribute at least one highlight (the coverage denominator that matters).</summary>
-    public int DemosWithHighlights { get; private set; }
+    public int DemosWithHighlights { get; }
 
     /// <summary>How many rows the cache knows about at all (analysed or not) — the library-size context.</summary>
     public int LibraryRowCount { get; }
@@ -549,13 +553,13 @@ public sealed partial class AddClipsRowViewModel : ObservableObject
 {
     private readonly Action<AddClipsRowViewModel> _stageRequested;
 
-    /// <summary>True when this highlight is already in the tray (pushed by the tray, never self-set).</summary>
-    [ObservableProperty]
-    private bool _isStaged;
-
     /// <summary>True when ticked for the bulk <c>Add N selected</c> action.</summary>
     [ObservableProperty]
     private bool _isPicked;
+
+    /// <summary>True when this highlight is already in the tray (pushed by the tray, never self-set).</summary>
+    [ObservableProperty]
+    private bool _isStaged;
 
     /// <summary>Builds one picker row and pre-computes everything the template binds.</summary>
     /// <param name="record">The owning demo's cache record (demo facts + roster).</param>
@@ -650,6 +654,9 @@ public sealed partial class AddClipsRowViewModel : ObservableObject
     /// <summary>The stage button's tooltip, which is where the toggle semantics are actually stated.</summary>
     public string StageHint => IsStaged ? "In the tray — click to remove" : "Add this clip to the tray";
 
+    /// <summary>False once staged — ticking a row that is already in the tray has no meaning.</summary>
+    public bool CanPick => !IsStaged;
+
     /// <summary>Free-text match over everything the row displays.</summary>
     /// <param name="needle">The trimmed search needle.</param>
     public bool Matches(string needle) =>
@@ -670,9 +677,6 @@ public sealed partial class AddClipsRowViewModel : ObservableObject
             IsPicked = false;
         }
     }
-
-    /// <summary>False once staged — ticking a row that is already in the tray has no meaning.</summary>
-    public bool CanPick => !IsStaged;
 
     /// <summary>Toggles this row in or out of the tray.</summary>
     [RelayCommand]

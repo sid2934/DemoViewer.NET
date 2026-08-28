@@ -14,18 +14,18 @@ namespace DemoViewer.NET.Testing.Tiers;
 ///     architecture assertion stays true by construction).
 ///     <para>
 ///         <b>Tiers are defined by exclusion, never by inclusion.</b> A test with no categories at all
-///         is in every tier, so a newly written unit test is covered by the cheapest tier the moment it
-///         is written and nobody has to remember to opt it in. What costs something — a demo read off
-///         disk, a rasterised frame, a spawned process, a benchmark — is what carries a tag, and a tag
-///         is what a tier drops. <c>fast ⊆ standard ⊆ full</c> holds by construction because the
-///         exclusion sets nest, which <c>TestTierContractTests</c> asserts rather than assumes.
+///         is in every tier, so a newly written unit test lands in the cheapest tier without anyone
+///         opting it in. The tag goes on what costs something: a demo read off disk, a rasterised
+///         frame, a spawned process, a benchmark. A tier is the set of tags it drops.
+///         <c>fast ⊆ standard ⊆ full</c> holds by construction because the exclusion sets nest, which
+///         <c>TestTierContractTests</c> asserts rather than assumes.
 ///     </para>
 ///     <para>
 ///         See <c>docs/playback2d-v2/plans/P3-test-tiers.md</c> for the working agreement and the
-///         Microsoft.Testing.Platform filter-grammar findings this file's
-///         <see cref="TreeNodeFilterFor" /> is written against — in particular, that every operand
-///         inside <c>[…]</c> must be a parenthesised <c>Key=Value</c> / <c>Key!=Value</c> comparison,
-///         because the unparenthesised form crashes the filter parser outright.
+///         Microsoft.Testing.Platform filter-grammar findings <see cref="TreeNodeFilterFor" /> is
+///         written against. In particular: every operand inside <c>[…]</c> must be a parenthesised
+///         <c>Key=Value</c> / <c>Key!=Value</c> comparison, because the unparenthesised form crashes
+///         the filter parser outright.
 ///     </para>
 /// </summary>
 public static class TestTiers
@@ -33,14 +33,14 @@ public static class TestTiers
     // ── Cost tags: a tier drops these ────────────────────────────────────────────────────────────
 
     /// <summary>
-    ///     Measures rather than asserts behaviour — frame-time and allocation benchmarks. Pre-existing
+    ///     Measures rather than asserts behaviour (frame-time and allocation benchmarks). Pre-existing
     ///     and load-bearing: the <c>playback2d-budget</c> CI lane selects on exactly this string, and
     ///     the correctness lanes exclude it, so its membership must not drift.
     /// </summary>
     public const string Budget = "Budget";
 
     /// <summary>
-    ///     Depends on machine or OS state this repository does not own — file-lock semantics, symlink
+    ///     Depends on machine or OS state this repository does not own: file-lock semantics, symlink
     ///     creation privilege, a per-user settings path. Known to fail on some developer machines while
     ///     passing on others; carried so an in-flight run is not asked to interpret a red that means
     ///     nothing about the change under test.
@@ -88,7 +88,7 @@ public static class TestTiers
     /// <summary>
     ///     Every category string this repository is allowed to put on a test. A category outside this
     ///     set is a typo or an undeclared tag, and either way it silently changes which tier a test
-    ///     lands in — which is why <c>TestTierContractTests</c> fails on one.
+    ///     lands in. <c>TestTierContractTests</c> fails on one.
     /// </summary>
     public static ImmutableArray<string> KnownCategories { get; } =
         [Budget, Environmental, Gpu, Integration, Probe, RealDemo, Render, Unit];
@@ -117,8 +117,8 @@ public static class TestTiers
     ///     The <c>--treenode-filter</c> expression for a tier.
     ///     <para>
     ///         Shape: <c>/Assembly/Namespace/Class/Method[FILTER]</c>. Every operand is a parenthesised
-    ///         <c>Category!=Tag</c>; the parentheses are mandatory, not cosmetic — <c>&amp;</c> and
-    ///         <c>|</c> bind <i>tighter</i> than <c>=</c> in the platform's parser, so the bare form
+    ///         <c>Category!=Tag</c>, and the parentheses are mandatory: <c>&amp;</c> and <c>|</c> bind
+    ///         tighter than <c>=</c> in the platform's parser, so the bare form
     ///         <c>[Category!=A&amp;Category!=B]</c> throws
     ///         <see cref="InvalidOperationException" /> out of the filter parser before a single test
     ///         runs. <c>full</c> carries no bracket at all, because an empty <c>[]</c> is not valid

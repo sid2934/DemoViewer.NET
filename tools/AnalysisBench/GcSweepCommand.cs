@@ -1,11 +1,10 @@
 #region
 
 using System.Diagnostics;
+using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using CS2DemoKit.Analysis;
-using CS2DemoKit.Analysis.Abstractions;
-using CS2DemoKit.Analysis.Config;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
@@ -40,14 +39,10 @@ internal static class GcSweepCommand
 {
     private const double Mb = 1024 * 1024;
 
-    private static readonly JsonSerializerOptions _indented = new() { WriteIndented = true };
-
-    /// <summary>One GC configuration: a display name plus the environment it implies.</summary>
-    private sealed record GcConfig(string Name, Dictionary<string, string> Env)
+    private static readonly JsonSerializerOptions _indented = new()
     {
-        public static GcConfig Of(string name, params (string Key, string Value)[] vars) =>
-            new(name, vars.ToDictionary(v => v.Key, v => v.Value, StringComparer.Ordinal));
-    }
+        WriteIndented = true
+    };
 
     // The matrix. Server+Concurrent is what the Desktop app ships today (csproj sets
     // ServerGarbageCollection/ConcurrentGarbageCollection true), so it is the baseline to beat.
@@ -154,7 +149,10 @@ internal static class GcSweepCommand
                 continue;
             }
 
-            results.Add(r with { Config = config.Name });
+            results.Add(r with
+            {
+                Config = config.Name
+            });
             Console.WriteLine($"{r.TotalMs,7:F0} ms   final RSS {r.FinalRssMb,7:F0} MB");
         }
 
@@ -263,8 +261,8 @@ internal static class GcSweepCommand
         // locals in place is not enough: the `using` in a method introduces a try/finally that can keep
         // slots live to the end of the frame, which made an earlier version of this probe report the whole
         // 820 MB demo as "final heap".
-        System.Runtime.GCSettings.LargeObjectHeapCompactionMode =
-            System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+        GCSettings.LargeObjectHeapCompactionMode =
+            GCLargeObjectHeapCompactionMode.CompactOnce;
         for (int i = 0; i < 3; i++)
         {
             GC.Collect(2, GCCollectionMode.Aggressive, true, true);
@@ -356,38 +354,6 @@ internal static class GcSweepCommand
             messages, liveHeap / Mb);
     }
 
-    private sealed record Phase(
-        double ReadMs, double ParseMs, double BuildMs, double EvalMs, double TotalMs,
-        int Gen0, int Gen1, int Gen2, double PauseMs, double AllocatedGb, int Messages, double LiveHeapMb);
-
-    /// <summary>Background peak-footprint sampler — peak RSS/heap are transients the phase timings miss.</summary>
-    private sealed class Sampler : IDisposable
-    {
-        private readonly CancellationTokenSource _cts = new();
-        public long PeakRss;
-        public long PeakManaged;
-
-        public void Start()
-        {
-            Thread t = new(() =>
-            {
-                Process self = Process.GetCurrentProcess();
-                while (!_cts.IsCancellationRequested)
-                {
-                    self.Refresh();
-                    PeakRss = Math.Max(PeakRss, self.WorkingSet64);
-                    PeakManaged = Math.Max(PeakManaged, GC.GetTotalMemory(false));
-                    Thread.Sleep(25);
-                }
-            }) { IsBackground = true };
-            t.Start();
-        }
-
-        public void Stop() => _cts.Cancel();
-
-        public void Dispose() => _cts.Dispose();
-    }
-
     private static string FindRulesDir()
     {
         DirectoryInfo? dir = new(AppContext.BaseDirectory);
@@ -405,10 +371,74 @@ internal static class GcSweepCommand
         return Path.Combine(AppContext.BaseDirectory, "rules");
     }
 
+    /// <summary>One GC configuration: a display name plus the environment it implies.</summary>
+    private sealed record GcConfig(string Name, Dictionary<string, string> Env)
+    {
+        public static GcConfig Of(string name, params (string Key, string Value)[] vars) =>
+            new(name, vars.ToDictionary(v => v.Key, v => v.Value, StringComparer.Ordinal));
+    }
+
+    private sealed record Phase(
+        double ReadMs,
+        double ParseMs,
+        double BuildMs,
+        double EvalMs,
+        double TotalMs,
+        int Gen0,
+        int Gen1,
+        int Gen2,
+        double PauseMs,
+        double AllocatedGb,
+        int Messages,
+        double LiveHeapMb);
+
+    /// <summary>Background peak-footprint sampler — peak RSS/heap are transients the phase timings miss.</summary>
+    private sealed class Sampler : IDisposable
+    {
+        private readonly CancellationTokenSource _cts = new();
+        public long PeakManaged;
+        public long PeakRss;
+
+        public void Dispose() => _cts.Dispose();
+
+        public void Start()
+        {
+            Thread t = new(() =>
+            {
+                Process self = Process.GetCurrentProcess();
+                while (!_cts.IsCancellationRequested)
+                {
+                    self.Refresh();
+                    PeakRss = Math.Max(PeakRss, self.WorkingSet64);
+                    PeakManaged = Math.Max(PeakManaged, GC.GetTotalMemory(false));
+                    Thread.Sleep(25);
+                }
+            })
+            {
+                IsBackground = true
+            };
+            t.Start();
+        }
+
+        public void Stop() => _cts.Cancel();
+    }
+
     internal sealed record ProbeResult(
         string Config,
-        double ReadMs, double ParseMs, double BuildMs, double EvalMs, double TotalMs,
-        double PeakManagedMb, double PeakRssMb,
-        double FinalManagedMb, double FinalCommittedMb, double FinalRssMb,
-        int Gen0, int Gen1, int Gen2, double PauseMs, double AllocatedGb, double LiveHeapMb);
+        double ReadMs,
+        double ParseMs,
+        double BuildMs,
+        double EvalMs,
+        double TotalMs,
+        double PeakManagedMb,
+        double PeakRssMb,
+        double FinalManagedMb,
+        double FinalCommittedMb,
+        double FinalRssMb,
+        int Gen0,
+        int Gen1,
+        int Gen2,
+        double PauseMs,
+        double AllocatedGb,
+        double LiveHeapMb);
 }

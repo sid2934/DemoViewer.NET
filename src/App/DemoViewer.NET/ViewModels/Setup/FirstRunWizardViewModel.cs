@@ -37,15 +37,19 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
     // 0 = Welcome, 1 = Category, 2 = Folders, 3 = Done. The last index is the Finish step.
     private const int LastStep = 3;
 
-    private readonly SettingsService _settings;
-
     // The CS2 demos-folder lookup, run once at construction: the found "replays" folder (or null) plus the
     // Steam libraries actually searched. Drives the folders-step suggestion (found) or the not-found notice.
     private readonly Cs2DemosLookup _cs2Lookup;
 
+    private readonly SettingsService _settings;
+
     /// <summary>The current step index (0..3). Bound to the view's step-panel visibility + progress.</summary>
     [ObservableProperty]
     private int _currentStep;
+
+    /// <summary>The selected category card (bound to the ListBox SelectedItem). Applied on Finish.</summary>
+    [ObservableProperty]
+    private CategoryOption _selectedCategoryOption;
 
     /// <summary>
     ///     Done-page opt-in: run the Visual Walkthrough after setup (default on). Only honoured on
@@ -53,10 +57,6 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
     /// </summary>
     [ObservableProperty]
     private bool _startWalkthrough = true;
-
-    /// <summary>The selected category card (bound to the ListBox SelectedItem). Applied on Finish.</summary>
-    [ObservableProperty]
-    private CategoryOption _selectedCategoryOption;
 
     // Desktop folder-picker source, handed in by the view code-behind (mirrors SettingsView's handoff).
     // Null on WASM / headless — the folder picker is then unavailable (see CanAddFolder).
@@ -173,6 +173,13 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
 
     /// <summary>Header caption, e.g. "Step 2 of 4".</summary>
     public string StepIndicatorText => $"Step {CurrentStep + 1} of {LastStep + 1}";
+
+    /// <summary>
+    ///     Whether the host should launch the Visual Walkthrough after the wizard closes. True only when the
+    ///     user reached the Done page via <see cref="Finish" /> with the opt-in on; a <see cref="Skip" />
+    ///     leaves it false. Read once by the composition root on the <see cref="Completed" /> event.
+    /// </summary>
+    public bool ShouldStartWalkthrough { get; private set; }
 
     /// <summary>Raised when the wizard is done (Finish or Skip). The host closes the window / clears the overlay.</summary>
     public event EventHandler? Completed;
@@ -291,13 +298,6 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
         ShouldStartWalkthrough = StartWalkthrough;
         Completed?.Invoke(this, EventArgs.Empty);
     }
-
-    /// <summary>
-    ///     Whether the host should launch the Visual Walkthrough after the wizard closes. True only when the
-    ///     user reached the Done page via <see cref="Finish" /> with the opt-in on; a <see cref="Skip" />
-    ///     leaves it false. Read once by the composition root on the <see cref="Completed" /> event.
-    /// </summary>
-    public bool ShouldStartWalkthrough { get; private set; }
 
     /// <summary>
     ///     Dismisses the wizard without applying any new choice, but still marks setup complete

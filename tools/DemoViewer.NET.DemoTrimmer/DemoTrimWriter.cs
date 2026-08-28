@@ -41,6 +41,7 @@ internal sealed class TrimResult
 
     /// <summary>Encoder-identity tally over the window's packets — only populated for rewriting variants.</summary>
     public int IdentityExact { get; set; }
+
     public int IdentityShorter { get; set; }
     public int IdentityMismatch { get; set; }
     public int IdentityFirstDivergentFrame { get; set; } = -1;
@@ -78,7 +79,10 @@ internal static class DemoTrimWriter
     ///     <c>DEM_Packet</c> before the first packet frame that follows the game-event-list frame.
     ///     Null = no injection.
     /// </param>
-    /// <param name="teamSamples">The seatings behind <paramref name="teamPacketPayload" /> — recorded on the result for verification.</param>
+    /// <param name="teamSamples">
+    ///     The seatings behind <paramref name="teamPacketPayload" /> — recorded on the result for
+    ///     verification.
+    /// </param>
     /// <param name="teamPacketAfterFrameIndex">
     ///     Source frame index of the <c>CMsgSource1LegacyGameEventList</c> — the injected packet must
     ///     land after it or a sequential reader decodes the events schemaless (fields lost).

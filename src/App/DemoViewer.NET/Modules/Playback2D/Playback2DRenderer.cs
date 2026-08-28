@@ -17,8 +17,7 @@ public enum Playback2DRendererKind
 
     /// <summary>
     ///     The pre-v2 <see cref="Playback2DViewport" />. A parity escape hatch, deleted the release AFTER
-    ///     v2 ships — see <c>docs/playback2d-v2/old-control-removal.md</c>, which carries the trigger
-    ///     conditions.
+    ///     v2 ships; <c>docs/playback2d-v2/old-control-removal.md</c> carries the trigger conditions.
     /// </summary>
     Legacy
 }
@@ -43,16 +42,16 @@ public interface IPlayback2DSurface
 ///     The level half of the viewport contract: what the level strip drives and reads.
 ///     <para>
 ///         Deliberately <b>separate</b> from <see cref="IPlayback2DSurface" /> and implemented only by
-///         the v2 host. The pre-v2 <c>Playback2DViewport</c> has no level identity at all — its cameras
-///         are keyed by array index, which is the defect B3 exists to fix — so giving it stub members
-///         would let the strip appear over a surface that cannot honour a single one of them. Under the
+///         the v2 host. The pre-v2 <c>Playback2DViewport</c> has no level identity at all: its cameras
+///         are keyed by array index, so giving it stub members would let the strip appear over a
+///         surface that cannot honour a single one of them. Under the
 ///         legacy escape hatch the strip simply does not bind, exactly as it does not on a
 ///         single-floor map.
 ///     </para>
 /// </summary>
 public interface ILevelSurface
 {
-    /// <summary>The resolved level set. Live — subscribe to <see cref="LevelStateChanged" />.</summary>
+    /// <summary>The resolved level set. Live; subscribe to <see cref="LevelStateChanged" />.</summary>
     MapSpace Levels { get; }
 
     /// <summary>Stacked bands, or one pane showing <see cref="ActiveLevelId" />.</summary>
@@ -76,12 +75,15 @@ public interface ILevelSurface
 ///     The ANNOTATION half of the viewport contract: what the toolbar, the keymap's tool-scoped rows and
 ///     the ink gestures need from the mounted surface. Implemented only by the v2 host.
 ///     <para>
-///         <b>A gate says whether the user is ALLOWED to draw; this says whether there is anything to
-///         draw ON.</b> Binding the toolbar's visibility to the feature gate instead renders the whole
-///         docked tool row over a surface with no router, no ink layer and no gesture to cancel — and
-///         picking Draw then flips <c>IsDrawingToolActive</c>, so the keymap's <c>WhenToolActive</c> scope
-///         wins and <c>Space</c>/<c>Esc</c> resolve to handlers that fall through a concrete-type check
-///         and return without setting <c>Handled</c>. Play/pause dies with no visible cause. This is a
+///         <b>
+///             A gate says whether the user is ALLOWED to draw; this says whether there is anything to
+///             draw ON.
+///         </b>
+///         Binding the toolbar's visibility to the feature gate instead renders the whole
+///         docked tool row over a surface with no router, no ink layer and no gesture to cancel. Picking
+///         Draw then flips <c>IsDrawingToolActive</c>, so the keymap's <c>WhenToolActive</c> scope wins
+///         and <c>Space</c>/<c>Esc</c> resolve to handlers that fall through a concrete-type check and
+///         return without setting <c>Handled</c>: play/pause dies with no visible cause. This is a
 ///         CAPABILITY the mounted surface either satisfies or does not, asked once at bind time.
 ///     </para>
 /// </summary>
@@ -103,12 +105,12 @@ internal interface IAnnotationSurface
 ///     Chooses which surface the tab mounts.
 ///     <para>
 ///         <b>Deliberately not a <c>FeatureCatalog</c> id.</b> Catalog ids are permanent persisted keys,
-///         and this toggle exists to be deleted in B5 when the legacy control goes (plan decision D-9).
-///         It is an environment variable for CI and bisecting, over a developer-mode-only setting.
+///         and this toggle exists to be deleted with the legacy control. It is an environment variable
+///         for CI and bisecting, over a developer-mode-only setting.
 ///     </para>
 ///     <para>
 ///         Resolved <b>once per process</b>: a mid-session flip would leave two surfaces disagreeing
-///         about camera state, and the whole point of the escape hatch is a clean A/B.
+///         about camera state, and the escape hatch is there for a clean A/B.
 ///     </para>
 /// </summary>
 public static class Playback2DRenderer

@@ -11,8 +11,8 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 
 /// <summary>
 ///     The export HUD's scoreboard strip: two team-coloured score boxes flanking the main countdown, the
-///     round number beneath them, and — while a defuse is under way — the defuse-versus-detonation race,
-///     all exactly as <c>SceneGameInfo</c> defines it.
+///     round number beneath them, and, while a defuse is under way, the defuse-versus-detonation race,
+///     all as <c>SceneGameInfo</c> defines it.
 ///     <para>
 ///         <b>Colour and size carry the hierarchy.</b> There is no bold face to reach for (see
 ///         <see cref="TextBlobCache" />), so the countdown is the largest thing on screen, each side's
@@ -24,15 +24,15 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///         <b>Off unless requested, and drawn once per pane.</b> Registered by the export session only
 ///         when <c>ExportRequest.LayerIds</c> names <c>hud.clock</c>; an export never burns in a
 ///         scoreboard by accident. The compositor renders every layer once per band, so a clock repeated
-///         on each floor of a two-level Nuke export would be wrong — it draws only in the band whose top
-///         edge is the host's, which is exactly one pane under any tiling layout, and also the
-///         single-pane case, whose default snapshot has a zero rectangle.
+///         on each floor of a two-level Nuke export would be wrong. It draws only in the band whose top
+///         edge is the host's: exactly one pane under any tiling layout, plus the single-pane case, whose
+///         default snapshot has a zero rectangle.
 ///     </para>
 /// </summary>
 public sealed class ClockLayer : ISceneLayer
 {
     /// <summary>
-    ///     Secondary HUD text — the round caption, a kill row's middle run, a card's weapon and K/D/A.
+    ///     Secondary HUD text: the round caption, a kill row's middle run, a card's weapon and K/D/A.
     ///     Shared by all three HUD layers because it is one typographic role, not three.
     /// </summary>
     internal const uint DimTextArgb = 0xFF9AA4AFu;
@@ -120,14 +120,14 @@ public sealed class ClockLayer : ISceneLayer
         }
 
         // ShapedText.Width is the ADVANCE and Height is one LINE BOX, so every rectangle below is derived
-        // from the text's layout box rather than from one that happens to contain its pixels — and the
-        // panel is written as terms that sum to its own height, so it cannot drift out of agreement with
-        // what it wraps.
+        // from the text's layout box rather than from one that happens to contain its pixels. The panel is
+        // written as terms that sum to its own height, so it cannot drift out of agreement with what it
+        // wraps.
         float padX = _style.MarginPx * 0.5f;
         float padY = _style.MarginPx * 0.5f;
         float gap = _style.MarginPx * 0.75f;
 
-        float boxW = Math.Max(tScore.Width, ctScore.Width) + (padX * 2);
+        float boxW = Math.Max(tScore.Width, ctScore.Width) + padX * 2;
         float boxH = tScore.Height + padY;
         float topRowH = Math.Max(boxH, clock.Height);
 
@@ -135,12 +135,12 @@ public sealed class ClockLayer : ISceneLayer
         ShapedText? defuse = DefuseLine(captionSize);
 
         float centreX = ctx.PaneBounds.MidX;
-        float panelW = (boxW * 2) + (gap * 2) + clock.Width + (_style.MarginPx * 2);
+        float panelW = boxW * 2 + gap * 2 + clock.Width + _style.MarginPx * 2;
 
         // The two captions are narrower than the top row at every size the style can take, but the panel
-        // is sized from what it actually holds rather than from that observation — the observation is what
-        // stops being true the first time someone localises "DEFUSING".
-        panelW = Math.Max(panelW, Widest(caption, defuse) + (_style.MarginPx * 2));
+        // is sized from what it actually holds. That observation stops being true the first time someone
+        // localises "DEFUSING".
+        panelW = Math.Max(panelW, Widest(caption, defuse) + _style.MarginPx * 2);
 
         float panelH = padY + topRowH
                             + (caption is { } cap ? cap.Height : 0)
@@ -150,14 +150,14 @@ public sealed class ClockLayer : ISceneLayer
 
         _paint.Color = new SKColor(_style.PanelArgb);
         canvas.DrawRoundRect(
-            new SKRect(centreX - (panelW / 2), panelTop, centreX + (panelW / 2), panelTop + panelH),
+            new SKRect(centreX - panelW / 2, panelTop, centreX + panelW / 2, panelTop + panelH),
             5f, 5f, _paint);
 
         // Score boxes are filled with the SAME team tokens the markers use, so "who is 7" needs no legend
         // and needs no second colour vocabulary to learn. The figure on them is near-black rather than the
         // panel's near-white: both tokens are light, and white-on-team is the unreadable pairing.
         float rowTop = panelTop + padY;
-        float clockLeft = centreX - (clock.Width / 2);
+        float clockLeft = centreX - clock.Width / 2;
         DrawScoreBox(canvas, tScore, clockLeft - gap - boxW, rowTop, boxW, boxH, topRowH,
             ctx.Palette.TeamT);
         DrawScoreBox(canvas, ctScore, clockLeft + clock.Width + gap, rowTop, boxW, boxH, topRowH,
@@ -166,7 +166,7 @@ public sealed class ClockLayer : ISceneLayer
         // A ticking C4 owns the main countdown and is drawn in the bomb colour, because "0:34" meaning
         // "the round ends" and "0:34" meaning "the site goes up" are not the same number.
         _paint.Color = _snapshot.BombTicking ? ctx.Palette.BombDetonation : new SKColor(_style.TextArgb);
-        (float cx, float cy) = clock.OriginForTopLeft(clockLeft, rowTop + ((topRowH - clock.Height) / 2));
+        (float cx, float cy) = clock.OriginForTopLeft(clockLeft, rowTop + (topRowH - clock.Height) / 2);
         canvas.DrawText(clock.Blob, cx, cy, _paint);
 
         float below = rowTop + topRowH;
@@ -174,7 +174,7 @@ public sealed class ClockLayer : ISceneLayer
         {
             _paint.Color = new SKColor(DimTextArgb);
             (float rx, float ry) = roundCaption.OriginForTopLeft(
-                centreX - (roundCaption.Width / 2), below);
+                centreX - roundCaption.Width / 2, below);
             canvas.DrawText(roundCaption.Blob, rx, ry, _paint);
             below += roundCaption.Height;
         }
@@ -189,26 +189,9 @@ public sealed class ClockLayer : ISceneLayer
             bool wins = double.IsNaN(_snapshot.CountdownSeconds)
                         || _snapshot.DefuseSeconds <= _snapshot.CountdownSeconds;
             _paint.Color = wins ? ctx.Palette.BombDefuse : ctx.Palette.BombDetonation;
-            (float dx, float dy) = race.OriginForTopLeft(centreX - (race.Width / 2), below + 1f);
+            (float dx, float dy) = race.OriginForTopLeft(centreX - race.Width / 2, below + 1f);
             canvas.DrawText(race.Blob, dx, dy, _paint);
         }
-    }
-
-    private static float Widest(ShapedText? a, ShapedText? b) =>
-        Math.Max(a is { } first ? first.Width : 0, b is { } second ? second.Width : 0);
-
-    // One side's score on its team token, vertically centred against the countdown beside it.
-    private void DrawScoreBox(SKCanvas canvas, ShapedText score, float left, float rowTop, float boxW,
-        float boxH, float rowH, SKColor team)
-    {
-        float top = rowTop + ((rowH - boxH) / 2);
-        _paint.Color = team;
-        canvas.DrawRoundRect(new SKRect(left, top, left + boxW, top + boxH), 3f, 3f, _paint);
-
-        _paint.Color = new SKColor(OnTeamArgb);
-        (float x, float y) = score.OriginForTopLeft(
-            left + ((boxW - score.Width) / 2), top + ((boxH - score.Height) / 2));
-        canvas.DrawText(score.Blob, x, y, _paint);
     }
 
     /// <inheritdoc />
@@ -219,6 +202,23 @@ public sealed class ClockLayer : ISceneLayer
         {
             _text.Dispose();
         }
+    }
+
+    private static float Widest(ShapedText? a, ShapedText? b) =>
+        Math.Max(a is { } first ? first.Width : 0, b is { } second ? second.Width : 0);
+
+    // One side's score on its team token, vertically centred against the countdown beside it.
+    private void DrawScoreBox(SKCanvas canvas, ShapedText score, float left, float rowTop, float boxW,
+        float boxH, float rowH, SKColor team)
+    {
+        float top = rowTop + (rowH - boxH) / 2;
+        _paint.Color = team;
+        canvas.DrawRoundRect(new SKRect(left, top, left + boxW, top + boxH), 3f, 3f, _paint);
+
+        _paint.Color = new SKColor(OnTeamArgb);
+        (float x, float y) = score.OriginForTopLeft(
+            left + (boxW - score.Width) / 2, top + (boxH - score.Height) / 2);
+        canvas.DrawText(score.Blob, x, y, _paint);
     }
 
     /// <summary>

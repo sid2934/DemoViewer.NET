@@ -15,18 +15,17 @@ public enum LevelSelectionMode
 ///     <para>
 ///         Under the stacked layout every floor has its own pane and the follow camera simply holds a
 ///         pane whose player is elsewhere (the pre-v2 <c>TryFollow</c> returns false and the band does
-///         not move). Under a single pane there is nowhere to hold: "which level is shown" stops being
-///         a per-pane filter and becomes a decision. This is that decision.
+///         not move). Under a single pane there is nowhere to hold: "which level is shown" is a decision,
+///         not a per-pane filter.
 ///     </para>
 ///     <para>
-///         <b>It holds when the followed marker is absent</b> — a dead, disconnected or not-yet-spawned
-///         player leaves the view exactly where it was, mirroring the viewport's graceful-orphan follow,
-///         rather than snapping to the lowest floor.
+///         <b>It holds when the followed marker is absent.</b> A dead, disconnected or not-yet-spawned
+///         player leaves the view where it was, mirroring the viewport's graceful-orphan follow, rather
+///         than snapping to the lowest floor.
 ///     </para>
 /// </summary>
 public sealed class LevelSelection
 {
-    private readonly LevelHysteresis _hysteresis;
     private readonly MapSpace _space;
     private MapLevelId _active = MapLevelId.None;
 
@@ -37,7 +36,7 @@ public sealed class LevelSelection
     {
         ArgumentNullException.ThrowIfNull(space);
         _space = space;
-        _hysteresis = new LevelHysteresis(options);
+        Hysteresis = new LevelHysteresis(options);
     }
 
     /// <summary>How the active level is currently chosen. Starts on <see cref="LevelSelectionMode.AutoFollow" />.</summary>
@@ -50,7 +49,7 @@ public sealed class LevelSelection
     public int? FollowedSlot { get; set; }
 
     /// <summary>The hysteresis driving AutoFollow. Exposed for diagnostics and tests.</summary>
-    public LevelHysteresis Hysteresis => _hysteresis;
+    public LevelHysteresis Hysteresis { get; }
 
     /// <summary>Raised whenever <see cref="ActiveLevelId" /> changes.</summary>
     public event Action? ActiveLevelChanged;
@@ -91,10 +90,10 @@ public sealed class LevelSelection
                 continue;
             }
 
-            return Adopt(_hysteresis.Update(in time, markers[i].WorldZ, _space));
+            return Adopt(Hysteresis.Update(in time, markers[i].WorldZ, _space));
         }
 
-        // The followed marker is not in this frame. Hold — do NOT fall back to level 0.
+        // The followed marker is not in this frame. Hold; do NOT fall back to level 0.
         return _active.IsNone && Adopt(TopMost());
     }
 
@@ -103,7 +102,7 @@ public sealed class LevelSelection
     public void PickManually(MapLevelId id)
     {
         Mode = LevelSelectionMode.Manual;
-        _hysteresis.ForceTo(id);
+        Hysteresis.ForceTo(id);
         Adopt(id);
     }
 
@@ -115,10 +114,9 @@ public sealed class LevelSelection
     {
         Mode = LevelSelectionMode.AutoFollow;
 
-        // Reset, not ForceTo(_active): a cleared chooser adopts the followed player's floor on the very
-        // next frame. Making the user wait out a dwell for a decision they just asked for reads as a
-        // dead control.
-        _hysteresis.Reset();
+        // Reset, not ForceTo(_active): a cleared chooser adopts the followed player's floor on the next
+        // frame.
+        Hysteresis.Reset();
     }
 
     /// <summary>
@@ -127,7 +125,7 @@ public sealed class LevelSelection
     /// </summary>
     public void OnLevelSetChanged()
     {
-        _hysteresis.Reset();
+        Hysteresis.Reset();
 
         if (_space.Levels.Count == 0)
         {

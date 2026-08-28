@@ -7,7 +7,6 @@ using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.Views.Playback2D;
-using DemoViewer.NET.Views.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -20,8 +19,12 @@ namespace DemoViewer.NET.AppTests;
 ///     <para>
 ///         The WASM gate itself is complete: a sweep found no ungated desktop-only capability. Every
 ///         defect here is about a surface that behaves differently in the browser and says nothing. A
-///         grep of every Settings view for <c>session only|not saved|forgets|reload</c> returned <b>zero
-///         hits</b> at one point, even though the same sentence already existed for annotations.
+///         grep of every Settings view for <c>session only|not saved|forgets|reload</c> returned
+///         <b>
+///             zero
+///             hits
+///         </b>
+///         at one point, even though the same sentence already existed for annotations.
 ///     </para>
 ///     <para>
 ///         <c>OperatingSystem.IsBrowser()</c> is a JIT-folded intrinsic that cannot be faked from
@@ -46,7 +49,7 @@ public class Playback2DBrowserHonestyTests
         string dir = NewTempDir();
         try
         {
-            (SettingsViewModel browser, ServiceProvider spB) = NewVm(dir, isBrowser: true);
+            (SettingsViewModel browser, ServiceProvider spB) = NewVm(dir, true);
             using (spB)
             {
                 Console.WriteLine($"[wasm-honesty] browser note='{browser.KeybindPersistenceNote}'");
@@ -61,7 +64,7 @@ public class Playback2DBrowserHonestyTests
                              + "user loses the work");
             }
 
-            (SettingsViewModel desktop, ServiceProvider spD) = NewVm(dir, isBrowser: false);
+            (SettingsViewModel desktop, ServiceProvider spD) = NewVm(dir, false);
             using (spD)
             {
                 await Assert.That(desktop.KeybindsPersist).IsTrue();
@@ -86,7 +89,7 @@ public class Playback2DBrowserHonestyTests
         string dir = NewTempDir();
         try
         {
-            (SettingsViewModel browser, ServiceProvider spB) = NewVm(dir, isBrowser: true);
+            (SettingsViewModel browser, ServiceProvider spB) = NewVm(dir, true);
             using (spB)
             {
                 Console.WriteLine($"[wasm-honesty] browser rejection='{browser.KeybindRejectionSource}'");
@@ -95,7 +98,7 @@ public class Playback2DBrowserHonestyTests
                     .Because("the message still has to say what happened, only not where from");
             }
 
-            (SettingsViewModel desktop, ServiceProvider spD) = NewVm(dir, isBrowser: false);
+            (SettingsViewModel desktop, ServiceProvider spD) = NewVm(dir, false);
             using (spD)
             {
                 await Assert.That(desktop.KeybindRejectionSource).Contains("settings.json")
@@ -109,8 +112,11 @@ public class Playback2DBrowserHonestyTests
     }
 
     /// <summary>
-    ///     <b>The Settings feature list binds the raw <c>IFeatureGate</c>, which knows nothing about the
-    ///     platform.</b> Modules read the same ids through <c>ShellModuleFeatureGate</c>, whose
+    ///     <b>
+    ///         The Settings feature list binds the raw <c>IFeatureGate</c>, which knows nothing about the
+    ///         platform.
+    ///     </b>
+    ///     Modules read the same ids through <c>ShellModuleFeatureGate</c>, whose
     ///     <c>DesktopOnlyIds</c> forces a set of them off on the browser — so the browser showed a live,
     ///     ON "Video export" toggle for a capability refused one layer out, and flipping it persisted an
     ///     override nothing would ever honour. This was a known gap that shipped unfixed.
@@ -126,7 +132,7 @@ public class Playback2DBrowserHonestyTests
                 .Because("this suite is asserting about THE desktop-only id, not a spelling of it");
 
             (SettingsViewModel browser, ServiceProvider spB, SettingsService svc) =
-                NewVmWithService(dir, isBrowser: true);
+                NewVmWithService(dir, true);
             using (spB)
             {
                 FeatureToggleRow row = Row(browser, exportId);
@@ -148,7 +154,7 @@ public class Playback2DBrowserHonestyTests
                     .Because("an override that can never take effect is a preference nobody expressed");
             }
 
-            (SettingsViewModel desktop, ServiceProvider spD) = NewVm(dir, isBrowser: false);
+            (SettingsViewModel desktop, ServiceProvider spD) = NewVm(dir, false);
             using (spD)
             {
                 FeatureToggleRow row = Row(desktop, exportId);
@@ -277,7 +283,7 @@ public class Playback2DBrowserHonestyTests
     {
         try
         {
-            Directory.Delete(dir, recursive: true);
+            Directory.Delete(dir, true);
         }
         catch (IOException)
         {

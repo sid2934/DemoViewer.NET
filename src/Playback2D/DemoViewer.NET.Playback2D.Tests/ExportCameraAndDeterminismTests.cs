@@ -109,7 +109,7 @@ public class CameraScriptResolverTests
         PlayerMarker target = frame.Markers[4];
 
         CameraScriptResolver resolver = new(
-            new CameraScript.FollowPlayer(target.SteamId, DeadzoneHalfExtentWorld: 0));
+            new CameraScript.FollowPlayer(target.SteamId, 0));
 
         for (int i = 0; i < 240; i++)
         {
@@ -202,7 +202,7 @@ public class ExportDeterminismTests
     public async Task MovingAMarker_ProducesDifferentHashes()
     {
         IReadOnlyList<string> still = await HashRun(1 / 60.0);
-        IReadOnlyList<string> moved = await HashRun(1 / 60.0, markerDriftPerFrame: 40f);
+        IReadOnlyList<string> moved = await HashRun(1 / 60.0, 40f);
 
         bool anyDifference = false;
         for (int i = 0; i < Math.Min(still.Count, moved.Count); i++)
@@ -249,7 +249,10 @@ public class ExportDeterminismTests
         List<PlayerMarker> markers = new(source.Markers.Count);
         foreach (PlayerMarker marker in source.Markers)
         {
-            markers.Add(marker with { WorldX = marker.WorldX + dx });
+            markers.Add(marker with
+            {
+                WorldX = marker.WorldX + dx
+            });
         }
 
         return new Scene2DFrame
@@ -296,13 +299,22 @@ public class ExportAllocationTests
 
         // Warm-up run: JIT, the surface, the pooled buffer, the picture caches and the text blobs are all
         // one-time costs, and charging them to the budget would make the gate meaningless.
-        await Measure(session, source, request with { EndFrame = 63 }, surfaces);
+        await Measure(session, source, request with
+        {
+            EndFrame = 63
+        }, surfaces);
 
         // TWO runs of different lengths, differenced. A single run cannot separate the loop's per-frame
         // cost from a run's own fixed setup — one compositor scope, one camera resolver, one renderer,
         // one async state machine — and §6's budget is about the former.
-        long shortRun = await Measure(session, source, request with { EndFrame = 511 }, surfaces);
-        long longRun = await Measure(session, source, request with { EndFrame = 1023 }, surfaces);
+        long shortRun = await Measure(session, source, request with
+        {
+            EndFrame = 511
+        }, surfaces);
+        long longRun = await Measure(session, source, request with
+        {
+            EndFrame = 1023
+        }, surfaces);
 
         long extra = longRun - shortRun;
         double perFrame = extra / 512.0;
@@ -348,7 +360,10 @@ public class ExportAllocationTests
         FixtureFrameSource source = ExportFixtures.Source(frames);
         ExportRequest request = ExportFixtures.Request(frames, size: new SKSizeI(64, 48));
 
-        await session.RunAsync(request with { EndFrame = 63 }, source, new NullSink(), surfaces, null,
+        await session.RunAsync(request with
+            {
+                EndFrame = 63
+            }, source, new NullSink(), surfaces, null,
             CancellationToken.None);
 
         long before = GC.GetAllocatedBytesForCurrentThread();

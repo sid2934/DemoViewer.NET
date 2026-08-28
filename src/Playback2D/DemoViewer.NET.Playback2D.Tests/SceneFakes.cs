@@ -81,8 +81,8 @@ internal sealed class FakeEntityView : IReadOnlyEntityView
     private static readonly IReadOnlyEntity[] _none = [];
 
     private readonly Dictionary<string, List<IReadOnlyEntity>> _byClass = new(StringComparer.Ordinal);
-    private readonly List<IReadOnlyEntity> _entities = [];
     private readonly Dictionary<ulong, IReadOnlyEntity> _byHandle = [];
+    private readonly List<IReadOnlyEntity> _entities = [];
     private Dictionary<string, IReadOnlyEntity[]>? _frozen;
 
     public IEnumerable<IReadOnlyEntity> All() => _entities;

@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Services.DemoCache;
 
 /// <summary>
 ///     The one-shot migration of <c>library.json</c> + <c>highlights.json</c> into the unified cache
-///.
+///     .
 ///     <para>
 ///         <b>This does not delete or rename anything.</b> <see cref="DemoLibraryService" /> still reads
 ///         <c>library.json</c> on construction, so moving it aside here would make every user re-index their
@@ -35,12 +35,6 @@ public static class LegacyCacheMigration
     ///     merge-don't-overwrite rule makes a re-run safe but pointless.
     /// </summary>
     public const int CurrentVersion = 1;
-
-    /// <summary>Outcome of a migration attempt, for logging and tests.</summary>
-    /// <param name="Ran">False when it was skipped (already migrated, or no filesystem).</param>
-    /// <param name="FromLibrary">Demos whose record gained data from <c>library.json</c>.</param>
-    /// <param name="FromHighlights">Demos whose record gained data from <c>highlights.json</c>.</param>
-    public readonly record struct MigrationResult(bool Ran, int FromLibrary, int FromHighlights);
 
     /// <summary>
     ///     Runs the migration if it has not already run against <paramref name="store" />. Safe to call on
@@ -150,7 +144,12 @@ public static class LegacyCacheMigration
                     [
                         .. (legacy.Players ?? [])
                         .Where(n => !string.IsNullOrWhiteSpace(n))
-                        .Select(n => new CachedPlayerInfo { Name = n, Slot = -1, Team = 0 })
+                        .Select(n => new CachedPlayerInfo
+                        {
+                            Name = n,
+                            Slot = -1,
+                            Team = 0
+                        })
                     ];
 
                     DemoCacheStore.StampParse(record);
@@ -294,4 +293,10 @@ public static class LegacyCacheMigration
 
         return migrated;
     }
+
+    /// <summary>Outcome of a migration attempt, for logging and tests.</summary>
+    /// <param name="Ran">False when it was skipped (already migrated, or no filesystem).</param>
+    /// <param name="FromLibrary">Demos whose record gained data from <c>library.json</c>.</param>
+    /// <param name="FromHighlights">Demos whose record gained data from <c>highlights.json</c>.</param>
+    public readonly record struct MigrationResult(bool Ran, int FromLibrary, int FromHighlights);
 }

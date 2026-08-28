@@ -27,6 +27,3 @@ BenchmarkDotNet.Artifacts/
 
 # CS2 game assets extracted at dev-time from the user's own install — never commit (Valve-origin, SSA §2.G)
 /cs2-assets/
-
-# Claude Code harness state; the skills/ directory below IS tracked.
-.claude/scheduled_tasks.lock

@@ -9,9 +9,8 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 
 /// <summary>
 ///     The planted-C4: a red diamond, a dim ring track, a detonation arc depleting clockwise from 12
-///     o'clock, and — during a defuse — an inner arc depleting alongside it, which is the
-///     defuse-vs-detonation race made spatial. Port of <c>DrawBomb</c> / <c>DrawArc</c> /
-///     <c>PointOnCircle</c> (viewport lines 1338-1396).
+///     o'clock, and, during a defuse, an inner arc depleting alongside it. Port of <c>DrawBomb</c> /
+///     <c>DrawArc</c> / <c>PointOnCircle</c>.
 /// </summary>
 public sealed class BombLayer : ISceneLayer
 {
@@ -113,10 +112,10 @@ public sealed class BombLayer : ISceneLayer
         _stroke.Dispose();
     }
 
-    // Strokes `fraction` of a circle clockwise from 12 o'clock. The two clamps are pixel-visible
-    // (parity invariant 8): below half a degree the arc collapses to a dot and is skipped, and a full
-    // 360 makes start == end, which Skia draws as nothing at all — the track ring behind it already
-    // reads as "full", so 359.99 is both correct and what the pre-v2 code drew.
+    // Strokes `fraction` of a circle clockwise from 12 o'clock. Both clamps are pixel-visible: below half
+    // a degree the arc collapses to a dot and is skipped, and a full 360 makes start == end, which Skia
+    // draws as nothing at all. The track ring behind it already reads as "full", so 359.99 is correct and
+    // is what the pre-v2 code drew.
     private void DrawArc(SKCanvas canvas, float cx, float cy, float radius, double fraction)
     {
         double sweep = Math.Clamp(fraction, 0, 1) * 360.0;

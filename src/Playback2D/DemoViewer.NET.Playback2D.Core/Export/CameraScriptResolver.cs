@@ -22,8 +22,8 @@ namespace DemoViewer.NET.Playback2D.Core.Export;
 /// </summary>
 public sealed class CameraScriptResolver : IPaneCameraPolicy
 {
-    private readonly CameraScript _script;
     private readonly FollowPlayerRig? _rig;
+    private readonly CameraScript _script;
 
     /// <summary>Creates a resolver for one export's script.</summary>
     /// <param name="script">The camera behaviour for the whole run.</param>

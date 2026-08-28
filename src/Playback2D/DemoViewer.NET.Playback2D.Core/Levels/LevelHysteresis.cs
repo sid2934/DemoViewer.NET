@@ -2,36 +2,36 @@ namespace DemoViewer.NET.Playback2D.Core.Levels;
 
 /// <summary>
 ///     The four constants that decide when a level switch is real. All four live here so retuning is a
-///     one-line change with no API break (plan risk R4).
+///     one-line change with no API break.
 /// </summary>
 /// <param name="MinBand">
 ///     Half a histogram bucket. A boundary is the integer midpoint between two peak buckets
 ///     (<c>FloorSplitter</c>), so a one-bucket shift of either peak moves it by up to 64u and integer
-///     division halves that in practice — below 32u, boundary drift alone re-triggers the switch.
+///     division halves that in practice. Below 32u, boundary drift alone re-triggers the switch.
 /// </param>
 /// <param name="MaxBand">
 ///     Two buckets. CS2 jump velocity 301 u/s under <c>sv_gravity 800</c> gives an apex of
-///     301²/(2·800) ≈ 56.6u, step-up height is 18u and the crouch delta ≈ 18u — at 128u it is
+///     301²/(2·800) ≈ 56.6u, step-up height is 18u and the crouch delta ≈ 18u. At 128u it is
 ///     geometrically impossible for a jump, a step or a crouch to change a level.
 /// </param>
 /// <param name="BandFractionOfSpan">
-///     Fraction of the <i>thinner</i> adjacent band, so the dead zone stays inside the middle half of
-///     both. Peak-to-peak separation on Nuke goes as low as ~90u, so a fixed band would be unsafe on a
-///     degenerate thin one — hence relative, with a cap.
+///     Fraction of the thinner adjacent band, so the dead zone stays inside the middle half of both.
+///     Peak-to-peak separation on Nuke goes as low as ~90u, so a fixed band would be unsafe on a
+///     degenerate thin one. Relative, with a cap.
 /// </param>
 /// <param name="DwellSeconds">
-///     Scene-time the candidate must hold before the <i>view</i> follows it. Matches the camera's own
+///     Scene-time the candidate must hold before the view follows it. Matches the camera's own
 ///     settle (<c>LerpResponse 7.0</c> ⇒ ≈0.35 s to 92 %), so the level switch and the camera re-fit
 ///     read as one motion. Shorter lets stairs dither through; longer makes a genuine traversal feel
 ///     unresponsive.
 /// </param>
 /// <remarks>
 ///     A <b>record class</b>, not a record struct. A record struct whose primary-constructor parameters
-///     all have defaults still zero-initializes under <c>new()</c> — the compiler takes the implicit
-///     parameterless struct constructor, not the primary one — which would silently hand every caller
-///     <c>MinBand 0, DwellSeconds 0</c>: no hysteresis at all, and no error anywhere. <see cref="Default" />
-///     is a cached single instance, so the per-frame <see cref="LevelHysteresis.SpatialBand" /> call
-///     still allocates nothing.
+///     all have defaults still zero-initializes under <c>new()</c>: the compiler takes the implicit
+///     parameterless struct constructor, not the primary one. That hands every caller
+///     <c>MinBand 0, DwellSeconds 0</c>, so no hysteresis at all and no error anywhere.
+///     <see cref="Default" /> is a cached single instance, so the per-frame
+///     <see cref="LevelHysteresis.SpatialBand" /> call still allocates nothing.
 /// </remarks>
 public sealed record LevelHysteresisOptions(
     double MinBand = 32.0,
@@ -39,15 +39,15 @@ public sealed record LevelHysteresisOptions(
     double BandFractionOfSpan = 0.25,
     double DwellSeconds = 0.35)
 {
-    /// <summary>The tuned defaults, justified in the B3 plan's "Hysteresis sizing" section.</summary>
+    /// <summary>The tuned defaults. Each constant's reasoning is on its parameter above.</summary>
     public static LevelHysteresisOptions Default { get; } = new();
 }
 
 /// <summary>
 ///     Stateful level chooser: a spatial sticky band plus a temporal dwell.
 ///     <para>
-///         <b>Time comes only from <c>SceneTime.DeltaSeconds</c></b> — no wall clock (design §5.1) — so
-///         a 30 fps export and a 144 fps interactive session switch levels at the same moment of the
+///         <b>Time comes only from <c>SceneTime.DeltaSeconds</c></b>, never a wall clock, so a 30 fps
+///         export and a 144 fps interactive session switch levels at the same moment of the
 ///         demo. On <c>SceneTime.IsDiscontinuity</c> the dwell is bypassed entirely: after a seek there
 ///         is no continuity to protect, and holding the old level for 0.35 s would show the wrong floor
 ///         on every scrub.
@@ -55,12 +55,10 @@ public sealed record LevelHysteresisOptions(
 /// </summary>
 public sealed class LevelHysteresis
 {
-    private readonly LevelHysteresisOptions _options;
-
     /// <summary>Creates a chooser.</summary>
     /// <param name="options">Tuning; <see cref="LevelHysteresisOptions.Default" /> when null.</param>
     public LevelHysteresis(LevelHysteresisOptions? options = null) =>
-        _options = options ?? LevelHysteresisOptions.Default;
+        Options = options ?? LevelHysteresisOptions.Default;
 
     /// <summary>The settled level. <see cref="MapLevelId.None" /> until the first update.</summary>
     public MapLevelId Current { get; private set; } = MapLevelId.None;
@@ -72,12 +70,12 @@ public sealed class LevelHysteresis
     public double PendingSeconds { get; private set; }
 
     /// <summary>The tuning in force.</summary>
-    public LevelHysteresisOptions Options => _options;
+    public LevelHysteresisOptions Options { get; }
 
     /// <summary>
     ///     The spatial half-band between two adjacent levels:
-    ///     <c>clamp(BandFractionOfSpan × min(spans), MinBand, MaxBand)</c>. Pure, and unit-tested
-    ///     directly — it is the number every per-entity level assignment leans on.
+    ///     <c>clamp(BandFractionOfSpan × min(spans), MinBand, MaxBand)</c>. Pure. Every per-entity level
+    ///     assignment leans on this number.
     /// </summary>
     /// <param name="a">One level.</param>
     /// <param name="b">The other.</param>
@@ -110,8 +108,8 @@ public sealed class LevelHysteresis
         // The sticky band is applied HERE rather than through MapSpace.LevelFor(z, previous), because
         // that overload has no options parameter and must answer for the option-less callers (the
         // per-entity crossing tracker) from LevelHysteresisOptions.Default. Delegating to it would make
-        // MinBand / MaxBand / BandFractionOfSpan dead knobs on a caller-supplied options instance —
-        // and Default is get-only, so passing one is the only way to retune at all (plan risk R4).
+        // MinBand / MaxBand / BandFractionOfSpan dead knobs on a caller-supplied options instance, and
+        // Default is get-only, so passing one is the only way to retune.
         MapLevel? resolved = space.LevelFor(worldZ);
         if (resolved is null)
         {
@@ -120,7 +118,7 @@ public sealed class LevelHysteresis
 
         if (!Current.IsNone && resolved.Id != Current && space.ById(Current) is { } held)
         {
-            double band = SpatialBand(held, resolved, _options);
+            double band = SpatialBand(held, resolved, Options);
             if (MapSpace.DistanceOutside(held, worldZ) <= band)
             {
                 resolved = held;
@@ -151,7 +149,7 @@ public sealed class LevelHysteresis
         }
 
         PendingSeconds += Math.Max(0, time.DeltaSeconds);
-        if (PendingSeconds < _options.DwellSeconds)
+        if (PendingSeconds < Options.DwellSeconds)
         {
             return Current;
         }

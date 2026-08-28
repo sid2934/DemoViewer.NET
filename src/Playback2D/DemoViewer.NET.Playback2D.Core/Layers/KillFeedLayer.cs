@@ -136,7 +136,7 @@ public sealed class KillFeedLayer : ISceneLayer
             // row is the same height whether or not it happens to contain a descender.
             _paint.Color = new SKColor(_style.PanelArgb);
             canvas.DrawRoundRect(
-                new SKRect(right - rowW - (padX * 2), y - padY, right, y + attacker.Height + padY),
+                new SKRect(right - rowW - padX * 2, y - padY, right, y + attacker.Height + padY),
                 3f, 3f, _paint);
 
             float x = right - rowW - padX;
@@ -182,7 +182,7 @@ public sealed class KillFeedLayer : ISceneLayer
         // MarginPx is the first row's top; MaxRows pitches cover the last row's box, because the pitch
         // (1.75 em) is comfortably taller than a line box plus its panel padding at every size the style
         // can take.
-        return style.MarginPx + (MaxRows * style.FontSizePx * LineHeightFactor);
+        return style.MarginPx + MaxRows * style.FontSizePx * LineHeightFactor;
     }
 
     /// <summary>
@@ -258,11 +258,11 @@ public sealed class KillFeedLayer : ISceneLayer
         Append(builder, row.Headshot, " HS");
         Append(builder, row.Penetrated, " WB");
         Append(builder, row.NoScope, " NS");
-        Append(builder, row.ThroughSmoke, " ≈");      // ≈ through smoke — U+2248, present in Inter
-        Append(builder, row.AttackerBlind, " BL");    // a word, because U+2731 is not in the embedded face
-        Append(builder, row.AttackerInAir, " ↑");     // ↑ killer airborne — U+2191, present in Inter
+        Append(builder, row.ThroughSmoke, " ≈"); // ≈ through smoke — U+2248, present in Inter
+        Append(builder, row.AttackerBlind, " BL"); // a word, because U+2731 is not in the embedded face
+        Append(builder, row.AttackerInAir, " ↑"); // ↑ killer airborne — U+2191, present in Inter
 
-        builder.Append("  →  ");                      // →
+        builder.Append("  →  "); // →
         return new RowText(attacker, builder.ToString(), row.Victim);
     }
 

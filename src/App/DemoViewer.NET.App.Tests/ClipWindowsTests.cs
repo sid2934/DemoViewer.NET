@@ -29,7 +29,7 @@ public class ClipWindowsTests
     {
         (long start, long end) = ClipWindows.Compute(
             5000, null, Rate,
-            15, 5, 100_000, 0);
+            15, 5, 100_000);
 
         await Assert.That(start).IsEqualTo(5000 - 960);
         await Assert.That(end).IsEqualTo(5000 + 320);
@@ -39,11 +39,11 @@ public class ClipWindowsTests
     public async Task Compute_RoundStartFloorsLeadIn_AndDemoStartClamps()
     {
         // Round started 200 ticks before the event — the lead-in must not reach the prior round.
-        (long start, _) = ClipWindows.Compute(5000, 4800, Rate, 15, 5, 100_000, 0);
+        (long start, _) = ClipWindows.Compute(5000, 4800, Rate, 15, 5, 100_000);
         await Assert.That(start).IsEqualTo(4800);
 
         // Event near demo start — clamps at 0, never negative.
-        (long early, _) = ClipWindows.Compute(100, null, Rate, 15, 5, 100_000, 0);
+        (long early, _) = ClipWindows.Compute(100, null, Rate, 15, 5, 100_000);
         await Assert.That(early).IsEqualTo(0);
     }
 
@@ -69,7 +69,7 @@ public class ClipWindowsTests
             .Because("the round-start floor applies AFTER the clip-start pull-back, bounding the clip to its round");
 
         // A null clipStart is byte-identical to the pre-existing lead-in-only behavior.
-        (long noClip, _) = ClipWindows.Compute(6000, null, Rate, 15, 5, 100_000, 0);
+        (long noClip, _) = ClipWindows.Compute(6000, null, Rate, 15, 5, 100_000);
         await Assert.That(noClip).IsEqualTo(6000 - 960)
             .Because("null clipStart preserves the current behavior");
 
@@ -81,7 +81,7 @@ public class ClipWindowsTests
     [Test]
     public async Task Compute_DemoEndClampsLeadOut()
     {
-        (_, long end) = ClipWindows.Compute(99_900, null, Rate, 15, 5, 100_000, 0);
+        (_, long end) = ClipWindows.Compute(99_900, null, Rate, 15, 5, 100_000);
         await Assert.That(end).IsEqualTo(100_000);
     }
 
@@ -112,7 +112,7 @@ public class ClipWindowsTests
         // ALREADY frame clock (small values near demo start). The window must come out around
         // the small tick untouched; any accidental −ServerStartTick would go hugely negative
         // and clamp to 0, which this asserts against.
-        (long start, long end) = ClipWindows.Compute(2000, null, Rate, 15, 5, 60_000, 0);
+        (long start, long end) = ClipWindows.Compute(2000, null, Rate, 15, 5, 60_000);
         await Assert.That(start).IsEqualTo(2000 - 960);
         await Assert.That(end).IsEqualTo(2000 + 320);
     }
@@ -120,7 +120,7 @@ public class ClipWindowsTests
     [Test]
     public async Task Compute_DegenerateWindow_YieldsAtLeastOneTick()
     {
-        (long start, long end) = ClipWindows.Compute(0, null, Rate, 0, 0, 0, 0);
+        (long start, long end) = ClipWindows.Compute(0, null, Rate, 0, 0, 0);
         await Assert.That(end).IsEqualTo(start + 1);
     }
 

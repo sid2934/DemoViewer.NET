@@ -2,7 +2,6 @@
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CS2DemoKit.Analysis.Abstractions;
-using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -11,7 +10,7 @@ namespace DemoViewer.NET.ViewModels.Highlights;
 
 /// <summary>
 ///     Stable identity of one harvested highlight across detail-pane rebuilds and tab switches
-///. A <see cref="CachedHighlightEvent" /> carries no primary key, so
+///     . A <see cref="CachedHighlightEvent" /> carries no primary key, so
 ///     the clip tray is keyed by this composite — surviving a re-projection of the plan and a switch to
 ///     another demo (the tray spans demos by construction).
 /// </summary>

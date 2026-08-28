@@ -43,14 +43,6 @@ public sealed partial class ReelJobStatusViewModel : ViewModelBase, IDisposable
 
     private bool _disposed;
 
-    // The error last written to the diagnostics pillar — dedupes the Apply call (fired on every status
-    // change, and again at construction) so one failed job logs exactly one Error line, not N.
-    private string? _loggedError;
-
-    // The most recent status, retained so CopyDiagnosticsText can assemble a full, paste-ready report
-    // (phase + clip counts + failed indices + current clip) rather than just the bare message.
-    private ReelJobStatus _status = ReelJobStatus.Idle;
-
     [ObservableProperty]
     private string? _errorText;
 
@@ -70,8 +62,16 @@ public sealed partial class ReelJobStatusViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _isRunning;
 
+    // The error last written to the diagnostics pillar — dedupes the Apply call (fired on every status
+    // change, and again at construction) so one failed job logs exactly one Error line, not N.
+    private string? _loggedError;
+
     [ObservableProperty]
     private string? _outputPath;
+
+    // The most recent status, retained so CopyDiagnosticsText can assemble a full, paste-ready report
+    // (phase + clip counts + failed indices + current clip) rather than just the bare message.
+    private ReelJobStatus _status = ReelJobStatus.Idle;
 
     /// <summary>
     ///     Constructs the mapper over the running job service. Seeds the chip from the CURRENT status (never
@@ -263,7 +263,7 @@ public sealed partial class ReelJobStatusViewModel : ViewModelBase, IDisposable
         // (Diagnostics tab + rolling log file) so the report survives dismissing the chip. Deduped on the
         // message, because Apply also runs at construction and on unrelated re-applies of the same status.
         if (status.Phase == ReelJobPhase.Failed && status.Error is { Length: > 0 } err
-            && !string.Equals(err, _loggedError, StringComparison.Ordinal))
+                                                && !string.Equals(err, _loggedError, StringComparison.Ordinal))
         {
             _loggedError = err;
             ILogger reelsLog = DiagnosticsLog.CreateLogger(AppLog.ReelsCategory);

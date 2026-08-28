@@ -294,7 +294,7 @@ public class HeavyJobGateTests
     // A new session kind rather than an interactive or a background slot (plan D10). An export is
     // CPU-bound and holds one extra EntityTracker, not a multi-gigabyte parse: taking an interactive slot
     // would block the user's next demo open for the whole render, and taking a background one would queue
-    // it behind — and then in front of — the user's own work.
+    // it behind, and then in front of, the user's own work.
 
     [Test]
     public async Task Export_PausesBackground_ButNeverBlocksAnInteractiveLoad()
@@ -308,7 +308,7 @@ public class HeavyJobGateTests
         Task<IDisposable> background = gate.AcquireBackgroundAsync();
         await AssertStaysBlockedAsync(background, "background while an export renders");
 
-        // The user's foreground demo load still wins — that is the whole point of not reusing the reel
+        // The user's foreground demo load still wins: that is the whole point of not reusing the reel
         // session's semantics here.
         IDisposable interactive = await gate.AcquireInteractiveAsync();
         interactive.Dispose();

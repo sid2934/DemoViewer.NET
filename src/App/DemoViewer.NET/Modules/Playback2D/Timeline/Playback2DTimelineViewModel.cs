@@ -4,10 +4,10 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Text;
-using Avalonia.Media.Immutable;
-using Avalonia.Media;
-using Avalonia.Threading;
 using Avalonia;
+using Avalonia.Media;
+using Avalonia.Media.Immutable;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Theming;
@@ -18,12 +18,12 @@ namespace DemoViewer.NET.Modules.Playback2D.Timeline;
 
 /// <summary>
 ///     The 2D playback timeline's view-model: registered <see cref="ITimelineTrack" />s, their built bands
-///     and markers, the layout math, and the playhead. It never moves the clock — a click or drag raises
+///     and markers, the layout math, and the playhead. It never moves the clock: a click or drag raises
 ///     <see cref="SeekRequested" /> and the owning tab forwards it to
 ///     <c>IModuleContext.RequestSeekToFrame</c>, so LiveSync keeps observing every seek.
 ///     <para>
-///         The x-axis domain is FRAME INDEX, which is the movement contract everything else in the app
-///         already speaks; tick-stamped events are converted once at build time by the adapter.
+///         The x-axis domain is FRAME INDEX, the movement contract everything else in the app already
+///         speaks; tick-stamped events are converted once at build time by the adapter.
 ///     </para>
 /// </summary>
 public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDisposable
@@ -37,14 +37,14 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     private readonly List<TimelineBand> _builtBands = new();
     private readonly List<TimelineMarker> _builtMarkers = new();
     private readonly List<TimelineTrackToggle> _toggles = new();
-    private readonly List<ITimelineTrack> _tracks = new();
 
     // Per-track content, so a track that says "re-query me" costs one track's build instead of every
-    // track's. Kept parallel to _tracks/_toggles, and recombined in registration order — which is
-    // display order, and which the rounds band's binary search depends on staying ascending.
+    // track's. Kept parallel to _tracks/_toggles, and recombined in registration order. That is display
+    // order, and the rounds band's binary search depends on it staying ascending.
     private readonly List<List<TimelineBand>> _trackBands = new();
-    private readonly List<List<TimelineMarker>> _trackMarkers = new();
     private readonly List<Action> _trackHandlers = new();
+    private readonly List<List<TimelineMarker>> _trackMarkers = new();
+    private readonly List<ITimelineTrack> _tracks = new();
 
     [ObservableProperty]
     private int _currentFrameIndex = -1;
@@ -55,11 +55,17 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     [ObservableProperty]
     private int _currentTick;
 
+    private ITimelineData? _data;
+
+    private bool _disposed;
+
     [ObservableProperty]
     private string _followStatus = "";
 
-    /// <summary>Reserved for the CS2 ghost cursor. Always null in A1 — the LiveSync tick projection it needs
-    /// is a contract change of its own.</summary>
+    /// <summary>
+    ///     Reserved for the CS2 ghost cursor. Always null: the LiveSync tick projection it needs is a
+    ///     contract change of its own.
+    /// </summary>
     [ObservableProperty]
     private int? _ghostFrameIndex;
 
@@ -68,8 +74,6 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
 
     [ObservableProperty]
     private bool _isVisible;
-
-    private ITimelineData? _data;
 
     [ObservableProperty]
     private double _pixelWidth;
@@ -80,12 +84,14 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     [ObservableProperty]
     private string _positionText = "";
 
-    /// <summary>Why a speed key was refused, or "" — mirrored from the tab so the footer can say it.</summary>
+    /// <summary>Why a speed key was refused, or "". Mirrored from the tab so the footer can say it.</summary>
     [ObservableProperty]
     private string _speedLockNote = "";
 
     [ObservableProperty]
     private string _statusText = "";
+
+    private bool _suppressTrackVisibilityChanged;
 
     [ObservableProperty]
     private int _totalFrames;
@@ -99,21 +105,43 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     /// <summary>The laid-out point markers, after same-track coalescing.</summary>
     public ObservableCollection<TimelineMarkerViewModel> Markers { get; } = new();
 
+    /// <summary>The playhead's left offset as a margin. The item layer positions by margin, not by Canvas.</summary>
+    public Thickness PlayheadOffset => new(PlayheadX, 0, 0, 0);
+
+    /// <summary>
+    ///     Drops the <see cref="ITimelineTrack.MarkersChanged" /> subscriptions taken in
+    ///     <see cref="RegisterTrack" />. Idempotent.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        for (int i = 0; i < _trackHandlers.Count; i++)
+        {
+            _tracks[i].MarkersChanged -= _trackHandlers[i];
+        }
+
+        _trackHandlers.Clear();
+    }
+
     /// <summary>
     ///     Raised on click / drag-scrub with the target frame index. The owner forwards it to
-    ///     <c>IModuleContext.RequestSeekToFrame</c> — the timeline never moves the clock itself.
+    ///     <c>IModuleContext.RequestSeekToFrame</c>. The timeline never moves the clock itself.
     /// </summary>
     public event Action<int>? SeekRequested;
 
     /// <summary>
     ///     Registers a track. Registration order is display order; re-registering an id is ignored.
     ///     <para>
-    ///         <b>Subscribes to <see cref="ITimelineTrack.MarkersChanged" />.</b> The interface documents
-    ///         that event as "the host must re-query it", and this is the host. Without it a track whose
-    ///         content grows while the demo sits still — <c>AnnotationTrack</c> is the only one, and it
-    ///         changes on every stroke — never got re-queried at all: <see cref="Rebuild" /> runs on
-    ///         activation and demo-reset, so the markers never appeared AND the toggle never became
-    ///         available, because availability is only evaluated inside a build.
+    ///         Subscribes to <see cref="ITimelineTrack.MarkersChanged" />, which the interface documents as
+    ///         "the host must re-query it". <see cref="Rebuild" /> runs only on activation and demo-reset,
+    ///         so without this a track whose content grows while the demo sits still
+    ///         (<c>AnnotationTrack</c>, on every stroke) is never re-queried, and its toggle never becomes
+    ///         available either: availability is only evaluated inside a build.
     ///     </para>
     /// </summary>
     /// <param name="track">The track.</param>
@@ -211,8 +239,8 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         UpdateRoundLabel();
     }
 
-    // A track saying its content changed. Availability is re-evaluated with it — for AnnotationTrack it
-    // is the FIRST time-anchored stroke that makes the track available at all, and that arrives here and
+    // A track saying its content changed. Availability is re-evaluated with it: for AnnotationTrack the
+    // FIRST time-anchored stroke is what makes the track available at all, and it arrives here and
     // nowhere else.
     private void OnTrackContentChanged(ITimelineTrack track)
     {
@@ -230,28 +258,6 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         BuildTrack(index, data);
         Recombine();
     }
-
-    /// <summary>
-    ///     Drops the <see cref="ITimelineTrack.MarkersChanged" /> subscriptions taken in
-    ///     <see cref="RegisterTrack" />. Idempotent.
-    /// </summary>
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        for (int i = 0; i < _trackHandlers.Count; i++)
-        {
-            _tracks[i].MarkersChanged -= _trackHandlers[i];
-        }
-
-        _trackHandlers.Clear();
-    }
-
-    private bool _disposed;
 
     /// <summary>Turns a track on/off and re-runs the build. Unknown ids are ignored.</summary>
     public void SetTrackEnabled(string trackId, bool enabled)
@@ -291,12 +297,7 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     /// </summary>
     public event Action? TrackVisibilityChanged;
 
-    private bool _suppressTrackVisibilityChanged;
-
-    /// <summary>The playhead's left offset as a margin — the item layer positions by margin, not by Canvas.</summary>
-    public Thickness PlayheadOffset => new(PlayheadX, 0, 0, 0);
-
-    /// <summary>Moves the playhead. Called once per coalesced playback push — a binary search and two sets.</summary>
+    /// <summary>Moves the playhead. Called once per coalesced playback push: a binary search and two sets.</summary>
     public void UpdatePlayhead(int frameIndex, int tick)
     {
         CurrentFrameIndex = frameIndex;
@@ -310,7 +311,7 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     }
 
     /// <summary>
-    ///     Raises <see cref="SeekRequested" /> for an exact frame — the rounds band seeks to a band's FIRST
+    ///     Raises <see cref="SeekRequested" /> for an exact frame. The rounds band seeks to a band's FIRST
     ///     frame, which must not round-trip through the pixel mapping.
     /// </summary>
     public void RequestSeekToFrame(int frameIndex)
@@ -406,7 +407,7 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     }
 
     // Re-derives the bound visual collections from the built model lists + the current PixelWidth. Never
-    // re-runs a track — a width change must not re-decode the demo's events.
+    // re-runs a track: a width change must not re-decode the demo's events.
     private void Relayout()
     {
         Bands.Clear();
@@ -532,16 +533,15 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         };
     }
 
-    // Resolves a walled-off Pb2d HUD token through the central theme resolver — the same token namespace
-    // XAML's {DynamicResource} reads — falling back to the dark-theme literal when the key is missing.
+    // Resolves a walled-off Pb2d HUD token through the central theme resolver (the same token namespace
+    // XAML's {DynamicResource} reads), falling back to the dark-theme literal when the key is missing.
     //
-    // Two thread rules are folded in here, and both are load-bearing rather than defensive:
-    //   * the brushes are IMMUTABLE — a SolidColorBrush is an AvaloniaObject whose constructor calls
-    //     VerifyAccess(), so building one off the UI thread throws;
+    // Two thread rules, both load-bearing:
+    //   * the brushes are IMMUTABLE. A SolidColorBrush is an AvaloniaObject whose constructor calls
+    //     VerifyAccess(), so building one off the UI thread throws.
     //   * Application.ActualThemeVariant is a styled property with the same affinity, hence the
     //     CheckAccess guard before reaching for it.
-    // Together they keep the layout math (and every marker/band it builds) testable without a dispatcher,
-    // falling back to the dark-theme literal in that case.
+    // So the layout math, and every marker/band it builds, stays testable without a dispatcher.
     private static ImmutableSolidColorBrush Token(string key, uint fallbackArgb)
     {
         Color fallback = Color.FromUInt32(fallbackArgb);
@@ -584,7 +584,7 @@ public sealed class TimelineMarkerViewModel
     /// <summary>The glyph drawn on the bar.</summary>
     public string Glyph { get; }
 
-    /// <summary>Hover text — carries the fold count when several markers coalesced here.</summary>
+    /// <summary>Hover text. Carries the fold count when several markers coalesced here.</summary>
     public string Tooltip { get; }
 
     /// <summary>Resolved from the marker's ARGB, or from the theme token for its kind.</summary>
@@ -593,7 +593,7 @@ public sealed class TimelineMarkerViewModel
     /// <summary>Left offset in px on the scrub bar.</summary>
     public double X { get; }
 
-    /// <summary>The same offset as a left margin — the item layer is a Panel, positioned by margin.</summary>
+    /// <summary>The same offset as a left margin.</summary>
     public Thickness Offset => new(X, 0, 0, 0);
 }
 
@@ -636,7 +636,7 @@ public sealed class TimelineBandViewModel
     /// <summary>Width in px (at least 1, so a one-frame band is still hittable).</summary>
     public double Width { get; }
 
-    /// <summary>The band's left offset as a margin — the item layer is a Panel, positioned by margin.</summary>
+    /// <summary>The band's left offset as a margin.</summary>
     public Thickness Offset => new(X, 0, 0, 0);
 }
 

@@ -4,8 +4,8 @@ using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Profiles;
-using DemoViewer.NET.Modules.Highlights;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -76,13 +76,17 @@ public class HighlightScanServiceTests
         ModifiedTicks = modified,
         TickRate = tickRate,
         ConfigFingerprint = fingerprint,
-        Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 },
+        Analysis = new TierStamp
+        {
+            Schema = DemoCacheRecord.AnalysisSchema,
+            ComputedAtTicks = 1
+        },
         AnalysisState = DemoAnalysisState.Indexed
     };
 
     // One harvested event, so a written record is distinguishable from an untouched one.
     private static List<HighlightFired> Harvest() =>
-        [new HighlightFired("clutch", "ace", 0, 5000, 0, "s1mple", 1, "s1mple — ace", 50, HighlightKind.Highlight)];
+        [new("clutch", "ace", 0, 5000, 0, "s1mple", 1, "s1mple — ace", 50, HighlightKind.Highlight)];
 
     private static HighlightFired HF(string id, int slot, int round, int score, string? group) =>
         new("rs", id, 0, 1000 + score, slot, "p", round, id, score, HighlightKind.Highlight, group);
@@ -94,18 +98,21 @@ public class HighlightScanServiceTests
     {
         List<HighlightFired> events =
         [
-            HF("triple_kill", 0, 1, 55, "multikill"),   // superseded by the 4K
-            HF("quad_kill", 0, 1, 88, "multikill"),     // top of multikill → kept
+            HF("triple_kill", 0, 1, 55, "multikill"), // superseded by the 4K
+            HF("quad_kill", 0, 1, 88, "multikill"), // top of multikill → kept
             HF("rapid_quad", 0, 1, 92, "rapid_multikill"), // different group → kept alongside quad_kill
-            HF("collateral", 0, 1, 95, null),           // ungrouped → always kept
-            HF("triple_kill", 1, 1, 55, "multikill"),   // different PLAYER → kept
-            HF("triple_kill", 0, 2, 55, "multikill"),   // different ROUND → kept
+            HF("collateral", 0, 1, 95, null), // ungrouped → always kept
+            HF("triple_kill", 1, 1, 55, "multikill"), // different PLAYER → kept
+            HF("triple_kill", 0, 2, 55, "multikill"), // different ROUND → kept
             HF("rapid_double", 0, 3, 62, "rapid_multikill"), // two distinct same-score moments,
-            HF("rapid_double", 0, 3, 62, "rapid_multikill")  // same round → both survive (62 >= 62)
+            HF("rapid_double", 0, 3, 62, "rapid_multikill") // same round → both survive (62 >= 62)
         ];
 
-        HashSet<string> kept = [.. HighlightSurfacing.ApplyGroupSupersession(events)
-            .Select(e => $"{e.HighlightId}@s{e.PlayerSlot}r{e.RoundNumber}")];
+        HashSet<string> kept =
+        [
+            .. HighlightSurfacing.ApplyGroupSupersession(events)
+                .Select(e => $"{e.HighlightId}@s{e.PlayerSlot}r{e.RoundNumber}")
+        ];
 
         await Assert.That(kept.Contains("triple_kill@s0r1")).IsFalse().Because("4K supersedes the 3K");
         await Assert.That(kept.Contains("quad_kill@s0r1")).IsTrue();
@@ -214,9 +221,21 @@ public class HighlightScanServiceTests
                 return Harvest();
             });
 
-        store.Upsert(new DemoCacheRecord { Path = "/d/old.dem", ModifiedTicks = 1 });
-        store.Upsert(new DemoCacheRecord { Path = "/d/newest.dem", ModifiedTicks = 9 });
-        store.Upsert(new DemoCacheRecord { Path = "/d/mid.dem", ModifiedTicks = 5 });
+        store.Upsert(new DemoCacheRecord
+        {
+            Path = "/d/old.dem",
+            ModifiedTicks = 1
+        });
+        store.Upsert(new DemoCacheRecord
+        {
+            Path = "/d/newest.dem",
+            ModifiedTicks = 9
+        });
+        store.Upsert(new DemoCacheRecord
+        {
+            Path = "/d/mid.dem",
+            ModifiedTicks = 5
+        });
 
         scanner.EnsureBackfillRunning();
         await WaitForAsync(() => scanner.QueueLength == 0 && !scanner.IsScanning, "queue drained");
@@ -242,7 +261,11 @@ public class HighlightScanServiceTests
                 return Harvest();
             });
 
-        store.Upsert(new DemoCacheRecord { Path = "/d/a.dem", ModifiedTicks = 1 });
+        store.Upsert(new DemoCacheRecord
+        {
+            Path = "/d/a.dem",
+            ModifiedTicks = 1
+        });
 
         scanner.EnsureBackfillRunning();
         await Task.Delay(100);
@@ -306,9 +329,21 @@ public class HighlightScanServiceTests
             });
 
         // A whole queue of Pending skeletons (a fresh library after RefreshStaleness)…
-        store.Upsert(new DemoCacheRecord { Path = "/d/other1.dem", ModifiedTicks = 9 });
-        store.Upsert(new DemoCacheRecord { Path = "/d/other2.dem", ModifiedTicks = 8 });
-        store.Upsert(new DemoCacheRecord { Path = "/d/wanted.dem", ModifiedTicks = 1 });
+        store.Upsert(new DemoCacheRecord
+        {
+            Path = "/d/other1.dem",
+            ModifiedTicks = 9
+        });
+        store.Upsert(new DemoCacheRecord
+        {
+            Path = "/d/other2.dem",
+            ModifiedTicks = 8
+        });
+        store.Upsert(new DemoCacheRecord
+        {
+            Path = "/d/wanted.dem",
+            ModifiedTicks = 1
+        });
 
         // …a manual retry on ONE demo drains exactly that demo — even though it is the OLDEST —
         // and leaves the rest queued (D8: no whole-library marathon from a single retry click).
@@ -332,8 +367,16 @@ public class HighlightScanServiceTests
             () => true,
             (path, _) => path.Contains("bad", StringComparison.Ordinal) ? null : Harvest());
 
-        store.Upsert(new DemoCacheRecord { Path = "/d/bad.dem", ModifiedTicks = 9 });
-        store.Upsert(new DemoCacheRecord { Path = "/d/good.dem", ModifiedTicks = 1 });
+        store.Upsert(new DemoCacheRecord
+        {
+            Path = "/d/bad.dem",
+            ModifiedTicks = 9
+        });
+        store.Upsert(new DemoCacheRecord
+        {
+            Path = "/d/good.dem",
+            ModifiedTicks = 1
+        });
 
         scanner.EnsureBackfillRunning();
         await WaitForAsync(() => scanner.QueueLength == 0 && !scanner.IsScanning, "drain");
@@ -360,7 +403,11 @@ public class HighlightScanServiceTests
 
         // An interactive job holds the machine — the scanner's queued work must not process.
         IDisposable interactive = await gate.AcquireInteractiveAsync();
-        store.Upsert(new DemoCacheRecord { Path = "/d/a.dem", ModifiedTicks = 1 });
+        store.Upsert(new DemoCacheRecord
+        {
+            Path = "/d/a.dem",
+            ModifiedTicks = 1
+        });
         scanner.EnsureBackfillRunning();
         await Task.Delay(150);
         await Assert.That(processedCount).IsEqualTo(0).Because("background yields to interactive");

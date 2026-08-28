@@ -3,11 +3,11 @@
 #
 #   scripts/test.sh [-t fast|standard|full] [-p PROJECT|all] [-c Release|Debug] [-n] [-l]
 #
-#   -t  tier (default: standard — the in-flight default; see docs/playback2d-v2/plans/P3-test-tiers.md)
+#   -t  tier (default: standard, the in-flight default; see docs/playback2d-v2/plans/P3-test-tiers.md)
 #   -p  project key or `all` (default: all).  Keys: playback2d cli app livesync trimmer visualization
 #   -c  configuration (default: Release, matching CI)
-#   -n  no build — assume the binaries are current
-#   -l  list only — discover and count, run nothing
+#   -n  no build; assume the binaries are current
+#   -l  list only; discover and count, run nothing
 #
 # ── Why this script exists ──────────────────────────────────────────────────────────────────────────
 #
@@ -25,7 +25,7 @@
 #     drops the second clause, and unary `!` is not a token, so `[!(Category=A)]` also matches all.
 #
 #  3. `dotnet test` collapses every platform exit code to MSBuild's `1`, which loses the distinction
-#     between "tests failed" (2), "the filter matched nothing" (8) and "bad arguments" (5) — exactly
+#     between "tests failed" (2), "the filter matched nothing" (8) and "bad arguments" (5), exactly
 #     the distinctions a tier runner has to report. `dotnet run` preserves them, so `dotnet run` is
 #     what this script uses.
 set -u
@@ -53,18 +53,18 @@ cd "$ROOT" || exit 2
 
 # ── Tier definitions ────────────────────────────────────────────────────────────────────────────────
 # Asserted character-for-character against tests/shared/TestTiers.cs by TestTierContractTests: edit
-# one without the other and every suite turns red. Exclusion, never inclusion — an untagged test is
+# one without the other and every suite turns red. Exclusion, never inclusion: an untagged test is
 # in every tier, so a new unit test is covered the moment it is written.
 case "$TIER" in
   fast)
     TIER_FILTER='/*/*/*/*[(Category!=Budget)&(Category!=Environmental)&(Category!=Gpu)&(Category!=Integration)&(Category!=RealDemo)&(Category!=Render)]'
-    TIER_BLURB='pure unit + contract — no demo, no pixels, no process, no benchmark' ;;
+    TIER_BLURB='pure unit + contract: no demo, no pixels, no process, no benchmark' ;;
   standard)
     TIER_FILTER='/*/*/*/*[(Category!=Budget)&(Category!=Environmental)&(Category!=Integration)&(Category!=RealDemo)]'
-    TIER_BLURB='the in-flight default — fast plus the render and golden gates' ;;
+    TIER_BLURB='the in-flight default: fast plus the render and golden gates' ;;
   full)
     TIER_FILTER='/*/*/*/*'
-    TIER_BLURB='everything — what CI and a pre-push review run' ;;
+    TIER_BLURB='everything CI and a pre-push review run' ;;
   *)
     echo "unknown tier '$TIER' (expected fast, standard or full)" >&2; exit 2 ;;
 esac

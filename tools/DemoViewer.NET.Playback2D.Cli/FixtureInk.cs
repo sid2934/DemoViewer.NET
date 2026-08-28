@@ -12,11 +12,10 @@ namespace DemoViewer.NET.Playback2D.Cli;
 ///     entry, a bench run.
 ///     <para>
 ///         <c>ExportCommand.LoadInkAsync</c> cannot be reused here because it is built on the demo's own
-///         identity — it hashes the <c>.dem</c> and refuses a sidecar whose recorded SHA does not match,
-///         which is exactly right when a stray file is sitting next to somebody's demo. A fixture has no
-///         <c>.dem</c> to hash, so this asks the store the same question with the identity check
-///         neutralised: an empty key makes <c>AnnotationStore</c>'s mismatch branch unreachable
-///         (<c>actual.Length &gt; 0</c>), and the file is read as what it is — a committed corpus asset
+///         identity: it hashes the <c>.dem</c> and refuses a sidecar whose recorded SHA does not match.
+///         A fixture has no <c>.dem</c> to hash, so this asks the store the same question with the
+///         identity check neutralised. An empty key makes <c>AnnotationStore</c>'s mismatch branch
+///         unreachable (<c>actual.Length &gt; 0</c>), and the file is read as a committed corpus asset
 ///         whose provenance is the git history, not a hash.
 ///     </para>
 ///     <para>

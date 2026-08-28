@@ -6,16 +6,15 @@ using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
-using SkiaSharp;
 
 #endregion
 
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     <c>dv2d render</c> — one frame to one PNG, with no app and no window. The design's exit
-///     criterion for this phase is the fixture path: a designer edits a layer, runs this, and looks, in
-///     well under a second.
+///     <c>dv2d render</c>: one frame to one PNG, with no app and no window. The design's exit criterion
+///     for this phase is the fixture path: a designer edits a layer, runs this, and looks, in well under
+///     a second.
 /// </summary>
 internal static class RenderCommand
 {
@@ -56,7 +55,7 @@ internal static class RenderCommand
         SceneTime time = source.TimeAt(0);
         plan.Renderer.Camera = CameraSpec.Resolve(cameraSpec, frame, plan.Size, source.Camera);
 
-        byte[] png = plan.Renderer.RenderPng(frame, in time, plan.Size, RenderPurpose.Export);
+        byte[] png = plan.Renderer.RenderPng(frame, in time, plan.Size);
         WriteFile(outPath, png);
 
         double elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
@@ -117,9 +116,9 @@ internal static class RenderCommand
 
     /// <summary>
     ///     Writes the loaded-assembly list to stderr. The no-Avalonia architecture test reads it from a
-    ///     subprocess — a deps.json scan proves what was *referenced*, this proves what was *loaded*. It
-    ///     is a documented flag, not a hidden one, because it is also the first thing to ask for in
-    ///     support triage.
+    ///     subprocess: a deps.json scan proves what was *referenced*, this proves what was *loaded*.
+    ///     Documented rather than hidden, because it is also the first thing to ask for in support
+    ///     triage.
     /// </summary>
     public static void DumpLoadedAssemblies()
     {
@@ -141,7 +140,7 @@ internal static class RenderCommand
     /// <param name="value">The value to round.</param>
     public static double Round(double value) => Math.Round(value, 1, MidpointRounding.AwayFromZero);
 
-    /// <summary>Lower-case hex SHA-256 — the determinism assertions compare these.</summary>
+    /// <summary>Lower-case hex SHA-256. The determinism assertions compare these.</summary>
     /// <param name="bytes">The payload to hash.</param>
     public static string Sha256(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
 

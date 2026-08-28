@@ -121,14 +121,17 @@ public class EraseToolTests
             new FloorSlice(-448, -384), new FloorSlice(-384, -128));
 
         AnnotationDocument document = new();
-        AnnotationSession session = new(document) { EraserWorldRadius = 20f };
+        AnnotationSession session = new(document)
+        {
+            EraserWorldRadius = 20f
+        };
         FakeToolServices services = new(session, panes);
         EraseTool tool = new();
 
         AnnotationElement lower = AnnotationFakes.Stroke(
-            space: new SpaceRef.World(MapSpace.QuantizeZ(-448)), x: 0, y: 0);
+            new SpaceRef.World(MapSpace.QuantizeZ(-448)), x: 0, y: 0);
         AnnotationElement upper = AnnotationFakes.Stroke(
-            space: new SpaceRef.World(MapSpace.QuantizeZ(-384)), x: 0, y: 0);
+            new SpaceRef.World(MapSpace.QuantizeZ(-384)), x: 0, y: 0);
         document.Reset([lower, upper]);
 
         LevelPane lowerPane = panes.Panes[space.IndexOf(MapSpace.IdForZMin(MapSpace.QuantizeZ(-448)))];
@@ -151,7 +154,7 @@ public class EraseToolTests
     {
         Harness h = new();
         AnnotationElement stroke = AnnotationFakes.Stroke(
-            space: new SpaceRef.Entity(7ul, 0, 0), x: 0, y: 0);
+            new SpaceRef.Entity(7ul, 0, 0), x: 0, y: 0);
         h.Document.Reset([stroke]);
 
         // The player has since walked to (500, 0), so the stroke is drawn there.

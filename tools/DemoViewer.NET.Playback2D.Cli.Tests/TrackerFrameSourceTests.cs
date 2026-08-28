@@ -12,7 +12,7 @@ using DemoViewer.NET.TestSupport;
 namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
-///     The private-tracker frame source B4's export session consumes. Every case here is skip-guarded on
+///     The private-tracker frame source the export session consumes. Every case here is skip-guarded on
 ///     a demo: CI has none, and a silent pass would be worse than a skip.
 /// </summary>
 [NotInParallel]
@@ -62,8 +62,11 @@ public class TrackerFrameSourceTests
         source.Prepare(CancellationToken.None);
 
         // Three sampled output frames, each cross-checked against an independent tracker replayed from
-        // zero — the definition of "the source did not lose state while stepping".
-        foreach (int index in new[] { 0, 25, 60 })
+        // zero: the definition of "the source did not lose state while stepping".
+        foreach (int index in new[]
+                 {
+                     0, 25, 60
+                 })
         {
             Scene2DFrame produced = source.FrameAt(index);
             int demoIndex = source.DemoFrameIndexOf(index);

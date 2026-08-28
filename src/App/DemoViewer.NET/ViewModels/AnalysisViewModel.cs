@@ -9,25 +9,25 @@ using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Building;
 using CS2DemoKit.Analysis.Config;
+using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Plugins;
 using CS2DemoKit.Analysis.Registry;
 using CS2DemoKit.Analysis.Yaml;
-// The v2 model also defines a TriggerDef; explicit aliases keep the v1 Config.TriggerDef
-// references in this file unambiguous.
-using RulesetDoc = CS2DemoKit.Analysis.RulesetsV2.Model.RulesetDoc;
-using StatDef = CS2DemoKit.Analysis.RulesetsV2.Model.StatDef;
-using TallyThreshold = CS2DemoKit.Analysis.RulesetsV2.Model.TallyThreshold;
-using CS2DemoKit.Analysis.Diagnostics;
-using DemoViewer.NET.Controls;
-using DemoViewer.NET.Debugging;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Controls;
+using DemoViewer.NET.Debugging;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.Visualization;
 using Microsoft.Extensions.Logging;
+// The v2 model also defines a TriggerDef; explicit aliases keep the v1 Config.TriggerDef
+// references in this file unambiguous.
+using RulesetDoc = CS2DemoKit.Analysis.RulesetsV2.Model.RulesetDoc;
+using StatDef = CS2DemoKit.Analysis.RulesetsV2.Model.StatDef;
+using TallyThreshold = CS2DemoKit.Analysis.RulesetsV2.Model.TallyThreshold;
 
 #endregion
 
@@ -45,11 +45,6 @@ namespace DemoViewer.NET.ViewModels;
 /// </summary>
 public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 {
-    // Diagnostics-pillar logger (v0.6.0 — the failure surfaces show clean text, this carries the
-    // real exception). Lazy: the ambient factory is wired after construction.
-    private ILogger? _diagLog;
-    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.Analysis");
-
     // Upper bound on the pre-warm fire-frame set. A normal match's breakpointable events span a few
     // thousand distinct frames; far above that means a high-frequency edge whose full capture would bloat
     // the cache, so pre-warm declines and breakpoints on it lazy-build their own narrower set.
@@ -127,7 +122,20 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     // the union is unchanged (a condition edit / selection change only re-filters / recompiles). The tail +
     // token collapse a burst of recomputes to one build to the final state (mirrors RunSwapAsync).
     private IReadOnlyList<DemoFrame>? _demoFrames;
+
     private string? _demoKey;
+
+    // Diagnostics-pillar logger (v0.6.0 — the failure surfaces show clean text, this carries the
+    // real exception). Lazy: the ambient factory is wired after construction.
+    private ILogger? _diagLog;
+
+    private List<EntityCheckRowViewModel.Choice> _editProviderOptions = [];
+    private IReadOnlySet<string> _editSlotFields = new HashSet<string>();
+
+    // Edit-scoped scope metadata, set in BeginEdit: the slot prefix (input.<event>. for nodes, "" for
+    // edges), the trigger event's *Slot field names, and the dropdown options the rows draw from.
+    private string _editSlotPrefix = "";
+    private List<EntityCheckRowViewModel.Choice> _editSubjectOptions = [];
 
     /// <summary>Validation error for <see cref="EditingConditionText" />, or <c>null</c> when valid.</summary>
     [ObservableProperty]
@@ -163,14 +171,6 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     /// <summary>The trigger event scoping the entity rows (a node's input event; <c>null</c> for an edge).</summary>
     [ObservableProperty]
     private string? _editingTriggerEvent;
-
-    private List<EntityCheckRowViewModel.Choice> _editProviderOptions = [];
-    private IReadOnlySet<string> _editSlotFields = new HashSet<string>();
-
-    // Edit-scoped scope metadata, set in BeginEdit: the slot prefix (input.<event>. for nodes, "" for
-    // edges), the trigger event's *Slot field names, and the dropdown options the rows draw from.
-    private string _editSlotPrefix = "";
-    private List<EntityCheckRowViewModel.Choice> _editSubjectOptions = [];
 
     // Aborts an in-flight entity-cache replay when a newer recompute (or demo reset) supersedes it.
     private CancellationTokenSource? _entityBuildCts;
@@ -338,6 +338,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         GraphBreakpoints.Changed += OnBreakpointsChanged;
         GraphBreakpoints.HitChanged += OnBreakpointHitChanged;
     }
+
+    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.Analysis");
 
     // ── Graph breakpoints (debugger affordance) ───────────────────────────────
 

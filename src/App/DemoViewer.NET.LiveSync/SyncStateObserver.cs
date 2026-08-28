@@ -1,9 +1,9 @@
 #region
 
 using System.ComponentModel;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.Shell;
 using ModuleContextImpl = DemoViewer.NET.Modules.ModuleContext;

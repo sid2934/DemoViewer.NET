@@ -32,7 +32,6 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Headless;
 /// </summary>
 public sealed class HeadlessSceneRenderer : IDisposable
 {
-    private readonly SceneCompositor _compositor;
     private readonly List<LevelPaneSnapshot> _snapshots = new(4);
     private readonly IRenderSurfaceProvider _surfaces;
     private bool _disposed;
@@ -53,7 +52,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
         ArgumentNullException.ThrowIfNull(surfaces);
         ArgumentNullException.ThrowIfNull(layout);
 
-        _compositor = compositor;
+        Compositor = compositor;
         _surfaces = surfaces;
         Panes = new PaneSet(layout);
         Palette = palette;
@@ -74,7 +73,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     public MapSpaceFactory Levels { get; } = new();
 
     /// <summary>The layer stack being drawn. Not owned.</summary>
-    public SceneCompositor Compositor => _compositor;
+    public SceneCompositor Compositor { get; }
 
     /// <summary>The backend the underlying provider hands out.</summary>
     public RenderBackend Backend => _surfaces.Backend;
@@ -215,7 +214,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
 
         if (Levels.Update(frame))
         {
-            _compositor.InvalidateCaches();
+            Compositor.InvalidateCaches();
 
             // Every cached assignment describes bands that no longer exist. Re-resolving from scratch
             // is also what stops a rebuild from reporting a phantom crossing for an entity that merely
@@ -253,7 +252,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
         bool keepArmed = false;
         if (AdvanceCameras)
         {
-            keepArmed = Core.Cameras.CameraAdvancer.Advance(Panes, frame, in time);
+            keepArmed = CameraAdvancer.Advance(Panes, frame, in time);
         }
 
         // After reconciliation, so a pinned camera survives the pane set being (re)built by this very
@@ -268,7 +267,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
         CameraPolicy?.Apply(Panes, frame, in time);
 
         Panes.SyncCameraEpochs();
-        keepArmed |= _compositor.Advance(in time, frame);
+        keepArmed |= Compositor.Advance(in time, frame);
 
         // A crossing is true for exactly one frame, and every layer that cares has now advanced.
         Crossings.EndFrame();
@@ -301,7 +300,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     {
         SKSurface surface = EnsureSurface();
         surface.Canvas.Clear(Palette.Background);
-        _compositor.Render(surface.Canvas, LastSubmission);
+        Compositor.Render(surface.Canvas, LastSubmission);
         _surfaces.Flush(surface);
     }
 
@@ -333,7 +332,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     {
         ArgumentNullException.ThrowIfNull(surface);
         surface.Canvas.Clear(Palette.Background);
-        _compositor.Render(surface.Canvas, LastSubmission);
+        Compositor.Render(surface.Canvas, LastSubmission);
         _surfaces.Flush(surface);
     }
 

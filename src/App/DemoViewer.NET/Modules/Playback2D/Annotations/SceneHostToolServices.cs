@@ -12,7 +12,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Modules.Playback2D.Annotations;
 
 /// <summary>
-///     <see cref="IToolServices" /> over <see cref="Scene2DHost" /> — the one place the pointer tools
+///     <see cref="IToolServices" /> over <see cref="Scene2DHost" />: the one place the pointer tools
 ///     touch Avalonia-adjacent state, and the reason the tools themselves are testable with no window.
 ///     <para>
 ///         <see cref="Session" /> is settable because the host outlives the view-model it is bound to: a
@@ -32,15 +32,14 @@ internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession 
     public AnnotationSession Session { get; set; } = session;
 
     /// <summary>
-    ///     The playhead in DV frame-clock ticks — the tick of the frame the host is currently showing,
-    ///     which is the same number the ink layer's envelopes are evaluated against. Never a live CS2
-    ///     engine tick.
+    ///     The playhead in DV frame-clock ticks: the tick of the frame the host is currently showing, the
+    ///     same number the ink layer's envelopes are evaluated against. Never a live CS2 engine tick.
     /// </summary>
     public int CurrentTick => host.CurrentSceneFrame.Time.Tick;
 
     /// <summary>
     ///     Milliseconds since this services instance was built. The origin is arbitrary and unshared on
-    ///     purpose — every consumer re-bases it at the press, so only the differences ever matter.
+    ///     purpose: every consumer re-bases it at the press, so only the differences ever matter.
     /// </summary>
     public long NowMilliseconds => (long)Stopwatch.GetElapsedTime(_origin).TotalMilliseconds;
 
@@ -73,7 +72,7 @@ internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession 
     }
 
     /// <summary>
-    ///     The nearest LIVING marker within the capture radius, filtered to the pane's own level — a
+    ///     The nearest LIVING marker within the capture radius, filtered to the pane's own level: a
     ///     stroke drawn on the upper floor must not silently anchor to a player standing below it.
     /// </summary>
     /// <param name="pane">The pane the press landed in.</param>
@@ -112,7 +111,7 @@ internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession 
 
             float ddx = world.X - marker.WorldX;
             float ddy = world.Y - marker.WorldY;
-            float distance = (ddx * ddx) + (ddy * ddy);
+            float distance = ddx * ddx + ddy * ddy;
             if (distance > best)
             {
                 continue;
@@ -131,7 +130,7 @@ internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession 
     /// <summary>
     ///     Mirrors <c>AnnotationLayer</c>'s per-frame anchor resolution, so what the eraser can touch is
     ///     exactly what the pane draws: a world anchor belongs to one level, and an entity anchor rides
-    ///     its player's live marker (hidden while absent or dead, §5.4).
+    ///     its player's live marker (hidden while absent or dead).
     /// </summary>
     /// <param name="pane">The pane the pointer is in.</param>
     /// <param name="element">The element being tested.</param>
@@ -151,8 +150,8 @@ internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession 
             case SpaceRef.World world:
             {
                 // Through the SPACE, exactly as AnnotationLayer resolves it. IdForZMin is the MINTING
-                // rule, and a floor lost and re-found is minted past the colliding key — so deriving the
-                // id from Z here made the eraser unable to touch ink the pane was visibly drawing.
+                // rule, and a floor lost and re-found is minted past the colliding key, so deriving the
+                // id from Z here leaves the eraser unable to touch ink the pane is visibly drawing.
                 MapSpace? space = pane.Space;
                 return space is not { Levels.Count: > 1 }
                        || space.IdForAnchor(world.LevelMinZ) == pane.LevelId;

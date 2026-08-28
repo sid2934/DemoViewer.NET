@@ -29,21 +29,48 @@ public class MatchOverviewSeedTests
             ModifiedTicks = 20,
             Map = "de_dust2",
             Server = "FACEIT",
-            Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 },
+            Parse = new TierStamp
+            {
+                Schema = DemoCacheRecord.ParseSchema,
+                ComputedAtTicks = 1
+            },
             DurationSeconds = 2298,
             TickRate = 64,
             Players =
             [
-                new CachedPlayerInfo { Slot = 1, Name = "s1mple", SteamId64 = "765", Team = 3 },
-                new CachedPlayerInfo { Slot = 2, Name = "ZywOo", SteamId64 = "766", Team = 2 }
+                new CachedPlayerInfo
+                {
+                    Slot = 1,
+                    Name = "s1mple",
+                    SteamId64 = "765",
+                    Team = 3
+                },
+                new CachedPlayerInfo
+                {
+                    Slot = 2,
+                    Name = "ZywOo",
+                    SteamId64 = "766",
+                    Team = 2
+                }
             ],
-            Rounds = [new CachedRound { Number = 1, StartTickFrameClock = 5000 }],
+            Rounds =
+            [
+                new CachedRound
+                {
+                    Number = 1,
+                    StartTickFrameClock = 5000
+                }
+            ],
             CtScore = 13,
             TScore = 9,
             CtClan = "NAVI",
             TClan = "FaZe",
             Analysis = withHighlights || withScoreboard
-                ? new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 }
+                ? new TierStamp
+                {
+                    Schema = DemoCacheRecord.AnalysisSchema,
+                    ComputedAtTicks = 1
+                }
                 : new TierStamp(),
             AnalysisState = withHighlights || withScoreboard
                 ? DemoAnalysisState.Indexed
@@ -53,8 +80,12 @@ public class MatchOverviewSeedTests
                 [
                     new CachedHighlightEvent
                     {
-                        RulesetId = "clutch", HighlightId = "ace", Tick = 54_000,
-                        PlayerSlot = 1, RoundNumber = 7, RenderedTitle = "s1mple — ace"
+                        RulesetId = "clutch",
+                        HighlightId = "ace",
+                        Tick = 54_000,
+                        PlayerSlot = 1,
+                        RoundNumber = 7,
+                        RenderedTitle = "s1mple — ace"
                     }
                 ]
                 : [],
@@ -63,8 +94,13 @@ public class MatchOverviewSeedTests
                 [
                     new CachedStatRow
                     {
-                        Slot = 1, Team = 3, Kills = 24, Deaths = 14,
-                        Assists = 5, Adr = 92.5, Rating = 1.34
+                        Slot = 1,
+                        Team = 3,
+                        Kills = 24,
+                        Deaths = 14,
+                        Assists = 5,
+                        Adr = 92.5,
+                        Rating = 1.34
                     }
                 ]
                 : []
@@ -145,7 +181,7 @@ public class MatchOverviewSeedTests
     public async Task HighlightsWithoutAScoreboard_RenderTheMoments_ButDoNotClaimFull()
     {
         MatchOverviewTabViewModel vm = new();
-        vm.SetCachedRecord(Indexed(withHighlights: true));
+        vm.SetCachedRecord(Indexed(true));
 
         using (Assert.Multiple())
         {
@@ -175,7 +211,7 @@ public class MatchOverviewSeedTests
 
         // Open a demo whose cache record has no highlights yet.
         vm.BeginOpening("seed.dem", null, null, Demo);
-        vm.SeedFromCache(Demo, Indexed(withHighlights: false));
+        vm.SeedFromCache(Demo, Indexed(false));
         await Assert.That(vm.HighlightGroups.Count).IsEqualTo(0);
 
         // The pipeline finishes. The harvest is still running.
@@ -217,11 +253,11 @@ public class MatchOverviewSeedTests
     {
         MatchOverviewTabViewModel vm = new();
         vm.BeginOpening("seed.dem", null, null, Demo);
-        vm.SeedFromCache(Demo, Indexed(withHighlights: false));
+        vm.SeedFromCache(Demo, Indexed(false));
         vm.SetAnalysis(Demo, null, null, 24);
 
         // The scoreboard lands first: stamped analysis tier, real rows, but the scan has NOT run.
-        DemoCacheRecord scoreboardOnly = Indexed(withHighlights: false, withScoreboard: true);
+        DemoCacheRecord scoreboardOnly = Indexed(false, true);
         scoreboardOnly.AnalysisState = DemoAnalysisState.Pending;
         vm.RefreshHighlightsFromCache(Demo, scoreboardOnly);
 
@@ -247,7 +283,7 @@ public class MatchOverviewSeedTests
     [Test]
     public async Task AnOpenedButNeverScannedDemo_StillShowsItsScoreboard()
     {
-        DemoCacheRecord record = Indexed(withHighlights: false, withScoreboard: true);
+        DemoCacheRecord record = Indexed(false, true);
         record.AnalysisState = DemoAnalysisState.Pending;
 
         MatchOverviewTabViewModel vm = new();
@@ -278,7 +314,7 @@ public class MatchOverviewSeedTests
     public async Task BothHalvesPresent_EarnFull()
     {
         MatchOverviewTabViewModel vm = new();
-        vm.SetCachedRecord(Indexed(withHighlights: true, withScoreboard: true));
+        vm.SetCachedRecord(Indexed(true, true));
 
         using (Assert.Multiple())
         {

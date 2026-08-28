@@ -1,4 +1,4 @@
-# P1 — per-layer / per-stage performance instrumentation
+# P1: per-layer / per-stage performance instrumentation
 
 **Design authority:** [`../design.md`](../design.md) §5.1, §5.7, §6 · **Registry:** [`00-overview.md`](00-overview.md) §3
 **Branch:** `feature/playback2d-v2` · **Status:** design fixed before implementation; kept true afterwards.
@@ -23,7 +23,7 @@ bundled nuke demo. Nothing currently on the branch can say whether the differenc
 
 `bench` reports only two aggregates (advance, render) over a **fixture**, which by construction has no
 tracker and no encoder in it. `export --json` reports only `elapsed_ms`, `frames_per_second` and
-`realtime_ratio` — one number with five causes inside it.
+`realtime_ratio`: one number with five causes inside it.
 
 ## 2. The flag (extended, not invented)
 
@@ -34,7 +34,7 @@ accumulators. `dv2d` had no flag surface of its own at all.
 | Surface | Effect |
 |---|---|
 | `dv2d bench --perf` / `dv2d export --perf` | attaches the scene recorder for that run |
-| `--profile` | accepted alias — the spelling `tools/AnalysisBench` uses |
+| `--profile` | accepted alias, the spelling `tools/AnalysisBench` uses |
 | `CS2DEMOKIT_PROFILE=1` (env) | `Profiling.Enabled` resolves true → `dv2d` attaches the recorder **too**, and the parser/tracker accumulator trees populate on their own |
 | `DEMOVIEWER_PROFILE=1` (env) | same, for the spelling `docs/profiling.md` and `RuntimeEnvInfo` still carry |
 
@@ -50,7 +50,7 @@ scene capture does not imply the repo switch. A caller who wants both asks for b
 
 ## 3. Where the seams go
 
-### 3.1 Per layer — `SceneCompositor` (Core)
+### 3.1 Per layer: `SceneCompositor` (Core)
 
 `SceneCompositor` is already the one place layers are iterated, in both entry points, for both
 phases. It gains one nullable property:
@@ -68,7 +68,7 @@ void RecordPicture(int index, PictureCacheOutcome outcome);     // Replayed | Re
 ```
 
 **Core never reads a clock.** `System.Diagnostics.Stopwatch` is banned outright in Core by
-`BannedApiTests` — the whole type, not just `GetTimestamp` — because a render that can observe wall
+`BannedApiTests` (the whole type, not just `GetTimestamp`), because a render that can observe wall
 time is a render that cannot be reproduced (design §5.1). The interface therefore carries only
 *events*; the implementation that timestamps them lives in `Pipeline.Benchmarking`, inside the
 namespace prefix that scan already exempts. This is the same argument that put the benchmark harness
@@ -81,7 +81,7 @@ exactly the hit/miss decision, and `LayerCacheHint.Dynamic`/`EnablePictureCachin
 Cost with the flag off: one field read and one predicted branch per layer per phase, plus one at the
 cache decision. No allocation, no clock, no virtual dispatch.
 
-### 3.2 Per stage — `ScenePerfRecorder` (Pipeline)
+### 3.2 Per stage: `ScenePerfRecorder` (Pipeline)
 
 `ScenePerfRecorder` implements `ISceneProfiler` and adds the stage API the two harnesses drive:
 
@@ -96,7 +96,7 @@ Encode     IFrameSink.WriteAsync                (blocked on the capacity-4 bound
 `Encode` is the backpressure number: `ChannelVideoFrameSource` is a bounded channel of 4 with
 `FullMode.Wait`, so the time the render loop spends inside `WriteAsync` *is* the time the encoder is
 behind. `--no-encode` swaps in `HashingFrameSink`, and the same stage then measures the read-back
-consumer instead — which is what makes the two runs comparable.
+consumer instead, which is what makes the two runs comparable.
 
 The per-frame total is the sum of the captured stages. Layer rows are **nested inside** `Advance` and
 `Render`, never additional to them; their share percentages are of the same frame denominator, so
@@ -107,10 +107,10 @@ they sum to slightly under the two stages that contain them.
 - Preallocated `long[]` ring buffers, one per stage and one per (layer × phase). Capacity 4096 frames,
   wrapping; each ring is allocated on its **first push**, i.e. during warmup.
 - Per-frame accumulation into flat `long[]` scratch, pushed once per `EndFrame()`. A layer drawn into
-  three panes contributes three deltas to one frame sample — which is the honest per-frame cost.
+  three panes contributes three deltas to one frame sample, which is the honest per-frame cost.
 - Raw `Stopwatch.GetTimestamp()` deltas stored as ticks; the conversion to milliseconds, the sort and
   the percentiles all happen in `Snapshot()`, after the measured window.
-- Percentiles reuse `FrameTimeStats.From` — nearest-rank, the same p50/p95/p99/max/mean the budget
+- Percentiles reuse `FrameTimeStats.From`: nearest-rank, the same p50/p95/p99/max/mean the budget
   gate already uses, so a perf row and a budget row cannot disagree about what p99 means.
 - Not thread-safe. One run at a time. The export loop hands off between pool threads across `await`
   but never concurrently, which is the contract the recorder needs.
@@ -121,8 +121,8 @@ they sum to slightly under the two stages that contain them.
 properties; each sets `compositor.Profiler` for the duration of the run and clears it in a `finally`.
 
 The benchmark attaches the recorder **before** the warmup loop and calls `Reset()` after it: the rings
-are therefore allocated by warmup frames and the measured window — the one the bytes/frame gate reads
-— pushes into arrays that already exist. `Reset()` keeps the rings and zeroes the counters.
+are therefore allocated by warmup frames and the measured window (the one the bytes/frame gate reads)
+pushes into arrays that already exist. `Reset()` keeps the rings and zeroes the counters.
 
 ## 4. Reporting
 
@@ -152,7 +152,7 @@ those two stacks are not yet the same one.
 
 | Gate | Expectation |
 |---|---|
-| `BudgetTests.FullScene_SteadyState_AllocatesNothing` | passes **unchanged** — 0 B, `Profiler` null |
+| `BudgetTests.FullScene_SteadyState_AllocatesNothing` | passes **unchanged**: 0 B, `Profiler` null |
 | `BudgetTests.FullScene_FrameTimes_AreWithinBudget` | passes unchanged against `BudgetPolicy.Ci` |
 | `TextBlobCacheTests` allocation gate | untouched |
 | CLI Budget lane | unchanged (the one documented `SmallestDrawingFixture_AllocatesNothingPerFrame` failure stays exactly as documented) |
@@ -188,26 +188,26 @@ of `match730_003837017413086347571_2138351068_117.dem`; nuke = the whole bundled
 | nuke, vp9 | 73.9 | 1.2× | 12.92 | 0.272 | 0.020 | 4.202 | 2.087 | **6.241** |
 | nuke, `--no-encode` | 150.3 | 2.5× | 6.53 | 0.138 | 0.010 | 3.163 | 1.678 | 1.524 |
 
-Stage columns are p50 ms. `sink` under `--no-encode` is `HashingFrameSink` SHA-256ing a 3.5 MB frame —
+Stage columns are p50 ms. `sink` under `--no-encode` is `HashingFrameSink` SHA-256ing a 3.5 MB frame:
 not free, and the reason "no encoder" is not the same as "renderer alone".
 
 **Share of the inferno vp9 frame:** encode 54.0 %, render 27.9 %, readback 14.9 %, source 3.0 %,
-advance 0.1 %. Inside render: `playback2d.radar` 22.2 % of the whole frame — four fifths of the
-raster — then `playback2d.markers` 1.4 %, `hud.clock` 0.4 %, everything else under 0.3 % combined.
+advance 0.1 %. Inside render: `playback2d.radar` 22.2 % of the whole frame (four fifths of the
+raster), then `playback2d.markers` 1.4 %, `hud.clock` 0.4 %, everything else under 0.3 % combined.
 
 **The attribution is checked, not asserted.** Turning the radar art off drops the render stage p50 by
-1.474 ms and the radar layer row by 1.499 ms — the two agree within 2 %, which is what makes the
+1.474 ms and the radar layer row by 1.499 ms. The two agree within 2 %, which is what makes the
 per-layer column trustworthy rather than decorative.
 
 **Answering the motivating question.** It is not tracker decode, not vision, not area effects at ten
-players. `source` — `FrameAt`, i.e. the entity decode plus `SceneFrameBuilder` — is 3.0 % of the
+players. `source` (`FrameAt`, i.e. the entity decode plus `SceneFrameBuilder`) is 3.0 % of the
 frame; inferno's is 49 % dearer than nuke's, which moves the total by ~1.5 %. Vision and area effects
 together are under 0.3 %. The frame is **libvpx (54 %) + one radar `DrawImage` (22 %) + a read-back
 (15 %)**, and content barely enters it.
 
 Nor does the 1.1× / 2.7× gap reproduce as a content difference: at these settings inferno and nuke
 are 65.0 and 73.9 fps, 14 % apart, not 2.4×. What does reproduce is **2.5× realtime with the encoder
-out of the loop, for both demos** — within 8 % of the 2.7 × nuke reference. The reference pair was
+out of the loop, for both demos**, within 8 % of the 2.7 × nuke reference. The reference pair was
 almost certainly measured with libvpx in one path and not the other.
 
 Two second-order facts the stage table makes visible:
@@ -219,45 +219,45 @@ Two second-order facts the stage table makes visible:
   A GPU provider (C2 Stage 1) has to beat a 1.5–2.2 ms `ReadPixels`, not only the raster.
 
 Where the wins are, in order: the encoder (preset/codec/threads, or a GPU encoder), the radar blit
-(cache the *pixels* at pane resolution, not just the picture — `RadarLayer.CacheScaledImage` already
+(cache the *pixels* at pane resolution, not just the picture; `RadarLayer.CacheScaledImage` already
 caches the resample but the blit itself is still per frame), and the read-back.
 
 ## 8. Findings this surfaced (not fixed here)
 
 1. **`dv2d bench` cannot see the shipping layer stack.** `SceneRenderPlan` builds through
-   `SceneLayerCatalog.Create`, whose `KnownLayerIds` is still B0's single `playback2d.debuggrid` —
+   `SceneLayerCatalog.Create`, whose `KnownLayerIds` is still B0's single `playback2d.debuggrid`,
    the seam C1 deviation 14 / risk R6 left open. `export` goes through `CreateSceneStack` and gets the
    real nine. So `bench --perf` reports a correct per-layer table *of a debug grid*, and the CI budget
    gate is gating on it. Closing it means registering the nine layers in the catalog, which changes
-   what a default `dv2d render` draws and therefore every golden captured through the tool — B1/C1's
+   what a default `dv2d render` draws and therefore every golden captured through the tool: B1/C1's
    change to make, not this phase's. Until then, **`export --no-encode --perf` is the per-layer
    authority** and `bench --perf` is the max-render-rate one.
 2. **`docs/profiling.md` had drifted.** The single profiling switch moved into the CS2DemoKit package
    and its env var is `CS2DEMOKIT_PROFILE`; the doc still told readers to set `DEMOVIEWER_PROFILE`,
    which no longer flips anything on its own. Corrected in that doc; `dv2d` honours both spellings.
-   `RuntimeEnvInfo` and the Desktop/AnalysisBench comments still carry the old name — app-side, out of
+   `RuntimeEnvInfo` and the Desktop/AnalysisBench comments still carry the old name: app-side, out of
    scope here.
 
 ---
 
 ## 9. Review fixes (2026-08-25)
 
-Adversarial review of the two P1 commits against `a556ec1`. The default path, the enabled-path
-arithmetic and the §7 bottleneck analysis all held up under independent re-measurement (below); two
+Independent review of the two P1 commits against `a556ec1`. The default path, the enabled-path
+arithmetic and the §7 bottleneck analysis all held up under re-measurement (below); two
 defects in `ScenePerfRecorder` did not.
 
 ### 9.1 `Reset()` did not retire the rows it zeroed
 
 `Reset()` cleared every sample, counter and head but left `_layerTouched` / `_stageTouched` set. Those
 flags are what decide whether a row exists at all, so a slot that only the **warmup** ever exercised
-survived the reset — and, because `EndFrame()` pushes every touched accumulator whether or not it moved,
+survived the reset. Because `EndFrame()` pushes every touched accumulator whether or not it moved, it
 went on pushing a zero into its ring for every measured frame. The report then carried a row of zeros
 for something that was never measured, which reads as "measured and free" when the truth is "not
 measured". That is the inverse of the rule the stage rows already follow, and which
 `PerfFlagTests.Bench_Perf_BreaksTheFrameDownByStageAndLayer` states outright: *a stage nobody measured
 would read as "free" rather than "absent"*.
 
-Not reachable from either CLI command today — both drive the same stack across warmup and measurement —
+Not reachable from either CLI command today (both drive the same stack across warmup and measurement),
 but `Reset()` is public API and its own summary promised to zero "every counter". Both flag arrays are
 now cleared with the rest.
 
@@ -266,7 +266,7 @@ now cleared with the rest.
 `Stats` picks the live window with `start = count == _capacity ? head : 0`. The arithmetic is right, but
 nothing reached the wrapped arm: `bench` sizes the ring to `--frames`, `export` sizes it to the range,
 and every test sized it above the frames it drove. So the one branch that only a capture outliving its
-own history can take — which is what a long `export --perf` becomes past `DefaultCapacity` — shipped
+own history can take, which is what a long `export --perf` becomes past `DefaultCapacity`, shipped
 unexecuted. `RingWrapsOntoTheNewestFrames_NotTheOldest` now drives four slow frames then eight fast ones
 through a ring of four and asserts the slow samples are gone: 4 samples of 12 frames, max 0.000 ms.
 
@@ -285,17 +285,17 @@ The +2.6 % on render p50 sits inside `HEAD`'s own 4.3 % run-to-run spread, again
 Allocation is unchanged at exactly zero, warm and steady, flag off **and on**.
 
 **Enabled-path arithmetic.** Independent `export --no-encode --perf` over the §7 inferno range: stage
-p50s sum to 6.287 ms against a captured frame p50 of 6.297 — a residual of **0.16 %**. Stage shares sum
+p50s sum to 6.287 ms against a captured frame p50 of 6.297, a residual of **0.16 %**. Stage shares sum
 to 100.0 %. Render-phase layer totals leave 7.4 % of the render stage unattributed, which is the clear,
-the pane setup and the flush — outside the layers by construction, and correctly not charged to one.
+the pane setup and the flush: outside the layers by construction, and correctly not charged to one.
 
 **§7 reproduces.** vp9: encode 56.3 / render 27.4 / readback 13.5 / source 2.6 / advance 0.1 % against
-the recorded 54.0 / 27.9 / 14.9 / 3.0 / 0.1 — same ranking, within ~2 points. The radar ablation
+the recorded 54.0 / 27.9 / 14.9 / 3.0 / 0.1: same ranking, within ~2 points. The radar ablation
 cross-check reproduces harder than recorded: render stage p50 −1.809 ms against the radar layer row's
-−1.783 ms, agreeing to **1.5 %**. §8.1 reproduces exactly — `bench --perf` on a demo reports one layer,
+−1.783 ms, agreeing to **1.5 %**. §8.1 reproduces exactly: `bench --perf` on a demo reports one layer,
 `playback2d.debuggrid`.
 
 One footnote on the ablation: `--no-radar` does not remove the radar layer, it removes the *art*. The
 layer still draws (0.725 ms p50) and its draw count rises from 7 201 to 11 643 over the same 7 201
-frames — it is being drawn into a second pane on some frames. That does not disturb the §7 conclusion,
+frames; it is being drawn into a second pane on some frames. That does not disturb the §7 conclusion,
 which rests on the stage-vs-layer delta agreeing, but it means "no radar" is not "no radar layer".

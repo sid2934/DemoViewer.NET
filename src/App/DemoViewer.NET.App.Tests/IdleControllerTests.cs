@@ -22,7 +22,7 @@ public class IdleControllerTests
     [Test]
     public async Task DoesNotEnterIdle_BeforeTimeout()
     {
-        IdleController c = Build(WithIdle(enabled: true, TimeSpan.FromMinutes(15)), () => false);
+        IdleController c = Build(WithIdle(true, TimeSpan.FromMinutes(15)), () => false);
         c.NotifyActivity(); // stamps ~now (real UtcNow); we drive TryEnterIdle from T0-relative below
 
         // 14 minutes after the last activity is still under the 15-minute wait.
@@ -32,7 +32,7 @@ public class IdleControllerTests
     [Test]
     public async Task EntersIdle_AtTimeout()
     {
-        IdleController c = Build(WithIdle(enabled: true, TimeSpan.FromMinutes(15)), () => false);
+        IdleController c = Build(WithIdle(true, TimeSpan.FromMinutes(15)), () => false);
         c.NotifyActivity();
 
         await Assert.That(c.TryEnterIdle(NowAfter(c, TimeSpan.FromMinutes(15)))).IsTrue();
@@ -41,7 +41,7 @@ public class IdleControllerTests
     [Test]
     public async Task Disabled_NeverEntersIdle()
     {
-        IdleController c = Build(WithIdle(enabled: false, TimeSpan.FromMinutes(1)), () => false);
+        IdleController c = Build(WithIdle(false, TimeSpan.FromMinutes(1)), () => false);
         c.NotifyActivity();
 
         await Assert.That(c.TryEnterIdle(NowAfter(c, TimeSpan.FromHours(1)))).IsFalse();
@@ -51,7 +51,7 @@ public class IdleControllerTests
     public async Task Playback_BlocksIdle_AndResetsCountdown()
     {
         bool playing = true;
-        IdleController c = Build(WithIdle(enabled: true, TimeSpan.FromMinutes(15)), () => playing);
+        IdleController c = Build(WithIdle(true, TimeSpan.FromMinutes(15)), () => playing);
         c.NotifyActivity();
 
         // While playing, a tick well past the timeout does NOT go idle — and it re-stamps activity, so the
@@ -69,7 +69,7 @@ public class IdleControllerTests
     [Test]
     public async Task FiresOnce_ThenReArmsAfterClearIdle()
     {
-        IdleController c = Build(WithIdle(enabled: true, TimeSpan.FromMinutes(15)), () => false);
+        IdleController c = Build(WithIdle(true, TimeSpan.FromMinutes(15)), () => false);
         c.NotifyActivity();
 
         DateTime entered = NowAfter(c, TimeSpan.FromMinutes(20));
@@ -90,7 +90,14 @@ public class IdleControllerTests
     private static DateTime NowAfter(IdleController _, TimeSpan delta) => DateTime.UtcNow + delta;
 
     private static AppSettings WithIdle(bool enabled, TimeSpan wait) =>
-        new() { Idle = new IdleSettings { Enabled = enabled, IdleTimeoutWait = wait } };
+        new()
+        {
+            Idle = new IdleSettings
+            {
+                Enabled = enabled,
+                IdleTimeoutWait = wait
+            }
+        };
 
     private sealed class StubMonitor(AppSettings value) : IOptionsMonitor<AppSettings>
     {

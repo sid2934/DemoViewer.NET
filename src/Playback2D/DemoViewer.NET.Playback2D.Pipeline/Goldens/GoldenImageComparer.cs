@@ -278,7 +278,7 @@ public static class GoldenImageComparer
 
     // Rec. 709 luma on the unpremultiplied channels SKColor already hands back. SSIM is defined on a
     // single-channel signal, and luma is the channel human structure perception actually rides on.
-    private static float Luma(SKColor c) => (0.2126f * c.Red) + (0.7152f * c.Green) + (0.0722f * c.Blue);
+    private static float Luma(SKColor c) => 0.2126f * c.Red + 0.7152f * c.Green + 0.0722f * c.Blue;
 
     private static GoldenComparison Failed(int width, int height, string reason) =>
         new(false, 255, 1.0, 0, width, height, reason, 1.0, 255, 0, 1.0);

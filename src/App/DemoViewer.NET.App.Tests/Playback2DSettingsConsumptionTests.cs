@@ -28,8 +28,10 @@ internal sealed record SettingConsumption(
 }
 
 /// <summary>
-///     <b>D6 §4 guard 3 — every <see cref="Playback2DSettings" /> key has a production reader AND a
-///     production writer.</b>
+///     <b>
+///         D6 §4 guard 3 — every <see cref="Playback2DSettings" /> key has a production reader AND a
+///         production writer.
+///     </b>
 ///     <para>
 ///         <see cref="SettingsWasmRoundTripTests" /> tests transport, not consumption: it proves every
 ///         property survives a fileless round trip, never that anybody sends or receives it. A setting can
@@ -62,8 +64,7 @@ public class Playback2DSettingsConsumptionTests
             "BY DESIGN, and the only entry here that is. Plan decision D-9: a parity escape hatch for one "
             + "release, deliberately NOT a FeatureCatalog id and deliberately with no UI — it is set by "
             + "hand-editing settings.json or by DV_PLAYBACK2D_RENDERER, and it is deleted with the old "
-            + "control. It has a reader (Playback2DTabViewModel) and needs no writer.",
-
+            + "control. It has a reader (Playback2DTabViewModel) and needs no writer."
     };
 
     /// <summary>
@@ -162,7 +163,7 @@ public class Playback2DSettingsConsumptionTests
             .Because("the key landed — delete the entry so the reader/writer guard starts asking about it");
 
         await Assert.That(_unconsumedByDesign.Values.Concat(_registryKeysNotYetBuilt.Values)
-            .All(r => r.Length > 40)).IsTrue()
+                .All(r => r.Length > 40)).IsTrue()
             .Because("§4: an allow-list entry must carry WHY, not just a name");
     }
 
@@ -208,7 +209,10 @@ public class Playback2DSettingsConsumptionTests
             .ToArray();
 
         HashSet<string> accessors = properties
-            .SelectMany(p => new[] { "get_" + p.Name, "set_" + p.Name })
+            .SelectMany(p => new[]
+            {
+                "get_" + p.Name, "set_" + p.Name
+            })
             .ToHashSet(StringComparer.Ordinal);
 
         string owner = settings.FullName!;

@@ -1,10 +1,9 @@
 #region
 
 using System.Runtime.CompilerServices;
-using DemoViewer.NET.Models;
-using DemoViewer.NET.Modules;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Modules;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Shell;
 

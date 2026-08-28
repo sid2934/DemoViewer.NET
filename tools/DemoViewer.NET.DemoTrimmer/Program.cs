@@ -1,7 +1,6 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.DemoTrimmer;
 using CS2DemoKit.Parser;
 
 #endregion
@@ -20,21 +19,21 @@ namespace DemoViewer.NET.DemoTrimmer;
 internal static class Program
 {
     private const string Usage = """
-        DemoViewer.NET demo trimmer (proof of concept)
+                                 DemoViewer.NET demo trimmer (proof of concept)
 
-          inspect <demo.dem> [--boundaries N]
-              Frame/byte breakdown, round-boundary ladder, container tail.
+                                   inspect <demo.dem> [--boundaries N]
+                                       Frame/byte breakdown, round-boundary ladder, container tail.
 
-          trim <demo.dem> --out <dir> [options]
-              --rounds 1,3            round counts to emit (default 1,3)
-              --variants v0,v1,...    ladder rungs to emit (default all: v0 v1 v2 v3 v2c v3c)
-              --boundary <event>      round boundary event (default round_freeze_end)
-              --skip-boundaries N     skip N leading boundaries (warmup) (default 0)
-              --prefix <name>         output filename prefix (default: demo file stem)
-              --no-verify             skip re-parse + entity verification
-              --no-baseline           skip the informational full-source (D0) replay
-              --no-identity-check     skip the empty-drop-set encoder round-trip gate
-        """;
+                                   trim <demo.dem> --out <dir> [options]
+                                       --rounds 1,3            round counts to emit (default 1,3)
+                                       --variants v0,v1,...    ladder rungs to emit (default all: v0 v1 v2 v3 v2c v3c)
+                                       --boundary <event>      round boundary event (default round_freeze_end)
+                                       --skip-boundaries N     skip N leading boundaries (warmup) (default 0)
+                                       --prefix <name>         output filename prefix (default: demo file stem)
+                                       --no-verify             skip re-parse + entity verification
+                                       --no-baseline           skip the informational full-source (D0) replay
+                                       --no-identity-check     skip the empty-drop-set encoder round-trip gate
+                                 """;
 
     public static int Main(string[] args)
     {
@@ -71,7 +70,7 @@ internal static class Program
         // same table the original feasibility measurement reported.
         try
         {
-            TrimWindow window = WindowSelector.Select(demo, 3, enterAtCheckpoint: true);
+            TrimWindow window = WindowSelector.Select(demo, 3, true);
             DemoInspector.InspectWindowMessages(demo, window);
         }
         catch (InvalidOperationException ex)

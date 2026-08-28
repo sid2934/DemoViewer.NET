@@ -12,7 +12,7 @@ using DemoViewer.NET.Playback2D.Pipeline;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The frame builder against in-memory entities — the same behaviour the App's Playback2D suite
+///     The frame builder against in-memory entities: the same behaviour the App's Playback2D suite
 ///     covers end to end, asserted here without an Avalonia platform in the process.
 /// </summary>
 [NotInParallel]
@@ -78,10 +78,9 @@ public class SceneFrameBuilderTests
     }
 
     /// <summary>
-    ///     The export HUD's player cards, read off the same entities the markers are. Before this,
-    ///     health / armour / weapon / cash / K-D-A existed <b>only</b> in the App's
-    ///     <c>PlayerAttributes</c>, which an export and <c>dv2d</c> cannot see — so a burnt-in roster was
-    ///     not just unimplemented, it had no data to draw.
+    ///     The export HUD's player cards, read off the same entities the markers are. The App's
+    ///     <c>PlayerAttributes</c> is the only other place health / armour / weapon / cash / K-D-A live,
+    ///     and neither an export nor <c>dv2d</c> can see it.
     /// </summary>
     [Test]
     public async Task Roster_CarriesEachPlayersCondition_IncludingTheDead()
@@ -157,7 +156,7 @@ public class SceneFrameBuilderTests
         await Assert.That(ct.Team).IsEqualTo(3);
         await Assert.That(ct.IsAlive).IsFalse();
 
-        // Health zeroes with the pawn; the controller-sourced stats do NOT — cash and K/D/A survive death
+        // Health zeroes with the pawn; the controller-sourced stats do NOT. Cash and K/D/A survive death
         // exactly as the app's attributes panel keeps them.
         await Assert.That(ct.Health).IsEqualTo(0);
         await Assert.That(ct.Money).IsEqualTo(250);
@@ -231,7 +230,7 @@ public class SceneFrameBuilderTests
     public async Task Trails_AccumulateThenFadeThenPrune()
     {
         SceneFrameBuilder builder = new();
-        FakeEntity nade = new FakeEntity("CHEGrenadeProjectile", 42);
+        FakeEntity nade = new("CHEGrenadeProjectile", 42);
 
         // Four moving samples → a visible polyline; the projectile moved on the last one, so alpha holds.
         Scene2DFrame frame = Scene2DFrame.Empty;
@@ -262,7 +261,7 @@ public class SceneFrameBuilderTests
     public async Task Trails_ClearOnDiscontinuity_AndTheFrameSaysSo()
     {
         SceneFrameBuilder builder = new();
-        FakeEntity nade = new FakeEntity("CFlashbangProjectile", 7);
+        FakeEntity nade = new("CFlashbangProjectile", 7);
         for (int i = 0; i < 3; i++)
         {
             nade.AtWorld(i * 40f, 0f, 64f);
@@ -317,13 +316,13 @@ public class SceneFrameBuilderTests
             .With("m_flTimerLength", 40f);
         c4.AtWorld(300f, -150f, 64f);
 
-        // The bomb timers are read only when the game-rules entity decoded this frame — the pre-v2
-        // view-model nested UpdateBombTimers inside that branch, and this extraction keeps it there.
+        // The bomb timers are read only when the game-rules entity decoded this frame: UpdateBombTimers
+        // is nested inside that branch.
         FakeEntity rules = new FakeEntity("CCSGameRulesProxy").With("m_pGameRules.m_bBombPlanted", 1);
 
         // 20 s before detonation, on a 40 s timer → half the ring left.
         Scene2DFrame frame = Build(builder,
-            Input([], new FakeEntityView().Add(rules).Add(c4), 1, 64, curtime: 120));
+            Input([], new FakeEntityView().Add(rules).Add(c4), 1, 64, 120));
 
         await Assert.That(frame.Bomb).IsNotNull();
         await Assert.That(frame.Bomb!.Value.DetonationFraction).IsEqualTo(0.5).Within(0.001);
@@ -334,7 +333,7 @@ public class SceneFrameBuilderTests
 
         // A defuse in progress fills the second timer and the defuse arc.
         c4.With("m_bBeingDefused", 1).With("m_flDefuseCountDown", 125f).With("m_flDefuseLength", 5f);
-        frame = Build(builder, Input([], new FakeEntityView().Add(rules).Add(c4), 2, 128, curtime: 120));
+        frame = Build(builder, Input([], new FakeEntityView().Add(rules).Add(c4), 2, 128, 120));
 
         await Assert.That(frame.GameInfo.DefuseInProgress).IsTrue();
         await Assert.That(frame.GameInfo.DefuseKitNote).IsEqualTo("with kit");
@@ -354,7 +353,7 @@ public class SceneFrameBuilderTests
             .Add(new FakeEntity("CCSTeam", 2).With("m_iTeamNum", 2).With("m_iScore", 3))
             .Add(new FakeEntity("CCSTeam", 3).With("m_iTeamNum", 3).With("m_iScore", 1));
 
-        Scene2DFrame frame = Build(builder, Input([], view, 1, 64, curtime: 350));
+        Scene2DFrame frame = Build(builder, Input([], view, 1, 64, 350));
 
         await Assert.That(frame.GameInfo.Phase).IsEqualTo("Live");
         await Assert.That(frame.GameInfo.RoundNumber).IsEqualTo(5);
@@ -378,7 +377,7 @@ public class SceneFrameBuilderTests
         await Assert.That(frame.GameInfo.Phase).IsEqualTo("Freeze");
 
         // A frame in which the rules entity is not decoded (a seek can land there) must leave the panel
-        // alone rather than blanking it — the pre-v2 view-model mutated its GameInfo in place.
+        // alone rather than blanking it.
         frame = Build(builder, Input([], new FakeEntityView(), 2, 128));
         await Assert.That(frame.GameInfo.Phase).IsEqualTo("Freeze");
         await Assert.That(frame.GameInfo.RoundNumber).IsEqualTo(3);
@@ -413,7 +412,7 @@ public class SceneFrameBuilderTests
     public async Task Reset_ClearsTrailsRingsAndSectionHeights()
     {
         SceneFrameBuilder builder = new();
-        FakeEntity nade = new FakeEntity("CDecoyProjectile", 3);
+        FakeEntity nade = new("CDecoyProjectile", 3);
         for (int i = 0; i < 3; i++)
         {
             nade.AtWorld(i * 30f, 0f, 64f);
@@ -464,9 +463,8 @@ public class SceneFrameBuilderTests
         }
 
         // The rules entity publishes its section heights, so the once-per-demo read latches on the first
-        // frame. The map that publishes NONE — every single-floor map, i.e. most of them — is covered by
-        // MapWithoutSectionHeights_StopsRetrying below; that retry is now bounded, where it used to run
-        // for the whole demo.
+        // frame. The map that publishes NONE (every single-floor map, i.e. most of them) is covered by
+        // MapWithoutSectionHeights_StopsRetrying below, where the retry bound is the thing under test.
         FakeEntityView view = new FakeEntityView().Add(new FakeEntity("CCSGameRulesProxy")
             .With("m_pGameRules.m_fRoundStartTime", 0f)
             .With("m_pGameRules.m_iRoundTime", 115)
@@ -476,13 +474,13 @@ public class SceneFrameBuilderTests
         // Warm up: the pooled lists grow to size, the map info latches, and the clock string is cached.
         for (int i = 0; i < 64; i++)
         {
-            Build(builder, Input(players, view, i, i * TickRate, curtime: 10));
+            Build(builder, Input(players, view, i, i * TickRate, 10));
         }
 
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 16; i++)
         {
-            Build(builder, Input(players, view, 64 + i, (64 + i) * TickRate, curtime: 10));
+            Build(builder, Input(players, view, 64 + i, (64 + i) * TickRate, 10));
         }
 
         long perBuild = (GC.GetAllocatedBytesForCurrentThread() - before) / 16;
@@ -490,20 +488,19 @@ public class SceneFrameBuilderTests
 
         // Measured at ~72 bytes: the builder's own frame path allocates nothing (pooled lists, a cached
         // SceneMapInfo, and a clock string keyed on the rounded second), and what remains is the boxed
-        // enumerator IEnumerable<IReadOnlyEntity> costs per OfClass call — an entity-read-surface cost,
-        // not the builder's. §6 does not make ZERO a hard budget here; this ceiling is set close enough
-        // to the measurement to catch a real regression.
+        // enumerator IEnumerable<IReadOnlyEntity> costs per OfClass call: an entity-read-surface cost,
+        // not the builder's. ZERO is not a hard budget here; this ceiling is set close enough to the
+        // measurement to catch a real regression.
         await Assert.That(perBuild).IsLessThan(128);
     }
 
     /// <summary>
     ///     A map that publishes no <c>m_MinimapVerticalSectionHeights</c> must stop looking for them.
     ///     <para>
-    ///         A prior implementation shipped an unbounded retry: the read only latched once at least one
-    ///         value resolved, so on the majority of maps — every single-floor one — it re-scanned eight
-    ///         interpolated field paths on every push for the entire demo. That is both wasted work and a
-    ///         steady-state allocation, in the one component whose allocation budget the whole design
-    ///         leans on.
+    ///         The read only latches once at least one value resolves, so without a bound it re-scans
+    ///         eight interpolated field paths on every push for the entire demo on the majority of maps
+    ///         (every single-floor one). That is wasted work and a steady-state allocation, in the one
+    ///         component whose allocation budget the whole design leans on.
     ///     </para>
     /// </summary>
     [Test]
@@ -523,7 +520,7 @@ public class SceneFrameBuilderTests
             }
         ];
 
-        // No section heights at all — a single-floor map.
+        // No section heights at all: a single-floor map.
         FakeEntityView view = new FakeEntityView().Add(new FakeEntity("CCSGameRulesProxy")
             .With("m_pGameRules.m_fRoundStartTime", 0f)
             .With("m_pGameRules.m_iRoundTime", 115));
@@ -531,27 +528,27 @@ public class SceneFrameBuilderTests
         // Well past the retry bound, so the scan has given up before the measured window.
         for (int i = 0; i < 512; i++)
         {
-            Build(builder, Input(players, view, i, i * TickRate, curtime: 10));
+            Build(builder, Input(players, view, i, i * TickRate, 10));
         }
 
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 64; i++)
         {
-            Build(builder, Input(players, view, 512 + i, (512 + i) * TickRate, curtime: 10));
+            Build(builder, Input(players, view, 512 + i, (512 + i) * TickRate, 10));
         }
 
         long perBuild = (GC.GetAllocatedBytesForCurrentThread() - before) / 64;
         Console.WriteLine($"[alloc] no-section-heights map: {perBuild} bytes/build");
 
-        Scene2DFrame frame = Build(builder, Input(players, view, 999, 999 * TickRate, curtime: 10));
+        Scene2DFrame frame = Build(builder, Input(players, view, 999, 999 * TickRate, 10));
         await Assert.That(frame.Map.SectionHeights).IsNull();
 
         // Same ceiling as the publishing case: once the scan has given up, the two paths cost the same.
         await Assert.That(perBuild).IsLessThan(128);
     }
 
-    // SceneFrameInput is a ref struct, so an `in` parameter cannot bind a call's return value directly —
-    // the implicit temporary would have no ref-safe scope. One local per call is what the language wants.
+    // SceneFrameInput is a ref struct, so an `in` parameter cannot bind a call's return value directly:
+    // the implicit temporary has no ref-safe scope. One local per call is what the language wants.
     private static Scene2DFrame Build(SceneFrameBuilder builder, SceneFrameInput input) =>
         builder.Build(in input);
 

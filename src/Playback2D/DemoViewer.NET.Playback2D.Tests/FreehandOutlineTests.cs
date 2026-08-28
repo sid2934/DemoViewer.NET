@@ -233,6 +233,12 @@ public class FreehandOutlineTests
 /// <summary>One checked-in perfect-freehand reference vector.</summary>
 internal sealed class FreehandReference
 {
+    /// <summary>The raw input samples.</summary>
+    public readonly InkPoint[] Input;
+
+    /// <summary>The options upstream was called with.</summary>
+    public readonly FreehandOptions Options;
+
     private FreehandReference(FreehandOptions options, InkPoint[] input,
         IReadOnlyList<double[]> strokePoints, IReadOnlyList<double[]> outline)
     {
@@ -241,12 +247,6 @@ internal sealed class FreehandReference
         StrokePoints = strokePoints;
         Outline = outline;
     }
-
-    /// <summary>The options upstream was called with.</summary>
-    public readonly FreehandOptions Options;
-
-    /// <summary>The raw input samples.</summary>
-    public readonly InkPoint[] Input;
 
     /// <summary>Upstream's <c>getStrokePoints</c> output, flattened.</summary>
     public IReadOnlyList<double[]> StrokePoints { get; }

@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Modules.Playback2D.Levels;
 ///     </para>
 ///     <para>
 ///         <b>A single-floor map sees none of this.</b> <see cref="HasMultipleLevels" /> collapses the
-///         whole strip, which is most maps and the reason the tab looks unchanged on them (plan D9).
+///         whole strip. That is most maps, and why the tab looks unchanged on them.
 ///     </para>
 /// </summary>
 public sealed partial class LevelStripViewModel : ObservableObject
@@ -26,18 +26,17 @@ public sealed partial class LevelStripViewModel : ObservableObject
     private readonly List<LevelChipViewModel> _scratch = [];
     private bool _applying;
 
-    // A command that persists at the end of its own body owns the save for that whole gesture. Without
-    // this the IsAutoEnabled it flips on the way would raise a SECOND SettingsChanged, and every raise is
-    // a full read-serialize-temp-write-move-reload of settings.json — two of those per chip click.
-    private bool _inGesture;
-    private ILevelSurface? _surface;
-
     [ObservableProperty]
     private bool _hasMultipleLevels;
 
+    // A command that persists at the end of its own body owns the save for that whole gesture. Without
+    // this the IsAutoEnabled it flips on the way would raise a SECOND SettingsChanged, and every raise is
+    // a full read-serialize-temp-write-move-reload of settings.json, two of those per chip click.
+    private bool _inGesture;
+
     /// <summary>
-    ///     Whether AutoFollow is offered at all — the <c>playback2d.levels.auto</c> feature gate. With
-    ///     the gate off the strip still picks levels; only the AUTO chip disappears (plan D8).
+    ///     Whether AutoFollow is offered at all: the <c>playback2d.levels.auto</c> feature gate. With the
+    ///     gate off the strip still picks levels; only the AUTO chip disappears.
     /// </summary>
     [ObservableProperty]
     private bool _isAutoAvailable = true;
@@ -48,11 +47,10 @@ public sealed partial class LevelStripViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSingleMode;
 
+    private ILevelSurface? _surface;
+
     /// <summary>The chips, highest level first.</summary>
     public ObservableCollection<LevelChipViewModel> Chips { get; } = [];
-
-    /// <summary>Raised when the user changed a setting worth persisting.</summary>
-    public event Action? SettingsChanged;
 
     /// <summary>The label on the display-mode toggle.</summary>
     public string DisplayModeLabel => IsSingleMode ? "SINGLE" : "STACK";
@@ -64,6 +62,13 @@ public sealed partial class LevelStripViewModel : ObservableObject
 
     /// <summary>The level currently shown, when a surface is bound.</summary>
     public MapLevelId ActiveLevelId => _surface?.ActiveLevelId ?? MapLevelId.None;
+
+    /// <summary>The display mode to persist.</summary>
+    public LevelDisplayMode DisplayMode =>
+        IsSingleMode ? LevelDisplayMode.Single : LevelDisplayMode.Stacked;
+
+    /// <summary>Raised when the user changed a setting worth persisting.</summary>
+    public event Action? SettingsChanged;
 
     /// <summary>Picks a level. Switches to a single pane and turns AutoFollow off.</summary>
     [RelayCommand]
@@ -123,12 +128,12 @@ public sealed partial class LevelStripViewModel : ObservableObject
             return;
         }
 
-        IsAutoEnabled = true; // applies to the surface, refreshes and persists — see the handler
+        IsAutoEnabled = true; // applies to the surface, refreshes and persists; see the handler
         Refresh();
     }
 
     /// <summary>
-    ///     Binds to the mounted surface. Idempotent, and unbinding (null) drops the subscription — the
+    ///     Binds to the mounted surface. Idempotent, and unbinding (null) drops the subscription: the
     ///     tab's view is destroyed and rebuilt on every activation while this view-model is cached.
     /// </summary>
     /// <param name="surface">The v2 host, or null.</param>
@@ -179,10 +184,6 @@ public sealed partial class LevelStripViewModel : ObservableObject
         ApplyToSurface();
         Refresh();
     }
-
-    /// <summary>The display mode to persist.</summary>
-    public LevelDisplayMode DisplayMode =>
-        IsSingleMode ? LevelDisplayMode.Single : LevelDisplayMode.Stacked;
 
     /// <summary>Re-reads the surface's level set and active level.</summary>
     public void Refresh()
@@ -253,11 +254,9 @@ public sealed partial class LevelStripViewModel : ObservableObject
     }
 
     /// <summary>
-    ///     Where AUTO's persistence actually lives. The AUTO chip is a <c>ToggleButton</c> bound straight
-    ///     to <see cref="IsAutoEnabled" />, so <b>every real AUTO flip arrives here</b>; a generated
-    ///     <c>EnableAutoCommand</c> used to be the only thing that raised <see cref="SettingsChanged" />,
-    ///     and nothing bound it, so the toggle applied instantly, looked right, and was forgotten on the
-    ///     next launch.
+    ///     Where AUTO's persistence lives. The AUTO chip is a <c>ToggleButton</c> bound straight to
+    ///     <see cref="IsAutoEnabled" />, so <b>every real AUTO flip arrives here</b> and not through a
+    ///     command. A command on that chip would never be reached.
     /// </summary>
     partial void OnIsAutoEnabledChanged(bool value)
     {

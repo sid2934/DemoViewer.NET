@@ -227,7 +227,7 @@ public class ChannelVideoFrameSourceFaultTests
     [Test]
     public async Task FaultingTheChannel_ReleasesAWriterAlreadyBlockedOnAFullQueue()
     {
-        ChannelVideoFrameSource source = new(capacity: 2);
+        ChannelVideoFrameSource source = new(2);
         byte[] frame = new byte[16];
 
         Task writer = Task.Run(async () =>

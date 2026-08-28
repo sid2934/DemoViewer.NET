@@ -46,6 +46,8 @@ internal static class PacketRewriter
     /// <summary><c>svc_UserCmds</c> — the per-tick recorded player-input stream (netmessages.proto).</summary>
     public const int SvcUserCmdsTypeId = 76;
 
+    private static readonly HashSet<int> EmptyDropSet = [];
+
     /// <summary>
     ///     Re-encodes <paramref name="data" />, dropping every message whose type id is in
     ///     <paramref name="dropTypeIds" />. Passing an empty set produces a pure round trip, which is
@@ -145,6 +147,4 @@ internal static class PacketRewriter
             ? IdentityOutcome.Exact
             : IdentityOutcome.ExactPrefixShorter;
     }
-
-    private static readonly HashSet<int> EmptyDropSet = [];
 }

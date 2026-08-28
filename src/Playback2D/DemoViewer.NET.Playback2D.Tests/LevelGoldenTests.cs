@@ -118,8 +118,11 @@ public class LevelGoldenTests
     }
 
     /// <summary>
-    ///     <b>The proof obligation behind <see cref="GoldenTolerance.ForLabelledFrame" />, for the nuke
-    ///     corpus</b> — see <see cref="GlyphAttribution" />. It runs everywhere, not just off Windows: on
+    ///     <b>
+    ///         The proof obligation behind <see cref="GoldenTolerance.ForLabelledFrame" />, for the nuke
+    ///         corpus
+    ///     </b>
+    ///     — see <see cref="GlyphAttribution" />. It runs everywhere, not just off Windows: on
     ///     the authoring platform it passes with zeroes, and that assertion goes red first if the
     ///     rasteriser difference stops being confined to text.
     /// </summary>

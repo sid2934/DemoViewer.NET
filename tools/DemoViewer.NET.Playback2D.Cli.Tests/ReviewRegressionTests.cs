@@ -24,15 +24,15 @@ public class ReviewRegressionTests
     /// <summary>
     ///     One player, so the frame derives a floor band and therefore a pane.
     ///     <para>
-    ///         Since the C1 merge the headless renderer is <b>B1's pane pipeline</b>: levels come from the
-    ///         frame's observed player Z (or a bundle's nav floors), and a frame with neither has no
-    ///         levels, no panes, and nothing to draw into. A clock probe needs a pane to be rendered in,
-    ///         so these cases hand it a marker. The assertion — the context carries the <i>injected</i>
-    ///         clock, not the frame's — is unchanged.
+    ///         The headless renderer is <b>the pane pipeline</b>: levels come from the frame's observed
+    ///         player Z (or a bundle's nav floors), and a frame with neither has no levels, no panes, and
+    ///         nothing to draw into. A clock probe needs a pane to be rendered in, so these cases hand it
+    ///         a marker. The assertion is still that the context carries the <i>injected</i> clock, not
+    ///         the frame's.
     ///     </para>
     /// </summary>
     private static PlayerMarker[] OneMarker =>
-        [new PlayerMarker(0, 2, 0, 0, 0, 0, RingState.Team, 0, "p", true)];
+        [new(0, 2, 0, 0, 0, 0, RingState.Team, 0, "p", true)];
 
     /// <summary>
     ///     <c>RenderInto</c> must render with the clock it was handed, not with whatever clock happens to
@@ -41,11 +41,11 @@ public class ReviewRegressionTests
     ///         The two clocks are the same for a <see cref="SceneFixture" />, which is why
     ///         <c>HeadlessSceneRendererTests.Render_MatchesRenderInto</c> could not see this: it passes
     ///         <c>fixture.Time</c> for a frame whose own <c>Time</c> is that same value. They are
-    ///         <b>not</b> the same on the demo path — <see cref="TrackerFrameSource.TimeAt" /> derives
+    ///         <b>not</b> the same on the demo path. <see cref="TrackerFrameSource.TimeAt" /> derives
     ///         <c>DeltaSeconds</c> from fps/speed and authors <c>IsDiscontinuity</c>, while the frame's
-    ///         own <c>Time</c> comes from <c>SceneFrameBuilder</c>. Dropping the injected clock is exactly
-    ///         the §5.1 determinism failure this phase exists to prevent, and it would have surfaced as
-    ///         "bench and golden disagree" the moment a B1 layer read <c>ctx.Time</c>.
+    ///         own <c>Time</c> comes from <c>SceneFrameBuilder</c>. Dropping the injected clock is the
+    ///         §5.1 determinism failure this phase exists to prevent, and it would have surfaced as
+    ///         "bench and golden disagree" the moment a layer read <c>ctx.Time</c>.
     ///     </para>
     /// </summary>
     [Test]
@@ -54,7 +54,11 @@ public class ReviewRegressionTests
         SceneTime frameClock = new(100, 100, 1.0, 1.0 / 64, false);
         SceneTime injected = new(999, 4242, 66.5, 1.0 / 30, true);
 
-        Scene2DFrame frame = new() { Time = frameClock, Markers = OneMarker };
+        Scene2DFrame frame = new()
+        {
+            Time = frameClock,
+            Markers = OneMarker
+        };
 
         using CpuSurfaceProvider provider = new();
         using SceneCompositor compositor = new();
@@ -64,7 +68,7 @@ public class ReviewRegressionTests
         using HeadlessSceneRenderer renderer = new(provider, compositor);
         using SKSurface surface = provider.CreateSurface(new SKSizeI(16, 16));
 
-        renderer.RenderInto(surface, frame, in injected, RenderPurpose.Export);
+        renderer.RenderInto(surface, frame, in injected);
 
         await Assert.That(probe.AdvancedWith).IsEqualTo(injected);
         await Assert.That(probe.RenderedWith).IsEqualTo(injected);
@@ -78,7 +82,11 @@ public class ReviewRegressionTests
     public async Task Render_PassesTheInjectedClockToTheRenderContext()
     {
         SceneTime injected = new(7, 7, 0.5, 1.0 / 64, true);
-        Scene2DFrame frame = new() { Time = new SceneTime(1, 1, 0, 0, false), Markers = OneMarker };
+        Scene2DFrame frame = new()
+        {
+            Time = new SceneTime(1, 1, 0, 0, false),
+            Markers = OneMarker
+        };
 
         using CpuSurfaceProvider provider = new();
         using SceneCompositor compositor = new();
@@ -86,7 +94,7 @@ public class ReviewRegressionTests
         compositor.Add(probe);
 
         using HeadlessSceneRenderer renderer = new(provider, compositor);
-        using SKImage image = renderer.Render(frame, in injected, new SKSizeI(16, 16), RenderPurpose.Export);
+        using SKImage image = renderer.Render(frame, in injected, new SKSizeI(16, 16));
 
         await Assert.That(probe.RenderedWith).IsEqualTo(injected);
     }
@@ -120,15 +128,20 @@ public class ReviewRegressionTests
     /// <summary>
     ///     The tracker → <c>SceneFrameInput</c> adapter runs once per exported frame, so every byte it
     ///     allocates is on the §6 budget. The lambda handed to <c>PawnLookup.ForEachLivePawn</c> captures
-    ///     <c>this</c>, and Roslyn caches only a <b>fully non-capturing</b> lambda — so it allocated a
+    ///     <c>this</c>, and Roslyn caches only a <b>fully non-capturing</b> lambda, so it allocated a
     ///     fresh delegate on every single frame.
     ///     <para>
     ///         <b>Measured on the committed <c>assets/tour</c> demo:</b> 424 bytes/frame before the fix,
-    ///         360 after — the delegate was exactly 64 of them. The 360-byte residue is <b>not C1's</b>:
-    ///         bisected, it is 72 bytes inside <c>PawnLookup.ForEachLivePawn</c> and ~24 bytes per boxed
-    ///         <c>EntityState</c> field read, both in the pinned CS2DemoKit 0.10.0 package and both shared
-    ///         with the App's own <c>ModuleContext</c> join. B4's export loop inherits that floor; closing
-    ///         it needs a package-side allocation-free read path, not a Pipeline change.
+    ///         360 after; the delegate was exactly 64 of them. The 360-byte residue is
+    ///         <b>
+    ///             not this
+    ///             phase's
+    ///         </b>
+    ///         . Bisected, it is 72 bytes inside <c>PawnLookup.ForEachLivePawn</c> and ~24
+    ///         bytes per boxed <c>EntityState</c> field read, both in the pinned CS2DemoKit 0.10.0
+    ///         package and both shared with the App's own <c>ModuleContext</c> join. The export loop
+    ///         inherits that floor; closing it needs a package-side allocation-free read path, not a
+    ///         Pipeline change.
     ///     </para>
     ///     <para>
     ///         The bound sits between the two measurements. <c>[Category("Budget")]</c> for the same

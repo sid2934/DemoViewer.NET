@@ -35,10 +35,17 @@ public static class FreehandOutline
 
     private static readonly double FixedPi = Math.PI + 1e-4;
 
-    [ThreadStatic] private static List<Vec>? _left;
-    [ThreadStatic] private static List<Vec>? _right;
-    [ThreadStatic] private static List<Vec>? _startCap;
-    [ThreadStatic] private static List<Vec>? _endCap;
+    [ThreadStatic]
+    private static List<Vec>? _left;
+
+    [ThreadStatic]
+    private static List<Vec>? _right;
+
+    [ThreadStatic]
+    private static List<Vec>? _startCap;
+
+    [ThreadStatic]
+    private static List<Vec>? _endCap;
 
     /// <summary>
     ///     Stage 1: streamline the raw samples and derive each point's back-vector, step distance and

@@ -8,9 +8,9 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
 ///     Determinism is a contract, not a nicety (design §5.1): the same fixture must produce the same
-///     bytes twice in one process <b>and</b> across two processes. The cross-process half is what
-///     catches a static initialised from a wall clock, a hash-order dependency, or a JIT-order leak —
-///     none of which the in-process repeat would show.
+///     bytes twice in one process <b>and</b> across two processes. The cross-process half catches a
+///     static initialised from a wall clock, a hash-order dependency, or a JIT-order leak. The
+///     in-process repeat shows none of those.
 /// </summary>
 [NotInParallel]
 [Category("Render")]

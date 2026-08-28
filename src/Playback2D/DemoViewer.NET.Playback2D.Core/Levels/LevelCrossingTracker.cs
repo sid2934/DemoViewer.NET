@@ -7,14 +7,13 @@ namespace DemoViewer.NET.Playback2D.Core.Levels;
 ///         <b>This is the boltobserv streak.</b> A marker's drawn position is chased toward its sample
 ///         over several frames; a player who takes the Nuke lift or a Vertigo drop moves hundreds of
 ///         units in X/Y at the same instant they change floor, and a smoothed dot glides that whole
-///         distance in view. The teleport rule catches some of it and misses the rest — the two floors'
-///         positions can be close in plan. Snapping on the crossing itself catches all of it.
+///         distance in view. The teleport rule catches some of it and misses the rest, because the two
+///         floors' positions can be close in plan. Snapping on the crossing itself catches all of it.
 ///     </para>
 ///     <para>
-///         Assignment uses the <b>sticky spatial band and no dwell</b> (plan D4): an entity must never
-///         lag its own level, but it must also not report a crossing every frame while a player stands
-///         on a boundary. Keyed by roster <c>Slot</c> — <c>PlayerMarker</c> carries a SteamId only from
-///         B2, and slots are what every layer already has.
+///         Assignment uses the <b>sticky spatial band and no dwell</b>: an entity must never lag its own
+///         level, but it must also not report a crossing every frame while a player stands on a boundary.
+///         Keyed by roster <c>Slot</c>, which every layer already has.
 ///     </para>
 /// </summary>
 public sealed class LevelCrossingTracker
@@ -71,8 +70,8 @@ public sealed class LevelCrossingTracker
         _levels.TryGetValue(slot, out MapLevelId id) ? id : MapLevelId.None;
 
     /// <summary>
-    ///     Clears the per-frame crossing set. Called by the frame owner after every layer has advanced —
-    ///     a crossing is true for exactly one frame, which is what makes "snap once" mean once.
+    ///     Clears the per-frame crossing set. Called by the frame owner after every layer has advanced.
+    ///     A crossing is true for exactly one frame.
     /// </summary>
     public void EndFrame()
     {
@@ -85,8 +84,7 @@ public sealed class LevelCrossingTracker
     /// <summary>
     ///     Drops every assignment: a demo change, a <see cref="MapSpace" /> rebuild, or a
     ///     <c>SceneTime.IsDiscontinuity</c>. After a rebuild every cached assignment is stale, so the
-    ///     next frame re-resolves and — correctly — reports no crossing for entities that merely got
-    ///     re-keyed.
+    ///     next frame re-resolves and reports no crossing for entities that merely got re-keyed.
     /// </summary>
     public void Reset()
     {

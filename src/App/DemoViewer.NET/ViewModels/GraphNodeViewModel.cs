@@ -1,6 +1,7 @@
 #region
 
 using Avalonia;
+using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.Visualization;
@@ -88,7 +89,7 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
                 return null;
             }
 
-            Avalonia.Media.Color border = ThemeColors.Get(
+            Color border = ThemeColors.Get(
                 "GraphNodePerPlayerBorder", Application.Current?.ActualThemeVariant, "#009688");
             return new NodeStyle
             {

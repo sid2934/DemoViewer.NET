@@ -17,6 +17,9 @@ namespace DemoViewer.NET.AppTests;
 /// </summary>
 public class TimelineLayoutTests
 {
+    private static readonly string[] _registeredTrackIds = ["round", "kill", "bomb", "annotation"];
+    private static readonly string[] _persistedTrackIds = ["kill", "bomb", AnnotationTrack.TrackId];
+
     [Test]
     public async Task XForFrame_MapsZeroToLeftEdgeAndLastToRightEdge()
     {
@@ -32,7 +35,10 @@ public class TimelineLayoutTests
     {
         Playback2DTimelineViewModel vm = Sized(2000, 800);
 
-        foreach (int frame in new[] { 0, 1, 137, 999, 1500, 1999 })
+        foreach (int frame in new[]
+                 {
+                     0, 1, 137, 999, 1500, 1999
+                 })
         {
             await Assert.That(vm.FrameIndexAt(vm.XForFrame(frame))).IsEqualTo(frame);
         }
@@ -131,8 +137,11 @@ public class TimelineLayoutTests
     ///     exercised by a marker. A 0 still resolves to the kind's own token, so an uncolourable kill is
     ///     visually exactly what it is today.
     ///     <para>
-    ///         <b>The kind default is asserted against another marker that shares its token, not against
-    ///         the literal.</b> <c>Token</c> resolves from the theme when <c>Application.Current</c> exists
+    ///         <b>
+    ///             The kind default is asserted against another marker that shares its token, not against
+    ///             the literal.
+    ///         </b>
+    ///         <c>Token</c> resolves from the theme when <c>Application.Current</c> exists
     ///         AND the call is on the UI thread, and falls back to a hard-coded ARGB otherwise — both of
     ///         which are properties of what else has run in this PROCESS, not of the code under test.
     ///         Asserting the fallback literal made this case fail roughly one run in ten, always as
@@ -300,9 +309,6 @@ public class TimelineLayoutTests
         await Assert.That(announced).IsEqualTo(0);
     }
 
-    private static readonly string[] _registeredTrackIds = ["round", "kill", "bomb", "annotation"];
-    private static readonly string[] _persistedTrackIds = ["kill", "bomb", AnnotationTrack.TrackId];
-
     /// <summary>
     ///     The three ids <c>Playback2DTabViewModel.LoadTimelineSettings</c> / <c>SaveTimelineSettings</c>
     ///     key <c>Playback2D:TimelineShowKills|Bomb|Annotations</c> on. <c>RestoreTrackEnabled</c> and
@@ -331,8 +337,11 @@ public class TimelineLayoutTests
     }
 
     /// <summary>
-    ///     <b><see cref="ITimelineTrack.MarkersChanged" /> is documented "the host must re-query it" —
-    ///     and the host never subscribed.</b> <see cref="Playback2DTimelineViewModel.Rebuild" /> runs on
+    ///     <b>
+    ///         <see cref="ITimelineTrack.MarkersChanged" /> is documented "the host must re-query it" —
+    ///         and the host never subscribed.
+    ///     </b>
+    ///     <see cref="Playback2DTimelineViewModel.Rebuild" /> runs on
     ///     tab activation and demo-reset only, so a telestration made while the tab is open produced no
     ///     marker; worse, the Annotations toggle could never become AVAILABLE at all, because
     ///     availability was evaluated only inside a build and <c>AnnotationTrack</c> is unavailable until

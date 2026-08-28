@@ -51,17 +51,6 @@ public sealed partial class HarvestHexViewModel : ObservableObject
         new SolidColorBrush(Color.FromArgb(0x33, 0x90, 0x78, 0x90)) // L3 slate       (ancestor+)
     ];
 
-    /// <summary>
-    ///     Swaps the process-wide 4-tier highlight palette (L0 selected → L3 deep ancestor).
-    ///     Called by <c>BinaryPane</c> with token-resolved brushes; the caller then triggers
-    ///     <see cref="RepaintHighlights" /> on its own VM so live rows re-materialize.
-    /// </summary>
-    public static void SetPalette(IBrush l0, IBrush l1, IBrush l2, IBrush l3) =>
-        _levelBrushes = [l0, l1, l2, l3];
-
-    /// <summary>Re-materializes the current window's rows so cells pick up a swapped palette.</summary>
-    public void RepaintHighlights() => RebuildRows();
-
     // ── State ─────────────────────────────────────────────────────────────────
     private readonly List<HexSpan> _spans = [];
     private byte[]? _data;
@@ -117,6 +106,17 @@ public sealed partial class HarvestHexViewModel : ObservableObject
 
     /// <summary>Has header.</summary>
     public bool HasHeader => Header is { Length: > 0 };
+
+    /// <summary>
+    ///     Swaps the process-wide 4-tier highlight palette (L0 selected → L3 deep ancestor).
+    ///     Called by <c>BinaryPane</c> with token-resolved brushes; the caller then triggers
+    ///     <see cref="RepaintHighlights" /> on its own VM so live rows re-materialize.
+    /// </summary>
+    public static void SetPalette(IBrush l0, IBrush l1, IBrush l2, IBrush l3) =>
+        _levelBrushes = [l0, l1, l2, l3];
+
+    /// <summary>Re-materializes the current window's rows so cells pick up a swapped palette.</summary>
+    public void RepaintHighlights() => RebuildRows();
 
     // ── Reverse byte → node hit-testing (F5.2) ────────────────────────────────
 

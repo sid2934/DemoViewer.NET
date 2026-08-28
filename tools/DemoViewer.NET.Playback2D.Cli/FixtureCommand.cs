@@ -13,11 +13,11 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     <c>dv2d fixture capture | list | verify</c> — authoring and checking the corpus.
+///     <c>dv2d fixture capture | list | verify</c>: authoring and checking the corpus.
 ///     <para>
-///         <c>capture</c> is the one command that needs a demo: it replays a private tracker to the
+///         <c>capture</c> is the one command that needs a demo. It replays a private tracker to the
 ///         requested tick, serializes the built scene, and registers it in <c>manifest.json</c>. After
-///         that the fixture is demo-free, which is what lets the whole corpus run in CI (decision 10).
+///         that the fixture is demo-free, so the whole corpus runs in CI (decision 10).
 ///     </para>
 /// </summary>
 internal static class FixtureCommand
@@ -208,8 +208,8 @@ internal static class FixtureCommand
 
             try
             {
-                // Round-trip rather than merely load: a fixture that reads but does not write back
-                // identically is a fixture whose next `capture` would silently drop data.
+                // Round-trip rather than load: a fixture that reads but does not write back identically
+                // is one whose next `capture` would silently drop data.
                 SceneFixture loaded = SceneFixture.Load(entry.ScenePath);
                 using MemoryStream first = new();
                 SceneFixtureSerializer.Write(loaded, first);

@@ -33,12 +33,44 @@ public class DemoCacheStoreTests
         [
             // A hostile RAW name: the cache stores names verbatim (the CSVG spec_player currency) and
             // sanitizes only at the render boundary.
-            new CachedPlayerInfo { Slot = 1, Name = "s1mple‮", SteamId64 = "7656119", Team = 3 },
-            new CachedPlayerInfo { Slot = 2, Name = "ZywOo", SteamId64 = "7656120", Team = 2 },
-            new CachedPlayerInfo { Slot = 3, Name = "BOT Rock", SteamId64 = "", Team = 3, IsBot = true },
-            new CachedPlayerInfo { Slot = 9, Name = "an observer", SteamId64 = "7656199", Team = 0 }
+            new CachedPlayerInfo
+            {
+                Slot = 1,
+                Name = "s1mple‮",
+                SteamId64 = "7656119",
+                Team = 3
+            },
+            new CachedPlayerInfo
+            {
+                Slot = 2,
+                Name = "ZywOo",
+                SteamId64 = "7656120",
+                Team = 2
+            },
+            new CachedPlayerInfo
+            {
+                Slot = 3,
+                Name = "BOT Rock",
+                SteamId64 = "",
+                Team = 3,
+                IsBot = true
+            },
+            new CachedPlayerInfo
+            {
+                Slot = 9,
+                Name = "an observer",
+                SteamId64 = "7656199",
+                Team = 0
+            }
         ],
-        Rounds = [new CachedRound { Number = 1, StartTickFrameClock = 5000 }],
+        Rounds =
+        [
+            new CachedRound
+            {
+                Number = 1,
+                StartTickFrameClock = 5000
+            }
+        ],
         CtScore = 13,
         TScore = 9,
         CtClan = "NAVI",
@@ -124,7 +156,17 @@ public class DemoCacheStoreTests
 
             store.Update("/demos/b.dem", 1000, 2000, r =>
             {
-                r.Scoreboard = [new CachedStatRow { Slot = 1, Team = 3, Kills = 24, Deaths = 14, Rating = 1.31 }];
+                r.Scoreboard =
+                [
+                    new CachedStatRow
+                    {
+                        Slot = 1,
+                        Team = 3,
+                        Kills = 24,
+                        Deaths = 14,
+                        Rating = 1.31
+                    }
+                ];
                 r.AnalysisState = DemoAnalysisState.Indexed;
                 r.ConfigFingerprint = "fp-1";
                 DemoCacheStore.StampAnalysis(r);
@@ -160,7 +202,7 @@ public class DemoCacheStoreTests
         try
         {
             DemoCacheStore store = new(root);
-            DemoCacheRecord original = Record("/demos/c.dem", 1000, 2000);
+            DemoCacheRecord original = Record("/demos/c.dem");
             DemoCacheStore.StampParse(original);
             store.Upsert(original);
 

@@ -37,6 +37,33 @@ public static class SceneLayerCatalog
     /// </summary>
     public static IReadOnlyList<string> KnownLayerIds => SceneStackIds;
 
+    /// <summary>
+    ///     <b>The table.</b> The ids <see cref="CreateSceneStack" /> can register: the seven scene
+    ///     layers, the ink, and the three HUD layers. The last four are
+    ///     <see cref="SceneLayerIds.OptIn" />. Every other layer list in the repository is asserted
+    ///     against this one by <c>SceneLayerListParityTests</c> rather than hand-maintained beside it.
+    ///     <para>
+    ///         <b>Registration order is not draw order.</b> The compositor sorts every layer on
+    ///         <c>(Slot, Order, Id)</c>, so <c>playback2d.annotations</c> (Overlay/100) draws before
+    ///         <c>playback2d.floorlabel</c> (Hud/60) even though it is registered after it below — ink is
+    ///         world content the floor caption must stay legible over.
+    ///     </para>
+    /// </summary>
+    public static IReadOnlyList<string> SceneStackIds { get; } =
+    [
+        SceneLayerIds.Radar,
+        SceneLayerIds.Trails,
+        SceneLayerIds.AreaEffects,
+        SceneLayerIds.Vision,
+        SceneLayerIds.Markers,
+        SceneLayerIds.Bomb,
+        SceneLayerIds.FloorLabel,
+        SceneLayerIds.Annotations,
+        SceneLayerIds.HudRoster,
+        SceneLayerIds.HudClock,
+        SceneLayerIds.HudKillFeed
+    ];
+
     /// <summary>The ids in <paramref name="ids" /> that no layer answers to. Empty when all are known.</summary>
     /// <param name="ids">Candidate ids, bare or prefixed.</param>
     public static IReadOnlyList<string> UnknownIds(IReadOnlyList<string>? ids)
@@ -74,33 +101,6 @@ public static class SceneLayerCatalog
         // 2D-playback overlays, and blindly prepending would invent "playback2d.hud.clock".
         return id.Contains('.', StringComparison.Ordinal) ? id : IdPrefix + id;
     }
-
-    /// <summary>
-    ///     <b>The table.</b> The ids <see cref="CreateSceneStack" /> can register: the seven scene
-    ///     layers, the ink, and the three HUD layers. The last four are
-    ///     <see cref="SceneLayerIds.OptIn" />. Every other layer list in the repository is asserted
-    ///     against this one by <c>SceneLayerListParityTests</c> rather than hand-maintained beside it.
-    ///     <para>
-    ///         <b>Registration order is not draw order.</b> The compositor sorts every layer on
-    ///         <c>(Slot, Order, Id)</c>, so <c>playback2d.annotations</c> (Overlay/100) draws before
-    ///         <c>playback2d.floorlabel</c> (Hud/60) even though it is registered after it below — ink is
-    ///         world content the floor caption must stay legible over.
-    ///     </para>
-    /// </summary>
-    public static IReadOnlyList<string> SceneStackIds { get; } =
-    [
-        SceneLayerIds.Radar,
-        SceneLayerIds.Trails,
-        SceneLayerIds.AreaEffects,
-        SceneLayerIds.Vision,
-        SceneLayerIds.Markers,
-        SceneLayerIds.Bomb,
-        SceneLayerIds.FloorLabel,
-        SceneLayerIds.Annotations,
-        SceneLayerIds.HudRoster,
-        SceneLayerIds.HudClock,
-        SceneLayerIds.HudKillFeed
-    ];
 
     /// <summary>
     ///     Builds the <b>full v2 scene stack</b> — what the window draws, plus the export HUD.

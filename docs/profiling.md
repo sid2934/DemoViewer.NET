@@ -106,7 +106,7 @@ dotnet-trace collect --name DemoViewer.NET.Desktop \
 
 `--name` takes the process name (or use `--process-id`).
 
-### One-env-var switch — `CS2DEMOKIT_PROFILE=1`
+### One-env-var switch: `CS2DEMOKIT_PROFILE=1`
 
 For an in-proc report **dumped on exit** (no external tooling), set the env var. The bench and the
 Desktop app both honor it via the shared `ProfilingSession` helper — it attaches the Meter +
@@ -149,7 +149,7 @@ ranking.
 # Which layer is expensive, and how fast could this scene possibly draw?
 dv2d bench --name duel-mirage-b --frames 2000 --perf
 
-# Where does an export's realtime ratio actually go — decode, raster, read-back, or the encoder?
+# Where does an export's realtime ratio actually go: decode, raster, read-back, or the encoder?
 dv2d export --demo match.dem --from t72000 --to t79680 --size 1280x720 --fps 60 --perf --json
 ```
 

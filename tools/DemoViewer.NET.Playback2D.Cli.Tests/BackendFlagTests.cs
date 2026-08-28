@@ -1,7 +1,6 @@
 #region
 
 using System.Text.Json.Nodes;
-using DemoViewer.NET.Playback2D.Cli;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -9,12 +8,12 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
-///     C2.7 — the backend flags and <c>dv2d probe</c> (plans/C2-gpu-provider.md §6.4).
+///     The backend flags and <c>dv2d probe</c> (plans/C2-gpu-provider.md §6.4).
 ///     <para>
 ///         Everything that depends on the environment runs as a <b>subprocess</b>. It has to:
 ///         <c>RenderSurfaceProviderFactory</c> caches its probe for the life of a process and its
 ///         <c>ResetForTests</c> is internal to Core, so an in-process case would be answered by
-///         whichever environment probed first — the classic test that passes alone and lies in a suite.
+///         whichever environment probed first, and would pass alone while lying in a suite.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -31,7 +30,10 @@ public class BackendFlagTests
     /// <summary>Whether THIS machine can actually stand a GPU backend up, asked in a clean child.</summary>
     private static bool GpuAvailableHere()
     {
-        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?> { [BackendVariable] = null },
+        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?>
+            {
+                [BackendVariable] = null
+            },
             "probe", "--json");
         return run.Json()["gpu_available"]!.GetValue<bool>();
     }
@@ -69,7 +71,10 @@ public class BackendFlagTests
     [Test]
     public async Task Probe_UnderForcedCpu_SaysSo_AndStillExitsZero()
     {
-        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?> { [BackendVariable] = "cpu" },
+        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?>
+            {
+                [BackendVariable] = "cpu"
+            },
             "probe", "--json");
         JsonObject payload = run.Json();
 
@@ -83,7 +88,10 @@ public class BackendFlagTests
     [Test]
     public async Task Probe_RequireGpu_ExitsSix_WhenThereIsNoGpuPath()
     {
-        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?> { [BackendVariable] = "cpu" },
+        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?>
+            {
+                [BackendVariable] = "cpu"
+            },
             "probe", "--require-gpu");
 
         await Assert.That(run.ExitCode).IsEqualTo(6);
@@ -128,7 +136,10 @@ public class BackendFlagTests
         // The library treats an unrecognised value as "unset", which is right for a library and wrong
         // for a tool: DV2D_RENDER_BACKEND=gpuu in a CI lane would quietly measure the CPU path and
         // report a green budget.
-        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?> { [BackendVariable] = "gpuu" },
+        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?>
+            {
+                [BackendVariable] = "gpuu"
+            },
             "render", "--fixture", EmptyScene, "--out", TempPng("dv2d-backend-envtypo.png"));
 
         await Assert.That(run.ExitCode).IsEqualTo(1);
@@ -138,7 +149,10 @@ public class BackendFlagTests
     [Test]
     public async Task Environment_Cpu_IsHonouredWithNoFlag()
     {
-        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?> { [BackendVariable] = "cpu" },
+        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?>
+            {
+                [BackendVariable] = "cpu"
+            },
             "render", "--fixture", EmptyScene, "--out", TempPng("dv2d-backend-envcpu.png"), "--json");
         JsonObject payload = run.Json();
 
@@ -152,9 +166,12 @@ public class BackendFlagTests
     {
         // The precedence the review fix (C2 deviation 19) exists for, asserted at the CLI seam: a
         // stale shell variable must not override the flag the operator just typed. On a machine with
-        // no GPU the correct answer is exit 6 — never "0, quietly on the CPU".
+        // no GPU the correct answer is exit 6, never "0, quietly on the CPU".
         bool gpu = GpuAvailableHere();
-        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?> { [BackendVariable] = "cpu" },
+        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?>
+            {
+                [BackendVariable] = "cpu"
+            },
             "render", "--fixture", EmptyScene, "--out", TempPng("dv2d-backend-outrank.png"),
             "--backend", "force-gpu", "--json");
 
@@ -172,7 +189,10 @@ public class BackendFlagTests
     public async Task StrictBackend_TurnsAGpuRequestIntoAHardFailure_WhenThereIsNoGpu()
     {
         bool gpu = GpuAvailableHere();
-        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?> { [BackendVariable] = null },
+        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?>
+            {
+                [BackendVariable] = null
+            },
             "render", "--fixture", EmptyScene, "--out", TempPng("dv2d-backend-strict.png"),
             "--gpu", "--strict-backend", "--json");
 
@@ -184,8 +204,11 @@ public class BackendFlagTests
     {
         // The committed corpus is goldens/cpu/ and CPU is authoritative (00-overview.md §3.9). If
         // `golden verify` auto-probed, every developer with a GPU would see a rasterizer difference
-        // reported as a pixel regression — and the exit code they would see is 4, "the change is bad".
-        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?> { [BackendVariable] = null },
+        // reported as a pixel regression, on exit 4, which reads as "the change is bad".
+        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?>
+            {
+                [BackendVariable] = null
+            },
             "golden", "verify", "--corpus", Dv2d.CorpusDirectory, "--json");
         JsonObject payload = run.Json();
 
@@ -197,12 +220,10 @@ public class BackendFlagTests
     ///     <c>export</c> pins CPU too, and for a harder reason than the golden lane's.
     ///     <para>
     ///         <c>SceneExportSession</c> awaits its sink between frames, so the loop resumes on
-    ///         whatever pool thread the continuation lands on, while C2's <c>GpuSurfaceProvider</c> is
-    ///         bound to the thread that created its EGL context. An auto-probe that finds ANGLE
-    ///         therefore hands the session a provider it refuses — so auto-probing here is
-    ///         auto-probing into a guaranteed refusal. B4 shipped before C2 Stage 0 merged, when export
-    ///         could only ever see the CPU provider; this is the seam the two phases left between them,
-    ///         found by running CI's own export step after the merge. C2 Stage 1 owns making it work.
+    ///         whatever pool thread the continuation lands on, while <c>GpuSurfaceProvider</c> is bound
+    ///         to the thread that created its EGL context. An auto-probe that finds ANGLE therefore
+    ///         hands the session a provider it refuses, so auto-probing here is auto-probing into a
+    ///         guaranteed refusal. C2 Stage 1 owns making it work.
     ///     </para>
     /// </summary>
     [Test]
@@ -213,7 +234,10 @@ public class BackendFlagTests
 
         try
         {
-            CliRun run = Dv2d.Subprocess(new Dictionary<string, string?> { [BackendVariable] = null },
+            CliRun run = Dv2d.Subprocess(new Dictionary<string, string?>
+                {
+                    [BackendVariable] = null
+                },
                 "export", "--demo", demo, "--from", "0", "--to", "2", "--format", "gif", "--fps", "20",
                 "--size", "64x64", "--out", output, "--json");
 
@@ -232,8 +256,7 @@ public class BackendFlagTests
     /// <summary>
     ///     And an explicit <c>--gpu</c> export refuses in the environment channel, not the crash one.
     ///     Exit 6 is what a lane reads as "this machine/build cannot do that"; exit 3 would say the run
-    ///     broke. On a machine with no GPU the request degrades to CPU and simply succeeds, which is the
-    ///     same answer by a different road.
+    ///     broke. On a machine with no GPU the request degrades to CPU and succeeds.
     /// </summary>
     [Test]
     public async Task ExportOnAnExplicitGpu_ExitsSix_RatherThanFailingMidRun()
@@ -244,7 +267,10 @@ public class BackendFlagTests
         }
 
         string demo = Dv2d.RequireDemo();
-        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?> { [BackendVariable] = null },
+        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?>
+            {
+                [BackendVariable] = null
+            },
             "export", "--demo", demo, "--from", "0", "--to", "2", "--format", "gif", "--fps", "20",
             "--size", "64x64", "--gpu",
             "--out", Path.Combine(Path.GetTempPath(), $"dv2d-export-gpu-{Guid.NewGuid():N}.gif"));
@@ -256,10 +282,13 @@ public class BackendFlagTests
     [Test]
     public async Task PlainGpu_FallsBackQuietlyButNotSilently()
     {
-        // Without --strict-backend, --gpu degrades to CPU rather than failing — but it must say so,
-        // or a benchmark run reports software numbers under a GPU heading.
+        // Without --strict-backend, --gpu degrades to CPU rather than failing. It must say so, or a
+        // benchmark run reports software numbers under a GPU heading.
         bool gpu = GpuAvailableHere();
-        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?> { [BackendVariable] = null },
+        CliRun run = Dv2d.Subprocess(new Dictionary<string, string?>
+            {
+                [BackendVariable] = null
+            },
             "render", "--fixture", EmptyScene, "--out", TempPng("dv2d-backend-gpu.png"), "--gpu",
             "--json");
         JsonObject payload = run.Json();

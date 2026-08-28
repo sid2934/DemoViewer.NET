@@ -169,7 +169,7 @@ public class Playback2DAnnotationSettingsTests
     {
         try
         {
-            Directory.Delete(dir, recursive: true);
+            Directory.Delete(dir, true);
         }
         catch (IOException)
         {

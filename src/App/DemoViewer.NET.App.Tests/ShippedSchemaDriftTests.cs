@@ -66,7 +66,7 @@ public class ShippedSchemaDriftTests
         }
         finally
         {
-            Directory.Delete(extractDir, recursive: true);
+            Directory.Delete(extractDir, true);
         }
     }
 

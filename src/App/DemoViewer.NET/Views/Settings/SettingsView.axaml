@@ -76,38 +76,38 @@
              deep-link uses). -->
         <Border DockPanel.Dock="Top" Classes="sectionHeader" Padding="12,6">
             <StackPanel Spacing="6">
-            <TextBox Classes="field" Watermark="Search settings…"
-                     Text="{Binding SettingsFilterText, Mode=TwoWay}"
-                     FontSize="12" MaxWidth="360" HorizontalAlignment="Left" />
-            <WrapPanel Orientation="Horizontal">
-                <Button Classes="chip" Content="Category" Margin="0,2,6,2" FontSize="11" Padding="8,3"
-                        Tag="SectionUserCategory" Click="OnJumpChipClick" />
-                <Button Classes="chip" Content="Theme" Margin="0,2,6,2" FontSize="11" Padding="8,3"
-                        Tag="SectionTheme" Click="OnJumpChipClick" />
-                <Button Classes="chip" Content="Folders" Margin="0,2,6,2" FontSize="11" Padding="8,3"
-                        Tag="SectionLibraryFolders" Click="OnJumpChipClick" />
-                <Button Classes="chip" Content="Updates" Margin="0,2,6,2" FontSize="11" Padding="8,3"
-                        Tag="SectionUpdates" Click="OnJumpChipClick" />
-                <Button Classes="chip" Content="2D Controls" Margin="0,2,6,2" FontSize="11" Padding="8,3"
-                        Tag="SectionPlayback2DKeys" Click="OnJumpChipClick" />
-                <Button Classes="chip" Content="Features" Margin="0,2,6,2" FontSize="11" Padding="8,3"
-                        Tag="SectionFeatures" Click="OnJumpChipClick" />
-                <Button Classes="chip" Content="Live Sync" Margin="0,2,6,2" FontSize="11" Padding="8,3"
-                        Tag="SectionLiveSync" Click="OnJumpChipClick"
-                        IsVisible="{Binding CanManageLiveSync}" />
-                <Button Classes="chip" Content="Highlights" Margin="0,2,6,2" FontSize="11" Padding="8,3"
-                        Tag="SectionHighlights" Click="OnJumpChipClick"
-                        IsVisible="{Binding CanManageHighlights}" />
-                <Button Classes="chip" Content="Processing" Margin="0,2,6,2" FontSize="11" Padding="8,3"
-                        Tag="SectionBackgroundProcessing" Click="OnJumpChipClick"
-                        IsVisible="{Binding CanManageProcessingQueue}" />
-                <Button Classes="chip" Content="Idle" Margin="0,2,6,2" FontSize="11" Padding="8,3"
-                        Tag="SectionIdleMode" Click="OnJumpChipClick"
-                        IsVisible="{Binding CanManageIdle}" />
-                <Button Classes="chip" Content="Diagnostics" Margin="0,2,6,2" FontSize="11" Padding="8,3"
-                        Tag="SectionDiagnosticsLogging" Click="OnJumpChipClick"
-                        IsVisible="{Binding CanManageDiagnosticsLogging}" />
-            </WrapPanel>
+                <TextBox Classes="field" Watermark="Search settings…"
+                         Text="{Binding SettingsFilterText, Mode=TwoWay}"
+                         FontSize="12" MaxWidth="360" HorizontalAlignment="Left" />
+                <WrapPanel Orientation="Horizontal">
+                    <Button Classes="chip" Content="Category" Margin="0,2,6,2" FontSize="11" Padding="8,3"
+                            Tag="SectionUserCategory" Click="OnJumpChipClick" />
+                    <Button Classes="chip" Content="Theme" Margin="0,2,6,2" FontSize="11" Padding="8,3"
+                            Tag="SectionTheme" Click="OnJumpChipClick" />
+                    <Button Classes="chip" Content="Folders" Margin="0,2,6,2" FontSize="11" Padding="8,3"
+                            Tag="SectionLibraryFolders" Click="OnJumpChipClick" />
+                    <Button Classes="chip" Content="Updates" Margin="0,2,6,2" FontSize="11" Padding="8,3"
+                            Tag="SectionUpdates" Click="OnJumpChipClick" />
+                    <Button Classes="chip" Content="2D Controls" Margin="0,2,6,2" FontSize="11" Padding="8,3"
+                            Tag="SectionPlayback2DKeys" Click="OnJumpChipClick" />
+                    <Button Classes="chip" Content="Features" Margin="0,2,6,2" FontSize="11" Padding="8,3"
+                            Tag="SectionFeatures" Click="OnJumpChipClick" />
+                    <Button Classes="chip" Content="Live Sync" Margin="0,2,6,2" FontSize="11" Padding="8,3"
+                            Tag="SectionLiveSync" Click="OnJumpChipClick"
+                            IsVisible="{Binding CanManageLiveSync}" />
+                    <Button Classes="chip" Content="Highlights" Margin="0,2,6,2" FontSize="11" Padding="8,3"
+                            Tag="SectionHighlights" Click="OnJumpChipClick"
+                            IsVisible="{Binding CanManageHighlights}" />
+                    <Button Classes="chip" Content="Processing" Margin="0,2,6,2" FontSize="11" Padding="8,3"
+                            Tag="SectionBackgroundProcessing" Click="OnJumpChipClick"
+                            IsVisible="{Binding CanManageProcessingQueue}" />
+                    <Button Classes="chip" Content="Idle" Margin="0,2,6,2" FontSize="11" Padding="8,3"
+                            Tag="SectionIdleMode" Click="OnJumpChipClick"
+                            IsVisible="{Binding CanManageIdle}" />
+                    <Button Classes="chip" Content="Diagnostics" Margin="0,2,6,2" FontSize="11" Padding="8,3"
+                            Tag="SectionDiagnosticsLogging" Click="OnJumpChipClick"
+                            IsVisible="{Binding CanManageDiagnosticsLogging}" />
+                </WrapPanel>
             </StackPanel>
         </Border>
 
@@ -131,221 +131,226 @@
                     </Expander.Header>
                     <StackPanel Spacing="0">
 
-                <StackPanel Spacing="0" IsVisible="{Binding ShowSectionUserCategory}">
-                <!-- Category. Named for the ScrollTargetSection deep link (status-strip hidden-note). -->
-                <Border Classes="sectionHeader" x:Name="SectionUserCategory">
-                    <TextBlock Classes="sectionLabel" Text="USER CATEGORY" />
-                </Border>
-                <Border Classes="card" Margin="12,10">
-                    <StackPanel Spacing="8">
-                        <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
-                                   Text="Choose how much of the app is shown by default. Individual features stay enableable (coming below)." />
-                        <ListBox Classes="data-list"
-                                 ItemsSource="{Binding Categories}"
-                                 SelectedItem="{Binding SelectedCategoryOption, Mode=TwoWay}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:DataType="settings:CategoryOption">
-                                    <StackPanel Spacing="2" Margin="4,3">
-                                        <TextBlock Text="{Binding Title}"
-                                                   Foreground="{DynamicResource TextValue}" FontSize="13" />
-                                        <TextBlock Text="{Binding Description}"
-                                                   Foreground="{DynamicResource TextDim}" FontSize="11"
-                                                   TextWrapping="Wrap" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </StackPanel>
-                </Border>
-                </StackPanel>
-
-                <StackPanel Spacing="0" IsVisible="{Binding ShowSectionTheme}">
-                <!-- Theme (v0.6.0 findability order: everyday settings in the top cluster) -->
-                <Border Classes="sectionHeader" x:Name="SectionTheme">
-                    <TextBlock Classes="sectionLabel" Text="THEME" />
-                </Border>
-                <Border Classes="card" Margin="12,10">
-                    <StackPanel Spacing="8">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <ComboBox Classes="field" MinWidth="200" HorizontalAlignment="Left"
-                                      ItemsSource="{Binding Themes}"
-                                      SelectedItem="{Binding SelectedTheme, Mode=TwoWay}">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate x:DataType="theming:Theme">
-                                        <TextBlock Text="{Binding DisplayName}" />
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <Button Content="Reload themes" Classes="ghost" Padding="10,4"
-                                    VerticalAlignment="Center"
-                                    IsVisible="{Binding CanManageThemes}"
-                                    Command="{Binding ReloadThemesCommand}"
-                                    ToolTip.Tip="Re-scan the themes folder for added, edited, or removed drop-in files." />
+                        <StackPanel Spacing="0" IsVisible="{Binding ShowSectionUserCategory}">
+                            <!-- Category. Named for the ScrollTargetSection deep link (status-strip hidden-note). -->
+                            <Border Classes="sectionHeader" x:Name="SectionUserCategory">
+                                <TextBlock Classes="sectionLabel" Text="USER CATEGORY" />
+                            </Border>
+                            <Border Classes="card" Margin="12,10">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
+                                               Text="Choose how much of the app is shown by default. Individual features stay enableable (coming below)." />
+                                    <ListBox Classes="data-list"
+                                             ItemsSource="{Binding Categories}"
+                                             SelectedItem="{Binding SelectedCategoryOption, Mode=TwoWay}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="settings:CategoryOption">
+                                                <StackPanel Spacing="2" Margin="4,3">
+                                                    <TextBlock Text="{Binding Title}"
+                                                               Foreground="{DynamicResource TextValue}" FontSize="13" />
+                                                    <TextBlock Text="{Binding Description}"
+                                                               Foreground="{DynamicResource TextDim}" FontSize="11"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
-                        <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
-                                   Text="Themes apply instantly across the app — panels, the 2D viewport, the analysis graph, and syntax highlighting all follow your selection." />
-                        <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
-                                   IsVisible="{Binding CanManageThemes}"
-                                   Text="{Binding ThemesFolderPath, StringFormat='Add your own: drop a theme .json into {0} and click Reload themes.'}" />
-                    </StackPanel>
-                </Border>
-                </StackPanel>
 
-                <!-- 2D playback controls (D1) — the keybinding surface. In GENERAL because it is an
+                        <StackPanel Spacing="0" IsVisible="{Binding ShowSectionTheme}">
+                            <!-- Theme (v0.6.0 findability order: everyday settings in the top cluster) -->
+                            <Border Classes="sectionHeader" x:Name="SectionTheme">
+                                <TextBlock Classes="sectionLabel" Text="THEME" />
+                            </Border>
+                            <Border Classes="card" Margin="12,10">
+                                <StackPanel Spacing="8">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <ComboBox Classes="field" MinWidth="200" HorizontalAlignment="Left"
+                                                  ItemsSource="{Binding Themes}"
+                                                  SelectedItem="{Binding SelectedTheme, Mode=TwoWay}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="theming:Theme">
+                                                    <TextBlock Text="{Binding DisplayName}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <Button Content="Reload themes" Classes="ghost" Padding="10,4"
+                                                VerticalAlignment="Center"
+                                                IsVisible="{Binding CanManageThemes}"
+                                                Command="{Binding ReloadThemesCommand}"
+                                                ToolTip.Tip="Re-scan the themes folder for added, edited, or removed drop-in files." />
+                                    </StackPanel>
+                                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
+                                               Text="Themes apply instantly across the app — panels, the 2D viewport, the analysis graph, and syntax highlighting all follow your selection." />
+                                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
+                                               IsVisible="{Binding CanManageThemes}"
+                                               Text="{Binding ThemesFolderPath, StringFormat='Add your own: drop a theme .json into {0} and click Reload themes.'}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- 2D playback controls (D1) — the keybinding surface. In GENERAL because it is an
                      everyday preference like Theme, and it is NOT platform-gated: the 2D tab (and so its
                      keymap) is WASM-reachable. Each row shows the gesture the RESOLVED profile hands
                      back, so a rebound key shows the user's gesture and not the shipped one. -->
-                <StackPanel Spacing="0" IsVisible="{Binding ShowSectionPlayback2DKeys}">
-                    <Border Classes="sectionHeader" x:Name="SectionPlayback2DKeys">
-                        <Grid ColumnDefinitions="Auto,*,Auto">
-                            <TextBlock Grid.Column="0" Classes="sectionLabel" Text="2D PLAYBACK CONTROLS"
-                                       VerticalAlignment="Center" />
-                            <Border Grid.Column="2" Classes="badge" VerticalAlignment="Center"
-                                    IsVisible="{Binding HasCustomKeybinds}">
-                                <TextBlock Classes="mono" Foreground="{DynamicResource TextChainBadge}"
-                                           FontSize="10"
-                                           Text="{Binding CustomKeybindCount, StringFormat='{}{0} custom'}" />
+                        <StackPanel Spacing="0" IsVisible="{Binding ShowSectionPlayback2DKeys}">
+                            <Border Classes="sectionHeader" x:Name="SectionPlayback2DKeys">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <TextBlock Grid.Column="0" Classes="sectionLabel" Text="2D PLAYBACK CONTROLS"
+                                               VerticalAlignment="Center" />
+                                    <Border Grid.Column="2" Classes="badge" VerticalAlignment="Center"
+                                            IsVisible="{Binding HasCustomKeybinds}">
+                                        <TextBlock Classes="mono" Foreground="{DynamicResource TextChainBadge}"
+                                                   FontSize="10"
+                                                   Text="{Binding CustomKeybindCount, StringFormat='{}{0} custom'}" />
+                                    </Border>
+                                </Grid>
                             </Border>
-                        </Grid>
-                    </Border>
-                    <Border Classes="card" Margin="12,10">
-                        <StackPanel Spacing="12">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Grid.Column="0" Foreground="{DynamicResource TextDim}" FontSize="11"
-                                           TextWrapping="Wrap"
-                                           Text="Keys for the 2D Playback tab. Click a gesture and press the key you want; app-wide shortcuts (Ctrl+O, Ctrl+1…9), keys already taken inside the tab, and — in the browser — keys the browser itself takes (Ctrl+T, F12) are refused with a reason." />
-                                <Button Grid.Column="1" Classes="ghost" Padding="10,4" VerticalAlignment="Top"
-                                        Content="Reset all keys"
-                                        Command="{Binding ResetAllKeybindsCommand}"
-                                        ToolTip.Tip="Clear every 2D keybinding override and return to the shipped gestures." />
-                            </Grid>
+                            <Border Classes="card" Margin="12,10">
+                                <StackPanel Spacing="12">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Foreground="{DynamicResource TextDim}" FontSize="11"
+                                                   TextWrapping="Wrap"
+                                                   Text="Keys for the 2D Playback tab. Click a gesture and press the key you want; app-wide shortcuts (Ctrl+O, Ctrl+1…9), keys already taken inside the tab, and — in the browser — keys the browser itself takes (Ctrl+T, F12) are refused with a reason." />
+                                        <Button Grid.Column="1" Classes="ghost" Padding="10,4" VerticalAlignment="Top"
+                                                Content="Reset all keys"
+                                                Command="{Binding ResetAllKeybindsCommand}"
+                                                ToolTip.Tip="Clear every 2D keybinding override and return to the shipped gestures." />
+                                    </Grid>
 
-                            <!-- Browser honesty (D6 §4b). SettingsService has no file on the WASM head —
+                                    <!-- Browser honesty (D6 §4b). SettingsService has no file on the WASM head —
                                  every write goes to the in-memory provider and dies with the page — so a
                                  user could rebind the whole table, watch all of it apply live, and lose
                                  the lot on refresh with nothing anywhere saying so. B5 fixed exactly this
                                  class for annotations ("session only — this browser tab forgets…") and
                                  D1 shipped a new persisted surface without repeating it.
                                  Collapsed entirely on desktop: it is not a caveat there. -->
-                            <TextBlock x:Name="KeybindPersistenceNote"
-                                       Foreground="{DynamicResource AccentCaution}" FontSize="11"
-                                       TextWrapping="Wrap"
-                                       Text="{Binding KeybindPersistenceNote}"
-                                       IsVisible="{Binding !KeybindsPersist}"
-                                       ToolTip.Tip="The browser build has no settings file — preferences are kept for this tab only." />
+                                    <TextBlock x:Name="KeybindPersistenceNote"
+                                               Foreground="{DynamicResource AccentCaution}" FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding KeybindPersistenceNote}"
+                                               IsVisible="{Binding !KeybindsPersist}"
+                                               ToolTip.Tip="The browser build has no settings file — preferences are kept for this tab only." />
 
-                            <!-- Only ever non-empty for a HAND-edited settings file: this screen validates
+                                    <!-- Only ever non-empty for a HAND-edited settings file: this screen validates
                                  before it writes, so nothing it persists can be dropped on load. The
                                  sentence is BOUND rather than literal because "settings.json" is a file
                                  the browser head does not have (D6 §4b) — see KeybindRejectionSource. -->
-                            <Border Background="{DynamicResource PanelHeaderBg}" CornerRadius="4" Padding="8,6"
-                                    IsVisible="{Binding HasKeybindRejections}">
-                                <Grid ColumnDefinitions="Auto,*">
-                                    <TextBlock Grid.Column="0" Text="⚠" Foreground="{DynamicResource AccentCaution}"
-                                               FontSize="13" VerticalAlignment="Top" Margin="0,0,8,0" />
-                                    <StackPanel Grid.Column="1" Spacing="3">
-                                        <TextBlock Foreground="{DynamicResource TextMid}" FontSize="11"
-                                                   TextWrapping="Wrap"
-                                                   Text="{Binding KeybindRejectionSource}" />
-                                        <TextBlock Classes="mono" Foreground="{DynamicResource TextDim}" FontSize="10"
-                                                   TextWrapping="Wrap" Text="{Binding KeybindRejectionNote}" />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-
-                            <ItemsControl ItemsSource="{Binding Playback2DKeybindRows}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="settings:KeybindRow">
-                                        <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3">
-                                            <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <TextBlock Text="{Binding Label}"
-                                                               Foreground="{DynamicResource TextValue}"
-                                                               FontSize="12" VerticalAlignment="Center"
-                                                               TextWrapping="Wrap" />
-                                                    <Border Classes="badge" Padding="4,1" VerticalAlignment="Center">
-                                                        <TextBlock Classes="mono" FontSize="9"
-                                                                   Foreground="{DynamicResource TextChainBadge}"
-                                                                   Text="{Binding ScopeLabel}" />
-                                                    </Border>
-                                                    <Border Classes="badge" Padding="4,1" VerticalAlignment="Center"
-                                                            IsVisible="{Binding IsReserved}">
-                                                        <TextBlock Classes="mono" FontSize="9"
-                                                                   Foreground="{DynamicResource TextChainBadge}"
-                                                                   Text="reserved" />
-                                                    </Border>
-                                                    <Ellipse Width="6" Height="6" VerticalAlignment="Center"
-                                                             Fill="{DynamicResource AccentAmber}"
-                                                             IsVisible="{Binding IsOverridden}"
-                                                             ToolTip.Tip="Rebound — differs from the shipped gesture." />
-                                                </StackPanel>
-                                                <TextBlock Text="{Binding Conflict}"
-                                                           IsVisible="{Binding HasConflict}"
-                                                           Foreground="{DynamicResource AccentCaution}" FontSize="10"
-                                                           TextWrapping="Wrap" />
+                                    <Border Background="{DynamicResource PanelHeaderBg}" CornerRadius="4" Padding="8,6"
+                                            IsVisible="{Binding HasKeybindRejections}">
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <TextBlock Grid.Column="0" Text="⚠"
+                                                       Foreground="{DynamicResource AccentCaution}"
+                                                       FontSize="13" VerticalAlignment="Top" Margin="0,0,8,0" />
+                                            <StackPanel Grid.Column="1" Spacing="3">
+                                                <TextBlock Foreground="{DynamicResource TextMid}" FontSize="11"
+                                                           TextWrapping="Wrap"
+                                                           Text="{Binding KeybindRejectionSource}" />
+                                                <TextBlock Classes="mono" Foreground="{DynamicResource TextDim}"
+                                                           FontSize="10"
+                                                           TextWrapping="Wrap" Text="{Binding KeybindRejectionNote}" />
                                             </StackPanel>
-                                            <Button Grid.Column="1" Classes="chip" MinWidth="96" FontSize="11"
-                                                    Padding="8,3" VerticalAlignment="Center"
-                                                    Content="{Binding CaptureLabel}"
-                                                    IsEnabled="{Binding IsBindable}"
-                                                    Command="{Binding BeginCaptureCommand}"
-                                                    ToolTip.Tip="Click, then press the key you want. Esc cancels." />
-                                            <Button Grid.Column="2" Classes="icon-btn" Content="↺"
-                                                    VerticalAlignment="Center"
-                                                    IsVisible="{Binding IsOverridden}"
-                                                    Command="{Binding ResetCommand}"
-                                                    ToolTip.Tip="Reset this key to the shipped gesture." />
                                         </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
+                                    </Border>
 
-                <!-- Updates — in GENERAL (v0.6.x): support-critical and tiny; it was 9th of 10 behind
+                                    <ItemsControl ItemsSource="{Binding Playback2DKeybindRows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="settings:KeybindRow">
+                                                <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3">
+                                                    <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                            <TextBlock Text="{Binding Label}"
+                                                                       Foreground="{DynamicResource TextValue}"
+                                                                       FontSize="12" VerticalAlignment="Center"
+                                                                       TextWrapping="Wrap" />
+                                                            <Border Classes="badge" Padding="4,1"
+                                                                    VerticalAlignment="Center">
+                                                                <TextBlock Classes="mono" FontSize="9"
+                                                                           Foreground="{DynamicResource TextChainBadge}"
+                                                                           Text="{Binding ScopeLabel}" />
+                                                            </Border>
+                                                            <Border Classes="badge" Padding="4,1"
+                                                                    VerticalAlignment="Center"
+                                                                    IsVisible="{Binding IsReserved}">
+                                                                <TextBlock Classes="mono" FontSize="9"
+                                                                           Foreground="{DynamicResource TextChainBadge}"
+                                                                           Text="reserved" />
+                                                            </Border>
+                                                            <Ellipse Width="6" Height="6" VerticalAlignment="Center"
+                                                                     Fill="{DynamicResource AccentAmber}"
+                                                                     IsVisible="{Binding IsOverridden}"
+                                                                     ToolTip.Tip="Rebound — differs from the shipped gesture." />
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Conflict}"
+                                                                   IsVisible="{Binding HasConflict}"
+                                                                   Foreground="{DynamicResource AccentCaution}"
+                                                                   FontSize="10"
+                                                                   TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                    <Button Grid.Column="1" Classes="chip" MinWidth="96" FontSize="11"
+                                                            Padding="8,3" VerticalAlignment="Center"
+                                                            Content="{Binding CaptureLabel}"
+                                                            IsEnabled="{Binding IsBindable}"
+                                                            Command="{Binding BeginCaptureCommand}"
+                                                            ToolTip.Tip="Click, then press the key you want. Esc cancels." />
+                                                    <Button Grid.Column="2" Classes="icon-btn" Content="↺"
+                                                            VerticalAlignment="Center"
+                                                            IsVisible="{Binding IsOverridden}"
+                                                            Command="{Binding ResetCommand}"
+                                                            ToolTip.Tip="Reset this key to the shipped gesture." />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Updates — in GENERAL (v0.6.x): support-critical and tiny; it was 9th of 10 behind
                      ~3,400px of scroll before the findability passes. The launch check is automatic and
                      silent; this pane exists so a user can ask on demand and get an answer either way. -->
-                <StackPanel Spacing="0" IsVisible="{Binding ShowSectionUpdates}">
-                    <Border Classes="sectionHeader" x:Name="SectionUpdates">
-                        <TextBlock Classes="sectionLabel" Text="UPDATES" />
-                    </Border>
-                    <Border Classes="card" Margin="12,10">
-                        <StackPanel Spacing="12">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Grid.Column="0" Spacing="1">
-                                    <TextBlock Text="Current version"
-                                               Foreground="{DynamicResource TextValue}" FontSize="12" />
-                                    <TextBlock Classes="mono" Text="{Binding Update.CurrentVersionDisplay}"
-                                               Foreground="{DynamicResource TextDim}" FontSize="10" />
-                                </StackPanel>
-                                <Button Grid.Column="1" VerticalAlignment="Center"
-                                        Content="Check for updates"
-                                        IsEnabled="{Binding !Update.IsChecking}"
-                                        IsVisible="{Binding Update.IsSupported}"
-                                        Command="{Binding Update.CheckNowCommand}" />
-                            </Grid>
+                        <StackPanel Spacing="0" IsVisible="{Binding ShowSectionUpdates}">
+                            <Border Classes="sectionHeader" x:Name="SectionUpdates">
+                                <TextBlock Classes="sectionLabel" Text="UPDATES" />
+                            </Border>
+                            <Border Classes="card" Margin="12,10">
+                                <StackPanel Spacing="12">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1">
+                                            <TextBlock Text="Current version"
+                                                       Foreground="{DynamicResource TextValue}" FontSize="12" />
+                                            <TextBlock Classes="mono" Text="{Binding Update.CurrentVersionDisplay}"
+                                                       Foreground="{DynamicResource TextDim}" FontSize="10" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" VerticalAlignment="Center"
+                                                Content="Check for updates"
+                                                IsEnabled="{Binding !Update.IsChecking}"
+                                                IsVisible="{Binding Update.IsSupported}"
+                                                Command="{Binding Update.CheckNowCommand}" />
+                                    </Grid>
 
-                            <TextBlock Text="{Binding Update.StatusMessage}"
-                                       IsVisible="{Binding Update.StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                       Foreground="{DynamicResource TextDim}" FontSize="11"
-                                       TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Update.StatusMessage}"
+                                               IsVisible="{Binding Update.StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                               Foreground="{DynamicResource TextDim}" FontSize="11"
+                                               TextWrapping="Wrap" />
 
-                            <TextBlock
-                                IsVisible="{Binding !Update.IsSupported}"
-                                Text="This is not an installed build, so updates don't apply. Installed copies check for a new version at launch."
-                                Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
+                                    <TextBlock
+                                        IsVisible="{Binding !Update.IsSupported}"
+                                        Text="This is not an installed build, so updates don't apply. Installed copies check for a new version at launch."
+                                        Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
 
-                            <!-- On-demand notes (v0.6.0): the post-update What's New shows once; this
+                                    <!-- On-demand notes (v0.6.0): the post-update What's New shows once; this
                                  re-opens it for the running version (cached — no re-fetch). -->
-                            <Button Content="View release notes" Classes="ghost" Padding="10,4"
-                                    HorizontalAlignment="Left"
-                                    IsVisible="{Binding CanViewReleaseNotes}"
-                                    Command="{Binding ViewReleaseNotesCommand}"
-                                    ToolTip.Tip="Show this version's release notes (the What's new window)." />
+                                    <Button Content="View release notes" Classes="ghost" Padding="10,4"
+                                            HorizontalAlignment="Left"
+                                            IsVisible="{Binding CanViewReleaseNotes}"
+                                            Command="{Binding ViewReleaseNotesCommand}"
+                                            ToolTip.Tip="Show this version's release notes (the What's new window)." />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
-                    </Border>
-                </StackPanel>
 
                     </StackPanel>
                 </Expander>
@@ -359,182 +364,186 @@
                     </Expander.Header>
                     <StackPanel Spacing="0">
 
-                <StackPanel Spacing="0" IsVisible="{Binding ShowSectionFolders}">
-                <!-- Library folders. Header badge is right-aligned (the FEATURES idiom — one status slot). -->
-                <Border Classes="sectionHeader" x:Name="SectionLibraryFolders">
-                    <Grid ColumnDefinitions="Auto,*,Auto">
-                        <TextBlock Grid.Column="0" Classes="sectionLabel" Text="LIBRARY FOLDERS"
-                                   VerticalAlignment="Center" />
-                        <Border Grid.Column="2" Classes="badge" VerticalAlignment="Center">
-                            <TextBlock Classes="mono" Foreground="{DynamicResource TextChainBadge}"
-                                       FontSize="10" Text="{Binding LibraryFolders.Count}" />
-                        </Border>
-                    </Grid>
-                </Border>
-                <Border Classes="card" Margin="12,10">
-                    <StackPanel Spacing="8">
-                        <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
-                                   Text="Folders the demo library scans for .dem files." />
-                        <ListBox Classes="data-list" MaxHeight="220"
-                                 ItemsSource="{Binding LibraryFolders}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:DataType="sys:String">
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <TextBlock Grid.Column="0" Text="{Binding}" Classes="mono"
-                                                   Foreground="{DynamicResource TextMid}"
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis" />
-                                        <Button Grid.Column="1" Classes="icon-btn" Content="✕"
-                                                AutomationProperties.Name="Remove folder"
-                                                ToolTip.Tip="Remove folder"
-                                                Command="{Binding $parent[ListBox].((settings:SettingsViewModel)DataContext).RemoveFolderCommand}"
-                                                CommandParameter="{Binding}" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                        <Button Content="Add Folder…" Classes="primary" Padding="14,4"
-                                HorizontalAlignment="Left"
-                                Command="{Binding AddFolderCommand}"
-                                IsEnabled="{Binding CanAddFolder}"
-                                ToolTip.Tip="Pick a folder to scan for demos (unavailable in the browser)." />
-                    </StackPanel>
-                </Border>
-                </StackPanel>
-
-                <!-- Background processing — desktop only (docs/demo-processing-queue.md) -->
-                <StackPanel Spacing="0" IsVisible="{Binding ShowSectionProcessing}">
-                    <Border Classes="sectionHeader" x:Name="SectionBackgroundProcessing">
-                        <TextBlock Classes="sectionLabel" Text="BACKGROUND PROCESSING" />
-                    </Border>
-                    <Border Classes="card" Margin="12,10">
-                        <StackPanel Spacing="12">
-                            <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
-                                       Text="Demos are parsed for the library and highlights in the background, one at a time. Opening a demo always jumps the queue and is never affected by these settings." />
-
-                            <!-- Master enable (the persisted fully-disable control) -->
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Grid.Column="0" Spacing="1">
-                                    <TextBlock Text="Enable background processing"
-                                               Foreground="{DynamicResource TextValue}" FontSize="12" />
-                                    <TextBlock
-                                        Text="Off = only demos you open are parsed; nothing runs in the background."
-                                        Foreground="{DynamicResource TextDim}" FontSize="10"
-                                        TextWrapping="Wrap" />
-                                </StackPanel>
-                                <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
-                                              OnContent="" OffContent=""
-                                              IsChecked="{Binding BackgroundProcessingEnabled, Mode=TwoWay}" />
-                            </Grid>
-
-                            <Rectangle Classes="divider" Height="1" Margin="0,2" />
-
-                            <!-- Max demos in queue -->
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Max demos in queue" Foreground="{DynamicResource TextValue}"
-                                           FontSize="12" />
-                                <TextBox Classes="field" MinWidth="80" HorizontalAlignment="Left"
-                                         Text="{Binding MaxQueueSize, Mode=TwoWay}" />
-                                <TextBlock
-                                    Text="How many demos wait in the background queue at once (newest first). The rest re-feed automatically as slots free up."
-                                    Foreground="{DynamicResource TextDim}" FontSize="10"
-                                    TextWrapping="Wrap" />
-                            </StackPanel>
-
-                            <!-- Max demos processed at once (advanced; RAM-risk warning on > 1) -->
-                            <StackPanel Spacing="4">
-                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                    <TextBlock Text="Max demos processed at once"
-                                               Foreground="{DynamicResource TextValue}" FontSize="12"
+                        <StackPanel Spacing="0" IsVisible="{Binding ShowSectionFolders}">
+                            <!-- Library folders. Header badge is right-aligned (the FEATURES idiom — one status slot). -->
+                            <Border Classes="sectionHeader" x:Name="SectionLibraryFolders">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <TextBlock Grid.Column="0" Classes="sectionLabel" Text="LIBRARY FOLDERS"
                                                VerticalAlignment="Center" />
-                                    <Border Classes="badge" Padding="4,1" VerticalAlignment="Center">
-                                        <TextBlock Classes="mono" FontSize="9"
-                                                   Foreground="{DynamicResource TextChainBadge}" Text="advanced" />
+                                    <Border Grid.Column="2" Classes="badge" VerticalAlignment="Center">
+                                        <TextBlock Classes="mono" Foreground="{DynamicResource TextChainBadge}"
+                                                   FontSize="10" Text="{Binding LibraryFolders.Count}" />
                                     </Border>
+                                </Grid>
+                            </Border>
+                            <Border Classes="card" Margin="12,10">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
+                                               Text="Folders the demo library scans for .dem files." />
+                                    <ListBox Classes="data-list" MaxHeight="220"
+                                             ItemsSource="{Binding LibraryFolders}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="sys:String">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <TextBlock Grid.Column="0" Text="{Binding}" Classes="mono"
+                                                               Foreground="{DynamicResource TextMid}"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <Button Grid.Column="1" Classes="icon-btn" Content="✕"
+                                                            AutomationProperties.Name="Remove folder"
+                                                            ToolTip.Tip="Remove folder"
+                                                            Command="{Binding $parent[ListBox].((settings:SettingsViewModel)DataContext).RemoveFolderCommand}"
+                                                            CommandParameter="{Binding}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <Button Content="Add Folder…" Classes="primary" Padding="14,4"
+                                            HorizontalAlignment="Left"
+                                            Command="{Binding AddFolderCommand}"
+                                            IsEnabled="{Binding CanAddFolder}"
+                                            ToolTip.Tip="Pick a folder to scan for demos (unavailable in the browser)." />
                                 </StackPanel>
-                                <ComboBox Classes="field" MinWidth="72" HorizontalAlignment="Left"
-                                          ItemsSource="{Binding ConcurrencyOptions}"
-                                          SelectedItem="{Binding MaxConcurrency, Mode=TwoWay}" />
-                                <TextBlock Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap"
-                                           Text="{Binding ConcurrencyMax, StringFormat='Default 1 (safe). Allowed range 1–{0}.'}" />
+                            </Border>
+                        </StackPanel>
 
-                                <!-- RAM-risk warning — prominent, only when the value is above the safe
+                        <!-- Background processing — desktop only (docs/demo-processing-queue.md) -->
+                        <StackPanel Spacing="0" IsVisible="{Binding ShowSectionProcessing}">
+                            <Border Classes="sectionHeader" x:Name="SectionBackgroundProcessing">
+                                <TextBlock Classes="sectionLabel" Text="BACKGROUND PROCESSING" />
+                            </Border>
+                            <Border Classes="card" Margin="12,10">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
+                                               Text="Demos are parsed for the library and highlights in the background, one at a time. Opening a demo always jumps the queue and is never affected by these settings." />
+
+                                    <!-- Master enable (the persisted fully-disable control) -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1">
+                                            <TextBlock Text="Enable background processing"
+                                                       Foreground="{DynamicResource TextValue}" FontSize="12" />
+                                            <TextBlock
+                                                Text="Off = only demos you open are parsed; nothing runs in the background."
+                                                Foreground="{DynamicResource TextDim}" FontSize="10"
+                                                TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                      OnContent="" OffContent=""
+                                                      IsChecked="{Binding BackgroundProcessingEnabled, Mode=TwoWay}" />
+                                    </Grid>
+
+                                    <Rectangle Classes="divider" Height="1" Margin="0,2" />
+
+                                    <!-- Max demos in queue -->
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="Max demos in queue" Foreground="{DynamicResource TextValue}"
+                                                   FontSize="12" />
+                                        <TextBox Classes="field" MinWidth="80" HorizontalAlignment="Left"
+                                                 Text="{Binding MaxQueueSize, Mode=TwoWay}" />
+                                        <TextBlock
+                                            Text="How many demos wait in the background queue at once (newest first). The rest re-feed automatically as slots free up."
+                                            Foreground="{DynamicResource TextDim}" FontSize="10"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <!-- Max demos processed at once (advanced; RAM-risk warning on > 1) -->
+                                    <StackPanel Spacing="4">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                            <TextBlock Text="Max demos processed at once"
+                                                       Foreground="{DynamicResource TextValue}" FontSize="12"
+                                                       VerticalAlignment="Center" />
+                                            <Border Classes="badge" Padding="4,1" VerticalAlignment="Center">
+                                                <TextBlock Classes="mono" FontSize="9"
+                                                           Foreground="{DynamicResource TextChainBadge}"
+                                                           Text="advanced" />
+                                            </Border>
+                                        </StackPanel>
+                                        <ComboBox Classes="field" MinWidth="72" HorizontalAlignment="Left"
+                                                  ItemsSource="{Binding ConcurrencyOptions}"
+                                                  SelectedItem="{Binding MaxConcurrency, Mode=TwoWay}" />
+                                        <TextBlock Foreground="{DynamicResource TextDim}" FontSize="10"
+                                                   TextWrapping="Wrap"
+                                                   Text="{Binding ConcurrencyMax, StringFormat='Default 1 (safe). Allowed range 1–{0}.'}" />
+
+                                        <!-- RAM-risk warning — prominent, only when the value is above the safe
                                      default. PanelHeaderBg, not CardBg: this sits ON a card, and CardBg-
                                      on-card is invisible — the warning read as floating text (v0.6.0). -->
-                                <Border Background="{DynamicResource PanelHeaderBg}" CornerRadius="4" Padding="8,6"
-                                        IsVisible="{Binding ShowConcurrencyRiskWarning}">
-                                    <Grid ColumnDefinitions="Auto,*">
-                                        <TextBlock Grid.Column="0" Text="⚠"
-                                                   Foreground="{DynamicResource AccentCaution}"
-                                                   FontSize="13" VerticalAlignment="Top" Margin="0,0,8,0" />
-                                        <TextBlock Grid.Column="1" Foreground="{DynamicResource TextMid}" FontSize="11"
-                                                   TextWrapping="Wrap"
-                                                   Text="Values above 1 run multiple multi-GB demo parses at once and can exhaust memory (freeze or crash the app). Leave at 1 unless your machine has lots of RAM." />
-                                    </Grid>
-                                </Border>
-                            </StackPanel>
+                                        <Border Background="{DynamicResource PanelHeaderBg}" CornerRadius="4"
+                                                Padding="8,6"
+                                                IsVisible="{Binding ShowConcurrencyRiskWarning}">
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <TextBlock Grid.Column="0" Text="⚠"
+                                                           Foreground="{DynamicResource AccentCaution}"
+                                                           FontSize="13" VerticalAlignment="Top" Margin="0,0,8,0" />
+                                                <TextBlock Grid.Column="1" Foreground="{DynamicResource TextMid}"
+                                                           FontSize="11"
+                                                           TextWrapping="Wrap"
+                                                           Text="Values above 1 run multiple multi-GB demo parses at once and can exhaust memory (freeze or crash the app). Leave at 1 unless your machine has lots of RAM." />
+                                            </Grid>
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
-                    </Border>
-                </StackPanel>
 
-                <!-- Idle mode — desktop only. Auto-close the open demo after inactivity to conserve RAM.
+                        <!-- Idle mode — desktop only. Auto-close the open demo after inactivity to conserve RAM.
                      Adjacent to BACKGROUND PROCESSING on purpose (its keep-processing-while-idle toggle
                      is the same concern). -->
-                <StackPanel Spacing="0" IsVisible="{Binding ShowSectionIdle}">
-                    <Border Classes="sectionHeader" x:Name="SectionIdleMode">
-                        <TextBlock Classes="sectionLabel" Text="IDLE MODE" />
-                    </Border>
-                    <Border Classes="card" Margin="12,10">
-                        <StackPanel Spacing="12">
-                            <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
-                                       Text="After a period with no interaction (and no active playback), the app closes the open demo and releases its memory, then shows an idle screen with a Resume button. Any interaction resets the timer." />
+                        <StackPanel Spacing="0" IsVisible="{Binding ShowSectionIdle}">
+                            <Border Classes="sectionHeader" x:Name="SectionIdleMode">
+                                <TextBlock Classes="sectionLabel" Text="IDLE MODE" />
+                            </Border>
+                            <Border Classes="card" Margin="12,10">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
+                                               Text="After a period with no interaction (and no active playback), the app closes the open demo and releases its memory, then shows an idle screen with a Resume button. Any interaction resets the timer." />
 
-                            <!-- Master enable -->
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Grid.Column="0" Spacing="1">
-                                    <TextBlock Text="Enable idle mode"
-                                               Foreground="{DynamicResource TextValue}" FontSize="12" />
-                                    <TextBlock
-                                        Text="Off = the app never auto-closes a demo or enters idle mode."
-                                        Foreground="{DynamicResource TextDim}" FontSize="10"
-                                        TextWrapping="Wrap" />
+                                    <!-- Master enable -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1">
+                                            <TextBlock Text="Enable idle mode"
+                                                       Foreground="{DynamicResource TextValue}" FontSize="12" />
+                                            <TextBlock
+                                                Text="Off = the app never auto-closes a demo or enters idle mode."
+                                                Foreground="{DynamicResource TextDim}" FontSize="10"
+                                                TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                      OnContent="" OffContent=""
+                                                      IsChecked="{Binding IdleEnabled, Mode=TwoWay}" />
+                                    </Grid>
+
+                                    <Rectangle Classes="divider" Height="1" Margin="0,2" />
+
+                                    <!-- Idle wait (minutes) -->
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="Idle after (minutes)" Foreground="{DynamicResource TextValue}"
+                                                   FontSize="12" />
+                                        <TextBox Classes="field" MinWidth="80" HorizontalAlignment="Left"
+                                                 Text="{Binding IdleTimeoutMinutes, Mode=TwoWay}" />
+                                        <TextBlock
+                                            Text="How long with no input before idle mode engages. Decimals allowed for finer control (e.g. 0.5 = 30 seconds)."
+                                            Foreground="{DynamicResource TextDim}" FontSize="10"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <!-- Keep background processing while idle -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1">
+                                            <TextBlock Text="Keep background processing while idle"
+                                                       Foreground="{DynamicResource TextValue}" FontSize="12" />
+                                            <TextBlock
+                                                Text="On = the background queue keeps parsing while idle. Off = it pauses until you resume."
+                                                Foreground="{DynamicResource TextDim}" FontSize="10"
+                                                TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                      OnContent="" OffContent=""
+                                                      IsChecked="{Binding IdleKeepBackgroundProcessing, Mode=TwoWay}" />
+                                    </Grid>
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
-                                              OnContent="" OffContent=""
-                                              IsChecked="{Binding IdleEnabled, Mode=TwoWay}" />
-                            </Grid>
-
-                            <Rectangle Classes="divider" Height="1" Margin="0,2" />
-
-                            <!-- Idle wait (minutes) -->
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Idle after (minutes)" Foreground="{DynamicResource TextValue}"
-                                           FontSize="12" />
-                                <TextBox Classes="field" MinWidth="80" HorizontalAlignment="Left"
-                                         Text="{Binding IdleTimeoutMinutes, Mode=TwoWay}" />
-                                <TextBlock
-                                    Text="How long with no input before idle mode engages. Decimals allowed for finer control (e.g. 0.5 = 30 seconds)."
-                                    Foreground="{DynamicResource TextDim}" FontSize="10"
-                                    TextWrapping="Wrap" />
-                            </StackPanel>
-
-                            <!-- Keep background processing while idle -->
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Grid.Column="0" Spacing="1">
-                                    <TextBlock Text="Keep background processing while idle"
-                                               Foreground="{DynamicResource TextValue}" FontSize="12" />
-                                    <TextBlock
-                                        Text="On = the background queue keeps parsing while idle. Off = it pauses until you resume."
-                                        Foreground="{DynamicResource TextDim}" FontSize="10"
-                                        TextWrapping="Wrap" />
-                                </StackPanel>
-                                <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
-                                              OnContent="" OffContent=""
-                                              IsChecked="{Binding IdleKeepBackgroundProcessing, Mode=TwoWay}" />
-                            </Grid>
+                            </Border>
                         </StackPanel>
-                    </Border>
-                </StackPanel>
 
                     </StackPanel>
                 </Expander>
@@ -558,40 +567,40 @@
                     </Expander.Header>
                     <StackPanel Spacing="0">
 
-                <!-- Features (P2a-ii) — per-feature overrides. The group header carries the section
+                        <!-- Features (P2a-ii) — per-feature overrides. The group header carries the section
                      identity + badge, so there is no inner section header; the card is the anchor. -->
-                <Border Classes="card" Margin="12,10" x:Name="SectionFeatures">
-                    <StackPanel Spacing="12">
+                        <Border Classes="card" Margin="12,10" x:Name="SectionFeatures">
+                            <StackPanel Spacing="12">
 
-                        <!-- Intro + reset -->
-                        <Grid ColumnDefinitions="*,Auto">
-                            <StackPanel Grid.Column="0" Spacing="3">
-                                <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11"
-                                           TextWrapping="Wrap"
-                                           Text="Enable or hide individual tabs and tools regardless of category. An override always wins over the category default." />
-                                <TextBlock Foreground="{DynamicResource TextMid}" FontSize="11"
-                                           Text="{Binding FeaturesHeaderText}" />
+                                <!-- Intro + reset -->
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Grid.Column="0" Spacing="3">
+                                        <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11"
+                                                   TextWrapping="Wrap"
+                                                   Text="Enable or hide individual tabs and tools regardless of category. An override always wins over the category default." />
+                                        <TextBlock Foreground="{DynamicResource TextMid}" FontSize="11"
+                                                   Text="{Binding FeaturesHeaderText}" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Classes="ghost" Padding="10,4" VerticalAlignment="Top"
+                                            Content="{Binding ResetButtonText}"
+                                            Command="{Binding ResetOverridesCommand}"
+                                            ToolTip.Tip="Clear all per-feature overrides and revert to the category defaults." />
+                                </Grid>
+
+                                <!-- Tabs & sub-features -->
+                                <TextBlock Classes="col-label" Text="TABS &amp; SUB-FEATURES" />
+                                <ItemsControl ItemsSource="{Binding TabFeatureRows}"
+                                              ItemTemplate="{StaticResource FeatureRowTemplate}" />
+
+                                <Rectangle Classes="divider" Height="1" Margin="0,2" />
+
+                                <!-- Global chrome -->
+                                <TextBlock Classes="col-label" Text="GLOBAL CHROME" />
+                                <ItemsControl ItemsSource="{Binding ChromeFeatureRows}"
+                                              ItemTemplate="{StaticResource FeatureRowTemplate}" />
+
                             </StackPanel>
-                            <Button Grid.Column="1" Classes="ghost" Padding="10,4" VerticalAlignment="Top"
-                                    Content="{Binding ResetButtonText}"
-                                    Command="{Binding ResetOverridesCommand}"
-                                    ToolTip.Tip="Clear all per-feature overrides and revert to the category defaults." />
-                        </Grid>
-
-                        <!-- Tabs & sub-features -->
-                        <TextBlock Classes="col-label" Text="TABS &amp; SUB-FEATURES" />
-                        <ItemsControl ItemsSource="{Binding TabFeatureRows}"
-                                      ItemTemplate="{StaticResource FeatureRowTemplate}" />
-
-                        <Rectangle Classes="divider" Height="1" Margin="0,2" />
-
-                        <!-- Global chrome -->
-                        <TextBlock Classes="col-label" Text="GLOBAL CHROME" />
-                        <ItemsControl ItemsSource="{Binding ChromeFeatureRows}"
-                                      ItemTemplate="{StaticResource FeatureRowTemplate}" />
-
-                    </StackPanel>
-                </Border>
+                        </Border>
 
                     </StackPanel>
                 </Expander>
@@ -605,255 +614,269 @@
                     </Expander.Header>
                     <StackPanel Spacing="0">
 
-                <!-- Live Sync (CS2) — desktop only -->
-                <StackPanel Spacing="0" IsVisible="{Binding ShowSectionLiveSync}">
-                    <Border Classes="sectionHeader" x:Name="SectionLiveSync">
-                        <TextBlock Classes="sectionLabel" Text="LIVE SYNC (CS2)" />
-                    </Border>
-                    <Border Classes="card" Margin="12,10">
-                        <StackPanel Spacing="12">
-                            <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
-                                       Text="Live Sync watches your demo in a real CS2 game via CSVG. It launches CS2 (~2 min) and temporarily modifies your install." />
+                        <!-- Live Sync (CS2) — desktop only -->
+                        <StackPanel Spacing="0" IsVisible="{Binding ShowSectionLiveSync}">
+                            <Border Classes="sectionHeader" x:Name="SectionLiveSync">
+                                <TextBlock Classes="sectionLabel" Text="LIVE SYNC (CS2)" />
+                            </Border>
+                            <Border Classes="card" Margin="12,10">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
+                                               Text="Live Sync watches your demo in a real CS2 game via CSVG. It launches CS2 (~2 min) and temporarily modifies your install." />
 
-                            <!-- Enable Live Sync — the chrome.livesync opt-in (makes the chip available; does not start a session) -->
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Grid.Column="0" Spacing="1">
-                                    <TextBlock Text="Enable Live Sync" Foreground="{DynamicResource TextValue}"
-                                               FontSize="12" />
-                                    <TextBlock
-                                        Text="Shows the Live Sync status chip. Starting a session is a separate step from the chip."
-                                        Foreground="{DynamicResource TextDim}" FontSize="10"
-                                        TextWrapping="Wrap" />
-                                </StackPanel>
-                                <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
-                                              OnContent="" OffContent=""
-                                              IsChecked="{Binding LiveSyncEnabled, Mode=TwoWay}" />
-                            </Grid>
-
-                            <!-- CS2 install path override -->
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="CS2 install path" Foreground="{DynamicResource TextValue}"
-                                           FontSize="12" />
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                    <TextBox Grid.Column="0" Classes="field"
-                                             Text="{Binding Cs2InstallPath, Mode=TwoWay}"
-                                             Watermark="Auto-detect" />
-                                    <Button Grid.Column="1" Content="Browse…" Classes="ghost" Padding="10,4"
-                                            VerticalAlignment="Center"
-                                            Command="{Binding BrowseCs2InstallCommand}"
-                                            ToolTip.Tip="Pick your CS2 install folder (leave empty to auto-detect)." />
-                                </Grid>
-                            </StackPanel>
-
-                            <Rectangle Classes="divider" Height="1" Margin="0,2" />
-
-                            <!-- Game window (v0.6.0) — consumed by LiveSyncService/ReelJobService since
-                                 CSVG 1.1 but previously editable only by hand in settings.json. Applies
-                                 to the next session/reel launch. -->
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="CS2 game window" Foreground="{DynamicResource TextValue}"
-                                           FontSize="12" />
-                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                                    <TextBlock Text="Width" Foreground="{DynamicResource TextMid}" FontSize="11"
-                                               VerticalAlignment="Center" />
-                                    <TextBox Classes="field" MinWidth="70"
-                                             Text="{Binding LiveSyncGameWindowWidth, Mode=TwoWay}" />
-                                    <TextBlock Text="Height" Foreground="{DynamicResource TextMid}" FontSize="11"
-                                               VerticalAlignment="Center" />
-                                    <TextBox Classes="field" MinWidth="70"
-                                             Text="{Binding LiveSyncGameWindowHeight, Mode=TwoWay}" />
-                                    <CheckBox IsChecked="{Binding LiveSyncGameFullscreen, Mode=TwoWay}"
-                                              Content="Fullscreen"
-                                              Foreground="{DynamicResource TextValue}" FontSize="12"
-                                              VerticalAlignment="Center"
-                                              ToolTip.Tip="Launch CS2 fullscreen instead of windowed. Windowed keeps the game visible next to DemoViewer." />
-                                </StackPanel>
-                                <TextBlock Text="Size CS2 launches at for live sync. Applies to the next session."
-                                           Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
-                            </StackPanel>
-
-                            <Rectangle Classes="divider" Height="1" Margin="0,2" />
-
-                            <!-- Session log verbosity — CSVG log detail; live (no reconnect), surfaces in the
-                                 Diagnostics tab + Output panel. Renamed from "Diagnostics logging" (v0.6.0):
-                                 it collided verbatim with the DIAGNOSTICS LOGGING section, leaving two
-                                 identically-labelled "Log level" combos on one page. -->
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="Session log verbosity (CSVG)" Foreground="{DynamicResource TextValue}"
-                                           FontSize="12" />
-                                <TextBlock
-                                    Text="CSVG log detail shown in the Diagnostics tab and Output panel. Changes apply live — no reconnect needed."
-                                    Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
-                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                    <TextBlock Text="Log level" Foreground="{DynamicResource TextValue}" FontSize="12"
-                                               VerticalAlignment="Center" />
-                                    <ComboBox Classes="field" MinWidth="140" VerticalAlignment="Center"
-                                              ItemsSource="{Binding LiveSyncLogLevelOptions}"
-                                              SelectedItem="{Binding LiveSyncLogLevel, Mode=TwoWay}"
-                                              ToolTip.Tip="Trace = most detail; None = silent. Lowering it shows more on a running session." />
-                                </StackPanel>
-                                <CheckBox IsChecked="{Binding LiveSyncCaptureFrameworkLogs, Mode=TwoWay}"
-                                          Content="Include framework logs (ASP.NET / gRPC transport)"
-                                          Foreground="{DynamicResource TextValue}" FontSize="12"
-                                          ToolTip.Tip="Noisy: roughly a line per gRPC request. Turn on to debug plugin dial-back / transport issues." />
-                            </StackPanel>
-
-                            <Rectangle Classes="divider" Height="1" Margin="0,2" />
-
-                            <!-- Advanced (developer) — collapsed by default. Mock mode moved in here
-                                 (v0.6.0): it is developer-labelled testing plumbing, and it sat at peer
-                                 prominence with the section's master enable. -->
-                            <Expander Header="Advanced (developer)" Padding="0" Background="Transparent">
-                                <StackPanel Spacing="8" Margin="0,8,0,0">
-                                    <StackPanel Spacing="2">
-                                        <CheckBox IsChecked="{Binding LiveSyncMockMode, Mode=TwoWay}"
-                                                  Content="Mock mode"
-                                                  Foreground="{DynamicResource TextValue}" FontSize="12"
-                                                  ToolTip.Tip="Run against the CSVG mock server instead of a real CS2 launch (testing)." />
-                                        <TextBlock Text="Runs sessions against the bundled mock server — no CS2 launch. Developer/testing only."
-                                                   Foreground="{DynamicResource TextDim}" FontSize="10"
-                                                   TextWrapping="Wrap" />
-                                    </StackPanel>
-
+                                    <!-- Enable Live Sync — the chrome.livesync opt-in (makes the chip available; does not start a session) -->
                                     <Grid ColumnDefinitions="*,Auto">
-                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6"
-                                                    VerticalAlignment="Center">
-                                            <TextBlock Text="Force incompatible plugin"
-                                                       Foreground="{DynamicResource TextValue}" FontSize="12"
-                                                       VerticalAlignment="Center" />
-                                            <Border Classes="badge" Padding="4,1" VerticalAlignment="Center">
-                                                <TextBlock Classes="mono" FontSize="9"
-                                                           Foreground="{DynamicResource TextChainBadge}"
-                                                           Text="developer" />
-                                            </Border>
+                                        <StackPanel Grid.Column="0" Spacing="1">
+                                            <TextBlock Text="Enable Live Sync" Foreground="{DynamicResource TextValue}"
+                                                       FontSize="12" />
+                                            <TextBlock
+                                                Text="Shows the Live Sync status chip. Starting a session is a separate step from the chip."
+                                                Foreground="{DynamicResource TextDim}" FontSize="10"
+                                                TextWrapping="Wrap" />
                                         </StackPanel>
                                         <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
                                                       OnContent="" OffContent=""
-                                                      IsChecked="{Binding ForceIncompatiblePlugin, Mode=TwoWay}"
-                                                      ToolTip.Tip="Connect even when the plugin/game build pair is flagged incompatible (expert)." />
+                                                      IsChecked="{Binding LiveSyncEnabled, Mode=TwoWay}" />
                                     </Grid>
 
-                                    <!-- D2 tick-offset shim (v0.6.0): editable at last — its own docs said
+                                    <!-- CS2 install path override -->
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="CS2 install path" Foreground="{DynamicResource TextValue}"
+                                                   FontSize="12" />
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <TextBox Grid.Column="0" Classes="field"
+                                                     Text="{Binding Cs2InstallPath, Mode=TwoWay}"
+                                                     Watermark="Auto-detect" />
+                                            <Button Grid.Column="1" Content="Browse…" Classes="ghost" Padding="10,4"
+                                                    VerticalAlignment="Center"
+                                                    Command="{Binding BrowseCs2InstallCommand}"
+                                                    ToolTip.Tip="Pick your CS2 install folder (leave empty to auto-detect)." />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <Rectangle Classes="divider" Height="1" Margin="0,2" />
+
+                                    <!-- Game window (v0.6.0) — consumed by LiveSyncService/ReelJobService since
+                                 CSVG 1.1 but previously editable only by hand in settings.json. Applies
+                                 to the next session/reel launch. -->
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="CS2 game window" Foreground="{DynamicResource TextValue}"
+                                                   FontSize="12" />
+                                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                            <TextBlock Text="Width" Foreground="{DynamicResource TextMid}"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center" />
+                                            <TextBox Classes="field" MinWidth="70"
+                                                     Text="{Binding LiveSyncGameWindowWidth, Mode=TwoWay}" />
+                                            <TextBlock Text="Height" Foreground="{DynamicResource TextMid}"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center" />
+                                            <TextBox Classes="field" MinWidth="70"
+                                                     Text="{Binding LiveSyncGameWindowHeight, Mode=TwoWay}" />
+                                            <CheckBox IsChecked="{Binding LiveSyncGameFullscreen, Mode=TwoWay}"
+                                                      Content="Fullscreen"
+                                                      Foreground="{DynamicResource TextValue}" FontSize="12"
+                                                      VerticalAlignment="Center"
+                                                      ToolTip.Tip="Launch CS2 fullscreen instead of windowed. Windowed keeps the game visible next to DemoViewer." />
+                                        </StackPanel>
+                                        <TextBlock
+                                            Text="Size CS2 launches at for live sync. Applies to the next session."
+                                            Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <Rectangle Classes="divider" Height="1" Margin="0,2" />
+
+                                    <!-- Session log verbosity — CSVG log detail; live (no reconnect), surfaces in the
+                                 Diagnostics tab + Output panel. Renamed from "Diagnostics logging" (v0.6.0):
+                                 it collided verbatim with the DIAGNOSTICS LOGGING section, leaving two
+                                 identically-labelled "Log level" combos on one page. -->
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="Session log verbosity (CSVG)"
+                                                   Foreground="{DynamicResource TextValue}"
+                                                   FontSize="12" />
+                                        <TextBlock
+                                            Text="CSVG log detail shown in the Diagnostics tab and Output panel. Changes apply live — no reconnect needed."
+                                            Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                            <TextBlock Text="Log level" Foreground="{DynamicResource TextValue}"
+                                                       FontSize="12"
+                                                       VerticalAlignment="Center" />
+                                            <ComboBox Classes="field" MinWidth="140" VerticalAlignment="Center"
+                                                      ItemsSource="{Binding LiveSyncLogLevelOptions}"
+                                                      SelectedItem="{Binding LiveSyncLogLevel, Mode=TwoWay}"
+                                                      ToolTip.Tip="Trace = most detail; None = silent. Lowering it shows more on a running session." />
+                                        </StackPanel>
+                                        <CheckBox IsChecked="{Binding LiveSyncCaptureFrameworkLogs, Mode=TwoWay}"
+                                                  Content="Include framework logs (ASP.NET / gRPC transport)"
+                                                  Foreground="{DynamicResource TextValue}" FontSize="12"
+                                                  ToolTip.Tip="Noisy: roughly a line per gRPC request. Turn on to debug plugin dial-back / transport issues." />
+                                    </StackPanel>
+
+                                    <Rectangle Classes="divider" Height="1" Margin="0,2" />
+
+                                    <!-- Advanced (developer) — collapsed by default. Mock mode moved in here
+                                 (v0.6.0): it is developer-labelled testing plumbing, and it sat at peer
+                                 prominence with the section's master enable. -->
+                                    <Expander Header="Advanced (developer)" Padding="0" Background="Transparent">
+                                        <StackPanel Spacing="8" Margin="0,8,0,0">
+                                            <StackPanel Spacing="2">
+                                                <CheckBox IsChecked="{Binding LiveSyncMockMode, Mode=TwoWay}"
+                                                          Content="Mock mode"
+                                                          Foreground="{DynamicResource TextValue}" FontSize="12"
+                                                          ToolTip.Tip="Run against the CSVG mock server instead of a real CS2 launch (testing)." />
+                                                <TextBlock
+                                                    Text="Runs sessions against the bundled mock server — no CS2 launch. Developer/testing only."
+                                                    Foreground="{DynamicResource TextDim}" FontSize="10"
+                                                    TextWrapping="Wrap" />
+                                            </StackPanel>
+
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6"
+                                                            VerticalAlignment="Center">
+                                                    <TextBlock Text="Force incompatible plugin"
+                                                               Foreground="{DynamicResource TextValue}" FontSize="12"
+                                                               VerticalAlignment="Center" />
+                                                    <Border Classes="badge" Padding="4,1" VerticalAlignment="Center">
+                                                        <TextBlock Classes="mono" FontSize="9"
+                                                                   Foreground="{DynamicResource TextChainBadge}"
+                                                                   Text="developer" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                              OnContent="" OffContent=""
+                                                              IsChecked="{Binding ForceIncompatiblePlugin, Mode=TwoWay}"
+                                                              ToolTip.Tip="Connect even when the plugin/game build pair is flagged incompatible (expert)." />
+                                            </Grid>
+
+                                            <!-- D2 tick-offset shim (v0.6.0): editable at last — its own docs said
                                          "override only if validation finds a fixed skew", and until now the
                                          only override path was hand-editing settings.json. -->
-                                    <StackPanel Spacing="4">
-                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                            <TextBlock Text="Tick offset (frame → CS2 demo tick)"
-                                                       Foreground="{DynamicResource TextValue}" FontSize="12"
-                                                       VerticalAlignment="Center" />
-                                            <Border Classes="badge" Padding="4,1" VerticalAlignment="Center">
-                                                <TextBlock Classes="mono" FontSize="9"
-                                                           Foreground="{DynamicResource TextChainBadge}"
-                                                           Text="developer" />
-                                            </Border>
+                                            <StackPanel Spacing="4">
+                                                <StackPanel Orientation="Horizontal" Spacing="6"
+                                                            VerticalAlignment="Center">
+                                                    <TextBlock Text="Tick offset (frame → CS2 demo tick)"
+                                                               Foreground="{DynamicResource TextValue}" FontSize="12"
+                                                               VerticalAlignment="Center" />
+                                                    <Border Classes="badge" Padding="4,1" VerticalAlignment="Center">
+                                                        <TextBlock Classes="mono" FontSize="9"
+                                                                   Foreground="{DynamicResource TextChainBadge}"
+                                                                   Text="developer" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBox Classes="field" MinWidth="70" HorizontalAlignment="Left"
+                                                         Text="{Binding LiveSyncTickOffset, Mode=TwoWay}" />
+                                                <TextBlock Foreground="{DynamicResource TextDim}" FontSize="10"
+                                                           TextWrapping="Wrap"
+                                                           Text="Added when mapping DemoViewer ticks to CS2 demo ticks. Leave 0 unless verified playback lands a fixed number of ticks off." />
+                                            </StackPanel>
                                         </StackPanel>
-                                        <TextBox Classes="field" MinWidth="70" HorizontalAlignment="Left"
-                                                 Text="{Binding LiveSyncTickOffset, Mode=TwoWay}" />
-                                        <TextBlock Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap"
-                                                   Text="Added when mapping DemoViewer ticks to CS2 demo ticks. Leave 0 unless verified playback lands a fixed number of ticks off." />
+                                    </Expander>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Highlights — desktop only -->
+                        <StackPanel Spacing="0" IsVisible="{Binding ShowSectionHighlights}">
+                            <Border Classes="sectionHeader" x:Name="SectionHighlights">
+                                <TextBlock Classes="sectionLabel" Text="HIGHLIGHTS" />
+                            </Border>
+                            <Border Classes="card" Margin="12,10">
+                                <StackPanel Spacing="12">
+
+                                    <!-- Background scan opt-in -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1">
+                                            <TextBlock Text="Scan library for highlights in the background"
+                                                       Foreground="{DynamicResource TextValue}" FontSize="12" />
+                                            <TextBlock
+                                                Text="A large library can take ~30 min to index. Off = the open demo's highlights only."
+                                                Foreground="{DynamicResource TextDim}" FontSize="10"
+                                                TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                      OnContent="" OffContent=""
+                                                      IsChecked="{Binding HighlightsBackgroundScan, Mode=TwoWay}" />
+                                    </Grid>
+
+                                    <Rectangle Classes="divider" Height="1" Margin="0,2" />
+
+                                    <TextBlock Text="REEL DEFAULTS" Classes="col-label" />
+
+                                    <!-- Output folder -->
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="Output folder" Foreground="{DynamicResource TextValue}"
+                                                   FontSize="12" />
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <TextBox Grid.Column="0" Classes="field"
+                                                     Text="{Binding ReelOutputFolder, Mode=TwoWay}"
+                                                     Watermark="Choose where reels are saved" />
+                                            <Button Grid.Column="1" Content="Browse…" Classes="ghost" Padding="10,4"
+                                                    VerticalAlignment="Center"
+                                                    Command="{Binding BrowseReelOutputCommand}"
+                                                    ToolTip.Tip="Pick the reel output folder." />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <!-- Container / fps / lead-in / lead-out -->
+                                    <WrapPanel Orientation="Horizontal">
+                                        <StackPanel Spacing="3" Margin="0,0,16,8">
+                                            <TextBlock Text="Container" Foreground="{DynamicResource TextValue}"
+                                                       FontSize="12" />
+                                            <ComboBox Classes="field" MinWidth="84"
+                                                      ItemsSource="{Binding ReelContainerFormats}"
+                                                      SelectedItem="{Binding ReelContainerFormat, Mode=TwoWay}" />
+                                        </StackPanel>
+                                        <StackPanel Spacing="3" Margin="0,0,16,8">
+                                            <TextBlock Text="FPS" Foreground="{DynamicResource TextValue}"
+                                                       FontSize="12" />
+                                            <ComboBox Classes="field" MinWidth="72"
+                                                      ItemsSource="{Binding ReelFpsOptions}"
+                                                      SelectedItem="{Binding ReelFps, Mode=TwoWay}" />
+                                        </StackPanel>
+                                        <StackPanel Spacing="3" Margin="0,0,16,8">
+                                            <TextBlock Text="Lead-in (s)" Foreground="{DynamicResource TextValue}"
+                                                       FontSize="12" />
+                                            <TextBox Classes="field" MinWidth="64"
+                                                     Text="{Binding ReelLeadInSeconds, Mode=TwoWay}" />
+                                        </StackPanel>
+                                        <StackPanel Spacing="3" Margin="0,0,0,8">
+                                            <TextBlock Text="Lead-out (s)" Foreground="{DynamicResource TextValue}"
+                                                       FontSize="12" />
+                                            <TextBox Classes="field" MinWidth="64"
+                                                     Text="{Binding ReelLeadOutSeconds, Mode=TwoWay}" />
+                                        </StackPanel>
+                                    </WrapPanel>
+
+                                    <!-- Concat / audio -->
+                                    <StackPanel Orientation="Horizontal" Spacing="18">
+                                        <CheckBox Content="Concatenate into one video" FontSize="12"
+                                                  IsChecked="{Binding ReelConcatenate, Mode=TwoWay}" />
+                                        <CheckBox Content="Capture audio" FontSize="12"
+                                                  IsChecked="{Binding ReelCaptureAudio, Mode=TwoWay}" />
+                                    </StackPanel>
+
+                                    <!-- Encoding — CRF ⊕ bitrate (mutually exclusive radios) -->
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="Encoding" Foreground="{DynamicResource TextValue}"
+                                                   FontSize="12" />
+                                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                            <RadioButton GroupName="reelEncoding" Content="CRF" FontSize="12"
+                                                         VerticalAlignment="Center"
+                                                         IsChecked="{Binding ReelUseCrf, Mode=TwoWay}" />
+                                            <TextBox Classes="field" MinWidth="56" VerticalAlignment="Center"
+                                                     IsEnabled="{Binding ReelUseCrf}"
+                                                     Text="{Binding ReelCrf, Mode=TwoWay}" />
+                                            <RadioButton GroupName="reelEncoding" Content="Bitrate (kbps)"
+                                                         FontSize="12"
+                                                         VerticalAlignment="Center" IsChecked="{Binding !ReelUseCrf}" />
+                                            <TextBox Classes="field" MinWidth="72" VerticalAlignment="Center"
+                                                     IsEnabled="{Binding !ReelUseCrf}"
+                                                     Text="{Binding ReelBitrateKbps, Mode=TwoWay}" />
+                                        </StackPanel>
                                     </StackPanel>
                                 </StackPanel>
-                            </Expander>
+                            </Border>
                         </StackPanel>
-                    </Border>
-                </StackPanel>
-
-                <!-- Highlights — desktop only -->
-                <StackPanel Spacing="0" IsVisible="{Binding ShowSectionHighlights}">
-                    <Border Classes="sectionHeader" x:Name="SectionHighlights">
-                        <TextBlock Classes="sectionLabel" Text="HIGHLIGHTS" />
-                    </Border>
-                    <Border Classes="card" Margin="12,10">
-                        <StackPanel Spacing="12">
-
-                            <!-- Background scan opt-in -->
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Grid.Column="0" Spacing="1">
-                                    <TextBlock Text="Scan library for highlights in the background"
-                                               Foreground="{DynamicResource TextValue}" FontSize="12" />
-                                    <TextBlock
-                                        Text="A large library can take ~30 min to index. Off = the open demo's highlights only."
-                                        Foreground="{DynamicResource TextDim}" FontSize="10"
-                                        TextWrapping="Wrap" />
-                                </StackPanel>
-                                <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
-                                              OnContent="" OffContent=""
-                                              IsChecked="{Binding HighlightsBackgroundScan, Mode=TwoWay}" />
-                            </Grid>
-
-                            <Rectangle Classes="divider" Height="1" Margin="0,2" />
-
-                            <TextBlock Text="REEL DEFAULTS" Classes="col-label" />
-
-                            <!-- Output folder -->
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Output folder" Foreground="{DynamicResource TextValue}" FontSize="12" />
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                    <TextBox Grid.Column="0" Classes="field"
-                                             Text="{Binding ReelOutputFolder, Mode=TwoWay}"
-                                             Watermark="Choose where reels are saved" />
-                                    <Button Grid.Column="1" Content="Browse…" Classes="ghost" Padding="10,4"
-                                            VerticalAlignment="Center" Command="{Binding BrowseReelOutputCommand}"
-                                            ToolTip.Tip="Pick the reel output folder." />
-                                </Grid>
-                            </StackPanel>
-
-                            <!-- Container / fps / lead-in / lead-out -->
-                            <WrapPanel Orientation="Horizontal">
-                                <StackPanel Spacing="3" Margin="0,0,16,8">
-                                    <TextBlock Text="Container" Foreground="{DynamicResource TextValue}" FontSize="12" />
-                                    <ComboBox Classes="field" MinWidth="84"
-                                              ItemsSource="{Binding ReelContainerFormats}"
-                                              SelectedItem="{Binding ReelContainerFormat, Mode=TwoWay}" />
-                                </StackPanel>
-                                <StackPanel Spacing="3" Margin="0,0,16,8">
-                                    <TextBlock Text="FPS" Foreground="{DynamicResource TextValue}" FontSize="12" />
-                                    <ComboBox Classes="field" MinWidth="72"
-                                              ItemsSource="{Binding ReelFpsOptions}"
-                                              SelectedItem="{Binding ReelFps, Mode=TwoWay}" />
-                                </StackPanel>
-                                <StackPanel Spacing="3" Margin="0,0,16,8">
-                                    <TextBlock Text="Lead-in (s)" Foreground="{DynamicResource TextValue}"
-                                               FontSize="12" />
-                                    <TextBox Classes="field" MinWidth="64"
-                                             Text="{Binding ReelLeadInSeconds, Mode=TwoWay}" />
-                                </StackPanel>
-                                <StackPanel Spacing="3" Margin="0,0,0,8">
-                                    <TextBlock Text="Lead-out (s)" Foreground="{DynamicResource TextValue}"
-                                               FontSize="12" />
-                                    <TextBox Classes="field" MinWidth="64"
-                                             Text="{Binding ReelLeadOutSeconds, Mode=TwoWay}" />
-                                </StackPanel>
-                            </WrapPanel>
-
-                            <!-- Concat / audio -->
-                            <StackPanel Orientation="Horizontal" Spacing="18">
-                                <CheckBox Content="Concatenate into one video" FontSize="12"
-                                          IsChecked="{Binding ReelConcatenate, Mode=TwoWay}" />
-                                <CheckBox Content="Capture audio" FontSize="12"
-                                          IsChecked="{Binding ReelCaptureAudio, Mode=TwoWay}" />
-                            </StackPanel>
-
-                            <!-- Encoding — CRF ⊕ bitrate (mutually exclusive radios) -->
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="Encoding" Foreground="{DynamicResource TextValue}" FontSize="12" />
-                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                                    <RadioButton GroupName="reelEncoding" Content="CRF" FontSize="12"
-                                                 VerticalAlignment="Center"
-                                                 IsChecked="{Binding ReelUseCrf, Mode=TwoWay}" />
-                                    <TextBox Classes="field" MinWidth="56" VerticalAlignment="Center"
-                                             IsEnabled="{Binding ReelUseCrf}"
-                                             Text="{Binding ReelCrf, Mode=TwoWay}" />
-                                    <RadioButton GroupName="reelEncoding" Content="Bitrate (kbps)" FontSize="12"
-                                                 VerticalAlignment="Center" IsChecked="{Binding !ReelUseCrf}" />
-                                    <TextBox Classes="field" MinWidth="72" VerticalAlignment="Center"
-                                             IsEnabled="{Binding !ReelUseCrf}"
-                                             Text="{Binding ReelBitrateKbps, Mode=TwoWay}" />
-                                </StackPanel>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
 
                     </StackPanel>
                 </Expander>
@@ -867,82 +890,88 @@
                     </Expander.Header>
                     <StackPanel Spacing="0">
 
-                <!-- Diagnostics logging — the unified internal ILogger pillar (analysis / app lifecycle).
+                        <!-- Diagnostics logging — the unified internal ILogger pillar (analysis / app lifecycle).
                      LAST on purpose (v0.6.0 findability order): it is the support/developer tail, and the
                      file caps live behind a collapsed Advanced expander. -->
-                <StackPanel Spacing="0" IsVisible="{Binding ShowSectionDiagnostics}">
-                    <Border Classes="sectionHeader" x:Name="SectionDiagnosticsLogging">
-                        <TextBlock Classes="sectionLabel" Text="DIAGNOSTICS LOGGING" />
-                    </Border>
-                    <Border Classes="card" Margin="12,10">
-                        <StackPanel Spacing="12">
-                            <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
-                                       Text="Internal app + analysis logs shown live in the Diagnostics tab (Diagnostics logs panel). They populate when you load a demo or run analysis." />
+                        <StackPanel Spacing="0" IsVisible="{Binding ShowSectionDiagnostics}">
+                            <Border Classes="sectionHeader" x:Name="SectionDiagnosticsLogging">
+                                <TextBlock Classes="sectionLabel" Text="DIAGNOSTICS LOGGING" />
+                            </Border>
+                            <Border Classes="card" Margin="12,10">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
+                                               Text="Internal app + analysis logs shown live in the Diagnostics tab (Diagnostics logs panel). They populate when you load a demo or run analysis." />
 
-                            <!-- Master enable -->
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Grid.Column="0" Spacing="1">
-                                    <TextBlock Text="Enable diagnostics logging"
-                                               Foreground="{DynamicResource TextValue}"
-                                               FontSize="12" />
-                                    <TextBlock Text="Off leaves the internal logger a no-op (near-zero cost)."
-                                               Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
-                                </StackPanel>
-                                <ToggleSwitch Grid.Column="1" VerticalAlignment="Center" OnContent="" OffContent=""
-                                              IsChecked="{Binding DiagnosticsLoggingEnabled, Mode=TwoWay}" />
-                            </Grid>
+                                    <!-- Master enable -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1">
+                                            <TextBlock Text="Enable diagnostics logging"
+                                                       Foreground="{DynamicResource TextValue}"
+                                                       FontSize="12" />
+                                            <TextBlock Text="Off leaves the internal logger a no-op (near-zero cost)."
+                                                       Foreground="{DynamicResource TextDim}" FontSize="10"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" VerticalAlignment="Center" OnContent=""
+                                                      OffContent=""
+                                                      IsChecked="{Binding DiagnosticsLoggingEnabled, Mode=TwoWay}" />
+                                    </Grid>
 
-                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <TextBlock Text="Log level" Foreground="{DynamicResource TextValue}" FontSize="12"
-                                           VerticalAlignment="Center" />
-                                <ComboBox Classes="field" MinWidth="140" VerticalAlignment="Center"
-                                          ItemsSource="{Binding LiveSyncLogLevelOptions}"
-                                          SelectedItem="{Binding DiagnosticsLogLevel, Mode=TwoWay}"
-                                          ToolTip.Tip="Trace = most detail; None = silent. Changes apply live." />
-                            </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <TextBlock Text="Log level" Foreground="{DynamicResource TextValue}"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center" />
+                                        <ComboBox Classes="field" MinWidth="140" VerticalAlignment="Center"
+                                                  ItemsSource="{Binding LiveSyncLogLevelOptions}"
+                                                  SelectedItem="{Binding DiagnosticsLogLevel, Mode=TwoWay}"
+                                                  ToolTip.Tip="Trace = most detail; None = silent. Changes apply live." />
+                                    </StackPanel>
 
-                            <!-- Live-applying window cap stays at full prominence; the set-once file
+                                    <!-- Live-applying window cap stays at full prominence; the set-once file
                                  tuning collapses below (R3 of the findability review). -->
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Max rows in the log window" Foreground="{DynamicResource TextValue}"
-                                           FontSize="12" />
-                                <TextBox Classes="field" MinWidth="80" HorizontalAlignment="Left"
-                                         Text="{Binding DiagnosticsMaxLogRows, Mode=TwoWay}" />
-                                <TextBlock Text="Oldest rows drop first (~200 bytes per row, so 5000 ≈ 1 MB). Applies live."
-                                           Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
-                            </StackPanel>
-
-                            <CheckBox IsChecked="{Binding DiagnosticsWriteLogFile, Mode=TwoWay}"
-                                      Content="Also write logs to a rolling file"
-                                      Foreground="{DynamicResource TextValue}" FontSize="12"
-                                      ToolTip.Tip="Mirrors logs to disk so a copied diagnostics report can attach recent history. Takes effect next launch." />
-
-                            <TextBlock Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap"
-                                       Text="{Binding DiagnosticsLogsFolderPath, StringFormat='Log files: {0}'}"
-                                       IsVisible="{Binding DiagnosticsWriteLogFile}" />
-
-                            <Expander Header="Advanced (file caps)" Padding="0" Background="Transparent"
-                                      IsVisible="{Binding DiagnosticsWriteLogFile}">
-                                <StackPanel Orientation="Horizontal" Spacing="14" Margin="0,8,0,0">
                                     <StackPanel Spacing="4">
-                                        <TextBlock Text="File size cap (KB)" Foreground="{DynamicResource TextValue}"
+                                        <TextBlock Text="Max rows in the log window"
+                                                   Foreground="{DynamicResource TextValue}"
                                                    FontSize="12" />
                                         <TextBox Classes="field" MinWidth="80" HorizontalAlignment="Left"
-                                                 Text="{Binding DiagnosticsFileMaxSizeKb, Mode=TwoWay}"
-                                                 ToolTip.Tip="A file that reaches this size rolls over. Takes effect next launch." />
+                                                 Text="{Binding DiagnosticsMaxLogRows, Mode=TwoWay}" />
+                                        <TextBlock
+                                            Text="Oldest rows drop first (~200 bytes per row, so 5000 ≈ 1 MB). Applies live."
+                                            Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Text="Files kept" Foreground="{DynamicResource TextValue}"
-                                                   FontSize="12" />
-                                        <TextBox Classes="field" MinWidth="60" HorizontalAlignment="Left"
-                                                 Text="{Binding DiagnosticsFileMaxCount, Mode=TwoWay}"
-                                                 ToolTip.Tip="The active file plus this many rolled ones bound disk use. Takes effect next launch." />
-                                    </StackPanel>
+
+                                    <CheckBox IsChecked="{Binding DiagnosticsWriteLogFile, Mode=TwoWay}"
+                                              Content="Also write logs to a rolling file"
+                                              Foreground="{DynamicResource TextValue}" FontSize="12"
+                                              ToolTip.Tip="Mirrors logs to disk so a copied diagnostics report can attach recent history. Takes effect next launch." />
+
+                                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap"
+                                               Text="{Binding DiagnosticsLogsFolderPath, StringFormat='Log files: {0}'}"
+                                               IsVisible="{Binding DiagnosticsWriteLogFile}" />
+
+                                    <Expander Header="Advanced (file caps)" Padding="0" Background="Transparent"
+                                              IsVisible="{Binding DiagnosticsWriteLogFile}">
+                                        <StackPanel Orientation="Horizontal" Spacing="14" Margin="0,8,0,0">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Text="File size cap (KB)"
+                                                           Foreground="{DynamicResource TextValue}"
+                                                           FontSize="12" />
+                                                <TextBox Classes="field" MinWidth="80" HorizontalAlignment="Left"
+                                                         Text="{Binding DiagnosticsFileMaxSizeKb, Mode=TwoWay}"
+                                                         ToolTip.Tip="A file that reaches this size rolls over. Takes effect next launch." />
+                                            </StackPanel>
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Text="Files kept" Foreground="{DynamicResource TextValue}"
+                                                           FontSize="12" />
+                                                <TextBox Classes="field" MinWidth="60" HorizontalAlignment="Left"
+                                                         Text="{Binding DiagnosticsFileMaxCount, Mode=TwoWay}"
+                                                         ToolTip.Tip="The active file plus this many rolled ones bound disk use. Takes effect next launch." />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Expander>
                                 </StackPanel>
-                            </Expander>
+                            </Border>
                         </StackPanel>
-                    </Border>
-                </StackPanel>
 
                     </StackPanel>
                 </Expander>

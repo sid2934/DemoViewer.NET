@@ -5,13 +5,13 @@ table), §10 risk 7, §11 (testing), §12 open question 2.
 **Branch:** `feature/playback2d-v2` · **Effort:** 1.5 wk (7.5 working days) = **3-day spike + 4.5 days
 implementation/validation** · **Runs in parallel with B2–B4.**
 
-> **Read this first, implementing agent.** Roughly two days of the nominal spike have already been
+> **Read this first.** Roughly two days of the nominal spike have already been
 > spent by this plan's recon and are recorded in §3 as *verified facts with evidence*. Do not
 > re-litigate them: SkiaSharp is pinned at 2.88.9, its official native libraries contain **no Vulkan
 > backend**, and **ANGLE binaries already ship inside this app's dependency graph**. The spike that
 > remains is narrower and cheaper than §5.8 assumed.
 >
-> **Everything in §5 Stage 0 is executable on a machine with no GPU** — the interface, the EGL
+> **Everything in §5 Stage 0 is executable on a machine with no GPU**: the interface, the EGL
 > interop, the probe, the overrides, the CPU-fallback tests, the perceptual-diff harness, the CI
 > lanes, the packaging. Only Stage 1 (the spike) and Stage 2 (validation) need real hardware, and
 > every task below is tagged **[no-GPU]** or **[GPU]**.
@@ -21,11 +21,11 @@ implementation/validation** · **Runs in parallel with B2–B4.**
 > Cross-phase reconciliation; `plans/00-overview.md` §3 is the canonical registry. All four
 > "Integrator conflicts" are resolved here.
 >
-> 1. **Conflict 1 resolved — §2.14's assumed layout is correct.** Core/Pipeline are
+> 1. **Conflict 1 resolved: §2.14's assumed layout is correct.** Core/Pipeline are
 >    `src/Playback2D/DemoViewer.NET.Playback2D.{Core,Pipeline}`, tests are the single project
 >    `src/Playback2D/DemoViewer.NET.Playback2D.Tests`, slnx folder `/src/Playback2D/`. Nothing to
 >    shift.
-> 2. **Conflict 2 resolved — B0 pins `SkiaSharp 2.88.9`** with the coherence comment; C2 must not
+> 2. **Conflict 2 resolved: B0 pins `SkiaSharp 2.88.9`** with the coherence comment; C2 must not
 >    re-declare it. C2 adds exactly one `PackageVersion`: `Avalonia.Angle.Windows.Natives`.
 > 3. **Namespace confirmed: `…Core.Rendering`** holds `RenderBackend`, `IRenderSurfaceProvider`,
 >    `CpuSurfaceProvider`, `SceneRenderer` (B0 declares them there) and C2's
@@ -42,24 +42,24 @@ implementation/validation** · **Runs in parallel with B2–B4.**
 >    .TestSupport` gains no SkiaSharp reference and no imaging namespace; §8.2's TestSupport change
 >    is dropped. Diff images come from `GoldenImageComparer.CreateDiffPng`.
 > 5. **The settings key is `AppSettings.Playback2D.RenderBackend`** (§6.5) and it is the **only**
->    backend key — B4's `ExportBackendOverride` is withdrawn, so the export dialog's advanced option
+>    backend key. B4's `ExportBackendOverride` is withdrawn, so the export dialog's advanced option
 >    writes this one. `Playback2DSettings` is created by whichever phase lands first (B1/B2/B4);
 >    C2 adds one property to it. B5 D3 flattens the whole section into `WriteInMemory`, so the
 >    "must be mirrored" note is already satisfied by B5's reflection-driven round-trip test.
 > 6. **Conflict 3 resolved:** the §11 architecture test asserts Core's **managed** reference set is
 >    `{ SkiaSharp } ∪ BCL`. A native-asset-only package referenced by a *head* or a *test* project
 >    (ANGLE, `SkiaSharp.NativeAssets.*`) contributes no managed assembly and is therefore already
->    outside its scope — B0's implementation (walking `Assembly.GetReferencedAssemblies()`) has this
+>    outside its scope. B0's implementation (walking `Assembly.GetReferencedAssemblies()`) has this
 >    property by construction. No test change needed; add a comment saying so.
 > 7. **Conflict 4 stands and is tracked**: the ≥2× realtime exit criterion cannot be *closed* until
 >    B4 lands `SceneExportSession`. It is listed in `00-overview.md` §6 as a scheduling dependency,
 >    not a blocker on C2's other work.
 > 8. **Goldens live at `tests/fixtures/playback2d/goldens/{cpu,gpu}/<name>@<w>x<h>.png`** (C1's
->    corpus layout) — §9.1's `tests/goldens/playback2d/cpu/` does not exist. Fixture scenes are
+>    corpus layout). §9.1's `tests/goldens/playback2d/cpu/` does not exist. Fixture scenes are
 >    `tests/fixtures/playback2d/scenes/<name>.scene.json`; if C2 runs ahead of the corpus, use the
 >    canonical names (`duel-mirage-b`, `nuke-multilevel`, `full-scene-budget`) so its provisional
 >    fixtures are the real ones.
-> 9. **`dv2d probe` is a C1-owned surface addition** — record it in C1's command table and
+> 9. **`dv2d probe` is a C1-owned surface addition**: record it in C1's command table and
 >    `docs/playback2d-v2/dv2d.md` when it lands, so the `--help` parity test stays green.
 
 ---
@@ -85,7 +85,7 @@ Supporting requirements this phase must satisfy, from §5.8:
 **In scope:** Windows and Linux windowless GPU contexts, the probe/override/logging machinery, the
 perceptual-diff harness, CI lanes, native-binary packaging + licensing.
 **Out of scope (explicitly):** macOS Metal (§5.8 point 3 defers it), the browser/WASM GPU path (§8:
-browser surfaces belong to Avalonia's compositor — CPU provider is the only offscreen path there),
+browser surfaces belong to Avalonia's compositor; CPU provider is the only offscreen path there),
 the on-screen Avalonia Skia lease path (that is B1 and is already GPU-composited).
 
 ---
@@ -106,7 +106,7 @@ produces evidence against it, in which case the decision record (§4.5) supersed
    job on Windows is to *confirm it works headlessly and fast enough*, not to choose a stack.
 3. **No new managed dependency for EGL.** Core stays package-clean (the §11 architecture test says
    "Core references only SkiaSharp"). The ~10 EGL entry points are bound by hand with
-   `NativeLibrary.TryLoad` + `NativeLibrary.TryGetExport` + `Marshal.GetDelegateForFunctionPointer` —
+   `NativeLibrary.TryLoad` + `NativeLibrary.TryGetExport` + `Marshal.GetDelegateForFunctionPointer`,
    **not** `DllImport`, so a missing DLL is a clean probe failure instead of a first-call throw, and
    not Silk.NET/OpenTK, which would add a dependency, break the architecture test, and fight the
    non-standard DLL name anyway.
@@ -118,10 +118,10 @@ produces evidence against it, in which case the decision record (§4.5) supersed
    terminal always beats a stored preference; CI sets the env var and expects it to beat whatever a
    settings file says.
 6. **Env var grammar:** `DV2D_RENDER_BACKEND` ∈ `auto | cpu | gpu | angle | gl` (case-insensitive;
-   `gpu` = "fail the run if GPU is unavailable" is *not* the meaning — see the enum in §6: `gpu` maps
+   `gpu` = "fail the run if GPU is unavailable" is *not* the meaning; see the enum in §6: `gpu` maps
    to `PreferGpu`, and `ForceGpu` is only reachable from the API/`--backend force-gpu` so CI can
    assert that a lane really used the GPU). An unrecognized value logs a warning and falls back to
-   `Auto` — never throws, never fails a render.
+   `Auto`, never throws, never fails a render.
 7. **`GpuSurfaceProvider` is thread-affine.** An EGL context is current on exactly one thread. The
    provider captures its creating thread's id and throws `InvalidOperationException` from
    `CreateSurface`/`Flush`/`Dispose` on any other. `SceneExportSession` already runs on one
@@ -139,7 +139,7 @@ produces evidence against it, in which case the decision record (§4.5) supersed
     of pixels, **no** pixel above **32/255**, alpha within **2/255** everywhere; global mean SSIM ≥
     **0.995** and minimum windowed SSIM ≥ **0.95** (luma, 11×11 Gaussian σ=1.5, standard constants).
     Justification and the calibration procedure that can move them are in §7.3.
-11. **SSIM is implemented in-repo** (≈120 loc in `DemoViewer.NET.TestSupport`). No ImageSharp — it is
+11. **SSIM is implemented in-repo** (≈120 loc in `DemoViewer.NET.TestSupport`). No ImageSharp. It is
     not in `Directory.Packages.props`, and adding an image library to compare two `SKBitmap`s that
     SkiaSharp already gives us pixel access to is unjustified weight.
 12. **CI GPU lane, honestly labelled.** GitHub-hosted runners have no GPU, but they *can* exercise the
@@ -147,21 +147,21 @@ produces evidence against it, in which case the decision record (§4.5) supersed
     `ubuntu-latest` runs EGL over **llvmpipe**. Those lanes gate **correctness and perceptual parity
     only, never performance**. The ≥ 2× realtime number is gated on an optional, label-triggered
     self-hosted lane. A CI lane that finds no GPU **skips** (TUnit `SkipTestException`) and stays
-    green — it never fails.
+    green. It never fails.
 13. **`dv2d probe` is added as a CLI subcommand** (a small addition to C1's surface). It prints the
     probe decision + reason as JSON. It is the diagnostic the whole phase hangs on, the cheapest CI
     assertion available, and the first thing to ask a user for in a bug report.
 14. **Assumed source layout:** `src/Playback2D/DemoViewer.NET.Playback2D.Core/` and
     `…Pipeline/`, `…Tests/`, with a `/src/Playback2D/` slnx folder. The design names the projects but
     not their directory; B0 creates them. **If B0 chose a different directory, only the paths in this
-    plan shift — the namespaces and type names in §6 are what bind.** Flagged for the integrator.
+    plan shift; the namespaces and type names in §6 are what bind.** Flagged for the integrator.
 
 ---
 
 ## 3. Verified ground truth (do not re-derive)
 
 Every claim here was checked against the actual artifacts in this repo / the NuGet cache on
-2026-08-24. Commands are given so a future agent can re-verify in seconds.
+2026-08-24. Commands are given so this can be re-verified in seconds.
 
 ### 3.1 The app's SkiaSharp is 2.88.9, and that is not negotiable in this phase
 
@@ -196,7 +196,7 @@ guaranteed `null`.
 
 ### 3.3 Exact SkiaSharp 2.88.9 GPU API surface (reflected, not remembered)
 
-These are the *only* signatures available — 2.88 differs from 3.x, so do not reach for
+These are the *only* signatures available: 2.88 differs from 3.x, so do not reach for
 `FlushAndSubmit` or `SKSurface.Create(GRRecordingContext, …)` shortcuts you may remember:
 
 ```
@@ -241,7 +241,7 @@ LICENSE   → "Copyright 2018 The ANGLE Project Authors. All rights reserved." (
 nuspec    → repository https://github.com/AvaloniaUI/angle/ commit cb8b4e1307a9d8f5ff56b8c5973bea4158ffead8
 ```
 
-Confirmed EGL exports inside `av_libglesv2.dll` (it is a **merged** EGL+GLESv2 build — there is no
+Confirmed EGL exports inside `av_libglesv2.dll` (it is a **merged** EGL+GLESv2 build; there is no
 separate `libEGL.dll` in the package, so bind to `av_libglesv2.dll`):
 `eglGetProcAddress`, `eglGetPlatformDisplayEXT`, `eglChooseConfig`, `eglCreatePbufferSurface`,
 `eglMakeCurrent`, `eglQuerySurface`, `glGetString`.
@@ -280,12 +280,12 @@ not a scratch project.
 
 | Id | Platform | Stack | Context creation | Skia interface | Pre-spike verdict |
 |---|---|---|---|---|---|
-| **W1** | win-x64 | **ANGLE over D3D11**, `av_libglesv2.dll` | `eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE, EGL_DEFAULT_DISPLAY, {EGL_PLATFORM_ANGLE_TYPE_ANGLE: D3D11})` → `eglInitialize` → `eglChooseConfig(PBUFFER\|ES2, RGBA8888)` → `eglCreatePbufferSurface(1×1)` → `eglCreateContext(ES3→ES2)` → `eglMakeCurrent` | `GRGlInterface.CreateAngle(eglGetProcAddress)` → `GRContext.CreateGl(iface)` | **Favored** — binary already ships (§3.4), Avalonia's own Windows default, works over RDP/service sessions, and falls back to **WARP** when no GPU (which is what makes a hosted-runner CI lane possible) |
-| **W2** | win-x64 | **Hidden-context WGL** | register a class → 1×1 `WS_POPUP` invisible HWND (a message-only `HWND_MESSAGE` window cannot own a GL context) → `ChoosePixelFormat`/`SetPixelFormat` → `wglCreateContext` → `wglMakeCurrent` → optionally `wglCreateContextAttribsARB` for a core profile | `GRGlInterface.CreateOpenGl(name => wglGetProcAddress(name) ?? GetProcAddress(opengl32, name))` | **Fallback only** — needs a window handle and a message pump-less HWND, is at the mercy of the vendor ICD, and degrades to the Microsoft 1.1 software rasterizer in session-0/RDP contexts (silent, catastrophic perf) |
+| **W1** | win-x64 | **ANGLE over D3D11**, `av_libglesv2.dll` | `eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE, EGL_DEFAULT_DISPLAY, {EGL_PLATFORM_ANGLE_TYPE_ANGLE: D3D11})` → `eglInitialize` → `eglChooseConfig(PBUFFER\|ES2, RGBA8888)` → `eglCreatePbufferSurface(1×1)` → `eglCreateContext(ES3→ES2)` → `eglMakeCurrent` | `GRGlInterface.CreateAngle(eglGetProcAddress)` → `GRContext.CreateGl(iface)` | **Favored**: binary already ships (§3.4), Avalonia's own Windows default, works over RDP/service sessions, and falls back to **WARP** when no GPU (which is what makes a hosted-runner CI lane possible) |
+| **W2** | win-x64 | **Hidden-context WGL** | register a class → 1×1 `WS_POPUP` invisible HWND (a message-only `HWND_MESSAGE` window cannot own a GL context) → `ChoosePixelFormat`/`SetPixelFormat` → `wglCreateContext` → `wglMakeCurrent` → optionally `wglCreateContextAttribsARB` for a core profile | `GRGlInterface.CreateOpenGl(name => wglGetProcAddress(name) ?? GetProcAddress(opengl32, name))` | **Fallback only**: needs a window handle and a message pump-less HWND, is at the mercy of the vendor ICD, and degrades to the Microsoft 1.1 software rasterizer in session-0/RDP contexts (silent, catastrophic perf) |
 | ~~W3~~ | win-x64 | ~~SkiaSharp Vulkan~~ | — | — | **Eliminated pre-spike** (§3.2). Recorded, not attempted. |
-| **L1** | linux-x64 | **EGL surfaceless** (`libEGL.so.1`) | `eglGetPlatformDisplayEXT(EGL_PLATFORM_SURFACELESS_MESA=0x31DD, EGL_DEFAULT_DISPLAY, null)` → `eglInitialize` → `eglBindAPI(EGL_OPENGL_ES_API)` → `eglCreateContext(config=EGL_NO_CONFIG_KHR or a pbuffer config)` → `eglMakeCurrent(EGL_NO_SURFACE, EGL_NO_SURFACE, ctx)` | `GRGlInterface.CreateGles(eglGetProcAddress)` | **Favored for containers** — no X, no DRM node needed under llvmpipe; the future "cloud highlight service on a Linux box" (§5.8) is this path |
+| **L1** | linux-x64 | **EGL surfaceless** (`libEGL.so.1`) | `eglGetPlatformDisplayEXT(EGL_PLATFORM_SURFACELESS_MESA=0x31DD, EGL_DEFAULT_DISPLAY, null)` → `eglInitialize` → `eglBindAPI(EGL_OPENGL_ES_API)` → `eglCreateContext(config=EGL_NO_CONFIG_KHR or a pbuffer config)` → `eglMakeCurrent(EGL_NO_SURFACE, EGL_NO_SURFACE, ctx)` | `GRGlInterface.CreateGles(eglGetProcAddress)` | **Favored for containers**: no X, no DRM node needed under llvmpipe; the future "cloud highlight service on a Linux box" (§5.8) is this path |
 | **L2** | linux-x64 | **EGL over GBM** | open `/dev/dri/renderD128` → `gbm_create_device` → `eglGetPlatformDisplayEXT(EGL_PLATFORM_GBM_KHR=0x31D7, gbmDevice, null)` | `CreateGles` | Fallback if L1 is unsupported by the installed driver; adds a `libgbm` dependency |
-| ~~L3~~ | linux-x64 | ~~GLX hidden pbuffer~~ | needs an X display | — | **Last resort, not attempted** — an X dependency destroys the container story that motivates the Linux path at all |
+| ~~L3~~ | linux-x64 | ~~GLX hidden pbuffer~~ | needs an X display | — | **Last resort, not attempted**: an X dependency destroys the container story that motivates the Linux path at all |
 | **M1** | macOS | CGL / Metal | — | — | **Deferred by design** (§5.8 point 3). Probe returns `CpuRaster` with reason `"macos-deferred"`. |
 
 ### 4.2 Evaluation criteria
@@ -309,7 +309,7 @@ Three are **gates** (fail ⇒ candidate rejected); three are **scores** (tie-bre
 | **2** | W1 on a second Windows machine/driver family if available (iGPU vs dGPU); **then** W2 (WGL) only if W1 failed a gate, else 2 h timeboxed to record W2's numbers as the fallback's known state. Afternoon: L1 (EGL surfaceless) in a container (`docker run --rm -it mcr.microsoft.com/dotnet/sdk:10.0` + `apt-get install -y libegl1 libgles2`) | W2 + L1 rows filled |
 | **3** | Perf runs at the final settings (sample counts, `GRContextOptions`, readback strategy), hosted-runner probes (S2), write the decision record, open the follow-up issues | `docs/playback2d-v2/c2-backend-decision.md` merged |
 
-**Kill rules — enforce them:**
+**Kill rules. Enforce them:**
 
 - A candidate that cannot create a context within **2 hours** of work is recorded as *failed* and
   abandoned. No "one more driver flag."
@@ -318,14 +318,14 @@ Three are **gates** (fail ⇒ candidate rejected); three are **scores** (tie-bre
 - **If every GPU candidate fails a gate:** ship `CpuSurfaceProvider` as the only registered provider,
   keep `GpuSurfaceProvider` compiled but probe-disabled (`RenderSurfaceProbe.Reason =
   "all-backends-failed: <details>"`), and record the outcome. C2's exit criterion then formally
-  degrades to *"CPU-only, documented, GPU deferred"* — which §10 risk 7 already sanctions ("CPU
-  provider is the contract baseline — GPU is opportunistic"). This is a legitimate, pre-approved
+  degrades to *"CPU-only, documented, GPU deferred"*, which §10 risk 7 already sanctions ("CPU
+  provider is the contract baseline; GPU is opportunistic"). This is a legitimate, pre-approved
   outcome, not a failure of the phase. Stage 0 and the perceptual harness ship either way and are
   what the follow-up would build on.
 
 ### 4.4 Spike environment requirements
 
-- **Windows machine with a real GPU** (the owner's box; iGPU is acceptable — the exit criterion says
+- **Windows machine with a real GPU** (the owner's box; iGPU is acceptable: the exit criterion says
   "baseline dGPU/iGPU"). Needed for W1/W2 and for the ≥ 2× realtime number.
 - **A Linux container** (Docker Desktop is enough for L1-under-llvmpipe; a GPU-enabled container is
   optional and only affects S2's Linux score).
@@ -378,14 +378,14 @@ p50/p95/p99 and export fps on the same fixture, same machine.
 
 ## 5. Ordered work breakdown
 
-Every task is ≤ ~half a day. **[no-GPU]** tasks are executable by an agent with no graphics hardware;
+Every task is ≤ ~half a day. **[no-GPU]** tasks run on a machine with no graphics hardware;
 **[GPU]** tasks require the spike machine.
 
 ### Stage 0 — skeleton, probe, harness, CI, packaging (≈3.5 days, all [no-GPU])
 
 | # | Task | Files | Ordering |
 |---|---|---|---|
-| **C2.0** | **Verify the B0 seam.** Confirm `IRenderSurfaceProvider`, `RenderBackend`, `CpuSurfaceProvider` exist with the §6 signatures. If B0 has not landed them yet, create them exactly as in §6 and tell the integrator — do not invent a variant shape. Also confirm the fixture corpus location (`tests/fixtures/playback2d/`) and the CPU golden location (`tests/goldens/playback2d/cpu/`). | read `src/Playback2D/DemoViewer.NET.Playback2D.Core/Rendering/*.cs` | first |
+| **C2.0** | **Verify the B0 seam.** Confirm `IRenderSurfaceProvider`, `RenderBackend`, `CpuSurfaceProvider` exist with the §6 signatures. If B0 has not landed them yet, create them exactly as in §6 and tell the integrator. Do not invent a variant shape. Also confirm the fixture corpus location (`tests/fixtures/playback2d/`) and the CPU golden location (`tests/goldens/playback2d/cpu/`). | read `src/Playback2D/DemoViewer.NET.Playback2D.Core/Rendering/*.cs` | first |
 | **C2.1** | **Probe + preference types.** Add `RenderBackendPreference`, `RenderSurfaceProbe`, `RenderBackendPreferenceParser`, `RenderSurfaceProviderFactory` (CPU-only registration for now, probe-once-per-process, never throws, single log line). Use an explicit lock + result record, **not** `Lazy<T>` — the repo already documents the exception-caching trap (`HeadlessSession.cs` comment). Include `internal static void ResetForTests()`. Browser short-circuits to `CpuRaster` with reason `"browser"`. | create `Core/Rendering/RenderBackendPreference.cs`, `Core/Rendering/RenderSurfaceProbe.cs`, `Core/Rendering/RenderSurfaceProviderFactory.cs`; edit `Core/…/InternalsVisibleTo` in the csproj | after C2.0 |
 | **C2.2** | **EGL interop.** `Egl` internal static class: `NativeLibrary.TryLoad` over an ordered probe list (`DV2D_ANGLE_LIBRARY` env override → `av_libglesv2.dll` → `libEGL.dll` on Windows; `libEGL.so.1` → `libEGL.so` on Linux), `TryGetExport` + `GetDelegateForFunctionPointer` for the ~10 entry points, all constants, and `TryCreateContext(EglBackendKind kind, out EglContext?, out string reason)`. Returns failure as data; **never throws**. | create `Core/Rendering/Interop/Egl.cs`, `Core/Rendering/Interop/EglContext.cs` | after C2.1 |
 | **C2.3** | **`GpuSurfaceProvider`.** `TryCreate` → EGL context → `GRGlInterface.CreateAngle/CreateGles(eglGetProcAddress)` → `GRContext.CreateGl(iface, options)`; `CreateSurface` → `SKSurface.Create(grContext, budgeted: false, info, sampleCount: 0, GRSurfaceOrigin.TopLeft)`; `Flush` → `surface.Flush(submit: true, synchronous: false)` then `grContext.Flush(true, false)` + `grContext.Submit(synchronous: true)` (exact call order to be confirmed on hardware in C2.10 — readback correctness depends on it); thread-affinity guard; `Dispose` tears down `GRContext` then the EGL context/display in that order. Register it in the factory's probe chain. | create `Core/Rendering/GpuSurfaceProvider.cs`; edit `RenderSurfaceProviderFactory.cs` | after C2.2 |
@@ -406,8 +406,8 @@ handful of additions to `Egl.cs` (the L2/W2 branches) plus tuned `GRContextOptio
 
 | # | Task | Files |
 |---|---|---|
-| **C2.11** | **Confirm the flush/readback sequence and tune.** The exact `Flush`/`Submit` ordering, `budgeted`, `sampleCount`, and whether `ReadPixels` into pinned memory beats `Snapshot()`+`ReadPixels` — measured, not assumed. Record the numbers in the decision doc. | `Core/Rendering/GpuSurfaceProvider.cs` |
-| **C2.12** | **Run the perceptual suite on real hardware**, calibrate the §7.3 thresholds if a legitimate difference exceeds them (procedure in §7.3 — thresholds move only with a recorded justification, never silently), regenerate nothing on the CPU side (CPU goldens are authoritative). | `…Tests/Rendering/BackendParityTests.cs`, thresholds in `ImageDiffOptions` defaults |
+| **C2.11** | **Confirm the flush/readback sequence and tune.** The exact `Flush`/`Submit` ordering, `budgeted`, `sampleCount`, and whether `ReadPixels` into pinned memory beats `Snapshot()`+`ReadPixels`, measured, not assumed. Record the numbers in the decision doc. | `Core/Rendering/GpuSurfaceProvider.cs` |
+| **C2.12** | **Run the perceptual suite on real hardware**, calibrate the §7.3 thresholds if a legitimate difference exceeds them (procedure in §7.3, thresholds move only with a recorded justification, never silently), regenerate nothing on the CPU side (CPU goldens are authoritative). | `…Tests/Rendering/BackendParityTests.cs`, thresholds in `ImageDiffOptions` defaults |
 | **C2.13** | **Bench + exit-criterion evidence.** `dv2d bench --frames 2000 --gpu` and `--cpu` on the standard fixture; a 1080p round export both ways; paste p50/p95/p99 + fps into the decision record and into the acceptance checklist (§11). | `bench-reports/` (JSON, `<demoId>_<timestamp>.json` naming) + the decision doc |
 
 ### Ordering constraints (summary)
@@ -533,7 +533,7 @@ public sealed class GpuSurfaceProvider : IRenderSurfaceProvider
 There is one comparator in the repo: **B0's `GoldenImageComparer` / `GoldenTolerance` /
 `GoldenComparison`** in `DemoViewer.NET.Playback2D.Pipeline.Goldens` (signatures in
 `plans/C1-cli.md`). C2 contributes the **SSIM implementation inside it** (≈120 loc, luma, 11×11
-Gaussian σ=1.5, standard constants — no ImageSharp) and the four extra tolerance fields, exposed as
+Gaussian σ=1.5, standard constants, no ImageSharp) and the four extra tolerance fields, exposed as
 `GoldenTolerance.CrossBackend` (the §7.3 numbers) and `GoldenTolerance.ByteExact`. Everywhere this
 plan says `ImageComparison.Compare(expected, actual, ImageDiffOptions.CrossBackend)`, read
 `GoldenImageComparer.Compare(expectedPng, actualPng, GoldenTolerance.CrossBackend)`; for
@@ -598,20 +598,20 @@ dv2d render|export|bench … [--cpu | --gpu | --backend <auto|cpu|gpu|angle|gl|f
 public string RenderBackend { get; set; } = "auto";
 ```
 
-Must be mirrored in `SettingsService.WriteInMemory` (WASM has no filesystem — §8 of the design).
+Must be mirrored in `SettingsService.WriteInMemory` (WASM has no filesystem, §8 of the design).
 
 ---
 
 ## 7. Test plan
 
-All tests are **TUnit**. Everything in §7.1/§7.2 is **direct-execution** — no `HeadlessSession`, no
+All tests are **TUnit**. Everything in §7.1/§7.2 is **direct-execution**: no `HeadlessSession`, no
 Avalonia platform, no dispatcher (design §11: "strictly faster and less flaky"). Nothing in this
 phase needs headless-Avalonia; the only headless-Avalonia surface in Playback2D is `Scene2DHost`
 (B1's problem).
 
 ### 7.1 No-GPU suites (run everywhere, gate every PR)
 
-**`RenderBackendResolutionTests`** — `src/Playback2D/DemoViewer.NET.Playback2D.Tests/Rendering/RenderBackendResolutionTests.cs`
+**`RenderBackendResolutionTests`**: `src/Playback2D/DemoViewer.NET.Playback2D.Tests/Rendering/RenderBackendResolutionTests.cs`
 
 | Case | Assertion |
 |---|---|
@@ -632,7 +632,7 @@ phase needs headless-Avalonia; the only headless-Avalonia surface in Playback2D 
 | `Create_ForceGpu_WithoutGpu_Throws` | `InvalidOperationException` whose message contains the probe reason |
 | `Probe_OnBrowser_ShortCircuits` | guarded by `OperatingSystem.IsBrowser()`; asserted by unit-testing the internal decision function with an injected platform flag rather than actually running on WASM |
 
-**`CpuSurfaceProviderContractTests`** — the baseline contract, so the CPU path cannot rot (§5.8).
+**`CpuSurfaceProviderContractTests`**: the baseline contract, so the CPU path cannot rot (§5.8).
 
 | Case | Assertion |
 |---|---|
@@ -642,7 +642,7 @@ phase needs headless-Avalonia; the only headless-Avalonia surface in Playback2D 
 | `Dispose_TwiceIsSafe` | no throw |
 | `Backend_IsCpuRaster` | — |
 
-**`ImageComparisonTests`** — the harness must be trustworthy before it judges anything.
+**`ImageComparisonTests`**: the harness must be trustworthy before it judges anything.
 
 | Case | Input | Expected |
 |---|---|---|
@@ -650,7 +650,7 @@ phase needs headless-Avalonia; the only headless-Avalonia surface in Playback2D 
 | `UniformPlusSix_Passes` | +6/255 on every channel | `Passed` (inside the 8/255 band) |
 | `UniformPlusTwelve_Fails` | +12/255 everywhere | `!Passed`, failure names the channel-delta rule |
 | `SparseHotPixels_Fail` | +40/255 on 2 % of pixels | `!Passed` (outlier rule) |
-| `SparseHotPixels_UnderBudget_Pass` | +40/255 on 0.1 % of pixels but ≤ 32 delta | passes/fails per the exact rule — pin the boundary |
+| `SparseHotPixels_UnderBudget_Pass` | +40/255 on 0.1 % of pixels but ≤ 32 delta | passes/fails per the exact rule: pin the boundary |
 | `OnePixelShift_FailsOnSsim` | image translated 1 px | `!Passed`, `MeanSsim` well below 0.995 (this is the case per-channel tolerance alone would miss, and the reason SSIM is in the policy) |
 | `AlphaDrift_Fails` | alpha +5 | `!Passed` |
 | `SizeMismatch_Fails` | different dimensions | `!Passed`, no exception |
@@ -658,7 +658,7 @@ phase needs headless-Avalonia; the only headless-Avalonia surface in Playback2D 
 
 ### 7.2 GPU suites (`[Category("Gpu")]`, skip cleanly without hardware)
 
-Every one of these opens with the guard — copy it verbatim so the skip reason is uniform:
+Every one of these opens with the guard. Copy it verbatim so the skip reason is uniform:
 
 ```csharp
 RenderSurfaceProbe probe = RenderSurfaceProviderFactory.Probe();
@@ -678,7 +678,7 @@ if (!probe.GpuAvailable)
 | `CreateAfterDispose_Recovers` | dispose the provider, create a new one in the same process, render again |
 | `CrossThreadUse_Throws` | call `CreateSurface` from a different thread → `InvalidOperationException` (the §2.7 guard) |
 
-**`BackendParityTests`** — the phase's headline validation.
+**`BackendParityTests`**: the phase's headline validation.
 
 - For each fixture in `tests/fixtures/playback2d/*.json`, at 1280×720 **and** 1920×1080: render via
   `CpuSurfaceProvider` and via `GpuSurfaceProvider` through the same `SceneCompositor` call, compare
@@ -688,19 +688,19 @@ if (!probe.GpuAvailable)
 - Also compare GPU output against the **committed CPU golden** (not just a live CPU render) for the
   canonical fixture, so a golden drift and a backend drift are distinguishable.
 - Minimum corpus (create synthetic fixtures if B0/C1 have not landed theirs, and say so):
-  `duel-mirage-b.json` (markers/trails — geometry AA), `smoke-molly-inferno.json` (area effects —
+  `duel-mirage-b.json` (markers/trails: geometry AA), `smoke-molly-inferno.json` (area effects:
   alpha blending and blur, historically the worst raster/GPU divergence), `text-hud-nuke.json`
-  (`SKTextBlob` HUD rows — glyph rasterization, the other worst case).
+  (`SKTextBlob` HUD rows: glyph rasterization, the other worst case).
 
-**`GpuDeterminismTests`** — design §11 requires "two export runs of the same request produce
+**`GpuDeterminismTests`**: design §11 requires "two export runs of the same request produce
 byte-identical frame hashes (per backend)".
 
 | Case | Assertion |
 |---|---|
-| `SameFixture_TwiceOnGpu_IsByteIdentical` | SHA-256 of the RGBA buffers equal — `ImageDiffOptions.Exact` |
+| `SameFixture_TwiceOnGpu_IsByteIdentical` | SHA-256 of the RGBA buffers equal (`ImageDiffOptions.Exact`) |
 | `SameFixture_TwiceOnCpu_IsByteIdentical` | same, CPU (runs everywhere, no `[Category("Gpu")]`) |
 
-**`GpuExportThroughputTests`** — `[Category("Gpu")]`, `[NotInParallel]`. Exports 256 frames at 1080p
+**`GpuExportThroughputTests`**: `[Category("Gpu")]`, `[NotInParallel]`. Exports 256 frames at 1080p
 through `SceneExportSession` with a null sink, asserts ≥ 128 fps (the ≥ 2× realtime exit criterion).
 Only meaningful on the self-hosted lane; skips when `probe.Renderer` matches the known software
 renderers (`llvmpipe`, `Microsoft Basic Render Driver`, `SwiftShader`, WARP) with reason
@@ -711,11 +711,11 @@ renderers (`llvmpipe`, `Microsoft Basic Render Driver`, `SwiftShader`, WARP) wit
 **Algorithm.** Both images are decoded to RGBA8888 premultiplied.
 
 1. **Per-channel:** for every pixel, `d = max(|ΔR|, |ΔG|, |ΔB|)`. Compute the fraction of pixels with
-   `d > MaxChannelDelta` and the global max `d`. Alpha is checked separately with a tighter bound —
-   a backend that disagrees about *coverage* is a real bug, not an AA difference.
+   `d > MaxChannelDelta` and the global max `d`. Alpha is checked separately with a tighter bound.
+   A backend that disagrees about *coverage* is a real bug, not an AA difference.
 2. **SSIM:** convert to luma (`0.2126R + 0.7152G + 0.0722B`, on unpremultiplied values), 11×11
    Gaussian window σ = 1.5, `C1 = (0.01·255)²`, `C2 = (0.03·255)²`, stride 1 (or stride 2 with a
-   documented note if the 1080p run is too slow — measure before optimizing). Report mean SSIM over
+   documented note if the 1080p run is too slow; measure before optimizing). Report mean SSIM over
    all windows and the single worst window.
 
 **Pass rule** (all must hold):
@@ -726,12 +726,12 @@ renderers (`llvmpipe`, `Microsoft Basic Render Driver`, `SwiftShader`, WARP) wit
 | Max per-channel Δ anywhere | ≤ 32 | a single edge pixel can legitimately land on the other side of a coverage rounding; 32/255 ≈ 12 % is far too small to hide a wrong colour, a missing glyph, or a misplaced marker |
 | Max alpha Δ anywhere | ≤ 2 | coverage must agree |
 | Mean SSIM | ≥ 0.995 | structure must be effectively identical; 0.995 is the level where a 1 px translation or a dropped stroke fails while AA noise passes |
-| Min windowed SSIM | ≥ 0.95 | catches a *localized* structural defect (one glyph missing, one cone absent) that a global mean would average away — this is the metric that makes the policy meaningful |
+| Min windowed SSIM | ≥ 0.95 | catches a *localized* structural defect (one glyph missing, one cone absent) that a global mean would average away. This is the metric that makes the policy meaningful |
 
 **Changing a threshold** requires: (a) a saved `diff.png` showing the difference is legitimate
 (AA/rounding, not content), (b) a line in `docs/playback2d-v2/c2-backend-decision.md` under "What
 surprised us" naming the fixture and the new number, (c) reviewer sign-off. Thresholds are never
-loosened silently, and never loosened globally to fix one fixture — prefer a per-fixture override
+loosened silently, and never loosened globally to fix one fixture; prefer a per-fixture override
 carried in the fixture's own metadata.
 
 ### 7.4 Commands
@@ -755,7 +755,7 @@ dotnet run --project tools/DemoViewer.NET.Playback2D.Cli -c Release -- bench --d
 ```
 
 (TUnit's filter syntax should be confirmed against the 0.25.21 in use; if the tree-node filter differs,
-fall back to `--treenode-filter` per TUnit's docs or a `[Property]`-based selector — this is a
+fall back to `--treenode-filter` per TUnit's docs or a `[Property]`-based selector. This is a
 5-minute detail, not a design point.)
 
 ---
@@ -764,7 +764,7 @@ fall back to `--treenode-filter` per TUnit's docs or a `[Property]`-based select
 
 ### 8.1 `Directory.Packages.props` additions
 
-Insert next to the Avalonia block, with the comment (the comment is load-bearing — it is the only
+Insert next to the Avalonia block, with the comment (the comment is load-bearing: it is the only
 thing stopping a future dependency bot from floating this independently and breaking ANGLE/Avalonia
 coherence):
 
@@ -793,13 +793,13 @@ coherence):
 ```
 
 **Version policy note.** Two different rules apply in this file and it matters which one:
-`Avalonia.Angle.Windows.Natives` and `SkiaSharp` are **coherence-pinned** — their correct version is
+`Avalonia.Angle.Windows.Natives` and `SkiaSharp` are **coherence-pinned**: their correct version is
 *derived* from the Avalonia pin, not chosen. Treat a dependabot PR that bumps either alone as a
 defect. Everything else in this phase adds no packages at all.
 
 ### 8.2 Project references
 
-`tools/DemoViewer.NET.Playback2D.Cli/DemoViewer.NET.Playback2D.Cli.csproj` — add:
+`tools/DemoViewer.NET.Playback2D.Cli/DemoViewer.NET.Playback2D.Cli.csproj`, add:
 
 ```xml
 <ItemGroup>
@@ -810,20 +810,20 @@ defect. Everything else in this phase adds no packages at all.
 </ItemGroup>
 ```
 
-(If the conditional proves awkward for a cross-RID `dotnet publish`, drop the condition — the package
+(If the conditional proves awkward for a cross-RID `dotnet publish`, drop the condition; the package
 contributes only `runtimes/win-*/native/*` and costs nothing on other RIDs.)
 
-`src/Playback2D/DemoViewer.NET.Playback2D.Tests/…csproj` — the same `PackageReference`, so the GPU
+`src/Playback2D/DemoViewer.NET.Playback2D.Tests/…csproj`: the same `PackageReference`, so the GPU
 suite can find ANGLE without an Avalonia reference.
 
-`src/Testing/DemoViewer.NET.TestSupport/…csproj` — **no change** (correction 4: the comparator lives
+`src/Testing/DemoViewer.NET.TestSupport/…csproj`: **no change** (correction 4: the comparator lives
 in Pipeline, which already references SkiaSharp; TestSupport stays as it is).
 
 Core adds **no** package references (§2.3).
 
 ### 8.3 `DemoViewer.NET.slnx`
 
-No new projects in C2 — B0 creates Core/Pipeline/Tests and C1 creates the CLI. If C2 runs ahead of
+No new projects in C2. B0 creates Core/Pipeline/Tests and C1 creates the CLI. If C2 runs ahead of
 them and must create the test project, add it under the same folder B0 uses:
 
 ```xml
@@ -928,13 +928,13 @@ Also add `workflow_dispatch:` to the workflow's `on:` block if it is not already
 
 ### 8.5 Native binary acquisition & packaging
 
-**What we link, where it comes from, how it ships** — and how this differs from ffmpeg, so nobody
+**What we link, where it comes from, how it ships**, and how this differs from ffmpeg, so nobody
 copies the wrong posture.
 
 | | ffmpeg (B4) | **ANGLE (C2)** |
 |---|---|---|
 | Linkage | separate **subprocess**, pipes | **linked in-process** (`NativeLibrary.Load` → EGL/GLES calls) |
-| License | GPL/LGPL — the FSF "separate programs" posture is what keeps it clean | **BSD-3-Clause** — permissive; in-process linking is fine |
+| License | GPL/LGPL: the FSF "separate programs" posture is what keeps it clean | **BSD-3-Clause**: permissive; in-process linking is fine |
 | Obligation | show license text + source link on download | **reproduce the copyright notice + disclaimer in our documentation** (THIRD-PARTY-NOTICES.md §d) |
 | Acquisition | locate → download-on-demand → managed-GIF floor | **already in the NuGet graph**; nothing to download, ever |
 | Failure mode | feature unavailable, explained in UI | **falls back to CPU silently, reason logged once** |
@@ -942,20 +942,20 @@ copies the wrong posture.
 - **Windows:** `Avalonia.Angle.Windows.Natives 2.1.25547.20250602` → `runtimes/win-{x64,x86,arm64}/native/av_libglesv2.dll`,
   built from `github.com/AvaloniaUI/angle` commit `cb8b4e1307a9d8f5ff56b8c5973bea4158ffead8`. The
   per-RID self-contained publish (docs/distribution §3–4) already emits it into the app tree; Velopack
-  packages the publish output verbatim, so **there is no packaging work for the Desktop head** — only
+  packages the publish output verbatim, so **there is no packaging work for the Desktop head**, only
   a verification step (C2.9). Verify with:
   `dotnet publish src/App/DemoViewer.NET.Desktop -c Release -r win-x64 --self-contained && ls artifacts/publish/**/av_libglesv2.dll`.
 - **Load order:** `Egl` probes `DV2D_ANGLE_LIBRARY` (absolute path, escape hatch for testing a
   different ANGLE build) → `av_libglesv2.dll` → `libEGL.dll` (a vendor/system ANGLE, e.g. next to a
   Chromium install the user has). Never scan PATH aggressively; never download anything.
-- **Linux:** we ship **nothing**. `libEGL.so.1` is a system library provided by the driver stack —
+- **Linux:** we ship **nothing**. `libEGL.so.1` is a system library provided by the driver stack,
   exactly like `libGL.so`, which `libSkiaSharp.so` already has a hard dependency on. Do **not** bundle
   an EGL into the AppImage; a bundled EGL that does not match the host driver is worse than no EGL
   (it breaks the CPU path too). If EGL is absent the probe returns `CpuRaster` and everything still
   works.
 - **macOS:** nothing shipped, nothing linked, probe returns `CpuRaster` (`"macos-deferred"`).
 - **Binary weight:** +0 MB for the Desktop head (already shipping). +5.4 MB for a `win-x64` `dv2d`
-  publish that previously had no Avalonia reference — acceptable for a dev/CI tool.
+  publish that previously had no Avalonia reference; acceptable for a dev/CI tool.
 
 `THIRD-PARTY-NOTICES.md` gets a new section after §c:
 
@@ -980,7 +980,7 @@ built from https://github.com/AvaloniaUI/angle. Upstream project: https://github
 
 | From | API | Used by | If it has not landed |
 |---|---|---|---|
-| **B0** | `IRenderSurfaceProvider`, `RenderBackend`, `CpuSurfaceProvider`, the Core project itself | everything in C2 | C2.0 creates them to the §6.1 shape and hands them to B0 — **do not fork a second shape** |
+| **B0** | `IRenderSurfaceProvider`, `RenderBackend`, `CpuSurfaceProvider`, the Core project itself | everything in C2 | C2.0 creates them to the §6.1 shape and hands them to B0: **do not fork a second shape** |
 | **B0** | `SceneCompositor.Render(SKCanvas, SceneRenderContext)` (or whatever B0's exact render entry is) | `BackendParityTests` renders a fixture through it | parity tests fall back to a hand-drawn synthetic scene (documented as provisional) |
 | **B0/C1** | `SceneFixture` JSON loader + `tests/fixtures/playback2d/*.json` | parity/determinism tests | C2 authors 3 minimal fixtures and flags them provisional |
 | **B0/B1** | CPU goldens under `tests/goldens/playback2d/cpu/` | parity-vs-golden test | compare GPU against a live CPU render only, and say so |
@@ -1000,7 +1000,7 @@ built from https://github.com/AvaloniaUI/angle. Upstream project: https://github
 | `GpuSurfaceProvider` (+ `TryCreate`) | the factory; direct construction is legal but discouraged |
 | `ImageComparison`, `ImageDiffOptions`, `ImageDiffResult` | **B0/B1 golden tests** (`ImageDiffOptions.Exact` for byte-exact CPU goldens), **B4** export-frame goldens, C2's parity suite |
 | `AppSettings.Playback2D.RenderBackend` (string key) | App settings UI, `SettingsService` |
-| `DV2D_RENDER_BACKEND` env var (a **public contract** — CI and users depend on the spelling) | CI lanes, support instructions |
+| `DV2D_RENDER_BACKEND` env var (a **public contract**, CI and users depend on the spelling) | CI lanes, support instructions |
 | `docs/playback2d-v2/c2-backend-decision.md` | closes design §12 Q2 |
 
 ---
@@ -1012,9 +1012,9 @@ built from https://github.com/AvaloniaUI/angle. Upstream project: https://github
 | R1 | **Windowless GPU context flaky across drivers/CI** (design §10 risk 7) | M | M | CPU is the contract baseline; ANGLE-first; `--cpu` everywhere; perceptual (not byte) parity; probe failures are data, never exceptions | the whole 3-day spike is this mitigation |
 | R2 | **ANGLE loads but renders through WARP** on a machine that *has* a GPU (silent 20× perf loss, and the user sees "GPU" in the log) | M | M | `RenderSurfaceProbe.Renderer` carries `GL_RENDERER`; `dv2d probe` prints it; the throughput test *skips* on known software renderers rather than failing; log the renderer string at INFO on every export | 1 h (implemented in C2.3) |
 | R3 | **GPU readback (`ReadPixels`) dominates and eats the 2× win.** A 1080p RGBA frame is 8.3 MB; a synchronous stall per frame can cost more than the draw | M | H | Measure readback separately from draw in C2.11; if it dominates, evaluate (a) `synchronous: false` + a 1-frame pipeline depth, (b) a second surface ping-ponged, (c) reading into pinned/pooled memory the sink already owns. Do **not** design any of this before measuring | 0.5 day inside C2.11; if unresolved, record it and ship the honest number |
-| R4 | **`GRContext` + SkiaSharp 2.88.9 has a bug the 3.x line fixed** (2.88 is a 2024 build) | L | M | If and only if a specific blocker is found: record it, do **not** attempt a SkiaSharp 3.x migration inside C2 — that is a repo-wide change gated by Avalonia (§3.1) and would be its own phase | 2 h to diagnose, then stop |
+| R4 | **`GRContext` + SkiaSharp 2.88.9 has a bug the 3.x line fixed** (2.88 is a 2024 build) | L | M | If and only if a specific blocker is found: record it, do **not** attempt a SkiaSharp 3.x migration inside C2; that is a repo-wide change gated by Avalonia (§3.1) and would be its own phase | 2 h to diagnose, then stop |
 | R5 | **Thread-affinity violation from a future caller** (an export session that hops threads, a test that parallelizes) | M | H | The §2.7 guard turns it into an immediate exception; `[NotInParallel]` on GPU test classes; XML docs state it on every member | built into C2.3 |
-| R6 | **Perceptual thresholds are wrong** — too tight (flaky CI) or too loose (misses real regressions) | M | M | Calibrate on real hardware in C2.12 against a *deliberate* defect (delete one layer, shift one marker 1 px) and confirm the suite fails; thresholds move only with the §7.3 procedure | 2 h in C2.12 |
+| R6 | **Perceptual thresholds are wrong**: too tight (flaky CI) or too loose (misses real regressions) | M | M | Calibrate on real hardware in C2.12 against a *deliberate* defect (delete one layer, shift one marker 1 px) and confirm the suite fails; thresholds move only with the §7.3 procedure | 2 h in C2.12 |
 | R7 | **B0's provider seam differs from §6.1** (C2 is planned in parallel with B0's implementation) | M | M | C2.0 is exactly this check, and it is task #1. The design's §5.8 sketch is the shared source of truth for both phases | 0.5 h |
 | R8 | **CI GPU lane never runs** because no self-hosted runner exists, so the ≥ 2× number is never re-verified after the spike | H | L | Accepted. The hosted lanes still gate correctness and parity; the throughput number is recorded in the decision doc + `bench-reports/` as a point-in-time measurement, exactly like the repo's existing perf-sweep practice | — |
 | R9 | **ANGLE version drifts from Avalonia's** via an independent bump | L | H | The pinning comment in §8.1 plus a one-line check in the Avalonia-bump checklist | — |
@@ -1025,10 +1025,10 @@ built from https://github.com/AvaloniaUI/angle. Upstream project: https://github
 
 Maps 1:1 to the design's exit criterion plus this plan's additions.
 
-**Design exit criterion — "GPU export ≥ 2× realtime at 1080p on a baseline dGPU/iGPU; CPU parity within perceptual tolerance"**
+**Design exit criterion: "GPU export ≥ 2× realtime at 1080p on a baseline dGPU/iGPU; CPU parity within perceptual tolerance"**
 
 - [ ] `dv2d bench --frames 2000 --gpu` and `--cpu` both run to completion on the spike machine, numbers recorded in `docs/playback2d-v2/c2-backend-decision.md` and `bench-reports/`.
-- [ ] A 1080p round export through `SceneExportSession` on `GpuSurfaceProvider` sustains **≥ 128 frames/s end-to-end (≥ 2× the 64 fps realtime rate), readback and sink included**, on a baseline dGPU or iGPU — measured, not extrapolated. *(Or: the fallback outcome of §4.3's kill rule is recorded and signed off.)*
+- [ ] A 1080p round export through `SceneExportSession` on `GpuSurfaceProvider` sustains **≥ 128 frames/s end-to-end (≥ 2× the 64 fps realtime rate), readback and sink included**, on a baseline dGPU or iGPU, measured, not extrapolated. *(Or: the fallback outcome of §4.3's kill rule is recorded and signed off.)*
 - [ ] `BackendParityTests` passes on every fixture at 720p and 1080p under `ImageDiffOptions.CrossBackend` (§7.3 numbers), on real hardware.
 - [ ] GPU output also passes against the committed **CPU goldens**, not only against a live CPU render.
 
@@ -1049,7 +1049,7 @@ Maps 1:1 to the design's exit criterion plus this plan's additions.
 
 **This plan's additions**
 
-- [ ] Core still references **only SkiaSharp** — the §11 architecture test passes unchanged (the EGL binding adds no package).
+- [ ] Core still references **only SkiaSharp**: the §11 architecture test passes unchanged (the EGL binding adds no package).
 - [ ] `GpuSurfaceProvider` throws on cross-thread use, and a test proves it.
 - [ ] 20 consecutive create→render→readback→dispose cycles at 1080p are stable, and create-after-dispose works.
 - [ ] `dv2d probe --json` prints the decision; `--require-gpu` exits non-zero when there is no GPU.
@@ -1078,10 +1078,10 @@ The opportunistic probe path was executed on real hardware rather than only comp
 ```
 
 Candidate **W1 (ANGLE/D3D11)** therefore stands up, renders, reads back and tears down correctly on a
-Windows dGPU with **zero packaging work** — `av_libglesv2.dll` came from the
+Windows dGPU with **zero packaging work**: `av_libglesv2.dll` came from the
 `Avalonia.Angle.Windows.Natives` reference added by C2.9, in a project that references no Avalonia.
 §3.4's prediction is confirmed. The 20-cycle 1080p reliability gate (G1) passes as a test. **G2
-(throughput) and the threshold calibration were not attempted** — they are Stage 1/2.
+(throughput) and the threshold calibration were not attempted**: they are Stage 1/2.
 
 Cross-backend parity on the available corpus, ANGLE vs software raster:
 
@@ -1100,16 +1100,16 @@ Every remaining differing pixel is on the anti-aliased rim of a marker disc. Dif
 ### Deviations
 
 1. **Stage 0 only.** Stages 1 (the timed backend spike) and 2 (C2.11–C2.13: flush/readback tuning,
-   threshold calibration on hardware, bench evidence) are not implemented — coordinator decision 2
+   threshold calibration on hardware, bench evidence) are not implemented; coordinator decision 2
    defers them to a scheduled spike, and the ≥ 2× realtime exit criterion transfers to B4's checklist.
    Consequently `docs/playback2d-v2/c2-backend-decision.md` is **not** created: a decision record that
    records no decision is worse than its absence. The §4.5 template and the findings above are what the
-   spike fills in. `GpuExportThroughputTests` is likewise absent — it needs B4's `SceneExportSession`.
+   spike fills in. `GpuExportThroughputTests` is likewise absent. It needs B4's `SceneExportSession`.
 
 2. **C2.7 (`dv2d` flags + `probe` subcommand) not done.** C1 has not landed;
    `tools/DemoViewer.NET.Playback2D.Cli` does not exist at this base commit.
    `RenderSurfaceProviderFactory.Create/Probe` and `RenderBackendPreferenceParser.Resolve` are shaped
-   for it and need no change when it arrives — the CLI's whole job is to call
+   for it and need no change when it arrives: the CLI's whole job is to call
    `Resolve(explicit, flagValue, env, setting)` and hand the result to `Create`.
    `RenderSurfaceProbe.Describe()` is the human line and the record's members are the JSON shape.
 
@@ -1119,8 +1119,8 @@ Every remaining differing pixel is on the anti-aliased rim of a marker disc. Dif
    `RenderBackendPreferenceParser.TryParse` already accepts the `auto|cpu|gpu` values §6.5 specifies.
 
 4. **Probe duration is measured with `TimeProvider.System`, not `Stopwatch`.** `BannedApiTests` bans
-   `System.Diagnostics.Stopwatch` and `DateTime.UtcNow` outright in Core — determinism of the render
-   path — and the ban is an assembly-wide metadata scan with no per-type exemption. `TimeProvider` is
+   `System.Diagnostics.Stopwatch` and `DateTime.UtcNow` outright in Core (determinism of the render
+   path), and the ban is an assembly-wide metadata scan with no per-type exemption. `TimeProvider` is
    outside the banned set, is the modern injectable clock, and `ProbeCore` takes it as a parameter so
    the probe's own timing is testable. No test was weakened.
 
@@ -1138,11 +1138,11 @@ Every remaining differing pixel is on the anti-aliased rim of a marker disc. Dif
 7. **`GpuSurfaceProvider.Dispose` does not carry the thread-affinity guard** that §2.7 asks for on all
    three members. A guard there makes the type unusable from asynchronous code: a `using` scope
    containing an `await` disposes on whichever thread the continuation resumed on, which is precisely
-   what B4's `SceneExportSession` will do when it writes a frame to a sink — and a throwing `Dispose`
+   what B4's `SceneExportSession` will do when it writes a frame to a sink, and a throwing `Dispose`
    also replaces the in-flight exception in a failing `using` with a less interesting one. Off-thread
    disposal is made **correct** instead of merely quiet: `GRContext.AbandonContext(false)` drops Skia's
    GL objects without issuing a GL call (the only safe act from a thread with no current context), and
-   the EGL teardown that follows is display-scoped rather than thread-scoped — `eglDestroyContext`,
+   the EGL teardown that follows is display-scoped rather than thread-scoped: `eglDestroyContext`,
    `eglDestroySurface` and `eglTerminate` are legal from any thread, with destruction of a
    still-current object defined as deferred. `eglMakeCurrent` is the one thread-sensitive call and is
    skipped off-thread. `CreateSurface` and `Flush` keep the guard, where a wrong-thread call really is

@@ -23,13 +23,6 @@ namespace DemoViewer.NET.AppTests;
 [Category("Render")]
 public class DesktopWindowServiceOwnerTests
 {
-    /// <summary>Returns no notes, so opening the window never touches the network.</summary>
-    private sealed class SilentNotesService : IReleaseNotesService
-    {
-        public Task<ReleaseNotes?> GetForVersionAsync(string version, CancellationToken ct = default) =>
-            Task.FromResult<ReleaseNotes?>(null);
-    }
-
     // Class handlers cannot be removed, so this is installed once for the process and the capture
     // list is cleared per case.
     private static readonly List<WhatsNewWindow> _opened = [];
@@ -99,5 +92,12 @@ public class DesktopWindowServiceOwnerTests
             _opened[0].Close();
             owner.Close();
         });
+    }
+
+    /// <summary>Returns no notes, so opening the window never touches the network.</summary>
+    private sealed class SilentNotesService : IReleaseNotesService
+    {
+        public Task<ReleaseNotes?> GetForVersionAsync(string version, CancellationToken ct = default) =>
+            Task.FromResult<ReleaseNotes?>(null);
     }
 }

@@ -18,8 +18,8 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 /// </summary>
 public sealed class EraseTool : IPointerTool
 {
-    private readonly List<Guid> _hits = new(16);
     private readonly HashSet<Guid> _erased = [];
+    private readonly List<Guid> _hits = new(16);
 
     private IDisposable? _gesture;
 

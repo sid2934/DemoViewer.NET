@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using System.IO.Compression;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
 #endregion
@@ -268,6 +269,6 @@ public static class FfmpegAcquisition
     }
 
     private static bool RuntimeArchitectureIsNotX64() =>
-        System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture
-            != System.Runtime.InteropServices.Architecture.X64;
+        RuntimeInformation.ProcessArchitecture
+        != Architecture.X64;
 }

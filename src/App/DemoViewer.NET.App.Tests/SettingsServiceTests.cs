@@ -279,7 +279,7 @@ public class SettingsServiceTests
     /// <summary>
     ///     Every <c>Playback2D</c> property must survive the FILELESS write path.
     ///     <para>
-    ///         On WASM there is no settings file — only the in-memory provider that
+    ///         On WASM there is no settings file, only the in-memory provider that
     ///         <c>SettingsService.WriteInMemory</c> populates by hand, key by key. A property that is
     ///         modelled on <c>AppSettings</c> but missing from that method binds fine, writes fine, and
     ///         forgets itself on the next reload, with nothing to see anywhere. B2, B3, B4 and C2 each

@@ -54,7 +54,8 @@ public sealed record ColumnMeta(
 /// <summary>
 ///     The app-side single source of truth for how shipped stat columns present (display name,
 ///     group, canonical order, alignment, totals aggregation, tooltip) — the design notes in git history
-///     the design notes in git history explain why this cannot come from the YAML <c>group:</c> field (dropped in projection;
+///     the design notes in git history explain why this cannot come from the YAML <c>group:</c> field (dropped in
+///     projection;
 ///     shipped taxonomy is only game/round). Unknown labels (user-authored columns) fall through to
 ///     <see cref="StatGroup.Other" /> with numeric defaults.
 /// </summary>

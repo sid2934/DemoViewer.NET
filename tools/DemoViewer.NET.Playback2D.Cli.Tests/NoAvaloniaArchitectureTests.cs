@@ -1,11 +1,11 @@
 #region
 
 using System.Reflection;
-using SysAssembly = System.Reflection.Assembly;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Pipeline;
+using SysAssembly = System.Reflection.Assembly;
 
 #endregion
 
@@ -16,9 +16,9 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 ///     <para>
 ///         Three prongs, because one is not enough. A deps.json scan proves what was <i>referenced</i>;
 ///         it cannot prove the render happened. A loaded-assembly dump from a real subprocess proves what
-///         was <i>loaded</i> — including that SkiaSharp actually did the drawing rather than the command
-///         short-circuiting. And scanning this test assembly's own graph keeps the assertion honest: an
-///         Avalonia reference added here would make the first two vacuous in the eyes of a reader.
+///         was <i>loaded</i>, including that SkiaSharp actually did the drawing rather than the command
+///         short-circuiting. Scanning this test assembly's own graph closes the last hole: an Avalonia
+///         reference added here would make the first two vacuous.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -93,10 +93,10 @@ public class NoAvaloniaArchitectureTests
     ///         The rule is "zero Avalonia assemblies", not "no package whose id starts with Avalonia": as
     ///         of C2 this tool references <c>Avalonia.Angle.Windows.Natives</c> for <c>av_libglesv2.dll</c>,
     ///         which ships only <c>runtimeTargets</c> of <c>assetType: native</c> and therefore cannot be
-    ///         loaded as an assembly, referenced at compile time, or drag Avalonia's graph in. Classifying
-    ///         structurally — rather than adding a by-name allowlist — keeps the assertion sharp: the day
-    ///         somebody references <c>Avalonia.Skia</c>, its <c>compile</c>/<c>runtime</c> entries put it
-    ///         straight back on the offender list.
+    ///         loaded as an assembly, referenced at compile time, or drag Avalonia's graph in. Classify
+    ///         structurally rather than by a by-name allowlist: the day somebody references
+    ///         <c>Avalonia.Skia</c>, its <c>compile</c>/<c>runtime</c> entries put it straight back on
+    ///         the offender list.
     ///     </para>
     /// </summary>
     /// <param name="path">The deps.json to scan.</param>
@@ -151,7 +151,7 @@ public class NoAvaloniaArchitectureTests
         JsonObject entry = AsObject(package);
 
         // "runtime" = assemblies copied to the output; "compile" = reference assemblies. Either one
-        // means managed code. "dependencies" is not evidence on its own — a native package can depend
+        // means managed code. "dependencies" is not evidence on its own: a native package can depend
         // on another native package.
         if (entry.ContainsKey("runtime") || entry.ContainsKey("compile"))
         {

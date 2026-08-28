@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Core.Layers;
 
 /// <summary>
-///     The stable layer ids. <b>Persisted keys</b> — feature gates, settings and the layer panel all
+///     The stable layer ids. <b>Persisted keys</b>: feature gates, settings and the layer panel all
 ///     store them, so they are never renamed once shipped.
 /// </summary>
 public static class SceneLayerIds
@@ -31,7 +31,7 @@ public static class SceneLayerIds
     public const string Annotations = "playback2d.annotations";
 
     /// <summary>
-    ///     Player cards down both pane edges — T on one side, CT on the other. Ordered 65, between the
+    ///     Player cards down both pane edges, T on one side and CT on the other. Ordered 65, between the
     ///     floor caption and the clock, so a card sits over the map but under the scoreboard it would
     ///     otherwise crowd at the top centre.
     /// </summary>
@@ -49,8 +49,8 @@ public static class SceneLayerIds
 
     /// <summary>
     ///     The layers a stack registers <b>only when the caller names them</b>. Off under a null or empty
-    ///     include set: an export that silently burned in a scoreboard — or someone else's telestration —
-    ///     would be a surprise, not a feature.
+    ///     include set: an export that silently burned in a scoreboard, or someone else's telestration,
+    ///     would be a surprise rather than a feature.
     ///     <para>
     ///         <b>One set, three readers</b>: <c>SceneLayerCatalog.CreateSceneStack</c>,
     ///         <c>SceneExportSession.OptInLayerIds</c>, and <c>ExportRequest.LayerIds</c>'s contract must
@@ -58,5 +58,11 @@ public static class SceneLayerIds
     ///     </para>
     /// </summary>
     public static IReadOnlySet<string> OptIn { get; } =
-        new HashSet<string>(StringComparer.Ordinal) { Annotations, HudRoster, HudClock, HudKillFeed };
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            Annotations,
+            HudRoster,
+            HudClock,
+            HudKillFeed
+        };
 }

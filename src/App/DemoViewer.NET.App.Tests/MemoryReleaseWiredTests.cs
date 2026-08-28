@@ -1,8 +1,8 @@
 #region
 
 using System.Runtime.CompilerServices;
-using DemoViewer.NET.Modules;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Modules;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.TestSupport;
@@ -37,7 +37,7 @@ public class MemoryReleaseWiredTests
         await HeadlessSession.RunOnUi(async () =>
         {
             HeavyJobGate gate = new();
-            DemoProcessingQueue queue = new(gate, post: a => a());
+            DemoProcessingQueue queue = new(gate, a => a());
             DemoEvaluationCoordinator coordinator = new([], queue, () => []);
 
             MainViewModel? vm = new(

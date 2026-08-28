@@ -150,15 +150,15 @@ internal static class TrimVerifier
 
         // DemoTail resolves each offset AND validates the command id of the frame it lands on, so a
         // non-null result proves the patched-back header offset points at the right frame.
-        report.Check(sourceTail.Stop is null == (trimmedTail.Stop is null),
+        report.Check(sourceTail.Stop is null == trimmedTail.Stop is null,
             "container: DEM_Stop terminator present (matching the source)",
             string.Create(CultureInfo.InvariantCulture,
                 $"source={Describe(sourceTail.Stop)} trimmed={Describe(trimmedTail.Stop)}"));
-        report.Check(sourceTail.SpawnGroups is null == (trimmedTail.SpawnGroups is null),
+        report.Check(sourceTail.SpawnGroups is null == trimmedTail.SpawnGroups is null,
             "container: file header bytes 12-15 resolve to DEM_SpawnGroups",
             string.Create(CultureInfo.InvariantCulture,
                 $"source={Describe(sourceTail.SpawnGroups)} trimmed={Describe(trimmedTail.SpawnGroups)}"));
-        report.Check(sourceTail.FileInfo is null == (trimmedTail.FileInfo is null),
+        report.Check(sourceTail.FileInfo is null == trimmedTail.FileInfo is null,
             "container: file header bytes 8-11 resolve to DEM_FileInfo",
             string.Create(CultureInfo.InvariantCulture,
                 $"source={Describe(sourceTail.FileInfo)} trimmed={Describe(trimmedTail.FileInfo)}"));
@@ -308,7 +308,7 @@ internal static class TrimVerifier
         ReplayOutcome d2 = EntityDigestBuilder.Replay(trimmed.Frames, sampleTicks, policy);
 
         CompareDigests(report, "entity state: trimmed file == retained source frames (D2 == D1)",
-            d1.Digests, d2.Digests, isFailure: true);
+            d1.Digests, d2.Digests, true);
 
         foreach (EntityDigest digest in d2.Digests)
         {
@@ -342,7 +342,7 @@ internal static class TrimVerifier
             // the tracker ignores), so a difference is a bookkeeping bug and must fail. For a
             // checkpoint-entry trim a difference is a property of checkpoint entry, not of the trimmer.
             CompareDigests(report, "entity state: retained source frames == full source replay (D1 == D0)",
-                d0.Digests, d1.Digests, isFailure: !result.Window.EnteredAtCheckpoint);
+                d0.Digests, d1.Digests, !result.Window.EnteredAtCheckpoint);
         }
     }
 

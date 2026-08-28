@@ -40,6 +40,12 @@ namespace DemoViewer.NET;
 /// <summary>App.</summary>
 public class App : Application
 {
+    // Re-entrancy tripwire for BuildShell. Deliberately NOT [ThreadStatic]: the recursion it guards
+    // against HOPS THREADS (ServiceProvider's StackGuard.RunOnEmptyStack moves to a fresh thread as the
+    // stack deepens), so a per-thread flag would never see it. The shell is resolved on the UI thread, so
+    // a plain static is not a cross-thread hazard here.
+    private static bool _shellUnderConstruction;
+
     /// <summary>
     ///     The application's composition-root service provider, set once by <see cref="BuildServices" />
     ///     during framework init. A deliberate service-locator seam so later Settings / first-run-wizard
@@ -167,6 +173,7 @@ public class App : Application
             // Track the last-NORMAL bounds live: a maximized exit must persist the size it would
             // RESTORE to (not the maximized size), and a minimized exit must persist nothing new.
             WindowBoundsState? lastNormalBounds = null;
+
             void CaptureNormalBounds()
             {
                 if (window.WindowState != WindowState.Normal)
@@ -562,7 +569,7 @@ public class App : Application
             sp.GetRequiredService<ThemeRegistry>(),
             // Replay-walkthrough starter — resolves the singleton shell lazily (never at ctor time, which
             // would recurse through the shell factory). Null-safe if the shell isn't built yet.
-            replayWalkthrough: () => Services?.GetService<MainViewModel>()?.StartWalkthrough()));
+            () => Services?.GetService<MainViewModel>()?.StartWalkthrough()));
 
         // First-run wizard VM (P2b) — a manual-new FACTORY (same rationale as the Settings factory): a fresh
         // VM per open, owned by whoever shows it. It only needs the live SettingsService (it seeds from and
@@ -640,7 +647,11 @@ public class App : Application
         // been activated. Resolved lazily on both sides, so nothing constructs it at startup.
         services.AddSingleton(sp =>
         {
-            MainViewModel Shell() => sp.GetRequiredService<MainViewModel>();
+            MainViewModel Shell()
+            {
+                return sp.GetRequiredService<MainViewModel>();
+            }
+
             return new HighlightsTabViewModel(
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<HighlightScanService>(),
@@ -653,15 +664,15 @@ public class App : Application
                 () => Shell().LiveSync?.State.IsSessionActive ?? false,
                 // Platform mode — macOS can plan a reel but not capture one.
                 OperatingSystem.IsMacOS(),
-                fileExists: null,
+                null,
                 // Passed rather than assigned, so the ENCODING section re-reconciles when the user
                 // toggles highlights.encoding in Settings. A one-shot assignment would leave the section
                 // wrong until the tab was rebuilt.
-                featureGate: sp.GetService<IFeatureGate>(),
+                sp.GetService<IFeatureGate>(),
                 // v0.6.0 ffmpeg pre-flight (Services/Dependencies): detect up front and guide the
                 // user to a self-install, instead of a raw CSVG failure after CS2 launches. Real
                 // probe ONLY here — the VM's null default keeps pure-VM tests machine-independent.
-                ffmpegLocator: FfmpegDependency.Locate)
+                FfmpegDependency.Locate)
             {
                 // The SAME instances the status-strip chips are bound to.
                 JobStatus = Shell().ReelJobStatus,
@@ -741,12 +752,6 @@ public class App : Application
         Services = provider;
         return provider;
     }
-
-    // Re-entrancy tripwire for BuildShell. Deliberately NOT [ThreadStatic]: the recursion it guards
-    // against HOPS THREADS (ServiceProvider's StackGuard.RunOnEmptyStack moves to a fresh thread as the
-    // stack deepens), so a per-thread flag would never see it. The shell is resolved on the UI thread, so
-    // a plain static is not a cross-thread hazard here.
-    private static bool _shellUnderConstruction;
 
     /// <summary>
     ///     Constructs the singleton shell, refusing to do it re-entrantly.

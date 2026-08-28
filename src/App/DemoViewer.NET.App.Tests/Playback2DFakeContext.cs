@@ -1,5 +1,6 @@
 #region
 
+using System.Numerics;
 using DemoViewer.NET.Modules.Abstractions;
 
 #endregion
@@ -36,6 +37,7 @@ internal sealed class Playback2DFakeContext : IModuleContext
     // resync clears it when this changes. A permanently-null path could not express "a different demo
     // arrived".
     public string? DemoPath { get; set; }
+
     // The annotation session's tick rate is sourced from this, through the ClockIdentity the tab builds,
     // so a fake that could only ever be 64-tick could not reproduce a tick-rate-dependent bug.
     public int TickRate { get; set; } = 64;
@@ -154,7 +156,10 @@ internal sealed class Playback2DFakeContext : IModuleContext
     public void RaiseDemoReset() => DemoReset?.Invoke();
 
     private sealed class FakeSnapshot(
-        int frameIndex, int tick, IReadOnlyEntityView entities, IReadOnlyList<IPlayerState> players)
+        int frameIndex,
+        int tick,
+        IReadOnlyEntityView entities,
+        IReadOnlyList<IPlayerState> players)
         : IPlaybackSnapshot
     {
         public int FrameIndex => frameIndex;
@@ -214,7 +219,7 @@ internal sealed class Playback2DFakeContext : IModuleContext
             pawn.Fields["m_iShotsFired"] = 0;
             pawn.Fields["m_lifeState"] = 0;
             pawn.Fields["m_flFlashDuration"] = 0f;
-            pawn.Fields["m_angEyeAngles"] = new System.Numerics.Vector3(0, yaw, 0);
+            pawn.Fields["m_angEyeAngles"] = new Vector3(0, yaw, 0);
             pawn.Fields["m_ArmorValue"] = 100;
 
             FieldEntity controller = new("CCSPlayerController");

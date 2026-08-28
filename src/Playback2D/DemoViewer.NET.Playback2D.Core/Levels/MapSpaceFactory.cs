@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Playback2D.Core.Levels;
 
 /// <summary>
 ///     Binds radar images to floor bands. The rules live in Pipeline (they read the baked bundle's
-///     radar layers), so Core states the seam and <c>MapRadarBinder</c> implements it — the same
+///     radar layers), so Core states the seam and <c>MapRadarBinder</c> implements it. The same
 ///     Core-declares/Pipeline-solves split as <c>IVisionSolver</c>.
 /// </summary>
 public interface ILevelRadarBinder
@@ -26,13 +26,11 @@ public interface ILevelRadarBinder
 ///     <para>
 ///         The precedence chain is unchanged from the pre-v2 viewport: authoritative nav floors from a
 ///         baked bundle override everything; otherwise the Z histogram decides; networked section
-///         heights are <b>stored, not adopted</b> (see <c>FloorSplitter.ComputeSlices</c>' note — the
-///         schema's "vertical sections" turned out to be radar sub-divisions, not storeys).
+///         heights are <b>stored, not adopted</b>; see <c>FloorSplitter.ComputeSlices</c>' note.
 ///     </para>
 ///     <para>
 ///         The frame deliberately carries floor inputs rather than resolved levels, so this is where the
-///         derivation happens — once per push, and rebuilding the space only when the band list actually
-///         moved.
+///         derivation happens: once per push, rebuilding the space only when the band list moved.
 ///     </para>
 /// </summary>
 public sealed class MapSpaceFactory
@@ -56,7 +54,7 @@ public sealed class MapSpaceFactory
     /// <summary>
     ///     The binder consulted once per rebuild. Setting it re-binds on the next
     ///     <see cref="Update" />, so a late-arriving map bundle reaches the levels without a
-    ///     re-activation — exactly as the pre-v2 per-push <c>AuthoritativeFloors</c> pull did.
+    ///     re-activation, as the pre-v2 per-push <c>AuthoritativeFloors</c> pull did.
     /// </summary>
     public ILevelRadarBinder? RadarBinder
     {
@@ -84,14 +82,13 @@ public sealed class MapSpaceFactory
     /// <summary>
     ///     Folds one frame into the splitter and rebuilds the space when the bands moved.
     ///     <para>
-    ///         Called once per push on the UI thread. In the steady state — bands unchanged — it does an
+    ///         Called once per push on the UI thread. In the steady state (bands unchanged) it does an
     ///         indexed pass over the markers and returns false, allocating nothing.
     ///     </para>
     ///     <para>
     ///         <b>Allocates nothing on either branch.</b> With a baked bundle the splitter short-circuits
-    ///         to the authoritative list. Without one — every user with no map asset —
-    ///         <c>FloorSplitter</c> recomputes out of reusable buffers and republishes the band list only
-    ///         when the bands actually moved, and <c>BudgetTests</c> covers both branches.
+    ///         to the authoritative list; without one, <c>FloorSplitter</c> recomputes out of reusable
+    ///         buffers and republishes the band list only when the bands moved.
     ///     </para>
     /// </summary>
     /// <param name="frame">The frame being advanced to.</param>

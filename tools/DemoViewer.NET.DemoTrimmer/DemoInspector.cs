@@ -41,7 +41,7 @@ internal static class DemoInspector
 
         Console.WriteLine();
         Console.WriteLine("-- frame command histogram (raw on-disk bytes) --");
-        var byCommand = demo.Frames
+        IOrderedEnumerable<(string Command, int Count, long Bytes)> byCommand = demo.Frames
             .GroupBy(f => f.Command, StringComparer.Ordinal)
             .Select(g => (Command: g.Key, Count: g.Count(), Bytes: g.Sum(f => (long)f.RawLength)))
             .OrderByDescending(x => x.Bytes);

@@ -37,7 +37,7 @@ internal sealed record AssetsRoot(string? Path, AssetsRootSource Source, IReadOn
 }
 
 /// <summary>
-///     Resolves the baked <c>assets/</c> root that <c>tools/DemoViewer.NET.AssetBaker</c> writes — one
+///     Resolves the baked <c>assets/</c> root that <c>tools/DemoViewer.NET.AssetBaker</c> writes: one
 ///     subdirectory per map holding <c>bundle.json</c> plus its radar PNGs (C1 decision 6).
 ///     <para>
 ///         The ladder is <c>--assets</c> → <c>DV2D_ASSETS</c> → a walk-up probe, and the winning rung is
@@ -68,24 +68,27 @@ internal static class AssetsRootResolver
         {
             // An explicit flag that does not exist is an error at the call site, not a silent
             // fall-through to the probe: the caller stated where the art is.
-            return new AssetsRoot(Directory.Exists(flag) ? System.IO.Path.GetFullPath(flag) : null,
+            return new AssetsRoot(Directory.Exists(flag) ? Path.GetFullPath(flag) : null,
                 AssetsRootSource.Flag, [flag]);
         }
 
         string? env = Environment.GetEnvironmentVariable(EnvironmentVariable);
         if (!string.IsNullOrWhiteSpace(env))
         {
-            return new AssetsRoot(Directory.Exists(env) ? System.IO.Path.GetFullPath(env) : null,
+            return new AssetsRoot(Directory.Exists(env) ? Path.GetFullPath(env) : null,
                 AssetsRootSource.Env, [env]);
         }
 
         List<string> probed = [];
-        foreach (string start in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
+        foreach (string start in new[]
+                 {
+                     AppContext.BaseDirectory, Directory.GetCurrentDirectory()
+                 })
         {
             DirectoryInfo? dir = new(start);
             for (int depth = 0; depth < 10 && dir is not null; depth++, dir = dir.Parent)
             {
-                string candidate = System.IO.Path.Combine(dir.FullName, "assets");
+                string candidate = Path.Combine(dir.FullName, "assets");
                 probed.Add(candidate);
                 if (Directory.Exists(candidate))
                 {

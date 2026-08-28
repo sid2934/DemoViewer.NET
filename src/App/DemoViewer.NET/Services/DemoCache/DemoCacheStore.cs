@@ -40,19 +40,10 @@ public sealed class DemoCacheStore
     private readonly string? _cacheRoot;
     private readonly object _gate = new();
 
-    /// <summary>
-    ///     Serializes whole read-modify-write cycles (<see cref="Update" /> / <see cref="UpdateExisting" />).
-    ///     Distinct from <see cref="_gate" />, which guards short index/cache critical sections only and is
-    ///     taken INSIDE this one by the load and upsert steps.
-    ///     <para>
-    ///         Needed because one demo has several tier writers running concurrently — an interactive open
-    ///         fires the highlights mirror (off-thread, from <c>OnOpenDemoEvaluated</c>) and the scoreboard
-    ///         write at nearly the same moment, on the same record. Without this, both read the pre-write
-    ///         record, both mutate their own copy, and whichever upserts last silently erases the other's
-    ///         tier — losing exactly the highlights this cache was fixed to store.
-    ///     </para>
-    /// </summary>
-    private readonly object _rmwGate = new();
+    // The always-loaded projection, keyed by demo path (the same case-insensitive keying the library and
+    // highlights caches both use — macOS and Windows default filesystems are case-insensitive).
+    private readonly Dictionary<string, DemoCacheIndexEntry> _index =
+        new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     ///     Record store used when there is no cache root — the browser host, and tests.
@@ -67,12 +58,24 @@ public sealed class DemoCacheStore
     /// </summary>
     private readonly Dictionary<string, string> _memoryRecords = new(StringComparer.OrdinalIgnoreCase);
 
-    // The always-loaded projection, keyed by demo path (the same case-insensitive keying the library and
-    // highlights caches both use — macOS and Windows default filesystems are case-insensitive).
-    private readonly Dictionary<string, DemoCacheIndexEntry> _index =
-        new(StringComparer.OrdinalIgnoreCase);
-
     private readonly Action<Action> _post;
+
+    /// <summary>
+    ///     Serializes whole read-modify-write cycles (<see cref="Update" /> / <see cref="UpdateExisting" />).
+    ///     Distinct from <see cref="_gate" />, which guards short index/cache critical sections only and is
+    ///     taken INSIDE this one by the load and upsert steps.
+    ///     <para>
+    ///         Needed because one demo has several tier writers running concurrently — an interactive open
+    ///         fires the highlights mirror (off-thread, from <c>OnOpenDemoEvaluated</c>) and the scoreboard
+    ///         write at nearly the same moment, on the same record. Without this, both read the pre-write
+    ///         record, both mutate their own copy, and whichever upserts last silently erases the other's
+    ///         tier — losing exactly the highlights this cache was fixed to store.
+    ///     </para>
+    /// </summary>
+    private readonly object _rmwGate = new();
+
+    private int _batchDepth; // under _gate
+    private bool _batchDirty; // under _gate
 
     // Capacity-1 record cache. Match Overview re-reads the same record on every property touch while a demo
     // is selected, and arrow-keying the Library grid walks one demo at a time — so remembering exactly the
@@ -86,9 +89,6 @@ public sealed class DemoCacheStore
     // what it was for; a few KB of deserialization per selection change is not worth a data race.
     private string? _lastRecordJson;
     private string? _lastRecordPath;
-
-    private int _batchDepth; // under _gate
-    private bool _batchDirty; // under _gate
     private int _legacyMigrationVersion; // under _gate
 
     /// <param name="cacheRoot">

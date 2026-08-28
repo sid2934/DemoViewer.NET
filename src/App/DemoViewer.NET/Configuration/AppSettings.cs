@@ -257,7 +257,7 @@ public sealed class HighlightsSettings
 /// <summary>
 ///     Live CS2 sync (CSVG) settings. Whether the
 ///     feature is AVAILABLE is the <c>chrome.livesync</c> override in <see cref="FeatureFlags.Overrides" />
-///; whether a session is RUNNING is never persisted — the engine always starts Off.
+///     ; whether a session is RUNNING is never persisted — the engine always starts Off.
 /// </summary>
 public sealed class LiveSyncSettings
 {

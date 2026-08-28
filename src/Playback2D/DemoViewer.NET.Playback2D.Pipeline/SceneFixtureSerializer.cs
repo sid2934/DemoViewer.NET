@@ -21,6 +21,19 @@ namespace DemoViewer.NET.Playback2D.Pipeline;
 /// </summary>
 public static class SceneFixtureSerializer
 {
+    // Indented output with an EXPLICIT LF. JsonWriterOptions.NewLine defaults to Environment.NewLine, so
+    // the same fixture written on Windows and on Linux differed in every line ending — and the corpus is
+    // committed text that .gitattributes pins to LF (eol=lf). The visible symptom was
+    // tests/fixtures/playback2d/scenes/nuke-multilevel.scene.json turning up CRLF in the working tree
+    // after every Windows App-suite run: staging normalised it back, so nothing ever reached a commit and
+    // nothing ever stopped happening either. Recorded at the B2 merge (deviation 35); fixed here, because
+    // "your checkout is dirty and it does not matter" is a thing every contributor has to learn once.
+    private static readonly JsonWriterOptions _writerOptions = new()
+    {
+        Indented = true,
+        NewLine = "\n"
+    };
+
     /// <summary>Reads a fixture from a stream.</summary>
     /// <param name="source">The stream to read. Not closed.</param>
     /// <exception cref="JsonException">The payload is not a scene fixture.</exception>
@@ -42,19 +55,6 @@ public static class SceneFixtureSerializer
         using FileStream stream = File.OpenRead(path);
         return Read(stream);
     }
-
-    // Indented output with an EXPLICIT LF. JsonWriterOptions.NewLine defaults to Environment.NewLine, so
-    // the same fixture written on Windows and on Linux differed in every line ending — and the corpus is
-    // committed text that .gitattributes pins to LF (eol=lf). The visible symptom was
-    // tests/fixtures/playback2d/scenes/nuke-multilevel.scene.json turning up CRLF in the working tree
-    // after every Windows App-suite run: staging normalised it back, so nothing ever reached a commit and
-    // nothing ever stopped happening either. Recorded at the B2 merge (deviation 35); fixed here, because
-    // "your checkout is dirty and it does not matter" is a thing every contributor has to learn once.
-    private static readonly JsonWriterOptions _writerOptions = new()
-    {
-        Indented = true,
-        NewLine = "\n"
-    };
 
     /// <summary>Writes a fixture to a stream. Indented, with LF line endings on every platform.</summary>
     /// <param name="fixture">The fixture to write.</param>

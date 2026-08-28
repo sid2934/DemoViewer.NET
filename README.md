@@ -35,7 +35,7 @@ reads. You never need to download those by hand.
 assists, ADR, KAST%, HLTV rating, weapon breakdowns, per-round detail. A bundled sample match ships
 with the app, so there is something to look at before you have found your own demos.
 
-**2D playback.** A top-down replay of the round with a scrubbable timeline — round bands, kill and
+**2D playback.** A top-down replay of the round with a scrubbable timeline: round bands, kill and
 bomb markers, one click to any moment. Follow a player by clicking their card, draw over the map
 with a pen that can pin its ink to the demo clock or to a player, and on a multi-floor map like
 Nuke watch the view follow the action between floors. When you have found the ten seconds worth

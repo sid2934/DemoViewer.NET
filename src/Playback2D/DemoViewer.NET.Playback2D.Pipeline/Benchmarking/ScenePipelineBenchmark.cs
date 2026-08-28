@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Benchmarking;
 ///     <para>
 ///         <b>It lives in Pipeline, not Core, deliberately.</b> The report stamps
 ///         <c>DateTimeOffset.UtcNow</c> and the loop uses a <see cref="Stopwatch" />, and Core's
-///         banned-API test forbids both — Core must contain nothing that makes a render depend on when
+///         banned-API test forbids both: Core must contain nothing that makes a render depend on when
 ///         it happened. Measuring from outside is not a workaround; it is the contract.
 ///     </para>
 ///     <para>
@@ -64,20 +64,20 @@ public sealed class ScenePipelineBenchmark
     ///     A camera to pin every pane to, instead of fitting the first frame's observed extent.
     ///     <para>
     ///         <c>dv2d bench</c> sets it so the benchmark draws the <b>same picture</b> the golden for that
-    ///         corpus entry was captured at — otherwise the two commands measure and verify different
+    ///         corpus entry was captured at. Otherwise the two commands measure and verify different
     ///         framings of one scene, and a "bench is slower" report could just be a wider camera.
     ///     </para>
     /// </summary>
     public ViewportTransform? Camera { get; set; }
 
     /// <summary>
-    ///     Optional per-layer / per-stage capture (plan <c>P1-perf-instrumentation</c>). Null — the
-    ///     default — leaves the compositor's profiler seam unattached and the run byte-for-byte the same
+    ///     Optional per-layer / per-stage capture (plan <c>P1-perf-instrumentation</c>). Null (the
+    ///     default) leaves the compositor's profiler seam unattached and the run byte-for-byte the same
     ///     as before this existed.
     ///     <para>
     ///         When set, the recorder is attached <b>before</b> the warmup and
     ///         <see cref="ScenePerfRecorder.Reset" /> afterwards, so its rings are allocated by warmup
-    ///         frames and the measured window — the one <c>AllocatedBytesPerFrame</c> reads — writes only
+    ///         frames and the measured window (the one <c>AllocatedBytesPerFrame</c> reads) writes only
     ///         into arrays that already exist. The §6 zero stays zero with capture on.
     ///     </para>
     /// </summary>
@@ -123,7 +123,7 @@ public sealed class ScenePipelineBenchmark
         }
         finally
         {
-            // The compositor belongs to the caller — in the app it is the live window's stack — so a run
+            // The compositor belongs to the caller (in the app it is the live window's stack), so a run
             // that left a recorder attached would go on charging every subsequent frame to a report
             // nobody is going to read.
             _compositor.Profiler = null;
@@ -133,13 +133,13 @@ public sealed class ScenePipelineBenchmark
     private BenchmarkReport RunCore(HeadlessSceneRenderer renderer, ISceneFrameSource source,
         BenchmarkRequest request, double dt, ScenePerfRecorder? perf, CancellationToken cancellationToken)
     {
-        // Warmup: JIT, the picture caches, the text blobs and the marker smoothing all settle here — and,
-        // with capture on, the recorder's rings are allocated here too. Measuring through any of it would
+        // Warmup: JIT, the picture caches, the text blobs and the marker smoothing all settle here. With
+        // capture on, the recorder's rings are allocated here too. Measuring through any of it would
         // report a first-frame cost as a steady-state one.
         for (int i = 0; i < request.WarmupFrames; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Step(renderer, source, i, dt, fitFirstFrame: Camera is null, perf);
+            Step(renderer, source, i, dt, Camera is null, perf);
         }
 
         // Warmup samples are not the run. The rings and their allocation survive; the counters do not.

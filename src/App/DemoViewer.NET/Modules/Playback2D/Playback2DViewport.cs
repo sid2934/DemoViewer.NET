@@ -3,16 +3,15 @@
 using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Media.Imaging;
 using Avalonia.Media;
 using Avalonia.Styling;
-using Avalonia;
 using CS2DemoKit.Analysis.Visibility;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Theming;
 
 #endregion
@@ -77,6 +76,11 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
     // Z floor-split. Observes player Z each push; networked m_MinimapVerticalSectionHeights override
     // the histogram when present. Each detected slice gets its own SliceCamera below.
     private readonly FloorSplitter _floors = new();
+
+    // Avalonia bitmaps for THIS control only. The scene path owns SKImages and a DrawingContext cannot
+    // draw one; rather than make every map load pay for two full-resolution decodes so a temporary
+    // escape hatch can render, the legacy control decodes its own on first use. Deleted with it in B5.
+    private readonly LegacyRadarBitmapCache _legacyRadar = new();
     private readonly HashSet<int> _liveSlots = new(16);
     private readonly List<int> _pruneScratch = new(8);
 
@@ -88,24 +92,19 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
     private readonly List<Vector4> _smokeScratch = new(4);
     private readonly Dictionary<int, (float X, float Y)> _smoothedPos = new(16);
 
-    // Avalonia bitmaps for THIS control only. The scene path owns SKImages and a DrawingContext cannot
-    // draw one; rather than make every map load pay for two full-resolution decodes so a temporary
-    // escape hatch can render, the legacy control decodes its own on first use. Deleted with it in B5.
-    private readonly LegacyRadarBitmapCache _legacyRadar = new();
-
     private readonly Typeface _typeface = new("Consolas,Menlo,monospace");
     private readonly List<(PlayerMarker Marker, VisibilityAnalyzer.Vantage Vantage)> _visionScratch = new(12);
+    private int _cameraSliceCount = -1;
+    private double _cameraViewW, _cameraViewH;
 
     // Per-slice cameras, indexed by slice index (0 = lowest floor). Rebuilt structurally when the slice
     // count changes (preserve existing, Fit newly-appeared, drop removed); the band height is derived from
     // the current slice count at render time.
     private SliceCamera[] _cameras = Array.Empty<SliceCamera>();
-    private int _cameraSliceCount = -1;
-    private double _cameraViewW, _cameraViewH;
+    private int _dragSlice = -1;
 
     // Pan drag state — captured per slice so the gesture stays bound to the band it began on.
     private bool _dragging;
-    private int _dragSlice = -1;
     private int _followSlot = -1;
 
     // Smooth-mode render-loop driver. RequestAnimationFrame re-arms while any slice is still settling;
@@ -168,6 +167,16 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
     private Color TrailMolotov => _palette.TrailMolotov;
     private Color TrailDecoy => _palette.TrailDecoy;
 
+    /// <summary>Test-only: the rendered transform of slice 0 (the camera state tests assert motion against).</summary>
+    internal ViewportTransform PrimaryCameraTransform =>
+        _cameras.Length > 0 ? _cameras[0].Current : default;
+
+    /// <summary>Test-only: whether slice 0's camera is in manual-override (a manual pan/zoom paused auto).</summary>
+    internal bool PrimaryCameraManual => _cameras.Length > 0 && _cameras[0].ManualOverride;
+
+    /// <summary>Could-see sightlines computed for the last render (test hook for the Vision overlay).</summary>
+    internal int SightlineCount => _sightlines.Count;
+
     /// <summary>The active camera mode. Set by the View's mode selector; re-applies fit + clears overrides.</summary>
     public CameraMode Mode
     {
@@ -192,13 +201,6 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
         }
     }
 
-    /// <summary>Test-only: the rendered transform of slice 0 (the camera state tests assert motion against).</summary>
-    internal ViewportTransform PrimaryCameraTransform =>
-        _cameras.Length > 0 ? _cameras[0].Current : default;
-
-    /// <summary>Test-only: whether slice 0's camera is in manual-override (a manual pan/zoom paused auto).</summary>
-    internal bool PrimaryCameraManual => _cameras.Length > 0 && _cameras[0].ManualOverride;
-
     /// <summary>The slot the FollowPlayer mode tracks; -1 = none. Setting it also selects FollowPlayer.</summary>
     public int FollowSlot
     {
@@ -210,8 +212,19 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
         }
     }
 
-    /// <summary>Could-see sightlines computed for the last render (test hook for the Vision overlay).</summary>
-    internal int SightlineCount => _sightlines.Count;
+    /// <summary>
+    ///     Re-frames the viewport to the observed (or default) extent — the explicit "Fit". Sets the
+    ///     mode to <see cref="CameraMode.Fit" /> (left-click semantics), clears every slice's manual override,
+    ///     and applies the fit to all slices immediately.
+    /// </summary>
+    public void FitToExtent()
+    {
+        _mode = CameraMode.Fit;
+        _followSlot = -1;
+        _initialFitApplied = true;
+        ApplyFitToAllSlices();
+        InvalidateVisual();
+    }
 
     // Resolves every canvas colour from its Pb2dCanvas* token for this control's variant (fallback = the Dark
     // hex when app resources are unavailable). Called on attach + ActualThemeVariantChanged; never per frame.
@@ -393,20 +406,6 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
         {
             _maxY = y;
         }
-    }
-
-    /// <summary>
-    ///     Re-frames the viewport to the observed (or default) extent — the explicit "Fit". Sets the
-    ///     mode to <see cref="CameraMode.Fit" /> (left-click semantics), clears every slice's manual override,
-    ///     and applies the fit to all slices immediately.
-    /// </summary>
-    public void FitToExtent()
-    {
-        _mode = CameraMode.Fit;
-        _followSlot = -1;
-        _initialFitApplied = true;
-        ApplyFitToAllSlices();
-        InvalidateVisual();
     }
 
     // ── Pointer interaction: hit-test the band under the cursor, act on THAT slice's camera only. ──

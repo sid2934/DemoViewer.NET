@@ -17,8 +17,13 @@ namespace DemoViewer.NET.DemoTrimmer;
 /// <param name="PacketCount">Packets the tracker consumed.</param>
 /// <param name="LastError">Tracker's last decode error, if any.</param>
 internal readonly record struct EntityDigest(
-    int Tick, ulong Hash, int EntityCount, long FieldCount,
-    int DeltaUnknownCount, int PacketCount, string? LastError)
+    int Tick,
+    ulong Hash,
+    int EntityCount,
+    long FieldCount,
+    int DeltaUnknownCount,
+    int PacketCount,
+    string? LastError)
 {
     public override string ToString() => string.Create(CultureInfo.InvariantCulture,
         $"tick={Tick} hash={Hash:x16} ents={EntityCount} fields={FieldCount} " +

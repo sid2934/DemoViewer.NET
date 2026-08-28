@@ -1,9 +1,9 @@
 #region
 
-using DemoViewer.NET.Modules;
-using DemoViewer.NET.Modules.Abstractions;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Modules;
+using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 

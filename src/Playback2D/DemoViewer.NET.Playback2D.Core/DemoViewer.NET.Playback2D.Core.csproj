@@ -2,7 +2,7 @@
 
     <!--
       The renderer-agnostic scene core (docs/playback2d-v2/design.md §4). References SkiaSharp and
-      NOTHING else — no Avalonia, no parser, no Modules.Abstractions. That constraint is the whole
+      NOTHING else: no Avalonia, no parser, no Modules.Abstractions. That constraint is the whole
       value of this assembly (it is what lets export, the CLI and CI render without a window) and it
       is enforced by ArchitectureTests, not by convention.
     -->

@@ -60,7 +60,8 @@ public sealed class TierStamp
     /// <summary>When the tier was last written (UTC ticks). 0 = never.</summary>
     public long ComputedAtTicks { get; set; }
 
-    [JsonIgnore] public bool IsPresent => Schema > 0;
+    [JsonIgnore]
+    public bool IsPresent => Schema > 0;
 }
 
 /// <summary>A player as the parse saw them. Widens the library cache's names-only list.</summary>
@@ -187,7 +188,8 @@ public sealed class CachedHighlightEvent
     /// </summary>
     public HighlightKind Kind { get; set; }
 
-    [JsonIgnore] public string TypeKey => $"{RulesetId}.{HighlightId}";
+    [JsonIgnore]
+    public string TypeKey => $"{RulesetId}.{HighlightId}";
 }
 
 /// <summary>
@@ -416,6 +418,16 @@ public sealed class DemoCacheIndexEntry
     /// </summary>
     public int HighlightCount { get; set; }
 
+    [JsonIgnore]
+    public DemoCacheTier Tier =>
+        AnalysisSchema > 0 ? DemoCacheTier.Analysis
+        : ParseSchema > 0 ? DemoCacheTier.Parse
+        : HeaderSchema > 0 ? DemoCacheTier.Header
+        : DemoCacheTier.Identity;
+
+    [JsonIgnore]
+    public bool HasScore => CtScore is int c && TScore is int t && c + t > 0;
+
     /// <summary>
     ///     Index-level twin of <see cref="DemoCacheRecord.NeedsAnalysis" /> — same rule, no sidecar read.
     /// </summary>
@@ -426,15 +438,6 @@ public sealed class DemoCacheIndexEntry
              && AnalysisState == DemoAnalysisState.Indexed
              && (currentFingerprint is null
                  || string.Equals(ConfigFingerprint, currentFingerprint, StringComparison.Ordinal)));
-
-    [JsonIgnore]
-    public DemoCacheTier Tier =>
-        AnalysisSchema > 0 ? DemoCacheTier.Analysis
-        : ParseSchema > 0 ? DemoCacheTier.Parse
-        : HeaderSchema > 0 ? DemoCacheTier.Header
-        : DemoCacheTier.Identity;
-
-    [JsonIgnore] public bool HasScore => CtScore is int c && TScore is int t && c + t > 0;
 
     public bool MatchesFile(long size, long modifiedTicks) =>
         Size == size && ModifiedTicks == modifiedTicks;

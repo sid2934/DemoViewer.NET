@@ -8,8 +8,8 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
 ///     The <c>--json</c> discipline (decision 8): exactly one object on stdout, humans on stderr,
-///     <c>schema_version: 1</c>, snake_case keys. Asserted from a real subprocess, because the split
-///     between the two streams is the whole point and only a subprocess has two real streams.
+///     <c>schema_version: 1</c>, snake_case keys. Asserted from a real subprocess: the assertion is the
+///     split between the two streams, and only a subprocess has two real streams.
 /// </summary>
 [NotInParallel]
 [Category("Integration")]

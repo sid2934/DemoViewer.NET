@@ -28,7 +28,7 @@ public interface IModuleContext
 
     /// <summary>
     ///     The live-sync (CS2) HUD projection for the 2D Playback tab's in-context CS2 indicator
-    ///, or null when no live-sync host is attached (Browser /
+    ///     , or null when no live-sync host is attached (Browser /
     ///     tests / no desktop engine, or the <c>chrome.livesync</c> feature is unavailable). It is a
     ///     read-only, engine-free view (<see cref="ILiveSyncHudState" />) the shell pushes in; a module
     ///     never reaches the live-sync engine itself. Default null for hosts / doubles that don't sync.
@@ -73,6 +73,26 @@ public interface IModuleContext
     ///     actually satisfy (asset/demo-independent). Empty when no navigator is exposed.
     /// </summary>
     IReadOnlyCollection<string> AvailableEventNames => Array.Empty<string>();
+
+    // ── Timeline / transport seams (Playback2D v2 A1) ──
+    // All additive with default implementations, so every existing host and hand-rolled test double keeps
+    // compiling untouched.
+
+    /// <summary>Total frames in the loaded demo, 0 when none. The timeline's x-axis domain.</summary>
+    int TotalFrames => 0;
+
+    /// <summary>
+    ///     True while playback speed is pinned by the host (a Live Sync session without the plugin's
+    ///     timescale capability). A module surfaces the lock rather than fighting it.
+    /// </summary>
+    bool IsSpeedLocked => false;
+
+    /// <summary>
+    ///     The live feature-gate projection, or <c>null</c> for a host / test double that does not
+    ///     gate. <b>Null fails OPEN.</b> The shell folds platform ANDs (desktop-only ids) in on its
+    ///     side, so a module never re-derives them.
+    /// </summary>
+    IModuleFeatureGate? Features => null;
 
     /// <summary>
     ///     The corrected game-clock time (in seconds) at a server tick — the shared "game-seconds-now"
@@ -162,13 +182,6 @@ public interface IModuleContext
     /// </summary>
     IReadOnlyList<GameEventView> GetEventTimeline(string eventName) => Array.Empty<GameEventView>();
 
-    // ── Timeline / transport seams (Playback2D v2 A1) ──
-    // All additive with default implementations, so every existing host and hand-rolled test double keeps
-    // compiling untouched.
-
-    /// <summary>Total frames in the loaded demo, 0 when none. The timeline's x-axis domain.</summary>
-    int TotalFrames => 0;
-
     /// <summary>
     ///     First frame index at/after <paramref name="tick" />, or -1 when unknown / past the end.
     ///     Binary search on the host; the seam that lets a module place tick-stamped events on the
@@ -184,23 +197,10 @@ public interface IModuleContext
     IReadOnlyList<int> EventFrames(string eventName) => Array.Empty<int>();
 
     /// <summary>
-    ///     True while playback speed is pinned by the host (a Live Sync session without the plugin's
-    ///     timescale capability). A module surfaces the lock rather than fighting it.
-    /// </summary>
-    bool IsSpeedLocked => false;
-
-    /// <summary>
     ///     Requests a playback-speed change (capability-gated; clamped host-side to [0.25, 8]).
     ///     No-op while <see cref="IsSpeedLocked" />.
     /// </summary>
     void RequestSpeed(double speed)
     {
     }
-
-    /// <summary>
-    ///     The live feature-gate projection, or <c>null</c> for a host / test double that does not
-    ///     gate. <b>Null fails OPEN.</b> The shell folds platform ANDs (desktop-only ids) in on its
-    ///     side, so a module never re-derives them.
-    /// </summary>
-    IModuleFeatureGate? Features => null;
 }

@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 
 /// <summary>
 ///     Owns the layer stack, its draw order, and the picture caches. Layers are kept sorted by
-///     <c>(Slot, Order, Id)</c> — <c>Id</c> is the final tiebreaker rather than insertion order so the
+///     <c>(Slot, Order, Id)</c>: <c>Id</c> is the final tiebreaker rather than insertion order so the
 ///     sequence is a pure function of the registered set, and a golden image cannot silently depend on
 ///     registration timing.
 ///     <para>
@@ -23,23 +23,25 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 /// </summary>
 public sealed class SceneCompositor : IDisposable
 {
+    // Generous world-space cull for Static recordings: CS2 maps live well inside ±32768 world units.
+    private static readonly SKRect WorldCullRect = new(-32768, -32768, 32768, 32768);
     private readonly SKPaint _background;
     private readonly LayerPictureCache _cache;
     private readonly SKPaint _divider;
     private readonly List<ISceneLayer> _layers = [];
-    private readonly List<IDisposable> _owned = [];
     private readonly SceneCompositorOptions _options;
-    private bool _disposed;
-    private int _layersRendered;
-    private int _panesRendered;
+    private readonly List<IDisposable> _owned = [];
+
+    // Set for the duration of a single-pane Render whose caller framed no pane. See that overload.
+    private bool _bypassCache;
 
     // The palette the live pictures were recorded under, and whether one has been seen at all. See
     // EnsurePalette.
     private ScenePalette _cachedPalette;
+    private bool _disposed;
+    private int _layersRendered;
     private bool _paletteSeen;
-
-    // Set for the duration of a single-pane Render whose caller framed no pane. See that overload.
-    private bool _bypassCache;
+    private int _panesRendered;
 
     /// <summary>Creates a compositor.</summary>
     /// <param name="options">Caching policy; the defaults when null.</param>
@@ -50,7 +52,7 @@ public sealed class SceneCompositor : IDisposable
 
         // Owned and mutated in place rather than constructed per frame. An SKPaint is a managed
         // wrapper over native state, so one per frame is both a heap allocation and a native
-        // allocation — and the §6 budget is zero bytes.
+        // allocation, and the §6 budget is zero bytes.
         _background = new SKPaint
         {
             Style = SKPaintStyle.Fill
@@ -76,7 +78,7 @@ public sealed class SceneCompositor : IDisposable
     public SceneCompositorStats Stats { get; private set; }
 
     /// <summary>
-    ///     Optional per-layer measurement. Null on the default path — the whole mechanism is then one
+    ///     Optional per-layer measurement. Null on the default path: the whole mechanism is then one
     ///     field read and one predicted branch per layer per phase, no clock and no allocation. See
     ///     <see cref="ISceneProfiler" /> for why the timestamping lives on the other side of the
     ///     interface rather than here.
@@ -116,7 +118,7 @@ public sealed class SceneCompositor : IDisposable
     }
 
     /// <summary>
-    ///     Registers a resource the compositor should dispose along with its layers — a
+    ///     Registers a resource the compositor should dispose along with its layers: a
     ///     <see cref="TextBlobCache" /> several layers share, and nothing else so far.
     ///     <para>
     ///         A shared resource cannot be owned by one of the layers sharing it: <see cref="Remove" />
@@ -197,7 +199,7 @@ public sealed class SceneCompositor : IDisposable
     }
 
     /// <summary>
-    ///     Advances every enabled layer. Returns the OR of their results — true means at least one layer
+    ///     Advances every enabled layer. Returns the OR of their results: true means at least one layer
     ///     is still animating, so the caller keeps the self-terminating render loop armed. Every layer is
     ///     advanced even once one has returned true, because Advance is where they mutate.
     /// </summary>
@@ -237,7 +239,7 @@ public sealed class SceneCompositor : IDisposable
     ///     <para>
     ///         <b>A caller that leaves <c>ctx.Pane</c> at its default gets no picture caching.</b> The
     ///         cache key's camera component is <c>Pane.CameraEpoch</c> and its pane component is
-    ///         <c>Pane.LevelId</c> — both zero on a default snapshot — so every <c>PerCamera</c> layer
+    ///         <c>Pane.LevelId</c>, both zero on a default snapshot, so every <c>PerCamera</c> layer
     ///         would key to the same entry whatever the camera is doing, and the first frame's
     ///         pane-local pixels would replay for the life of the compositor. Drawing
     ///         directly costs a re-record per frame on a path with no production caller; a frozen radar
@@ -293,7 +295,7 @@ public sealed class SceneCompositor : IDisposable
 
         // A frame already queued on the render thread when the host tore down arrives here AFTER
         // Dispose. The gate serializes the two but does not order them, and _background/_divider are
-        // compositor-owned SKPaints whose native handles are gone by then — writing through one is an
+        // compositor-owned SKPaints whose native handles are gone by then: writing through one is an
         // access violation, not an exception. Drop the frame instead; there is nothing left to draw.
         if (_disposed)
         {
@@ -318,7 +320,7 @@ public sealed class SceneCompositor : IDisposable
         // "One pane" and "one level" were the same statement until B3: the pre-v2 control drew every
         // player regardless of Z when there was a single band, and that is parity invariant 1. Under
         // SingleLayout a single pane shows ONE of several levels, and drawing the other floor's players
-        // into it would be the very confusion the mode exists to remove — so the sentinel is now
+        // into it would be the very confusion the mode exists to remove, so the sentinel is now
         // "a lone pane over a map that has no other floor".
         bool single = panes.Count == 1 && (submission.Levels?.Levels.Count ?? 1) <= 1;
 
@@ -342,7 +344,7 @@ public sealed class SceneCompositor : IDisposable
                 pane.Level.ZMax,
                 // The ONLY production read of Purpose in the repo, and it is a copy: it is handed to
                 // every layer and no layer branches on it, so Export and Interactive render the same
-                // pixels and Thumbnail is never submitted at all. Reserved, on purpose and on record —
+                // pixels and Thumbnail is never submitted at all. Reserved, on purpose and on record:
                 // RenderPurpose's own doc carries the reasoning, and RenderPurposeTests pins the
                 // equality so this cannot quietly become half-true.
                 submission.Purpose,
@@ -358,7 +360,7 @@ public sealed class SceneCompositor : IDisposable
             _panesRendered++;
         }
 
-        // 3. Band dividers, in HOST coordinates — chrome between panes, not a layer. The pre-v2 rule is
+        // 3. Band dividers, in HOST coordinates: chrome between panes, not a layer. The pre-v2 rule is
         //    "every band except the topmost", i.e. every band whose top edge is not the control's own
         //    top edge.
         if (!single)
@@ -401,8 +403,8 @@ public sealed class SceneCompositor : IDisposable
     ///     were recorded under.
     ///     <para>
     ///         Not a fifth component on the cache key. A recorded picture bakes in whatever colours the
-    ///         layer read out of <c>ctx.Palette</c> — <c>RadarLayer</c>, the only production
-    ///         <c>PerCamera</c> layer, records the grid with <c>MinorGrid</c>/<c>MajorGrid</c> in it — so
+    ///         layer read out of <c>ctx.Palette</c> (<c>RadarLayer</c>, the only production
+    ///         <c>PerCamera</c> layer, records the grid with <c>MinorGrid</c>/<c>MajorGrid</c> in it), so
     ///         a palette swap really does invalidate them all. But the palette is compositor state, not
     ///         frame state (<see cref="ScenePalette" />'s own words: "the theme changes on a variant
     ///         switch, not on a tick"), and putting thirty-two colours into a key that is hashed once per
@@ -478,7 +480,7 @@ public sealed class SceneCompositor : IDisposable
 
             using SKPictureRecorder recorder = new();
             // A PerCamera recording is in PANE-LOCAL SCREEN space, so its cull rect is the pane. A
-            // Static recording is in WORLD space, and its extent is not knowable up front — Skia treats
+            // Static recording is in WORLD space, and its extent is not knowable up front: Skia treats
             // an oversized cull rect as a hint, so a generous one is correct rather than wasteful.
             SKRect cull = perCamera ? ctx.PaneBounds : WorldCullRect;
             SKCanvas recording = recorder.BeginRecording(cull);
@@ -496,9 +498,6 @@ public sealed class SceneCompositor : IDisposable
         SKMatrix matrix = ViewportMatrix.From(ctx.Transform);
         canvas.DrawPicture(picture, ref matrix);
     }
-
-    // Generous world-space cull for Static recordings: CS2 maps live well inside ±32768 world units.
-    private static readonly SKRect WorldCullRect = new(-32768, -32768, 32768, 32768);
 
     private void PublishStats() =>
         Stats = new SceneCompositorStats(_layersRendered, _cache.Recorded, _cache.Replayed, _panesRendered);

@@ -174,8 +174,11 @@ public class Playback2DKeybindRoutingTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            string[] bad = ["NextRound", "NextRound=Bogus", "Teleport=Y", "NextRound=Ctrl+O",
-                "NextRound=D", "FitCamera=G"];
+            string[] bad =
+            [
+                "NextRound", "NextRound=Bogus", "Teleport=Y", "NextRound=Ctrl+O",
+                "NextRound=D", "FitCamera=G"
+            ];
             vm.ApplyKeymapOverrides(["", .. bad]);
 
             Console.WriteLine("[keybind-routing] " + string.Join(" | ", vm.KeymapRejections));
@@ -183,8 +186,7 @@ public class Playback2DKeybindRoutingTests
             // Which rows, not how many — the blank one is skipped silently and every other is named.
             foreach (string row in bad)
             {
-                await Assert.That(vm.KeymapRejections.Any(
-                    r => r.StartsWith(row + ":", StringComparison.Ordinal))).IsTrue()
+                await Assert.That(vm.KeymapRejections.Any(r => r.StartsWith(row + ":", StringComparison.Ordinal))).IsTrue()
                     .Because($"the tab has to name the row it dropped: {row}");
             }
 

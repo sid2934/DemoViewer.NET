@@ -43,7 +43,7 @@ public class SceneDeterminismTests
             }
         }
 
-        Console.WriteLine($"[determinism] 96 frames, first divergence: " +
+        Console.WriteLine("[determinism] 96 frames, first divergence: " +
                           (firstDifference < 0 ? "none" : firstDifference.ToString(CultureInfo.InvariantCulture)));
         await Assert.That(firstDifference).IsEqualTo(-1);
     }
@@ -100,7 +100,7 @@ public class SceneDeterminismTests
     {
         SceneFixture fixture = SyntheticScenes.FullSceneBudget();
 
-        string export = HashOnce(fixture, false, RenderPurpose.Export);
+        string export = HashOnce(fixture, false);
         string interactive = HashOnce(fixture, false, RenderPurpose.Interactive);
 
         await Assert.That(interactive).IsEqualTo(export);

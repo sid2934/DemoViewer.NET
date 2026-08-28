@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Numerics;
 using Avalonia;
 using Avalonia.Controls;
@@ -12,6 +13,8 @@ using Avalonia.Styling;
 using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Output;
+using CS2DemoKit.Analysis.Visibility;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.Features;
@@ -20,7 +23,6 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RuleWorkbench;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -34,24 +36,23 @@ using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Highlights;
 using DemoViewer.NET.ViewModels.Library;
 using DemoViewer.NET.ViewModels.LiveSync;
+using DemoViewer.NET.ViewModels.MatchOverview;
 using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
-using DemoViewer.NET.ViewModels.MatchOverview;
 using DemoViewer.NET.ViewModels.Tutorial;
-using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Views;
 using DemoViewer.NET.Views.Analysis;
-using DemoViewer.NET.Views.MatchOverview;
-using DemoViewer.NET.Views.Tutorial;
 using DemoViewer.NET.Views.DemoProcessing;
 using DemoViewer.NET.Views.Highlights;
 using DemoViewer.NET.Views.Library;
 using DemoViewer.NET.Views.LiveSync;
+using DemoViewer.NET.Views.MatchOverview;
 using DemoViewer.NET.Views.RuleWorkbench;
 using DemoViewer.NET.Views.Settings;
 using DemoViewer.NET.Views.Setup;
+using DemoViewer.NET.Views.Tutorial;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -158,7 +159,7 @@ public static class Variants
             ["highlights-populated"] = () => Highlights(true, false),
             ["highlights-empty"] = () => Highlights(false, false),
             ["highlights-narrow"] = () => Highlights(true, true),
-            ["highlights-moved"] = () => Highlights(true, false, demosExist: false),
+            ["highlights-moved"] = () => Highlights(true, false, false),
             ["highlights-job"] = () => Highlights(true, false, withJob: true),
             ["highlights-empty-library"] = () => Highlights(false, false, libraryIndexed: false),
             // The Add-clips picker, IN SITU (overlay over the dashboard) — the state that matters most,
@@ -202,7 +203,7 @@ public static class Variants
             ["match-overview-parsed"] = () => MatchOverview(MatchOverviewMock.Parsed),
             ["match-overview-ready"] = () => MatchOverview(MatchOverviewMock.Ready),
             ["match-overview-failed"] = () => MatchOverview(MatchOverviewMock.Failed),
-            ["match-overview-spectators"] = () => MatchOverview(MatchOverviewMock.Ready, spectators: 3),
+            ["match-overview-spectators"] = () => MatchOverview(MatchOverviewMock.Ready, 3),
             // Cached render (the page's second job) at each tier the cache can be in. Header = nothing has
             // parsed it; Parse = the 80%-coverage case, real rosters + score but no scoreboard; Analysis =
             // the full record. Drive the width from the CLI to see the two-column body collapse
@@ -215,7 +216,7 @@ public static class Variants
             // than draw two empty teams.
             ["match-overview-cached-nosplit"] = () => MatchOverviewCached(DemoCacheTier.Parse, teamSplit: false),
             ["match-overview-cached-failed"] = () =>
-                MatchOverviewCached(DemoCacheTier.Analysis, analysisState: DemoAnalysisState.Failed)
+                MatchOverviewCached(DemoCacheTier.Analysis, DemoAnalysisState.Failed)
         };
 
     private static readonly (string Event, string Tick, string Hits)[] _dataRows =
@@ -247,31 +248,23 @@ public static class Variants
 
     private static readonly string[] _navSpeedsX = ["0.25", "0.5", "1", "2", "4", "8"];
 
-    /// <summary>
-    ///     The real <see cref="DemoViewer.NET.Views.Highlights.HighlightsTabView" /> over a real
-    ///     <see cref="DemoViewer.NET.ViewModels.Highlights.HighlightsTabViewModel" /> seeded with fake cache
-    ///     rows (no demos, no parse). Populated selects the first demo so the details pane + a reel selection
-    ///     render; narrow demonstrates the responsive single-column collapse (set the tab width small on the
-    ///     CLI, e.g. --size 560x680). Empty shows the hero.
-    /// </summary>
-    /// <summary>
-    ///     The Reels dashboard: the ordered clip tray plus
-    ///     the promoted reel config pane. Variants exercise the three states that actually differ — a populated
-    ///     cross-demo tray, the empty tray, and the narrow (single-column) collapse — plus a "moved demo"
-    ///     variant, because the staging-time pre-flight is the one thing that reads only from disk state.
-    /// </summary>
-    /// <summary>Which Add-clips picker state a Highlights capture opens with (null = closed).</summary>
-    private enum PickerMock
-    {
-        /// <summary>Open, unfiltered, nothing staged from it yet.</summary>
-        Open,
+    // Region rects (overlay == backdrop coords, both fill the window from 0,0 at 1280x800).
+    private static readonly Rect _tabNavRect = new(6, 4, 384, 36); // union of the tab headers
+    private static readonly Rect _libraryTabRect = new(8, 5, 96, 34); // the "Library" tab header
+    private static readonly Rect _openDemoRect = new(1136, 6, 120, 32); // top-right "Open Demo" button
+    private static readonly Rect _firstCardRect = new(24, 68, 231, 147); // the first Library demo card
+    private static readonly Rect _transportRect = new(10, 758, 330, 34); // bottom transport strip
 
-        /// <summary>Open with part of the list already in the tray — the [ + ] vs [ ✓ ] contrast.</summary>
-        SomeStaged,
+    // The two rosters, with one bot each so the BOT tag renders (real demos frequently have a filler bot).
+    private static readonly (string Name, bool Bot)[] _overviewCt =
+    [
+        ("s1mple", false), ("b1t", false), ("electroNic", false), ("Perfecto", false), ("BOT Rock", true)
+    ];
 
-        /// <summary>Open with a search needle that excludes every row.</summary>
-        NoFilterMatch
-    }
+    private static readonly (string Name, bool Bot)[] _overviewT =
+    [
+        ("ZywOo", false), ("apEX", false), ("flameZ", false), ("mezii", false), ("BOT Wolf", true)
+    ];
 
     private static HighlightsTabView Highlights(bool populated, bool narrow, bool demosExist = true,
         bool withJob = false, bool libraryIndexed = true, PickerMock? picker = null,
@@ -308,11 +301,11 @@ public static class Variants
                 ]));
         }
 
-        HighlightScanService scanner = new HighlightScanService(
+        HighlightScanService scanner = new(
             store,
             new CaptureHarvester(),
-            libraryDemoPaths: () => [],
-            backgroundScanEnabled: () => false);
+            () => [],
+            () => false);
 
         HighlightsTabViewModel vm = new(
             store, scanner,
@@ -384,8 +377,11 @@ public static class Variants
     {
         string[] maps = ["de_dust2", "de_mirage", "de_nuke", "de_inferno", "de_ancient", "de_overpass"];
         string[] players = ["s1mple", "ZywOo", "b1t", "stavn", "NiKo", "device", "ropz", "m0NESY"];
-        string[] types = ["clutch.ace", "clutch.clutch_1v3", "clutch.retake_3k", "clutch.plant_kills",
-            "clutch.deagle_hs", "opening.entry_trade"];
+        string[] types =
+        [
+            "clutch.ace", "clutch.clutch_1v3", "clutch.retake_3k", "clutch.plant_kills",
+            "clutch.deagle_hs", "opening.entry_trade"
+        ];
 
         for (int d = 0; d < 8; d++)
         {
@@ -395,7 +391,7 @@ public static class Variants
                 {
                     int p = (d * 3 + i) % players.Length;
                     return (players[p], "7656119800000" + p.ToString("D4",
-                            System.Globalization.CultureInfo.InvariantCulture),
+                            CultureInfo.InvariantCulture),
                         i < 3 ? 2 : 3, i);
                 })
             ];
@@ -523,7 +519,11 @@ public static class Variants
             TickCount = 120000,
             ModifiedTicks = modified,
             ProfileName = "Cs2GotvProfile",
-            Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 },
+            Analysis = new TierStamp
+            {
+                Schema = DemoCacheRecord.AnalysisSchema,
+                ComputedAtTicks = 1
+            },
             AnalysisState = scanState,
             ConfigFingerprint = "capture@64",
             Players =
@@ -538,7 +538,7 @@ public static class Variants
             ],
             Rounds =
             [
-                .. rounds.Select(r => new Services.DemoCache.CachedRound
+                .. rounds.Select(r => new CachedRound
                 {
                     Number = r.Number,
                     StartTickFrameClock = r.StartTick
@@ -2467,28 +2467,6 @@ public static class Variants
             }
         };
 
-    // ═══════════════════════════════════════════════════════════════════════════════════════════
-    //  First-run Visual Walkthrough (coach-mark tour) — the real TutorialView overlaid on a COARSE
-    //  app-like backdrop (recognizable regions, not a full app mock) so the spotlight hole frames
-    //  something. Render at 1280x800; the seeded SpotlightRects are authored for that size (the bottom
-    //  transport strip is Dock=Bottom, so its rect tracks window height — keep size + rects in sync).
-    // ═══════════════════════════════════════════════════════════════════════════════════════════
-    private enum TutorialMock
-    {
-        Welcome, // Default[0] — centred welcome card (no spotlight)
-        TabNav, // Default[1] — the workspace tab strip
-        Library, // Default[2] — the Library landing tab
-        Waiting, // Default[3] — the open-demo gateway, parked in its IsWaiting state
-        Transport // Default[6] — the NavStrip transport cluster
-    }
-
-    // Region rects (overlay == backdrop coords, both fill the window from 0,0 at 1280x800).
-    private static readonly Rect _tabNavRect = new(6, 4, 384, 36); // union of the tab headers
-    private static readonly Rect _libraryTabRect = new(8, 5, 96, 34); // the "Library" tab header
-    private static readonly Rect _openDemoRect = new(1136, 6, 120, 32); // top-right "Open Demo" button
-    private static readonly Rect _firstCardRect = new(24, 68, 231, 147); // the first Library demo card
-    private static readonly Rect _transportRect = new(10, 758, 330, 34); // bottom transport strip
-
     // pulsePhase != null → pin the spotlight to a static breathing phase (0 dim … 1 bright) for review;
     // null → the live breathing animation (settles near its bright end under the headless render pump).
     private static Panel Tutorial(TutorialMock mock, double? pulsePhase = null)
@@ -2499,7 +2477,7 @@ public static class Variants
             TutorialMock.Library => (TutorialSteps.Default[2], 3, _libraryTabRect),
             TutorialMock.Waiting => (TutorialSteps.Default[3], 4, _firstCardRect),
             TutorialMock.Transport => (TutorialSteps.Default[6], 7, _transportRect),
-            _ => (TutorialSteps.Default[0], 1, default(Rect))
+            _ => (TutorialSteps.Default[0], 1, default)
         };
 
         bool waiting = mock == TutorialMock.Waiting;
@@ -2577,7 +2555,10 @@ public static class Variants
         // spotlights (_openDemoRect). Present in every mock for a realistic toolbar.
         Button openDemo = new()
         {
-            Classes = { "primary" },
+            Classes =
+            {
+                "primary"
+            },
             Content = "Open Demo",
             FontSize = 12,
             Padding = new Thickness(14, 5),
@@ -3445,10 +3426,18 @@ public static class Variants
             TickCount = 200_000,
             Sha256 = "sha-" + name,
             // Slot is the join now — the record holds the roster once and the event points at it.
-            Players = [new CachedPlayerInfo { Slot = round, Name = name, SteamId64 = steam }],
+            Players =
+            [
+                new CachedPlayerInfo
+                {
+                    Slot = round,
+                    Name = name,
+                    SteamId64 = steam
+                }
+            ],
             Rounds =
             [
-                new Services.DemoCache.CachedRound
+                new CachedRound
                 {
                     Number = round,
                     StartTickFrameClock = tick - 3000
@@ -3610,6 +3599,323 @@ public static class Variants
             Background = Tok("ShellBg"),
             Child = col
         };
+    }
+
+    private static Panel MatchOverview(MatchOverviewMock mock, int spectators = 0)
+    {
+        // Real (no-op) CTA actions so the captures show the buttons in their true enabled/disabled state —
+        // both gates also require an action to be wired, so a bare `new()` would render them permanently
+        // greyed and hide a regression in the gating.
+        // Real (no-op) actions so the captures show every affordance in its true state — each gate also
+        // requires a wired delegate, so a bare `new()` renders them permanently absent and hides a gating
+        // regression. computeFullStats in particular drives the highlight card's "index them" action.
+        MatchOverviewTabViewModel vm = new(() => { }, () => { }, _ => { }, _ => { });
+        vm.BeginOpening(
+            mock == MatchOverviewMock.Failed ? "corrupt_round12_de_ancient.dem" : "match730_pug_de_mirage_2024.dem",
+            mock == MatchOverviewMock.Failed ? "Ancient" : "Mirage",
+            mock == MatchOverviewMock.Failed ? "FACEIT.com register to play here" : "Valve Counter-Strike 2 Server",
+            // The capture drives one demo at a time, so the file name is a sufficient subject key.
+            mock == MatchOverviewMock.Failed ? "corrupt_round12_de_ancient.dem" : "match730_pug_de_mirage_2024.dem");
+
+        if (mock == MatchOverviewMock.Failed)
+        {
+            vm.Fail(vm.SubjectKey, "The demo header is truncated — the file may have stopped recording early or been "
+                                   + "copied incompletely. Try re-downloading it from the source.");
+            return OverviewPanel(vm);
+        }
+
+        if (mock == MatchOverviewMock.Opening)
+        {
+            vm.SetStage(vm.SubjectKey, "Parsing demo…", 0.15);
+            return OverviewPanel(vm);
+        }
+
+        // Post-parse: what SetSummary(ParsedDemo) produces, without needing a real ParsedDemo.
+        vm.DurationDisplay = "42:18";
+        vm.TickRateDisplay = "64";
+        vm.PlayerCountDisplay = "10";
+        // Tournament demos routinely carry observers/coaches/admins; the tile is hidden at 0.
+        vm.SpectatorCountDisplay = spectators.ToString(CultureInfo.InvariantCulture);
+        vm.HasSpectators = spectators > 0;
+        foreach ((string n, bool bot) in _overviewCt)
+        {
+            vm.CounterTerrorists.Add(new OverviewPlayer(n, bot));
+        }
+
+        foreach ((string n, bool bot) in _overviewT)
+        {
+            vm.Terrorists.Add(new OverviewPlayer(n, bot));
+        }
+
+        vm.HasSummary = true;
+        // A live parse always yields the team split, so the roster gate lands with the summary — without it
+        // the header badges hold the placeholder, which is correct for a migrated cache row and wrong here.
+        vm.HasRoster = true;
+        vm.ParseStage.IsActive = false;
+        vm.ParseStage.IsDone = true;
+        vm.EnrichStage.IsActive = true;
+        vm.SetStage(vm.SubjectKey, "Preparing playback and navigation…", 0.45);
+
+        if (mock == MatchOverviewMock.Parsed)
+        {
+            return OverviewPanel(vm);
+        }
+
+        // Post-analysis: drive the REAL SetAnalysis with a synthesized game table, so the capture exercises
+        // the same projection (column keys, "—" fallbacks, CT-then-T ordering) the shell feeds it.
+        vm.BeginAnalysis(vm.SubjectKey);
+        vm.SetAnalysis(vm.SubjectKey, OverviewGameTable(), new Dictionary<int, int?>
+        {
+            [0] = 13,
+            [1] = 9
+        }, 22);
+        // The score is authoritative (CCSTeam.m_iScore), fed separately from the analysis run — mirror that
+        // here, with clan names so the capture shows the pro-demo labelling rather than "ENDED CT".
+        vm.SetTeamScores(vm.SubjectKey, 13, 9);
+        vm.SetTeamNames(vm.SubjectKey, "Team Vitality", "FaZe Clan");
+        return OverviewPanel(vm);
+    }
+
+    /// <summary>
+    ///     The CACHED render — the real <see cref="MatchOverviewTabView" /> over a real view-model fed a
+    ///     synthesized <see cref="DemoCacheRecord" />. No store, no filesystem, no parse: exactly what the
+    ///     production path does, which is the point of the mode.
+    /// </summary>
+    private static Panel MatchOverviewCached(
+        DemoCacheTier tier,
+        DemoAnalysisState analysisState = DemoAnalysisState.Pending,
+        bool teamSplit = true)
+    {
+        // Real (no-op) actions so the captures show the buttons in their true enabled state — the gates all
+        // require a wired action, so a bare `new()` would render them permanently absent and hide a
+        // regression in the gating.
+        MatchOverviewTabViewModel vm = new(
+            () => { }, () => { }, _ => { }, _ => { }, () => { });
+
+        DemoCacheRecord r = new()
+        {
+            Path = "/demos/faceit_2025-06-14_dust2.dem",
+            Size = 148_000_000,
+            ModifiedTicks = 638_000_000_000_000_000
+        };
+
+        if (tier >= DemoCacheTier.Header)
+        {
+            r.Header = new TierStamp
+            {
+                Schema = DemoCacheRecord.HeaderSchema,
+                ComputedAtTicks = 1
+            };
+            r.Map = "de_dust2";
+            r.Server = "FACEIT Server EU #4021";
+        }
+
+        if (tier >= DemoCacheTier.Parse)
+        {
+            r.Parse = new TierStamp
+            {
+                Schema = DemoCacheRecord.ParseSchema,
+                ComputedAtTicks = 1
+            };
+            r.DurationSeconds = 2292;
+            r.TickRate = 64;
+            r.TickCount = 146_688;
+            r.CtScore = 13;
+            r.TScore = 9;
+            r.CtClan = "Natus Vincere";
+            r.TClan = "FaZe Clan";
+            for (int i = 0; i < 22; i++)
+            {
+                r.Rounds.Add(new CachedRound
+                {
+                    Number = i + 1,
+                    StartTickFrameClock = 1000 + i * 5000
+                });
+            }
+
+            int slot = 0;
+            foreach ((string name, bool bot) in _overviewCt)
+            {
+                r.Players.Add(new CachedPlayerInfo
+                {
+                    Slot = slot++,
+                    Name = name,
+                    Team = teamSplit ? 3 : 0,
+                    IsBot = bot
+                });
+            }
+
+            foreach ((string name, bool bot) in _overviewT)
+            {
+                r.Players.Add(new CachedPlayerInfo
+                {
+                    Slot = slot++,
+                    Name = name,
+                    Team = teamSplit ? 2 : 0,
+                    IsBot = bot
+                });
+            }
+        }
+
+        r.AnalysisState = analysisState;
+        if (tier >= DemoCacheTier.Analysis && analysisState != DemoAnalysisState.Failed)
+        {
+            r.Analysis = new TierStamp
+            {
+                Schema = DemoCacheRecord.AnalysisSchema,
+                ComputedAtTicks = 1
+            };
+            r.AnalysisRoundCount = 22;
+            r.CtSideWins = 12;
+            r.TSideWins = 10;
+
+            (string Name, int Team, int K, int D, int A, double Adr, double Rating)[] board =
+            [
+                ("s1mple", 3, 24, 14, 4, 92.4, 1.34), ("b1t", 3, 19, 15, 6, 78.1, 1.12),
+                ("electroNic", 3, 17, 16, 8, 74.9, 1.08), ("Perfecto", 3, 12, 17, 9, 61.3, 0.92),
+                ("BOT Rock", 3, 6, 19, 2, 34.0, 0.51), ("ZywOo", 2, 22, 16, 5, 88.7, 1.27),
+                ("apEX", 2, 15, 18, 7, 69.2, 0.97), ("flameZ", 2, 14, 17, 6, 66.8, 0.95),
+                ("mezii", 2, 11, 18, 10, 58.4, 0.88), ("BOT Wolf", 2, 5, 20, 3, 31.2, 0.47)
+            ];
+            for (int i = 0; i < board.Length; i++)
+            {
+                r.Scoreboard.Add(new CachedStatRow
+                {
+                    Slot = i,
+                    Team = board[i].Team,
+                    Kills = board[i].K,
+                    Deaths = board[i].D,
+                    Assists = board[i].A,
+                    Adr = board[i].Adr,
+                    Rating = board[i].Rating
+                });
+            }
+
+            (int Slot, int Round, int Tick, string Id, string Title)[] highlights =
+            [
+                (0, 7, 54_321, "plant_kills", "s1mple — 2 kills after the plant (round 7)"),
+                (0, 12, 61_200, "ace", "s1mple — ace (round 12)"),
+                (0, 18, 88_010, "clutch_1v3", "s1mple — 1v3 clutch (round 18)"),
+                (5, 4, 30_110, "retake_3k", "ZywOo — 3k retake (round 4)"),
+                (5, 15, 70_400, "double", "ZywOo — double kill through smoke (round 15)"),
+                (1, 9, 42_010, "opening_duel", "b1t — opening duel won (round 9)")
+            ];
+            foreach ((int s, int round, int tick, string id, string title) in highlights)
+            {
+                r.Highlights.Add(new CachedHighlightEvent
+                {
+                    RulesetId = "clutch",
+                    HighlightId = id,
+                    PlayerSlot = s,
+                    RoundNumber = round,
+                    Tick = tick,
+                    RenderedTitle = title
+                });
+            }
+        }
+
+        vm.SetCachedRecord(r);
+        // A different demo is open behind the preview — shows the "◀ Back" affordance in its true state.
+        vm.LiveDemoName = "esl_2025-06-02_nuke.dem";
+        return OverviewPanel(vm);
+    }
+
+    // A stand-in for the analysis engine's per-player match table, using the same column keys the real
+    // PlayerGameStatsProjector emits (see ColumnCatalogue).
+    private static MetricTable OverviewGameTable()
+    {
+        (string Name, int Team, int K, int D, int A, double Adr, double Rating)[] rows =
+        [
+            ("s1mple", 3, 24, 14, 4, 92.4, 1.34),
+            ("b1t", 3, 19, 15, 6, 78.1, 1.12),
+            ("electroNic", 3, 17, 16, 8, 74.9, 1.08),
+            ("Perfecto", 3, 12, 17, 9, 61.3, 0.92),
+            ("BOT Rock", 3, 6, 19, 2, 34.0, 0.51),
+            ("ZywOo", 2, 22, 16, 5, 88.7, 1.27),
+            ("apEX", 2, 15, 18, 7, 69.2, 0.97),
+            ("flameZ", 2, 14, 17, 6, 66.8, 0.95),
+            ("mezii", 2, 11, 18, 10, 58.4, 0.88),
+            ("BOT Wolf", 2, 5, 20, 3, 31.2, 0.47)
+        ];
+
+        return new MetricTable(
+            "player_game",
+            ["player_name", "team"],
+            ["TotalK", "TotalD", "TotalA", "ADR", "HLTV", "CTW", "TW"],
+            rows.Select(r => new MetricRow(
+                    new Dictionary<string, object?>
+                    {
+                        ["player_name"] = r.Name,
+                        ["team"] = r.Team
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["TotalK"] = r.K,
+                        ["TotalD"] = r.D,
+                        ["TotalA"] = r.A,
+                        ["ADR"] = r.Adr,
+                        ["HLTV"] = r.Rating,
+                        // Per-team round wins by side. The CT-ending team took 6 as CT + 7 as T = 13; the
+                        // T-ending team 6 + 3 = 9. So the SIDE split (CT 12 / T 10) differs from the TEAM
+                        // totals (13 / 9) — exactly the half-swap case the page must not conflate.
+                        ["CTW"] = r.Team == 3 ? 6 : 6,
+                        ["TW"] = r.Team == 3 ? 7 : 3
+                    }))
+                .ToList());
+    }
+
+    private static Panel OverviewPanel(MatchOverviewTabViewModel vm) =>
+        new()
+        {
+            Background = Tok("ShellBg"),
+            Children =
+            {
+                new MatchOverviewTabView
+                {
+                    DataContext = vm
+                }
+            }
+        };
+
+    /// <summary>
+    ///     The real <see cref="DemoViewer.NET.Views.Highlights.HighlightsTabView" /> over a real
+    ///     <see cref="DemoViewer.NET.ViewModels.Highlights.HighlightsTabViewModel" /> seeded with fake cache
+    ///     rows (no demos, no parse). Populated selects the first demo so the details pane + a reel selection
+    ///     render; narrow demonstrates the responsive single-column collapse (set the tab width small on the
+    ///     CLI, e.g. --size 560x680). Empty shows the hero.
+    /// </summary>
+    /// <summary>
+    ///     The Reels dashboard: the ordered clip tray plus
+    ///     the promoted reel config pane. Variants exercise the three states that actually differ — a populated
+    ///     cross-demo tray, the empty tray, and the narrow (single-column) collapse — plus a "moved demo"
+    ///     variant, because the staging-time pre-flight is the one thing that reads only from disk state.
+    /// </summary>
+    /// <summary>Which Add-clips picker state a Highlights capture opens with (null = closed).</summary>
+    private enum PickerMock
+    {
+        /// <summary>Open, unfiltered, nothing staged from it yet.</summary>
+        Open,
+
+        /// <summary>Open with part of the list already in the tray — the [ + ] vs [ ✓ ] contrast.</summary>
+        SomeStaged,
+
+        /// <summary>Open with a search needle that excludes every row.</summary>
+        NoFilterMatch
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    //  First-run Visual Walkthrough (coach-mark tour) — the real TutorialView overlaid on a COARSE
+    //  app-like backdrop (recognizable regions, not a full app mock) so the spotlight hole frames
+    //  something. Render at 1280x800; the seeded SpotlightRects are authored for that size (the bottom
+    //  transport strip is Dock=Bottom, so its rect tracks window height — keep size + rects in sync).
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    private enum TutorialMock
+    {
+        Welcome, // Default[0] — centred welcome card (no spotlight)
+        TabNav, // Default[1] — the workspace tab strip
+        Library, // Default[2] — the Library landing tab
+        Waiting, // Default[3] — the open-demo gateway, parked in its IsWaiting state
+        Transport // Default[6] — the NavStrip transport cluster
     }
 
     // ── Highlights tab ─────────────────────────────────────────────────────────
@@ -3960,249 +4266,4 @@ public static class Variants
         Ready,
         Failed
     }
-
-    // The two rosters, with one bot each so the BOT tag renders (real demos frequently have a filler bot).
-    private static readonly (string Name, bool Bot)[] _overviewCt =
-    [
-        ("s1mple", false), ("b1t", false), ("electroNic", false), ("Perfecto", false), ("BOT Rock", true)
-    ];
-
-    private static readonly (string Name, bool Bot)[] _overviewT =
-    [
-        ("ZywOo", false), ("apEX", false), ("flameZ", false), ("mezii", false), ("BOT Wolf", true)
-    ];
-
-    private static Panel MatchOverview(MatchOverviewMock mock, int spectators = 0)
-    {
-        // Real (no-op) CTA actions so the captures show the buttons in their true enabled/disabled state —
-        // both gates also require an action to be wired, so a bare `new()` would render them permanently
-        // greyed and hide a regression in the gating.
-        // Real (no-op) actions so the captures show every affordance in its true state — each gate also
-        // requires a wired delegate, so a bare `new()` renders them permanently absent and hides a gating
-        // regression. computeFullStats in particular drives the highlight card's "index them" action.
-        MatchOverviewTabViewModel vm = new(() => { }, () => { }, _ => { }, _ => { });
-        vm.BeginOpening(
-            mock == MatchOverviewMock.Failed ? "corrupt_round12_de_ancient.dem" : "match730_pug_de_mirage_2024.dem",
-            mock == MatchOverviewMock.Failed ? "Ancient" : "Mirage",
-            mock == MatchOverviewMock.Failed ? "FACEIT.com register to play here" : "Valve Counter-Strike 2 Server",
-            // The capture drives one demo at a time, so the file name is a sufficient subject key.
-            mock == MatchOverviewMock.Failed ? "corrupt_round12_de_ancient.dem" : "match730_pug_de_mirage_2024.dem");
-
-        if (mock == MatchOverviewMock.Failed)
-        {
-            vm.Fail(vm.SubjectKey, "The demo header is truncated — the file may have stopped recording early or been "
-                    + "copied incompletely. Try re-downloading it from the source.");
-            return OverviewPanel(vm);
-        }
-
-        if (mock == MatchOverviewMock.Opening)
-        {
-            vm.SetStage(vm.SubjectKey, "Parsing demo…", 0.15);
-            return OverviewPanel(vm);
-        }
-
-        // Post-parse: what SetSummary(ParsedDemo) produces, without needing a real ParsedDemo.
-        vm.DurationDisplay = "42:18";
-        vm.TickRateDisplay = "64";
-        vm.PlayerCountDisplay = "10";
-        // Tournament demos routinely carry observers/coaches/admins; the tile is hidden at 0.
-        vm.SpectatorCountDisplay = spectators.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        vm.HasSpectators = spectators > 0;
-        foreach ((string n, bool bot) in _overviewCt)
-        {
-            vm.CounterTerrorists.Add(new OverviewPlayer(n, bot));
-        }
-
-        foreach ((string n, bool bot) in _overviewT)
-        {
-            vm.Terrorists.Add(new OverviewPlayer(n, bot));
-        }
-
-        vm.HasSummary = true;
-        // A live parse always yields the team split, so the roster gate lands with the summary — without it
-        // the header badges hold the placeholder, which is correct for a migrated cache row and wrong here.
-        vm.HasRoster = true;
-        vm.ParseStage.IsActive = false;
-        vm.ParseStage.IsDone = true;
-        vm.EnrichStage.IsActive = true;
-        vm.SetStage(vm.SubjectKey, "Preparing playback and navigation…", 0.45);
-
-        if (mock == MatchOverviewMock.Parsed)
-        {
-            return OverviewPanel(vm);
-        }
-
-        // Post-analysis: drive the REAL SetAnalysis with a synthesized game table, so the capture exercises
-        // the same projection (column keys, "—" fallbacks, CT-then-T ordering) the shell feeds it.
-        vm.BeginAnalysis(vm.SubjectKey);
-        vm.SetAnalysis(vm.SubjectKey, OverviewGameTable(), new Dictionary<int, int?> { [0] = 13, [1] = 9 }, 22);
-        // The score is authoritative (CCSTeam.m_iScore), fed separately from the analysis run — mirror that
-        // here, with clan names so the capture shows the pro-demo labelling rather than "ENDED CT".
-        vm.SetTeamScores(vm.SubjectKey, 13, 9);
-        vm.SetTeamNames(vm.SubjectKey, "Team Vitality", "FaZe Clan");
-        return OverviewPanel(vm);
-    }
-
-    /// <summary>
-    ///     The CACHED render — the real <see cref="MatchOverviewTabView" /> over a real view-model fed a
-    ///     synthesized <see cref="DemoCacheRecord" />. No store, no filesystem, no parse: exactly what the
-    ///     production path does, which is the point of the mode.
-    /// </summary>
-    private static Panel MatchOverviewCached(
-        DemoCacheTier tier,
-        DemoAnalysisState analysisState = DemoAnalysisState.Pending,
-        bool teamSplit = true)
-    {
-        // Real (no-op) actions so the captures show the buttons in their true enabled state — the gates all
-        // require a wired action, so a bare `new()` would render them permanently absent and hide a
-        // regression in the gating.
-        MatchOverviewTabViewModel vm = new(
-            () => { }, () => { }, _ => { }, _ => { }, () => { });
-
-        DemoCacheRecord r = new()
-        {
-            Path = "/demos/faceit_2025-06-14_dust2.dem",
-            Size = 148_000_000,
-            ModifiedTicks = 638_000_000_000_000_000
-        };
-
-        if (tier >= DemoCacheTier.Header)
-        {
-            r.Header = new TierStamp { Schema = DemoCacheRecord.HeaderSchema, ComputedAtTicks = 1 };
-            r.Map = "de_dust2";
-            r.Server = "FACEIT Server EU #4021";
-        }
-
-        if (tier >= DemoCacheTier.Parse)
-        {
-            r.Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 };
-            r.DurationSeconds = 2292;
-            r.TickRate = 64;
-            r.TickCount = 146_688;
-            r.CtScore = 13;
-            r.TScore = 9;
-            r.CtClan = "Natus Vincere";
-            r.TClan = "FaZe Clan";
-            for (int i = 0; i < 22; i++)
-            {
-                r.Rounds.Add(new DemoViewer.NET.Services.DemoCache.CachedRound
-                {
-                    Number = i + 1, StartTickFrameClock = 1000 + (i * 5000)
-                });
-            }
-
-            int slot = 0;
-            foreach ((string name, bool bot) in _overviewCt)
-            {
-                r.Players.Add(new CachedPlayerInfo
-                {
-                    Slot = slot++, Name = name, Team = teamSplit ? 3 : 0, IsBot = bot
-                });
-            }
-
-            foreach ((string name, bool bot) in _overviewT)
-            {
-                r.Players.Add(new CachedPlayerInfo
-                {
-                    Slot = slot++, Name = name, Team = teamSplit ? 2 : 0, IsBot = bot
-                });
-            }
-        }
-
-        r.AnalysisState = analysisState;
-        if (tier >= DemoCacheTier.Analysis && analysisState != DemoAnalysisState.Failed)
-        {
-            r.Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 };
-            r.AnalysisRoundCount = 22;
-            r.CtSideWins = 12;
-            r.TSideWins = 10;
-
-            (string Name, int Team, int K, int D, int A, double Adr, double Rating)[] board =
-            [
-                ("s1mple", 3, 24, 14, 4, 92.4, 1.34), ("b1t", 3, 19, 15, 6, 78.1, 1.12),
-                ("electroNic", 3, 17, 16, 8, 74.9, 1.08), ("Perfecto", 3, 12, 17, 9, 61.3, 0.92),
-                ("BOT Rock", 3, 6, 19, 2, 34.0, 0.51), ("ZywOo", 2, 22, 16, 5, 88.7, 1.27),
-                ("apEX", 2, 15, 18, 7, 69.2, 0.97), ("flameZ", 2, 14, 17, 6, 66.8, 0.95),
-                ("mezii", 2, 11, 18, 10, 58.4, 0.88), ("BOT Wolf", 2, 5, 20, 3, 31.2, 0.47)
-            ];
-            for (int i = 0; i < board.Length; i++)
-            {
-                r.Scoreboard.Add(new CachedStatRow
-                {
-                    Slot = i, Team = board[i].Team, Kills = board[i].K, Deaths = board[i].D,
-                    Assists = board[i].A, Adr = board[i].Adr, Rating = board[i].Rating
-                });
-            }
-
-            (int Slot, int Round, int Tick, string Id, string Title)[] highlights =
-            [
-                (0, 7, 54_321, "plant_kills", "s1mple — 2 kills after the plant (round 7)"),
-                (0, 12, 61_200, "ace", "s1mple — ace (round 12)"),
-                (0, 18, 88_010, "clutch_1v3", "s1mple — 1v3 clutch (round 18)"),
-                (5, 4, 30_110, "retake_3k", "ZywOo — 3k retake (round 4)"),
-                (5, 15, 70_400, "double", "ZywOo — double kill through smoke (round 15)"),
-                (1, 9, 42_010, "opening_duel", "b1t — opening duel won (round 9)")
-            ];
-            foreach ((int s, int round, int tick, string id, string title) in highlights)
-            {
-                r.Highlights.Add(new CachedHighlightEvent
-                {
-                    RulesetId = "clutch", HighlightId = id, PlayerSlot = s,
-                    RoundNumber = round, Tick = tick, RenderedTitle = title
-                });
-            }
-        }
-
-        vm.SetCachedRecord(r);
-        // A different demo is open behind the preview — shows the "◀ Back" affordance in its true state.
-        vm.LiveDemoName = "esl_2025-06-02_nuke.dem";
-        return OverviewPanel(vm);
-    }
-
-    // A stand-in for the analysis engine's per-player match table, using the same column keys the real
-    // PlayerGameStatsProjector emits (see ColumnCatalogue).
-    private static MetricTable OverviewGameTable()
-    {
-        (string Name, int Team, int K, int D, int A, double Adr, double Rating)[] rows =
-        [
-            ("s1mple", 3, 24, 14, 4, 92.4, 1.34),
-            ("b1t", 3, 19, 15, 6, 78.1, 1.12),
-            ("electroNic", 3, 17, 16, 8, 74.9, 1.08),
-            ("Perfecto", 3, 12, 17, 9, 61.3, 0.92),
-            ("BOT Rock", 3, 6, 19, 2, 34.0, 0.51),
-            ("ZywOo", 2, 22, 16, 5, 88.7, 1.27),
-            ("apEX", 2, 15, 18, 7, 69.2, 0.97),
-            ("flameZ", 2, 14, 17, 6, 66.8, 0.95),
-            ("mezii", 2, 11, 18, 10, 58.4, 0.88),
-            ("BOT Wolf", 2, 5, 20, 3, 31.2, 0.47)
-        ];
-
-        return new MetricTable(
-            "player_game",
-            ["player_name", "team"],
-            ["TotalK", "TotalD", "TotalA", "ADR", "HLTV", "CTW", "TW"],
-            rows.Select(r => new MetricRow(
-                    new Dictionary<string, object?> { ["player_name"] = r.Name, ["team"] = r.Team },
-                    new Dictionary<string, object?>
-                    {
-                        ["TotalK"] = r.K,
-                        ["TotalD"] = r.D,
-                        ["TotalA"] = r.A,
-                        ["ADR"] = r.Adr,
-                        ["HLTV"] = r.Rating,
-                        // Per-team round wins by side. The CT-ending team took 6 as CT + 7 as T = 13; the
-                        // T-ending team 6 + 3 = 9. So the SIDE split (CT 12 / T 10) differs from the TEAM
-                        // totals (13 / 9) — exactly the half-swap case the page must not conflate.
-                        ["CTW"] = r.Team == 3 ? 6 : 6,
-                        ["TW"] = r.Team == 3 ? 7 : 3
-                    }))
-                .ToList());
-    }
-
-    private static Panel OverviewPanel(MatchOverviewTabViewModel vm) =>
-        new()
-        {
-            Background = Tok("ShellBg"),
-            Children = { new MatchOverviewTabView { DataContext = vm } }
-        };
 }

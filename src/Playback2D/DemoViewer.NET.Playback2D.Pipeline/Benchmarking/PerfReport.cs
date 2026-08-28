@@ -30,7 +30,7 @@ public enum PerfRowKind
 ///     the advance and render stages, so layer shares and stage shares do not sum to 200 %.
 /// </param>
 /// <param name="CacheReplayed">Picture-cache hits. Render rows only.</param>
-/// <param name="CacheRecorded">Picture-cache misses — a re-record. Render rows only.</param>
+/// <param name="CacheRecorded">Picture-cache misses: a re-record. Render rows only.</param>
 /// <param name="CacheUncached">
 ///     Draws with no cache in the path at all (<see cref="LayerCacheHint.Dynamic" />, or caching off).
 ///     Counted apart from misses so a Dynamic layer does not read as a permanent cache failure.
@@ -78,13 +78,13 @@ public sealed record PerfReport(
     IReadOnlyList<PerfRow> Stages,
     IReadOnlyList<PerfRow> Layers)
 {
-    /// <summary>An empty report — what a run with capture off would produce.</summary>
+    /// <summary>An empty report: what a run with capture off would produce.</summary>
     public static PerfReport Empty { get; } = new(0, 0, default, [], []);
 
     /// <summary>
     ///     The uncapped render-only ceiling: <c>1000 / p50</c> of the render stage. This is the number
     ///     "how fast could this scene possibly draw" asks for, and it is the same number under
-    ///     <c>bench</c> (which never encodes) and <c>export --no-encode</c> (which encodes nothing) —
+    ///     <c>bench</c> (which never encodes) and <c>export --no-encode</c> (which encodes nothing):
     ///     that equality is the cross-check that the two harnesses measure one renderer.
     /// </summary>
     public double MaxRenderFps => Fps(Find("render", PerfRowKind.Stage)?.Times.P50Ms ?? 0);
@@ -96,7 +96,7 @@ public sealed record PerfReport(
     public double MeanFrameMs => Frames > 0 ? FrameTotalMs / Frames : 0;
 
     /// <summary>
-    ///     Stages and layers together, slowest total first — the "what should I go and look at" list.
+    ///     Stages and layers together, slowest total first: the "what should I go and look at" list.
     ///     Stage rows and the layer rows nested inside them both appear; a stage that is dominated by one
     ///     layer shows up immediately above it.
     /// </summary>

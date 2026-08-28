@@ -2,7 +2,6 @@
 
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Interactivity;
 using DemoViewer.NET.ViewModels.Shell;
 
@@ -46,10 +45,10 @@ public partial class MainView : UserControl
         if (top is not null && !ReferenceEquals(top, _idleActivityTop))
         {
             _idleActivityTop = top;
-            top.AddHandler(InputElement.PointerMovedEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
-            top.AddHandler(InputElement.PointerPressedEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
-            top.AddHandler(InputElement.PointerWheelChangedEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
-            top.AddHandler(InputElement.KeyDownEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
+            top.AddHandler(PointerMovedEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
+            top.AddHandler(PointerPressedEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
+            top.AddHandler(PointerWheelChangedEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
+            top.AddHandler(KeyDownEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
         }
 
 #if DEBUG
@@ -68,10 +67,10 @@ public partial class MainView : UserControl
             return;
         }
 
-        top.RemoveHandler(InputElement.PointerMovedEvent, OnIdleActivity);
-        top.RemoveHandler(InputElement.PointerPressedEvent, OnIdleActivity);
-        top.RemoveHandler(InputElement.PointerWheelChangedEvent, OnIdleActivity);
-        top.RemoveHandler(InputElement.KeyDownEvent, OnIdleActivity);
+        top.RemoveHandler(PointerMovedEvent, OnIdleActivity);
+        top.RemoveHandler(PointerPressedEvent, OnIdleActivity);
+        top.RemoveHandler(PointerWheelChangedEvent, OnIdleActivity);
+        top.RemoveHandler(KeyDownEvent, OnIdleActivity);
         _idleActivityTop = null;
     }
 

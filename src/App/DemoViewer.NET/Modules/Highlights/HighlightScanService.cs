@@ -44,12 +44,12 @@ namespace DemoViewer.NET.Modules.Highlights;
 public sealed class HighlightScanService : IDisposable, IDemoEvaluator
 {
     private readonly Func<bool> _backgroundScanEnabled;
+    private readonly DemoCacheStore _demoCache;
 
     // Manual per-demo requests: they submit REGARDLESS of the opt-in, but ONLY these paths — a
     // retry click on one demo must never trigger a whole-library scan marathon. Cleared when the demo's
     // Evaluate/OnFailed runs. Drives PriorityFor (forced → UserRequested).
     private readonly HashSet<string> _forcedPaths = new(StringComparer.OrdinalIgnoreCase);
-    private readonly DemoCacheStore _demoCache;
     private readonly IHighlightHarvester _harvester;
     private readonly Func<IReadOnlyList<string>> _libraryDemoPaths;
 
@@ -97,72 +97,6 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
 
     /// <summary>Queued-demo count — the tab toolbar's "⟳ scan: N queued". DERIVED, never stored.</summary>
     public int QueueLength => BacklogNewestFirst().Count;
-
-    /// <summary>
-    ///     The demos wanting a scan, newest first. THE work list — computed from the index each time rather
-    ///     than read out of a persisted <c>Pending</c> flag.
-    ///     <para>
-    ///         The old design stored that flag, which forced one field to mean both "queued" and "has no
-    ///         tier-3 data". Deriving separates them: a demo whose rules fingerprint moved is queued while its
-    ///         previous harvest stays on screen, so a rules save no longer blanks the highlight section of
-    ///         every demo in the library until each is rescanned.
-    ///     </para>
-    ///     <para>
-    ///         Costs one dictionary pass over the index (the fingerprint is mirrored onto the index row for
-    ///         exactly this), plus the library paths that have no record at all.
-    ///     </para>
-    /// </summary>
-    private List<string> BacklogNewestFirst()
-    {
-        string? fingerprint = TryFingerprint();
-        Dictionary<string, long> wanted = new(StringComparer.OrdinalIgnoreCase);
-
-        foreach (DemoCacheIndexEntry entry in _demoCache.Index)
-        {
-            if (entry.NeedsAnalysis(fingerprint))
-            {
-                wanted[entry.Path] = entry.ModifiedTicks;
-            }
-        }
-
-        // A demo the library knows about but the cache has never seen is the most-pending case there is.
-        foreach (string path in _libraryDemoPaths())
-        {
-            if (Path.GetFileName(path).StartsWith("._", StringComparison.Ordinal))
-            {
-                continue; // AppleDouble sidecar, never a demo
-            }
-
-            if (_demoCache.TryGetIndex(path) is null)
-            {
-                wanted.TryAdd(path, 0);
-            }
-        }
-
-        return [.. wanted.OrderByDescending(kv => kv.Value).Select(kv => kv.Key)];
-    }
-
-    // The rules fingerprint is tick-rate dependent, and the backlog spans demos of several rates. 64 is what
-    // every supported CS2 demo records at, so it is the right single probe; a rate that genuinely differs is
-    // caught per demo at scan time. A config that cannot load yields null, which reads as "current" — one
-    // broken rule file must never mark the whole library stale.
-    private string? TryFingerprint()
-    {
-        try
-        {
-            return _harvester.ComputeFingerprint(64).Fingerprint;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
-    private bool NeedsScan(string path)
-    {
-        DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(path);
-        return entry is null || entry.NeedsAnalysis(TryFingerprint());
-    }
 
     /// <summary>True while any highlights demo is outstanding in the shared queue (via the coordinator).</summary>
     public bool IsScanning => Coordinator?.HasOutstanding(Id) ?? false;
@@ -356,6 +290,72 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             _disposed = true;
         }
         // The coordinator owns the CapacityAvailable subscription now — nothing queue-side to detach here.
+    }
+
+    /// <summary>
+    ///     The demos wanting a scan, newest first. THE work list — computed from the index each time rather
+    ///     than read out of a persisted <c>Pending</c> flag.
+    ///     <para>
+    ///         The old design stored that flag, which forced one field to mean both "queued" and "has no
+    ///         tier-3 data". Deriving separates them: a demo whose rules fingerprint moved is queued while its
+    ///         previous harvest stays on screen, so a rules save no longer blanks the highlight section of
+    ///         every demo in the library until each is rescanned.
+    ///     </para>
+    ///     <para>
+    ///         Costs one dictionary pass over the index (the fingerprint is mirrored onto the index row for
+    ///         exactly this), plus the library paths that have no record at all.
+    ///     </para>
+    /// </summary>
+    private List<string> BacklogNewestFirst()
+    {
+        string? fingerprint = TryFingerprint();
+        Dictionary<string, long> wanted = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach (DemoCacheIndexEntry entry in _demoCache.Index)
+        {
+            if (entry.NeedsAnalysis(fingerprint))
+            {
+                wanted[entry.Path] = entry.ModifiedTicks;
+            }
+        }
+
+        // A demo the library knows about but the cache has never seen is the most-pending case there is.
+        foreach (string path in _libraryDemoPaths())
+        {
+            if (Path.GetFileName(path).StartsWith("._", StringComparison.Ordinal))
+            {
+                continue; // AppleDouble sidecar, never a demo
+            }
+
+            if (_demoCache.TryGetIndex(path) is null)
+            {
+                wanted.TryAdd(path, 0);
+            }
+        }
+
+        return [.. wanted.OrderByDescending(kv => kv.Value).Select(kv => kv.Key)];
+    }
+
+    // The rules fingerprint is tick-rate dependent, and the backlog spans demos of several rates. 64 is what
+    // every supported CS2 demo records at, so it is the right single probe; a rate that genuinely differs is
+    // caught per demo at scan time. A config that cannot load yields null, which reads as "current" — one
+    // broken rule file must never mark the whole library stale.
+    private string? TryFingerprint()
+    {
+        try
+        {
+            return _harvester.ComputeFingerprint(64).Fingerprint;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private bool NeedsScan(string path)
+    {
+        DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(path);
+        return entry is null || entry.NeedsAnalysis(TryFingerprint());
     }
 
     /// <summary>Raised (posted) when queue length / scanning state changes.</summary>
@@ -606,7 +606,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         // ClipRounds is the frame-clock round authority: round_freeze_end opens a
         // round, GameTick is the tick. CS2 emits no round_start — the string-matching walk this replaced
         // produced an EMPTY list on every CS2 demo, silently disabling the clip lead-in floor.
-        List<Services.DemoCache.CachedRound> rounds = ClipRounds.Derive(parsed).ToCachedRounds();
+        List<CachedRound> rounds = ClipRounds.Derive(parsed).ToCachedRounds();
 
         _demoCache.UpdateExisting(path, record =>
         {

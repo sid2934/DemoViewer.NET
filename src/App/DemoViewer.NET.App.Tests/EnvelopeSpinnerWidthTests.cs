@@ -1,6 +1,6 @@
 #region
 
-using Avalonia;
+using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.VisualTree;
@@ -118,7 +118,7 @@ public class EnvelopeSpinnerWidthTests
     }
 
     private static double MeasureText(string text, TextBox inner) =>
-        new FormattedText(text, System.Globalization.CultureInfo.InvariantCulture,
+        new FormattedText(text, CultureInfo.InvariantCulture,
             FlowDirection.LeftToRight,
             new Typeface(inner.FontFamily, inner.FontStyle, inner.FontWeight),
             inner.FontSize, Brushes.Black).Width;

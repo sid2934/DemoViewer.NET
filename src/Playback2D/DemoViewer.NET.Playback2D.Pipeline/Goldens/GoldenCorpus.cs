@@ -85,6 +85,15 @@ public sealed class GoldenCorpus
     /// <summary>The manifest's file name inside a corpus directory.</summary>
     public const string ManifestFileName = "manifest.json";
 
+    // The manifest is read and reviewed by humans in a PR diff, so the writer must not turn '+', an
+    // apostrophe or an em dash into \u escapes. Relaxed escaping is safe here: this file is never
+    // embedded in HTML or a script tag.
+    private static readonly JsonSerializerOptions _manifestOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
     private GoldenCorpus(string directory, int schemaVersion, IReadOnlyList<GoldenCorpusEntry> entries)
     {
         Directory = directory;
@@ -145,7 +154,10 @@ public sealed class GoldenCorpus
     /// </summary>
     public static string? FindDefaultCorpusDirectory()
     {
-        foreach (string start in new[] { AppContext.BaseDirectory, System.IO.Directory.GetCurrentDirectory() })
+        foreach (string start in new[]
+                 {
+                     AppContext.BaseDirectory, System.IO.Directory.GetCurrentDirectory()
+                 })
         {
             DirectoryInfo? dir = new(start);
             for (int depth = 0; depth < 10 && dir is not null; depth++, dir = dir.Parent)
@@ -220,15 +232,6 @@ public sealed class GoldenCorpus
         entries.Add(written);
         Save(manifestPath, manifest);
     }
-
-    // The manifest is read and reviewed by humans in a PR diff, so the writer must not turn '+', an
-    // apostrophe or an em dash into \u escapes. Relaxed escaping is safe here: this file is never
-    // embedded in HTML or a script tag.
-    private static readonly JsonSerializerOptions _manifestOptions = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-    };
 
     private static void Save(string manifestPath, JsonObject manifest) =>
         File.WriteAllText(manifestPath, manifest.ToJsonString(_manifestOptions) + Environment.NewLine);

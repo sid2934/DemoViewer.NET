@@ -27,8 +27,12 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Goldens;
 ///     </para>
 /// </summary>
 /// <param name="InkPixels">
-///     Pixels the text layers painted. <b>Zero with labels on the frame means the mask silenced
-///     nothing</b>, and every assertion below it is then vacuous — the caller must guard on this.
+///     Pixels the text layers painted.
+///     <b>
+///         Zero with labels on the frame means the mask silenced
+///         nothing
+///     </b>
+///     , and every assertion below it is then vacuous — the caller must guard on this.
 /// </param>
 /// <param name="OverCeilingOutsideInk">
 ///     Pixels outside the mask over <see cref="GoldenTolerance.OutlierChannelDelta" />. The glyph tier

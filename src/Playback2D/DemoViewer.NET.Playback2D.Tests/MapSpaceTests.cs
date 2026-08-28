@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Levels;
 
 #endregion
@@ -53,7 +52,7 @@ public class MapSpaceTests
         int raised = 0;
         space.LevelSetChanged += () => raised++;
 
-        FloorSlice[] bands = [new FloorSlice(-448, -384), new FloorSlice(-384, -128)];
+        FloorSlice[] bands = [new(-448, -384), new(-384, -128)];
         space.Rebuild(bands);
         int versionAfterFirst = space.Version;
 
@@ -87,7 +86,7 @@ public class MapSpaceTests
     public async Task LevelIndexFor_MatchesFloorSplitter_OverAZTable()
     {
         FloorSplitter splitter = new();
-        FloorSlice[] bands = [new FloorSlice(-448, -352), new FloorSlice(-200, 96)];
+        FloorSlice[] bands = [new(-448, -352), new(-200, 96)];
         splitter.SetAuthoritativeFloors(bands);
 
         MapSpace space = new();

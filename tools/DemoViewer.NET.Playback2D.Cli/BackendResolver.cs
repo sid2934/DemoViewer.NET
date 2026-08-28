@@ -17,7 +17,7 @@ internal sealed record ResolvedBackend(IRenderSurfaceProvider Provider, string R
     ///     <see cref="Provider" /> on demand.
     ///     <para>
     ///         <c>GoldenCommand</c> keeps the first entry's <see cref="ResolvedBackend" /> for its summary
-    ///         payload but disposes each entry's plan — and with it that provider — at the end of every
+    ///         payload but disposes each entry's plan, and with it that provider, at the end of every
     ///         loop iteration. Reading the provider afterwards is a use-after-dispose: inert against
     ///         <c>CpuSurfaceProvider</c> (constant property, no-op <c>Dispose</c>), a fault against C2's
     ///         <c>GpuSurfaceProvider</c>, which owns an EGL context and is handed over by this very type.
@@ -28,15 +28,19 @@ internal sealed record ResolvedBackend(IRenderSurfaceProvider Provider, string R
 
 /// <summary>
 ///     Applies design §5.8's precedence for the surface backend: explicit flag → <c>--backend</c> →
-///     <c>DV2D_RENDER_BACKEND</c> → auto-probe. The app's fourth rung (<c>AppSettings.Playback2D
-///     .RenderBackend</c>) is deliberately absent: a headless tool reads no UI state (§7.7).
+///     <c>DV2D_RENDER_BACKEND</c> → auto-probe. The app's fourth rung (
+///     <c>
+///         AppSettings.Playback2D
+///         .RenderBackend
+///     </c>
+///     ) is deliberately absent: a headless tool reads no UI state (§7.7).
 ///     <para>
-///         <b>C2 owns the GPU half, and it has landed.</b> Every construction now goes through
-///         <see cref="RenderSurfaceProviderFactory" />, which is the single site in the repo that knows
-///         how to stand an EGL context up. A <c>--gpu</c> request on a machine without one degrades to
-///         CPU with a stated reason; <c>--strict-backend</c> (equivalently <c>--backend force-gpu</c>)
-///         turns that degradation into <see cref="ExitCode.EnvironmentUnavailable" /> — never a silent
-///         software-rendered measurement.
+///         Every construction goes through <see cref="RenderSurfaceProviderFactory" />, the single site
+///         in the repo that knows how to stand an EGL context up. A <c>--gpu</c> request on a machine
+///         without one degrades to CPU with a stated reason; <c>--strict-backend</c> (equivalently
+///         <c>--backend force-gpu</c>) turns that degradation into
+///         <see cref="ExitCode.EnvironmentUnavailable" />, never a silent software-rendered
+///         measurement.
 ///     </para>
 /// </summary>
 internal static class BackendResolver
@@ -77,7 +81,7 @@ internal static class BackendResolver
         catch (InvalidOperationException e)
         {
             // The factory's one throw: force-gpu with no GPU. Re-shaped into the tool's exit-6 channel
-            // rather than the generic runtime-failure exit 3 — "this machine cannot do what you asked"
+            // rather than the generic runtime-failure exit 3. "This machine cannot do what you asked"
             // is an environment answer, and CI distinguishes the two.
             throw new BackendUnavailableException(e.Message, e);
         }
@@ -87,7 +91,7 @@ internal static class BackendResolver
             preference is RenderBackendPreference.PreferGpu or RenderBackendPreference.ForceGpu)
         {
             // Read from the cached probe rather than scraped out of the log callback: the reason is
-            // data on RenderSurfaceProbe precisely so nobody has to parse a sentence.
+            // data on RenderSurfaceProbe, so it never has to be parsed back out of a sentence.
             reason = string.Create(CultureInfo.InvariantCulture,
                 $"the GPU surface provider is unavailable ({RenderSurfaceProviderFactory.Probe().Reason}); using CpuRaster");
         }

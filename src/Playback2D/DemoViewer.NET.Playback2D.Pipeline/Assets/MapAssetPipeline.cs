@@ -22,13 +22,13 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
 /// </summary>
 public sealed class LoadedMapAsset : IDisposable
 {
-    private IReadOnlyList<FloorSlice>? _floors;
     private bool _disposed;
+    private IReadOnlyList<FloorSlice>? _floors;
 
     /// <summary>The parsed bundle manifest.</summary>
     public required MapAssetBundle Bundle { get; init; }
 
-    /// <summary>Decoded radar images by file name (best-effort — empty when nothing decoded).</summary>
+    /// <summary>Decoded radar images by file name (best-effort, empty when nothing decoded).</summary>
     public required IReadOnlyDictionary<string, SKImage> RadarImages { get; init; }
 
     /// <summary>The directory the bundle was loaded from (holds sibling artifacts like <c>collision.tris</c>).</summary>
@@ -38,7 +38,7 @@ public sealed class LoadedMapAsset : IDisposable
     ///     The bundle's nav-derived floor bands, low→high.
     ///     <para>
     ///         <b>Cached.</b> The pre-v2 property projected and materialised a fresh <c>List</c> on every
-    ///         read, and the viewport read it once per push — a per-frame allocation for data that is
+    ///         read, and the viewport read it once per push: a per-frame allocation for data that is
     ///         constant for the whole map (plan §4 T15 item 7).
     ///     </para>
     /// </summary>
@@ -52,7 +52,7 @@ public sealed class LoadedMapAsset : IDisposable
     /// <summary>
     ///     Releases the decoded radar images. One of the few places <see cref="IDisposable" /> genuinely
     ///     buys something: an <see cref="SKImage" />'s pixel buffer is unmanaged, invisible to the
-    ///     managed heap counters, and a CS2 radar is 1024×1024 RGBA ≈ 4 MB — one or two per map, orphaned
+    ///     managed heap counters, and a CS2 radar is 1024×1024 RGBA ≈ 4 MB: one or two per map, orphaned
     ///     on every map swap.
     ///     <para>
     ///         Idempotent: the tab view-model disposes on map change and on unload, and those overlap.
@@ -106,7 +106,7 @@ public static class MapAssetPipeline
     }
 
     /// <summary>
-    ///     Loads a map's bundle from an <b>explicit</b> assets root — the entry point <c>dv2d</c> needs.
+    ///     Loads a map's bundle from an <b>explicit</b> assets root: the entry point <c>dv2d</c> needs.
     ///     <para>
     ///         Explicit-root is the whole point of the overload:
     ///         <see cref="MapAssetBundleReader.FindBundleDirectory" /> walks up from
@@ -127,7 +127,7 @@ public static class MapAssetPipeline
     }
 
     /// <summary>
-    ///     Reads just the bundle's <c>mapVersion</c> — the cheap call a fixture capture and a
+    ///     Reads just the bundle's <c>mapVersion</c>: the cheap call a fixture capture and a
     ///     <c>golden verify</c> staleness check both need, with no image decode. Null when there is no
     ///     readable bundle.
     /// </summary>
@@ -192,7 +192,7 @@ public static class MapAssetPipeline
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
-                // ignore — floors and the transform remain usable without the picture
+                // ignore: floors and the transform remain usable without the picture
             }
         }
 

@@ -14,14 +14,14 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///     Resolves the scene's 31 colours from the app's theme tokens into a <see cref="ScenePalette" />.
 ///     <para>
 ///         The renderer's colours are TOKENS (<c>Pb2dCanvas*</c> and <c>Pb2dTeamT/Ct</c>) looked up in
-///         the theme dictionaries for a variant, so <i>any</i> theme — built-in or a user drop-in —
-///         colours the radar with no code change. This runs <b>once per theme change</b>, never per
-///         frame: the render hot path reads the resolved record.
+///         the theme dictionaries for a variant, so any theme, built-in or a user drop-in, colours the
+///         radar with no code change. This runs <b>once per theme change</b>, never per frame: the
+///         render hot path reads the resolved record.
 ///     </para>
 ///     <para>
 ///         The hex fallbacks are the Dark values and are identical, colour for colour and in the same
-///         order, to <see cref="ScenePalette.Dark" /> — which is what lets a headless render (goldens,
-///         export, the CLI) produce the same picture with no theme system loaded at all.
+///         order, to <see cref="ScenePalette.Dark" />, so a headless render (goldens, export, the CLI)
+///         produces the same picture with no theme system loaded at all.
 ///         <c>ScenePaletteFactoryTests</c> asserts the two agree.
 ///     </para>
 /// </summary>
@@ -65,7 +65,10 @@ public static class ScenePaletteFactory
             C("Pb2dCanvasMarkerRingNeutral", "#666666"),
             SceneStrokeWidths.Default);
 
-        SKColor C(string key, string fallbackHex) => ToSkia(ThemeColors.Get(key, variant, fallbackHex));
+        SKColor C(string key, string fallbackHex)
+        {
+            return ToSkia(ThemeColors.Get(key, variant, fallbackHex));
+        }
     }
 
     /// <summary>Converts an Avalonia colour to a Skia one.</summary>

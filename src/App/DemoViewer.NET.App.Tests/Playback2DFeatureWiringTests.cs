@@ -133,11 +133,11 @@ public class Playback2DFeatureWiringTests
     public async Task AnnotationsId_IsBothAFeatureIdAndALayerId_AndTheTrackIdIsNot()
     {
         await Assert.That(Playback2DFeatureCatalogTests.Ids.Contains(SceneLayerIds.Annotations,
-            StringComparer.Ordinal)).IsTrue()
+                StringComparer.Ordinal)).IsTrue()
             .Because("§3.3's layer id and §3.10's feature id are deliberately the same string");
 
         await Assert.That(Playback2DFeatureCatalogTests.Ids.Contains(AnnotationTrack.TrackId,
-            StringComparer.Ordinal)).IsFalse()
+                StringComparer.Ordinal)).IsFalse()
             .Because("the timeline track id is the bare word 'annotation' — three registries must not "
                      + "share one key");
     }

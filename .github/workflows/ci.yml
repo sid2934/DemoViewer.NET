@@ -4,9 +4,9 @@
 # exclusion filters over [Category] built for IN-FLIGHT development; CI is not in-flight.
 #
 # The one split that is load-bearing: the correctness lanes select `Category!=Budget` and the budget
-# lane selects `Category=Budget`. Complementary, so their union is the whole suite — but only PER
+# lane selects `Category=Budget`. Complementary, so their union is the whole suite, but only PER
 # PROJECT. Apply the pair to one project and not its sibling and the sibling's Budget cases run in no
-# job at all, which is how `BenchAllocationTests` stayed red and invisible for four phases (D6 G-4).
+# job at all. That is how `BenchAllocationTests` stayed red and invisible for four phases.
 # A Budget test added to any project has to land in `playback2d-budget`.
 name: ci
 
@@ -42,7 +42,7 @@ jobs:
 
       # The Browser head's runtime pack (Microsoft.NETCore.App.Runtime.Mono.browser-wasm) ships in
       # this workload, not the base SDK, so the solution below does not build without it. Keep the
-      # version in step with `wasm-build`'s copy — see there for why it is pinned at all.
+      # version in step with `wasm-build`'s copy; see there for why it is pinned at all.
       - name: Install wasm-tools
         run: dotnet workload install wasm-tools --version 10.0.103
 
@@ -55,10 +55,10 @@ jobs:
       - name: Build the solution (Release)
         run: dotnet build DemoViewer.NET.slnx -c Release -p:WasmBuildNative=false
 
-  # B5's WASM regression net (docs/playback2d-v2/wasm-matrix.md). It PUBLISHES rather than builds:
+  # The WASM regression net (docs/playback2d-v2/wasm-matrix.md). It PUBLISHES rather than builds:
   # `dotnet build` of this head succeeds even when the app cannot boot, and the two ways it has
-  # actually broken — a missing native relink (a runtime DllNotFoundException for libSkiaSharp) and
-  # the ILLink pass — are both publish-only.
+  # actually broken (a missing native relink, giving a runtime DllNotFoundException for libSkiaSharp,
+  # and the ILLink pass) are both publish-only.
   wasm-build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -73,7 +73,7 @@ jobs:
 
       # PINNED to the SDK's own runtime-pack band. Installing the newest manifest relinks against a
       # System.Private.CoreLib the runtime then rejects ("Your mono runtime and class libraries are
-      # out of sync") — B0 D11 finding 2, observed at manifest 10.0.111 against runtime 10.0.103.
+      # out of sync"). B0 D11 finding 2, observed at manifest 10.0.111 against runtime 10.0.103.
       # Bump this in the same commit as the SDK, never on its own.
       - name: Install wasm-tools
         run: dotnet workload install wasm-tools --version 10.0.103
@@ -83,7 +83,7 @@ jobs:
 
       # Boot-critical means STRICTLY: App.Initialize throws if it is missing and the head boots black.
       # That includes every assembly App.axaml <StyleInclude>s by `avares://<assembly>/…`, because the
-      # XAML loader resolves those URIs at Initialize time — add a line here in the same commit that
+      # XAML loader resolves those URIs at Initialize time. Add a line here in the same commit that
       # adds such an include (D6 §4b). Payload names are fingerprinted, so these are patterns.
       - name: Verify the published payload
         run: |
@@ -94,12 +94,12 @@ jobs:
           ls "$FW" | grep -q '^DemoViewer\.NET\..*\.wasm$' || { echo "no app assembly"; exit 1; }
           ls "$FW" | grep -q '^SkiaSharp\..*\.wasm$' || { echo "SkiaSharp did not ship"; exit 1; }
           ls "$FW" | grep -q '^Avalonia\.Controls\.ColorPicker\..*\.wasm$' \
-            || { echo "Avalonia.Controls.ColorPicker did not ship — App.Initialize will throw on the StyleInclude"; exit 1; }
+            || { echo "Avalonia.Controls.ColorPicker did not ship, App.Initialize will throw on the StyleInclude"; exit 1; }
           ls "$FW" | grep -q '^AvaloniaEdit\..*\.wasm$' \
-            || { echo "AvaloniaEdit did not ship — App.Initialize will throw on the StyleInclude"; exit 1; }
+            || { echo "AvaloniaEdit did not ship, App.Initialize will throw on the StyleInclude"; exit 1; }
           du -sh artifacts/wasm-publish/wwwroot
 
-  # Nobody adds a SECOND core/pipeline test invocation.
+  # The ONE core/pipeline test invocation. Do not add a second.
   playback2d-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -113,8 +113,8 @@ jobs:
           dotnet-version: '10.0.x'
 
       # SkiaSharp.NativeAssets.Linux links fontconfig. The full package is used rather than
-      # …NoDependencies because B1 draws text and C1's goldens contain it, and swapping the native
-      # later would silently re-baseline every golden.
+      # …NoDependencies because the layers draw text and the goldens contain it, and swapping the
+      # native later would silently re-baseline every golden.
       - name: Install native deps
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1
 
@@ -125,8 +125,8 @@ jobs:
       - name: Build dv2d
         run: dotnet build tools/DemoViewer.NET.Playback2D.Cli -c Release
 
-      # Demo-dependent cases skip themselves — the runner has the committed assets/tour sample, so
-      # most of them actually run.
+      # Demo-dependent cases skip themselves. The runner has the committed assets/tour sample, so most
+      # of them actually run.
       - name: dv2d unit + architecture tests
         run: >
           dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli.Tests
@@ -139,10 +139,10 @@ jobs:
           dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --
           golden verify --cpu --json --diff-dir artifacts/playback2d-goldens
 
-      # Since D6 G-1 folded SceneLayerCatalog onto the real stack this gate times ~4.9 ms p99 against
-      # the scaled 16 ms rather than a 0.094 ms debug grid, so it can finally fail for a render
-      # regression — and may flap on a slow runner. Raise DV2D_BUDGET_SCALE with a measurement if it
-      # does; do not restore the removed --budget-bytes-per-frame override or swap the fixture.
+      # Now SceneLayerCatalog builds the real stack, this gate times ~4.9 ms p99 against the scaled
+      # 16 ms rather than a 0.094 ms debug grid, so it can fail for a render regression and may flap on
+      # a slow runner. Raise DV2D_BUDGET_SCALE with a measurement if it does; do not restore the
+      # removed --budget-bytes-per-frame override or swap the fixture.
       - name: Frame-budget gate
         env:
           DV2D_BUDGET_SCALE: '2.0'
@@ -151,10 +151,10 @@ jobs:
           bench --name duel-mirage-b --frames 512 --cpu --gate --json
           --report-dir artifacts/bench-reports
 
-      # GIF on purpose. The runner has no ffmpeg, so this exercises the bottom rung of the ladder —
-      # the managed ImageSharp floor — which is what a user with no ffmpeg gets. If ffmpeg is ever
+      # GIF on purpose. The runner has no ffmpeg, so this exercises the bottom rung of the ladder, the
+      # managed ImageSharp floor, which is what a user with no ffmpeg gets. If ffmpeg is ever
       # installed on the runner, add a --format webm run beside this one rather than replacing it.
-      - name: Export a clip (no ffmpeg — the managed GIF floor)
+      - name: Export a clip (no ffmpeg, the managed GIF floor)
         run: >
           dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --
           export --demo assets/tour/sample-de_nuke.dem --from t0 --to t320
@@ -180,12 +180,12 @@ jobs:
     timeout-minutes: 20
     env:
       # A hosted runner is not the design §6 baseline laptop. Gate at 2x so the lane catches real
-      # regressions — an O(n) blow-up, a re-introduced per-frame allocation — without firing on runner
+      # regressions (an O(n) blow-up, a re-introduced per-frame allocation) without firing on runner
       # noise; a gate that cries wolf gets disabled within a week. The strict §6 numbers are what a
       # local run reports against, and are printed here either way.
       #
       # The ZERO-ALLOCATION assertion is deliberately NOT scaled by this. Zero is zero on every
-      # machine, and it is the half of the budget carrying most of the regression-catching value.
+      # machine, and it is the half of the budget that catches most of the regressions.
       DV2D_BUDGET_SCALE: '2.0'
     steps:
       - uses: actions/checkout@v4
@@ -215,7 +215,7 @@ jobs:
           path: bench-reports/dv2d-*.json
           if-no-files-found: ignore
 
-  # `App.Tests` holds every mechanical guard for this project's two named defect classes — the D6 §4
+  # `App.Tests` holds every mechanical guard for this project's two named defect classes: the D6 §4
   # architecture guards, the feature/HUD/key-routing wiring guards, the settings round-trip guards. A
   # guard in a project CI never runs is a guard that does not exist.
   #
@@ -243,12 +243,12 @@ jobs:
       - name: Install native deps
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1
 
-      - name: App suite — full tier (batched)
+      - name: App suite, full tier (batched)
         run: bash scripts/test-app-suite.sh -c Release -n 4 -t full -x
 
   # The three suites no lane above names. LiveSync's web-host tests are the slow half the `fast` and
-  # `standard` tiers exist to let a developer skip — CI is where the other half of that bargain gets
-  # paid, so these run at `full`.
+  # `standard` tiers exist to let a developer skip. CI pays the other half of that bargain, so these
+  # run at `full`.
   library-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -277,13 +277,13 @@ jobs:
   #
   # Hosted runners have no GPU, but they DO exercise the real GPU code paths: Windows runs ANGLE over
   # D3D11 WARP, Linux runs EGL over llvmpipe. These lanes gate CORRECTNESS AND PERCEPTUAL PARITY ONLY.
-  # The >=2x-realtime throughput number is gated on the opt-in self-hosted lane below and never here —
+  # The >=2x-realtime throughput number is gated on the opt-in self-hosted lane below and never here:
   # a software rasteriser's frames-per-second means nothing.
   #
   # A lane that finds no GPU backend SKIPS its GPU cases (SkipTestException) and stays green. That is
-  # the design's rule, not a gap: "CPU provider is the contract baseline — GPU is opportunistic"
-  # (design §10 risk 7). The second pass then forces the CPU path back on, which is what proves the
-  # fallback is a real, exercised path rather than a branch that merely compiles.
+  # the design's rule, not a gap: "CPU provider is the contract baseline; GPU is opportunistic"
+  # (design §10 risk 7). The second pass forces the CPU path back on, which proves the fallback is a
+  # real, exercised path rather than a branch that only compiles.
   render-backends:
     strategy:
       fail-fast: false
@@ -310,9 +310,9 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1 libegl1 libgles2 libgl1 libglx-mesa0
 
-      # What this runner actually resolved to, in the log, before any test runs. Exit 0 either way —
-      # the value is GL_RENDERER: a lane that thought it was on ANGLE and is really on WARP is
-      # otherwise invisible until somebody wonders why the numbers moved (C2.7).
+      # What this runner actually resolved to, in the log, before any test runs. Exit 0 either way;
+      # the value is GL_RENDERER. A lane that thought it was on ANGLE and is really on WARP is
+      # otherwise invisible until somebody wonders why the numbers moved.
       - name: Report the render backend
         env:
           LIBGL_ALWAYS_SOFTWARE: '1'
@@ -341,8 +341,8 @@ jobs:
           if-no-files-found: ignore
 
   # Real-GPU lane. Opt-in only: label a PR `gpu-lane` or dispatch the workflow by hand. It needs a
-  # self-hosted runner carrying the labels below; where none exists the job is simply never scheduled,
-  # which is exactly why it must NEVER be in the required-checks set.
+  # self-hosted runner carrying the labels below; where none exists the job is never scheduled at all,
+  # so it must NEVER be in the required-checks set.
   render-backends-gpu:
     if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'gpu-lane') }}
     runs-on: [self-hosted, windows, gpu]
@@ -356,9 +356,9 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      # Fail here, in one line, if this self-hosted runner has lost its GPU — rather than three
-      # minutes later inside a suite. --require-hardware additionally rejects WARP/llvmpipe: this is
-      # the only lane whose numbers are meant to mean something, and a software rasterizer's do not.
+      # Fail here, in one line, if this self-hosted runner has lost its GPU, rather than three minutes
+      # later inside a suite. --require-hardware additionally rejects WARP/llvmpipe: this is the only
+      # lane whose numbers are meant to mean something, and a software rasterizer's do not.
       - name: Require a real GPU
         run: >
           dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --

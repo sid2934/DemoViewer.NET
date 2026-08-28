@@ -115,7 +115,7 @@ public class DrawToolTests
     [Test]
     public async Task AnchorMode_On_And_NoMarker_FallsBackToWorldSpaceRef()
     {
-        Harness h = new(zMin: -384);
+        Harness h = new(-384);
         h.Session.AnchorToEntities = true;
 
         h.Press(0, 0);
@@ -133,7 +133,7 @@ public class DrawToolTests
     [Test]
     public async Task WorldAnchor_StampsTheQuantizedLevelZMin()
     {
-        Harness h = new(zMin: -390);
+        Harness h = new(-390);
 
         h.Press(0, 0);
         h.Release(20, 0);

@@ -221,10 +221,14 @@ public sealed class ReelJobService(
             // Reels-tab picker) wins; else the persisted CS2 window size; else fall back to 1080p.
             int captureWidth = request.Width > 0
                 ? request.Width
-                : effective.GameWindowWidth > 0 ? effective.GameWindowWidth : 1920;
+                : effective.GameWindowWidth > 0
+                    ? effective.GameWindowWidth
+                    : 1920;
             int captureHeight = request.Height > 0
                 ? request.Height
-                : effective.GameWindowHeight > 0 ? effective.GameWindowHeight : 1080;
+                : effective.GameWindowHeight > 0
+                    ? effective.GameWindowHeight
+                    : 1080;
 
             await session.StartAsync(
                 new EngineSessionOptions
@@ -233,7 +237,7 @@ public sealed class ReelJobService(
                     Height = captureHeight,
                     Fullscreen = effective.GameFullscreen
                 },
-                initializeCapture: true, cancellationToken).ConfigureAwait(false);
+                true, cancellationToken).ConfigureAwait(false);
 
             Cs2Compilation compilation = BuildCompilation(request, captureWidth, captureHeight, effective.TickOffset);
             IReadOnlyList<string> issues = compilation.Validate();

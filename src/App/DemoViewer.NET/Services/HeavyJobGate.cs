@@ -1,12 +1,8 @@
-#region
-
-#endregion
-
 namespace DemoViewer.NET.Services;
 
 /// <summary>
 ///     The machine-wide heavy-parse invariant, made explicit
-///: a 16 GB machine holds at most <see cref="MaxConcurrency" />
+///     : a 16 GB machine holds at most <see cref="MaxConcurrency" />
 ///     multi-GB demo parses at a time — DEFAULT 1. Consumers: the global demo-processing queue's
 ///     background workers, and the shell's interactive demo load.
 ///     <list type="bullet">

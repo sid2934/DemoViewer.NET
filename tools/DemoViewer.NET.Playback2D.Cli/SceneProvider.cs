@@ -44,6 +44,12 @@ internal abstract class SceneProvider : IDisposable
     /// <summary>The identity to stamp into a captured fixture's <c>SourceDemoId</c>.</summary>
     public virtual string? SourceDemoId => null;
 
+    /// <inheritdoc />
+    public virtual void Dispose()
+    {
+        GC.SuppressFinalize(this);
+    }
+
     /// <summary>The frame at an index. Indices are clamped into range by the concrete providers.</summary>
     /// <param name="index">A zero-based frame index.</param>
     public abstract Scene2DFrame FrameAt(int index);
@@ -51,12 +57,6 @@ internal abstract class SceneProvider : IDisposable
     /// <summary>The clock at an index.</summary>
     /// <param name="index">A zero-based frame index.</param>
     public abstract SceneTime TimeAt(int index);
-
-    /// <inheritdoc />
-    public virtual void Dispose()
-    {
-        GC.SuppressFinalize(this);
-    }
 
     /// <summary>
     ///     Builds the provider the shared flags describe. Consumes <c>--fixture</c>, <c>--demo</c>,
@@ -99,11 +99,9 @@ internal abstract class SceneProvider : IDisposable
 /// <summary>A single serialized scene, replayed as many times as a caller asks for.</summary>
 internal sealed class FixtureSceneProvider : SceneProvider
 {
-    private readonly SceneFixture _fixture;
-
     private FixtureSceneProvider(SceneFixture fixture, string name)
     {
-        _fixture = fixture;
+        Fixture = fixture;
         Name = name;
     }
 
@@ -117,23 +115,23 @@ internal sealed class FixtureSceneProvider : SceneProvider
     public override string Name { get; }
 
     /// <inheritdoc />
-    public override ViewportTransform Camera => _fixture.Camera;
+    public override ViewportTransform Camera => Fixture.Camera;
 
     /// <inheritdoc />
     public override SKSizeI DefaultSize =>
-        _fixture.Size.Width > 0 && _fixture.Size.Height > 0 ? _fixture.Size : new SKSizeI(1920, 1080);
+        Fixture.Size.Width > 0 && Fixture.Size.Height > 0 ? Fixture.Size : new SKSizeI(1920, 1080);
 
     /// <inheritdoc />
-    public override string? MapName => string.IsNullOrEmpty(_fixture.MapName) ? null : _fixture.MapName;
+    public override string? MapName => string.IsNullOrEmpty(Fixture.MapName) ? null : Fixture.MapName;
 
     /// <inheritdoc />
-    public override string? MapVersion => _fixture.MapVersion;
+    public override string? MapVersion => Fixture.MapVersion;
 
     /// <inheritdoc />
-    public override string? SourceDemoId => _fixture.SourceDemoId;
+    public override string? SourceDemoId => Fixture.SourceDemoId;
 
     /// <summary>The loaded fixture, for commands that need more than the frame.</summary>
-    public SceneFixture Fixture => _fixture;
+    public SceneFixture Fixture { get; }
 
     /// <summary>Reads a fixture from disk.</summary>
     /// <param name="path">Path to the <c>.scene.json</c>.</param>
@@ -156,10 +154,10 @@ internal sealed class FixtureSceneProvider : SceneProvider
     }
 
     /// <inheritdoc />
-    public override Scene2DFrame FrameAt(int index) => _fixture.Frame;
+    public override Scene2DFrame FrameAt(int index) => Fixture.Frame;
 
     /// <inheritdoc />
-    public override SceneTime TimeAt(int index) => _fixture.Time;
+    public override SceneTime TimeAt(int index) => Fixture.Time;
 }
 
 /// <summary>A private tracker replay over a parsed demo. Never touches the app's playback clock.</summary>

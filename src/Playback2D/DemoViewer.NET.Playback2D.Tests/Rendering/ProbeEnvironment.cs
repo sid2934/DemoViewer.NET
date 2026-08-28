@@ -45,6 +45,14 @@ internal sealed class ProbeEnvironment : IDisposable
         Reset();
     }
 
+    public void Dispose()
+    {
+        Environment.SetEnvironmentVariable(RenderBackendPreferenceParser.EnvironmentVariable,
+            _previousBackend);
+        Environment.SetEnvironmentVariable(Egl.LibraryOverrideVariable, _previousAngleLibrary);
+        Reset();
+    }
+
     /// <summary>No overrides at all: whatever this machine actually has.</summary>
     public static ProbeEnvironment Clean() => new(null, null);
 
@@ -60,14 +68,6 @@ internal sealed class ProbeEnvironment : IDisposable
     /// <param name="missingEglLibrary">Whether to also point the EGL override at nothing.</param>
     public static ProbeEnvironment WithBackend(string? backend, bool missingEglLibrary = false) =>
         new(backend, missingEglLibrary ? MissingLibraryPath : null);
-
-    public void Dispose()
-    {
-        Environment.SetEnvironmentVariable(RenderBackendPreferenceParser.EnvironmentVariable,
-            _previousBackend);
-        Environment.SetEnvironmentVariable(Egl.LibraryOverrideVariable, _previousAngleLibrary);
-        Reset();
-    }
 
     private static void Reset()
     {

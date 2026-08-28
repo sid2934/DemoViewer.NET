@@ -40,8 +40,12 @@ public class Playback2DKeybindConflictTests
 
     /// <summary>
     ///     Erase and round navigation must never share a gesture. Both were once assigned <c>E</c>, "Q/E
-    ///     round nav" and "erase" colliding; whichever keys the two end up on, <b>they must not be the
-    ///     same one</b>, or picking up the pen shadows round navigation. Which key each actually is
+    ///     round nav" and "erase" colliding; whichever keys the two end up on,
+    ///     <b>
+    ///         they must not be the
+    ///         same one
+    ///     </b>
+    ///     , or picking up the pen shadows round navigation. Which key each actually is
     ///     belongs to <c>Playback2DKeymapTests</c>; pinning it here as well would make a rebind a
     ///     two-file edit.
     /// </summary>
@@ -159,8 +163,8 @@ public class Playback2DKeybindConflictTests
     [Arguments("ToolDraw=Ctrl+Shift+I")]
     public async Task BrowserReservedGestures_AreRefusedOnTheBrowserHead_AndAcceptedOnDesktop(string row)
     {
-        string onBrowser = Playback2DKeymapProfile.ValidateOverride([], row, isBrowser: true);
-        string onDesktop = Playback2DKeymapProfile.ValidateOverride([], row, isBrowser: false);
+        string onBrowser = Playback2DKeymapProfile.ValidateOverride([], row, true);
+        string onDesktop = Playback2DKeymapProfile.ValidateOverride([], row, false);
 
         Console.WriteLine($"[keybind-browser] '{row}' browser='{onBrowser}' desktop='{onDesktop}'");
 

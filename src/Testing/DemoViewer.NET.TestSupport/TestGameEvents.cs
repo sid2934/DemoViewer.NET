@@ -1,7 +1,6 @@
 #region
 
 using CS2DemoKit.Parser.GameEvents;
-
 using CS2OpenSchema.Events;
 
 #endregion
@@ -70,36 +69,36 @@ public static class TestGameEvents
         bool assistedFlash = false,
         float distance = 0f,
         byte hitGroup = 0) =>
-            new()
-            {
-                UserId = userId,
-                Attacker = attacker,
-                Assister = assister,
-                // 4.1 pawn-handle companions. The analysis layer keys everything on controller
-                // slots, so the fixtures leave the handles at 0 (the KV1 absent-key default).
-                UserIdPawn = 0,
-                AttackerPawn = 0,
-                AssisterPawn = 0,
-                Weapon = weapon,
-                DmgHealth = dmgHealth,
-                Headshot = headshot,
-                Penetrated = penetrated,
-                ThruSmoke = thruSmoke,
-                AttackerBlind = attackerBlind,
-                AssistedFlash = assistedFlash,
-                Distance = distance,
-                HitGroup = hitGroup,
-                AttackerInAir = false,
-                DmgArmor = dmgArmor,
-                Dominated = 0,
-                NoScope = false,
-                NoReplay = false,
-                Revenge = 0,
-                Wipe = 0,
-                WeaponFauxItemId = "",
-                WeaponItemId = "",
-                WeaponOriginalOwnerXuid = ""
-            };
+        new()
+        {
+            UserId = userId,
+            Attacker = attacker,
+            Assister = assister,
+            // 4.1 pawn-handle companions. The analysis layer keys everything on controller
+            // slots, so the fixtures leave the handles at 0 (the KV1 absent-key default).
+            UserIdPawn = 0,
+            AttackerPawn = 0,
+            AssisterPawn = 0,
+            Weapon = weapon,
+            DmgHealth = dmgHealth,
+            Headshot = headshot,
+            Penetrated = penetrated,
+            ThruSmoke = thruSmoke,
+            AttackerBlind = attackerBlind,
+            AssistedFlash = assistedFlash,
+            Distance = distance,
+            HitGroup = hitGroup,
+            AttackerInAir = false,
+            DmgArmor = dmgArmor,
+            Dominated = 0,
+            NoScope = false,
+            NoReplay = false,
+            Revenge = 0,
+            Wipe = 0,
+            WeaponFauxItemId = "",
+            WeaponItemId = "",
+            WeaponOriginalOwnerXuid = ""
+        };
 
     /// <summary>A <c>player_team</c> fire.</summary>
     public static GameEvent PlayerTeam(

@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Hud;
 
@@ -39,13 +40,6 @@ public sealed class TimelineHudDataSource : IHudDataSource
     private HudSnapshot _cached = HudSnapshot.Empty;
     private bool _hasCached;
 
-    /// <summary>
-    ///     How many times the kill window has been rebuilt. Test hook: "the windowing is cached, the
-    ///     readers are not" is the whole contract of <see cref="At" /> and there is no other way to see
-    ///     the first half of it.
-    /// </summary>
-    internal int WindowingsForTest { get; private set; }
-
     /// <summary>Creates a source.</summary>
     /// <param name="allKills">Every kill in the demo. Not copied; must not change under this type.</param>
     /// <param name="tickRate">The demo's tick rate.</param>
@@ -74,6 +68,13 @@ public sealed class TimelineHudDataSource : IHudDataSource
         _rosterAt = rosterAt;
         _window = new List<KillFeedRow>(Math.Max(4, maxRows));
     }
+
+    /// <summary>
+    ///     How many times the kill window has been rebuilt. Test hook: "the windowing is cached, the
+    ///     readers are not" is the whole contract of <see cref="At" /> and there is no other way to see
+    ///     the first half of it.
+    /// </summary>
+    internal int WindowingsForTest { get; private set; }
 
     /// <inheritdoc />
     public HudSnapshot At(int tick)
@@ -152,7 +153,7 @@ public readonly record struct ClockReading(
     private static string RoundText(int round) => round switch
     {
         <= 0 => "—",
-        < 128 => _roundText[round] ??= round.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        _ => round.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        < 128 => _roundText[round] ??= round.ToString(CultureInfo.InvariantCulture),
+        _ => round.ToString(CultureInfo.InvariantCulture)
     };
 }

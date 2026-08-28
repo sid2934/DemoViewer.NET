@@ -20,8 +20,12 @@ namespace DemoViewer.NET.AppTests;
 ///         button in it was inert, and one of them was worse than inert: <c>ToolDraw</c> still succeeded,
 ///         so <c>IsDrawingToolActive</c> went true, so the keymap's <c>WhenToolActive</c> rows shadowed the
 ///         always-scoped ones, and <c>Space</c> → <c>HoldPan</c> and <c>Esc</c> → <c>CancelGesture</c>
-///         both fell through a <c>is Scene2DHost</c> check and returned <b>without setting
-///         <c>Handled</c></b>. The user lost play/pause and clear-follow with no visible cause, recoverable
+///         both fell through a <c>is Scene2DHost</c> check and returned
+///         <b>
+///             without setting
+///             <c>Handled</c>
+///         </b>
+///         . The user lost play/pause and clear-follow with no visible cause, recoverable
 ///         only by pressing D again. Docking the toolbar into permanent chrome made this more likely.
 ///     </para>
 ///     <para>

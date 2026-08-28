@@ -17,25 +17,25 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     Real-time ink replay: a stroke carrying a captured cadence draws itself on at the speed it was
-///     authored at — pauses included — and dissolves behind itself.
+///     authored at, pauses included, and dissolves behind itself.
 ///     <para>
 ///         Every case is measured off a <b>rendered surface</b>, never off the run table. The table's own
-///         arithmetic is <c>StrokeTiming</c>'s contract and is tested where it lives; what is unproven,
-///         and what these cover, is that the layer turns it into the right picture. The fixture is a
-///         left-to-right stroke on a 400×400 pane, so "how far has the head got" is a pixel column and
-///         "how faded is the tail" is a brightness at a column — claims a whole-surface diff cannot make.
+///         arithmetic is <c>StrokeTiming</c>'s contract and is tested where it lives; what these cover is
+///         that the layer turns it into the right picture. The fixture is a left-to-right stroke on a
+///         400×400 pane, so "how far has the head got" is a pixel column and "how faded is the tail" is
+///         a brightness at a column. A whole-surface diff cannot make either claim.
 ///     </para>
 /// </summary>
 public class RealTimeInkTests
 {
     private static readonly SKSizeI _size = new(400, 400);
 
-    // The surface §4's numbers were taken on. Only the costing case uses it.
+    // The surface the published cost numbers were taken on. Only the costing case uses it.
     private static readonly SKSizeI _hd = new(1920, 1080);
 
     /// <summary>
-    ///     The head advances with the tick, and what is drawn is a genuine PREFIX — the stroke still
-    ///     starts where it was drawn, it does not slide across the map.
+    ///     The head advances with the tick, and what is drawn is a genuine PREFIX. The stroke still
+    ///     starts where it was drawn; it does not slide across the map.
     /// </summary>
     [Test]
     public async Task RealTimeStroke_DrawsAPrefix_ThatGrowsWithTheTick()
@@ -63,8 +63,8 @@ public class RealTimeInkTests
 
     /// <summary>
     ///     <b>The feature.</b> A pause in the run table is where the author stopped to think, and it is
-    ///     what a viewer reads as "it is replaying me" (§2). The same ten-tick advance must reveal
-    ///     strictly less across the pause than outside it — and, here, nothing at all.
+    ///     what a viewer reads as "it is replaying me". The same ten-tick advance must reveal strictly
+    ///     less across the pause than outside it, and here nothing at all.
     /// </summary>
     [Test]
     public async Task APauseInTheRunTable_StallsTheHead()
@@ -92,14 +92,14 @@ public class RealTimeInkTests
     }
 
     /// <summary>
-    ///     §3's per-section trapezoid: the tail is dimmer than the head at a tick past the tail's own
+    ///     The per-section trapezoid: the tail is dimmer than the head at a tick past the tail's own
     ///     hold, while the head is still being drawn at full opacity.
     /// </summary>
     [Test]
     public async Task TheTailFades_WhileTheHeadIsStillAdvancing()
     {
         using Fixture fixture = Fixture.With(RealTimeFakes.RealTime(
-            RealTimeFakes.Steady(RealTimeFakes.SampleCount, 128), from: 100, hold: 32, fadeOut: 32));
+            RealTimeFakes.Steady(RealTimeFakes.SampleCount, 128), 100, 32, 32));
 
         // Tick 150: sample 0 is 18 ticks past its 32-tick hold, so it sits mid-lead-out; the head is at
         // roughly sample 78 and has not begun to age at all.
@@ -116,12 +116,12 @@ public class RealTimeInkTests
             .Because("mid-lead-out is dim, not gone — a section that vanished at UntilTick would have " +
                      "no ramp at all");
         await Assert.That(head).IsEqualTo(Brightness(fixture.Render(120),
-            RealTimeFakes.WorldXOf(20), RealTimeFakes.WorldXOf(40)))
+                RealTimeFakes.WorldXOf(20), RealTimeFakes.WorldXOf(40)))
             .Because("the body is the element's plateau wherever it sits; it does not dim with the tail");
     }
 
     /// <summary>
-    ///     §3's consequence, from ONE control. A hold that outlasts the draw shows the whole stroke and
+    ///     The same trapezoid, from ONE control. A hold that outlasts the draw shows the whole stroke and
     ///     then dissolves it from the start; a hold that does not makes the stroke chase its own tail.
     /// </summary>
     [Test]
@@ -145,17 +145,16 @@ public class RealTimeInkTests
             .Because("a hold shorter than the draw leaves only a moving window of ink");
         await Assert.That(Ink(wholePixels)).IsGreaterThan(Ink(chasingPixels) * 2);
 
-        // The long-hold case at the end of its draw is the WHOLE stroke at full opacity — one section
-        // over the whole point list, which is byte for byte the untimed element's single draw. That is
-        // the guarantee "a non-RealTime element renders identically to today" rests on, asserted rather
-        // than argued.
+        // The long-hold case at the end of its draw is the WHOLE stroke at full opacity: one section
+        // over the whole point list, byte for byte the untimed element's single draw. That is what "a
+        // non-RealTime element renders identically" rests on.
         using Fixture untimed = Fixture.With(RealTimeFakes.Untimed());
         await Assert.That(Hash(wholePixels)).IsEqualTo(Hash(untimed.Render(228)))
             .Because("a fully-drawn, fully-held real-time stroke IS the plain stroke");
     }
 
     /// <summary>
-    ///     <b>The export determinism gate, at the layer.</b> §5: the reveal is <c>f(Tick)</c> with no
+    ///     <b>The export determinism gate, at the layer.</b> The reveal is <c>f(Tick)</c> with no
     ///     accumulated state, so arriving at a tick by stepping, by jumping, or by the 30 fps sampling
     ///     that SKIPS ticks (<c>ticksPerOutputFrame ≈ 2.13</c>) must all give the same pixels.
     ///     <para>
@@ -168,7 +167,7 @@ public class RealTimeInkTests
     public async Task Reveal_IsAPureFunctionOfTheTick_HoweverTheTickWasReached()
     {
         StrokeTiming cadence = RealTimeFakes.WithPause(RealTimeFakes.SampleCount, 50, 60);
-        AnnotationElement element = RealTimeFakes.RealTime(cadence, from: 100, hold: 40, fadeOut: 32);
+        AnnotationElement element = RealTimeFakes.RealTime(cadence, 100, 40, 32);
         const int target = 196;
 
         using Fixture jumped = Fixture.With(element);
@@ -202,7 +201,7 @@ public class RealTimeInkTests
     public async Task ScrubbingBackwards_UnDrawsTheStroke()
     {
         AnnotationElement element = RealTimeFakes.RealTime(
-            RealTimeFakes.Steady(RealTimeFakes.SampleCount, 128), from: 100, hold: 40, fadeOut: 32);
+            RealTimeFakes.Steady(RealTimeFakes.SampleCount, 128), 100, 40, 32);
 
         using Fixture scrubbed = Fixture.With(element);
         using Fixture cold = Fixture.With(element);
@@ -220,8 +219,8 @@ public class RealTimeInkTests
     }
 
     /// <summary>
-    ///     <see cref="AnnotationStyle.RevealOnFadeIn" /> is a DIFFERENT feature that shares the same seam
-    ///     (§9): a linear sweep across the fade-in ramp, with no cadence anywhere. Generalising
+    ///     <see cref="AnnotationStyle.RevealOnFadeIn" /> is a DIFFERENT feature that shares the same
+    ///     seam: a linear sweep across the fade-in ramp, with no cadence anywhere. Generalising
     ///     <c>RevealCount</c> must leave it exactly where it was, so its sweep is pinned here at three
     ///     points rather than only asserted to be monotone.
     /// </summary>
@@ -253,9 +252,9 @@ public class RealTimeInkTests
     }
 
     /// <summary>
-    ///     §6's budget with the animated case live. A real-time stroke is the layer's worst content: it
-    ///     is re-sectioned and re-outlined every frame and is cached by nothing, so if any of that
-    ///     allocated it would show up here and nowhere else.
+    ///     The zero-allocation budget with the animated case live. A real-time stroke is the layer's
+    ///     worst content: it is re-sectioned and re-outlined every frame and is cached by nothing, so if
+    ///     any of that allocated it would show up here and nowhere else.
     /// </summary>
     [Test]
     [Category("Budget")]
@@ -267,10 +266,10 @@ public class RealTimeInkTests
 
         StrokeTiming cadence = RealTimeFakes.WithPause(400, 200, 120);
         doc.Apply(new DocDelta.Add(
-            RealTimeFakes.RealTime(cadence, from: 100, hold: 64, fadeOut: 48, count: 400), 0));
+            RealTimeFakes.RealTime(cadence, 100, 64, 48, 400), 0));
         doc.Apply(new DocDelta.Add(
-            RealTimeFakes.RealTime(RealTimeFakes.Steady(400, 260), from: 100, hold: 64, fadeOut: 48,
-                count: 400, y: 120), 1));
+            RealTimeFakes.RealTime(RealTimeFakes.Steady(400, 260), 100, 64, 48,
+                400, y: 120), 1));
         doc.Apply(new DocDelta.Add(RealTimeFakes.Untimed(count: 400, y: -120), 2));
 
         // Tick 400 is mid-replay for both cadences: a live head, a full-alpha body and all eight tail
@@ -291,15 +290,15 @@ public class RealTimeInkTests
     }
 
     /// <summary>
-    ///     §4's costing, checked against a real run. The plan priced the tail ramp at 117 µs (k=1) →
-    ///     152 µs (k=8) for a 400-sample stroke on a 1080p CPU surface, at 0 B/frame for every k, and the
-    ///     whole "one full-alpha body plus k short tail draws" shape rests on that number staying flat in
-    ///     the sample count.
+    ///     The costing, checked against a real run. The tail ramp was priced at 117 µs (k=1) → 152 µs
+    ///     (k=8) for a 400-sample stroke on a 1080p CPU surface, at 0 B/frame for every k, and the whole
+    ///     "one full-alpha body plus k short tail draws" shape rests on that number staying flat in the
+    ///     sample count.
     ///     <para>
     ///         The microseconds are <b>reported, never gated</b>: a µs gate on a shared runner is a
-    ///         referendum on the runner, and the gate that matters — the whole scene inside its draw
-    ///         budget with real ink on it — is <c>BudgetTests.FullScene_WithRealStrokeInk…</c>. The bytes
-    ///         are gated, because zero is zero on every machine.
+    ///         referendum on the runner. The gate that matters is
+    ///         <c>BudgetTests.FullScene_WithRealStrokeInk…</c>, the whole scene inside its draw budget
+    ///         with real ink on it. The bytes are gated, because zero is zero on every machine.
     ///     </para>
     /// </summary>
     [Test]
@@ -310,8 +309,8 @@ public class RealTimeInkTests
 
         using Fixture plain = Fixture.With(RealTimeFakes.Untimed(count: samples, width: 24f));
         using Fixture live = Fixture.With(RealTimeFakes.RealTime(
-            RealTimeFakes.Steady(samples, 260), from: 100, hold: 64, fadeOut: 48, count: samples,
-            width: 24f));
+            RealTimeFakes.Steady(samples, 260), 100, 64, 48, samples,
+            24f));
 
         // Tick 228: the plain stroke, whole, in one draw. Tick 300: elapsed 200 of 260, so the real-time
         // stroke has a live head, a full-alpha body and all eight tail bands at once.
@@ -410,8 +409,8 @@ public class RealTimeInkTests
         };
     }
 
-    // The costing case's context: the same single-level pane on §4's 1080p surface, framed so a
-    // 900-unit stroke covers about half the width — a stroke drawn at one pixel would be measuring the
+    // The costing case's context: the same single-level pane on the 1080p surface, framed so a
+    // 900-unit stroke covers about half the width. A stroke drawn at one pixel would be measuring the
     // outliner and nothing of the rasterizer.
     private static SceneRenderContext HdContext(int tick)
     {
@@ -456,7 +455,7 @@ public class RealTimeInkTests
         return -1;
     }
 
-    // The leftmost column carrying ink — the tail, which walks right as the stroke dissolves behind
+    // The leftmost column carrying ink: the tail, which walks right as the stroke dissolves behind
     // itself.
     private static int Tail(SKColor[] pixels)
     {
@@ -482,7 +481,7 @@ public class RealTimeInkTests
         {
             for (int x = lo; x <= hi; x++)
             {
-                best = Math.Max(best, pixels[(y * _size.Width) + x].Red);
+                best = Math.Max(best, pixels[y * _size.Width + x].Red);
             }
         }
 
@@ -494,7 +493,7 @@ public class RealTimeInkTests
         SKColor background = ScenePalette.Dark.Background;
         for (int y = 0; y < _size.Height; y++)
         {
-            SKColor p = pixels[(y * _size.Width) + x];
+            SKColor p = pixels[y * _size.Width + x];
             if (p.Red != background.Red || p.Green != background.Green || p.Blue != background.Blue)
             {
                 return true;
@@ -527,9 +526,9 @@ public class RealTimeInkTests
         {
             SKColor p = pixels[i];
             bytes[i * 4] = p.Red;
-            bytes[(i * 4) + 1] = p.Green;
-            bytes[(i * 4) + 2] = p.Blue;
-            bytes[(i * 4) + 3] = p.Alpha;
+            bytes[i * 4 + 1] = p.Green;
+            bytes[i * 4 + 2] = p.Blue;
+            bytes[i * 4 + 3] = p.Alpha;
         }
 
         return Convert.ToHexString(SHA256.HashData(bytes));
@@ -551,11 +550,11 @@ public class RealTimeInkTests
             _layer = new AnnotationLayer(new AnnotationSession(document));
         }
 
-        public static Fixture With(AnnotationElement element) => new(element);
-
         public void Dispose() => _layer.Dispose();
 
-        /// <summary>Advances to a tick without drawing — how a skipped export frame reaches the layer.</summary>
+        public static Fixture With(AnnotationElement element) => new(element);
+
+        /// <summary>Advances to a tick without drawing, as a skipped export frame does.</summary>
         /// <param name="tick">The DV frame-clock tick.</param>
         public void Advance(int tick)
         {

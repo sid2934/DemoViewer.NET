@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 
 #endregion
@@ -22,7 +23,7 @@ public class TimelineContractTests
     [Test]
     public async Task Contract_LivesInCore()
     {
-        string core = typeof(Playback2D.Core.Scene2DFrame).Assembly.GetName().Name!;
+        string core = typeof(Scene2DFrame).Assembly.GetName().Name!;
 
         foreach (Type t in (Type[])
                  [

@@ -72,7 +72,7 @@ public class AnnotationLayerTests
         using AnnotationLayer layer = new(session);
 
         doc.Apply(new DocDelta.Add(
-            AnnotationFakes.Stroke(space: new SpaceRef.World(MapSpace.QuantizeZ(-448))), 0));
+            AnnotationFakes.Stroke(new SpaceRef.World(MapSpace.QuantizeZ(-448))), 0));
 
         int lower = Ink(layer, Scene2DFrame.Empty, space, 0);
         int upper = Ink(layer, Scene2DFrame.Empty, space, 1);
@@ -98,7 +98,7 @@ public class AnnotationLayerTests
     {
         MapSpace space = new();
         space.Rebuild([new FloorSlice(-448, -384), new FloorSlice(-384, -128)]);
-        space.Rebuild([new FloorSlice(-384, -128)]);           // the lower floor disappears…
+        space.Rebuild([new FloorSlice(-384, -128)]); // the lower floor disappears…
         space.Rebuild([new FloorSlice(-448, -384), new FloorSlice(-384, -128)]); // …and comes back
 
         double anchor = MapSpace.QuantizeZ(space.Levels[0].ZMin);
@@ -113,13 +113,13 @@ public class AnnotationLayerTests
 
         // Static ∧ World → the cached dry picture; time-anchored → the per-frame prepared path. Both
         // resolved the anchor the same broken way, so both are exercised.
-        doc.Apply(new DocDelta.Add(AnnotationFakes.Stroke(space: new SpaceRef.World(anchor)), 0));
+        doc.Apply(new DocDelta.Add(AnnotationFakes.Stroke(new SpaceRef.World(anchor)), 0));
         doc.Apply(new DocDelta.Add(
-            AnnotationFakes.Stroke(space: new SpaceRef.World(anchor), time: new TimeEnvelope(0, 500, 0, 0),
+            AnnotationFakes.Stroke(new SpaceRef.World(anchor), new TimeEnvelope(0, 500, 0, 0),
                 y: 120), 1));
 
-        int lower = Ink(layer, Scene2DFrame.Empty, space, 0, tick: 100);
-        int upper = Ink(layer, Scene2DFrame.Empty, space, 1, tick: 100);
+        int lower = Ink(layer, Scene2DFrame.Empty, space, 0, 100);
+        int upper = Ink(layer, Scene2DFrame.Empty, space, 1, 100);
 
         await Assert.That(lower).IsGreaterThan(0)
             .Because("the pane is drawing the floor the stroke was drawn on, re-minted key or not");
@@ -134,13 +134,13 @@ public class AnnotationLayerTests
         using AnnotationLayer layer = new(session);
 
         doc.Apply(new DocDelta.Add(
-            AnnotationFakes.Stroke(space: new SpaceRef.Entity(76561198000000042, 0, 0)), 0));
+            AnnotationFakes.Stroke(new SpaceRef.Entity(76561198000000042, 0, 0)), 0));
 
         await Assert.That(Ink(layer, AnnotationFakes.Frame())).IsEqualTo(0)
             .Because("no marker with that SteamId is on this frame");
 
         await Assert.That(Ink(layer, AnnotationFakes.Frame(
-                AnnotationFakes.Marker(76561198000000042, 0, 0, 0, alive: false))))
+                AnnotationFakes.Marker(76561198000000042, 0, 0, 0, false))))
             .IsEqualTo(0)
             .Because("§5.4: hide while the anchor is dead, never guess a last-known position");
 
@@ -158,17 +158,17 @@ public class AnnotationLayerTests
 
         // Authored at (0,0) with a zero offset, so the stroke's first point sits on the player.
         doc.Apply(new DocDelta.Add(
-            AnnotationFakes.Stroke(space: new SpaceRef.Entity(7ul, 0, 0), x: 0, y: 0), 0));
+            AnnotationFakes.Stroke(new SpaceRef.Entity(7ul, 0, 0), x: 0, y: 0), 0));
 
         SKColor[] first = RenderPixels(layer, AnnotationFakes.Frame(
             AnnotationFakes.Marker(7ul, -300, 0)));
         SKColor[] second = RenderPixels(layer, AnnotationFakes.Frame(
             AnnotationFakes.Marker(7ul, 300, 0)));
 
-        int firstLeft = InkOnSide(first, left: true);
-        int firstRight = InkOnSide(first, left: false);
-        int secondLeft = InkOnSide(second, left: true);
-        int secondRight = InkOnSide(second, left: false);
+        int firstLeft = InkOnSide(first, true);
+        int firstRight = InkOnSide(first, false);
+        int secondLeft = InkOnSide(second, true);
+        int secondRight = InkOnSide(second, false);
 
         await Assert.That(firstLeft).IsGreaterThan(firstRight);
         await Assert.That(secondRight).IsGreaterThan(secondLeft)
@@ -307,12 +307,12 @@ public class AnnotationLayerTests
         for (int i = 0; i < 12; i++)
         {
             doc.Apply(new DocDelta.Add(
-                AnnotationFakes.Stroke(space: new SpaceRef.World(MapSpace.QuantizeZ(-448)),
+                AnnotationFakes.Stroke(new SpaceRef.World(MapSpace.QuantizeZ(-448)),
                     x: i * 20f), i));
         }
 
         doc.Apply(new DocDelta.Add(
-            AnnotationFakes.Stroke(space: new SpaceRef.Entity(7ul, 0, 0)), doc.Elements.Count));
+            AnnotationFakes.Stroke(new SpaceRef.Entity(7ul, 0, 0)), doc.Elements.Count));
         doc.Apply(new DocDelta.Add(
             AnnotationFakes.Stroke(time: new TimeEnvelope(0, 10_000, 8, 8)), doc.Elements.Count));
 
@@ -320,7 +320,7 @@ public class AnnotationLayerTests
         // a full-alpha body and a tail that is part way through all eight bands.
         doc.Apply(new DocDelta.Add(
             RealTimeFakes.RealTime(RealTimeFakes.Steady(RealTimeFakes.SampleCount, 128),
-                    from: 40, hold: 24, fadeOut: 32) with
+                    40, 24) with
                 {
                     Space = new SpaceRef.World(MapSpace.QuantizeZ(-448))
                 },
@@ -451,7 +451,7 @@ public class AnnotationLayerTests
                     continue;
                 }
 
-                SKColor p = pixels[(y * _size.Width) + x];
+                SKColor p = pixels[y * _size.Width + x];
                 if (p.Red != background.Red || p.Green != background.Green || p.Blue != background.Blue)
                 {
                     count++;

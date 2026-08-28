@@ -25,6 +25,16 @@ internal static class SyntheticScenes
     public const string FullSceneBudgetName = "full-scene-budget";
 
     /// <summary>
+    ///     Authoritative floor bands for the budget scene, standing in for a map bundle so the two-level
+    ///     layout is deterministic rather than dependent on the Z histogram warming up.
+    /// </summary>
+    public static IReadOnlyList<FloorSlice> BudgetFloors { get; } =
+    [
+        new(-700, -100),
+        new(-100, 500)
+    ];
+
+    /// <summary>
     ///     <c>sin</c> and <c>cos</c> for a fixture that gets <b>committed as text</b> and then compared
     ///     character by character against a regeneration on another machine.
     ///     <para>
@@ -173,16 +183,6 @@ internal static class SyntheticScenes
                     "round — a fixture that happens to be quiet would let a regression through."
         };
     }
-
-    /// <summary>
-    ///     Authoritative floor bands for the budget scene, standing in for a map bundle so the two-level
-    ///     layout is deterministic rather than dependent on the Z histogram warming up.
-    /// </summary>
-    public static IReadOnlyList<FloorSlice> BudgetFloors { get; } =
-    [
-        new FloorSlice(-700, -100),
-        new FloorSlice(-100, 500)
-    ];
 
     private static string Label(int slot) => slot switch
     {

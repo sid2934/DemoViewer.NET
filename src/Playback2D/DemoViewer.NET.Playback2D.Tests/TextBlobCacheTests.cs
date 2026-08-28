@@ -225,6 +225,6 @@ public class TextBlobCacheTests
 
         // Vertically every label shares one baseline, so a scene's initials sit on a line rather than
         // each drifting to centre its own ink.
-        await Assert.That(y).IsEqualTo(100f - ((shaped.Ascent + shaped.Descent) / 2f)).Within(0.001f);
+        await Assert.That(y).IsEqualTo(100f - (shaped.Ascent + shaped.Descent) / 2f).Within(0.001f);
     }
 }

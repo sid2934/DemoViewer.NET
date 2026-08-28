@@ -110,7 +110,10 @@ public class LevelHysteresisTests
         SceneTime settled = Time(Dt);
         hysteresis.Update(in settled, -300, space);
 
-        SceneTime seek = Time(Dt) with { IsDiscontinuity = true };
+        SceneTime seek = Time(Dt) with
+        {
+            IsDiscontinuity = true
+        };
         hysteresis.Update(in seek, 400, space);
 
         await Assert.That(hysteresis.Current).IsEqualTo(space.Levels[1].Id);
@@ -124,7 +127,10 @@ public class LevelHysteresisTests
     [Test]
     public async Task Dwell_IsFrameRateIndependent()
     {
-        foreach (double dt in new[] { 1.0 / 30, 1.0 / 144 })
+        foreach (double dt in new[]
+                 {
+                     1.0 / 30, 1.0 / 144
+                 })
         {
             MapSpace space = Two(-640, 0, 0, 640);
             LevelHysteresis hysteresis = new();

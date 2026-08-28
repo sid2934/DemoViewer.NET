@@ -11,7 +11,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Covers the <see cref="ReelJobStatusViewModel" /> status→chip + status→flyout mapping
-/// over a fake <see cref="IReelJobService" />. Pure VM. Asserts the
+///     over a fake <see cref="IReelJobService" />. Pure VM. Asserts the
 ///     dot vocabulary (working pulse / positive done / error), the neutral "Reel · …" labels, the
 ///     mutually-exclusive flyout sections, the per-clip status list (done/current/queued/failed), and the
 ///     retry / cancel / dismiss gating.
@@ -116,8 +116,8 @@ public class ReelJobStatusViewModelTests
         job.Raise(Status(ReelJobPhase.Capturing, 1, 4));
         await Assert.That(vm.HasError).IsFalse().Because("a running job has no error to copy");
 
-        job.Raise(Status(ReelJobPhase.Failed, 2, 4, current: "s1mple · ace",
-            error: "Capture provider is configured but not available.", failed: [2]));
+        job.Raise(Status(ReelJobPhase.Failed, 2, 4, "s1mple · ace",
+            "Capture provider is configured but not available.", failed: [2]));
 
         await Assert.That(vm.HasError).IsTrue();
         string diag = vm.CopyDiagnosticsText;

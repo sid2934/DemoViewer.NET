@@ -18,8 +18,6 @@ namespace DemoViewer.NET.Playback2DTests;
 /// </summary>
 public class SceneLayerTests
 {
-    private static readonly SKSizeI _size = new(200, 200);
-
     /// <summary>
     ///     Error budget for comparing a <b>rasterised</b> ink bounding box against the point the text was
     ///     centred on: -0.364 px structural (line-box centring vs cap-height ink), ±0.5 px baseline snap,
@@ -27,6 +25,8 @@ public class SceneLayerTests
     ///     See <see cref="MarkerLayer_LabelInk_IsCentredOnTheDisc" />.
     /// </summary>
     private const float InkCentreTolerancePx = 2f;
+
+    private static readonly SKSizeI _size = new(200, 200);
 
     [Test]
     public async Task RadarLayer_WithNoImage_FallsBackToTheGrid()
@@ -54,7 +54,7 @@ public class SceneLayerTests
         // so the image lands blended 90/10 over the background. Asserting the BLEND rather than the
         // source colour is what actually pins the opacity port.
         int magentaish = Count(pixels, p => p.Red > 200 && p.Blue > 200 && p.Green < 60);
-        SKColor sample = pixels[(_size.Height / 2 * _size.Width) + (_size.Width / 2)];
+        SKColor sample = pixels[_size.Height / 2 * _size.Width + _size.Width / 2];
         Console.WriteLine($"[radar] magenta-ish pixels={magentaish} centre={sample}");
 
         await Assert.That(magentaish).IsGreaterThan(1000);

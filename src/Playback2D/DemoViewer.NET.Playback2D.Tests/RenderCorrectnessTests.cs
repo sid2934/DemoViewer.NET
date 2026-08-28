@@ -18,26 +18,27 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     Render, camera and resource correctness: one case per finding, each of them a defect the
-///     1594-test suite already had, because every one of them lives in a <b>relationship</b> a unit
-///     test does not instantiate: a producer feeding a camera, a palette outliving a picture, two HUD
-///     layers claiming one rectangle, a cache describing a handle that has already been freed.
+///     Render, camera and resource correctness: one case per finding in
+///     <c>docs/playback2d-v2/plans/D6-audit-findings.md</c>. Each is a defect the unit suite missed
+///     because it lives in a <b>relationship</b> no single unit instantiates: a producer feeding a
+///     camera, a palette outliving a picture, two HUD layers claiming one rectangle, a cache describing
+///     a handle that has already been freed.
 /// </summary>
 public class RenderCorrectnessTests
 {
     private const int TickRate = 64;
 
-    // ── 8 · one non-finite coordinate poisons the camera permanently ────────────────────────────────
+    // ── one non-finite coordinate poisons the camera permanently ────────────────────────────────────
 
     [Test]
     public async Task ANonFiniteMarker_NeitherPoisonsTheCamera_NorPinsTheRenderLoopOn()
     {
-        // The audit's probe, made a gate. FitAliveRig folds every alive marker into a rectangle with
-        // Math.Min/Math.Max, so ONE NaN coordinate is the whole rectangle; ViewportTransform.Fit's
-        // degenerate guard is `w <= double.Epsilon`, which is false for a NaN, so the NaN used to land in
-        // BaseScale and CenterX. From there SliceCamera.IsSettledAt loses every comparison, the residual
-        // is never snapped, and CameraAdvancer keeps reporting "still moving" — an idle tab at display
-        // refresh rate, drawing nothing, for the rest of the session.
+        // FitAliveRig folds every alive marker into a rectangle with Math.Min/Math.Max, so ONE NaN
+        // coordinate is the whole rectangle; ViewportTransform.Fit's degenerate guard is
+        // `w <= double.Epsilon`, which is false for a NaN, so an ungated NaN reaches BaseScale and
+        // CenterX. From there SliceCamera.IsSettledAt loses every comparison, the residual is never
+        // snapped, and CameraAdvancer keeps reporting "still moving": an idle tab at display refresh
+        // rate, drawing nothing, for the rest of the session.
         //
         // An EMPTY compositor, deliberately: the return value has to be the camera's answer and nothing
         // else, or a layer that happens to animate would mask it.
@@ -76,9 +77,9 @@ public class RenderCorrectnessTests
     [Test]
     public async Task APoisonedCamera_RecoversOnTheNextFiniteTarget()
     {
-        // The other half of permanence: `a + (b - a) * t` is NaN for every t once a is, so a camera that
-        // was corrupted before the guards existed — or by a producer that writes Current directly — could
-        // never lerp back onto a finite target. It lands on it instead.
+        // The other half of permanence: `a + (b - a) * t` is NaN for every t once a is, so a camera
+        // corrupted by a producer that writes Current directly could never lerp back onto a finite
+        // target. It lands on it instead.
         SliceCamera poisoned = new(new ViewportTransform(640, 360, double.NaN, double.NaN,
             double.NaN, 1, 0, 0));
         ViewportTransform target = ViewportTransform.Fit(640, 360, -1000, -1000, 1000, 1000);
@@ -93,8 +94,8 @@ public class RenderCorrectnessTests
     [Test]
     public async Task TheFrameBuilder_RefusesANonFiniteSample_RatherThanWideningIntoIt()
     {
-        // _observed is only ever WIDENED — there is no re-seed — and WorldBounds.Extend is Math.Min /
-        // Math.Max, both of which propagate NaN. So the gate has to be the entry point, and this is it.
+        // _observed is only ever WIDENED (there is no re-seed) and WorldBounds.Extend is Math.Min /
+        // Math.Max, both of which propagate NaN. So the gate has to be the entry point.
         SceneFrameBuilder builder = new();
         FakeEntity pawn = new FakeEntity("CCSPlayerPawn").With("m_iHealth", 100);
 
@@ -124,21 +125,21 @@ public class RenderCorrectnessTests
 
         Console.WriteLine($"[nan-observe] poisoned={afterPoison} good={afterGood} again={afterPoisonAgain}");
 
-        // The rejected sample leaves the extent exactly where it was — unseeded first, then untouched.
+        // The rejected sample leaves the extent exactly where it was: unseeded first, then untouched.
         await Assert.That(afterPoison).IsEqualTo(WorldBounds.Default);
         await Assert.That(afterGood).IsEqualTo(new WorldBounds(100, 200, 100, 200));
         await Assert.That(afterPoisonAgain).IsEqualTo(afterGood);
     }
 
-    // ── 16 · the picture-cache key carries no palette ───────────────────────────────────────────────
+    // ── the picture-cache key carries no palette ────────────────────────────────────────────────────
 
     [Test]
     public async Task APaletteSwap_DropsThePictures_SoAPerCameraLayerRedraws()
     {
         // A PerCamera recording bakes in whatever colours the layer read out of ctx.Palette. The key is
-        // (LevelId, LayerId, ContentVersion, CameraEpoch) — none of which move on a theme switch — so the
-        // old theme replayed forever at an unchanged epoch. Scene2DHost got away with it by calling
-        // InvalidateCaches() by hand; HeadlessSceneRenderer.Palette merely SAID it did.
+        // (LevelId, LayerId, ContentVersion, CameraEpoch), none of which move on a theme switch, so an
+        // unkeyed palette replays the old theme forever at an unchanged epoch. Scene2DHost invalidates
+        // by hand; HeadlessSceneRenderer.Palette has to do it itself.
         PaletteFillLayer layer = new();
         using SceneCompositor compositor = new();
         compositor.Add(layer);
@@ -170,8 +171,8 @@ public class RenderCorrectnessTests
         //
         // Rendered through the framed single-pane path with the canvas cleared to a FIXED colour, not
         // through the submission path: the submission fills the background from its own palette outside
-        // the picture, so two submissions differ in their background whether or not the cached grid moved
-        // — which would have made this pass against the very bug it is here to catch.
+        // the picture, so two submissions differ in their background whether or not the cached grid
+        // moved. That would make this pass against the very bug it is here to catch.
         using SceneCompositor compositor = new();
         compositor.Add(new RadarLayer());
 
@@ -194,14 +195,14 @@ public class RenderCorrectnessTests
             .Because("a dark grid surviving a light swap at the same epoch is exactly the cache-key defect this guards");
     }
 
-    // ── 17 · the single-pane Render pins every PerCamera key to a default pane ───────────────────────
+    // ── the single-pane Render pins every PerCamera key to a default pane ────────────────────────────
 
     [Test]
     public async Task TheSinglePaneRender_DoesNotCacheAgainstAnUnframedPane()
     {
-        // Most callers of this overload leave ctx.Pane at default — LevelId lv-0, CameraEpoch 0 — so
-        // every PerCamera key was the SAME key however far the camera had moved, and frame 1's pane-local
-        // pixels replayed forever. Latent only because SceneRenderer has no production caller.
+        // Most callers of this overload leave ctx.Pane at default (LevelId lv-0, CameraEpoch 0), so
+        // every PerCamera key is the SAME key however far the camera has moved, and frame 1's pane-local
+        // pixels replay forever. Latent only because SceneRenderer has no production caller.
         WorldSquareLayer layer = new();
         using SceneCompositor compositor = new();
         compositor.Add(layer);
@@ -232,8 +233,8 @@ public class RenderCorrectnessTests
     public async Task TheSinglePaneRender_StillCaches_WhenTheCallerFramedAPane()
     {
         // The bypass is aimed at the unframed default, not at the overload: a caller that supplies a real
-        // pane snapshot (the export HUD suite does) has a key that varies with its camera, and taking its
-        // cache away would be a second regression dressed as a fix.
+        // pane snapshot (the export HUD suite does) has a key that varies with its camera, so it keeps
+        // its cache.
         WorldSquareLayer layer = new();
         using SceneCompositor compositor = new();
         compositor.Add(layer);
@@ -254,17 +255,16 @@ public class RenderCorrectnessTests
         await Assert.That(layer.RenderCalls).IsEqualTo(1);
     }
 
-    // ── 22 · RadarLayer.ScaledFor leaves a dangling disposed SKImage ─────────────────────────────────
+    // ── RadarLayer.ScaledFor leaves a dangling disposed SKImage ──────────────────────────────────────
 
     [Test]
     public async Task AFailedResample_LeavesNoCacheEntry_RatherThanADisposedHandle()
     {
-        // ScaledFor disposed _scaled first and reassigned it last, while _scaledFrom/_scaledWidth/
-        // _scaledHeight went on describing it in between. Anything that failed in that window — a null
-        // from SKSurface.Create, which this method can ask for up to 8192² × 4 bytes from, or a throw out
-        // of the resample — left the hit branch handing a freed SKImage to DrawImage. That is an access
-        // violation inside Skia, not an exception the frame loop can catch, which is why this asserts on
-        // the cache's own state BEFORE it would draw again.
+        // ScaledFor must never leave _scaledFrom/_scaledWidth/_scaledHeight describing an image it has
+        // already disposed. Anything that fails in that window (a null from SKSurface.Create, which this
+        // method can ask for up to 8192² × 4 bytes from, or a throw out of the resample) leaves the hit
+        // branch handing a freed SKImage to DrawImage: an access violation inside Skia, not an exception
+        // the frame loop can catch. So this asserts on the cache's own state BEFORE it would draw again.
         using SKImage source = SolidImage(64, 64, SKColors.Magenta);
         using RadarLayer layer = new()
         {
@@ -280,7 +280,7 @@ public class RenderCorrectnessTests
         await Assert.That(layer.ScaledCacheSizeForTest).IsNotEqualTo((0, 0));
 
         // Now the resample cannot be made. The size differs, so this misses the cache and takes the path
-        // that used to free the live image and keep describing it.
+        // that frees the live image before it has a replacement.
         layer.SetSurfaceFactoryForTest(static _ => null);
         layer.Render(surface.Canvas, RadarContext(source, 96, 96));
 
@@ -310,19 +310,20 @@ public class RenderCorrectnessTests
         await Assert.That(layer.ScaledCacheSizeForTest).IsNotEqualTo((0, 0));
     }
 
-    // ── 23 · TextBlobCache can dispose SKTypeface.Default ────────────────────────────────────────────
+    // ── TextBlobCache can dispose SKTypeface.Default ─────────────────────────────────────────────────
 
     [Test]
     public async Task AMissingTypefaceResource_BorrowsTheFallback_AndNeverDisposesIt()
     {
         // LoadEmbeddedTypeface falls back to the process-wide SKTypeface.Default when the manifest
-        // resource is absent, and Dispose used to dispose _typeface unconditionally. Every layer builds
-        // its own cache when no shared one is passed, so a packaging fault whose intended cost was "the
-        // wrong font" unref'd the singleton once per cache and killed text rendering process-wide.
+        // resource is absent, so Dispose must not free _typeface unconditionally. Every layer builds its
+        // own cache when no shared one is passed, and an unconditional dispose unrefs the singleton once
+        // per cache: a packaging fault that should cost "the wrong font" kills text rendering
+        // process-wide instead.
         //
-        // The fallback is substituted rather than being the real singleton on purpose: a suite that
-        // proved this by destroying SKTypeface.Default would report the regression as every OTHER text
-        // test failing, in whatever order they happened to run.
+        // The fallback is a stand-in rather than the real singleton on purpose: a suite that proved this
+        // by destroying SKTypeface.Default would report the regression as every OTHER text test failing,
+        // in whatever order they happened to run.
         using SKTypeface standIn = LoadEmbeddedFace();
 
         using (TextBlobCache orphan = new(16, "DemoViewer.NET.Playback2D.Core.Assets.NoSuchFace.ttf",
@@ -343,7 +344,7 @@ public class RenderCorrectnessTests
         Console.WriteLine($"[typeface] borrowed face handle after two disposes: {standIn.Handle}");
 
         await Assert.That(standIn.Handle).IsNotEqualTo(IntPtr.Zero);
-        using SKFont font = new(standIn, 12f);
+        using SKFont font = new(standIn);
         await Assert.That(SKTextBlob.Create("still here", font)).IsNotNull();
     }
 
@@ -351,7 +352,7 @@ public class RenderCorrectnessTests
     public async Task TheEmbeddedFace_IsOwned_AndIsStillDisposed()
     {
         // The other side of the ownership test: the normal path must keep releasing what it loaded, or
-        // the fix would have traded a process-wide crash for a native leak per layer.
+        // the borrow rule above just trades a process-wide crash for a native leak per layer.
         SKTypeface loaded;
         using (TextBlobCache cache = new())
         {
@@ -362,16 +363,15 @@ public class RenderCorrectnessTests
         await Assert.That(loaded.Handle).IsEqualTo(IntPtr.Zero);
     }
 
-    // ── 9 · hud.roster's CT column and hud.killfeed occupy the same rectangle ────────────────────────
+    // ── hud.roster's CT column and hud.killfeed occupy the same rectangle ────────────────────────────
 
     [Test]
     public async Task TheRosterAndTheKillFeed_DoNotOverlap_OnAShortPane()
     {
-        // 1280×360 is the top band of a 1280×720 two-level stacked export — the case both layers' own doc
+        // 1280×360 is the top band of a 1280×720 two-level stacked export, the case both layers' own doc
         // comments cite. The roster centres a 5-card column over the whole pane and the feed runs ~159 px
         // down from the top edge, both against the right edge; the feed is Order 80 against the roster's
-        // 65, so it painted straight over the cards. Neither suite saw it because each layer was only
-        // ever mounted alone.
+        // 65, so it paints straight over the cards. Only a test that mounts both layers at once sees it.
         SKSizeI size = new(1280, 360);
         HudSnapshot snapshot = ExportFixtures.Hud(6, roster: ExportFixtures.Roster()) with
         {
@@ -401,7 +401,7 @@ public class RenderCorrectnessTests
     [Test]
     public async Task OnAPaneTallEnoughForBoth_TheRosterKeepsItsCentring()
     {
-        // The reservation is taken unconditionally — a layer cannot see its siblings — so it has to be a
+        // The reservation is taken unconditionally (a layer cannot see its siblings), so it has to be a
         // NO-OP wherever a centred roster already clears the feed. At 720p it does, and the strips must
         // still be centred on the pane rather than shoved into the lower two thirds of the frame.
         SKSizeI size = new(1280, 720);
@@ -414,16 +414,16 @@ public class RenderCorrectnessTests
         Console.WriteLine($"[hud-centring] roster ink rows {top}..{bottom}, centre {centre:F1} " +
                           $"against pane centre {size.Height / 2.0:F1}");
 
-        await Assert.That(Math.Abs(centre - (size.Height / 2.0))).IsLessThan(2.0);
+        await Assert.That(Math.Abs(centre - size.Height / 2.0)).IsLessThan(2.0);
     }
 
-    // ── 32a · SceneFrameBuilder.Reset does not reset LastRoster ──────────────────────────────────────
+    // ── SceneFrameBuilder.Reset does not reset LastRoster ────────────────────────────────────────────
 
     [Test]
     public async Task ResettingTheBuilder_ClearsTheRoster_LikeEveryOtherCacheItHolds()
     {
         // TrackerFrameSource.LastRoster is assigned straight from here, so a roster left standing across
-        // a demo reset is the previous match's pooled list — still populated, still readable, and read by
+        // a demo reset is the previous match's pooled list: still populated, still readable, and read by
         // any HUD source built before the next Build.
         SceneFrameBuilder builder = new();
         FakeEntity pawn = new FakeEntity("CCSPlayerPawn").With("m_iHealth", 100);
@@ -444,26 +444,29 @@ public class RenderCorrectnessTests
             .Because("every other cache Reset touches is cleared; this one was the exception");
     }
 
-    // ── 32b · TimelineHudDataSource's tick cache can hand back the previous frame's roster ───────────
+    // ── TimelineHudDataSource's tick cache can hand back the previous frame's roster ─────────────────
 
     [Test]
     public async Task TwoFramesAtOneTick_EachSeeItsOwnRoster()
     {
         // CS2 emits several demo frames per tick, so two consecutive OUTPUT frames can map to one tick.
-        // The snapshot was cached by tick alone, so the second frame drew the first frame's cards — and
-        // the builder double-buffers, so the stale reference is the other slot's list, still holding the
-        // older state rather than aliasing the newer one.
+        // Caching the snapshot by tick alone hands the second frame the first frame's cards. The builder
+        // double-buffers, so the stale reference is the other slot's list, still holding the older state
+        // rather than aliasing the newer one.
         SceneFrameBuilder builder = new();
         TimelineHudDataSource source = new([], TickRate, static _ => ClockReading.Unknown,
             rosterAt: _ => builder.LastRoster);
 
-        FakePlayer Hurt(int health) => new()
+        FakePlayer Hurt(int health)
         {
-            Slot = 0,
-            Team = 2,
-            Pawn = new FakeEntity("CCSPlayerPawn").With("m_iHealth", health),
-            WorldPosition = (10f, 20f, 64f)
-        };
+            return new FakePlayer
+            {
+                Slot = 0,
+                Team = 2,
+                Pawn = new FakeEntity("CCSPlayerPawn").With("m_iHealth", health),
+                WorldPosition = (10f, 20f, 64f)
+            };
+        }
 
         // Two demo frames, ONE tick.
         Build(builder, Input([Hurt(100)], 1, 5000));
@@ -481,8 +484,7 @@ public class RenderCorrectnessTests
     [Test]
     public async Task TwoFramesAtOneTick_EachSeeTheirOwnClock()
     {
-        // The same cache, and the half that used to be wrong: LastGameInfo moves with the frame, not
-        // with the tick.
+        // The same cache from the clock side: LastGameInfo moves with the frame, not with the tick.
         ClockReading reading = ClockReading.From(new SceneGameInfo("Live", "—", 7, 6, 30, "0:30",
             false, false, "—", double.NaN, "—", 3, 2));
         TimelineHudDataSource source = new([], TickRate, _ => reading);
@@ -495,19 +497,16 @@ public class RenderCorrectnessTests
         await Assert.That(source.At(4200).TScore).IsEqualTo(4);
     }
 
-    // ── 24 · MapSpaceFactory.Update allocates on the histogram path ──────────────────────────────────
+    // ── MapSpaceFactory.Update allocates on the histogram path ───────────────────────────────────────
 
     [Test]
     [Category("Budget")]
     public async Task TheHistogramPath_AllocatesNothingPerFrame()
     {
-        // The branch every user without a baked map bundle is on, and the one the §6 budget gate has
-        // never measured: BudgetTests calls SetAuthoritativeFloors first and takes the short-circuit.
-        // FloorSplitter.Observe marks the histogram dirty for EVERY marker, so the Slices read below
-        // recomputed in full every frame — a List, an int[] and two more Lists, measured at 552 B/frame.
-        //
-        // Budget, like every other allocation figure in this repo. It stays the one gate for the branch
-        // — the budget lane is simply where that gate runs.
+        // The branch every user without a baked map bundle is on, and the one BudgetTests never reaches:
+        // it calls SetAuthoritativeFloors first and takes the short-circuit. FloorSplitter.Observe marks
+        // the histogram dirty for EVERY marker, so an uncached Slices read recomputes in full every
+        // frame: a List, an int[] and two more Lists, measured at 552 B/frame.
         MapSpaceFactory factory = new();
         Scene2DFrame frame = TwoFloorFrame();
 
@@ -523,10 +522,10 @@ public class RenderCorrectnessTests
         GC.WaitForPendingFinalizers();
         GC.Collect();
 
-        // Two identical windows, and the SECOND is asserted on — the same discipline BudgetTests uses and
-        // for the same reason: the first window occasionally shows one small allocation at a varying
-        // iteration, which is the runtime tiering the loop body rather than the code under test. Charging
-        // that to the budget would make the gate flaky or push it above zero.
+        // Two identical windows, and the SECOND is asserted on, the same discipline BudgetTests uses:
+        // the first window occasionally shows one small allocation at a varying iteration, which is the
+        // runtime tiering the loop body rather than the code under test. Charging that to the budget
+        // makes the gate flaky or pushes it above zero.
         long warm = MeasureUpdates(factory, frame);
         long steady = MeasureUpdates(factory, frame);
 
@@ -550,10 +549,10 @@ public class RenderCorrectnessTests
     [Test]
     public async Task TheHistogramStillRepublishesItsBands_WhenTheyActuallyMove()
     {
-        // The allocation went away by re-publishing the band list only when the bands changed. That is
-        // load-bearing in BOTH directions: MapSpaceFactory.SameBands short-circuits on ReferenceEquals,
-        // so a list refilled in place would have made a real split invisible to the rebuild. A second
-        // floor appearing must still reach the space.
+        // The band list is re-published only when the bands change, and that is load-bearing in BOTH
+        // directions: MapSpaceFactory.SameBands short-circuits on ReferenceEquals, so a list refilled in
+        // place makes a real split invisible to the rebuild. A second floor appearing must still reach
+        // the space.
         MapSpaceFactory factory = new();
         Scene2DFrame ground = OneFloorFrame();
 
@@ -585,8 +584,8 @@ public class RenderCorrectnessTests
         Time = new SceneTime(1000, 0, 0, 1.0 / TickRate, false),
         Markers =
         [
-            new PlayerMarker(0, 2, float.NaN, 0f, 0f, 0f, RingState.Team, 1, "AA", true, 0, 0, 0),
-            new PlayerMarker(1, 3, 500f, 300f, 0f, 0f, RingState.Team, 1, "BB", true, 0, 0, 0)
+            new PlayerMarker(0, 2, float.NaN, 0f, 0f, 0f, RingState.Team, 1, "AA", true),
+            new PlayerMarker(1, 3, 500f, 300f, 0f, 0f, RingState.Team, 1, "BB", true)
         ],
         Map = new SceneMapInfo
         {
@@ -607,8 +606,8 @@ public class RenderCorrectnessTests
         for (int i = 0; i < 10; i++)
         {
             markers.Add(new PlayerMarker(i, i < 5 ? 2 : 3,
-                -1000f + (i * 200f), -500f + (i % 3 * 300f), i < 5 ? lowerZ : upperZ,
-                0f, RingState.Team, 1, "PP", true, 0, 0, 0));
+                -1000f + i * 200f, -500f + i % 3 * 300f, i < 5 ? lowerZ : upperZ,
+                0f, RingState.Team, 1, "PP", true));
         }
 
         return new Scene2DFrame
@@ -666,7 +665,7 @@ public class RenderCorrectnessTests
             Radar = radar
         };
 
-        ViewportTransform camera = ViewportTransform.Fit(width, height, -100, -100, 100, 100, margin: 0);
+        ViewportTransform camera = ViewportTransform.Fit(width, height, -100, -100, 100, 100, 0);
         return new SceneRenderContext(Scene2DFrame.Empty, default, camera,
             new SKRect(0, 0, width, height), -1, -100, 100, RenderPurpose.Export, ScenePalette.Dark, 1f)
         {
@@ -714,7 +713,7 @@ public class RenderCorrectnessTests
             {
                 for (int x = 0; x < bitmap.Width; x++)
                 {
-                    mask[(y * size.Width) + x] = bitmap.GetPixel(x, y) != ScenePalette.Dark.Background;
+                    mask[y * size.Width + x] = bitmap.GetPixel(x, y) != ScenePalette.Dark.Background;
                 }
             }
 
@@ -849,8 +848,8 @@ public class RenderCorrectnessTests
         {
             RenderCalls++;
 
-            // Drawn in PANE-LOCAL screen space, through the camera — which is exactly what a PerCamera
-            // recording bakes in, and exactly what goes stale when the key does not carry the camera.
+            // Drawn in PANE-LOCAL screen space, through the camera: exactly what a PerCamera recording
+            // bakes in, and exactly what goes stale when the key does not carry the camera.
             (double x0, double y0) = ctx.Transform.WorldToScreen(-64, 64);
             (double x1, double y1) = ctx.Transform.WorldToScreen(64, -64);
 

@@ -2,7 +2,6 @@
 
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
@@ -82,7 +81,7 @@ internal static class GpuFixtureRender
         };
 
         SceneTime time = fixture.Time;
-        return renderer.RenderPng(fixture.Frame, in time, size, RenderPurpose.Export);
+        return renderer.RenderPng(fixture.Frame, in time, size);
     }
 
     /// <summary>Writes a failing comparison's three images where CI can upload them.</summary>

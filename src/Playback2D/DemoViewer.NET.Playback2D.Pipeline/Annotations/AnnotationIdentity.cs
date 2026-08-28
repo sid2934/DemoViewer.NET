@@ -68,7 +68,7 @@ public sealed record ClockIdentity(string Kind, int TickRate, int FrameCount, in
 /// <summary>Where a document was (or would be) persisted.</summary>
 public enum AnnotationStoreLocation
 {
-    /// <summary>Nowhere — the demo directory is not writable and there is no app-data root (WASM).</summary>
+    /// <summary>Nowhere: the demo directory is not writable and there is no app-data root (WASM).</summary>
     None,
 
     /// <summary><c>&lt;demo&gt;.dvann.json</c>, beside the demo.</summary>
@@ -86,7 +86,7 @@ public enum AnnotationStoreLocation
 /// <param name="Location">Where the document was read from.</param>
 /// <param name="Path">The file that was read, or null.</param>
 /// <param name="DemoMismatch">
-///     The sidecar's demo hash names a different demo. The file is IGNORED and never overwritten — it
+///     The sidecar's demo hash names a different demo. The file is IGNORED and never overwritten: it
 ///     belongs to someone else's demo that happens to share a path.
 /// </param>
 /// <param name="ClockMismatch">

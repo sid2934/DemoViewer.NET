@@ -116,7 +116,10 @@ internal sealed class StubHudDataSource : IHudDataSource
     public HudSnapshot At(int tick)
     {
         Reads++;
-        return _snapshot with { Tick = tick };
+        return _snapshot with
+        {
+            Tick = tick
+        };
     }
 }
 
@@ -213,8 +216,8 @@ internal static class ExportFixtures
             for (int i = 0; i < perSide; i++)
             {
                 bool alive = i != 0;
-                rows.Add(new HudPlayerRow(((team - 2) * 5) + i, team, $"P{i}", alive,
-                    alive ? 100 - (i * 17) : 0, alive ? 100 - (i * 20) : 0, i % 2 == 0,
+                rows.Add(new HudPlayerRow((team - 2) * 5 + i, team, $"P{i}", alive,
+                    alive ? 100 - i * 17 : 0, alive ? 100 - i * 20 : 0, i % 2 == 0,
                     team == 3 && i == 1, alive ? "ak47" : "—", 800 * (i + 1), i, 5 - i, i % 3));
             }
         }

@@ -161,9 +161,9 @@ public class RealTimeEnvelopeUiTests
             // ...and the same measurement over every item, so the constant above is checked rather than
             // trusted. A label longer than the one this test selects would clip unmeasured.
             widest = box.Items.OfType<ComboBoxItem>()
-                         .Select(i => i.Content as string ?? "")
-                         .OrderByDescending(text => Measure(text, label))
-                         .FirstOrDefault() ?? "";
+                .Select(i => i.Content as string ?? "")
+                .OrderByDescending(text => Measure(text, label))
+                .FirstOrDefault() ?? "";
 
             await Task.CompletedTask;
         });

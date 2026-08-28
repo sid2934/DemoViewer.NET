@@ -23,6 +23,10 @@ internal sealed class RecordingLayer : ISceneLayer
     public int AdvanceCount { get; private set; }
     public int RenderCount { get; private set; }
     public bool Disposed { get; private set; }
+
+    /// <summary>Called on <see cref="Dispose" />, for a test that cares about teardown ORDER.</summary>
+    public Action? OnDispose { get; init; }
+
     public string Id { get; }
     public LayerSlot Slot { get; }
     public int Order { get; }
@@ -48,9 +52,6 @@ internal sealed class RecordingLayer : ISceneLayer
         paint.Color = colour;
         canvas.DrawRect(ctx.PaneBounds, paint);
     }
-
-    /// <summary>Called on <see cref="Dispose" />, for a test that cares about teardown ORDER.</summary>
-    public Action? OnDispose { get; init; }
 
     public void Dispose()
     {

@@ -1,8 +1,7 @@
 #region
 
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using TUnit.Core.Exceptions;
 
 #endregion

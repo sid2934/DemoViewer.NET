@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Playback2D.Core.Levels;
 ///     One rendered floor of a map: a Z band, a display name, and the radar image bound to it.
 ///     <para>
 ///         A <b>class</b>, not a record struct, because <see cref="Radar" /> is rebound in place when a
-///         map's assets finish decoding — a value type would hand every holder a stale copy. Everything
+///         map's assets finish decoding; a value type would hand every holder a stale copy. Everything
 ///         else is <c>init</c>-only: a level's band is replaced by a rebuild, never edited underneath a
 ///         pane.
 ///     </para>
@@ -20,7 +20,7 @@ public sealed class MapLevel
     /// <summary>Stable identity across rebuilds.</summary>
     public required MapLevelId Id { get; init; }
 
-    /// <summary>Display name. May reorder across rebuilds — never key anything on it.</summary>
+    /// <summary>Display name. May reorder across rebuilds; never key anything on it.</summary>
     public required string Name { get; init; }
 
     /// <summary>
@@ -28,8 +28,7 @@ public sealed class MapLevel
     ///     <para>
     ///         <b>Not quantized.</b> Quantization mints <see cref="Id" />; the band itself stays raw so
     ///         <see cref="MapSpace.LevelIndexFor" /> keeps answering exactly what
-    ///         <see cref="FloorSplitter.SliceIndexFor" /> answers (B1 parity invariant 1). See B3 plan
-    ///         deviation 1.
+    ///         <see cref="FloorSplitter.SliceIndexFor" /> answers.
     ///     </para>
     /// </summary>
     public required double ZMin { get; init; }
@@ -49,19 +48,19 @@ public sealed class MapLevel
     /// <summary>Band height in world units.</summary>
     public double Span => ZMax - ZMin;
 
-    /// <summary>Band centre — the tiebreaker when a Z falls in a gap between bands.</summary>
+    /// <summary>Band centre: the tiebreaker when a Z falls in a gap between bands.</summary>
     public double MidZ => (ZMin + ZMax) / 2;
 
     /// <summary>
     ///     Whether <paramref name="z" /> falls inside this band. <b>Inclusive at both ends</b>, matching
-    ///     <c>FloorSlice.Contains</c> exactly — the pre-v2 assignment is contains-first, and a half-open
-    ///     band would move every player standing on a boundary to a different floor.
+    ///     <c>FloorSlice.Contains</c>. The pre-v2 assignment is contains-first, and a half-open band would
+    ///     move every player standing on a boundary to a different floor.
     /// </summary>
     /// <param name="z">World Z.</param>
     public bool Contains(double z) => z >= ZMin && z <= ZMax;
 }
 
-/// <summary>How confidently radar images were matched to levels (plan §4 T5's rules).</summary>
+/// <summary>How confidently radar images were matched to levels.</summary>
 public enum RadarBindingQuality
 {
     /// <summary>No radar layers at all, or none bound.</summary>

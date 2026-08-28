@@ -18,7 +18,28 @@ namespace DemoViewer.NET.ViewModels.Update;
 public sealed partial class WhatsNewViewModel : ViewModelBase
 {
     private readonly IReleaseNotesService _notesService;
+
+    /// <summary>True while the notes fetch is in flight.</summary>
+    [ObservableProperty]
+    private bool _isLoading;
+
     private Task? _loadTask;
+
+    /// <summary>Shown instead of notes when the fetch failed.</summary>
+    [ObservableProperty]
+    private string? _notesFallback;
+
+    /// <summary>The release-note markdown, rendered by <see cref="MarkdownBlock" />.</summary>
+    [ObservableProperty]
+    private string? _notesMarkdown;
+
+    /// <summary>"Published 2 Aug 2026" line; null hides it.</summary>
+    [ObservableProperty]
+    private string? _publishedDisplay;
+
+    /// <summary>Browser URL of the release page; null hides the "View on GitHub" button.</summary>
+    [ObservableProperty]
+    private string? _releaseUrl;
 
     /// <summary>Constructs for the given (already normalized x.y.z) running version.</summary>
     public WhatsNewViewModel(string version, IReleaseNotesService notesService)
@@ -30,31 +51,11 @@ public sealed partial class WhatsNewViewModel : ViewModelBase
     /// <summary>The running version whose notes are shown.</summary>
     public string Version { get; }
 
-    /// <summary>Raised when the window hosting this VM should close.</summary>
-    public event EventHandler? CloseRequested;
-
     /// <summary>Window headline.</summary>
     public string HeadlineText => $"What's new in {Version}";
 
-    /// <summary>True while the notes fetch is in flight.</summary>
-    [ObservableProperty]
-    private bool _isLoading;
-
-    /// <summary>The release-note markdown, rendered by <see cref="MarkdownBlock" />.</summary>
-    [ObservableProperty]
-    private string? _notesMarkdown;
-
-    /// <summary>Shown instead of notes when the fetch failed.</summary>
-    [ObservableProperty]
-    private string? _notesFallback;
-
-    /// <summary>"Published 2 Aug 2026" line; null hides it.</summary>
-    [ObservableProperty]
-    private string? _publishedDisplay;
-
-    /// <summary>Browser URL of the release page; null hides the "View on GitHub" button.</summary>
-    [ObservableProperty]
-    private string? _releaseUrl;
+    /// <summary>Raised when the window hosting this VM should close.</summary>
+    public event EventHandler? CloseRequested;
 
     /// <summary>
     ///     Fetches the notes once; called by the window's <c>OnOpened</c> so tests and the

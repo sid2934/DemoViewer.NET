@@ -85,7 +85,7 @@ internal sealed class AnnotationElementDto
 
     public int FadeOutTicks { get; set; }
 
-    /// <summary>Flat <c>[x, y, pressure, x, y, pressure, …]</c> — a stroke is thousands of numbers.</summary>
+    /// <summary>Flat <c>[x, y, pressure, x, y, pressure, …]</c>: a stroke is thousands of numbers.</summary>
     public List<float>? Points { get; set; }
 
     public string? Text { get; set; }
@@ -106,7 +106,7 @@ internal sealed class AnnotationElementDto
 ///     changed, plus how long the whole stroke took.
 ///     <para>
 ///         One nested object rather than two sibling fields on the element, because the two halves are
-///         one value — <c>StrokeTiming.Equals</c> compares both, so a document carrying runs without a
+///         one value: <c>StrokeTiming.Equals</c> compares both, so a document carrying runs without a
 ///         duration is not a degraded cadence but a different one, and a shape that cannot express that
 ///         split cannot be hand-edited into it.
 ///     </para>

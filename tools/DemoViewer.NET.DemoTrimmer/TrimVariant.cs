@@ -26,9 +26,6 @@ internal sealed record TrimVariant(
     FrozenSet<string> DroppedFrameCommands,
     FrozenSet<int> StrippedInnerTypeIds)
 {
-    /// <summary>True when this variant has to decode, edit and re-serialize packet payloads.</summary>
-    public bool RewritesPayloads => StrippedInnerTypeIds.Count > 0;
-
     private static readonly FrozenSet<string> NoFrames = FrozenSet<string>.Empty;
     private static readonly FrozenSet<int> NoInner = FrozenSet<int>.Empty;
 
@@ -38,9 +35,15 @@ internal sealed record TrimVariant(
     ///     only exists to interpret the data.
     /// </summary>
     private static readonly FrozenSet<string> AnimationFrames =
-        new[] { "DEM_AnimationData", "DEM_AnimationHeader" }.ToFrozenSet(StringComparer.Ordinal);
+        new[]
+        {
+            "DEM_AnimationData", "DEM_AnimationHeader"
+        }.ToFrozenSet(StringComparer.Ordinal);
 
-    private static readonly FrozenSet<int> UserCmds = new[] { PacketRewriter.SvcUserCmdsTypeId }.ToFrozenSet();
+    private static readonly FrozenSet<int> UserCmds = new[]
+    {
+        PacketRewriter.SvcUserCmdsTypeId
+    }.ToFrozenSet();
 
     /// <summary>
     ///     V0 — no mid-stream entry. Everything from frame 0 through the end of round N, verbatim.
@@ -90,6 +93,9 @@ internal sealed record TrimVariant(
         "v3c-no-usercmds-contiguous",
         "V3's svc_UserCmds strip, but contiguous from frame 0 (no mid-stream entry)",
         false, AnimationFrames, UserCmds);
+
+    /// <summary>True when this variant has to decode, edit and re-serialize packet payloads.</summary>
+    public bool RewritesPayloads => StrippedInnerTypeIds.Count > 0;
 
     /// <summary>The ladder in increasing-risk order.</summary>
     public static IReadOnlyList<TrimVariant> All { get; } = [V0, V1, V2, V3, V2C, V3C];

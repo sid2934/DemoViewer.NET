@@ -1,8 +1,8 @@
 #region
 
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Playback;
 

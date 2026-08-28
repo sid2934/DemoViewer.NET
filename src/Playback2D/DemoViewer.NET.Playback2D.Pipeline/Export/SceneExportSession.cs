@@ -36,6 +36,12 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 /// </summary>
 public sealed class SceneExportSession
 {
+    /// <summary>The frame ceiling for a GIF. Above it, palettegen and ImageSharp both OOM.</summary>
+    public const int GifMaxFrames = 1800;
+
+    /// <summary>The width ceiling for a GIF. Wider is technically legal and practically unusable.</summary>
+    public const int GifMaxWidth = 1920;
+
     /// <summary>fps values every video format accepts.</summary>
     private static readonly int[] _videoFps = [24, 25, 30, 50, 60, 64];
 
@@ -45,12 +51,6 @@ public sealed class SceneExportSession
     ///     become 33.3 and 50.
     /// </summary>
     private static readonly int[] _gifFps = [10, 20, 25, 50];
-
-    /// <summary>The frame ceiling for a GIF. Above it, palettegen and ImageSharp both OOM.</summary>
-    public const int GifMaxFrames = 1800;
-
-    /// <summary>The width ceiling for a GIF. Wider is technically legal and practically unusable.</summary>
-    public const int GifMaxWidth = 1920;
 
     private readonly SceneCompositor _compositor;
 
@@ -382,7 +382,10 @@ public sealed class SceneExportSession
         }
     }
 
-    /// <summary>The frame rates a format supports. GIF gets its own list (<see cref="_gifFps" />); an unknown format id gets the video list.</summary>
+    /// <summary>
+    ///     The frame rates a format supports. GIF gets its own list (<see cref="_gifFps" />); an unknown format id gets
+    ///     the video list.
+    /// </summary>
     /// <param name="formatId">One of <see cref="ExportFormats" />.</param>
     public static IReadOnlyList<int> SupportedFps(string formatId) =>
         string.Equals(formatId, ExportFormats.Gif, StringComparison.Ordinal) ? _gifFps : _videoFps;

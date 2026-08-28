@@ -8,9 +8,8 @@ using DemoViewer.NET.Playback2D.Pipeline.Goldens;
 namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
-///     The manifest reader and its budget arithmetic. (The image comparator itself is covered
-///     separately, by <c>GoldenImageComparerTests</c> in the Playback2D suite — one comparator, one test
-///     class.)
+///     The manifest reader and its budget arithmetic. The image comparator itself is covered separately,
+///     by <c>GoldenImageComparerTests</c> in the Playback2D suite: one comparator, one test class.
 /// </summary>
 public class GoldenCorpusTests
 {
@@ -51,7 +50,7 @@ public class GoldenCorpusTests
     ///         <c>nuke-single-upper</c> had goldens at 640×360 AND 900×900 with different
     ///         meanings, so one name described two pictures and the manifest could only ever describe
     ///         one of them. And <c>Playback2DGoldenCaptureTests</c> wrote 900×900 captures under
-    ///         <c>duel-mirage-b</c> / <c>fitmap-mirage-eco</c> — names the manifest declares at 640×360 —
+    ///         <c>duel-mirage-b</c> / <c>fitmap-mirage-eco</c> (names the manifest declares at 640×360),
     ///         so its output landed at a path nothing reads, on top of two hand-authored fixtures.
     ///     </para>
     ///     <para>
@@ -96,7 +95,7 @@ public class GoldenCorpusTests
     ///     The other direction, and the reason <c>annotated-mirage-b</c> could be <c>pending</c> for
     ///     three phases with no scene file: a name in the manifest that resolves to nothing on disk is
     ///     invisible to <c>EveryNonPendingEntry_HasASceneAndACpuGolden</c>, which skips pending entries.
-    ///     A pending entry may legitimately have no files — that is what pending is for — but its NOTE
+    ///     A pending entry may legitimately have no files (pending is for exactly that), but its NOTE
     ///     must say so, so a reader of the manifest can tell "waiting on an asset" from "waiting on a
     ///     decision" without opening the directory.
     /// </summary>
@@ -146,7 +145,10 @@ public class GoldenCorpusTests
         int entriesBefore = GoldenCorpus.Load(copy.Path).Entries.Count;
 
         GoldenCorpusEntry existing = GoldenCorpus.Load(copy.Path).Find("duel-mirage-b")!;
-        GoldenCorpus.Upsert(copy.Path, existing with { Pending = true });
+        GoldenCorpus.Upsert(copy.Path, existing with
+        {
+            Pending = true
+        });
 
         GoldenCorpus after = GoldenCorpus.Load(copy.Path);
         await Assert.That(after.Entries.Count).IsEqualTo(entriesBefore);

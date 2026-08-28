@@ -1,21 +1,21 @@
-# Phase B1 — Compositor Port
+# Phase B1: Compositor Port
 
 **Track B (core) · Playback2D v2 · Branch `feature/playback2d-v2`**
 Design authority: [`docs/playback2d-v2/design.md`](../design.md). This plan is self-contained; you do
 not need to read the design to execute it, but every contract below is traceable to a design section
 and must not be redesigned.
 
-> ## Integrator corrections (BINDING — supersede anything below that disagrees)
+> ## Integrator corrections (BINDING: supersede anything below that disagrees)
 >
 > Cross-phase reconciliation; `plans/00-overview.md` §3 is the canonical registry.
 >
-> 1. **§2.1's "minimum shape" of `Scene2DFrame` is wrong — B0 owns the type and it landed
+> 1. **§2.1's "minimum shape" of `Scene2DFrame` is wrong: B0 owns the type and it landed
 >    differently.** The real members are: `Time` (a `SceneTime` carrying `Tick`, `FrameIndex`,
->    `DemoSeconds`, `DeltaSeconds`, `IsDiscontinuity` — there are no top-level `Tick`/`FrameIndex`/
+>    `DemoSeconds`, `DeltaSeconds`, `IsDiscontinuity`; there are no top-level `Tick`/`FrameIndex`/
 >    `IsDiscontinuity` properties), `Markers`, `AreaEffects`, **`Trails`** (not `GrenadeTrails`),
 >    `Bomb`, `KillFeed`, `GameInfo`, **`Map`** (a `SceneMapInfo` carrying `MapName`,
->    `NetworkedBounds`/`ObservedBounds` as `WorldBounds?`/`WorldBounds` — not `SKRect`,
->    `SectionHeights`, `Radars`), `Vision` (Pipeline-computed cones/sightlines — B0 D4), `FollowSlot`.
+>    `NetworkedBounds`/`ObservedBounds` as `WorldBounds?`/`WorldBounds`, not `SKRect`,
+>    `SectionHeights`, `Radars`), `Vision` (Pipeline-computed cones/sightlines, B0 D4), `FollowSlot`.
 >    There is **no `Toggles`** member (B0 D5: overlay toggles are compositor state → `ISceneLayer
 >    .IsEnabled`) and **no `Levels`** member (B0 D3: the frame carries `Map.SectionHeights`, and B1's
 >    `MapSpaceFactory` derives the level set from it). Adapt the layers at their call sites.
@@ -34,9 +34,9 @@ and must not be redesigned.
 >    `MapSpace.LevelIndexForSticky(...)` is replaced by `MapLevel LevelFor(double worldZ,
 >    MapLevelId? previous)`, and `MapSpace.Rebuild` is
 >    `LevelSetChange Rebuild(IReadOnlyList<FloorSlice> bands, IReadOnlyList<SKImage?>? radarByLevel
->    = null, RadarBindingQuality quality = RadarBindingQuality.None)` — B1 moves `FloorSplitter`/
+>    = null, RadarBindingQuality quality = RadarBindingQuality.None)`. B1 moves `FloorSplitter`/
 >    `FloorSlice` into Core (T1), so the `FloorSlice` parameter is legal.
-> 4. **`PaneSet` is the single pane-lifetime owner.** B3's `LevelPaneStore` is not a second type —
+> 4. **`PaneSet` is the single pane-lifetime owner.** B3's `LevelPaneStore` is not a second type;
 >    B3 adds "retain state for levels that are not currently arranged" to *this* `PaneSet`.
 >    `LevelPane.Camera` stays a **public field** with a justified `CA1051` suppression (B2's
 >    `PanZoomTool` mutates it in place; a property returning a copy silently breaks panning).
@@ -48,11 +48,11 @@ and must not be redesigned.
 >    lane runs on ubuntu and byte-exact text goldens are impossible with system font fallback. Ship
 >    `TextBlobCache` over a font asset embedded in Core as an `EmbeddedResource`, and record the
 >    choice in the T0 API notes.
-> 7. **Fixtures and goldens use C1's corpus layout** — `tests/fixtures/playback2d/scenes/*.scene.json`
+> 7. **Fixtures and goldens use C1's corpus layout**: `tests/fixtures/playback2d/scenes/*.scene.json`
 >    and `tests/fixtures/playback2d/goldens/cpu/<name>@<w>x<h>.png`. B1's three fixtures are the
 >    canonical corpus names `nuke-multilevel`, `mirage-single-level`, `full-scene-budget` (drop
 >    `stacked-2level-nuke` / `single-level-dust2`). Comparison goes through B0's
->    `GoldenImageComparer` + `GoldenTolerance` — `GoldenParityTests` supplies
+>    `GoldenImageComparer` + `GoldenTolerance`. `GoldenParityTests` supplies
 >    `GoldenTolerance.ByteExact` for Tier A and `GoldenTolerance.DefaultPerceptual` for Tier B; it
 >    does not implement its own pixel loop.
 > 8. **The bench harness names in §5.7 are canonical** (`ScenePipelineBenchmark`,
@@ -63,7 +63,7 @@ and must not be redesigned.
 > 9. **The test project is `src/Playback2D/DemoViewer.NET.Playback2D.Tests`, created by B0.** B1
 >    adds only what is missing. Its `Directory.Packages.props` entries and the CI `playback2d-tests`
 >    job also come from B0; B1 adds the `playback2d-budget` job only.
-> 10. **A1's timeline types land in Core** (`…Core.Timeline`) — A1 ships them Core-clean under an
+> 10. **A1's timeline types land in Core** (`…Core.Timeline`). A1 ships them Core-clean under an
 >     architecture test precisely so this move is a namespace rewrite. Move all seven declared
 >     members of `ITimelineTrack`/`TimelineMarker`/`TimelineBand`/`ITimelineData`/
 >     `TimelineEventRecord`/`TimelineEventKeys`/`TimelineMarkerKind` unchanged, and delete A1's
@@ -83,7 +83,7 @@ Everything B1 owns, expanded from the assignment:
 1. Port the seven draw passes in `Playback2DViewport.DrawSection` to `ISceneLayer.Render(SKCanvas, …)`.
 2. `SceneCompositor` with an interleaved `(Slot, Order)` layer list and `LayerCacheHint`
    (`Static`/`PerCamera` → `SKPicture`).
-3. `Scene2DHost : Control` — one `ICustomDrawOperation` over `ISkiaSharpApiLeaseFeature`, plus the CPU
+3. `Scene2DHost : Control`: one `ICustomDrawOperation` over `ISkiaSharpApiLeaseFeature`, plus the CPU
    `SKSurface` → `WriteableBitmap` fallback.
 4. `MapSpace` / `MapLevel` / `LevelPane` / `ILevelLayoutPolicy`, with `StackedLayout` replicating today's
    horizontal bands byte-for-byte.
@@ -120,7 +120,7 @@ annotations and `IPointerTool`/`InputToolRouter` (B2), `SingleLayout`/level stri
 | Architecture test (Core→SkiaSharp only; banned wall-clock APIs) | tests | B1 must keep it green |
 
 **The shape of `Scene2DFrame` (B0 owns it; corrected per integrator note 1).** This is what B1's
-layers actually read — the earlier draft of this section guessed wrong and has been replaced:
+layers actually read; the earlier draft of this section guessed wrong and has been replaced:
 
 ```csharp
 SceneTime Time { get; }                            // Tick (DV frame clock, never CS2 ticks), FrameIndex,
@@ -138,31 +138,31 @@ int FollowSlot { get; }
 ```
 
 Two members B1 expected and must live without: there is **no `Toggles`** (overlay visibility is
-compositor state — map it onto `ISceneLayer.IsEnabled`, B0 D5) and **no `Levels`** (B0 D3 keeps
+compositor state; map it onto `ISceneLayer.IsEnabled`, B0 D5) and **no `Levels`** (B0 D3 keeps
 `FloorSplitter` out of the frame; `MapSpaceFactory` derives levels from `Map.SectionHeights` plus the
 authoritative floors, exactly as the viewport does today). `WorldBounds` is a Core record struct,
-not `SKRect` — convert at the layer boundary.
+not `SKRect`; convert at the layer boundary.
 
 `PlayerMarker`, `AreaEffect`, `GrenadeTrail`, `GrenadeTrailPoint`, `BombMarker`, `RingState`,
 `GrenadeKind`, `AreaEffectKind` are the existing App records
-(`src/App/DemoViewer.NET/Modules/Playback2D/*.cs`) and move to Core in B0 or in B1 T1 — they are pure
+(`src/App/DemoViewer.NET/Modules/Playback2D/*.cs`) and move to Core in B0 or in B1 T1; they are pure
 value types with no Avalonia dependency. `FloorSlice`/`FloorSplitter` move in B1 T1 (§4 T1).
 
 ### 2.2 From A1 (mechanical move here)
 
 A1 defines `ITimelineTrack`, `TimelineMarker`, `ITimelineData` App-side. B1 **moves them to Core
-unchanged** — signatures are frozen by A1; this is a namespace change and nothing else.
+unchanged**: signatures are frozen by A1; this is a namespace change and nothing else.
 
 > **Integrator flag.** A1 has not landed as of writing (`grep -rn "ITimelineTrack" src/` → no hits), so
 > the move target cannot be verified. If A1's `ITimelineData` transitively references CS2DemoKit or
-> App types, the move lands in **Pipeline**, not Core — Core references SkiaSharp only and the
+> App types, the move lands in **Pipeline**, not Core; Core references SkiaSharp only and the
 > architecture test will reject it. Decide at merge; do not weaken the architecture test.
 
 ### 2.3 Version constraints discovered in recon (hard, non-negotiable)
 
 - Avalonia 11.3.12 resolves **SkiaSharp 2.88.9** (verified: `artifacts/obj/DemoViewer.NET.Desktop/project.assets.json:3427`).
   `ISkiaSharpApiLeaseFeature` hands you a `SkiaSharp 2.88.x` `SKCanvas`. Core **must** pin SkiaSharp
-  `2.88.9` — a Core built against SkiaSharp 3.x produces a different `SKCanvas` type and the lease path
+  `2.88.9`. A Core built against SkiaSharp 3.x produces a different `SKCanvas` type and the lease path
   will not compile, let alone run.
 - `tools/DemoViewer.NET.AssetBaker` deliberately opts out of CPM and uses SkiaSharp 3.119.2. It is **not**
   in the solution and the app never references it. Do not "unify" the two.
@@ -188,7 +188,7 @@ unchanged** — signatures are frozen by A1; this is a namespace change and noth
 | `playback2d.bomb` | `BombLayer` | `Overlay` | 50 | `Dynamic` | `DrawBomb` 1337–1365, `DrawArc` 1368–1389, `PointOnCircle` 1391–1395 |
 | `playback2d.floorlabel` | `FloorLabelLayer` | `Hud` | 60 | `Dynamic` | label string 587, `context.DrawText` 924–929 |
 
-Sort key is `(Slot, Order, Id)` — `Id` is the deterministic tiebreak so two layers registered at the same
+Sort key is `(Slot, Order, Id)`; `Id` is the deterministic tiebreak so two layers registered at the same
 `(Slot, Order)` never reorder between runs (determinism test 10 in §6).
 
 The **band separator line** (596–599) is *not* a layer: it is drawn in host coordinates between panes and
@@ -218,7 +218,7 @@ layer, because B2's dry annotation ink is its real consumer.
 | `_frameLoopArmed`, `_havePrevFrameTime`, `_lastDt`, `_prevFrameTime` | 105, 107, 109, 122 | App `Scene2DHost` RAF loop → `SceneTime.DeltaSeconds` |
 | `_hasObservedPositions`, `_initialFitApplied`, `_minX/_minY/_maxX/_maxY` | 106, 108, 111, 115 | B0 `Scene2DFrame.ObservedExtent` + Core `PaneSet.ApplyInitialFit` |
 | `_palette`, `CanvasPalette` record, delegating props | 120, 134–161, 1406–1437 | Core `ScenePalette` + App `ScenePaletteFactory` |
-| `BuildPalette` | 210–261 | App `ScenePaletteFactory.Build(ThemeVariant)` — same 31 `Pb2dCanvas*` keys, same hex fallbacks |
+| `BuildPalette` | 210–261 | App `ScenePaletteFactory.Build(ThemeVariant)`, same 31 `Pb2dCanvas*` keys, same hex fallbacks |
 | `Mode` setter | 164–185 | App `Scene2DHost.Mode` → `PaneSet.SetRig` + `PaneSet.ClearManualOverrides` |
 | `PrimaryCameraTransform`, `PrimaryCameraManual`, `SightlineCount`, `SmoothedMarkerPosition` | 188, 192, 206, 701 | Re-exposed on `Scene2DHost` under **the same names** so ported tests read identically |
 | `OnDataContextChanged`/`OnAttached…`/`OnDetached…`/`OnThemeVariantChanged`/`RefreshCanvasPalette`/`AttachVm` | 263–316 | App `Scene2DHost`, same lifecycle + compositor dispose |
@@ -230,7 +230,7 @@ layer, because B2's dry annotation ink is its real consumer.
 | `EnsureCameras`, `ApplyFitToAllSlices` | 492–532 | Core `PaneSet.Reconcile(…)`, `PaneSet.FitAll(…)` |
 | `Render` | 534–601 | App `Scene2DHost.Render` (submission) + Core `SceneCompositor.Render` |
 | `AdvanceCameras` | 606–641 | Core `CameraAdvancer.Advance(PaneSet, Scene2DFrame, in SceneTime)` |
-| `TryComputeTarget` | 706–739 | Core rig dispatch — `pane.Rig.ComputeTarget(pane, frame)` |
+| `TryComputeTarget` | 706–739 | Core rig dispatch: `pane.Rig.ComputeTarget(pane, frame)` |
 | `TryFitAlive` | 743–784 | Core `FitAliveRig.ComputeTarget` |
 | `TryFollow` | 789–817 | Core `FollowPlayerRig.ComputeTarget` (+ new deadzone) |
 | `ArmFrameLoopIfNeeded`, `OnAnimationFrame` | 822–858 | App `Scene2DHost` RAF loop |
@@ -265,7 +265,7 @@ These are the subtle behaviours that make the goldens match. Read them before wr
 
 Each task is ≤ ~half a day unless marked. `→` denotes a hard ordering dependency.
 
-### T0 — SkiaSharp API pinning spike (**time-box: 1 h**) → blocks T2
+### T0. SkiaSharp API pinning spike (**time-box: 1 h**) → blocks T2
 
 Write a throwaway console/test that exercises, against **SkiaSharp 2.88.9** specifically:
 `SKPictureRecorder.BeginRecording/EndRecording`, `SKCanvas.DrawPicture`, `SKTextBlob.Create(string, SKFont)`,
@@ -274,7 +274,7 @@ Write a throwaway console/test that exercises, against **SkiaSharp 2.88.9** spec
 **Deliverable:** a short `docs/playback2d-v2/plans/B1-skia-api-notes.md` listing the exact overloads chosen.
 Every later task uses those and nothing else. Do not discover API drift at T9.
 
-### T1 — Move the pure value types into Core → blocks everything
+### T1. Move the pure value types into Core → blocks everything
 
 Mechanical file moves, namespace change only, zero logic change.
 
@@ -287,11 +287,11 @@ Mechanical file moves, namespace change only, zero logic change.
   `Playback2DViewport.cs`, and the App test files `FloorAssetConsumptionTests.cs`,
   `FloorSplitterTests.cs`, `FloorSplitterMultiFloorTests.cs`, `GrenadeTrailFloorSplitTests.cs`.
 - Add `global using` aliases in the App's `GlobalUsings.cs` only if the churn exceeds ~20 sites; otherwise
-  update the usings directly (preferred — explicit is the repo style).
+  update the usings directly (preferred; explicit is the repo style).
 
 **Exit:** solution builds, all existing App tests green, no behaviour change.
 
-### T2 — Core layer contracts + `SceneCompositor` (**~1 day**) → T0, T1
+### T2. Core layer contracts + `SceneCompositor` (**~1 day**) → T0, T1
 
 Create in `DemoViewer.NET.Playback2D.Core/Compositing/`:
 `LayerSlot.cs`, `LayerCacheHint.cs`, `ISceneLayer.cs`, `SceneRenderContext.cs`, `SceneSubmission.cs`,
@@ -303,7 +303,7 @@ Create in `DemoViewer.NET.Playback2D.Core/Compositing/`:
 |---|---|---|---|
 | `Static` | **World** space | `(paneLevelId, layerId, layer.ContentVersion)` | `canvas.Save(); canvas.Concat(ViewportMatrix.From(transform)); canvas.DrawPicture(p); canvas.Restore()` |
 | `PerCamera` | **Pane-local screen** space | `(paneLevelId, layerId, layer.ContentVersion, cameraEpoch)` | `canvas.DrawPicture(p)` |
-| `Dynamic` | — | — | `layer.Render(canvas, ctx)` directly |
+| `Dynamic` | n/a | n/a | `layer.Render(canvas, ctx)` directly |
 
 `cameraEpoch` is an `int` bumped by `LevelPane` whenever `Camera.Current` changes materially
 (`!IsSettledAt(previous)` **or** viewport rect resize). `ContentVersion` is `ISceneLayer.ContentVersion`,
@@ -312,15 +312,15 @@ Pictures are disposed on eviction, on pane removal, and in `SceneCompositor.Disp
 
 **Exit:** `SceneCompositorOrderTests` + `LayerCachePictureTests` green (§6).
 
-### T3 — `MapSpace` / `MapLevel` / `LevelPane` / `PaneSet` / `StackedLayout` (**~1 day**) → T1
+### T3. `MapSpace` / `MapLevel` / `LevelPane` / `PaneSet` / `StackedLayout` (**~1 day**) → T1
 
 Create in `Core/Levels/`: `MapLevel.cs`, `MapSpace.cs`, `MapSpaceFactory.cs`, `LevelPane.cs`,
 `PaneSet.cs`, `ILevelLayoutPolicy.cs`, `StackedLayout.cs`, `LevelDisplayMode.cs`.
 
 - `MapSpaceFactory` owns the `FloorSplitter` and its precedence chain (authoritative nav floors >
-  histogram; section heights stored-not-adopted) — unchanged from `FloorSplitter.Slices`.
+  histogram; section heights stored-not-adopted), unchanged from `FloorSplitter.Slices`.
 - **Level identity is quantized `ZMin`**: `MapLevel.Id = (int)Math.Round(ZMin / FloorSplitter.BucketWidth)`
-  (bucket width 64). Never the array index — that is design risk 5.
+  (bucket width 64). Never the array index; that is design risk 5.
 - `MapSpace.LevelIndexFor(double z)` must be **behaviourally identical** to `FloorSplitter.SliceIndexFor`
   (contains-first, then nearest-by-`MidZ`). A parity test table pins it (§6 test 3).
 - `PaneSet.Reconcile` replaces `EnsureCameras` (492–523) but keys pane reuse on `MapLevel.Id`, not array
@@ -330,18 +330,18 @@ Create in `Core/Levels/`: `MapLevel.cs`, `MapSpace.cs`, `MapSpaceFactory.cs`, `L
 - `StackedLayout.Arrange` reproduces lines 546–548 and 580–584 exactly:
   `bandH = host.Height / max(1, levels.Count)`, pane for level `i` gets
   `SKRect(0, (count-1-i)*bandH, host.Width, (count-i)*bandH)`.
-- `PaneSet.PaneAt(float x, float y)` replaces `SliceIndexAtScreenY` (464–475) — same floor/clamp/invert.
+- `PaneSet.PaneAt(float x, float y)` replaces `SliceIndexAtScreenY` (464–475), same floor/clamp/invert.
 
-### T4 — Camera rigs + `CameraAdvancer` → T3
+### T4. Camera rigs + `CameraAdvancer` → T3
 
 Create in `Core/Cameras/`: `ICameraRig.cs`, `ManualRig.cs`, `FitMapRig.cs`, `FitAliveRig.cs`,
 `FollowPlayerRig.cs`, `CameraAdvancer.cs`, `CameraRigFactory.cs`.
 
-Mapping from today's `CameraMode` (note the naming collision — see Decision D-3):
+Mapping from today's `CameraMode` (note the naming collision; see Decision D-3):
 
 | `CameraMode` | Rig | Ported from |
 |---|---|---|
-| `Fit` | `ManualRig` (returns `null` — hold; the one-shot fit is applied by `PaneSet.FitAll`) | 616–619, 554–558, 394–401 |
+| `Fit` | `ManualRig` (returns `null`: hold; the one-shot fit is applied by `PaneSet.FitAll`) | 616–619, 554–558, 394–401 |
 | `Map` | `FitMapRig` | 716–728 |
 | `Alive` | `FitAliveRig` | 743–784 |
 | `FollowPlayer` | `FollowPlayerRig(slot)` | 789–817 **+ new deadzone** |
@@ -354,7 +354,7 @@ while the followed marker stays inside an axis-aligned box of half-extent `Deadz
 **180 world units**, 20 % of the 900 u follow box) around the committed centre; outside it, it recentres.
 `DeadzoneHalfWorld = 0` reproduces today exactly and is what the parity test uses.
 
-### T5 — `MapAssetPipeline`: radar bitmaps → `SKImage`, explicit per-level binding (**~1 day**) → T3
+### T5. `MapAssetPipeline`: radar bitmaps → `SKImage`, explicit per-level binding (**~1 day**) → T3
 
 Split `src/App/DemoViewer.NET/Modules/Playback2D/MapAssetLoader.cs` (155 lines):
 
@@ -362,7 +362,7 @@ Split `src/App/DemoViewer.NET/Modules/Playback2D/MapAssetLoader.cs` (155 lines):
   `TryLoadFromDirectory` (120–154). `RadarBitmaps : IReadOnlyDictionary<string, Bitmap>` becomes
   `RadarImages : IReadOnlyDictionary<string, SKImage>`, decoded with
   `SKImage.FromEncodedData(SKData.Create(path))` instead of `new Bitmap(path)` (line 140). Keep the
-  best-effort per-image try/catch, keep `Dispose` idempotent (53–65) — `SKImage` is equally unmanaged.
+  best-effort per-image try/catch, keep `Dispose` idempotent (53–65); `SKImage` is equally unmanaged.
 - **Stays in App:** `MapAssetLoader.TryLoadRadarThumbnail` (88–117). It feeds an Avalonia `Bitmap` to a
   library card and has nothing to do with the scene. `Bitmap.DecodeToWidth` has no `SKImage` analogue and
   we are not adding one.
@@ -381,38 +381,38 @@ Split `src/App/DemoViewer.NET/Modules/Playback2D/MapAssetLoader.cs` (155 lines):
   only the namespace and the bitmap type change. The `ReplaceMapAsset` Background-priority dispose
   (`Playback2DTabViewModel.cs:538-548`) is unchanged and still correct.
 
-### T6 — `RadarLayer` (radar + grid fallback) → T2, T3, T5
+### T6. `RadarLayer` (radar + grid fallback) → T2, T3, T5
 
 `Render` is `TryDrawRadar`-else-`DrawGrid`, exactly line 867–870. Radar draws with
 `SKPaint { Color = new SKColor(255,255,255, (byte)(0.9*255)) }` to reproduce `PushOpacity(0.9)` (1084);
 grid reproduces 1117–1152 including the 400-line bail-out. Everything recorded into the layer's
 `PerCamera` picture.
 
-### T7 — `TrailLayer` + `AreaEffectLayer` + `BombLayer` → T2, T3
+### T7. `TrailLayer` + `AreaEffectLayer` + `BombLayer` → T2, T3
 
 Direct ports of 1236–1289, 1215–1229, 1337–1395. `StreamGeometry` → a layer-owned reused `SKPath`
 (`path.Reset()` per use); `Pen`/`SolidColorBrush` → layer-owned `SKPaint`s mutated in place.
 `DrawArc` → `SKPath.ArcTo` with the same clamp rules (1370–1376). `FloorSegmentRuns` moves to Core
 `TrailGeometry` verbatim, **plus** a non-allocating overload filling a caller-owned list.
 
-### T8 — `MarkerLayer` (Advance = smoothing, Render = discs) → T2, T3
+### T8. `MarkerLayer` (Advance = smoothing, Render = discs) → T2, T3
 
 - `Advance` = `AdvanceMarkers` (648–698) verbatim, **plus**: when `time.IsDiscontinuity`, snap every
-  tracked slot to its raw position (superset of the existing distance-based teleport snap — the distance
+  tracked slot to its raw position (superset of the existing distance-based teleport snap; the distance
   rule is what `Playback2DInterpolationTests` pins, so it stays).
 - `Render` = `DrawMarker` (1154–1204). `FormattedText` → `TextBlobCache.Get(label, 10f)`.
   Label colour: black when alive, `palette.Label` when dead (1202). Centring uses the blob's measured
-  bounds — this is the one place where "± reviewed text metrics" applies (§6 test 14).
+  bounds. This is the one place where "± reviewed text metrics" applies (§6 test 14).
 - `SmoothedMarkerPosition(int slot)` stays `internal` with the same signature and is re-exposed by
   `Scene2DHost`.
 
-### T9 — `FloorLabelLayer` → T2, T8 (`TextBlobCache`)
+### T9. `FloorLabelLayer` → T2, T8 (`TextBlobCache`)
 
 Label string is `$"floor {levelIndex}  z[{MinZ:F0}..{MaxZ:F0}]"` (line 587) drawn at pane-local `(8, 6)`
-with the 11 px face (926–928). Renders only when `!ctx.IsSingleLevel` (line 924 — `label` is `null` in the
+with the 11 px face (926–928). Renders only when `!ctx.IsSingleLevel` (line 924; `label` is `null` in the
 single-floor path, line 576).
 
-### T10 — `VisionLayer` + the `IVisionSolver` seam (**~1 day**) → T2, T3
+### T10. `VisionLayer` + the `IVisionSolver` seam (**~1 day**) → T2, T3
 
 This is the one pass that cannot port mechanically, because `VisibilityEngine`/`VisibilityAnalyzer`/
 `PlayerVantage` live in `CS2DemoKit.Analysis.Visibility` and **Core references SkiaSharp only**.
@@ -421,7 +421,7 @@ This is the one pass that cannot port mechanically, because `VisibilityEngine`/`
   `Layers/VisionLayer.cs`. `VisionLayer.Advance` calls `_solver.Solve(frame, _solution)`; `Render` maps the
   solution's **world-space** cone polygons and sightline endpoints through `ctx.Transform` and fills/strokes
   them (the mapping half of 1032–1056 and 1000–1003). `VisionSolution` uses pooled, reused arrays.
-- **Pipeline** `Vision/VisibilityEngineSolver.cs` — `RebuildSightlines` (932–983) **and the 26 raycasts**
+- **Pipeline** `Vision/VisibilityEngineSolver.cs`: `RebuildSightlines` (932–983) **and the 26 raycasts**
   from `DrawOneCone` (1037–1045), verbatim math, into `VisionSolution`.
 - **The raycasts move from Render to Advance.** Today they run inside `Control.Render` (1042), which
   violates the purity split and would call a `VisibilityEngine` from the render thread. Pixel-identical
@@ -432,7 +432,7 @@ This is the one pass that cannot port mechanically, because `VisibilityEngine`/`
   on baseline hardware, a `DeferredVisionSolver` wraps it to compute into the *next* frame's solution off
   the UI thread. Do not build it in B1.
 
-### T11 — `ScenePalette` + `ScenePaletteFactory` → T2
+### T11. `ScenePalette` + `ScenePaletteFactory` → T2
 
 `Core/ScenePalette.cs`: a record of `SKColor`s + stroke widths, one member per `CanvasPalette` field
 (1406–1437), with a `ScenePalette.Dark` static built from the same hex fallbacks at 230–260 so
@@ -440,7 +440,7 @@ direct-execution tests and goldens need no Avalonia. `App/…/ScenePaletteFactor
 `Pb2dCanvas*`/`Pb2dTeam*` keys via `ThemeColors.Get(key, variant, fallbackHex)` and is called **once per
 theme change**, never per frame (the existing discipline at 288–294).
 
-### T12 — `Scene2DHost` + `ICustomDrawOperation` + render gate (**~1.5 days**) → T2–T11
+### T12. `Scene2DHost` + `ICustomDrawOperation` + render gate (**~1.5 days**) → T2–T11
 
 `src/App/DemoViewer.NET/Modules/Playback2D/Scene2DHost.cs` (~300 loc target) +
 `SceneDrawOperation.cs` + `SceneRenderGate.cs` + `PanZoomGesture.cs`.
@@ -450,22 +450,22 @@ Full threading contract in §5.4. Port order inside the file: lifecycle (263–3
 `Render` (534–601 split into `AdvanceAndSubmit` + the op) → the `Mode`/`FollowSlot`/`FitToExtent` surface
 (164–203, 394–401) → the four test hooks.
 
-### T13 — CPU `SKSurface` → `WriteableBitmap` fallback → T12
+### T13. CPU `SKSurface` → `WriteableBitmap` fallback → T12
 
 Probe-by-failure: the op sets `_leaseUnavailable = true` and posts an invalidate when
 `context.TryGetFeature<ISkiaSharpApiLeaseFeature>()` returns null; from the next frame the host renders on
 the UI thread into a cached `WriteableBitmap` and draws it with `DrawingContext.DrawImage`. The
 `SKSurface` is created **directly over the locked framebuffer**
 (`SKSurface.Create(new SKImageInfo(w, h, SKColorType.Bgra8888, SKAlphaType.Premul), fb.Address, fb.RowBytes)`)
-— no `ReadPixels` copy. `CpuSurfaceProvider` is *not* used here; it is for offscreen consumers that own
+with no `ReadPixels` copy. `CpuSurfaceProvider` is *not* used here; it is for offscreen consumers that own
 their own memory (Decision D-7).
 
-### T14 — Internal toggle + view swap point → T12
+### T14. Internal toggle + view swap point → T12
 
 - `App/.../Playback2DRenderer.cs`: `enum Playback2DRendererKind { Scene, Legacy }` +
   `static Playback2DRendererKind Selected` resolved once (§5.6).
 - `App/.../IPlayback2DSurface.cs`: `CameraMode Mode { get; set; }`, `int FollowSlot { set; }`,
-  `void FitToExtent()`. `Playback2DViewport` gains `: IPlayback2DSurface` — its members already match
+  `void FitToExtent()`. `Playback2DViewport` gains `: IPlayback2DSurface`; its members already match
   (164, 195, 394), so this is a one-line change to the class declaration.
 - `Views/Playback2D/Playback2DView.axaml:87`: `<p2d:Playback2DViewport x:Name="Viewport" />` →
   `<ContentControl x:Name="ViewportHost" />`.
@@ -475,7 +475,7 @@ their own memory (Decision D-7).
 - New `Configuration/Playback2DSettings.cs` + `AppSettings.Playback2D` property, **and it must be added to
   `SettingsService.WriteInMemory`** or WASM writes vanish silently (design §5.4, §8).
 
-### T15 — Allocation cleanup pass (**~1 day**) → T6–T12
+### T15. Allocation cleanup pass (**~1 day**) → T6–T12
 
 Concrete list, all verified in the current source:
 
@@ -496,23 +496,23 @@ Concrete list, all verified in the current source:
 9. `_smoothedPos.Keys` enumeration in the prune path (683) → only when counts differ (already guarded);
    keep the guard, use the pooled `_pruneScratch`.
 
-**Exit:** `ZeroAllocationTests` green — `GC.GetAllocatedBytesForCurrentThread()` delta over 512 frames
+**Exit:** `ZeroAllocationTests` green: `GC.GetAllocatedBytesForCurrentThread()` delta over 512 frames
 after 64 warmup frames is **0**.
 
-### T16 — `ScenePipelineBenchmark` harness → T12, T15
+### T16. `ScenePipelineBenchmark` harness → T12, T15
 
 `Pipeline/Benchmarking/ScenePipelineBenchmark.cs` + `BudgetPolicy.cs` + `BenchmarkReport.cs`.
 It lives in **Pipeline, not Core**, because the report stamps `DateTimeOffset.UtcNow` and Core's banned-API
 test forbids that. Public API in §5.7. It also writes `bench-reports/dv2d-<id>-<timestamp>.json` matching
 the existing `bench-reports/` convention.
 
-### T17 — CI: test + budget lanes → T16
+### T17. CI: test + budget lanes → T16
 
 `.github/workflows/ci.yml` currently runs **zero tests**. Add two jobs (§7.4). Budget gating uses
-`BudgetProfile.Ci` = baseline × `DV2D_BUDGET_SCALE` (default **2.0**) — a GitHub `ubuntu-latest` runner is
+`BudgetProfile.Ci` = baseline × `DV2D_BUDGET_SCALE` (default **2.0**). A GitHub `ubuntu-latest` runner is
 not the design's "mid-tier laptop", and a gate that fires on runner noise gets disabled within a week.
 
-### T18 — Golden parity + review (**~1 day**) → T6–T15
+### T18. Golden parity + review (**~1 day**) → T6–T15
 
 Run `GoldenParityTests` against B0's corpus. Text-bearing goldens go through the perceptual tier; **every
 text-metric difference is written up in `docs/playback2d-v2/plans/B1-text-metrics-review.md` and reviewed,
@@ -912,14 +912,14 @@ public sealed class SceneRenderGate
 
 **Captured at submission** (UI thread, inside the gate, in `Scene2DHost.AdvanceAndSubmit`):
 
-- the `Scene2DFrame` **reference** — immutable by contract, built by `SceneFrameBuilder` and never mutated
+- the `Scene2DFrame` **reference**, immutable by contract, built by `SceneFrameBuilder` and never mutated
   after publication;
 - the `SceneTime` **value**;
-- one `LevelPaneSnapshot` **value** per pane (`ViewportTransform` and `SKRect` are value copies — the
+- one `LevelPaneSnapshot` **value** per pane (`ViewportTransform` and `SKRect` are value copies; the
   mutable `LevelPane`/`PaneSet` never crosses the thread boundary);
 - the `ScenePalette` **reference** (immutable record, swapped wholesale on theme change);
 - `RenderPurpose`, `HostBounds`, `RenderScaling`, and a monotonic `SubmissionId`;
-- the shared `SceneCompositor` reference and the `SceneRenderGate` — **the only two mutable objects the op
+- the shared `SceneCompositor` reference and the `SceneRenderGate`, **the only two mutable objects the op
   touches, and it touches them only inside the gate.**
 
 **The op MAY touch:** the captured `SceneSubmission`, the `SceneCompositor` (inside the gate), and the
@@ -939,11 +939,11 @@ is one Advance.
 
 **Lifetime.** `SKPicture`s live in the compositor and are disposed under the gate. `SKImage` radar handles
 are owned by `LoadedMapAsset` and disposed at Background priority after a map swap
-(`Playback2DTabViewModel.cs:538-548`) — unchanged, and now genuinely load-bearing because the render
+(`Playback2DTabViewModel.cs:538-548`), unchanged, and now genuinely load-bearing because the render
 thread may hold a picture referencing the image; the gate plus one dispatcher hop covers it.
 
 **Deterministic `SceneTime`.** `DeltaSeconds` comes from the RAF timestamp, clamped `[1/240, 1/15]` exactly
-as line 852, and is the **only** wall-clock reading in the whole pipeline — it happens in the App, and Core
+as line 852, and is the **only** wall-clock reading in the whole pipeline: it happens in the App, and Core
 receives it as data. `Tick`/`FrameIndex`/`DemoSeconds`/`IsDiscontinuity` come from `Scene2DFrame`. No layer
 may call `DateTime`, `Stopwatch`, `Environment.TickCount`, or `Random`; the architecture test enforces it.
 
@@ -953,10 +953,10 @@ may call `DateTime`, `Stopwatch`, `Environment.TickCount`, or `Random`; the arch
 
 Two execution modes, per design §11:
 
-- **Direct-execution** — no Avalonia platform, no window, no dispatcher. Construct `Scene2DFrame`s (or load
+- **Direct-execution**: no Avalonia platform, no window, no dispatcher. Construct `Scene2DFrame`s (or load
   `SceneFixture` JSON), run the compositor against `CpuSurfaceProvider`, assert on pixels or geometry.
   Project: `src/Playback2D/DemoViewer.NET.Playback2D.Tests` (TUnit, `OutputType=Exe`).
-- **Headless-Avalonia** — only for tests that genuinely exercise the Avalonia host. Project:
+- **Headless-Avalonia**: only for tests that genuinely exercise the Avalonia host. Project:
   `src/App/DemoViewer.NET.App.Tests` (existing `HeadlessSession`).
 
 ### 6.1 Direct-execution tests (`DemoViewer.NET.Playback2D.Tests`)
@@ -976,7 +976,7 @@ Two execution modes, per design §11:
 | 11 | `CoreArchitectureTests` | Core's assembly references contain **only** SkiaSharp + BCL (no `Avalonia*`, no `CS2DemoKit*`); Pipeline has no `Avalonia*`; banned-API IL scan over Core for `DateTime`, `DateTimeOffset`, `Stopwatch`, `Random`, `Environment.TickCount*` (extends B0's test) |
 | 12 | `ZeroAllocationTests` `[Category("Budget")]` | 512-frame full-scene run after 64 warmup frames: `GC.GetAllocatedBytesForCurrentThread()` delta **== 0**; a per-layer breakdown is printed on failure so the culprit is named |
 | 13 | `FrameBudgetTests` `[Category("Budget")]` | `ScenePipelineBenchmark` over the standard fixture: `Advance` p99 ≤ policy, `Render` p99 ≤ policy, on `CpuSurfaceProvider`; report written to `bench-reports/` |
-| 14 | `GoldenParityTests` | **the exit criterion.** For each B0 golden: render via the compositor on `CpuSurfaceProvider` and compare. Tier A (**byte-exact**): text layers disabled (`playback2d.floorlabel` off, `MarkerLayer.DrawLabels = false`) — any diff is a hard failure. Tier B (**perceptual**): everything on — per-channel ≤ 8/255 on ≥ 99.5 % of pixels, plus a label-bounding-box containment assert. Diff PNGs written to the artifact dir; `DV2D_UPDATE_GOLDENS=1` rewrites them (never set in CI) |
+| 14 | `GoldenParityTests` | **the exit criterion.** For each B0 golden: render via the compositor on `CpuSurfaceProvider` and compare. Tier A (**byte-exact**): text layers disabled (`playback2d.floorlabel` off, `MarkerLayer.DrawLabels = false`); any diff is a hard failure. Tier B (**perceptual**): everything on, per-channel ≤ 8/255 on ≥ 99.5 % of pixels, plus a label-bounding-box containment assert. Diff PNGs written to the artifact dir; `DV2D_UPDATE_GOLDENS=1` rewrites them (never set in CI) |
 
 ### 6.2 Headless-Avalonia tests (`DemoViewer.NET.App.Tests`)
 
@@ -993,15 +993,15 @@ Two execution modes, per design §11:
 `Playback2DInterpolationTests`, `GrenadeTrailFloorSplitTests`, `Playback2DCameraModeTests`,
 `FloorSplitterTests`, `FloorSplitterMultiFloorTests`, `FloorAssetConsumptionTests`, `ZRadarRenderTests`,
 `ZTrajectoryRenderTests`, `ZVisionOverlayRenderTests`, `Playback2DRosterReseedTests`,
-`Playback2DModuleLifecycleTests` — they keep targeting the **legacy** control, which is still live behind
+`Playback2DModuleLifecycleTests`. They keep targeting the **legacy** control, which is still live behind
 the toggle. They are the safety net that proves the toggle actually works.
 
 ### 6.4 Fixtures
 
-- Scene fixtures + goldens: C1's corpus layout (correction 7) — `tests/fixtures/playback2d/scenes/`
+- Scene fixtures + goldens: C1's corpus layout (correction 7), `tests/fixtures/playback2d/scenes/`
   and `tests/fixtures/playback2d/goldens/cpu/<name>@<w>x<h>.png` (B0 creates the tree; C1 owns
   `manifest.json`). B1 adds the canonical entries `nuke-multilevel` (stacked, two levels, both radar
-  images), `mirage-single-level`, and `full-scene-budget` — the last is the benchmark's standard
+  images), `mirage-single-level`, and `full-scene-budget`. The last is the benchmark's standard
   fixture: 10 players, 4 trails, 12 area effects, vision on, bomb planted.
 - Demos: resolved by the existing `DemoTestHelper` ladder (`DEMO_PATH` → `TestData/` → `demos/benchmarks/`
   → `demos/`), `SkipTestException` when absent.
@@ -1134,7 +1134,7 @@ both lines above in the same commit. Never let CPM float it.
 ```
 
 If the conditional `PackageReference` proves awkward, reference `SkiaSharp.NativeAssets.Linux`
-unconditionally — it is a no-op payload on other platforms.
+unconditionally; it is a no-op payload on other platforms.
 
 ### 7.3 `DemoViewer.NET.slnx`
 
@@ -1162,7 +1162,7 @@ Insert after the `/src/App/` folder block. (B0 may have added the first two; add
 </ItemGroup>
 ```
 
-### 7.5 CI — `.github/workflows/ci.yml`
+### 7.5 CI: `.github/workflows/ci.yml`
 
 CI currently builds only the Desktop head and runs **no tests**. Add two jobs. Both run a
 direct-execution project with no Avalonia platform, so neither inherits the App suite's OOM problem.
@@ -1205,7 +1205,7 @@ direct-execution project with no Avalonia platform, so neither inherits the App 
           path: bench-reports/dv2d-*.json
 ```
 
-The zero-allocation assertion is **not** scaled by `DV2D_BUDGET_SCALE` — zero is zero on every machine.
+The zero-allocation assertion is **not** scaled by `DV2D_BUDGET_SCALE`: zero is zero on every machine.
 
 ---
 
@@ -1223,7 +1223,7 @@ The zero-allocation assertion is **not** scaled by `DV2D_BUDGET_SCALE` — zero 
 | **B0** | `SceneFrameBuilder` | `Playback2DTabViewModel` → `Scene2DHost` |
 | **B0** | `SceneFixture` + golden corpus under `tests/fixtures/playback2d/` | tests 10, 13, 14 |
 | **B0** | Core architecture / banned-API test | extended by test 11 |
-| **A1** | `ITimelineTrack`, `TimelineMarker`, `ITimelineData` — **signatures frozen by A1** | moved to Core by B1 T1; no B1 consumer |
+| **A1** | `ITimelineTrack`, `TimelineMarker`, `ITimelineData`, **signatures frozen by A1** | moved to Core by B1 T1; no B1 consumer |
 | existing | `CS2DemoKit.Analysis.Visibility.{VisibilityEngine, VisibilityAnalyzer, PlayerVantage}` | Pipeline `VisibilityEngineSolver` only |
 | existing | `Playback2DTabViewModel` (`MapAsset`, `VisionEngine`, `FrameUpdated`, `NotifyFollowSlotChanged`) | `Scene2DHost` |
 | existing | `ThemeColors.Get(string, ThemeVariant?, string)` | `ScenePaletteFactory` |
@@ -1250,54 +1250,54 @@ The zero-allocation assertion is **not** scaled by `DV2D_BUDGET_SCALE` — zero 
 
 Where the design left a choice open, this is the call. Each is reversible cheaply except where noted.
 
-- **D-1 — SkiaSharp is pinned to 2.88.9, slaved to Avalonia.** Not a preference: the lease hands the op
+- **D-1: SkiaSharp is pinned to 2.88.9, slaved to Avalonia.** Not a preference: the lease hands the op
   Avalonia's `SKCanvas` type. This constrains the API surface (see T0) and is the single most likely
   source of a nasty surprise. *(Not cheaply reversible.)*
-- **D-2 — `VisionLayer` splits across the assembly boundary.** The design lists `VisionLayer` in Core, but
+- **D-2: `VisionLayer` splits across the assembly boundary.** The design lists `VisionLayer` in Core, but
   `VisibilityEngine` is a CS2DemoKit type and Core references SkiaSharp only. Core owns the layer and an
   `IVisionSolver` seam; Pipeline owns `VisibilityEngineSolver`. This is also exactly where the deferred
   off-thread solver plugs in. **Biggest structural fill-in in B1.**
-- **D-3 — Rig naming vs. today's `CameraMode`.** `CameraMode.Fit` (a one-shot fit, then static) maps to
+- **D-3: Rig naming vs. today's `CameraMode`.** `CameraMode.Fit` (a one-shot fit, then static) maps to
   `ManualRig`, and `CameraMode.Map` (a continuous fit) maps to `FitMapRig`. The names read backwards; the
   behaviours are what matter. `CameraMode` stays in the App as the menu's vocabulary.
-- **D-4 — `ILevelLayoutPolicy.Arrange` keeps the design's exact signature**; pane reuse and camera
+- **D-4: `ILevelLayoutPolicy.Arrange` keeps the design's exact signature**; pane reuse and camera
   identity live in a separate `PaneSet` that reconciles the policy's output by `MapLevel.Id`. This keeps
   the design contract intact *and* fixes risk 5 (never key panes by index).
-- **D-5 — `Static` has no B1 consumer.** The radar's single `DrawImage` and the grid's ~800 `DrawLine`s
+- **D-5: `Static` has no B1 consumer.** The radar's single `DrawImage` and the grid's ~800 `DrawLine`s
   share one `PerCamera` picture; splitting the layer to give `Static` a customer would be contortion. The
   `Static` mechanism is built and unit-tested against a synthetic layer for B2's dry ink.
-- **D-6 — Picture recording space is hint-dependent:** `Static` records in world space and replays under
+- **D-6. Picture recording space is hint-dependent:** `Static` records in world space and replays under
   the camera matrix; `PerCamera` records in pane-local screen space. This is why both hints exist.
-- **D-7 — The on-screen CPU fallback does not use `CpuSurfaceProvider`.** It creates an `SKSurface`
+- **D-7: The on-screen CPU fallback does not use `CpuSurfaceProvider`.** It creates an `SKSurface`
   directly over the `WriteableBitmap`'s locked framebuffer, avoiding a full-frame `ReadPixels` copy every
   frame. The provider seam remains what offscreen consumers use.
-- **D-8 — Dynamic layers draw in screen space, transforming points themselves**, exactly as today
+- **D-8: Dynamic layers draw in screen space, transforming points themselves**, exactly as today
   (`transform.WorldToScreen` per point). Setting a world→screen matrix on the canvas would scale stroke
   widths and marker radii, breaking pixel parity. Only the radar image and the `Static` replay path use a
   matrix.
-- **D-9 — The internal toggle burns no `FeatureCatalog` id.** Catalog ids are permanent persisted keys
+- **D-9: The internal toggle burns no `FeatureCatalog` id.** Catalog ids are permanent persisted keys
   (§7.7) and this toggle is deliberately temporary (deleted in B5). It is an env var
   (`DV_PLAYBACK2D_RENDERER`) over a developer-mode-only `AppSettings.Playback2D.LegacyViewport`, and
   both controls coexist behind `IPlayback2DSurface` inside a `ContentControl`.
-- **D-10 — `IPointerTool`/`InputToolRouter` are B2's.** B1 ships pan/zoom as a self-contained
+- **D-10: `IPointerTool`/`InputToolRouter` are B2's.** B1 ships pan/zoom as a self-contained
   `PanZoomGesture` class that B2 wraps as `PanZoomTool` without touching the host.
-- **D-11 — `IsDiscontinuity` is authored by B0's `SceneFrameBuilder`** (it owns the frame-index history and
+- **D-11: `IsDiscontinuity` is authored by B0's `SceneFrameBuilder`** (it owns the frame-index history and
   already implements the trail-clear rule at `Playback2DTabViewModel.cs:~628`). If B0's frame lacks it,
-  `Scene2DHost` computes it from `frame.FrameIndex` deltas as a fallback — same thresholds.
-- **D-12 — Marker/weapon `SKImage` sprites are built but off by default.** §5.2 asks for sprites; the exit
+  `Scene2DHost` computes it from `frame.FrameIndex` deltas as a fallback, same thresholds.
+- **D-12: Marker/weapon `SKImage` sprites are built but off by default.** §5.2 asks for sprites; the exit
   criterion asks for pixel parity, and a sprite blit does not AA identically to `DrawCircle`. `SpriteAtlas`
   and the sprite draw path ship behind `SceneRenderOptions.UseSprites = false`, with a bench comparison in
   the T18 write-up. Flip it only if §6 forces it, and re-baseline goldens if so.
-- **D-13 — The vision raycasts move from Render to Advance.** Required by the purity split; pixel-identical
+- **D-13: The vision raycasts move from Render to Advance.** Required by the purity split; pixel-identical
   and strictly cheaper. The only non-mechanical change to a ported pass.
-- **D-14 — CI budgets are gated at 2× the design's numbers** via `DV2D_BUDGET_SCALE`; the allocation
+- **D-14: CI budgets are gated at 2× the design's numbers** via `DV2D_BUDGET_SCALE`; the allocation
   assertion is not scaled. The strict §6 numbers are what a local run reports against.
-- **D-15 — `MapSpace.LevelIndexFor` is a parity clone of `FloorSplitter.SliceIndexFor`** (contains-first,
+- **D-15: `MapSpace.LevelIndexFor` is a parity clone of `FloorSplitter.SliceIndexFor`** (contains-first,
   nearest-`MidZ` fallback), pinned by a table oracle. The hysteresis overload the design mentions exists but
   is unused until B3, so B1 cannot regress level assignment.
-- **D-16 — `MapAssetLoader` splits, it does not move wholesale.** `TryLoadRadarThumbnail` stays in the App
+- **D-16: `MapAssetLoader` splits, it does not move wholesale.** `TryLoadRadarThumbnail` stays in the App
   (it feeds an Avalonia `Bitmap` to a library card and has no `SKImage` analogue with downscale-on-decode).
-- **D-17 — Text parity is a review gate, not an assert.** Tier A goldens run with text disabled and are
+- **D-17: Text parity is a review gate, not an assert.** Tier A goldens run with text disabled and are
   byte-exact; Tier B runs everything and is perceptual. Every text difference is written up and reviewed
   (design risk 1's "reviewed, not auto-failed").
 
@@ -1309,16 +1309,16 @@ Where the design left a choice open, this is the call. Each is reversible cheapl
 |---|---|---|---|---|
 | R1 | **SkiaSharp 2.88.9's API differs from what the plan assumes** (`SKSamplingOptions` overloads, `SKTextBlob` factories, `SKPath.ArcTo` sweep semantics) | M / M | **T0 spike** before any layer is written; write down the chosen overloads | **1 h** |
 | R2 | **The lease canvas's matrix/clip state is not what we expect** (render scaling already applied? clip already set to the op's bounds?) | M / H | **Spike inside T12**: render a 1 px red border at the op's `Bounds` under the lease at 100 %/150 %/200 % scaling and inspect; adjust the submission's `RenderScaling` handling accordingly | **2 h** |
-| R3 | **Text metrics differ from `FormattedText`** enough that marker labels shift by a pixel or two and every golden diffs | **H** / M | **This risk fired, and the mitigation as first written is what fired it.** "Labels centred on measured `SKTextBlob` bounds" — but a blob's bounds are *conservative*, not tight ink, so every label drew 4.2–6.2 px left of its 9 px disc and the tolerant text tier hid it. Labels are now centred on the run's **advance** and the font's **metrics** (`SKFont.MeasureText(glyphs, out ink)` + `SKFont.Metrics`), which is exactly what `FormattedText.Width`/`Height` are. Two-tier goldens (test 14) and the review in `B1-text-metrics-review.md` stand; see deviation 29. Design risk 1 | — |
+| R3 | **Text metrics differ from `FormattedText`** enough that marker labels shift by a pixel or two and every golden diffs | **H** / M | **This risk fired, and the mitigation as first written is what fired it.** "Labels centred on measured `SKTextBlob` bounds", but a blob's bounds are *conservative*, not tight ink, so every label drew 4.2–6.2 px left of its 9 px disc and the tolerant text tier hid it. Labels are now centred on the run's **advance** and the font's **metrics** (`SKFont.MeasureText(glyphs, out ink)` + `SKFont.Metrics`), which is exactly what `FormattedText.Width`/`Height` are. Two-tier goldens (test 14) and the review in `B1-text-metrics-review.md` stand; see deviation 29. Design risk 1 | n/a |
 | R4 | **Radar `DrawImage` under a world-space matrix samples differently** from today's screen-space dest rect | M / M | Pin `SKSamplingOptions` explicitly; if the Tier-A golden still diffs, fall back to computing the screen dest rect exactly as line 1080–1082 (the fallback is one line and costs nothing) | **2 h** if it fires |
-| R5 | **Render-thread race against layer caches** (design risk 2) | M / **H** | Advance/Render purity split; `SceneRenderGate`; ops consume immutable snapshots; `Debug.Assert(gate.IsHeld)` on every cache mutation; `RenderGateStressTests` in CI | — |
-| R6 | **Zero-allocation is missed by a boxed enumerator or a hidden closure** and the assertion becomes a nag | M / M | Test 12 prints a per-layer allocation breakdown on failure; T15 is a dedicated task, not a "while I'm here"; indexed `for` loops are a review checklist item | — |
+| R5 | **Render-thread race against layer caches** (design risk 2) | M / **H** | Advance/Render purity split; `SceneRenderGate`; ops consume immutable snapshots; `Debug.Assert(gate.IsHeld)` on every cache mutation; `RenderGateStressTests` in CI | n/a |
+| R6 | **Zero-allocation is missed by a boxed enumerator or a hidden closure** and the assertion becomes a nag | M / M | Test 12 prints a per-layer allocation breakdown on failure; T15 is a dedicated task, not a "while I'm here"; indexed `for` loops are a review checklist item | n/a |
 | R7 | **The 64 fps floor is missed on baseline hardware, vision dominant** (design risk 6) | M / M | Budget gates from B1 (test 13); `IVisionSolver` seam already exists so the fix is a wrapper, not a refactor; **do not** degrade visuals first | **1 day** if it fires (build `DeferredVisionSolver`) |
-| R8 | **B0's `Scene2DFrame` shape differs from §2.1** and half the layers need adapting | M / M | §2.1 states the minimum contract explicitly; adapt at call sites, never change semantics; raise to the integrator immediately rather than forking the frame type | — |
-| R9 | **A1's `ITimelineTrack` cannot legally live in Core** (transitive App/parser refs) | M / L | Land it in Pipeline instead; do **not** weaken the architecture test. Integrator decision | — |
-| R10 | **The new deadzone changes follow-camera feel** in a way a user notices as a regression | L / L | `DeadzoneHalfWorld` is a constructor arg; `0` is byte-identical to today; the parity test uses `0` and a separate test covers the deadzone | — |
-| R11 | **CI budget lane is flaky on shared runners** and gets muted | M / M | `DV2D_BUDGET_SCALE=2.0`; p99 (not max); the allocation assertion — which is machine-independent — carries most of the regression-catching value | — |
-| R12 | **`WriteableBitmap` fallback path rots** because it never runs in normal use | M / M | Test 17 exercises it explicitly on every run; `LeaseUnavailable` is an `internal` test hook so it can be forced | — |
+| R8 | **B0's `Scene2DFrame` shape differs from §2.1** and half the layers need adapting | M / M | §2.1 states the minimum contract explicitly; adapt at call sites, never change semantics; raise to the integrator immediately rather than forking the frame type | n/a |
+| R9 | **A1's `ITimelineTrack` cannot legally live in Core** (transitive App/parser refs) | M / L | Land it in Pipeline instead; do **not** weaken the architecture test. Integrator decision | n/a |
+| R10 | **The new deadzone changes follow-camera feel** in a way a user notices as a regression | L / L | `DeadzoneHalfWorld` is a constructor arg; `0` is byte-identical to today; the parity test uses `0` and a separate test covers the deadzone | n/a |
+| R11 | **CI budget lane is flaky on shared runners** and gets muted | M / M | `DV2D_BUDGET_SCALE=2.0`; p99 (not max); the allocation assertion, which is machine-independent, carries most of the regression-catching value | n/a |
+| R12 | **`WriteableBitmap` fallback path rots** because it never runs in normal use | M / M | Test 17 exercises it explicitly on every run; `LeaseUnavailable` is an `internal` test hook so it can be forced | n/a |
 
 ---
 
@@ -1352,13 +1352,13 @@ a deviation number from the section below.
 - [x] `MapSpace`/`MapLevel`/`LevelPane`/`StackedLayout` reproduce today's bands; `PaneAt` matches
       `SliceIndexAtScreenY` over a Y table at 1/2/3/4 levels; `LevelIndexFor` matches
       `FloorSplitter.SliceIndexFor` over a 200-value Z table.
-- [x] Pane identity survives a rebuild that **inserts a lower level** — the original pane keeps its pan,
+- [x] Pane identity survives a rebuild that **inserts a lower level**: the original pane keeps its pan,
       its manual override and its rig (`PaneLayoutTests`).
 - [x] All four rigs; `FollowPlayerRig` has a deadzone; `DeadzoneHalfWorld = 0` is asserted identical to
       `TryFollow` at 1e-9 over a 32-step walk.
 - [x] `Advance` never draws and `Render` never mutates; `Debug.Assert(gate.IsHeld)` guards every cache
       mutation; the gate stress case runs a real second thread against the compositor.
-- [x] The RAF loop self-terminates. It did **not** at first — see deviation 24, the one real bug this
+- [x] The RAF loop self-terminates. It did **not** at first; see deviation 24, the one real bug this
       checklist caught.
 - [x] `SceneTime.DeltaSeconds` is the only wall-clock reading and it happens in the App; the banned-API
       IL scan is green and now attributes offenders to the calling type (deviation 15).
@@ -1380,7 +1380,7 @@ a deviation number from the section below.
 - [x] `Playback2DSettings` is in `SettingsService.WriteInMemory`, asserted through the fileless path.
 - [x] `DemoViewer.NET.slnx` lists all three Playback2D projects;
       `dotnet build src/App/DemoViewer.NET.Desktop -c Release` is clean with `TreatWarningsAsErrors`.
-- [~] `Scene2DHostRenderTests` saves a capture to the artifact dir — `scene2d-synthetic.png` rather than
+- [~] `Scene2DHostRenderTests` saves a capture to the artifact dir, `scene2d-synthetic.png` rather than
       `scene2d-nuke.png`/`scene2d-dust2.png`; the real-demo half is `GoldenParityTests`. Deviation 23.
 
 
@@ -1401,7 +1401,7 @@ Written at implementation time. Everything not listed here was built as the plan
 
 2. **`PaneSet.Reconcile` and `PaneSet.FitAll` take `WorldBounds`, not `SKRect`.** Registry §3.2 is
    explicit that world bounds are `WorldBounds` "not `SKRect`" because world Y is up and Skia's Y is
-   down; §5.3's `SKRect extent` predates that. `SKSize host` is unchanged — that one really is a
+   down; §5.3's `SKRect extent` predates that. `SKSize host` is unchanged: that one really is a
    screen-space size.
 
 ### Things that could not be implemented where the plan put them
@@ -1413,12 +1413,12 @@ Written at implementation time. Everything not listed here was built as the plan
    coordinates.
 
 4. **`SceneRenderGate` lives in `…Core.Compositing`, not the App.** §4 T12 lists the file App-side, but
-   §5.8 requires `Debug.Assert(gate.IsHeld)` "at the top of every compositor cache mutation" — and the
+   §5.8 requires `Debug.Assert(gate.IsHeld)` "at the top of every compositor cache mutation", and the
    compositor is Core's. `SceneCompositor.Gate` is nullable and left null by single-threaded consumers
    (export, the CLI, tests), which have nothing to serialize.
 
 5. **`SceneRenderContext` gains `Levels` (a `MapSpace?`) in B1, which correction 2 assigned to B3.**
-   `LevelIndexFor` — which correction 2 *does* assign to B1 — cannot be implemented without the level
+   `LevelIndexFor` (which correction 2 *does* assign to B1) cannot be implemented without the level
    table: it has to reproduce `FloorSplitter.SliceIndexFor`'s nearest-band fallback, and a single Z
    band cannot answer "which band is nearest". Adding it under B3's eventual name means B3 adds only
    `LevelCrossings` rather than renaming a member.
@@ -1429,7 +1429,7 @@ Written at implementation time. Everything not listed here was built as the plan
    and `SceneExportSession` alongside it.
 
 7. **`HeadlessSceneRenderer` is written by B1, in `…Pipeline.Headless`.** Correction 8 says
-   `ScenePipelineBenchmark` "renders through `HeadlessSceneRenderer` (C1's Pipeline facade)" — but C1
+   `ScenePipelineBenchmark` "renders through `HeadlessSceneRenderer` (C1's Pipeline facade)", but C1
    has not landed, and the benchmark cannot wait for it. It is written to that name and namespace so
    C1 extends it rather than adding a second headless entry point. It is a facade over
    `SceneCompositor`, never a competing renderer, and the goldens go through it too.
@@ -1452,7 +1452,7 @@ Written at implementation time. Everything not listed here was built as the plan
     `B1-text-metrics-review.md` §3.1.
 
 11. **`GoldenImageComparer.Analyze` + `GoldenDeltaProfile` added.** `Compare`'s verdict is unchanged.
-    The distribution exists because `MaxChannelDelta` is the single worst pixel in the frame — and
+    The distribution exists because `MaxChannelDelta` is the single worst pixel in the frame, and
     across two rasterisers one anti-aliased edge pixel always produces a full-amplitude difference, so
     the maximum says nothing. The parity gate needs the shape of the curve. C2's SSIM lane will want it
     too.
@@ -1474,12 +1474,12 @@ Written at implementation time. Everything not listed here was built as the plan
 14. **The zero-allocation assertion measures the SECOND of two identical 512-frame windows.** The first
     reliably shows one 48-byte allocation at a varying iteration past ~150. It appears whatever the
     layers draw, vanishes when nothing draws, occurs with no gen-0 collection in the window, and never
-    recurs — the runtime tiering the loop body, not the scene allocating. Charging it to the budget
+    recurs: the runtime tiering the loop body, not the scene allocating. Charging it to the budget
     would either make the gate flaky or force the budget above zero, and zero is the assertion worth
     having.
 
 15. **`BannedApiTests` was rewritten to attribute offenders to the calling type.** B0's assembly-wide
-    member-reference scan cannot express "the benchmark harness may read a stopwatch" — which plan T16
+    member-reference scan cannot express "the benchmark harness may read a stopwatch", which plan T16
     requires, since that is the harness's entire purpose and the reason it sits in Pipeline rather than
     Core. The scan now finds banned member references precisely (pass 1) and attributes them to methods
     by matching those exact tokens in IL (pass 2), with a namespace exemption for
@@ -1490,13 +1490,13 @@ Written at implementation time. Everything not listed here was built as the plan
     captured.** All three need a de_mirage demo and the only demo in the tree is
     `assets/tour/sample-de_nuke.dem`. The nuke demo cannot stand in: the names encode the map, and a
     nuke capture filed under a mirage name is a corpus that lies. All three skip cleanly.
-    `full-scene-budget` is authored in code instead of captured, deliberately — a budget fixture must
+    `full-scene-budget` is authored in code instead of captured, deliberately: a budget fixture must
     make every layer do its worst, and a captured frame that happens to be quiet would let a regression
     through.
 
 ### B0 review carry-forwards
 
-17. **(a) `ReadSectionHeightsOnce` retried forever — fixed.** The read only latched once a value
+17. **(a) `ReadSectionHeightsOnce` retried forever, fixed.** The read only latched once a value
     resolved, so on a map that publishes no section heights (every single-floor map, i.e. most of them)
     it re-scanned eight interpolated field paths on every push for the whole demo. Now bounded at 256
     attempts, with the paths built once into a static array.
@@ -1504,18 +1504,18 @@ Written at implementation time. Everything not listed here was built as the plan
 
 18. **(c) The fixture's `roundSeconds 434.45` / `"7:14"` was NOT a trimmed-demo clock quirk.** The
     capture harness builds a bare `ModuleContext` and never calls `SetGameClock`, which is the shell's
-    job on load — so `CurtimeSeconds` was the naive `tick/tickRate` and the round clock was off by
+    job on load, so `CurtimeSeconds` was the naive `tick/tickRate` and the round clock was off by
     exactly `clockBase`. Calibrating it in the harness (`clockBase = -319.641` for this demo) gives
-    **114.81 s / "1:55"**, which is `mp_roundtime` twelve frames past `round_freeze_end` — precisely
+    **114.81 s / "1:55"**, which is `mp_roundtime` twelve frames past `round_freeze_end`, precisely
     what the capture aims at. The golden PNG is byte-identical either way: the round clock is XAML
     chrome, not canvas. Fixed in `Playback2DGoldenCaptureTests`; fixture regenerated.
 
-19. **(b) `duel-mirage-b` and `fitmap-mirage-eco` remain uncaptured** — see 16.
+19. **(b) `duel-mirage-b` and `fitmap-mirage-eco` remain uncaptured**, see 16.
 
 ### One bug worth naming
 
 20. **`ICustomDrawOperation.HitTest` must return true inside `Bounds`.** The obvious implementation is
-    `false` — the host is a plain `Control` with its own pointer handlers, so why would the draw
+    `false`: the host is a plain `Control` with its own pointer handlers, so why would the draw
     operation claim hits? Because a control whose only content is a custom draw operation has no other
     hit-testable geometry: with `false`, the entire surface is transparent to the pointer, the scene
     renders perfectly, and pan and zoom silently do nothing. Caught by `Scene2DHostTests`' drag case.
@@ -1526,12 +1526,12 @@ Written at implementation time. Everything not listed here was built as the plan
     both `MarkerLayer` and `VisionLayer` drive the shared marker smoothing. The compositor advances
     layers in DRAW order, which puts vision (30) before markers (40), so the smoother de-duplicated on
     `(frame, time)` and let whichever ran first do the work. A headless render timer produces a
-    **constant** frame delta — every `dt` clamped to 1/240 — so after the first call the key never
+    **constant** frame delta (every `dt` clamped to 1/240), so after the first call the key never
     changed again, every subsequent advance was a no-op, and the no-op handed back a stale "still
     moving" forever. On an idle tab the host re-armed 145 more times over 120 pumps; on a real machine
     that is a core burning in the background.
     <br>Fixed by ownership rather than cleverness: `MarkerLayer` advances the smoother, `VisionLayer`
-    reads it. The cost is a one-frame lag on a cone's apex while a glide is in progress — a couple of
+    reads it. The cost is a one-frame lag on a cone's apex while a glide is in progress, a couple of
     pixels, and only on the cone, since sightline endpoints resolve at Render and stay current. Pinned
     by `MarkerSmoothingTests.Advance_OnceSettled_ReportsNothingMoving_ForeverAfter` and
     `Scene2DHostTests.AnimationLoop_StopsRearmingOnceEverythingHasSettled`.
@@ -1547,14 +1547,14 @@ with a regression test that fails without the fix.
     thread when the tab deactivates. §5.8's render gate serializes the two but does **not order**
     them: a frame already queued when the tab closes reaches `Render` after `Dispose`. The
     background fill and the band divider are compositor-owned `SKPaint`s, so the queued frame writes
-    through freed native handles — reproduced as a hard `0xC0000005` in
+    through freed native handles, reproduced as a hard `0xC0000005` in
     `SkiaApi.sk_paint_set_color`, which takes the process with it rather than raising. Both `Render`
     overloads and `Advance` now drop the frame when `_disposed`. Pinned by
     `CompositorLifetimeTests.Render_AfterDispose_IsANoOp_NotAUseAfterFree` and
     `.Advance_AfterDispose_IsANoOp_AndDoesNotReArmTheLoop`.
 
 26. **`Scene2DHost` released on detach and never revived, so a re-attach rendered nothing.**
-    Disposing the compositor from `OnDetachedFromVisualTree` is right — `WorkspaceTabDescriptor`
+    Disposing the compositor from `OnDetachedFromVisualTree` is right: `WorkspaceTabDescriptor`
     builds a fresh view per activation, and leaking a compositor's `SKPaint`s, `SKPath`s and
     recorded pictures per activation is a native-memory climb. But detach is not only teardown:
     Avalonia detaches and re-attaches the *same* control on a re-parent, a re-template, and a
@@ -1562,20 +1562,20 @@ with a regression test that fails without the fix.
     released host set `_released` permanently, so every later frame advanced and rendered into a
     disposed compositor: with fix 25 in place that is a silently blank surface with no exception to
     point at; without it, the same access violation. Layer and text-cache construction moved out of
-    the constructor into `BuildScene()`, which `OnAttachedToVisualTree` calls when `_released` —
+    the constructor into `BuildScene()`, which `OnAttachedToVisualTree` calls when `_released`,
     before `RefreshPalette`, which touches the caches on the next line. Pinned by
     `Scene2DHostTests.Host_SurvivesDetachAndReattach_AndStillRenders`, which asserts on
     `Compositor.Stats` rather than captured pixels because the headless surface retains the last
     frame that actually drew and would report a dead host as healthy.
 
-27. **`MapSpace.LevelFor` returns `MapLevel?`, where registry §3.4 says `MapLevel`.** Not changed —
+27. **`MapSpace.LevelFor` returns `MapLevel?`, where registry §3.4 says `MapLevel`.** Not changed:
     the nullable return is the correct answer for an empty level set and every call site already
-    handles it — but recorded here because §3.4 is the canonical registry and B3 consumes both
+    handles it, but recorded here because §3.4 is the canonical registry and B3 consumes both
     overloads. B3 should either adopt the nullable shape or make an empty `MapSpace`
     unrepresentable; it must not silently narrow it.
 
 28. **`SceneCompositor.Add`/`Remove` are not covered by the gate, and B2 is the first phase that will
-    call them at runtime.** Not changed — B1 registers every layer during construction, before the
+    call them at runtime.** Not changed: B1 registers every layer during construction, before the
     host is ever attached, so there is no live trigger and no test that fails today. But
     `RenderPane` walks `_layers` by index on the render thread, and `Add`/`Remove` mutate that
     `List<T>` on the UI thread: the first phase that registers or drops a layer in response to a
@@ -1583,7 +1583,7 @@ with a regression test that fails without the fix.
     against an indexed read, whose symptom is an intermittent `ArgumentOutOfRangeException` on the
     render thread rather than anything a golden would catch. §5.8's gate is the mechanism that
     already exists; B2 must take it around registration, exactly as it is taken around cache
-    mutation. `SetEnabled` is fine as-is — a racing `bool` write costs at most one frame of a stale
+    mutation. `SetEnabled` is fine as-is: a racing `bool` write costs at most one frame of a stale
     toggle.
 
 ### Post-merge correction: the text stack measured the wrong rectangle
@@ -1600,8 +1600,8 @@ with a regression test that fails without the fix.
     the tight ink. What followed:
 
     - `OriginForCentre` centred on `Bounds.MidX`, so **marker initials drew 4.2–6.2 px left of a 9 px
-      disc** (`"WW"` −4.22, `"AA"` −5.72, `"7"` −6.22). Vertically it was accidentally fine — the
-      metrics box it centred on is near-symmetric with the line box — to 0.14 px.
+      disc** (`"WW"` −4.22, `"AA"` −5.72, `"7"` −6.22). Vertically it was accidentally fine (the
+      metrics box it centred on is near-symmetric with the line box) to 0.14 px.
     - `Width`/`Height` were the conservative box, so **the HUD clock panel was ~37 px too wide and
       ~3 px too tall** for its content, and `OriginForTopLeft` (which subtracted `Bounds.Left`) then
       pushed the text back right by `0.7386 em`, leaving it visibly left of the panel it sat in.
@@ -1618,14 +1618,14 @@ with a regression test that fails without the fix.
     |---|---|---|
     | `Width` | `Bounds.Width` (conservative box) | `Advance` |
     | `Height` | `Bounds.Height` (font's global box) | `Descent - Ascent`, one line box |
-    | `OriginForTopLeft(x, y)` | `(x - Bounds.Left, y - Bounds.Top)` — ink top-left | `(x, y - Ascent)` — **line-box** top-left |
+    | `OriginForTopLeft(x, y)` | `(x - Bounds.Left, y - Bounds.Top)`: ink top-left | `(x, y - Ascent)`: **line-box** top-left |
     | `OriginForCentre(cx, cy)` | `(cx - Bounds.MidX, cy - Bounds.MidY)` | `(cx - Advance/2, cy - (Ascent+Descent)/2)` |
 
     Both new forms exactly reproduce the pre-v2 control, whose `FormattedText.Width` is an advance and
     whose `Height` is a line height: viewport line 1212 is
     `Point(center.X - text.Width/2, center.Y - text.Height/2)` and line 937 is `Point(8, 6)`.
-    Advance-based horizontal centring also removes a per-string jitter the ink box had — `"AA"` and
-    `"WW"` now centre identically — and metrics-based vertical placement keeps every label in a scene
+    Advance-based horizontal centring also removes a per-string jitter the ink box had (`"AA"` and
+    `"WW"` now centre identically), and metrics-based vertical placement keeps every label in a scene
     on one baseline instead of each centring its own ink.
 
     No layer needed changing for the fix itself. `ClockLayer`'s panel height was additionally rewritten
@@ -1635,7 +1635,7 @@ with a regression test that fails without the fix.
 
     **Gated by** `TextBlobCacheTests.Bounds_AreTightInk_NotTheBlobsConservativeBox`,
     `.WidthIsTheAdvance_AndHeightIsTheLineBox`, `.OriginForTopLeft_PlacesTheLineBoxTopLeftAtThePoint`,
-    `.OriginForCentre_PutsTheInkOnThePoint` (4 labels), and — the one that would have caught this —
+    `.OriginForCentre_PutsTheInkOnThePoint` (4 labels), and, the one that would have caught this,
     `SceneLayerTests.MarkerLayer_LabelInk_IsCentredOnTheDisc`, which diffs a labelled against an
     unlabelled render to get an exact glyph-ink mask and asserts its bounding box is centred on the
     disc. Measured offsets after the fix, over six labels and four disc positions: worst
@@ -1649,7 +1649,7 @@ with a regression test that fails without the fix.
     (±0.5 px); and the bounding box quantises to whole pixels (±0.5 px). That is a ~1.36 px budget
     vertically and ~0.95 px horizontally (`MM` carries a −0.446 px side-bearing asymmetry). The
     original 1 px gate left ~0.16 px of headroom and would flip on any Skia build that rounds a
-    glyph's edge row differently — a latent cross-platform CI failure. At 2 px the gate still catches
+    glyph's edge row differently: a latent cross-platform CI failure. At 2 px the gate still catches
     the 4.2–6.2 px bug with more than double the margin, and `MM`/`il` (the worst side-bearing cases)
     were added to the argument set, so coverage is strictly wider than before. The
     quantisation-free statement of the same property is
@@ -1663,12 +1663,12 @@ with a regression test that fails without the fix.
     2087 → 2018 of 810 000 (`within±1` 93.17 → 93.18 %, `within±32` 99.74 → 99.75 %, worst pixel
     204 → 201). The movement is small because the pre-v2 control draws in
     `Consolas,Menlo,monospace` and B1 draws in Inter, so glyph *shapes* never agree and only placement
-    can — which is why the visual check (labels now sit on their discs, matching the golden) is the
+    can, which is why the visual check (labels now sit on their discs, matching the golden) is the
     evidence and the aggregate is corroboration.
 
 30. **`SceneCompositor.AddOwned` added; `SceneLayerCatalog.BuildLayer` shares one `TextBlobCache`.**
-    The catalog gave each of the four text layers its own cache — four copies of the embedded Inter
-    face and four LRUs holding the same dozen strings — where `Scene2DHost` and the test stage have
+    The catalog gave each of the four text layers its own cache (four copies of the embedded Inter
+    face and four LRUs holding the same dozen strings), where `Scene2DHost` and the test stage have
     always shared one. The shared cache cannot be owned by one of the layers sharing it, because
     `SceneCompositor.Remove` disposes the layer it drops and would take the font out from under the
     others; and `CreateSceneStack` hands back only a compositor, so there is nowhere else to put it.
@@ -1679,16 +1679,16 @@ with a regression test that fails without the fix.
 
 21. **`SpriteAtlas` / `SceneRenderOptions.UseSprites` (decision D-12) is not built.** D-12 already says
     sprites ship off by default, because a sprite blit does not anti-alias identically to `DrawCircle`
-    and the exit criterion is parity. Building an unused, off-by-default draw path — and a second
-    marker renderer for B2 and B4 to keep in step — buys nothing until a measurement asks for it, and
+    and the exit criterion is parity. Building an unused, off-by-default draw path (and a second
+    marker renderer for B2 and B4 to keep in step) buys nothing until a measurement asks for it, and
     the measurement says otherwise: render p99 is 3.9 ms against an 8 ms budget. Flip the decision when
     a profile names marker drawing as the cost.
 
 22. **`DeferredVisionSolver` is not built**, exactly as plan T10 instructs. `IVisionSolver` is the seam;
     the budget has ~11 ms of headroom per frame at 1080p, so the escape hatch stays a seam.
 
-23. **The `Scene2DHostRenderTests` real-demo capture (§6 test 15) is not written.** Its assertion —
-    "Nuke 2 levels > 400 000 non-background pixels" — is the same claim
+23. **The `Scene2DHostRenderTests` real-demo capture (§6 test 15) is not written.** Its assertion,
+    "Nuke 2 levels > 400 000 non-background pixels", is the same claim
     `Scene2DHostTests.SceneHost_RendersANonBlankFrame_WithTeamColouredMarkers` makes against a
     synthetic roster (699 972 non-background pixels, team colours present), and the real-demo half is
     covered end to end by `GoldenParityTests`, which re-renders an actual captured Nuke frame and

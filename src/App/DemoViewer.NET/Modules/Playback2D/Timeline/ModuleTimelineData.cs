@@ -10,8 +10,8 @@ namespace DemoViewer.NET.Modules.Playback2D.Timeline;
 
 /// <summary>
 ///     The app-side <see cref="ITimelineData" /> adapter over <see cref="IModuleContext" />. It does ALL the
-///     demo-domain work — projecting <see cref="GameEventView" />s onto the frame axis, resolving player
-///     slots to roster display names, flattening boxed field values to invariant strings — so a track never
+///     demo-domain work (projecting <see cref="GameEventView" />s onto the frame axis, resolving player
+///     slots to roster display names, flattening boxed field values to invariant strings) so a track never
 ///     sees a host type and the whole <c>Timeline/</c> contract folder stays renderer- and host-independent.
 ///     <para>
 ///         This file is deliberately NOT part of that Core-clean set: it is the boundary.
@@ -33,7 +33,7 @@ public sealed class ModuleTimelineData : ITimelineData
 
     /// <summary>
     ///     The only demo-carried record of who was on which side, and the same one the parser's own team
-    ///     post-pass is fed by — so a timeline tint and <c>PlayerInfo.Team</c> cannot disagree.
+    ///     post-pass is fed by, so a timeline tint and <c>PlayerInfo.Team</c> cannot disagree.
     /// </summary>
     private const string TeamEvent = "player_team";
 
@@ -41,8 +41,8 @@ public sealed class ModuleTimelineData : ITimelineData
     private readonly IModuleContext _context;
 
     // slot → its side changes, ascending by tick. Built once on first team read and dropped by Invalidate.
-    // Null means "not built yet"; an EMPTY map means the demo carries no player_team at all, which is a
-    // real answer (every team read then misses and the consumer keeps its neutral rendering).
+    // Null means "not built yet"; an EMPTY map means the demo carries no player_team at all, a real
+    // answer (every team read then misses and the consumer keeps its neutral rendering).
     private Dictionary<int, List<TeamChange>>? _teamChanges;
 
     /// <summary>Wraps a live module context. The adapter holds no subscriptions of its own.</summary>
@@ -107,8 +107,7 @@ public sealed class ModuleTimelineData : ITimelineData
     ///         it from <see cref="EventsOfType" />: that list is tick-sorted and drops events with no
     ///         frame, so it is not index-aligned with <c>IModuleContext.GetEventTimeline</c> and pairing
     ///         the two by position would silently misattribute a side the moment either happened. One
-    ///         resolver, asked directly, is the only version of this that cannot drift — the halftime
-    ///         finding it encodes lives in exactly one place.
+    ///         resolver, asked directly, is the only version that cannot drift.
     ///     </para>
     /// </summary>
     /// <param name="slot">The roster slot.</param>
@@ -139,7 +138,7 @@ public sealed class ModuleTimelineData : ITimelineData
             int frameIndex = _context.FrameIndexAtTick(view.Tick);
             if (frameIndex < 0)
             {
-                continue; // past the end of the frame list — no place to draw it
+                continue; // past the end of the frame list, no place to draw it
             }
 
             records.Add(new TimelineEventRecord(view.Tick, frameIndex, Flatten(view)));
@@ -180,7 +179,7 @@ public sealed class ModuleTimelineData : ITimelineData
     // participant get a key: there is nothing to resolve otherwise, and writing a key the raw payload
     // also spells would clobber it.
     //
-    // An unresolvable side leaves the key ABSENT rather than writing "0" — the consumer's fallback is a
+    // An unresolvable side leaves the key ABSENT rather than writing "0": the consumer's fallback is a
     // missing key, and a kill must never lose its marker to a demo that cannot say who shot it.
     //
     // Attacker and victim share this because they share the failure mode: one walk, one place that knows
@@ -207,9 +206,9 @@ public sealed class ModuleTimelineData : ITimelineData
 
     // Which side a slot was on at a tick, or 0 when the demo cannot say.
     //
-    // GOTV does NOT emit player_team for the initial seating — measured on both reference demos, the only
-    // player_team events in the whole file are the halftime swap, all on one tick (the finding that made
-    // the demo trimmer synthesize them; see tools/DemoViewer.NET.DemoTrimmer/TeamEventSynthesizer.cs).
+    // GOTV does NOT emit player_team for the initial seating. On both reference demos the only
+    // player_team events in the whole file are the halftime swap, all on one tick, which is why the demo
+    // trimmer synthesizes them (tools/DemoViewer.NET.DemoTrimmer/TeamEventSynthesizer.cs).
     // That is why the walk reads OldTeam when the first recorded change lies AHEAD of the tick asked
     // about: for every kill in the first half, the side a player is swapping away from at half is the
     // only record of the side they spent that half on.

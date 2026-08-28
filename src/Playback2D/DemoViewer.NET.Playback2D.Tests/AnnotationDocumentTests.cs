@@ -203,7 +203,7 @@ public class AnnotationDocumentTests
 
         doc.Undo();
         await Assert.That(doc.Elements[1]).IsEqualTo(b).Because("z-order is list order; a restored " +
-            "stroke that jumps to the top would repaint over strokes it used to sit under");
+                                                                "stroke that jumps to the top would repaint over strokes it used to sit under");
     }
 
     [Test]
@@ -261,8 +261,8 @@ public class AnnotationDocumentTests
     public async Task RemapWorldLevels_RewritesLiveAndHistory_NoUndoEntry()
     {
         AnnotationDocument doc = new();
-        AnnotationElement lower = AnnotationFakes.Stroke(space: new SpaceRef.World(-448));
-        AnnotationElement upper = AnnotationFakes.Stroke(space: new SpaceRef.World(-128));
+        AnnotationElement lower = AnnotationFakes.Stroke(new SpaceRef.World(-448));
+        AnnotationElement upper = AnnotationFakes.Stroke(new SpaceRef.World(-128));
         doc.Apply(new DocDelta.Add(lower, 0));
         doc.Apply(new DocDelta.Add(upper, 1));
         doc.Apply(new DocDelta.Remove(upper.Id));

@@ -45,14 +45,18 @@ public enum TutorialTarget
     /// <summary>The "Open Demo…" affordance (toolbar button) — the gateway's picker fallback.</summary>
     OpenDemo,
 
-    /// <summary>The first demo card in the Library grid — the gateway's preferred target (double-click loads it,
-    /// no file dialog). Falls back to <see cref="SampleDemo" /> / <see cref="OpenDemo" /> when the library is empty.</summary>
+    /// <summary>
+    ///     The first demo card in the Library grid — the gateway's preferred target (double-click loads it,
+    ///     no file dialog). Falls back to <see cref="SampleDemo" /> / <see cref="OpenDemo" /> when the library is empty.
+    /// </summary>
     FirstLibraryCard,
 
-    /// <summary>The Library hero's "Try a sample match" CTA (opens the bundled sample demo). The gateway's
-    /// second preference: an empty library with a resolvable sample spotlights this — one click continues the
-    /// tour with real match data, no files needed. Falls back to <see cref="OpenDemo" /> when no sample ships
-    /// (e.g. Browser/WASM).</summary>
+    /// <summary>
+    ///     The Library hero's "Try a sample match" CTA (opens the bundled sample demo). The gateway's
+    ///     second preference: an empty library with a resolvable sample spotlights this — one click continues the
+    ///     tour with real match data, no files needed. Falls back to <see cref="OpenDemo" /> when no sample ships
+    ///     (e.g. Browser/WASM).
+    /// </summary>
     SampleDemo,
 
     /// <summary>The Stats tab content area (the match review).</summary>
@@ -141,7 +145,7 @@ public static class TutorialSteps
     /// <summary>The eight-step default tour (4 first-run + 4 demo-loaded, including the outro).</summary>
     public static IReadOnlyList<TutorialStep> Default { get; } =
     [
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.FirstRun,
             HasSpotlight = false,
@@ -153,7 +157,7 @@ public static class TutorialSteps
                 "Here's a quick tour of the essentials — it takes about a minute. You can skip it any time "
                 + "and reopen it later from Settings."
         },
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.FirstRun,
             HasSpotlight = true,
@@ -164,7 +168,7 @@ public static class TutorialSteps
                 "These tabs are how you get around — your Library, a match's Stats, and 2D Playback. Click a "
                 + "tab any time to switch; the tour will hop between them for you as we go."
         },
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.FirstRun,
             HasSpotlight = true,
@@ -175,7 +179,7 @@ public static class TutorialSteps
                 "The Library is home base. Every demo you add shows up here as a card with its map, players "
                 + "and final score."
         },
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.FirstRun,
             HasSpotlight = true,
@@ -188,7 +192,7 @@ public static class TutorialSteps
                 "This is where you load demos. Open one now — the tour then continues into the match stats and "
                 + "2D playback."
         },
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.DemoLoaded,
             HasSpotlight = true,
@@ -199,7 +203,7 @@ public static class TutorialSteps
                 "The Stats tab breaks down the whole match — the scoreboard, how each player performed, and "
                 + "a round-by-round timeline."
         },
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.DemoLoaded,
             HasSpotlight = true,
@@ -210,7 +214,7 @@ public static class TutorialSteps
                 "The 2D Playback tab replays the match on a top-down map, so you can follow every move, kill "
                 + "and piece of utility."
         },
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.DemoLoaded,
             HasSpotlight = true,
@@ -221,7 +225,7 @@ public static class TutorialSteps
                 "These controls run the replay — play or pause, change the speed, and jump between rounds and "
                 + "key moments."
         },
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.DemoLoaded,
             HasSpotlight = false,

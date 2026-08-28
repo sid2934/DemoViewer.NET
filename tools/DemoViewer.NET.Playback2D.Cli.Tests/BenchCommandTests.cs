@@ -33,7 +33,10 @@ public class BenchCommandTests
         await Assert.That(payload["budget"]).IsNotNull();
         await Assert.That(payload["metadata"]).IsNotNull();
 
-        foreach (string phase in new[] { "advance_ms", "render_ms", "frame_ms" })
+        foreach (string phase in new[]
+                 {
+                     "advance_ms", "render_ms", "frame_ms"
+                 })
         {
             JsonObject stats = (JsonObject)payload[phase]!;
             double p50 = stats["p50"]!.GetValue<double>();
@@ -112,19 +115,17 @@ public class BenchCommandTests
 /// <summary>
 ///     The §6 zero-allocation contract, over the layer stack <c>dv2d</c> actually builds.
 ///     <para>
-///         <b>This is a live gate.</b> Its doc used to describe an expected-failure state that no longer
-///         matched reality: the catalog registered only a placeholder debug-grid layer, which built three
-///         <c>SKPaint</c>s inside <c>Render</c>, so it measured 3336 B/frame and stayed red for four
-///         phases with <c>[Category("Budget")]</c> doing a <c>[Skip]</c>'s job and saying nothing. The
-///         catalog now registers the real stack and it passes at <b>0 B/frame</b>. It is a failure again
-///         the moment a layer allocates.
+///         <b>This is a live gate.</b> While the catalog registered only a placeholder debug-grid layer,
+///         which built three <c>SKPaint</c>s inside <c>Render</c>, it measured 3336 B/frame and stayed
+///         red for four phases with <c>[Category("Budget")]</c> doing a <c>[Skip]</c>'s job and saying
+///         nothing. The catalog registers the real stack now and it passes at <b>0 B/frame</b>. It is a
+///         failure again the moment a layer allocates.
 ///     </para>
 ///     <para>
 ///         <c>Budget</c> is kept as the label: every allocation assertion in this repository carries it,
 ///         because an allocation figure must not flap a required correctness check. That does mean it
-///         runs only in the <c>full</c> tier and in the <c>playback2d-budget</c> CI lane — <b>which must
-///         be extended to this project</b>; it runs <c>Playback2D.Tests</c> alone today, so nothing
-///         executes these two.
+///         runs only in the <c>full</c> tier and in the <c>playback2d-budget</c> CI lane, which has to
+///         name THIS project and not <c>Playback2D.Tests</c> alone.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -135,8 +136,8 @@ public class BenchAllocationTests
     public async Task SmallestDrawingFixture_AllocatesNothingPerFrame()
     {
         // Deliberately NOT synthetic-empty. Because dv2d sits on the pane pipeline, a frame with no
-        // players derives no floor band, gets no pane, and therefore renders nothing at all — it
-        // reports 0 bytes/frame whatever the layers do, which is a green light that measures nothing.
+        // players derives no floor band, gets no pane, and renders nothing at all. It reports 0
+        // bytes/frame whatever the layers do: a green light that measures nothing.
         // synthetic-tenplayers is the smallest entry that actually reaches a layer's Render.
         CliRun run = Dv2d.InProcess("bench", "--name", "synthetic-tenplayers", "--corpus",
             Dv2d.CorpusDirectory, "--frames", "512", "--warmup", "64", "--json");
@@ -148,12 +149,11 @@ public class BenchAllocationTests
     /// <summary>
     ///     The worst case design §6's numbers are actually stated against: 1080p, two derived floors,
     ///     ten markers, four sixty-four-point trails, twelve area effects, a defusing bomb and both
-    ///     floor captions. It was a <c>pending</c> manifest entry — skipped, never run — for a long
+    ///     floor captions. It was a <c>pending</c> manifest entry (skipped, never run) for a long
     ///     stretch, so the one fixture the budget is written for was the one fixture nothing benched.
     ///     <para>
     ///         Gated through <c>--gate</c> rather than by reading the numbers, so what is asserted is the
-    ///         corpus entry's own budget: editing <c>manifest.json</c> moves this test, which is
-    ///         the point of the budget living in the manifest.
+    ///         corpus entry's own budget: editing <c>manifest.json</c> moves this test.
     ///     </para>
     /// </summary>
     [Test]
@@ -161,7 +161,7 @@ public class BenchAllocationTests
     {
         // DV2D_BUDGET_SCALE is what CI relaxes the TIME halves by on a shared runner; it is not set here,
         // so this asserts the unscaled §6 numbers on a developer machine. The allocation half is never
-        // scaled anywhere — 0 bytes is 0 bytes.
+        // scaled anywhere: 0 bytes is 0 bytes.
         CliRun run = Dv2d.InProcess("bench", "--name", "full-scene-budget", "--corpus",
             Dv2d.CorpusDirectory, "--frames", "256", "--warmup", "64", "--cpu", "--gate", "--json");
 

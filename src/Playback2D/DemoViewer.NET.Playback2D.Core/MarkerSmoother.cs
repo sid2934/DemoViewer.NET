@@ -21,7 +21,7 @@ public interface ISmoothedPositionSource
 ///     rendered frame so markers glide between discrete pushes instead of stepping. Port of
 ///     <c>Playback2DViewport.AdvanceMarkers</c> (lines 648-699), verbatim, plus the discontinuity snap.
 ///     <para>
-///         <b>Camera targeting stays on the RAW positions</b>, and so does level assignment — only the
+///         <b>Camera targeting stays on the RAW positions</b>, and so does level assignment: only the
 ///         drawn dot is smoothed (parity invariant 3). Extracted from the marker layer because the
 ///         vision solver needs the same positions for its cone apexes, and two copies of this state
 ///         would drift apart within a frame.
@@ -32,7 +32,7 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
     /// <summary>Exponential-decay rate; snappier than the camera's, so a dot never trails its ring.</summary>
     public const double LerpResponse = 16.0;
 
-    /// <summary>Beyond this squared distance a move is a teleport, not motion — snap, never glide.</summary>
+    /// <summary>Beyond this squared distance a move is a teleport, not motion: snap, never glide.</summary>
     public const float SnapDistanceSq = 250f * 250f;
 
     /// <summary>Within this squared distance the glide is over; snap and stop asking for frames.</summary>
@@ -47,7 +47,7 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
 
     /// <summary>
     ///     The level-crossing source, when the owner keeps one. A slot that changed floor on this frame
-    ///     <b>snaps</b> instead of gliding — the same code path as the teleport rule below, deliberately
+    ///     <b>snaps</b> instead of gliding: the same code path as the teleport rule below, deliberately
     ///     rather than a second snap mechanism, so there is one answer to "why did that dot jump".
     ///     <para>
     ///         Null leaves the smoothing exactly as B1 shipped it, which is what every golden and the
@@ -85,10 +85,10 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
     ///         <b>Exactly one owner may call this per frame</b>, and that owner is <c>MarkerLayer</c>.
     ///         Two calls in one frame step every dot twice and it glides at double speed. The vision
     ///         solver shares these positions but only <i>reads</i> them, which costs it a one-frame lag
-    ///         on the cone apexes during a glide — a couple of pixels at most, and only while something
+    ///         on the cone apexes during a glide, a couple of pixels at most, and only while something
     ///         is moving. That is much cheaper than the alternative: an earlier draft de-duplicated on
-    ///         <c>(frame, time)</c> so either layer could drive it, and a constant frame delta — which
-    ///         is exactly what a headless render timer produces — made every call after the first a
+    ///         <c>(frame, time)</c> so either layer could drive it, and a constant frame delta, which
+    ///         is exactly what a headless render timer produces, made every call after the first a
     ///         no-op that returned a stale "still moving", pinning the self-terminating render loop
     ///         permanently on.
     ///     </para>
@@ -100,7 +100,7 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
     /// </summary>
     /// <param name="markers">The frame's markers.</param>
     /// <param name="dt">Seconds since the previous rendered frame.</param>
-    /// <param name="isDiscontinuity">True after a seek — snap everything rather than glide across the map.</param>
+    /// <param name="isDiscontinuity">True after a seek: snap everything rather than glide across the map.</param>
     /// <returns>True while any marker is still gliding.</returns>
     public bool Advance(IReadOnlyList<PlayerMarker> markers, double dt, bool isDiscontinuity = false)
     {
@@ -119,7 +119,7 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
 
             if (isDiscontinuity || crossings?.Crossed(m.Slot) == true)
             {
-                // A seek: every dot teleports. This is a superset of the distance rule below — a short
+                // A seek: every dot teleports. This is a superset of the distance rule below: a short
                 // seek can move a player less than the teleport threshold, and gliding across that gap
                 // draws motion that never happened.
                 //
@@ -132,7 +132,7 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
 
             if (!_smoothed.TryGetValue(m.Slot, out (float X, float Y) cur))
             {
-                _smoothed[m.Slot] = (tx, ty); // first appearance — start ON the player, never glide from 0,0
+                _smoothed[m.Slot] = (tx, ty); // first appearance: start ON the player, never glide from 0,0
                 continue;
             }
 

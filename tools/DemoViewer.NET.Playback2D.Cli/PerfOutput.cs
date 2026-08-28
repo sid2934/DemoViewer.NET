@@ -15,10 +15,10 @@ namespace DemoViewer.NET.Playback2D.Cli;
 ///     <para>
 ///         <b>The switch is the repo's existing one, extended.</b>
 ///         <see cref="Profiling.Enabled" /> is the single process-wide runtime gate for every profiling
-///         accumulator in the stack (<c>docs/profiling.md</c>); <c>dv2d</c> simply had no flag surface of
-///         its own. So: <c>--perf</c> attaches the scene recorder for one run, and the env switch — read
-///         through <see cref="Profiling.Enabled" />, which resolves <c>CS2DEMOKIT_PROFILE</c> on first
-///         touch — turns it on implicitly, alongside the parse and entity trees it already governs.
+///         accumulator in the stack (<c>docs/profiling.md</c>); <c>dv2d</c> had no flag surface of its
+///         own. <c>--perf</c> attaches the scene recorder for one run, and the env switch (read through
+///         <see cref="Profiling.Enabled" />, which resolves <c>CS2DEMOKIT_PROFILE</c> on first touch)
+///         turns it on implicitly, alongside the parse and entity trees it already governs.
 ///     </para>
 ///     <para>
 ///         The implication runs one way only. <c>--perf</c> does <b>not</b> set
@@ -42,7 +42,7 @@ internal static class PerfOutput
 
     /// <summary>
     ///     Whether this run captures. Consumes <c>--perf</c> and its <c>--profile</c> alias so
-    ///     <see cref="CliArgs.ThrowIfUnconsumed" /> accepts them on the commands that support capture —
+    ///     <see cref="CliArgs.ThrowIfUnconsumed" /> accepts them on the commands that support capture,
     ///     and only on those.
     /// </summary>
     /// <param name="args">The parsed arguments.</param>
@@ -81,8 +81,8 @@ internal static class PerfOutput
                 $"{row.SharePct,6:F1}%"));
         }
 
-        // Layers are nested inside the advance and render stages, never additional to them — said here
-        // because a reader adding the two columns up and getting 180 % would otherwise be right to worry.
+        // Layers are nested inside the advance and render stages, never additional to them. The two
+        // columns do not sum to 100 %.
         ConsoleOut.Info($"  {"layer (nested in stage)",-28} {"p50",8} {"p99",8} {"total ms",10} {"share",7} cache");
         foreach (PerfRow row in report.Layers)
         {

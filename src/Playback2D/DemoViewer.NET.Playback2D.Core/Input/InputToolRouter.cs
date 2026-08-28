@@ -24,10 +24,7 @@ public sealed class InputToolRouter
     private readonly PanZoomTool _panZoom;
     private readonly IToolServices _services;
     private readonly Dictionary<ToolKind, IPointerTool> _tools = [];
-
-    private IPointerTool? _gestureTool;
     private ToolPointerButton _gestureButton;
-    private ToolKind _selected = ToolKind.PanZoom;
 
     /// <summary>Creates a router over the host's services with pan/zoom as the permanent fallback.</summary>
     /// <param name="services">Host services handed to every tool.</param>
@@ -43,10 +40,10 @@ public sealed class InputToolRouter
     }
 
     /// <summary>The selected tool. Not necessarily the one owning an in-flight gesture.</summary>
-    public IPointerTool Active => _tools.TryGetValue(_selected, out IPointerTool? tool) ? tool : _panZoom;
+    public IPointerTool Active => _tools.TryGetValue(ActiveKind, out IPointerTool? tool) ? tool : _panZoom;
 
     /// <summary>The selected tool's kind.</summary>
-    public ToolKind ActiveKind => _selected;
+    public ToolKind ActiveKind { get; private set; } = ToolKind.PanZoom;
 
     /// <summary>
     ///     Whether the hold-to-pan modifier is down. Set by the host's key handlers; read only at press
@@ -77,16 +74,16 @@ public sealed class InputToolRouter
     public bool PanOnControlDrag { get; set; } = true;
 
     /// <summary>Whether a gesture is in flight.</summary>
-    public bool IsGestureOpen => _gestureTool is not null;
+    public bool IsGestureOpen => GestureTool is not null;
 
     /// <summary>The tool owning the in-flight gesture, or null.</summary>
-    public IPointerTool? GestureTool => _gestureTool;
+    public IPointerTool? GestureTool { get; private set; }
 
     /// <summary>
     ///     True while a DRAWING tool is selected — what the app's keymap passes as its <c>toolActive</c>
     ///     flag, so the tool-scoped Space / Esc bindings shadow the transport ones only when they should.
     /// </summary>
-    public bool IsDrawingToolActive => _selected is ToolKind.Draw or ToolKind.Erase;
+    public bool IsDrawingToolActive => ActiveKind is ToolKind.Draw or ToolKind.Erase;
 
     // No ActiveToolChanged event: the selection round-trips through AnnotationsPanelViewModel's own
     // ObservableProperty, which is what the toolbar binds and what the View's ToolSelected wire drives
@@ -113,13 +110,13 @@ public sealed class InputToolRouter
             kind = ToolKind.PanZoom;
         }
 
-        if (_selected == kind)
+        if (ActiveKind == kind)
         {
             return;
         }
 
         CancelActive();
-        _selected = kind;
+        ActiveKind = kind;
         _services.Session.ActiveTool = kind;
     }
 
@@ -127,7 +124,7 @@ public sealed class InputToolRouter
     /// <param name="e">The pointer sample.</param>
     public bool OnPressed(in ToolPointerEvent e)
     {
-        if (_gestureTool is not null)
+        if (GestureTool is not null)
         {
             // CHORDING IS NOT A GESTURE. A press from a DIFFERENT button while one is in flight is the
             // accidental middle-click halfway through a stroke; cancelling there would trade the ink for
@@ -146,8 +143,8 @@ public sealed class InputToolRouter
         // is what the right button uses when nothing diverted it.
         bool divert = IsSpaceHeld
                       || (e.Modifiers & ToolModifiers.Space) != 0
-                      || (PanOnMiddleButton && e.Button == ToolPointerButton.Middle)
-                      || (PanOnControlDrag && (e.Modifiers & ToolModifiers.Control) != 0);
+                      || PanOnMiddleButton && e.Button == ToolPointerButton.Middle
+                      || PanOnControlDrag && (e.Modifiers & ToolModifiers.Control) != 0;
 
         IPointerTool tool = divert ? _panZoom : ToolForButton(e.Button);
 
@@ -156,14 +153,14 @@ public sealed class InputToolRouter
             return false;
         }
 
-        _gestureTool = tool;
+        GestureTool = tool;
         _gestureButton = e.Button;
         return true;
     }
 
     /// <summary>Routes a move to whichever tool owns the gesture. A no-op when none does.</summary>
     /// <param name="e">The pointer sample.</param>
-    public void OnMoved(in ToolPointerEvent e) => _gestureTool?.OnMoved(in e, _services);
+    public void OnMoved(in ToolPointerEvent e) => GestureTool?.OnMoved(in e, _services);
 
     /// <summary>
     ///     Routes a release. Returns true when it actually closed the gesture — the host drops pointer
@@ -184,7 +181,7 @@ public sealed class InputToolRouter
     /// <param name="e">The pointer sample.</param>
     public bool OnReleased(in ToolPointerEvent e)
     {
-        if (_gestureTool is not { } tool)
+        if (GestureTool is not { } tool)
         {
             return false;
         }
@@ -194,7 +191,7 @@ public sealed class InputToolRouter
             return false;
         }
 
-        _gestureTool = null;
+        GestureTool = null;
         tool.OnReleased(in e, _services);
         return true;
     }
@@ -206,12 +203,12 @@ public sealed class InputToolRouter
     /// <summary>Esc: cancels the in-flight gesture. A no-op when there is none.</summary>
     public void CancelActive()
     {
-        if (_gestureTool is not { } tool)
+        if (GestureTool is not { } tool)
         {
             return;
         }
 
-        _gestureTool = null;
+        GestureTool = null;
         tool.OnCancelled(_services);
     }
 

@@ -99,7 +99,7 @@ public class EnvelopeSecondsTests
     /// </summary>
     [Test]
     [Arguments(64, 5.0)]
-    [Arguments(64, 5.3)]   // 339.2 ticks — deliberately NOT on a tick boundary
+    [Arguments(64, 5.3)] // 339.2 ticks — deliberately NOT on a tick boundary
     [Arguments(128, 0.17)] // 21.76 ticks, on the rate a naive conversion gets wrong
     [Arguments(64, 0.0)]
     public async Task SecondsRoundTripThroughTicks_WithoutDrift(int rate, double typed)

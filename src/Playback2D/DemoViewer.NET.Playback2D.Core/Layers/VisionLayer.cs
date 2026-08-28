@@ -168,7 +168,7 @@ public sealed class VisionLayer : ISceneLayer
             for (int i = 0; i < fan.Count; i++)
             {
                 rays[i * 2] = fan[i].X;
-                rays[(i * 2) + 1] = fan[i].Y;
+                rays[i * 2 + 1] = fan[i].Y;
             }
         }
 

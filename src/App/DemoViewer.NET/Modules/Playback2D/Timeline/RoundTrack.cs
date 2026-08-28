@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Modules.Playback2D.Timeline;
 ///     The rounds band. CS2 rounds OPEN at <c>round_freeze_end</c> (not <c>round_start</c>), so band
 ///     <c>i</c> spans <c>[freeze[i], freeze[i+1] - 1]</c> and the last band runs to the end of the demo;
 ///     anything before the first freeze-end is one <c>warmup</c> band. Round numbers are 1-based ordinals
-///     over the freeze-end list — the track deliberately does NOT read <c>m_totalRoundsPlayed</c>, which
+///     over the freeze-end list. The track deliberately does NOT read <c>m_totalRoundsPlayed</c>, which
 ///     would put a per-frame entity read into chrome.
 /// </summary>
 public sealed class RoundTrack : ITimelineTrack
@@ -90,8 +90,8 @@ public sealed class RoundTrack : ITimelineTrack
     public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data) => Array.Empty<TimelineMarker>();
 
     /// <inheritdoc />
-    // Declared but never raised in A1: round data is fixed after parse. The member exists so B2's
-    // AnnotationTrack — whose content DOES change — implements the same interface.
+    // Never raised: round data is fixed after parse. The member exists so AnnotationTrack, whose content
+    // DOES change, can implement the same interface.
 #pragma warning disable CS0067
     public event Action? MarkersChanged;
 #pragma warning restore CS0067

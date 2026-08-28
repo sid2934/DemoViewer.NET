@@ -29,8 +29,12 @@ public sealed class ShellModuleFeatureGate : IModuleFeatureGate, IDisposable
 
     /// <summary>
     ///     Test seam: the browser predicate is injected so the WASM branch of
-    ///     <see cref="DesktopOnlyIds" /> can be exercised on a desktop runner. <c>OperatingSystem
-    ///     .IsBrowser()</c> is an intrinsic the JIT folds to a constant, so there is no faking it from
+    ///     <see cref="DesktopOnlyIds" /> can be exercised on a desktop runner.
+    ///     <c>
+    ///         OperatingSystem
+    ///         .IsBrowser()
+    ///     </c>
+    ///     is an intrinsic the JIT folds to a constant, so there is no faking it from
     ///     outside — and a desktop-only gate that is never proved to close is a gate nobody has tested.
     /// </summary>
     /// <param name="gate">The shell gate to project. Null fails open.</param>

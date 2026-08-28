@@ -127,16 +127,6 @@ public class Playback2DTimelineRenderTests
         });
     }
 
-    /// <summary>What one rectangle of the captured frame actually contains.</summary>
-    /// <param name="Area">Pixels examined.</param>
-    /// <param name="Fill">The most common colour — for a panel, its background.</param>
-    /// <param name="FillCount">How many pixels are that colour.</param>
-    /// <param name="Ink">Pixels that are NOT the fill: everything drawn on top of it.</param>
-    /// <param name="DistinctColours">Distinct colours present, fill included.</param>
-    /// <param name="AnyChannelNonZero">The superseded metric, kept so the assertions can show it is vacuous.</param>
-    private readonly record struct BandScan(
-        int Area, uint Fill, int FillCount, int Ink, int DistinctColours, int AnyChannelNonZero);
-
     // The timeline's OWN rectangle, not a full-width row band: at those rows the window also holds the
     // splitter and the roster panel, whose pixels are not evidence about the timeline.
     private static BandScan Scan(WriteableBitmap bmp, PixelRect rect)
@@ -162,8 +152,8 @@ public class Playback2DTimelineRenderTests
             for (int x = x0; x < x1; x++)
             {
                 int i = (y * size.Width + x) * 4;
-                uint colour = (uint)(buffer[i] | (buffer[i + 1] << 8) | (buffer[i + 2] << 16)
-                                     | (buffer[i + 3] << 24));
+                uint colour = (uint)(buffer[i] | buffer[i + 1] << 8 | buffer[i + 2] << 16
+                                     | buffer[i + 3] << 24);
                 histogram[colour] = histogram.GetValueOrDefault(colour) + 1;
                 area++;
                 if (buffer[i] != 0 || buffer[i + 1] != 0 || buffer[i + 2] != 0)
@@ -181,4 +171,19 @@ public class Playback2DTimelineRenderTests
         (uint fill, int fillCount) = histogram.MaxBy(e => e.Value);
         return new BandScan(area, fill, fillCount, area - fillCount, histogram.Count, anyChannelNonZero);
     }
+
+    /// <summary>What one rectangle of the captured frame actually contains.</summary>
+    /// <param name="Area">Pixels examined.</param>
+    /// <param name="Fill">The most common colour — for a panel, its background.</param>
+    /// <param name="FillCount">How many pixels are that colour.</param>
+    /// <param name="Ink">Pixels that are NOT the fill: everything drawn on top of it.</param>
+    /// <param name="DistinctColours">Distinct colours present, fill included.</param>
+    /// <param name="AnyChannelNonZero">The superseded metric, kept so the assertions can show it is vacuous.</param>
+    private readonly record struct BandScan(
+        int Area,
+        uint Fill,
+        int FillCount,
+        int Ink,
+        int DistinctColours,
+        int AnyChannelNonZero);
 }

@@ -35,33 +35,6 @@ public static class AppPaths
     private const string AppConfigDirName = "DemoViewer.NET";
 
     /// <summary>
-    ///     Claims the config-directory name for this application, before anything can resolve a
-    ///     path through it.
-    ///     <para>
-    ///         <see cref="RuleSetLocator" /> lives in CS2DemoKit.Analysis, which is a general
-    ///         library with its own default name. Leaving that default in place would silently
-    ///         move every existing install's settings, session state, recents, bookmarks, library
-    ///         cache and user rules to a directory that has never had anything in it — the data is
-    ///         not lost, but the app comes up looking factory-fresh, which is worse than an error.
-    ///     </para>
-    ///     <para>
-    ///         A module initializer rather than a call from a startup path, because the library's
-    ///         rules loading resolves the user-rules directory on its own and does not necessarily
-    ///         touch <see cref="AppPaths" /> first. This runs when the assembly is first used,
-    ///         which precedes both.
-    ///     </para>
-    /// </summary>
-    [ModuleInitializer]
-    [SuppressMessage("Usage", "CA2255",
-        Justification = "This assembly is application code; it is a class library only because the "
-                        + "Desktop, Browser and capture heads each reference it. The rule targets "
-                        + "general-purpose libraries, where a module initializer surprises the "
-                        + "consumer. Here the consumer is our own entry point, and running before "
-                        + "it is the entire point — the library's rules loading can resolve the "
-                        + "user-rules directory without going through AppPaths first.")]
-    public static void ClaimConfigDirectoryName() => RuleSetLocator.AppConfigDirName = AppConfigDirName;
-
-    /// <summary>
     ///     Environment override that replaces <see cref="ConfigRoot" /> wholesale — a test seam that keeps
     ///     tests out of the real user config dir. Being set also suppresses the legacy macOS migration, so
     ///     a test run never touches the developer's real <c>~/.config</c> files.
@@ -101,7 +74,8 @@ public static class AppPaths
     public static string? SettingsFile => Resolve("settings.json");
 
     /// <summary>
-    ///     Persisted bookmarks — <c>SessionState.json</c>. Per-demo working data; kept SEPARATE from the config file. <c>null</c> on
+    ///     Persisted bookmarks — <c>SessionState.json</c>. Per-demo working data; kept SEPARATE from the config file.
+    ///     <c>null</c> on
     ///     WASM.
     /// </summary>
     public static string? BookmarksFile => Resolve("SessionState.json");
@@ -130,7 +104,7 @@ public static class AppPaths
     /// <summary>
     ///     The unified demo-information cache directory — <c>&lt;config&gt;/cache/</c>, holding
     ///     <c>index.json</c> plus one sidecar per demo under <c>demos/</c>
-    ///. Supersedes <see cref="LibraryCacheFile" /> and
+    ///     . Supersedes <see cref="LibraryCacheFile" /> and
     ///     <see cref="HighlightsCacheFile" />, which remain here only so the one-shot migration can read them.
     ///     A PURE path — the store creates directories when it first writes. <c>null</c> on WASM.
     /// </summary>
@@ -173,6 +147,33 @@ public static class AppPaths
             return root is null ? null : Path.Combine(root, "logs");
         }
     }
+
+    /// <summary>
+    ///     Claims the config-directory name for this application, before anything can resolve a
+    ///     path through it.
+    ///     <para>
+    ///         <see cref="RuleSetLocator" /> lives in CS2DemoKit.Analysis, which is a general
+    ///         library with its own default name. Leaving that default in place would silently
+    ///         move every existing install's settings, session state, recents, bookmarks, library
+    ///         cache and user rules to a directory that has never had anything in it — the data is
+    ///         not lost, but the app comes up looking factory-fresh, which is worse than an error.
+    ///     </para>
+    ///     <para>
+    ///         A module initializer rather than a call from a startup path, because the library's
+    ///         rules loading resolves the user-rules directory on its own and does not necessarily
+    ///         touch <see cref="AppPaths" /> first. This runs when the assembly is first used,
+    ///         which precedes both.
+    ///     </para>
+    /// </summary>
+    [ModuleInitializer]
+    [SuppressMessage("Usage", "CA2255",
+        Justification = "This assembly is application code; it is a class library only because the "
+                        + "Desktop, Browser and capture heads each reference it. The rule targets "
+                        + "general-purpose libraries, where a module initializer surprises the "
+                        + "consumer. Here the consumer is our own entry point, and running before "
+                        + "it is the entire point — the library's rules loading can resolve the "
+                        + "user-rules directory without going through AppPaths first.")]
+    public static void ClaimConfigDirectoryName() => RuleSetLocator.AppConfigDirName = AppConfigDirName;
 
     /// <summary>
     ///     Best-effort creates <see cref="ThemesDirectory" /> so a user has somewhere to drop theme files

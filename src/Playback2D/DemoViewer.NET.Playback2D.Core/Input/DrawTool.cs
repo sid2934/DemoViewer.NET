@@ -19,8 +19,8 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 /// </summary>
 public sealed class DrawTool : IPointerTool
 {
-    private IDisposable? _gesture;
     private TimeEnvelope _envelope = TimeEnvelope.Static;
+    private IDisposable? _gesture;
 
     // The previous event's reading of the authoring clock — the START of the span this event's coalesced
     // batch is spread across. It lives on the tool rather than on the wet stroke because it tracks
@@ -87,7 +87,7 @@ public sealed class DrawTool : IPointerTool
         ReadOnlySpan<InkPoint> intermediate = e.Intermediate;
         for (int i = 0; i < intermediate.Length; i++)
         {
-            long atMs = _lastEventMs + ((nowMs - _lastEventMs) * (i + 1) / (intermediate.Length + 1));
+            long atMs = _lastEventMs + (nowMs - _lastEventMs) * (i + 1) / (intermediate.Length + 1);
             session.Wet.TryAppend(intermediate[i], spacing, atMs);
         }
 

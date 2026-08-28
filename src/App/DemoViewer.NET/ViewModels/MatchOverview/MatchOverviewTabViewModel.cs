@@ -6,9 +6,9 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Output;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -86,220 +86,66 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     /// </summary>
     public const string Placeholder = "—";
 
-    // ── Subject identity ──────────────────────────────────────────────────────
-    //
-    // THE INVARIANT THIS PAGE IS BUILT ON: it never paints data belonging to a demo other than its current
-    // subject. Every fill below is keyed, and a push whose key does not match the subject is DROPPED.
-    //
-    // Why this is not paranoia: the fill setters are called from async continuations that outlive the open
-    // they belong to (ResolveTeamNamesAsync, the analysis run), while this VM is a SINGLETON owned by the
-    // shell. Close demo A mid-analysis and open demo B and A's late continuation lands on B's page. The
-    // no-key form of this bug is already documented in SetAnalysis's own comment, which defends against one
-    // instance of it by cross-checking arguments; a key defends against all of them by construction, and is
-    // the precondition for the cached render, where previewing B while A is still loading is ROUTINE rather
-    // than exceptional.
-    //
-    // The key is opaque to this VM — the shell passes the demo's local path where it has one and the file
-    // name where it does not (browser host). It only ever has to be stable and comparable.
-
-    /// <summary>
-    ///     Identity of the demo this page is currently painting, or null in the empty state. Set by
-    ///     <see cref="BeginOpening" /> (live) and compared by every other fill entry point.
-    /// </summary>
-    public string? SubjectKey { get; private set; }
-
-    /// <summary>
-    ///     True when <paramref name="subjectKey" /> names the demo this page is currently painting. A null
-    ///     key never matches: an unkeyed caller is a caller that cannot prove which demo it is talking about,
-    ///     and this page's whole contract is that it does not guess.
-    /// </summary>
-    public bool IsSubject(string? subjectKey) =>
-        subjectKey is not null
-        && SubjectKey is not null
-        && string.Equals(subjectKey, SubjectKey, StringComparison.OrdinalIgnoreCase);
-
-    // Every keyed fill runs through this. HasContent alone was the old guard; it cannot distinguish "a demo
-    // is open" from "THIS demo is open".
-    //
-    // Mode matters as much as the key: a cached render is a page with NOTHING running behind it, so a live
-    // pipeline push must not land on one even when the keys agree (the user previewed the very demo that is
-    // also open). Accepting it would restart the stage strip under a page that says "cached".
-    private bool Accepts(string? subjectKey) =>
-        HasContent && Mode == OverviewMode.Live && IsSubject(subjectKey);
-
-    // ── Mode ──────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    ///     Which job the page is doing. Set by <see cref="BeginOpening" /> (Live),
-    ///     <see cref="SetCachedRecord" /> (Cached) and <see cref="Clear" /> (Empty).
-    /// </summary>
-    [ObservableProperty]
-    private OverviewMode _mode = OverviewMode.Empty;
-
-    /// <summary>True in a cached render — drives the hero band's cached affordances.</summary>
-    public bool IsCached => Mode == OverviewMode.Cached;
-
-    /// <summary>True when a demo is genuinely open (or opening) rather than previewed.</summary>
-    public bool IsLive => Mode == OverviewMode.Live;
-
-    partial void OnModeChanged(OverviewMode value)
-    {
-        OnPropertyChanged(nameof(IsCached));
-        OnPropertyChanged(nameof(IsLive));
-        RaiseCompletenessChanged();
-        RaiseCtaChanged();
-    }
-
     // Stage ceilings for the creep below. Each stage eases TOWARD its ceiling and never reaches it, so
     // finishing the stage always produces visible forward motion rather than an anticlimax.
     private const double ParseCeiling = 0.45;
     private const double EnrichCeiling = 0.70;
     private const double AnalyseCeiling = 0.97;
 
+    // ── Responsive body (two columns at >= 1000px) ────────────────────────────
+    //
+    // One Grid, never two stacked layouts (the Highlights master-detail precedent): the two column groups
+    // bind Grid.Column / Grid.Row / Grid.ColumnSpan to view-model ints, so the wide layout puts them side by
+    // side and the narrow one stacks them, with NO duplicated subtree to drift.
+
+    /// <summary>Below this width the body stacks into one column.</summary>
+    private const double TwoColumnBreakpoint = 1000;
+
     private readonly Action<string>? _computeFullStats;
+    private readonly Func<string, string, string, int, int, bool>? _isClipStaged;
+
+    private readonly Func<bool>? _isVerifyPresent;
     private readonly Action<string>? _openDemo;
     private readonly Action? _returnToLive;
+    private readonly Func<string, string, string, int, int, bool>? _stageClip;
+    private readonly Action<string, string, string, int, int>? _unstageClip;
     private readonly Func<int, string?, CancellationToken, Task<bool>>? _verifyMoment;
     private readonly Action? _viewPlayback;
     private readonly Action? _viewStats;
+    private int _analysisRounds;
+    private int? _analysisSideCt;
+    private int? _analysisSideT;
+
+    // Raw inputs to the reconciliation below. The authoritative score and the analysis run land in either
+    // order (the score can come from an already-indexed library entry, well before analysis finishes), so
+    // both are stored and the derived state is recomputed whenever either arrives.
+    private int? _authCt;
+    private int? _authT;
+
+    // ── Completeness ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     How complete the data behind the page is. THE answer to "why is this section empty?" — the page
+    ///     names the tier it has instead of leaving the user to infer it from blank cards, and every state
+    ///     carries the single action that advances it.
+    /// </summary>
+    [ObservableProperty]
+    private OverviewCompleteness _completeness = OverviewCompleteness.None;
+
+    [ObservableProperty]
+    private ObservableCollection<OverviewPlayer> _counterTerrorists = [];
 
     // Drives the within-stage creep. Lazily created (always on the UI thread, from BeginOpening) and only
     // ever running while a stage is in flight.
     private DispatcherTimer? _creepTimer;
-    private double _stageCeiling;
 
-    // ── Empty state ──
+    /// <summary>Rounds won by the CT SIDE across the whole match (both teams' CT halves summed).</summary>
     [ObservableProperty]
-    private bool _hasContent; // false → "open a demo" empty state
+    private string _ctSideWinsDisplay = Placeholder;
 
-    // ── Identity (shown ASAP) ──
+    /// <summary>Label for the left number: the clan name on a pro demo, else "ENDED CT".</summary>
     [ObservableProperty]
-    private string _fileName = string.Empty;
-
-    [ObservableProperty]
-    private string _mapDisplay = string.Empty;
-
-    [ObservableProperty]
-    private string _serverName = string.Empty;
-
-    /// <summary>
-    ///     True when the open demo is the BUNDLED TOUR SAMPLE (a deliberate few-round trim of a real
-    ///     match). Drives the identity hero's "sample clip" banner so its partial score reads as
-    ///     by-design rather than as a scoring bug — the exact false alarm partial demos have caused
-    ///     before. Set by the shell right after <see cref="BeginOpening" /> (path-compared against the
-    ///     resolved sample), so it is stable for the whole load and never pops in mid-parse.
-    /// </summary>
-    [ObservableProperty]
-    private bool _isSampleClip;
-
-    /// <summary>
-    ///     True when the parse reported structured warnings (the S11 diagnostics channel, v0.6.0) —
-    ///     rejected string tables, dropped player blobs. Drives the "THIS DEMO MAY BE DAMAGED"
-    ///     banner, additive like the sample-clip banner: the partial parse still renders, but a
-    ///     placeholder-riddled page now explains itself. Set by the shell alongside
-    ///     <c>SetSummary</c>; cleared by <c>ResetValues</c>.
-    /// </summary>
-    [ObservableProperty]
-    private bool _isDamaged;
-
-    /// <summary>One-line damage summary for the banner ("3 string tables rejected — …").</summary>
-    [ObservableProperty]
-    private string _damageSummary = string.Empty;
-
-    /// <summary>
-    ///     Pushes the parse's health verdict onto the banner. Kept subject-keyed like the other
-    ///     post-parse pushes so a stale load cannot stamp a newer page.
-    ///     <para>
-    ///         The banner gates on <see cref="ParseHealth.Damaged" />, NOT on having warnings at all.
-    ///         Those are different questions: a demo recorded by a game build newer than the parser
-    ///         drops net messages it has no case for and grades <see cref="ParseHealth.Degraded" />
-    ///         while being a perfectly good recording. Gating on <c>Warnings.Count > 0</c> would fire
-    ///         this banner on every such demo — which is to say, on every demo, every time CS2 ships
-    ///         a build ahead of our parser. Only <c>Damaged</c> means the demo's OWN data failed to
-    ///         decode, which is the case worth interrupting someone over.
-    ///     </para>
-    /// </summary>
-    public void SetParseHealth(string? subjectKey, ParseHealth health, IReadOnlyList<ParseWarning> warnings)
-    {
-        if (!Accepts(subjectKey))
-        {
-            return;
-        }
-
-        if (health != ParseHealth.Damaged)
-        {
-            IsDamaged = false;
-            DamageSummary = string.Empty;
-            return;
-        }
-
-        int tables = warnings.Count(w => w.Code.StartsWith("string-table-", StringComparison.Ordinal));
-        int players = warnings.Count(w => w.Code == ParseWarningCodes.PlayerInfoUnreadable);
-        List<string> parts = [];
-        if (tables > 0)
-        {
-            parts.Add($"{tables} string-table message(s) were rejected");
-        }
-
-        if (players > 0)
-        {
-            parts.Add($"{players} player record(s) were unreadable");
-        }
-
-        if (parts.Count == 0)
-        {
-            parts.Add($"{warnings.Count} parse warning(s)");
-        }
-
-        DamageSummary = string.Join(" and ", parts)
-                        + " — player names, rosters, or events may be missing. The demo file may be damaged.";
-        IsDamaged = true;
-    }
-
-    // ── Load state ──
-    [ObservableProperty]
-    private bool _isLoading;
-
-    [ObservableProperty]
-    private string _statusText = string.Empty;
-
-    /// <summary>
-    ///     0..1 coarse progress across the three open stages. Each stage is a black box, so this steps at
-    ///     stage boundaries rather than sweeping smoothly — the stage strip carries the detail.
-    /// </summary>
-    [ObservableProperty]
-    private double _progress;
-
-    [ObservableProperty]
-    private bool _failed;
-
-    [ObservableProperty]
-    private string _errorText = string.Empty;
-
-    // ── Quick facts (placeholders until parsed) ──
-    [ObservableProperty]
-    private string _durationDisplay = Placeholder;
-
-    [ObservableProperty]
-    private string _tickRateDisplay = Placeholder;
-
-    [ObservableProperty]
-    private string _playerCountDisplay = Placeholder;
-
-    /// <summary>
-    ///     Named, non-proxy entries with no team assignment — observers, coaches, admins. Kept out
-    ///     of <see cref="PlayerCountDisplay" /> so that number always equals the two rosters; shown
-    ///     separately so the information is not simply lost.
-    /// </summary>
-    [ObservableProperty]
-    private string _spectatorCountDisplay = "0";
-
-    /// <summary>True when the demo carries any spectator; gates the tile so it never shows a bare 0.</summary>
-    [ObservableProperty]
-    private bool _hasSpectators;
-
-    [ObservableProperty]
-    private string _roundCountDisplay = Placeholder;
+    private string _ctTeamLabel = "ENDED CT";
 
     // ── Final score ───────────────────────────────────────────────────────────
     // SOURCE: the analysis engine's per-team round wins (CTW + TW summed per team), which counts the rounds
@@ -315,45 +161,23 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     [ObservableProperty]
     private string _ctTeamScoreDisplay = Placeholder;
 
+    /// <summary>One-line damage summary for the banner ("3 string tables rejected — …").</summary>
     [ObservableProperty]
-    private string _tTeamScoreDisplay = Placeholder;
+    private string _damageSummary = string.Empty;
 
-    /// <summary>Label for the left number: the clan name on a pro demo, else "ENDED CT".</summary>
+    // ── Quick facts (placeholders until parsed) ──
     [ObservableProperty]
-    private string _ctTeamLabel = "ENDED CT";
+    private string _durationDisplay = Placeholder;
 
-    /// <summary>Label for the right number: the clan name on a pro demo, else "ENDED T".</summary>
     [ObservableProperty]
-    private string _tTeamLabel = "ENDED T";
+    private string _errorText = string.Empty;
 
-    /// <summary>True once the authoritative score has landed — the score plate's <c>.pending</c> gate.</summary>
     [ObservableProperty]
-    private bool _hasScore;
+    private bool _failed;
 
-    /// <summary>Rounds won by the CT SIDE across the whole match (both teams' CT halves summed).</summary>
+    // ── Identity (shown ASAP) ──
     [ObservableProperty]
-    private string _ctSideWinsDisplay = Placeholder;
-
-    /// <summary>Rounds won by the T SIDE across the whole match (both teams' T halves summed).</summary>
-    [ObservableProperty]
-    private string _tSideWinsDisplay = Placeholder;
-
-    /// <summary>
-    ///     True only when the per-side split RECONCILES with the authoritative score (they must cover the
-    ///     same set of rounds). It is derived from the analysis CTW/TW columns, which are unreliable on
-    ///     HLTV demos, so it hides itself rather than print a split that cannot be true.
-    /// </summary>
-    [ObservableProperty]
-    private bool _hasSideSplit;
-
-    // Raw inputs to the reconciliation below. The authoritative score and the analysis run land in either
-    // order (the score can come from an already-indexed library entry, well before analysis finishes), so
-    // both are stored and the derived state is recomputed whenever either arrives.
-    private int? _authCt;
-    private int? _authT;
-    private int? _analysisSideCt;
-    private int? _analysisSideT;
-    private int _analysisRounds;
+    private string _fileName = string.Empty;
 
     /// <summary>
     ///     True once the analysis stage has filled the rounds / score / scoreboard. Drives the view's
@@ -363,31 +187,92 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     [ObservableProperty]
     private bool _hasAnalysis;
 
+    // ── Empty state ──
+    [ObservableProperty]
+    private bool _hasContent; // false → "open a demo" empty state
+
+    /// <summary>
+    ///     True once the roster carries a real team split. Distinct from <see cref="HasSummary" />: a MIGRATED
+    ///     cache row has player NAMES from the old names-only list and no teams, so the facts are real while
+    ///     the rosters are not. Without the split, the header counts must stay at the placeholder rather than
+    ///     assert a confident zero.
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasRoster;
+
+    /// <summary>True once the authoritative score has landed — the score plate's <c>.pending</c> gate.</summary>
+    [ObservableProperty]
+    private bool _hasScore;
+
+    /// <summary>
+    ///     True only when the per-side split RECONCILES with the authoritative score (they must cover the
+    ///     same set of rounds). It is derived from the analysis CTW/TW columns, which are unreliable on
+    ///     HLTV demos, so it hides itself rather than print a split that cannot be true.
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasSideSplit;
+
+    /// <summary>True when the demo carries any spectator; gates the tile so it never shows a bare 0.</summary>
+    [ObservableProperty]
+    private bool _hasSpectators;
+
     // ── Rosters (filled once parsed) ──
     [ObservableProperty]
     private bool _hasSummary;
 
+    /// <summary>Why the highlight section is empty, or blank when it is not.</summary>
     [ObservableProperty]
-    private ObservableCollection<OverviewPlayer> _terrorists = [];
-
-    [ObservableProperty]
-    private ObservableCollection<OverviewPlayer> _counterTerrorists = [];
+    private string _highlightsMessage = string.Empty;
 
     /// <summary>
-    ///     Roster-header count for the CT card. A DISPLAY STRING, not the collection's <c>Count</c>: an empty
-    ///     roster renders "0", and "0" is an assertion — it says this match had no Counter-Terrorists, which is
-    ///     never true and is exactly the kind of confident-wrong number the rest of this page goes out of its
-    ///     way to avoid. Before the roster lands (and in a cached render whose tier does not carry the team
-    ///     split) the honest value is the placeholder.
+    ///     True when the parse reported structured warnings (the S11 diagnostics channel, v0.6.0) —
+    ///     rejected string tables, dropped player blobs. Drives the "THIS DEMO MAY BE DAMAGED"
+    ///     banner, additive like the sample-clip banner: the partial parse still renders, but a
+    ///     placeholder-riddled page now explains itself. Set by the shell alongside
+    ///     <c>SetSummary</c>; cleared by <c>ResetValues</c>.
     /// </summary>
-    public string CtRosterCountDisplay => HasRoster
-        ? CounterTerrorists.Count.ToString(CultureInfo.InvariantCulture)
-        : Placeholder;
+    [ObservableProperty]
+    private bool _isDamaged;
 
-    /// <summary>Roster-header count for the T card. See <see cref="CtRosterCountDisplay" />.</summary>
-    public string TRosterCountDisplay => HasRoster
-        ? Terrorists.Count.ToString(CultureInfo.InvariantCulture)
-        : Placeholder;
+    // ── Load state ──
+    [ObservableProperty]
+    private bool _isLoading;
+
+    [ObservableProperty]
+    private bool _isNarrow;
+
+    /// <summary>
+    ///     True when the open demo is the BUNDLED TOUR SAMPLE (a deliberate few-round trim of a real
+    ///     match). Drives the identity hero's "sample clip" banner so its partial score reads as
+    ///     by-design rather than as a scoring bug — the exact false alarm partial demos have caused
+    ///     before. Set by the shell right after <see cref="BeginOpening" /> (path-compared against the
+    ///     resolved sample), so it is stable for the whole load and never pops in mid-parse.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isSampleClip;
+
+    /// <summary>
+    ///     File name of the demo that is actually OPEN, when the page is previewing a different one. Set by
+    ///     the shell; drives the hero band's "◀ Back to &lt;demo&gt;" affordance so a preview is never a
+    ///     one-way trip away from the loaded demo.
+    /// </summary>
+    [ObservableProperty]
+    private string? _liveDemoName;
+
+    [ObservableProperty]
+    private string _mapDisplay = string.Empty;
+
+    // ── Mode ──────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     Which job the page is doing. Set by <see cref="BeginOpening" /> (Live),
+    ///     <see cref="SetCachedRecord" /> (Cached) and <see cref="Clear" /> (Empty).
+    /// </summary>
+    [ObservableProperty]
+    private OverviewMode _mode = OverviewMode.Empty;
+
+    [ObservableProperty]
+    private string _playerCountDisplay = Placeholder;
 
     // ── Scoreboard (filled once analysed) ──
     [ObservableProperty]
@@ -400,6 +285,13 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     /// </summary>
     [ObservableProperty]
     private string _playerStatsMessage = string.Empty;
+
+    /// <summary>
+    ///     0..1 coarse progress across the three open stages. Each stage is a black box, so this steps at
+    ///     stage boundaries rather than sweeping smoothly — the stage strip carries the detail.
+    /// </summary>
+    [ObservableProperty]
+    private double _progress;
 
     // ── Empty-slot messages (the partial-fill rule) ───────────────────────────
     //
@@ -416,170 +308,41 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     [ObservableProperty]
     private string _rosterMessage = string.Empty;
 
-    /// <summary>Why the highlight section is empty, or blank when it is not.</summary>
     [ObservableProperty]
-    private string _highlightsMessage = string.Empty;
-
-    /// <summary>
-    ///     True once the roster carries a real team split. Distinct from <see cref="HasSummary" />: a MIGRATED
-    ///     cache row has player NAMES from the old names-only list and no teams, so the facts are real while
-    ///     the rosters are not. Without the split, the header counts must stay at the placeholder rather than
-    ///     assert a confident zero.
-    /// </summary>
-    [ObservableProperty]
-    private bool _hasRoster;
-
-    /// <summary>The per-player highlight groups for this demo. Empty when tier 3 is absent.</summary>
-    public ObservableCollection<OverviewHighlightGroup> HighlightGroups { get; } = [];
-
-    /// <summary>Section header count, e.g. "7 highlights".</summary>
-    public string HighlightCountDisplay
-    {
-        get
-        {
-            int n = HighlightGroups.Sum(g => g.Highlights.Count);
-            return n == 1 ? "1 highlight" : n.ToString(CultureInfo.InvariantCulture) + " highlights";
-        }
-    }
-
-    /// <summary>Gates the section-header count. An explicit bool, never an int bound to IsVisible.</summary>
-    public bool HasHighlights => HighlightGroups.Count > 0;
-
-    /// <summary>
-    ///     The highlight card's OWN action, separate from the completeness chip's.
-    ///     <para>
-    ///         They diverge in exactly one state and it is a common one: a finished live open has a real
-    ///         scoreboard (so the chip has nothing to advance) while highlights are still un-indexed, because
-    ///         they come from a different pass. Without a separate action the user would be told highlights
-    ///         need indexing and given no way to do it.
-    ///     </para>
-    /// </summary>
-    public string? HighlightsActionLabel => HasHighlights ? null : "Compute full stats";
-
-    /// <summary>
-    ///     Gates the highlight card's action button.
-    ///     <para>
-    ///         Never offered on a LIVE page: the open is already harvesting this demo's highlights, so the
-    ///         button would sit under "Harvesting highlights…" contradicting it, and pressing it would queue a
-    ///         second full pass — a whole redundant parse plus snapshot analysis, through a gate that allows
-    ///         one heavy job machine-wide. Once the harvest lands the section speaks for itself; if the demo
-    ///         genuinely fired nothing, re-running would produce the same nothing.
-    ///     </para>
-    /// </summary>
-    public bool HasHighlightsAction =>
-        !HasHighlights
-        && HighlightsMessage.Length > 0
-        && Mode != OverviewMode.Live
-        && _computeFullStats is not null
-        && SubjectKey is not null;
-
-    private void RaiseHighlightActionChanged()
-    {
-        OnPropertyChanged(nameof(HighlightsActionLabel));
-        OnPropertyChanged(nameof(HasHighlightsAction));
-    }
-
-    // ── Completeness ──────────────────────────────────────────────────────────
-
-    /// <summary>
-    ///     How complete the data behind the page is. THE answer to "why is this section empty?" — the page
-    ///     names the tier it has instead of leaving the user to infer it from blank cards, and every state
-    ///     carries the single action that advances it.
-    /// </summary>
-    [ObservableProperty]
-    private OverviewCompleteness _completeness = OverviewCompleteness.None;
-
-    /// <summary>Chip text — the state, in words. Colour is the redundant cue; this is the primary carrier.</summary>
-    public string CompletenessLabel => Completeness switch
-    {
-        OverviewCompleteness.Live => IsLoading ? StatusText : "Ready",
-        OverviewCompleteness.Full => "FULL",
-        OverviewCompleteness.Indexed => "INDEXED · stats not computed",
-        OverviewCompleteness.NotIndexed => "NOT INDEXED",
-        OverviewCompleteness.Failed => Mode == OverviewMode.Live ? "FAILED" : "INDEX FAILED",
-        _ => string.Empty
-    };
-
-    /// <summary>Label of the one action that advances the current state, or null when there is nothing to do.</summary>
-    public string? CompletenessActionLabel => Completeness switch
-    {
-        OverviewCompleteness.Indexed => "Compute full stats",
-        OverviewCompleteness.NotIndexed => "Index this demo",
-        OverviewCompleteness.Failed when Mode == OverviewMode.Cached => "Retry",
-        _ => null
-    };
-
-    /// <summary>Drives the action button; false in every state that has nothing to advance.</summary>
-    public bool HasCompletenessAction =>
-        CompletenessActionLabel is not null && _computeFullStats is not null && SubjectKey is not null;
-
-    // Class-driving flags for the shared Ellipse.dot state classes. A bound class → token selector, never a
-    // brush on the view-model: that is the theme mandate, and it is why this chip re-themes for free.
-    public bool IsCompletenessWorking => Completeness == OverviewCompleteness.Live && IsLoading;
-
-    /// <summary>
-    ///     True for Full, Indexed AND a finished live open. INDEXED is deliberately included: it resolves the
-    ///     same good token, and <see cref="IsCompletenessPartial" /> puts <c>.hollow</c> on the SAME element,
-    ///     which turns the fill into a ring. One element, two classes — <c>Ellipse.dot.stateGood</c> is
-    ///     declared <c>:not(.hollow)</c> exactly so the pair cannot collide.
-    /// </summary>
-    public bool IsCompletenessGood =>
-        Completeness is OverviewCompleteness.Full or OverviewCompleteness.Indexed
-        || (Completeness == OverviewCompleteness.Live && !IsLoading);
-
-    /// <summary>Indexed = a HOLLOW good ring: the established "partial / not the whole story" treatment.</summary>
-    public bool IsCompletenessPartial => Completeness == OverviewCompleteness.Indexed;
-
-    public bool IsCompletenessOff => Completeness == OverviewCompleteness.NotIndexed;
-    public bool IsCompletenessError => Completeness == OverviewCompleteness.Failed;
-
-    // ── Responsive body (two columns at >= 1000px) ────────────────────────────
-    //
-    // One Grid, never two stacked layouts (the Highlights master-detail precedent): the two column groups
-    // bind Grid.Column / Grid.Row / Grid.ColumnSpan to view-model ints, so the wide layout puts them side by
-    // side and the narrow one stacks them, with NO duplicated subtree to drift.
-
-    /// <summary>Below this width the body stacks into one column.</summary>
-    private const double TwoColumnBreakpoint = 1000;
+    private string _roundCountDisplay = Placeholder;
 
     [ObservableProperty]
-    private bool _isNarrow;
-
-    /// <summary>Left ("the match") column group: spans all three columns when narrow.</summary>
-    public int MatchColumnSpan => IsNarrow ? 3 : 1;
-
-    /// <summary>Right ("the moments") column group: column 2 when wide, column 0 row 1 when narrow.</summary>
-    public int MomentsColumn => IsNarrow ? 0 : 2;
-
-    public int MomentsRow => IsNarrow ? 1 : 0;
-    public int MomentsColumnSpan => IsNarrow ? 3 : 1;
-
-    partial void OnIsNarrowChanged(bool value)
-    {
-        OnPropertyChanged(nameof(MatchColumnSpan));
-        OnPropertyChanged(nameof(MomentsColumn));
-        OnPropertyChanged(nameof(MomentsRow));
-        OnPropertyChanged(nameof(MomentsColumnSpan));
-    }
-
-    /// <summary>Sets the one/two-column layout from the tab's measured width (called by the view).</summary>
-    public void SetViewportWidth(double width) => IsNarrow = width > 0 && width < TwoColumnBreakpoint;
+    private string _serverName = string.Empty;
 
     /// <summary>
-    ///     File name of the demo that is actually OPEN, when the page is previewing a different one. Set by
-    ///     the shell; drives the hero band's "◀ Back to &lt;demo&gt;" affordance so a preview is never a
-    ///     one-way trip away from the loaded demo.
+    ///     Named, non-proxy entries with no team assignment — observers, coaches, admins. Kept out
+    ///     of <see cref="PlayerCountDisplay" /> so that number always equals the two rosters; shown
+    ///     separately so the information is not simply lost.
     /// </summary>
     [ObservableProperty]
-    private string? _liveDemoName;
+    private string _spectatorCountDisplay = "0";
 
-    /// <summary>The "◀ Back to …" affordance shows only while previewing with a different demo open.</summary>
-    public bool CanReturnToLive =>
-        Mode == OverviewMode.Cached
-        && _returnToLive is not null
-        && !string.IsNullOrEmpty(LiveDemoName);
+    private double _stageCeiling;
 
-    partial void OnLiveDemoNameChanged(string? value) => OnPropertyChanged(nameof(CanReturnToLive));
+    [ObservableProperty]
+    private string _statusText = string.Empty;
+
+    /// <summary>Rounds won by the T SIDE across the whole match (both teams' T halves summed).</summary>
+    [ObservableProperty]
+    private string _tSideWinsDisplay = Placeholder;
+
+    /// <summary>Label for the right number: the clan name on a pro demo, else "ENDED T".</summary>
+    [ObservableProperty]
+    private string _tTeamLabel = "ENDED T";
+
+    [ObservableProperty]
+    private string _tTeamScoreDisplay = Placeholder;
+
+    [ObservableProperty]
+    private ObservableCollection<OverviewPlayer> _terrorists = [];
+
+    [ObservableProperty]
+    private string _tickRateDisplay = Placeholder;
 
     /// <param name="viewStats">Switches to the Stats tab (the full scoreboard) — the overview's CTA. May be null.</param>
     /// <param name="viewPlayback">Switches to the 2D Playback tab — the overview's CTA. May be null.</param>
@@ -636,10 +399,152 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         Stages = [ParseStage, EnrichStage, AnalyseStage];
     }
 
-    private readonly Func<bool>? _isVerifyPresent;
-    private readonly Func<string, string, string, int, int, bool>? _stageClip;
-    private readonly Action<string, string, string, int, int>? _unstageClip;
-    private readonly Func<string, string, string, int, int, bool>? _isClipStaged;
+    // ── Subject identity ──────────────────────────────────────────────────────
+    //
+    // THE INVARIANT THIS PAGE IS BUILT ON: it never paints data belonging to a demo other than its current
+    // subject. Every fill below is keyed, and a push whose key does not match the subject is DROPPED.
+    //
+    // Why this is not paranoia: the fill setters are called from async continuations that outlive the open
+    // they belong to (ResolveTeamNamesAsync, the analysis run), while this VM is a SINGLETON owned by the
+    // shell. Close demo A mid-analysis and open demo B and A's late continuation lands on B's page. The
+    // no-key form of this bug is already documented in SetAnalysis's own comment, which defends against one
+    // instance of it by cross-checking arguments; a key defends against all of them by construction, and is
+    // the precondition for the cached render, where previewing B while A is still loading is ROUTINE rather
+    // than exceptional.
+    //
+    // The key is opaque to this VM — the shell passes the demo's local path where it has one and the file
+    // name where it does not (browser host). It only ever has to be stable and comparable.
+
+    /// <summary>
+    ///     Identity of the demo this page is currently painting, or null in the empty state. Set by
+    ///     <see cref="BeginOpening" /> (live) and compared by every other fill entry point.
+    /// </summary>
+    public string? SubjectKey { get; private set; }
+
+    /// <summary>True in a cached render — drives the hero band's cached affordances.</summary>
+    public bool IsCached => Mode == OverviewMode.Cached;
+
+    /// <summary>True when a demo is genuinely open (or opening) rather than previewed.</summary>
+    public bool IsLive => Mode == OverviewMode.Live;
+
+    /// <summary>
+    ///     Roster-header count for the CT card. A DISPLAY STRING, not the collection's <c>Count</c>: an empty
+    ///     roster renders "0", and "0" is an assertion — it says this match had no Counter-Terrorists, which is
+    ///     never true and is exactly the kind of confident-wrong number the rest of this page goes out of its
+    ///     way to avoid. Before the roster lands (and in a cached render whose tier does not carry the team
+    ///     split) the honest value is the placeholder.
+    /// </summary>
+    public string CtRosterCountDisplay => HasRoster
+        ? CounterTerrorists.Count.ToString(CultureInfo.InvariantCulture)
+        : Placeholder;
+
+    /// <summary>Roster-header count for the T card. See <see cref="CtRosterCountDisplay" />.</summary>
+    public string TRosterCountDisplay => HasRoster
+        ? Terrorists.Count.ToString(CultureInfo.InvariantCulture)
+        : Placeholder;
+
+    /// <summary>The per-player highlight groups for this demo. Empty when tier 3 is absent.</summary>
+    public ObservableCollection<OverviewHighlightGroup> HighlightGroups { get; } = [];
+
+    /// <summary>Section header count, e.g. "7 highlights".</summary>
+    public string HighlightCountDisplay
+    {
+        get
+        {
+            int n = HighlightGroups.Sum(g => g.Highlights.Count);
+            return n == 1 ? "1 highlight" : n.ToString(CultureInfo.InvariantCulture) + " highlights";
+        }
+    }
+
+    /// <summary>Gates the section-header count. An explicit bool, never an int bound to IsVisible.</summary>
+    public bool HasHighlights => HighlightGroups.Count > 0;
+
+    /// <summary>
+    ///     The highlight card's OWN action, separate from the completeness chip's.
+    ///     <para>
+    ///         They diverge in exactly one state and it is a common one: a finished live open has a real
+    ///         scoreboard (so the chip has nothing to advance) while highlights are still un-indexed, because
+    ///         they come from a different pass. Without a separate action the user would be told highlights
+    ///         need indexing and given no way to do it.
+    ///     </para>
+    /// </summary>
+    public string? HighlightsActionLabel => HasHighlights ? null : "Compute full stats";
+
+    /// <summary>
+    ///     Gates the highlight card's action button.
+    ///     <para>
+    ///         Never offered on a LIVE page: the open is already harvesting this demo's highlights, so the
+    ///         button would sit under "Harvesting highlights…" contradicting it, and pressing it would queue a
+    ///         second full pass — a whole redundant parse plus snapshot analysis, through a gate that allows
+    ///         one heavy job machine-wide. Once the harvest lands the section speaks for itself; if the demo
+    ///         genuinely fired nothing, re-running would produce the same nothing.
+    ///     </para>
+    /// </summary>
+    public bool HasHighlightsAction =>
+        !HasHighlights
+        && HighlightsMessage.Length > 0
+        && Mode != OverviewMode.Live
+        && _computeFullStats is not null
+        && SubjectKey is not null;
+
+    /// <summary>Chip text — the state, in words. Colour is the redundant cue; this is the primary carrier.</summary>
+    public string CompletenessLabel => Completeness switch
+    {
+        OverviewCompleteness.Live => IsLoading ? StatusText : "Ready",
+        OverviewCompleteness.Full => "FULL",
+        OverviewCompleteness.Indexed => "INDEXED · stats not computed",
+        OverviewCompleteness.NotIndexed => "NOT INDEXED",
+        OverviewCompleteness.Failed => Mode == OverviewMode.Live ? "FAILED" : "INDEX FAILED",
+        _ => string.Empty
+    };
+
+    /// <summary>Label of the one action that advances the current state, or null when there is nothing to do.</summary>
+    public string? CompletenessActionLabel => Completeness switch
+    {
+        OverviewCompleteness.Indexed => "Compute full stats",
+        OverviewCompleteness.NotIndexed => "Index this demo",
+        OverviewCompleteness.Failed when Mode == OverviewMode.Cached => "Retry",
+        _ => null
+    };
+
+    /// <summary>Drives the action button; false in every state that has nothing to advance.</summary>
+    public bool HasCompletenessAction =>
+        CompletenessActionLabel is not null && _computeFullStats is not null && SubjectKey is not null;
+
+    // Class-driving flags for the shared Ellipse.dot state classes. A bound class → token selector, never a
+    // brush on the view-model: that is the theme mandate, and it is why this chip re-themes for free.
+    public bool IsCompletenessWorking => Completeness == OverviewCompleteness.Live && IsLoading;
+
+    /// <summary>
+    ///     True for Full, Indexed AND a finished live open. INDEXED is deliberately included: it resolves the
+    ///     same good token, and <see cref="IsCompletenessPartial" /> puts <c>.hollow</c> on the SAME element,
+    ///     which turns the fill into a ring. One element, two classes — <c>Ellipse.dot.stateGood</c> is
+    ///     declared <c>:not(.hollow)</c> exactly so the pair cannot collide.
+    /// </summary>
+    public bool IsCompletenessGood =>
+        Completeness is OverviewCompleteness.Full or OverviewCompleteness.Indexed
+        || Completeness == OverviewCompleteness.Live && !IsLoading;
+
+    /// <summary>Indexed = a HOLLOW good ring: the established "partial / not the whole story" treatment.</summary>
+    public bool IsCompletenessPartial => Completeness == OverviewCompleteness.Indexed;
+
+    public bool IsCompletenessOff => Completeness == OverviewCompleteness.NotIndexed;
+    public bool IsCompletenessError => Completeness == OverviewCompleteness.Failed;
+
+    /// <summary>Left ("the match") column group: spans all three columns when narrow.</summary>
+    public int MatchColumnSpan => IsNarrow ? 3 : 1;
+
+    /// <summary>Right ("the moments") column group: column 2 when wide, column 0 row 1 when narrow.</summary>
+    public int MomentsColumn => IsNarrow ? 0 : 2;
+
+    public int MomentsRow => IsNarrow ? 1 : 0;
+    public int MomentsColumnSpan => IsNarrow ? 3 : 1;
+
+    /// <summary>The "◀ Back to …" affordance shows only while previewing with a different demo open.</summary>
+    public bool CanReturnToLive =>
+        Mode == OverviewMode.Cached
+        && _returnToLive is not null
+        && !string.IsNullOrEmpty(LiveDemoName);
 
     /// <summary>Stage 1 — the heavy demo parse.</summary>
     public LoadStageViewModel ParseStage { get; } = new("Parsing");
@@ -675,6 +580,15 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     public bool CanOpenDemo =>
         Mode == OverviewMode.Cached && _openDemo is not null && SubjectKey is not null;
 
+    /// <summary>
+    ///     A completed premier match ends with the winner on 13 (regulation), 15 (drawn OT) or 16 (OT win).
+    ///     Anything else means either the demo stops early — legitimate, and common on buzzer-cut recordings —
+    ///     or the derivation failed. True when the score satisfies a completed match, so callers/tests can
+    ///     tell "this demo was cut short" from "our counting is broken".
+    /// </summary>
+    public bool ScoreLooksComplete =>
+        _authCt is { } a && _authT is { } b && Math.Max(a, b) is 13 or 15 or 16;
+
     public void OnActivated(IModuleContext context)
     {
     }
@@ -682,6 +596,102 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     public void OnDeactivated()
     {
     }
+
+    /// <summary>
+    ///     True when <paramref name="subjectKey" /> names the demo this page is currently painting. A null
+    ///     key never matches: an unkeyed caller is a caller that cannot prove which demo it is talking about,
+    ///     and this page's whole contract is that it does not guess.
+    /// </summary>
+    public bool IsSubject(string? subjectKey) =>
+        subjectKey is not null
+        && SubjectKey is not null
+        && string.Equals(subjectKey, SubjectKey, StringComparison.OrdinalIgnoreCase);
+
+    // Every keyed fill runs through this. HasContent alone was the old guard; it cannot distinguish "a demo
+    // is open" from "THIS demo is open".
+    //
+    // Mode matters as much as the key: a cached render is a page with NOTHING running behind it, so a live
+    // pipeline push must not land on one even when the keys agree (the user previewed the very demo that is
+    // also open). Accepting it would restart the stage strip under a page that says "cached".
+    private bool Accepts(string? subjectKey) =>
+        HasContent && Mode == OverviewMode.Live && IsSubject(subjectKey);
+
+    partial void OnModeChanged(OverviewMode value)
+    {
+        OnPropertyChanged(nameof(IsCached));
+        OnPropertyChanged(nameof(IsLive));
+        RaiseCompletenessChanged();
+        RaiseCtaChanged();
+    }
+
+    /// <summary>
+    ///     Pushes the parse's health verdict onto the banner. Kept subject-keyed like the other
+    ///     post-parse pushes so a stale load cannot stamp a newer page.
+    ///     <para>
+    ///         The banner gates on <see cref="ParseHealth.Damaged" />, NOT on having warnings at all.
+    ///         Those are different questions: a demo recorded by a game build newer than the parser
+    ///         drops net messages it has no case for and grades <see cref="ParseHealth.Degraded" />
+    ///         while being a perfectly good recording. Gating on <c>Warnings.Count > 0</c> would fire
+    ///         this banner on every such demo — which is to say, on every demo, every time CS2 ships
+    ///         a build ahead of our parser. Only <c>Damaged</c> means the demo's OWN data failed to
+    ///         decode, which is the case worth interrupting someone over.
+    ///     </para>
+    /// </summary>
+    public void SetParseHealth(string? subjectKey, ParseHealth health, IReadOnlyList<ParseWarning> warnings)
+    {
+        if (!Accepts(subjectKey))
+        {
+            return;
+        }
+
+        if (health != ParseHealth.Damaged)
+        {
+            IsDamaged = false;
+            DamageSummary = string.Empty;
+            return;
+        }
+
+        int tables = warnings.Count(w => w.Code.StartsWith("string-table-", StringComparison.Ordinal));
+        int players = warnings.Count(w => w.Code == ParseWarningCodes.PlayerInfoUnreadable);
+        List<string> parts = [];
+        if (tables > 0)
+        {
+            parts.Add($"{tables} string-table message(s) were rejected");
+        }
+
+        if (players > 0)
+        {
+            parts.Add($"{players} player record(s) were unreadable");
+        }
+
+        if (parts.Count == 0)
+        {
+            parts.Add($"{warnings.Count} parse warning(s)");
+        }
+
+        DamageSummary = string.Join(" and ", parts)
+                        + " — player names, rosters, or events may be missing. The demo file may be damaged.";
+        IsDamaged = true;
+    }
+
+    private void RaiseHighlightActionChanged()
+    {
+        OnPropertyChanged(nameof(HighlightsActionLabel));
+        OnPropertyChanged(nameof(HasHighlightsAction));
+    }
+
+    partial void OnIsNarrowChanged(bool value)
+    {
+        OnPropertyChanged(nameof(MatchColumnSpan));
+        OnPropertyChanged(nameof(MomentsColumn));
+        OnPropertyChanged(nameof(MomentsRow));
+        OnPropertyChanged(nameof(MomentsColumnSpan));
+    }
+
+    /// <summary>Sets the one/two-column layout from the tab's measured width (called by the view).</summary>
+    public void SetViewportWidth(double width) => IsNarrow = width > 0 && width < TwoColumnBreakpoint;
+
+    partial void OnLiveDemoNameChanged(string? value) => OnPropertyChanged(nameof(CanReturnToLive));
 
     /// <summary>
     ///     Step 1 — called the instant an open begins, BEFORE the parse: shows the file name and whatever cheap
@@ -844,7 +854,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         // preview here, it is the only source this page will ever have for them.
         // Verify seeks the OPEN demo, and in this mode that is exactly what this demo is — the one case where
         // the affordance is genuinely live, as opposed to a cached render of some other match.
-        FillCachedHighlights(record, scannerRan, canVerify: true);
+        FillCachedHighlights(record, scannerRan, true);
 
         RaiseCompletenessChanged();
         RaiseCtaChanged();
@@ -889,7 +899,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         }
 
         // Verify is offered only while this demo is the OPEN one, which is exactly the live case.
-        FillCachedHighlights(record, scannerRan, canVerify: Mode == OverviewMode.Live);
+        FillCachedHighlights(record, scannerRan, Mode == OverviewMode.Live);
     }
 
     /// <summary>
@@ -1139,15 +1149,6 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         HasScore = ctTeam is not null && tTeam is not null;
         ReconcileAnalysisAgainstScore();
     }
-
-    /// <summary>
-    ///     A completed premier match ends with the winner on 13 (regulation), 15 (drawn OT) or 16 (OT win).
-    ///     Anything else means either the demo stops early — legitimate, and common on buzzer-cut recordings —
-    ///     or the derivation failed. True when the score satisfies a completed match, so callers/tests can
-    ///     tell "this demo was cut short" from "our counting is broken".
-    /// </summary>
-    public bool ScoreLooksComplete =>
-        _authCt is { } a && _authT is { } b && Math.Max(a, b) is 13 or 15 or 16;
 
     // The analysis-derived per-side split and round count are shown ONLY when they account for the same
     // rounds as the authoritative score. On HLTV demos the CTW/TW columns collapse (furia: a 0+1 "split"
@@ -1401,8 +1402,8 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
                          // Verify seeks the OPEN demo; a cached page is by definition not it. The live seed
                          // (SeedFromCache) is the one caller that passes true.
                          canVerify,
-                         onStage: _stageClip is null ? null : ToggleStage,
-                         onVerify: RunVerifyAsync))
+                         _stageClip is null ? null : ToggleStage,
+                         RunVerifyAsync))
             {
                 // Seed each row from the tray. Without this, staging a clip, navigating away and coming back
                 // shows a [ + ] on a clip already in the tray — and pressing it would toggle it OUT, which
@@ -1436,13 +1437,15 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     // chip's own action IS "Compute full stats". Claiming Full there would both contradict the section
     // beneath it and retire the one button that fixes it. See the two-facts note in SetCachedRecord.
     private static OverviewCompleteness ClassifyCached(DemoCacheRecord record) =>
-        record.AnalysisState == DemoAnalysisState.Failed ? OverviewCompleteness.Failed
-        : record.Analysis.IsPresent
-        && record.AnalysisState == DemoAnalysisState.Indexed
-        && record.Scoreboard.Count > 0
-            ? OverviewCompleteness.Full
-            : record.Parse.IsPresent ? OverviewCompleteness.Indexed
-            : OverviewCompleteness.NotIndexed;
+        record.AnalysisState == DemoAnalysisState.Failed
+            ? OverviewCompleteness.Failed
+            : record.Analysis.IsPresent
+              && record.AnalysisState == DemoAnalysisState.Indexed
+              && record.Scoreboard.Count > 0
+                ? OverviewCompleteness.Full
+                : record.Parse.IsPresent
+                    ? OverviewCompleteness.Indexed
+                    : OverviewCompleteness.NotIndexed;
 
     // [ + ] / [ ✓ ] — the Match Overview end of the cross-demo clip tray. A single toggle rather than two
     // buttons: the row already renders its staged state, so the second press is unmistakably "undo that".
@@ -1652,7 +1655,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
 
         // Exponential ease: fast at first, slowing as it nears the ceiling. Motion stays perceptible for a
         // long time without the bar ever looking like it is about to finish.
-        Progress = Math.Min(_stageCeiling, Progress + ((_stageCeiling - Progress) * 0.055));
+        Progress = Math.Min(_stageCeiling, Progress + (_stageCeiling - Progress) * 0.055);
     }
 
     private void RaiseCtaChanged()

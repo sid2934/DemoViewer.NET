@@ -7,10 +7,9 @@ using System.Text.Json;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Diagnostics;
-using DemoViewer.NET.Configuration;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -72,11 +71,6 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     private readonly object _cacheLock = new();
     private readonly string? _dataPath; // library.json, or null on WASM
 
-    // Diagnostics-pillar logger (v0.6.0 — replaced Console.WriteLine, which a windowed Release build
-    // never shows). Lazy like MainViewModel.DiagLog: the ambient factory is wired after construction.
-    private ILogger? _diagLog;
-    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger(AppLog.LibraryCategory);
-
     // The unified demo cache, dual-written alongside library.json during the transition. Null → legacy only.
     private readonly DemoCacheStore? _demoCache;
     private readonly Dictionary<string, DemoEntry> _pendingFull = new(StringComparer.OrdinalIgnoreCase);
@@ -96,6 +90,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // each rescan; the coordinator's Wants(path) reads its membership). The coordinator's own outstanding
     // set prevents double-submit, so no separate _enqueued set is needed here.
     private readonly object _tier2Lock = new();
+
+    // Diagnostics-pillar logger (v0.6.0 — replaced Console.WriteLine, which a windowed Release build
+    // never shows). Lazy like MainViewModel.DiagLog: the ambient factory is wired after construction.
+    private ILogger? _diagLog;
     private int _enrichedSinceSave;
 
     // A plain array mirror of Folders, refreshed on the (UI) thread that mutates the UI-bound
@@ -154,6 +152,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         Folders.CollectionChanged += (_, _) => _folderSnapshot = Folders.ToArray();
     }
 
+    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger(AppLog.LibraryCategory);
+
     /// <summary>
     ///     The settings service this indexer is folder-backed by, or <c>null</c> on the legacy path.
     ///     Exposed for the composition-root test to assert the container injected the SINGLETON instance.
@@ -172,6 +172,18 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     /// <summary>All discovered demos with their (progressively enriched) metadata. Bound to the browser.</summary>
     public BulkObservableCollection<DemoEntry> Entries { get; } = [];
+
+    /// <summary>
+    ///     How many demos IN THE LIBRARY are waiting on a score re-derivation.
+    ///     <para>
+    ///         Counted over <see cref="Entries" />, not over the cache, and the difference is not pedantic: on
+    ///         the reference library 552 rows were repairable but only 342 had a file still on disk — the rest
+    ///         described demos under a folder the user had removed, which nothing can ever re-derive. A count
+    ///         offering to repair 552 things and then repairing 342 would be lying to the user about the
+    ///         work it is proposing.
+    ///     </para>
+    /// </summary>
+    public int ScoreRepairPendingCount => Entries.Count(e => e.ScoreRepairPending);
 
     // ── IDemoEvaluator ("one parse, many evaluators") ──
 
@@ -350,18 +362,6 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             await RescanAsync();
         }
     }
-
-    /// <summary>
-    ///     How many demos IN THE LIBRARY are waiting on a score re-derivation.
-    ///     <para>
-    ///         Counted over <see cref="Entries" />, not over the cache, and the difference is not pedantic: on
-    ///         the reference library 552 rows were repairable but only 342 had a file still on disk — the rest
-    ///         described demos under a folder the user had removed, which nothing can ever re-derive. A count
-    ///         offering to repair 552 things and then repairing 342 would be lying to the user about the
-    ///         work it is proposing.
-    ///     </para>
-    /// </summary>
-    public int ScoreRepairPendingCount => Entries.Count(e => e.ScoreRepairPending);
 
     /// <summary>
     ///     Re-derives the score for every demo carrying <see cref="DemoEntry.ScoreRepairPending" /> — the
@@ -749,9 +749,11 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             return;
         }
 
-        static bool Under(string path, string root) =>
-            path.StartsWith(root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar,
+        static bool Under(string path, string root)
+        {
+            return path.StartsWith(root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar,
                 StringComparison.OrdinalIgnoreCase);
+        }
 
         List<string> doomed = [];
         lock (_cacheLock)
@@ -1492,7 +1494,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         // Neither side resolved. The extractor bails BEFORE it can have kept a clan, so a clan without a
         // score is the same stale half-result as a score without its other half.
         return ctScore is null && tScore is null
-                                && string.IsNullOrWhiteSpace(ctClan) && string.IsNullOrWhiteSpace(tClan);
+                               && string.IsNullOrWhiteSpace(ctClan) && string.IsNullOrWhiteSpace(tClan);
     }
 
     // Does this hydrated row hold a score the extractor could not have produced? PURE — it deliberately

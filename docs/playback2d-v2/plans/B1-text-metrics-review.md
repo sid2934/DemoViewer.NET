@@ -1,4 +1,4 @@
-# B1 T18 — parity review
+# B1 T18: parity review
 
 **Deliverable of B1 T18** (plan §4 T18, decision D-17, design risk 1). The plan asks for text
 differences to be *written up and reviewed, not auto-failed*. In practice the review has to cover the
@@ -11,9 +11,9 @@ whole image rather than text alone, for a reason worth stating up front.
 The corpus entry `nuke-multilevel` is a matched pair captured in one push
 (`Playback2DGoldenCaptureTests`):
 
-- `tests/fixtures/playback2d/goldens/cpu/nuke-multilevel@900x900.png` — what the **pre-v2
+- `tests/fixtures/playback2d/goldens/cpu/nuke-multilevel@900x900.png`: what the **pre-v2
   `Playback2DViewport`** drew, through Avalonia's `DrawingContext`, in a headless window.
-- `tests/fixtures/playback2d/scenes/nuke-multilevel.scene.json` — the `Scene2DFrame` behind it.
+- `tests/fixtures/playback2d/scenes/nuke-multilevel.scene.json`: the `Scene2DFrame` behind it.
 
 B1 re-renders the JSON through the v2 compositor with raw `SKCanvas` calls and compares.
 
@@ -30,7 +30,7 @@ shows up in three places, none of which is a defect:
    different hinting, different metrics.
 
 A byte-exact assertion across that boundary is a test that can only fail. The gate is therefore
-written against the **delta distribution** — `GoldenImageComparer.Analyze`, added in B1 — and the
+written against the **delta distribution** (`GoldenImageComparer.Analyze`, added in B1), and the
 byte-exact half of the exit criterion is carried by `SceneDeterminismTests`, which pins the v2
 renderer against itself.
 
@@ -54,9 +54,9 @@ renderers, and 97 % is within ±2. The port reproduces the pre-v2 geometry.
 
 The two worst pixels are both single pixels, and both are exactly the expected kind:
 
-- **(48, 300), delta 204** — golden `#C0CCC7` (radar), ours `#000000`. A black label glyph landing one
+- **(48, 300), delta 204:** golden `#C0CCC7` (radar), ours `#000000`. A black label glyph landing one
   pixel outside where Consolas put it. Text.
-- **(63, 276), delta 201** — golden `#004515` (radar), ours `#C9821C` (T fill). One anti-aliased pixel
+- **(63, 276), delta 201:** golden `#004515` (radar), ours `#C9821C` (T fill). One anti-aliased pixel
   on a marker disc's edge. Coverage rounding.
 
 Removing the text layers moves every bucket in the right direction and drops the worst pixel from 204
@@ -67,7 +67,7 @@ wrong.
 ### Gate
 
 `GoldenParityTests` asserts **≥ 99 % within ±8** and **≥ 99.5 % within ±32**, a little below the
-measured 99.45 % / 99.72 %. A real regression — a mis-placed layer, a wrong colour, a dropped pass —
+measured 99.45 % / 99.72 %. A real regression (a mis-placed layer, a wrong colour, a dropped pass)
 moves whole regions and blows through both; resampling noise does not.
 
 ---
@@ -113,7 +113,7 @@ were measured against the golden:
 > 2.2–5.5× the tight ink. Every marker initial drew **4.2–6.2 px left of its 9 px disc**. The
 > corrected rows are below the original; the reasoning that reached the wrong answer is left visible
 > on purpose, because "we compared the new thing to the old thing and preferred the new thing" is what
-> a review is supposed to catch and this one did not — the comparison was against a description of the
+> a review is supposed to catch and this one did not: the comparison was against a description of the
 > code, not against the pixels.
 
 ### As reviewed (wrong)
@@ -121,8 +121,8 @@ were measured against the golden:
 | Aspect | Pre-v2 | B1 | Consequence |
 |---|---|---|---|
 | Typeface | host `Consolas,Menlo,monospace` | embedded Inter Regular | different outlines and advances; the whole point of correction 6 |
-| Positioning | `DrawingContext.DrawText(text, point)` — ink **top-left** | `SKCanvas.DrawText(blob, x, y, paint)` — **baseline** | converted via the blob's `Bounds.Top`; see `ShapedText.OriginForTopLeft` |
-| Marker label centring | `center - (FormattedText.Width/2, Height/2)` — the **layout box**, which includes line height | `ShapedText.OriginForCentre` — the **ink** bounds | B1's labels sit a little higher inside the disc; visually better centred, and different |
+| Positioning | `DrawingContext.DrawText(text, point)`, ink **top-left** | `SKCanvas.DrawText(blob, x, y, paint)`, **baseline** | converted via the blob's `Bounds.Top`; see `ShapedText.OriginForTopLeft` |
+| Marker label centring | `center - (FormattedText.Width/2, Height/2)`, the **layout box**, which includes line height | `ShapedText.OriginForCentre`, the **ink** bounds | B1's labels sit a little higher inside the disc; visually better centred, and different |
 | Floor label | 11 px at pane-local (8, 6) | same size, same point, top-left preserved | matches |
 
 *Signed off, in error:* "The label change is an improvement (ink-centred text is centred; box-centred
@@ -134,15 +134,15 @@ requirement rather than a preference. Neither is a regression to fix."
 | Aspect | Pre-v2 | v2 today | Consequence |
 |---|---|---|---|
 | Typeface | host `Consolas,Menlo,monospace` | embedded Inter Regular | different outlines and advances; the whole point of correction 6. **This is the only text difference that remains** |
-| Positioning | `DrawingContext.DrawText(text, point)` — **line-box** top-left, not ink top-left (Avalonia's `FormattedText.Width` is an advance and `Height` a line height) | `SKCanvas.DrawText(blob, x, y, paint)` — **baseline** | converted as `y - Ascent`; see `ShapedText.OriginForTopLeft` |
-| Marker label centring | `center - (FormattedText.Width/2, Height/2)` — advance and line box | `ShapedText.OriginForCentre` = `(cx - Advance/2, cy - (Ascent+Descent)/2)` | **identical placement rule**; only the outlines differ |
+| Positioning | `DrawingContext.DrawText(text, point)`, **line-box** top-left, not ink top-left (Avalonia's `FormattedText.Width` is an advance and `Height` a line height) | `SKCanvas.DrawText(blob, x, y, paint)`, **baseline** | converted as `y - Ascent`; see `ShapedText.OriginForTopLeft` |
+| Marker label centring | `center - (FormattedText.Width/2, Height/2)`, advance and line box | `ShapedText.OriginForCentre` = `(cx - Advance/2, cy - (Ascent+Descent)/2)` | **identical placement rule**; only the outlines differ |
 | Floor label | 11 px at pane-local (8, 6) | same size, same point, line-box top-left preserved | matches (it did not before: it drew at x ≈ 16) |
 | Measurement source | `FormattedText` | `SKFont.MeasureText(glyphs, out SKRect ink)` + `SKFont.Metrics`, cached per (string, size) | tight ink for "where did the pixels land", advance and metrics for "where should this go" |
 
 **Signed off.** The placement rule is now the pre-v2 rule exactly, so the only remaining text
 difference is the typeface, which is a requirement rather than a preference. The parity gate improved
 on every tier when the placement was fixed (pixels over ±8: 2629 → 2562; over ±32: 2087 → 2018, of
-810 000) — a small movement, because two different typefaces cannot agree on glyph *shape* and only
+810 000), a small movement, because two different typefaces cannot agree on glyph *shape* and only
 placement was ever available to fix. The regression gate is
 `SceneLayerTests.MarkerLayer_LabelInk_IsCentredOnTheDisc`, which measures the ink rather than reading
 the code. Full write-up: `B1-compositor-port.md` deviation 29.
@@ -154,7 +154,7 @@ the code. Full write-up: `B1-compositor-port.md` deviation 29.
 | Entry | State |
 |---|---|
 | `nuke-multilevel` | captured and gated. Two floors, both radar layers, 10 labelled markers. |
-| `full-scene-budget` | authored in code (`SyntheticScenes`), committed as JSON, gated by `BudgetFixtureCorpusTests`. Deliberately synthetic — a budget fixture must make every layer do its worst, and a captured frame that happens to be quiet would let a regression through. |
+| `full-scene-budget` | authored in code (`SyntheticScenes`), committed as JSON, gated by `BudgetFixtureCorpusTests`. Deliberately synthetic: a budget fixture must make every layer do its worst, and a captured frame that happens to be quiet would let a regression through. |
 | `mirage-single-level` | **not captured.** Needs a de_mirage demo; the only demo in the tree is `assets/tour/sample-de_nuke.dem`. |
 | `duel-mirage-b`, `fitmap-mirage-eco` | **not captured**, same reason. Both cases skip cleanly rather than failing. |
 

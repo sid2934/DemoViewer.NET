@@ -128,8 +128,8 @@ internal sealed class DebugGridLayer : ISceneLayer
     ///     </para>
     ///     <para>
     ///         Snapping changes nothing anywhere else: an un-antialiased hairline already resolves to the
-    ///         pixel containing its coordinate, which is exactly the pixel this centres it in — the
-    ///         committed CPU goldens stay byte-identical across this change.
+    ///         pixel containing its coordinate, which is the pixel this centres it in. The committed CPU
+    ///         goldens are byte-identical either way.
     ///     </para>
     /// </summary>
     /// <param name="screen">The line's screen coordinate along the axis it is perpendicular to.</param>

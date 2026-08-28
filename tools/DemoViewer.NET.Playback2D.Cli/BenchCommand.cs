@@ -1,6 +1,7 @@
 #region
 
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Export;
@@ -13,16 +14,16 @@ using DemoViewer.NET.Playback2D.Pipeline.Goldens;
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     <c>dv2d bench</c> — frame-time and allocation numbers CI can gate on (design §6).
+///     <c>dv2d bench</c>: frame-time and allocation numbers CI can gate on (design §6).
 ///     <para>
-///         <b>The clock lives in Pipeline, not Core.</b> Core is banned from wall-clock APIs (§5.1)
-///         precisely so that motion is a function of the injected <c>SceneTime</c>; the harness therefore
-///         measures from outside.
+///         <b>The clock lives in Pipeline, not Core.</b> Core is banned from wall-clock APIs (§5.1) so
+///         that motion is a function of the injected <c>SceneTime</c>; the harness measures from
+///         outside.
 ///     </para>
 ///     <para>
-///         This command owns no timing loop of its own — <see cref="ScenePipelineBenchmark" /> in
+///         This command owns no timing loop of its own. <see cref="ScenePipelineBenchmark" /> in
 ///         Pipeline is the harness, and this keeps the JSON shape, the budget resolution and the gate.
-///         There is one harness, not two.
+///         ONE harness, not two.
 ///     </para>
 /// </summary>
 internal static class BenchCommand
@@ -84,8 +85,8 @@ internal static class BenchCommand
             RadarBinder = plan.RadarBinder,
             Camera = camera,
 
-            // Sized to the measured window so the rings hold the whole run rather than its tail; the
-            // harness attaches it before the warmup, which is what allocates them outside the §6
+            // Sized to the measured window so the rings hold the whole run rather than its tail. The
+            // harness attaches it before the warmup, so the rings are allocated outside the §6
             // bytes/frame window.
             Perf = perf ? new ScenePerfRecorder(Math.Max(1, frames)) : null
         };
@@ -135,7 +136,7 @@ internal static class BenchCommand
                 .Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' ? c : '-'));
             string path = Path.Combine(reportDir, $"dv2d-{safeName}_{stamp}.json");
             RenderCommand.WriteFile(path,
-                System.Text.Encoding.UTF8.GetBytes(payload.ToJsonString(ConsoleOut.Pretty)));
+                Encoding.UTF8.GetBytes(payload.ToJsonString(ConsoleOut.Pretty)));
             ConsoleOut.Info($"wrote {path}");
         }
 
@@ -346,7 +347,7 @@ internal static class BenchCommand
         string reference = head[4..].Trim();
         string relative = reference.Replace('/', Path.DirectorySeparatorChar);
 
-        // A linked worktree's git dir holds HEAD but not the ref it names — loose refs live in the
+        // A linked worktree's git dir holds HEAD but not the ref it names; loose refs live in the
         // COMMON dir. Without this a bench report from a worktree is labelled "unknown commit".
         foreach (string dir in RefRoots(gitDir))
         {
@@ -394,8 +395,8 @@ internal static class BenchCommand
 ///     benchmark harness consumes, re-attaching the plan's decoded radar art on the way through.
 ///     <para>
 ///         The enrichment is memoised by <c>SceneRenderPlan.WithRadarArt</c>, so replaying one fixture
-///         a few thousand times allocates nothing here — which matters, because this adapter sits
-///         inside the window the §6 bytes/frame gate reads.
+///         a few thousand times allocates nothing here. This adapter sits inside the window the §6
+///         bytes/frame gate reads.
 ///     </para>
 /// </summary>
 internal sealed class PlanFrameSource : ISceneFrameSource

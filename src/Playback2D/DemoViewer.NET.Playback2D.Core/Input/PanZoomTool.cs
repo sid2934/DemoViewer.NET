@@ -14,11 +14,11 @@ public sealed class PanZoomTool : IPointerTool
 {
     private readonly PanZoomGesture _gesture = new();
 
-    /// <inheritdoc />
-    public ToolKind Kind => ToolKind.PanZoom;
-
     /// <summary>Whether a pan drag is in progress.</summary>
     public bool IsDragging => _gesture.IsDragging;
+
+    /// <inheritdoc />
+    public ToolKind Kind => ToolKind.PanZoom;
 
     /// <inheritdoc />
     public bool OnPressed(in ToolPointerEvent e, IToolServices s) =>

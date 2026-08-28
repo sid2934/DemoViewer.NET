@@ -1,41 +1,41 @@
-# Phase C1 — `dv2d` CLI
+# Phase C1: `dv2d` CLI
 
 **Track:** C (headless/CLI/GPU, parallel with B2–B4) · **Branch:** `feature/playback2d-v2`
 **Design:** `docs/playback2d-v2/design.md` (§4, §5.7, §5.8, §6, §7.7, §9, §11)
 
-This plan is self-contained: a coding agent that has not read the design doc can execute it top to
-bottom. Where it restates the design it says so; where the design was silent, the call is recorded
+This plan is self-contained: it can be executed top to bottom without reading the design.
+Where it restates the design it says so; where the design was silent, the call is recorded
 under **Decisions made**.
 
-> ## Integrator corrections (BINDING — supersede anything below that disagrees)
+> ## Integrator corrections (BINDING; supersede anything below that disagrees)
 >
 > Cross-phase reconciliation; `plans/00-overview.md` §3 is the canonical registry. All four
 > "Conflicts for the integrator" items are resolved here.
 >
 > 1. **Project location resolved: `src/Playback2D/DemoViewer.NET.Playback2D.{Core,Pipeline}`**, slnx
->    folder `/src/Playback2D/` — **not** `src/Visualization/`. Fix the `ProjectReference` path in the
+>    folder `/src/Playback2D/`, **not** `src/Visualization/`. Fix the `ProjectReference` path in the
 >    csproj and every `src/Visualization` mention. Core/Pipeline tests live in the single project
 >    `src/Playback2D/DemoViewer.NET.Playback2D.Tests`; C1 still owns its own
 >    `tools/DemoViewer.NET.Playback2D.Cli.Tests`.
 > 2. **Ownership conflict 1 resolved, three ways.**
->    (a) **`TrackerFrameSource` — C1 owns it**, in `Pipeline/Frames/`, and B4 consumes it. Use the
+>    (a) **`TrackerFrameSource`: C1 owns it**, in `Pipeline/Frames/`, and B4 consumes it. Use the
 >    canonical merged signature (a public constructor `(frames, builder, startFrame, endFrame, fps,
 >    speed, tickRate, createTracker = null, throwOnNonSequentialAccess = false)` +
 >    `Prepare(CancellationToken)` + `TimeAt`/`FrameAt`/`DemoFrameIndexOf` +
->    `static FrameIndexForTick`), not the `static Create(...)` factory sketched below — B4's export
+>    `static FrameIndexForTick`), not the `static Create(...)` factory sketched below: B4's export
 >    session needs the fps/speed/tickRate that shape `SceneTime`, and a background `Prepare` phase.
->    (b) **`HeadlessSceneRenderer` — C1 owns it**, but it is a *facade over Core's `SceneRenderer`*
+>    (b) **`HeadlessSceneRenderer`: C1 owns it**, but it is a *facade over Core's `SceneRenderer`*
 >    (B0's `SceneRenderer.Render(compositor, frame, time, ctx, size)` + `WritePng`), not a second
 >    render implementation. B1's `ScenePipelineBenchmark` renders through it.
->    (c) **The golden comparator — B0 owns `GoldenImageComparer`, `GoldenTolerance`,
+>    (c) **The golden comparator: B0 owns `GoldenImageComparer`, `GoldenTolerance`,
 >    `GoldenComparison`** (Pipeline `Goldens/`, to the signatures below, which stand). B0 authors the
 >    corpus and needs a comparator on day one; C1 owns `GoldenCorpus`/`GoldenCorpusEntry`/
 >    `GoldenBudget`, the manifest schema, and the `golden` command on top. C2 extends the *same*
 >    comparer with SSIM and does **not** add `ImageComparison`/`ImageDiffOptions`/`ImageDiffResult`
->    to TestSupport — `GoldenTolerance` grows the fields it needs
+>    to TestSupport; `GoldenTolerance` grows the fields it needs
 >    (`OutlierChannelDelta`, `MaxAlphaDelta`, `MinMeanSsim`, `MinWindowSsim`) and
 >    `GoldenTolerance.CrossBackend` is the alias for C2's `DefaultPerceptual` numbers.
-> 3. **Conflict 2 (font determinism) accepted as a requirement on B1** — Core resolves typefaces
+> 3. **Conflict 2 (font determinism) accepted as a requirement on B1**: Core resolves typefaces
 >    from an embedded font asset, never `SKTypeface.Default`. It is recorded in B1's corrections; the
 >    T6 spike still runs, and `--tolerance perceptual` remains the documented fallback for the CI
 >    lane if B1 slips.
@@ -43,20 +43,20 @@ under **Decisions made**.
 >    and also `SkiaSharp.NativeAssets.Linux`.** C1 adds only `SkiaSharp.NativeAssets.Win32` and
 >    `…macOS` (the CLI has no Avalonia to bring them). Do not re-declare the other two.
 > 5. **`SceneFixture`'s real shape** (B0 owns it, extended for C1): `SchemaVersion`, `Frame`,
->    **`SceneTime Time`**, **`ViewportTransform Camera`** (not `CameraScript?` — that is B4's type
+>    **`SceneTime Time`**, **`ViewportTransform Camera`** (not `CameraScript?`; that is B4's type
 >    and a fixture must not depend on it), **`SKSizeI Size`**, **`string? MapName`**,
->    **`string? MapVersion`**, **`JsonElement? Annotations`** (not `AnnotationDocument?` — the
+>    **`string? MapVersion`**, **`JsonElement? Annotations`** (not `AnnotationDocument?`: the
 >    fixture stays serializer-only; B2's store deserializes it), `SourceDemoId`, `Notes`, plus
 >    `static Load(string)` / `Save(string)` over `SceneFixtureSerializer`.
 > 6. **`SceneFrameBuilder` keeps `Build(in SceneFrameInput)`.** B0's `Modules.Abstractions.Ui` split
 >    makes that signature legal in a headless process; the tracker→snapshot adaptation is B4's
 >    Pipeline-side `TrackerSceneSnapshot` (`PawnLookup`-based), which `TrackerFrameSource` calls.
 >    C1 does **not** require an `(EntityTracker, DemoFrame)` overload.
-> 7. **Bench harness names are B1's** — `ScenePipelineBenchmark`, `BenchmarkRequest`,
+> 7. **Bench harness names are B1's**: `ScenePipelineBenchmark`, `BenchmarkRequest`,
 >    `BenchmarkReport`, `FrameTimeStats`, `BudgetPolicy`. C1's `SceneBenchHarness`/
 >    `SceneBenchRequest`/`SceneBenchResult` names are withdrawn; `dv2d bench` wraps B1's types and
 >    keeps its own JSON shape. If B1 has not landed, C1 implements *those* types in Pipeline.
-> 8. **Corpus layout below is canonical for the whole track** — B0, B1, B2, B3, B4 and C2 all write
+> 8. **Corpus layout below is canonical for the whole track**: B0, B1, B2, B3, B4 and C2 all write
 >    into `tests/fixtures/playback2d/{scenes,goldens/cpu,goldens/gpu,annotations}` +
 >    `manifest.json`. There is no `tests/goldens/`, no `…/golden/`, no `…/goldens/export/`.
 >    Canonical entry names: `synthetic-empty`, `synthetic-tenplayers`, `synthetic-utility`,
@@ -74,11 +74,11 @@ under **Decisions made**.
 
 Quoting the design's phase table (§9, row C1) verbatim:
 
-> | **C (headless/CLI/GPU — parallel with B2–B4)** | C1 | `dv2d` tool: `render` (single frame → PNG from demo or fixture), `export` (CLI front-end to the session), `bench` promoted from harness to command; fixture library for design iteration | A designer/dev renders any tick to PNG in <1 s without launching the app; CI uses `dv2d` for goldens + budgets | 1 wk |
+> | **C (headless/CLI/GPU, parallel with B2–B4)** | C1 | `dv2d` tool: `render` (single frame → PNG from demo or fixture), `export` (CLI front-end to the session), `bench` promoted from harness to command; fixture library for design iteration | A designer/dev renders any tick to PNG in <1 s without launching the app; CI uses `dv2d` for goldens + budgets | 1 wk |
 
 Supporting design text that constrains this phase:
 
-- §4: *"`tools/DemoViewer.NET.Playback2D.Cli` (`dv2d`) — references Pipeline. Headless rendering,
+- §4: *"`tools/DemoViewer.NET.Playback2D.Cli` (`dv2d`): references Pipeline. Headless rendering,
   export, and benchmarking from the command line; no UI window ever."*
 - §5.8: *"`dv2d render` gives a sub-second edit-render-look loop… `dv2d bench` gives CI-enforceable
   frame-time numbers on both backends"*; *"The probe result is overridable everywhere it matters:
@@ -90,7 +90,7 @@ Supporting design text that constrains this phase:
 - §11: *"`SceneFixture` files … live under `tests/fixtures/playback2d/`. `dv2d render --fixture
   duel-mirage-b.json --out /tmp/f.png` re-renders in well under a second … The same fixtures are the
   golden-test corpus."*
-- §5.7: *"The CLI has no such constraint — it owns its whole process"* (no `HeavyJobGate`, no
+- §5.7: *"The CLI has no such constraint: it owns its whole process"* (no `HeavyJobGate`, no
   LiveSync refusal in the CLI).
 
 **Non-goals for C1:** the GPU backend itself (C2 owns `GpuSurfaceProvider`; C1 only ships the
@@ -112,13 +112,13 @@ review overturns them.
    (`tools/DemoViewer.NET.DemoTrimmer/Program.cs:219-228` `StringOption`/`IntOption`;
    `tools/AnalysisBench/Program.cs:31-38` flags/`--key=value`/positional split). C1 ships one small
    internal `CliArgs` type that supports **both** repo styles (`--name value` and `--name=value`)
-   and is unit-tested — no new dependency.
+   and is unit-tested. No new dependency.
 3. **`TrackerFrameSource` is owned by C1, not B4.** `render --demo` and `bench --demo` need a demo →
    `Scene2DFrame` source before B4 exists, and it is the same type B4's export path needs (design §4
    lists it under Pipeline, §9 lists "seek-core extraction" under B4). C1 implements it in Pipeline;
    B4 consumes it unchanged. Recorded as a cross-phase conflict for the integrator.
 4. **`HeadlessSceneRenderer` facade is owned by C1** (Pipeline), and B1's bench harness is refactored
-   onto it. If B1 lands an equivalent facade first, C1 adopts B1's type and drops this contract —
+   onto it. If B1 lands an equivalent facade first, C1 adopts B1's type and drops this contract;
    the CLI must not carry a second render entry point.
 5. **Golden-image comparison lives in Pipeline, owned by C1** (`GoldenImageComparer`,
    `GoldenCorpus`), so the CLI *and* B0/B1's direct-execution golden tests share one comparator.
@@ -127,7 +127,7 @@ review overturns them.
 6. **Map assets reach the headless renderer through `--assets <dir>`**, pointing at the **baked
    `assets/` root that `tools/DemoViewer.NET.AssetBaker` writes** (`AssetBaker/Program.cs:37` bakes
    into `<parent-of-cs2-assets>/assets`, one subdirectory per map holding `bundle.json` + radar
-   PNGs — e.g. the committed `assets/de_mirage/{bundle.json,de_mirage.png}`). Resolution order:
+   PNGs, e.g. the committed `assets/de_mirage/{bundle.json,de_mirage.png}`). Resolution order:
    `--assets` → `DV2D_ASSETS` env var → walk-up probe for `assets/` from `AppContext.BaseDirectory`
    (same shape as `MapAssetBundleReader.FindBundleDirectory`, used by
    `src/App/DemoViewer.NET/Modules/Playback2D/MapAssetLoader.cs:78`). `--no-radar` renders geometry
@@ -136,7 +136,7 @@ review overturns them.
    re-baked radar art.
 7. **Exit codes** (design silent): `0` success · `1` usage/argument error · `2` required input
    missing (demo, fixture, assets, ffmpeg) · `3` runtime failure (decode/render/encode threw) ·
-   `4` **gate failure** (golden mismatch or budget exceeded — the only code CI treats as "the change
+   `4` **gate failure** (golden mismatch or budget exceeded; the only code CI treats as "the change
    is bad" rather than "the run is broken") · `5` cancelled (Ctrl+C) · `6` requested environment
    unavailable (`--gpu` with a failed probe, when `--strict-backend` is set).
 8. **`--json` puts a single JSON object on stdout and moves every human line to stderr.** Progress
@@ -154,7 +154,7 @@ review overturns them.
 11. **`--layers` takes stable layer ids** (`ISceneLayer.Id`, §5.2), comma-separated; `--exclude-layers`
     subtracts. Default = every layer the compositor registers with `IsEnabled = true`, i.e. the CLI
     never consults `FeatureCatalog`/`FeatureGate` (§7.7). An unknown layer id is exit 1, not a silent
-    no-op — a typo in a CI golden invocation must fail loudly.
+    no-op: a typo in a CI golden invocation must fail loudly.
 
 ---
 
@@ -190,7 +190,7 @@ block can start immediately.
   Dependencies).
 - T9's architecture tests must run in CI from the first CI change (T10), not later.
 
-### T0 — Project skeleton + build wiring (0.5 d)
+### T0: Project skeleton + build wiring (0.5 d)
 
 Create `tools/DemoViewer.NET.Playback2D.Cli/DemoViewer.NET.Playback2D.Cli.csproj` (contents in
 **Build & wiring**), a `GlobalUsings.cs` (repo pattern: `#region` / `global using` / `#endregion`),
@@ -199,26 +199,26 @@ and a `Program.cs` that prints usage and returns 1 for empty args. Add the proje
 `Directory.Packages.props`. Acceptance: `dotnet build tools/DemoViewer.NET.Playback2D.Cli -c Release`
 green with `TreatWarningsAsErrors=true`, and `dotnet run --project … --` prints usage and exits 1.
 
-### T1 — Argument parsing, dispatch, output discipline (0.5 d)
+### T1: Argument parsing, dispatch, output discipline (0.5 d)
 
 New files in the CLI project:
 
-- `CliArgs.cs` — internal parser (contract below). Handles `--name value`, `--name=value`, bare
+- `CliArgs.cs`: internal parser (contract below). Handles `--name value`, `--name=value`, bare
   flags, positional verbs/sub-verbs, `--` terminator, `--help`/`-h`, and **rejects unknown options**
   per command (exit 1) so CI typos fail.
-- `ExitCode.cs` — the code table from Decision 7 as an `internal enum` + `ToInt()`.
-- `ConsoleOut.cs` — `Info/Warn/Error` write to stderr when `--json` is on, stdout otherwise; `Json(obj)`
+- `ExitCode.cs`: the code table from Decision 7 as an `internal enum` + `ToInt()`.
+- `ConsoleOut.cs`: `Info/Warn/Error` write to stderr when `--json` is on, stdout otherwise; `Json(obj)`
   writes the single stdout object with `JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = SnakeCaseLower }`.
-- `Program.cs` — usage const (DemoTrimmer style, raw string literal) + `switch` over verb.
+- `Program.cs`: usage const (DemoTrimmer style, raw string literal) + `switch` over verb.
 
-### T2 — Asset-root resolution (0.5 d)
+### T2: Asset-root resolution (0.5 d)
 
 `AssetsRootResolver.cs` in the CLI: implements Decision 6's ladder, returns the resolved root plus a
 `Source` enum (`Flag`/`Env`/`Probe`/`None`) that every `--json` payload reports, so a golden failure
 caused by a different assets root is diagnosable from CI logs alone. `--no-radar` short-circuits to
 `None`. Missing/unreadable root with radar required → exit 2 with the probed paths listed.
 
-### T3 — `HeadlessSceneRenderer` + `dv2d render --fixture` (0.5 d)
+### T3: `HeadlessSceneRenderer` + `dv2d render --fixture` (0.5 d)
 
 Add the Pipeline file
 `…/DemoViewer.NET.Playback2D.Pipeline/Headless/HeadlessSceneRenderer.cs` (contract below): owns an
@@ -227,16 +227,16 @@ Add the Pipeline file
 CLI `RenderCommand.cs` wires flags → `SceneFixture.Load` → `MapAssetPipeline` → renderer → PNG file.
 Acceptance: `dv2d render --fixture tests/fixtures/playback2d/scenes/duel-mirage-b.scene.json --out f.png`
 produces a non-blank PNG of the requested size in **< 1 s wall clock** on a warm run (the design's
-exit criterion) — measured and printed as `elapsed_ms`.
+exit criterion), measured and printed as `elapsed_ms`.
 
-### T4 — `TrackerFrameSource` + `render --demo` (0.5 d)
+### T4: `TrackerFrameSource` + `render --demo` (0.5 d)
 
 `…/Pipeline/Frames/TrackerFrameSource.cs`. Construction follows the verified seek-core sequence:
 
 1. Hold the immutable `IReadOnlyList<DemoFrame>` from `DemoParser.Parse(...).Frames` (read-only,
-   safe to walk concurrently — `EntityTracker` is `sealed` with per-instance state; parallel
+   safe to walk concurrently: `EntityTracker` is `sealed` with per-instance state; parallel
    independent trackers are an existing supported pattern).
-2. Build a **private** tracker factory `() => new EntityTracker()` — deliberately *not* the app's
+2. Build a **private** tracker factory `() => new EntityTracker()`, deliberately *not* the app's
    `MainViewModel.CreateTracker`, which wires the interactive Tier-3 debugger.
 3. `new EntitySeekService(factory).SeekToFrameNoSnapshot(startFrame, frames)` on a background thread
    to seed; retain `SeekResult.Tracker` privately, **never** publish it through
@@ -247,17 +247,17 @@ exit criterion) — measured and printed as `elapsed_ms`.
 `--tick N` resolves to a frame index by **binary search** over `frames` (`ServerTick` is monotone);
 `--frame N` is used as-is. Out-of-range → exit 1 with the demo's frame/tick span in the message.
 
-### T5 — Fixture corpus + authoring helper (0.5 d)
+### T5: Fixture corpus + authoring helper (0.5 d)
 
 Create `tests/fixtures/playback2d/` (layout below), `FixtureCommand.cs`, and seed **six** fixtures
 covering the layer matrix: `fitmap-mirage-eco` (markers only), `duel-mirage-b` (markers + trails +
 vision), `nuke-multilevel` (stacked layout, two levels, both radar images), `nuke-single-upper`
 (single layout + level pick), `bomb-planted-inferno` (bomb + area effect + clock HUD),
-`annotated-mirage-b` (annotation document with one static + one time-anchored stroke; the B2 schema
-— add in B2 if annotations are not yet serializable, and keep the manifest entry marked
-`"pending": true` so `golden verify` skips it rather than failing).
+`annotated-mirage-b` (annotation document with one static + one time-anchored stroke; the B2 schema).
+Add it in B2 if annotations are not yet serializable, and keep the manifest entry marked
+`"pending": true` so `golden verify` skips it rather than failing.
 
-### T6 — Golden comparator + font-determinism spike (0.5 d)
+### T6: Golden comparator + font-determinism spike (0.5 d)
 
 `…/Pipeline/Goldens/{GoldenImageComparer.cs,GoldenCorpus.cs,GoldenTolerance.cs}`. Byte-exact mode
 (CPU, the authoritative policy per §5.8) plus perceptual mode (per-channel delta + mismatched-pixel
@@ -271,18 +271,18 @@ font asset, never `SKTypeface.Default`.** If B1 cannot land that before C1's CI 
 golden lane with `--tolerance perceptual` and a tracking note; do not delete the text layers from
 the corpus.
 
-### T7 — `dv2d golden verify | update` (0.5 d)
+### T7: `dv2d golden verify | update` (0.5 d)
 
 `GoldenCommand.cs`: enumerates the corpus manifest, renders each entry, compares, writes diffs into
 `--diff-dir` (default `artifacts/playback2d-goldens/`), exits 4 on any mismatch/missing golden.
 `update` rewrites the PNGs and prints a summary intended for review in the PR diff. `--name` limits
 to one fixture for the local loop.
 
-### T8 — `dv2d bench` (0.5 d)
+### T8: `dv2d bench` (0.5 d)
 
 `BenchCommand.cs`: warmup N frames (default 128), then N measured frames (default 2000, per §6),
 timing `Advance` and `Render` separately with `Stopwatch.GetTimestamp` **in the CLI, not in Core**
-(Core bans wall-clock APIs, §5.1 — the harness measures from outside). Percentiles by sorting the
+(Core bans wall-clock APIs, §5.1; the harness measures from outside). Percentiles by sorting the
 sample array (no allocation inside the loop). Allocation via
 `GC.GetAllocatedBytesForCurrentThread()` deltas across the measured window plus
 `GC.CollectionCount(0..2)`. `--gate` compares against the manifest budget × `--budget-scale` and
@@ -290,18 +290,18 @@ exits 4 with a per-violation list. `--report-dir` writes
 `bench-reports/dv2d-<source-id>_<yyyyMMdd-HHmmss>.json` using the existing report's metadata/machine
 block shape.
 
-### T9 — Test project + architecture tests (0.5 d)
+### T9: Test project + architecture tests (0.5 d)
 
-`tools/DemoViewer.NET.Playback2D.Cli.Tests/` (TUnit, direct execution — **no `HeadlessSession`**).
+`tools/DemoViewer.NET.Playback2D.Cli.Tests/` (TUnit, direct execution, **no `HeadlessSession`**).
 See **Test plan**. The no-Avalonia assertion is three-pronged: deps.json scan, subprocess loaded-
 assembly dump, and the test project's own reference closure.
 
-### T10 — CI wiring (0.5 d)
+### T10: CI wiring (0.5 d)
 
 New `playback2d` job in `.github/workflows/ci.yml` (yaml below) + `scripts/dv2d.sh` convenience
 wrapper. The existing `build` job is untouched.
 
-### T11 — `dv2d export` (0.5 d, blocked on B4)
+### T11: `dv2d export` (0.5 d, blocked on B4)
 
 `ExportCommand.cs`: flags → `ExportRequest` → `SceneExportSession.RunAsync` with a
 `TrackerFrameSource`, a sink chosen by `--format` (`FfmpegFrameSink` for webm/mp4,
@@ -310,7 +310,7 @@ wrapper. The existing `build` job is untouched.
 is killed, exit 5. `--ffmpeg <path>` overrides `FfmpegDependency.Locate()`; absent ffmpeg with a
 non-gif format → exit 2 naming the download instruction (never auto-download in a CLI).
 
-### T12 — Docs (0.5 d)
+### T12: Docs (0.5 d)
 
 `docs/playback2d-v2/dv2d.md`: every command, every flag, the exit-code table, the JSON schemas, the
 CI recipes, and the iteration loop ("edit layer → `dv2d render --fixture` → look"). Add
@@ -505,7 +505,7 @@ internal enum AssetsRootSource { Flag, Env, Probe, Disabled, NotFound }
 internal static class AssetsRootResolver { public static AssetsRoot Resolve(CliArgs a); }
 ```
 
-### Command surface (binding — CI scripts and docs depend on it)
+### Command surface (binding; CI scripts and docs depend on it)
 
 ```
 dv2d render   --fixture <path> | --demo <path> (--tick N | --frame N)
@@ -593,7 +593,7 @@ dv2d probe    [--json] [--require-gpu] [--require-hardware] [--quiet]
  "encode_fps":71.4,"realtime_factor":1.19,"bytes":8123456,"elapsed_ms":26890}
 ```
 
-### Fixture corpus layout (binding — B0/B1 tests read the same tree)
+### Fixture corpus layout (binding; B0/B1 tests read the same tree)
 
 ```
 tests/fixtures/playback2d/

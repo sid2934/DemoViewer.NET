@@ -18,14 +18,14 @@ namespace DemoViewer.NET.Modules;
 ///         curtime must equal that round's <c>m_fRoundStartTime</c>:
 ///     </para>
 ///     <code>
-///         clockBase       = firstFreezeServerTick/tickRate − roundStart(firstFreeze)
-///         CurtimeSeconds  = tick/tickRate − clockBase
-///     </code>
+///          clockBase       = firstFreezeServerTick/tickRate − roundStart(firstFreeze)
+///          CurtimeSeconds  = tick/tickRate − clockBase
+///      </code>
 ///     <para>
 ///         <c>m_flGameStartTime</c> cancels out of the consume-time formula, so the module needs only
 ///         the one <c>clockBase</c> scalar. Lives in the App project (not Abstractions) because it
 ///         advances an <see cref="EntityTracker" /> — the abstractions assembly stays Parser-free
-///. This is a load-time, run-once computation; the per-tick consume path is a single
+///         . This is a load-time, run-once computation; the per-tick consume path is a single
 ///         subtraction.
 ///     </para>
 /// </summary>

@@ -23,31 +23,6 @@ namespace DemoViewer.NET.AppTests;
 [NotInParallel]
 public class WhatsNewGateTests
 {
-    // ── Fixtures ──────────────────────────────────────────────────────────────
-
-    /// <summary>An <see cref="IWindowService" /> that records instead of opening OS windows.</summary>
-    private sealed class RecordingWindowService : IWindowService
-    {
-        public List<WhatsNewViewModel> WhatsNews { get; } = [];
-        public List<UpdateNoticeViewModel> UpdateNotices { get; } = [];
-
-        public void OpenParseChainInspector(object dataContext)
-        {
-        }
-
-        public void OpenSettings(SettingsViewModel viewModel)
-        {
-        }
-
-        public void ShowFirstRunWizard(FirstRunWizardViewModel viewModel)
-        {
-        }
-
-        public void ShowUpdateNotice(UpdateNoticeViewModel viewModel) => UpdateNotices.Add(viewModel);
-
-        public void ShowWhatsNew(WhatsNewViewModel viewModel) => WhatsNews.Add(viewModel);
-    }
-
     private static string NewTempDir()
     {
         string dir = Path.Combine(Path.GetTempPath(), "dvwhatsnew_" + Guid.NewGuid().ToString("N"));
@@ -198,5 +173,29 @@ public class WhatsNewGateTests
         await Assert.That(GitHubReleaseNotesService.NormalizeVersion("(unknown)")).IsNull();
         await Assert.That(GitHubReleaseNotesService.NormalizeVersion(null)).IsNull();
         await Assert.That(GitHubReleaseNotesService.NormalizeVersion("")).IsNull();
+    }
+    // ── Fixtures ──────────────────────────────────────────────────────────────
+
+    /// <summary>An <see cref="IWindowService" /> that records instead of opening OS windows.</summary>
+    private sealed class RecordingWindowService : IWindowService
+    {
+        public List<WhatsNewViewModel> WhatsNews { get; } = [];
+        public List<UpdateNoticeViewModel> UpdateNotices { get; } = [];
+
+        public void OpenParseChainInspector(object dataContext)
+        {
+        }
+
+        public void OpenSettings(SettingsViewModel viewModel)
+        {
+        }
+
+        public void ShowFirstRunWizard(FirstRunWizardViewModel viewModel)
+        {
+        }
+
+        public void ShowUpdateNotice(UpdateNoticeViewModel viewModel) => UpdateNotices.Add(viewModel);
+
+        public void ShowWhatsNew(WhatsNewViewModel viewModel) => WhatsNews.Add(viewModel);
     }
 }

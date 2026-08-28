@@ -9,7 +9,7 @@ and is round-trip-pinned by `AnnotationSchemaSnapshotTests`.
 
 | Condition | Location |
 |---|---|
-| The demo's directory is writable | `<full path to the demo>.dvann.json` — e.g. `match.dem.dvann.json` |
+| The demo's directory is writable | `<full path to the demo>.dvann.json`, e.g. `match.dem.dvann.json` |
 | It is not (a read-only replay folder) | `<app config root>/annotations/<sha256 of the demo>.dvann.json` |
 | Neither is available (browser build) | Nowhere. Annotations are session-only and the UI says so. |
 
@@ -27,11 +27,11 @@ The writable check is a create-and-delete probe, run once per directory per sess
 }
 ```
 
-* **`demo.sha256`** — lowercase hex SHA-256 of the `.dem` bytes. It is the only field that takes part in
+* **`demo.sha256`**: lowercase hex SHA-256 of the `.dem` bytes. It is the only field that takes part in
   matching; `fileName` and `sizeBytes` are for a human reading the file. **A reader that finds a
-  different hash must ignore the file and must not overwrite it** — the sidecar belongs to a different
+  different hash must ignore the file and must not overwrite it.** The sidecar belongs to a different
   demo that happens to share this path.
-* **`clock`** — which parse the tick anchors were authored against. `kind` is always `dv-frame-clock`:
+* **`clock`**: which parse the tick anchors were authored against. `kind` is always `dv-frame-clock`:
   the ticks below are DemoViewer's own frame-clock ticks, **not** live CS2 engine ticks. A mismatch is a
   warning, never a reason to discard: annotations with no time anchor do not depend on the clock at all.
 
@@ -68,7 +68,7 @@ The writable check is a create-and-delete probe, run once per directory per sess
 
 * **`world`** pins the stroke to one floor of the map, keyed by that floor's *quantized* lower Z
   (`round(zMin / 64) * 64`). Quantizing is what lets an anchor written before a floor-split rebuild still
-  find its own level. It is never a floor *index* — inserting a basement shifts every index.
+  find its own level. It is never a floor *index*: inserting a basement shifts every index.
 * **`entity`** makes the stroke follow a player. Keyed by SteamId because roster slots recycle within a
   demo. Rendering translates the whole stroke so its **first** sample sits at `player + (dx, dy)`, which
   makes the offset exactly zero at the moment it was drawn. A stroke whose player is absent or dead on
@@ -87,7 +87,7 @@ Opacity over time is a trapezoid, and **the ramps sit outside the window**:
 
 Full opacity across `[fromTick, untilTick]`; a 0→1 lead-in over the `fadeInTicks` before `fromTick`; a
 1→0 lead-out over the `fadeOutTicks` after `untilTick`; zero elsewhere. A null bound is ±∞, so an element
-with both bounds null and both ramps zero is simply always visible — which is what makes "all fields
+with both bounds null and both ramps zero is simply always visible, which is what makes "all fields
 absent" the correct default.
 
 ### Stroke geometry
@@ -100,10 +100,10 @@ only wants approximate geometry can stroke the polyline at `widthWorld`.
 
 Pressure is `0..1`; devices that report none write `0.5`.
 
-### The authoring cadence (`timing`) — optional
+### The authoring cadence (`timing`), optional
 
 A stroke authored in DemoViewer's **real-time** mode replays at the speed it was drawn at, pauses
-included. `timing` is what records that, and **it is absent from every element that does not have one** —
+included. `timing` is what records that, and **it is absent from every element that does not have one**,
 which is every element any other visibility mode produces.
 
 ```jsonc
@@ -113,22 +113,22 @@ which is every element any other visibility mode produces.
 }
 ```
 
-* **`runs`** is a flat array of pairs — the same flattening `points` uses — read two at a time as
+* **`runs`** is a flat array of pairs (the same flattening `points` uses), read two at a time as
   `sampleIndex` (an index into `points`, counted in *samples*, not in the flat triples) and `tickOffset`
   (ticks elapsed since the stroke's **first** sample, not an absolute tick). It is a **sparse** table: a
   pair is emitted only where the authoring speed changed, so a stroke drawn in one continuous motion
   carries two pairs and one that paused three times carries eight. Offsets between two consecutive pairs
-  are linear, so a pair-to-pair span is a constant-speed run and a *repeated* `sampleIndex` — `41, 96`
-  followed by `41, 160` above — is a pause: 64 ticks in which the hand did not move.
+  are linear, so a pair-to-pair span is a constant-speed run and a *repeated* `sampleIndex` (`41, 96`
+  followed by `41, 160` above) is a pause: 64 ticks in which the hand did not move.
 * **`durationTicks`** is carried separately rather than inferred from the last pair, because it is what
   says the stroke is finished; a reader can use it to skip the table entirely once the elapsed time is
   past it.
 * Every offset here is in **`clock.tickRate` ticks**, not in a fixed 64. A reader turning one back into
   seconds divides by the rate the header declares. (DemoViewer wrote these at a hard-coded 64 before
-  D8; on a 64-tick parse — which is every one they were written on in practice — the two spellings agree
+  D8; on a 64-tick parse, which is every one they were written on in practice, the two spellings agree
   exactly, so no existing document is affected.)
 * Offsets are **elapsed authoring wall-clock, re-based onto the frame clock at the tick the element
-  opens** — deliberately *not* the tick each sample was drawn at, which is frozen while the demo is
+  opens**, deliberately *not* the tick each sample was drawn at, which is frozen while the demo is
   paused. The consequence is intended: a stroke drawn during three seconds of paused thinking replays
   over three seconds of *demo* time, and the replay is a pure function of tick, so it is identical in a
   video export at any frame rate.
@@ -138,7 +138,7 @@ which is every element any other visibility mode produces.
 
 `timing` is an **additive** field and `schemaVersion` is deliberately still `1`. A document without a
 real-time stroke is byte-identical to what earlier builds wrote, and one with a real-time stroke differs
-from it only by this object — so bumping the version would announce a break to every reader of every
+from it only by this object, so bumping the version would announce a break to every reader of every
 document, for a field they are already required to ignore.
 
 ## Forward compatibility
@@ -147,7 +147,7 @@ Both the root object and each element accept unknown fields, and DemoViewer pres
 load → edit → save cycle. A newer build's extra fields therefore survive being opened by an older one.
 Readers should ignore fields they do not recognise rather than rejecting the file.
 
-That is not a promise about hypothetical fields — it is what `timing` relies on. A build that predates it
+That is not a promise about hypothetical fields; it is what `timing` relies on. A build that predates it
 parses a real-time stroke as an ordinary one, keeps `timing` in its unknown-field bag, and writes it back
 out on the next save: the user edits a colour in the old build, saves, reopens in the new one, and the
 cadence is still there. A third-party reader that round-trips a document is asked to do the same.

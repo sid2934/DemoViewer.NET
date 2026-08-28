@@ -64,7 +64,7 @@ public class CameraRigTests
             [
                 Marker(0, 2, -300, -200, 0),
                 Marker(1, 3, 400, 500, 0),
-                Marker(2, 3, 4000, 4000, 0, alive: false) // dead players are excluded
+                Marker(2, 3, 4000, 4000, 0, false) // dead players are excluded
             ]
         };
 
@@ -83,7 +83,7 @@ public class CameraRigTests
     {
         Scene2DFrame frame = new()
         {
-            Markers = [Marker(0, 2, 0, 0, 0, alive: false)]
+            Markers = [Marker(0, 2, 0, 0, 0, false)]
         };
 
         await Assert.That(FitAliveRig.Instance.ComputeTarget(Pane(), frame)).IsNull();
@@ -116,7 +116,7 @@ public class CameraRigTests
         lower.LevelIndex = 0;
         ViewportTransform onlyLower = FitAliveRig.Instance.ComputeTarget(lower, frame)!.Value;
 
-        await Assert.That(both.CenterX).IsEqualTo(50d).Within(1e-9);   // midpoint of -300 and 400
+        await Assert.That(both.CenterX).IsEqualTo(50d).Within(1e-9); // midpoint of -300 and 400
         await Assert.That(onlyLower.CenterX).IsEqualTo(-300d).Within(1e-9);
     }
 
@@ -160,7 +160,7 @@ public class CameraRigTests
         FollowPlayerRig rig = new(3, deadzoneHalfWorld: 0);
         Scene2DFrame frame = new()
         {
-            Markers = [Marker(3, 3, 120, -40, 0, alive: false)]
+            Markers = [Marker(3, 3, 120, -40, 0, false)]
         };
 
         ViewportTransform? target = rig.ComputeTarget(Pane(), frame);

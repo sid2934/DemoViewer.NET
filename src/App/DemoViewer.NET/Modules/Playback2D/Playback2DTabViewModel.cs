@@ -2,39 +2,37 @@
 
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Numerics;
 using System.Text.Json;
+using Avalonia;
 using Avalonia.Media;
 using Avalonia.Threading;
-using CS2DemoKit.Analysis.PlayerStats;
-using CS2DemoKit.Analysis.Visibility;
-using CS2DemoKit.Parser.EntityTracking;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CS2DemoKit.Analysis.PlayerStats;
+using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Modules.Playback2D.Levels;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Hud;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Core.Timeline;
-using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Playback2D.Pipeline.Hud;
 using DemoViewer.NET.Playback2D.Pipeline.Vision;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Export;
-using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Playback2D;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -57,8 +55,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // The inventory array slots scanned per player: the dotted bracket-indexed paths are built ONCE
     // here, not per-frame, so the per-tick grenade loop allocates no path strings.
     private const int MyWeaponsSlots = 64;
-    // The window constants now live with the window function they parameterise (B4 D5), so the exported
-    // feed and this one cannot drift apart by editing one number.
+
+    // The window constants live with the window function they parameterise, so the exported feed and
+    // this one cannot drift apart by editing one number.
     private const int KillFeedWindowSeconds = KillFeedTimeline.DefaultWindowSeconds;
     private const int MaxKillFeedRows = KillFeedTimeline.DefaultMaxRows;
 
@@ -67,6 +66,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // the demo actually carries player_death (asset/demo-independent — no hardcoded assumption it exists).
     private const string KillEventName = "player_death";
 
+    /// <summary>The feature id gating the whole export affordance. A persisted key; never renamed.</summary>
+    private const string ExportFeatureId = "playback2d.export";
+
     private static readonly string[] _myWeaponsPaths = BuildMyWeaponsPaths();
 
     private static readonly string[] _killEventFilter =
@@ -74,7 +76,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         KillEventName
     };
 
-    // CS2 rounds OPEN at round_freeze_end (not round_start) — the same fact RoundTrack's band layout rests
+    // CS2 rounds OPEN at round_freeze_end (not round_start), the same fact RoundTrack's band layout rests
     // on, so Q/E round nav and the timeline's bands can never disagree about where a round starts.
     private static readonly string[] _roundEventFilter =
     {
@@ -93,63 +95,74 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // roster arrives after activation (#2, names depend on it). _killWindow is reusable render scratch.
     private readonly List<KillFeedRow> _allKills = new();
 
+    private readonly AnnotationSessionController _annotationController;
+    private readonly AnnotationTrack _annotationTrack;
+
     // Attributes panel: one row per roster slot, updated in place each push (no list rebuild).
     private readonly Dictionary<int, PlayerAttributes> _attrsBySlot = new();
 
-    // The scene half of a push: every marker / area-effect / trail / bomb / game-info read moved into
-    // SceneFrameBuilder in B0. The VM keeps only panel state and re-publishes the built frame's contents
+    // The scene half of a push: every marker / area-effect / trail / bomb / game-info read lives in
+    // SceneFrameBuilder. The VM keeps only panel state and re-publishes the built frame's contents
     // through the properties the XAML and the viewport already bind to.
     private readonly SceneFrameBuilder _frameBuilder = new();
 
-    // The visible kill window, filled by KillFeedTimeline.Window — the SAME function B4's KillFeedLayer
-    // calls, which is what makes the exported feed and this one structurally incapable of disagreeing
-    // about which kills are on screen (B4 D5). Doubles as the per-push SceneFrameBuilder input, so
-    // publishing costs no allocation.
+    // The visible kill window, filled by KillFeedTimeline.Window, the SAME function KillFeedLayer calls,
+    // so the exported feed and this one cannot disagree about which kills are on screen. Doubles as the
+    // per-push SceneFrameBuilder input, so publishing costs no allocation.
     private readonly List<KillFeedRow> _killRows = new(MaxKillFeedRows);
-
-    private Scene2DFrame _frame = Scene2DFrame.Empty;
 
     // Slot → display name from the stable roster. Rebuilt on activation.
     private readonly Dictionary<int, string> _nameBySlot = new();
+
+    // The registered instance, held so ResolveRoundWindow can ask it "does this demo have rounds"
+    // through the same IsAvailable the timeline band asks: one answer, not two that can disagree.
+    private readonly RoundTrack _roundTrack = new();
     private readonly Dictionary<int, ulong> _steamIdBySlot = new();
+
+    // What the profile was last composed from. SettingsViewModel spells this guard `_writing` around its
+    // own Write calls; comparing the VALUE covers the same case and every OTHER write too, the ink
+    // pickers' most of all, which reload settings hundreds of times a second during a colour drag while
+    // touching no key at all.
+    private string[] _appliedKeybindOverrides = [];
 
     private IModuleContext? _context;
 
+    /// <summary>The open export dialog, or null. Non-null is what the view binds its overlay's visibility to.</summary>
+    [ObservableProperty]
+    private Playback2DExportDialogViewModel? _exportDialog;
+
+    // ── Video export ───────────────────────────────────────────────────────────
+    // Everything reusable is in Pipeline/Core; what is here is the composition. The host arrives
+    // through ModuleContext.SetExportHost, so on a build without one (browser, tests, designer) the
+    // affordance is simply hidden rather than offered in a half-wired state where the LiveSync and
+    // reel refusals would silently not apply.
+
+    private ExportJobService? _exportJob;
+
     // The shell's feature projection, captured at activation so deactivation unsubscribes the SAME
-    // instance. Null (no host projection) fails OPEN — every gated surface stays on.
+    // instance. Null (no host projection) fails OPEN: every gated surface stays on.
     private IModuleFeatureGate? _features;
 
-    // Re-entrancy guard: the follow funnel assigns SelectedPlayer, whose generated setter loops back into
-    // the funnel. Without it a card pick would raise FollowSlotChanged twice.
-    private bool _inFollowFunnel;
-
     // Which demo the current follow target / selection belongs to. A roster slot is only meaningful
-    // inside one demo, and the DemoReset signal does not reach a DEACTIVATED tab — so the path is what
+    // inside one demo, and the DemoReset signal does not reach a DEACTIVATED tab, so the path is what
     // tells the next activation's resync whether the state it is holding is still about this demo.
     private string? _followDemoPath;
 
-    // The ITimelineData adapter over _context. Nulled on deactivation so the context isn't retained.
-    private ModuleTimelineData? _timelineData;
+    /// <summary>"following {name} · requested": spectate has no readback, so never "confirmed".</summary>
+    [ObservableProperty]
+    private string _followStatus = "";
 
     /// <summary>The followed roster slot, -1 = none. Set only through the follow funnel.</summary>
     [ObservableProperty]
     private int _followedSlot = -1;
 
-    /// <summary>"following {name} · requested" — spectate has no readback, so never "confirmed".</summary>
-    [ObservableProperty]
-    private string _followStatus = "";
-
-    /// <summary>Two-way bound to the player-card ListBox; setting it follows that player.</summary>
-    [ObservableProperty]
-    private PlayerAttributes? _selectedPlayer;
-
-    /// <summary>One-shot footer hint set when a speed key is refused because Live Sync pins the speed.</summary>
-    [ObservableProperty]
-    private string _speedLockNote = "";
-
     /// <summary>True when the demo carries kill events, gating the kill forward-nav buttons (Phase E).</summary>
     [ObservableProperty]
     private bool _hasKillEvents;
+
+    // Re-entrancy guard: the follow funnel assigns SelectedPlayer, whose generated setter loops back into
+    // the funnel. Without it a card pick would raise FollowSlotChanged twice.
+    private bool _inFollowFunnel;
 
     [ObservableProperty]
     private bool _isLiveSyncHudDegraded;
@@ -163,6 +176,33 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     [ObservableProperty]
     private bool _isLiveSyncHudWorking;
+
+    /// <summary>Whether the overlay check boxes are revealed under the toolbar header. Closed by default.</summary>
+    [ObservableProperty]
+    private bool _isOverlayBarOpen;
+
+    // ── Viewport chrome ──────────────────────────────────────────────────────────────────────────────
+    // Two bits, because the user's complaint had two halves: the drawing tools were permanently OVER the
+    // map (answered structurally, by docking them into their own Auto row) and the six overlay check
+    // boxes were permanently displayed (answered here, by defaulting them closed behind one toggle).
+    // Both persist; both are read once in the constructor, since the chrome is authored in the tab and
+    // nowhere else; unlike the keymap, no external editor can change them under an open tab.
+
+    /// <summary>
+    ///     Whether the docked viewport toolbar is expanded. Collapsed, its row measures to nothing and the
+    ///     canvas takes the height back; the floating restore chevron is what brings it back.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isViewportToolbarOpen = true;
+
+    // ── Keymap ───────────────────────────────────────────────────────────────
+    // Read at construction AND kept live. The keymap is the one 2D setting a user edits while the tab is
+    // open and then immediately tests, so "applies on next activation" would read as the rebind having
+    // silently failed. IOptionsMonitor is resolved through the same lazy locator as SettingsService: the
+    // descriptor's ViewModelFactory is a bare new(), so there is no constructor to inject into, and no
+    // container (a headless test) simply means the shipped defaults.
+
+    private IDisposable? _keymapWatch;
 
     // Identity of the last-published visible slice (count + boundary ticks) so an unchanged window doesn't
     // churn the ObservableCollection every push (the slice changes only when the playhead crosses a kill's
@@ -190,6 +230,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     [ObservableProperty]
     private bool _liveSyncHudPulsing;
 
+    // ── Viewport chrome persistence ──────────────────────────────────────────────────────────────────
+    // The guard is not ceremony: the generated setters call back into SaveChromeSettings, so seeding the
+    // two properties from settings would write them straight back, on every construction of every tab,
+    // including the ones a headless test throws away.
+    private bool _loadingChrome;
+
+    // The current map's radar layers, described once per map asset (see ReplaceMapAsset).
+    private IReadOnlyList<MapRadarImage> _radars = [];
+
     // The baked map-asset bundle for the current map (nav floors + radar + transform), loaded VRF-free from
     // the dev cs2-assets/baked cache when available. Null when no bundle exists → the
     // viewport falls back to its grid + Z-histogram floors. Reloaded when IModuleContext.MapName changes.
@@ -201,6 +250,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // Count of roster entries last seeded into the display state (#2). -1 = never seeded. BuildFrame re-seeds
     // when the live roster count differs (empty→populated), so a roster set after activation still shows.
     private int _seededRosterCount = -1;
+
+    /// <summary>Two-way bound to the player-card ListBox; setting it follows that player.</summary>
+    [ObservableProperty]
+    private PlayerAttributes? _selectedPlayer;
 
     [ObservableProperty]
     private bool _showAreaEffects = true;
@@ -230,31 +283,17 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     [ObservableProperty]
     private bool _showVision;
 
-    // ── Viewport chrome ──────────────────────────────────────────────────────────────────────────────
-    // Two bits, because the user's complaint had two halves: the drawing tools were permanently OVER the
-    // map (answered structurally, by docking them into their own Auto row) and the six overlay check
-    // boxes were permanently displayed (answered here, by defaulting them closed behind one toggle).
-    // Both persist; both are read once in the constructor, since the chrome is authored in the tab and
-    // nowhere else — unlike the keymap, no external editor can change them under an open tab.
-
-    /// <summary>
-    ///     Whether the docked viewport toolbar is expanded. Collapsed, its row measures to nothing and the
-    ///     canvas takes the height back; the floating restore chevron is what brings it back.
-    /// </summary>
+    /// <summary>One-shot footer hint set when a speed key is refused because Live Sync pins the speed.</summary>
     [ObservableProperty]
-    private bool _isViewportToolbarOpen = true;
-
-    /// <summary>Whether the overlay check boxes are revealed under the toolbar header. Closed by default.</summary>
-    [ObservableProperty]
-    private bool _isOverlayBarOpen;
+    private string _speedLockNote = "";
 
     [ObservableProperty]
     private string _status = "2D Playback — inactive";
 
-    // The current map's radar layers, described once per map asset (see ReplaceMapAsset).
-    private IReadOnlyList<MapRadarImage> _radars = [];
-
     private int _tickRate = 64;
+
+    // The ITimelineData adapter over _context. Nulled on deactivation so the context isn't retained.
+    private ModuleTimelineData? _timelineData;
 
     // 3D line-of-sight engine for the current map (BVH over baked collision), lazily built off-thread the
     // first time the Vision overlay is enabled. Null until ready / when the map has no baked collision.
@@ -262,11 +301,55 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private string? _visionEngineMap;
 
     /// <summary>
+    ///     Builds the tab with its timeline and the three default tracks registered. Parameterless by contract:
+    ///     gates arrive through <see cref="IModuleContext.Features" />, never through the constructor, so
+    ///     the module descriptor's <c>ViewModelFactory</c> stays a bare <c>new()</c>.
+    /// </summary>
+    public Playback2DTabViewModel()
+    {
+        // Every dependency is optional, resolved the way Playback2DRenderer resolves its setting: the
+        // descriptor's ViewModelFactory is a bare new(), and a headless test builds this with no
+        // container at all. No store and no settings means annotations still work, session only.
+        _annotationController = new AnnotationSessionController(
+            TryResolveAnnotationStore(), TryResolveSettings());
+        _annotationController.LoadRecentColors();
+
+        Annotations = new AnnotationsPanelViewModel(_annotationController,
+            () => _context?.CurrentTick ?? CurrentFrame.Time.Tick);
+
+        _annotationTrack = new AnnotationTrack(_annotationController.Document);
+
+        // EnvelopeMode.Round's bounds, supplied app-side because Core knows nothing about demos. Wired
+        // ONCE and reading _timelineData live, rather than re-assigned on every resync: the session
+        // outlives every demo the tab shows, so a re-assignment would only be a second chance to forget.
+        _annotationController.Session.RoundWindowResolver = ResolveRoundWindow;
+
+        Timeline.RegisterTrack(_roundTrack);
+        Timeline.RegisterTrack(new KillTrack());
+        Timeline.RegisterTrack(new BombTrack());
+        Timeline.RegisterTrack(_annotationTrack);
+
+        // The timeline never moves the clock: it asks, and the shared clock decides (so LiveSync's
+        // SyncStateObserver keeps seeing every seek).
+        Timeline.SeekRequested += OnTimelineSeekRequested;
+
+        LoadLevelSettings();
+        LevelStrip.SettingsChanged += SaveLevelSettings;
+
+        LoadTimelineSettings();
+        Timeline.TrackVisibilityChanged += SaveTimelineSettings;
+
+        LoadChromeSettings();
+
+        LoadKeymapSettings();
+    }
+
+    /// <summary>
     ///     The map's networked Z-floor section heights (#1 bonus), or null when absent. The 2D viewport reads
     ///     this to split floors EXACTLY on maps that publish them (Nuke / Vertigo), falling back to a histogram
     ///     heuristic otherwise. Read once per demo; cleared on backward seek only if it had never resolved.
     /// </summary>
-    public IReadOnlyList<double>? SectionHeights => _frame.Map.SectionHeights;
+    public IReadOnlyList<double>? SectionHeights => CurrentFrame.Map.SectionHeights;
 
     /// <summary>
     ///     The map's networked world-space X/Y bounds (radar bounding box), or null until read / absent. The
@@ -274,7 +357,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     all-demo observed-extent approximation otherwise. Static per map, so read once.
     /// </summary>
     public (double MinX, double MinY, double MaxX, double MaxY)? MapBounds =>
-        _frame.Map.NetworkedBounds is { } b ? (b.MinX, b.MinY, b.MaxX, b.MaxY) : null;
+        CurrentFrame.Map.NetworkedBounds is { } b ? (b.MinX, b.MinY, b.MaxX, b.MaxY) : null;
 
     /// <summary>
     ///     The bundle's nav-derived floor bands for the current map, or null when no baked bundle is available
@@ -308,21 +391,13 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <summary>Round-level game-info panel state.</summary>
     public GameInfo GameInfo { get; } = new();
 
-    // ── Video export (B4) ──────────────────────────────────────────────────────
-    // Everything reusable is in Pipeline/Core; what is here is the composition. The host arrives
-    // through ModuleContext.SetExportHost, so on a build without one (browser, tests, designer) the
-    // affordance is simply hidden rather than offered in a half-wired state where the LiveSync and
-    // reel refusals would silently not apply.
-
-    private ExportJobService? _exportJob;
-
     /// <summary>
     ///     True when this build can export: the feature is on, a host is wired, and a demo is loaded.
     ///     <para>
     ///         Re-raised from <see cref="RefreshGates" />, which is the one place every input to this
     ///         changes: the gate flip, activation, and the demo reset all land there. Without that the
-    ///         button's <c>IsVisible</c> binding latched whatever it read at first bind — normally "no
-    ///         demo" — and the export entry point never appeared however many demos were opened afterwards.
+    ///         button's <c>IsVisible</c> binding latches whatever it read at first bind, normally "no
+    ///         demo", and the export entry point never appears however many demos are opened afterwards.
     ///     </para>
     /// </summary>
     public bool CanExport =>
@@ -340,15 +415,16 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     Why the Export button is not there, or "" when it is (or when the user is the reason).
     ///     <para>
     ///         The button's <c>IsVisible</c> is <see cref="CanExport" />, and <see cref="CanExport" /> has
-    ///         three inputs — the gate, the host, the demo. It simply vanished, so a browser user could
-    ///         not tell "not available here" from "open a demo first". The codebase does this correctly
+    ///         three inputs: the gate, the host, the demo. With no note the button simply vanishes, and a
+    ///         browser user cannot tell "not available here" from "open a demo first". The codebase does
+    ///         this correctly
     ///         elsewhere: <c>SettingsView.axaml</c>'s folder picker says
     ///         "(unavailable in the browser)" rather than disappearing.
     ///     </para>
     ///     <para>
     ///         Empty when the FEATURE is switched off, deliberately: that one the user did on purpose, in
     ///         a screen that lists it by name, and re-announcing it beside every gated affordance is
-    ///         noise. Empty too when the only thing missing is the export HOST while a demo is open —
+    ///         noise. Empty too when the only thing missing is the export HOST while a demo is open:
     ///         that combination is the designer and the test harness, never a shipped desktop build, so
     ///         there is no user present who would need telling.
     ///     </para>
@@ -357,6 +433,303 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     /// <summary>Whether <see cref="ExportUnavailableNote" /> has something to say.</summary>
     public bool HasExportUnavailableNote => ExportUnavailableNote.Length > 0;
+
+    /// <summary>
+    ///     The running export's chip, or null before the first export was ever opened.
+    ///     <para>
+    ///         Built beside the job and handed to the shell through <c>Playback2DExportHost.MountStatusChip</c>,
+    ///         the only route a lazily-built module tab has to the status strip. It is the
+    ///         <b>subscriber</b> for <c>ExportJobService.StatusChanged</c>: without it, progress,
+    ///         throughput, the ETA, the failure message and the Cancel button are all computed and
+    ///         marshalled to the UI thread with nowhere to land. Internal, so a test can reach the chip
+    ///         the same way the shell does.
+    ///     </para>
+    /// </summary>
+    internal Playback2DExportStatusViewModel? ExportStatus { get; private set; }
+
+    /// <summary>
+    ///     The live surface's camera capture, supplied by the View when it binds (and cleared when it
+    ///     unbinds). The VM cannot reach the mounted control itself (the View owns the surface), and the
+    ///     legacy viewport has no pane cameras to capture, so this is null under the escape hatch and on
+    ///     any host that never mounted a surface at all.
+    /// </summary>
+    internal Func<CameraScript>? LiveCameraSource { get; set; }
+
+    /// <summary>The current frame's marker draw-state. Read by the custom-drawn viewport.</summary>
+    public IReadOnlyList<PlayerMarker> Markers => CurrentFrame.Markers;
+
+    /// <summary>Active smoke clouds + burning inferno cells (A4), drawn under the markers by the viewport.</summary>
+    public IReadOnlyList<AreaEffect> AreaEffects => CurrentFrame.AreaEffects;
+
+    /// <summary>Grenade flight trails (A4), drawn as fading comet lines beneath the markers by the viewport.</summary>
+    public IReadOnlyList<GrenadeTrail> GrenadeTrails => CurrentFrame.Trails;
+
+    /// <summary>
+    ///     The planted-C4 timer-ring draw-state (A4), or null when no live ticking bomb. Read by the
+    ///     custom-drawn viewport.
+    /// </summary>
+    public BombMarker? Bomb => CurrentFrame.Bomb;
+
+    /// <summary>
+    ///     The scene state the last push produced. <c>Scene2DHost</c> submits this, and the golden
+    ///     capture pairs it with the captured PNG. Valid until the next push; see <see cref="Scene2DFrame" />.
+    /// </summary>
+    public Scene2DFrame CurrentFrame { get; private set; } = Scene2DFrame.Empty;
+
+    /// <summary>
+    ///     The in-match players the Follow-Player camera mode can track (#2), ordered by team then slot.
+    ///     Built on demand (when the mode menu opens) from the current attribute rows so the picker reflects
+    ///     the live roster. Spectators / coaches / GOTV (non-T/CT) are excluded.
+    /// </summary>
+    public IReadOnlyList<FollowablePlayer> FollowablePlayers =>
+        Attributes.Where(a => a.InMatch)
+            .OrderBy(a => a.Team)
+            .ThenBy(a => a.Slot)
+            .Select(a => new FollowablePlayer(a.Slot, a.Name, a.Team))
+            .ToList();
+
+    /// <summary>Number of <c>Advanced</c> pushes received while active (read by tests).</summary>
+    public int PushCount { get; private set; }
+
+    /// <summary>The annotation toolbar's state. A nested VM, so this class does not grow another screen.</summary>
+    public AnnotationsPanelViewModel Annotations { get; }
+
+    /// <summary>The session the v2 host's ink layer and pointer tools share with the toolbar.</summary>
+    public AnnotationSession? AnnotationSession => IsAnnotationsEnabled ? Annotations.Session : null;
+
+    /// <summary>
+    ///     Whether annotations are live: the <c>playback2d.annotations</c> feature is on AND the mounted
+    ///     surface can host ink. Fail-open, live.
+    ///     <para>
+    ///         Delegated to the panel rather than re-reading the gate here: two independent reads of one
+    ///         question let the surface half go missing on this side while the toolbar still had it. This
+    ///         property is also what <c>Playback2DView.OnKeyDown</c> multiplies into <c>toolActive</c>,
+    ///         which decides whether the keymap's tool-scoped rows take Space and Escape.
+    ///     </para>
+    /// </summary>
+    public bool IsAnnotationsEnabled => Annotations.IsEnabled;
+
+    /// <summary>The scrub / rounds / markers chrome docked under the viewport.</summary>
+    public Playback2DTimelineViewModel Timeline { get; } = new();
+
+    /// <summary>
+    ///     The floor picker in the viewport's right-centre gutter. Collapsed entirely on a single-floor
+    ///     map, which is most of them.
+    /// </summary>
+    public LevelStripViewModel LevelStrip { get; } = new();
+
+    /// <summary>
+    ///     Whether the <c>playback2d.levels.auto</c> feature is on. Fail-open, live; see
+    ///     <see cref="IsTimelineEnabled" />. It gates <b>AutoFollow only</b>: manual floor picking and
+    ///     the strip itself ship with the tab.
+    /// </summary>
+    public bool IsAutoLevelEnabled => _features?.IsEnabled("playback2d.levels.auto") ?? true;
+
+    /// <summary>
+    ///     Whether the <c>playback2d.timeline</c> feature is on. Fails OPEN on a null projection (matching the
+    ///     shell's own null-gate behaviour) and re-resolves live on the gate's Changed; a one-shot read would
+    ///     leave the surface wrong until the tab was rebuilt.
+    /// </summary>
+    public bool IsTimelineEnabled => _features?.IsEnabled("playback2d.timeline") ?? true;
+
+    /// <summary>Whether the <c>playback2d.follow</c> feature is on. Fail-open, live; see <see cref="IsTimelineEnabled" />.</summary>
+    public bool IsFollowEnabled => _features?.IsEnabled("playback2d.follow") ?? true;
+
+    /// <summary>
+    ///     The resolved keymap this tab routes keys through: the shipped table with the user's overrides
+    ///     composed over it. The View reads it on every keypress, so a rebind takes effect immediately.
+    /// </summary>
+    public Playback2DKeymapProfile Keymap { get; private set; } = Playback2DKeymapProfile.Default;
+
+    /// <summary>Override rows the profile refused, one line each. Empty on a clean settings file.</summary>
+    public IReadOnlyList<string> KeymapRejections { get; private set; } = [];
+
+    /// <summary>
+    ///     Shutdown: flushes any pending annotation autosave and drops the controller's subscriptions.
+    ///     The flush is synchronous here on purpose: this is the last chance the document has.
+    /// </summary>
+    public void Dispose()
+    {
+        _keymapWatch?.Dispose();
+        _keymapWatch = null;
+        Timeline.TrackVisibilityChanged -= SaveTimelineSettings;
+        Timeline.Dispose(); // the tracks' MarkersChanged subscriptions, taken in RegisterTrack
+        LevelStrip.SettingsChanged -= SaveLevelSettings;
+        _annotationController.Flush();
+        Annotations.Dispose();
+        _annotationTrack.Dispose();
+        _annotationController.Dispose();
+
+        // The chip first: it holds a StatusChanged subscription on the job, and disposing the job cancels
+        // a running export, which would otherwise raise a terminal status into a half-torn-down shell.
+        ExportStatus?.Dispose();
+        ExportDialog?.Dispose();
+        _exportJob?.Dispose();
+        _exportJob = null;
+    }
+
+    public void OnActivated(IModuleContext context)
+    {
+        _context = context;
+
+        _features = context.Features;
+        if (_features is not null)
+        {
+            _features.Changed += OnFeaturesChanged;
+        }
+
+        _annotationController.SetFeatures(_features);
+        RefreshGates();
+
+        context.Advanced += OnAdvanced;
+        // Stay in sync across demo reloads WHILE active: LoadDemo resets the playback clock without
+        // an Advanced push, so without this an active tab would keep the PREVIOUS demo's map / markers /
+        // trails after the user opens a new demo (via the Open-file button or the library browser).
+        context.DemoReset += OnDemoReset;
+
+        // Live Sync (CS2) in-context indicator: capture the shell's read-only projection (null on
+        // Browser / no engine → the indicator stays absent) and track it while active. Captured so
+        // deactivation unsubscribes the exact same instance (the seam is stable but we never re-read it late).
+        _liveSyncHud = context.LiveSyncHud;
+        if (_liveSyncHud is not null)
+        {
+            _liveSyncHud.Changed += OnLiveSyncHudChanged;
+        }
+
+        RefreshLiveSyncHud();
+
+        // On-activation resync so a tab activated mid-playback is correct immediately: rebuild the
+        // roster-derived display + map asset and the marker draw-state from the current host player-join
+        // before the next push arrives.
+        ResyncToCurrentDemo();
+        AttachAnnotationsToCurrentDemo(false);
+        Status = $"2D Playback — active · {context.CurrentPlayers.Count} players · 0 pushes";
+    }
+
+    public void OnDeactivated()
+    {
+        // Annotations are flushed FIRST, while the context is still attached, and SYNCHRONOUSLY: a
+        // debounced autosave that had not fired yet is the difference between a stroke surviving and
+        // vanishing, and the shell calls this on its way out of MainViewModel.Dispose, where a
+        // fire-and-forget write races the process exit.
+        _annotationController.Flush();
+
+        // Unsubscribe the CS2 indicator projection from the SAME instance captured at activation, before the
+        // context is dropped (the seam is stable, but re-reading _context.LiveSyncHud late is not guaranteed
+        // identical). After this the indicator does no work while inactive.
+        if (_liveSyncHud is not null)
+        {
+            _liveSyncHud.Changed -= OnLiveSyncHudChanged;
+            _liveSyncHud = null;
+        }
+
+        ShowLiveSyncHud = false;
+
+        if (_features is not null)
+        {
+            _features.Changed -= OnFeaturesChanged;
+            _features = null;
+        }
+
+        if (_context is not null)
+        {
+            _context.Advanced -= OnAdvanced;
+            _context.DemoReset -= OnDemoReset;
+            _context = null;
+        }
+
+        // The adapter holds no subscriptions, but it holds the context; drop it so an inactive tab
+        // retains nothing.
+        _timelineData = null;
+
+        // Dropping the context is the other half of RefreshGates' notification: a view still bound to a
+        // deactivated tab would otherwise keep offering Export. Just the one property, not the whole
+        // RefreshGates: that also nudges the surface and re-reads the timeline's visibility, and a tab on
+        // its way out must not start work.
+        OnPropertyChanged(nameof(CanExport));
+
+        // After this returns the module does ZERO per-tick work.
+        Status = $"2D Playback — inactive · {PushCount} pushes received";
+    }
+
+    /// <summary>
+    ///     Session state carried across restarts: the annotation TOOL state only, meaning active tool,
+    ///     ink style, envelope defaults.
+    ///     <para>
+    ///         Deliberately <b>not</b> the document (that is <c>AnnotationStore</c>'s job, keyed to the
+    ///         demo) and deliberately not the camera, the playhead or the selection.
+    ///     </para>
+    /// </summary>
+    public object? SnapshotState() => new Playback2DTabState(
+        Annotations.ActiveTool.ToString(),
+        Annotations.InkColorHex,
+        Annotations.InkWidth,
+        Annotations.InkOpacity,
+        Annotations.Visibility.ToString(),
+        Annotations.FadeInTicks,
+        Annotations.FadeOutTicks,
+        Annotations.HoldTicks,
+        Annotations.AnchorToEntities);
+
+    /// <summary>
+    ///     Restores <see cref="SnapshotState" />. Session state is a convenience, never a source of
+    ///     truth: a blob written by an older build degrades to "restore nothing" rather than throwing on
+    ///     startup.
+    /// </summary>
+    /// <param name="state">The persisted blob as a <c>JsonElement</c>, or null.</param>
+    public void RestoreState(object? state)
+    {
+        if (state is not JsonElement element || element.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        Playback2DTabState? restored;
+        try
+        {
+            restored = element.Deserialize<Playback2DTabState>();
+        }
+        catch (JsonException)
+        {
+            return;
+        }
+
+        if (restored is null)
+        {
+            return;
+        }
+
+        if (Enum.TryParse(restored.ActiveTool, true, out ToolKind tool))
+        {
+            Annotations.SelectTool(tool);
+        }
+
+        if (TryParseArgb(restored.InkColorHex, out uint argb))
+        {
+            Annotations.InkColor = Color.FromArgb((byte)(argb >> 24), (byte)(argb >> 16),
+                (byte)(argb >> 8), (byte)argb);
+        }
+
+        if (restored.InkWidth > 0)
+        {
+            Annotations.InkWidth = restored.InkWidth;
+        }
+
+        if (restored.InkOpacity is > 0 and <= 1)
+        {
+            Annotations.InkOpacity = restored.InkOpacity;
+        }
+
+        if (Enum.TryParse(restored.Visibility, true, out EnvelopeMode mode))
+        {
+            Annotations.Visibility = mode;
+        }
+
+        Annotations.FadeInTicks = Math.Max(0, restored.FadeInTicks);
+        Annotations.FadeOutTicks = Math.Max(0, restored.FadeOutTicks);
+        Annotations.HoldTicks = Math.Max(0, restored.HoldTicks);
+        Annotations.AnchorToEntities = restored.AnchorToEntities;
+    }
 
     // Recomputed wherever CanExport is: the gate flip, activation, and the demo reset all land in
     // RefreshGates, which is also the one place CanExport is re-raised.
@@ -382,7 +755,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
             // The browser check comes FIRST because on that head BOTH the gate and the host say no
             // (ShellModuleFeatureGate.DesktopOnlyIds forces the feature off and App.axaml.cs wires no
-            // host) — and "you switched it off" would misattribute the state to a choice the user never made.
+            // host), and "you switched it off" would misattribute the state to a choice the user never made.
             if (IsBrowserHost())
             {
                 return "Export video — unavailable in the browser";
@@ -395,7 +768,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
             // Checked BEFORE the host, so the sentence is about the thing the user can act on. A desktop
             // build always wires the host at composition; a context without one is the designer or a test
-            // harness, and neither has anybody to tell — hence the silent fall-through below.
+            // harness, and neither has anybody to tell; hence the silent fall-through below.
             if (!_context.HasDemo)
             {
                 return "Export video — open a demo first";
@@ -404,23 +777,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             return "";
         }
     }
-
-    /// <summary>The open export dialog, or null. Non-null is what the view binds its overlay's visibility to.</summary>
-    [ObservableProperty]
-    private ViewModels.Playback2D.Playback2DExportDialogViewModel? _exportDialog;
-
-    /// <summary>
-    ///     The running export's chip, or null before the first export was ever opened.
-    ///     <para>
-    ///         Built beside the job and handed to the shell through <c>Playback2DExportHost.MountStatusChip</c>,
-    ///         which is the only route a lazily-built module tab has to the status strip. It is the
-    ///         <b>subscriber</b> <c>ExportJobService.StatusChanged</c> spent its whole life without:
-    ///         progress, throughput, the ETA, the failure message and, the one that mattered, a Cancel
-    ///         button were all computed and marshalled to the UI thread, and none of them had anywhere to
-    ///         land. Internal, so a test can reach the chip the same way the shell does.
-    ///     </para>
-    /// </summary>
-    internal ViewModels.Playback2D.Playback2DExportStatusViewModel? ExportStatus { get; private set; }
 
     /// <summary>Opens the export dialog, seeded from the saved defaults and the current round.</summary>
     [RelayCommand]
@@ -435,9 +791,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         {
             // The log sink is passed at BOTH levels on purpose: the runner's carries the chosen encoder
             // rung and every line ffmpeg writes to stderr (which is where an encode failure actually
-            // explains itself), the service's carries the job-level fault. Both were optional parameters
-            // this composition omitted, so all of it went to the floor and a failed export could say
-            // nothing more useful than the exception's own one-liner.
+            // explains itself), the service's carries the job-level fault. Both are optional parameters;
+            // omit either and that output goes to the floor, and a failed export says nothing more
+            // useful than the exception's own one-liner.
             //
             // EVERY seam is named, including the two whose value is the constructor's own default: C#
             // materialises an omitted optional argument AT THE CALL SITE, so a one-argument construction
@@ -448,31 +804,30 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                 new SceneExportRunner(
                     request => BuildExportSetup(host, request),
 
-                    // CPU, chosen rather than defaulted to — the only value that exports at all today. See
+                    // CPU, chosen rather than defaulted to: the only value that exports at all today. See
                     // Playback2DSettings.RenderBackend's remarks (AppSettings.cs) for why, and spelled out
                     // here so a future RenderBackend consumer lands on this line.
-                    surfaces: RenderSurfaceProviderFactory.CreateCpu,
+                    RenderSurfaceProviderFactory.CreateCpu,
 
                     // The same directory CsvgWebHost downloads into, so one managed ffmpeg serves reels
-                    // and exports alike. It is also the constructor's default; naming it is what makes
-                    // that a decision instead of a coincidence.
-                    managedFfmpegDirectory: static () => FfmpegDependency.ManagedDirectory,
-                    log: AppendExportLog,
+                    // and exports alike. Also the constructor's default.
+                    static () => FfmpegDependency.ManagedDirectory,
+                    AppendExportLog,
 
                     // Process-wide, so an app session pays for one two-frame test encode per rung rather
                     // than one per export.
-                    encoderProbe: EncoderProbeCache.Shared),
+                    EncoderProbeCache.Shared),
                 host.Gate,
                 host.IsLiveSyncBusy,
                 host.IsReelRunning,
                 AppendExportLog);
 
-            ExportStatus = new ViewModels.Playback2D.Playback2DExportStatusViewModel(
+            ExportStatus = new Playback2DExportStatusViewModel(
                 _exportJob, host.OpenExportFolder);
             host.MountStatusChip?.Invoke(ExportStatus);
         }
 
-        ExportDialog = new ViewModels.Playback2D.Playback2DExportDialogViewModel(
+        ExportDialog = new Playback2DExportDialogViewModel(
             BuildExportRanges(),
             host.Settings().Playback2D,
             _exportJob,
@@ -481,11 +836,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             () => FfmpegLocationFor(FfmpegDependency.Locate()),
             host.IsLiveSyncBusy,
             host.PersistSettings,
-            fileExists: null,
-            captureInk: SnapshotInkForExport,
-            acquireFfmpeg: ViewModels.Playback2D.Playback2DExportDialogViewModel.ProductionAcquisition(
+            null,
+            SnapshotInkForExport,
+            Playback2DExportDialogViewModel.ProductionAcquisition(
                 FfmpegDependency.ManagedDirectory),
-            capturePalette: CaptureExportPalette);
+            CaptureExportPalette);
 
         ExportDialog.StartRequested += CloseExport;
     }
@@ -494,7 +849,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // locking and the UI-thread marshalling; this is only the wire.
     private void AppendExportLog(string line) => ExportStatus?.AppendLog(line);
 
-    /// <summary>Closes the export dialog. The job keeps running — its progress lives on the status chip.</summary>
+    /// <summary>Closes the export dialog. The job keeps running; its progress lives on the status chip.</summary>
     [RelayCommand]
     private void CloseExport()
     {
@@ -507,11 +862,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         ExportDialog = null;
     }
 
-    // Whole rounds, plus the whole demo. CS2 rounds OPEN at round_freeze_end — the same fact RoundTrack's
-    // bands rest on — so the ranges here and the timeline's bands cannot disagree about where a round starts.
-    private List<ViewModels.Playback2D.ExportRangeOption> BuildExportRanges()
+    // Whole rounds, plus the whole demo, keyed off round_freeze_end like RoundTrack's bands, so the
+    // ranges here and the timeline cannot disagree about where a round starts.
+    private List<ExportRangeOption> BuildExportRanges()
     {
-        List<ViewModels.Playback2D.ExportRangeOption> ranges = [];
+        List<ExportRangeOption> ranges = [];
         int total = _context?.TotalFrames ?? 0;
         if (total <= 0)
         {
@@ -525,13 +880,13 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             int to = (i + 1 < starts.Count ? starts[i + 1] : total) - 1;
             if (to > from)
             {
-                ranges.Add(new ViewModels.Playback2D.ExportRangeOption(
+                ranges.Add(new ExportRangeOption(
                     string.Create(CultureInfo.InvariantCulture, $"Round {i + 1}  (frames {from}–{to})"),
                     from, to));
             }
         }
 
-        ranges.Add(new ViewModels.Playback2D.ExportRangeOption(
+        ranges.Add(new ExportRangeOption(
             string.Create(CultureInfo.InvariantCulture, $"Whole demo  ({total} frames)"), 0, total - 1));
 
         // The round containing the playhead leads: it is what the user is looking at.
@@ -539,7 +894,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         int here = ranges.FindIndex(r => current >= r.StartFrame && current <= r.EndFrame);
         if (here > 0)
         {
-            ViewModels.Playback2D.ExportRangeOption pick = ranges[here];
+            ExportRangeOption pick = ranges[here];
             ranges.RemoveAt(here);
             ranges.Insert(0, pick);
         }
@@ -549,15 +904,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     /// <summary>
     ///     The scene setup an export run is built from. Evaluated when the run STARTS (the runner holds a
-    ///     factory, not a value), so it reads the live level mode at that moment — a moment after
+    ///     factory, not a value), so it reads the live level mode at that moment: after
     ///     <see cref="CaptureExportMoment" /> froze the cameras and the ink, and on the export's thread
     ///     rather than the UI's.
     ///     <para>
-    ///         Internal for the mirror-live-view test: the display mode used to be hard-coded
-    ///         <c>Stacked</c>, so a user watching Nuke in SINGLE mode and exporting "mirror the live view"
-    ///         got a two-band stacked video of a view they were not looking at. The capture now carries the
-    ///         host's current <c>LevelDisplayMode</c> too — <c>MirrorLiveView.DisplayMode</c> previously
-    ///         recorded it and nothing read it.
+    ///         Internal for the mirror-live-view test. The display mode has to come from the host rather
+    ///         than a hard-coded <c>Stacked</c>: a user watching Nuke in SINGLE mode and exporting
+    ///         "mirror the live view" would otherwise get a two-band stacked video of a view they were
+    ///         not looking at.
     ///     </para>
     /// </summary>
     /// <param name="host">The shell's export host.</param>
@@ -580,40 +934,31 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         MapAsset,
 
         // Off the REQUEST, not off a field. This method runs on the export's pool thread, and it runs
-        // AFTER the job has waited on the heavy-job gate — a tab-level field written at Start would by
+        // AFTER the job has waited on the heavy-job gate; a tab-level field written at Start would by
         // then be whatever the most recent Start put there, which is not necessarily this run's.
         request?.Ink);
 
     // The exported HUD reads the SAME pre-built kill timeline the XAML feed windows, and the same
-    // SceneGameInfo projection the panel binds — which is what makes design risk 8 (dual-HUD drift)
-    // impossible.
+    // SceneGameInfo projection the panel binds, so the two HUDs cannot drift apart.
     //
-    // The clock reads the EXPORT's frame source, not this tab's `_frame`. Closing over `_frame` looked
-    // like "the same SceneGameInfo the panel binds", and it was — for the one instant Start was pressed.
-    // Every frame of the video then carried that scoreboard, and if the user resumed playback while the
-    // export ran, the burnt-in round drifted with the live viewport instead of with the video. The kill
-    // timeline is safe to capture because it is the whole demo's, windowed by tick inside the source.
+    // The clock reads the EXPORT's frame source, not this tab's `_frame`. Closing over `_frame` captures
+    // the scoreboard as it stood the instant Start was pressed and burns that into every frame of the
+    // video, and it drifts with the live viewport if the user resumes playback while the export runs.
+    // The kill timeline is safe to capture because it is the whole demo's, windowed by tick inside the
+    // source.
     //
     // The roster reads the export's own frame too, and for the same reason: LastRoster is the condition
     // of the players in the frame just built, so a card and the disc it names cannot disagree. Both
-    // closures ignore their tick argument — the source IS the tick, and asking it for a different one
+    // closures ignore their tick argument: the source IS the tick, and asking it for a different one
     // would be asking a positional reader to seek.
     internal Func<TrackerFrameSource, IHudDataSource> BuildExportHud() =>
         src => new TimelineHudDataSource(_allKills, _tickRate, _ => ClockReading.From(src.LastGameInfo),
             rosterAt: _ => src.LastRoster);
 
-    /// <summary>
-    ///     The live surface's camera capture, supplied by the View when it binds (and cleared when it
-    ///     unbinds). The VM cannot reach the mounted control itself — the View owns the surface — and the
-    ///     legacy viewport has no pane cameras to capture, so this is null under the escape hatch and on
-    ///     any host that never mounted a surface at all.
-    /// </summary>
-    internal Func<CameraScript>? LiveCameraSource { get; set; }
-
-    // Plan D12: a CAPTURE, taken once when Start is pressed. Panning the live window afterwards changes
-    // nothing about the video. With no live surface — the legacy escape hatch, a designer, a VM-only
-    // test — the fallback is an empty Fixed script, which leaves every pane on the fit its own level was
-    // born with. That is a correct framing, just not the user's.
+    // A CAPTURE, taken once when Start is pressed. Panning the live window afterwards changes nothing
+    // about the video. With no live surface (the legacy escape hatch, a designer, a VM-only test) the
+    // fallback is an empty Fixed script, which leaves every pane on the fit its own level was born
+    // with. That is a correct framing, just not the user's.
     //
     // The ink is captured beside it, from the dialog's Start, and both for the same reason: Start is the
     // one moment the dialog is on the UI THREAD before the job is handed to Task.Run, and copying a List
@@ -623,9 +968,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         LiveCameraSource?.Invoke()
         ?? new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>());
 
-    // The scene colours, resolved at Start beside the camera and the ink, and for a harder reason than
-    // either — see Scene2DExportRequest.Palette (IExportJobService.cs) for why reading the theme off the
-    // export's pool thread throws. A ScenePalette is a plain record of SKColor, so once resolved it crosses
+    // The scene colours, resolved at Start beside the camera and the ink. See Scene2DExportRequest.Palette
+    // (IExportJobService.cs) for why reading the theme off the export's pool thread throws.
+    // A ScenePalette is a plain record of SKColor, so once resolved it crosses
     // threads freely: it is the READ that is thread-affine, never the value.
     internal ScenePalette CaptureExportPalette() => LivePalette();
 
@@ -634,14 +979,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // not, and this method is one an export's failure path can reach.
     private static ScenePalette LivePalette() =>
         Dispatcher.UIThread.CheckAccess()
-            ? ScenePaletteFactory.Build(Avalonia.Application.Current?.ActualThemeVariant)
+            ? ScenePaletteFactory.Build(Application.Current?.ActualThemeVariant)
             : ScenePalette.Dark;
 
     // The ink an in-flight export draws: a COPY of the document as it stood at Start, wrapped in a
     // session of its own. Elements are immutable records, so the copy shares them and costs one list.
     //
     // A copy rather than the live session because AnnotationLayer re-records its cached pictures whenever
-    // Document.Version moves — a stroke drawn while the video renders would appear in frames the export
+    // Document.Version moves: a stroke drawn while the video renders would appear in frames the export
     // had already passed, and an erase would delete ink from frames that had already shown it. Gated on
     // the feature too: ink the user cannot see in the window must not turn up in their video.
     //
@@ -672,110 +1017,24 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             _ => FfmpegOrigin.None
         });
 
-    /// <summary>The feature id gating the whole export affordance. A persisted key — never renamed.</summary>
-    private const string ExportFeatureId = "playback2d.export";
-
-    /// <summary>The current frame's marker draw-state. Read by the custom-drawn viewport.</summary>
-    public IReadOnlyList<PlayerMarker> Markers => _frame.Markers;
-
-    /// <summary>Active smoke clouds + burning inferno cells (A4), drawn under the markers by the viewport.</summary>
-    public IReadOnlyList<AreaEffect> AreaEffects => _frame.AreaEffects;
-
-    /// <summary>Grenade flight trails (A4), drawn as fading comet lines beneath the markers by the viewport.</summary>
-    public IReadOnlyList<GrenadeTrail> GrenadeTrails => _frame.Trails;
-
-    /// <summary>
-    ///     The planted-C4 timer-ring draw-state (A4), or null when no live ticking bomb. Read by the
-    ///     custom-drawn viewport.
-    /// </summary>
-    public BombMarker? Bomb => _frame.Bomb;
-
-    /// <summary>
-    ///     The scene state the last push produced. B1's <c>Scene2DHost</c> submits this, and B0's golden
-    ///     capture pairs it with the captured PNG. Valid until the next push — see <see cref="Scene2DFrame" />.
-    /// </summary>
-    public Scene2DFrame CurrentFrame => _frame;
-
-    /// <summary>
-    ///     The in-match players the Follow-Player camera mode can track (#2), ordered by team then slot.
-    ///     Built on demand (when the mode menu opens) from the current attribute rows so the picker reflects
-    ///     the live roster. Spectators / coaches / GOTV (non-T/CT) are excluded.
-    /// </summary>
-    public IReadOnlyList<FollowablePlayer> FollowablePlayers =>
-        Attributes.Where(a => a.InMatch)
-            .OrderBy(a => a.Team)
-            .ThenBy(a => a.Slot)
-            .Select(a => new FollowablePlayer(a.Slot, a.Name, a.Team))
-            .ToList();
-
-    /// <summary>Number of <c>Advanced</c> pushes received while active (read by tests).</summary>
-    public int PushCount { get; private set; }
-
-    /// <summary>
-    ///     Builds the tab with its timeline and the three A1 tracks registered. Parameterless by contract:
-    ///     gates arrive through <see cref="IModuleContext.Features" />, never through the constructor, so
-    ///     the module descriptor's <c>ViewModelFactory</c> stays a bare <c>new()</c>.
-    /// </summary>
-    public Playback2DTabViewModel()
-    {
-        // Every dependency is optional, resolved the way Playback2DRenderer resolves its setting: the
-        // descriptor's ViewModelFactory is a bare new(), and a headless test builds this with no
-        // container at all. No store and no settings means annotations still work — session only.
-        _annotationController = new AnnotationSessionController(
-            TryResolveAnnotationStore(), TryResolveSettings());
-        _annotationController.LoadRecentColors();
-
-        Annotations = new AnnotationsPanelViewModel(_annotationController,
-            () => _context?.CurrentTick ?? _frame.Time.Tick);
-
-        _annotationTrack = new AnnotationTrack(_annotationController.Document);
-
-        // EnvelopeMode.Round's bounds, supplied app-side because Core knows nothing about demos. Wired
-        // ONCE and reading _timelineData live, rather than re-assigned on every resync: the session
-        // outlives every demo the tab shows, so a re-assignment would only be a second chance to forget.
-        _annotationController.Session.RoundWindowResolver = ResolveRoundWindow;
-
-        Timeline.RegisterTrack(_roundTrack);
-        Timeline.RegisterTrack(new KillTrack());
-        Timeline.RegisterTrack(new BombTrack());
-        Timeline.RegisterTrack(_annotationTrack);
-
-        // The timeline never moves the clock: it asks, and the shared clock decides (so LiveSync's
-        // SyncStateObserver keeps seeing every seek).
-        Timeline.SeekRequested += OnTimelineSeekRequested;
-
-        LoadLevelSettings();
-        LevelStrip.SettingsChanged += SaveLevelSettings;
-
-        LoadTimelineSettings();
-        Timeline.TrackVisibilityChanged += SaveTimelineSettings;
-
-        LoadChromeSettings();
-
-        LoadKeymapSettings();
-    }
-
-    private readonly AnnotationSessionController _annotationController;
-    private readonly AnnotationTrack _annotationTrack;
-
-    // The registered instance, held so ResolveRoundWindow can ask it "does this demo have rounds"
-    // through the same IsAvailable the timeline band asks — one answer, not two that can disagree.
-    private readonly RoundTrack _roundTrack = new();
-
     /// <summary>
     ///     The round enclosing a DV tick, as <c>[freeze-end, next freeze-end − 1]</c>, or null when there
     ///     is no round there. Backs <see cref="EnvelopeMode.Round" />.
     ///     <para>
     ///         A walk over consecutive <c>round_freeze_end</c> pairs, the same shape
-    ///         <see cref="BuildExportRanges" /> uses for the export dialog — but over the TICK axis, not
+    ///         <see cref="BuildExportRanges" /> uses for the export dialog, but over the TICK axis, not
     ///         the frame axis, because a <c>TimeEnvelope</c> is ticks. <c>EventsOfType</c> carries both,
     ///         so no conversion is needed.
     ///     </para>
     ///     <para>
     ///         Two answers are deliberately null. <b>Before the first freeze-end</b> is warmup, which is
     ///         not a round (<c>RoundTrack</c> bands it as <c>wu</c> for the same reason), and pinning a
-    ///         warmup stroke into round 1 would put it somewhere the user was not looking. <b>A demo with
-    ///         no freeze-ends at all</b> has no rounds to speak of; both fall through to the pinned
+    ///         warmup stroke into round 1 would put it somewhere the user was not looking.
+    ///         <b>
+    ///             A demo with
+    ///             no freeze-ends at all
+    ///         </b>
+    ///         has no rounds to speak of; both fall through to the pinned
     ///         trapezoid in <c>EnvelopeForNewElement</c>. The LAST round has no following freeze-end
     ///         either, so its <c>Until</c> is null: the round runs to the end of the demo, and the timeline
     ///         contract exposes no last tick to close it against anyway.
@@ -804,26 +1063,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             from = start;
         }
 
-        return from < 0 ? null : (from, (int?)null);
+        return from < 0 ? null : (from, null);
     }
-
-    /// <summary>The annotation toolbar's state. A nested VM, so this class does not grow another screen.</summary>
-    public AnnotationsPanelViewModel Annotations { get; }
-
-    /// <summary>The session the v2 host's ink layer and pointer tools share with the toolbar.</summary>
-    public AnnotationSession? AnnotationSession => IsAnnotationsEnabled ? Annotations.Session : null;
-
-    /// <summary>
-    ///     Whether annotations are live: the <c>playback2d.annotations</c> feature is on AND the mounted
-    ///     surface can host ink. Fail-open, live.
-    ///     <para>
-    ///         Delegated to the panel rather than re-reading the gate here: two independent reads of one
-    ///         question let the surface half go missing on this side while the toolbar still had it. This
-    ///         property is also what <c>Playback2DView.OnKeyDown</c> multiplies into <c>toolActive</c>,
-    ///         which decides whether the keymap's tool-scoped rows take Space and Escape.
-    ///     </para>
-    /// </summary>
-    public bool IsAnnotationsEnabled => Annotations.IsEnabled;
 
     /// <summary>
     ///     Told by the View which surface it mounted. The gate cannot answer "is there anything to draw
@@ -864,103 +1105,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     /// <summary>
-    ///     Rebases annotation world anchors after a level-set rebuild. B3's hysteresis/rebuild path calls
-    ///     this; it consumes no undo slot (plan decision D6) and covers the wet stroke too.
+    ///     Rebases annotation world anchors after a level-set rebuild. The level hysteresis/rebuild path
+    ///     calls this; it consumes no undo slot and covers the wet stroke too.
     /// </summary>
     /// <param name="zMinMap">Old quantized level ZMin → new quantized level ZMin.</param>
     public void ApplyAnnotationLevelRebuild(IReadOnlyDictionary<double, double> zMinMap) =>
         _annotationController.ApplyLevelRebuild(zMinMap);
 
-    /// <summary>
-    ///     Shutdown: flushes any pending annotation autosave and drops the controller's subscriptions.
-    ///     The flush is synchronous here on purpose — this is the last chance the document has.
-    /// </summary>
-    public void Dispose()
-    {
-        _keymapWatch?.Dispose();
-        _keymapWatch = null;
-        Timeline.TrackVisibilityChanged -= SaveTimelineSettings;
-        Timeline.Dispose(); // the tracks' MarkersChanged subscriptions, taken in RegisterTrack
-        LevelStrip.SettingsChanged -= SaveLevelSettings;
-        _annotationController.Flush();
-        Annotations.Dispose();
-        _annotationTrack.Dispose();
-        _annotationController.Dispose();
-
-        // The chip first: it holds a StatusChanged subscription on the job, and disposing the job cancels
-        // a running export, which would otherwise raise a terminal status into a half-torn-down shell.
-        ExportStatus?.Dispose();
-        ExportDialog?.Dispose();
-        _exportJob?.Dispose();
-        _exportJob = null;
-    }
-
-    /// <summary>The scrub / rounds / markers chrome docked under the viewport.</summary>
-    public Playback2DTimelineViewModel Timeline { get; } = new();
-
-    /// <summary>
-    ///     The floor picker in the viewport's right-centre gutter. Collapsed entirely on a single-floor
-    ///     map, which is most of them.
-    /// </summary>
-    public LevelStripViewModel LevelStrip { get; } = new();
-
-    /// <summary>
-    ///     Whether the <c>playback2d.levels.auto</c> feature is on. Fail-open, live — see
-    ///     <see cref="IsTimelineEnabled" />. It gates <b>AutoFollow only</b>: manual floor picking and
-    ///     the strip itself ship with the tab (plan D8).
-    /// </summary>
-    public bool IsAutoLevelEnabled => _features?.IsEnabled("playback2d.levels.auto") ?? true;
-
-    /// <summary>
-    ///     Whether the <c>playback2d.timeline</c> feature is on. Fails OPEN on a null projection (matching the
-    ///     shell's own null-gate behaviour) and re-resolves live on the gate's Changed — a one-shot read would
-    ///     leave the surface wrong until the tab was rebuilt.
-    /// </summary>
-    public bool IsTimelineEnabled => _features?.IsEnabled("playback2d.timeline") ?? true;
-
-    /// <summary>Whether the <c>playback2d.follow</c> feature is on. Fail-open, live — see <see cref="IsTimelineEnabled" />.</summary>
-    public bool IsFollowEnabled => _features?.IsEnabled("playback2d.follow") ?? true;
-
     /// <summary>Asks the view to re-fit the camera (the VM never touches the control).</summary>
     public event Action? FitRequested;
-
-    public void OnActivated(IModuleContext context)
-    {
-        _context = context;
-
-        _features = context.Features;
-        if (_features is not null)
-        {
-            _features.Changed += OnFeaturesChanged;
-        }
-
-        _annotationController.SetFeatures(_features);
-        RefreshGates();
-
-        context.Advanced += OnAdvanced;
-        // Stay in sync across demo reloads WHILE active: LoadDemo resets the playback clock without
-        // an Advanced push, so without this an active tab would keep the PREVIOUS demo's map / markers /
-        // trails after the user opens a new demo (via the Open-file button or the library browser).
-        context.DemoReset += OnDemoReset;
-
-        // Live Sync (CS2) in-context indicator: capture the shell's read-only projection (null on
-        // Browser / no engine → the indicator stays absent) and track it while active. Captured so
-        // deactivation unsubscribes the exact same instance (the seam is stable but we never re-read it late).
-        _liveSyncHud = context.LiveSyncHud;
-        if (_liveSyncHud is not null)
-        {
-            _liveSyncHud.Changed += OnLiveSyncHudChanged;
-        }
-
-        RefreshLiveSyncHud();
-
-        // On-activation resync so a tab activated mid-playback is correct immediately: rebuild the
-        // roster-derived display + map asset and the marker draw-state from the current host player-join
-        // before the next push arrives.
-        ResyncToCurrentDemo();
-        AttachAnnotationsToCurrentDemo(force: false);
-        Status = $"2D Playback — active · {context.CurrentPlayers.Count} players · 0 pushes";
-    }
 
     // Loads (or reloads) the annotation sidecar for whatever demo the context is on. Fire-and-forget by
     // design: an activation must not block on a disk read, and every failure inside is already reduced
@@ -977,52 +1130,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         _ = _annotationController.AttachDemoAsync(ctx.DemoPath, clock, force)
             .ContinueWith(static _ => { }, TaskScheduler.Default);
-    }
-
-    public void OnDeactivated()
-    {
-        // Annotations are flushed FIRST, while the context is still attached, and SYNCHRONOUSLY: a
-        // debounced autosave that had not fired yet is the difference between a stroke surviving and
-        // vanishing, and the shell calls this on its way out of MainViewModel.Dispose — where a
-        // fire-and-forget write races the process exit.
-        _annotationController.Flush();
-
-        // Unsubscribe the CS2 indicator projection from the SAME instance captured at activation, before the
-        // context is dropped (the seam is stable, but re-reading _context.LiveSyncHud late is not guaranteed
-        // identical). After this the indicator does no work while inactive.
-        if (_liveSyncHud is not null)
-        {
-            _liveSyncHud.Changed -= OnLiveSyncHudChanged;
-            _liveSyncHud = null;
-        }
-
-        ShowLiveSyncHud = false;
-
-        if (_features is not null)
-        {
-            _features.Changed -= OnFeaturesChanged;
-            _features = null;
-        }
-
-        if (_context is not null)
-        {
-            _context.Advanced -= OnAdvanced;
-            _context.DemoReset -= OnDemoReset;
-            _context = null;
-        }
-
-        // The adapter holds no subscriptions, but it holds the context — drop it so an inactive tab
-        // retains nothing.
-        _timelineData = null;
-
-        // Dropping the context is the other half of RefreshGates' notification — a view still bound to a
-        // deactivated tab would otherwise keep offering Export. Just the one property, not the whole
-        // RefreshGates: that also nudges the surface and re-reads the timeline's visibility, and a tab on
-        // its way out must not start work.
-        OnPropertyChanged(nameof(CanExport));
-
-        // After this returns the module does ZERO per-tick work.
-        Status = $"2D Playback — inactive · {PushCount} pushes received";
     }
 
     private static string[] BuildMyWeaponsPaths()
@@ -1078,7 +1185,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         IsLiveSyncHudError = hud.Dot == LiveSyncHudDot.Error;
     }
 
-    /// <summary>Seek the shared clock to the next kill (player_death) — module-local forward-nav.</summary>
+    /// <summary>Seek the shared clock to the next kill (player_death). Module-local forward-nav.</summary>
     [RelayCommand]
     private void NextKill() => _context?.RequestNextEvent(_killEventFilter);
 
@@ -1099,8 +1206,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public event Action<int>? FollowSlotChanged;
 
     /// <summary>
-    ///     THE follow funnel. Every path that changes the followed player — a card click, the camera-mode
-    ///     SplitButton submenu, the F / Shift+F keys, Esc — lands here, so there is exactly one place that
+    ///     THE follow funnel. Every path that changes the followed player (a card click, the camera-mode
+    ///     SplitButton submenu, the F / Shift+F keys, Esc) lands here, so there is exactly one place that
     ///     updates <see cref="FollowedSlot" />, the per-row followed flag, the selection, and the LiveSync
     ///     spectate chain. Passing -1 clears the follow and deliberately does NOT push a spectate change
     ///     (there is no "spectate nobody"; the CS2 session simply keeps its last target).
@@ -1144,10 +1251,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <summary>
     ///     Follows a roster slot (the camera-mode submenu and the card list both come through here).
     ///     <para>
-    ///         A plain method. It carried <c>[RelayCommand]</c> and nothing anywhere bound the generated
-    ///         <c>FollowPlayerCommand</c> — every caller invokes this directly (the card list's
-    ///         <c>OnSelectedPlayerChanged</c> hook, the keymap, the SplitButton submenu through
-    ///         <see cref="NotifyFollowSlotChanged" />), so the wrapper was generated surface with no
+    ///         A plain method, deliberately not a <c>[RelayCommand]</c>: every caller invokes it directly
+    ///         (the card list's <c>OnSelectedPlayerChanged</c> hook, the keymap, the SplitButton submenu
+    ///         through <see cref="NotifyFollowSlotChanged" />), so a generated command would have no
     ///         consumer.
     ///     </para>
     /// </summary>
@@ -1204,7 +1310,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     /// <summary>
     ///     Dispatches a keymap action. Returns false when the action cannot be serviced right now (no
-    ///     context, no demo, feature gated off, nothing to follow) — the view then leaves the key unhandled
+    ///     context, no demo, feature gated off, nothing to follow); the view then leaves the key unhandled
     ///     so it can still reach whatever else wants it.
     ///     <para>
     ///         Every playback mutation below routes through <c>IModuleContext.Request*</c>, which is what
@@ -1244,7 +1350,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
             case Playback2DAction.StepForward:
                 int next = ctx.CurrentFrameIndex + 1;
-                if (next <= 0 || (ctx.TotalFrames > 0 && next >= ctx.TotalFrames))
+                if (next <= 0 || ctx.TotalFrames > 0 && next >= ctx.TotalFrames)
                 {
                     return false;
                 }
@@ -1292,7 +1398,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                 FitRequested?.Invoke();
                 return true;
 
-            // ── Annotations (declared by A1, bound here). Gated off, the keys stay unhandled so they
+            // ── Annotations. Gated off, the keys stay unhandled so they
             //    can still reach whatever else wants them.
             case Playback2DAction.ToolDraw:
                 if (!IsAnnotationsEnabled)
@@ -1393,7 +1499,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         if (value is null)
         {
             // A ListBox that is re-templating writes a transient null back through the two-way binding
-            // before it re-reads the VM — and the view IS rebuilt on every tab activation. Dropping the
+            // before it re-reads the VM, and the view IS rebuilt on every tab activation. Dropping the
             // retained follow (and re-fitting the camera) on that would lose VM state to a view lifecycle
             // event, so a null only clears once the followed row has actually gone from the roster.
             if (FollowedSlot >= 0 && RowForSlot(FollowedSlot) is { } stillPresent)
@@ -1441,7 +1547,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         OnPropertyChanged(nameof(AnnotationSession));
         OnPropertyChanged(nameof(IsAutoLevelEnabled));
 
-        // Same three inputs as the line below it — the gate, the context, and whether that context has a
+        // Same three inputs as the line below it: the gate, the context, and whether that context has a
         // demo. The export host is wired once at composition, before any tab is activated, so activation
         // is the last moment it can change.
         OnPropertyChanged(nameof(CanExport));
@@ -1470,85 +1576,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         FrameUpdated?.Invoke();
     }
 
-    /// <summary>
-    ///     Session state carried across restarts: the annotation TOOL state only — active tool, ink
-    ///     style, envelope defaults.
-    ///     <para>
-    ///         Deliberately <b>not</b> the document (that is <c>AnnotationStore</c>'s job, keyed to the
-    ///         demo) and deliberately not the camera, the playhead or the selection.
-    ///     </para>
-    /// </summary>
-    public object? SnapshotState() => new Playback2DTabState(
-        Annotations.ActiveTool.ToString(),
-        Annotations.InkColorHex,
-        Annotations.InkWidth,
-        Annotations.InkOpacity,
-        Annotations.Visibility.ToString(),
-        Annotations.FadeInTicks,
-        Annotations.FadeOutTicks,
-        Annotations.HoldTicks,
-        Annotations.AnchorToEntities);
-
-    /// <summary>
-    ///     Restores <see cref="SnapshotState" />. Session state is a convenience, never a source of
-    ///     truth: a blob written by an older build degrades to "restore nothing" rather than throwing on
-    ///     startup.
-    /// </summary>
-    /// <param name="state">The persisted blob as a <c>JsonElement</c>, or null.</param>
-    public void RestoreState(object? state)
-    {
-        if (state is not JsonElement element || element.ValueKind != JsonValueKind.Object)
-        {
-            return;
-        }
-
-        Playback2DTabState? restored;
-        try
-        {
-            restored = element.Deserialize<Playback2DTabState>();
-        }
-        catch (JsonException)
-        {
-            return;
-        }
-
-        if (restored is null)
-        {
-            return;
-        }
-
-        if (Enum.TryParse(restored.ActiveTool, ignoreCase: true, out ToolKind tool))
-        {
-            Annotations.SelectTool(tool);
-        }
-
-        if (TryParseArgb(restored.InkColorHex, out uint argb))
-        {
-            Annotations.InkColor = Color.FromArgb((byte)(argb >> 24), (byte)(argb >> 16),
-                (byte)(argb >> 8), (byte)argb);
-        }
-
-        if (restored.InkWidth > 0)
-        {
-            Annotations.InkWidth = restored.InkWidth;
-        }
-
-        if (restored.InkOpacity is > 0 and <= 1)
-        {
-            Annotations.InkOpacity = restored.InkOpacity;
-        }
-
-        if (Enum.TryParse(restored.Visibility, ignoreCase: true, out EnvelopeMode mode))
-        {
-            Annotations.Visibility = mode;
-        }
-
-        Annotations.FadeInTicks = Math.Max(0, restored.FadeInTicks);
-        Annotations.FadeOutTicks = Math.Max(0, restored.FadeOutTicks);
-        Annotations.HoldTicks = Math.Max(0, restored.HoldTicks);
-        Annotations.AnchorToEntities = restored.AnchorToEntities;
-    }
-
     private static bool TryParseArgb(string? hex, out uint argb)
     {
         argb = 0;
@@ -1562,29 +1589,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                && uint.TryParse(span, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out argb);
     }
 
-    /// <summary>The 2D tab's session blob. Tool state only — never the document, camera or playhead.</summary>
-    /// <param name="ActiveTool">The <c>ToolKind</c> name.</param>
-    /// <param name="InkColorHex"><c>#AARRGGBB</c>.</param>
-    /// <param name="InkWidth">World units.</param>
-    /// <param name="InkOpacity">0..1.</param>
-    /// <param name="Visibility">The <c>EnvelopeMode</c> name.</param>
-    /// <param name="FadeInTicks">Lead-in ticks.</param>
-    /// <param name="FadeOutTicks">Lead-out ticks.</param>
-    /// <param name="HoldTicks">Fully-opaque hold.</param>
-    /// <param name="AnchorToEntities">Whether new strokes follow a nearby player.</param>
-    public sealed record Playback2DTabState(
-        string ActiveTool,
-        string InkColorHex,
-        double InkWidth,
-        double InkOpacity,
-        string Visibility,
-        int FadeInTicks,
-        int FadeOutTicks,
-        int HoldTicks,
-        bool AnchorToEntities);
-
     // Settings reach the tab through the container rather than the constructor, because the module
-    // descriptor's ViewModelFactory is a bare new() by contract (A1) and a headless test builds this
+    // descriptor's ViewModelFactory is a bare new() by contract and a headless test builds this
     // with no container at all. A missing service means the defaults, exactly as Playback2DRenderer
     // resolves its own escape hatch.
     private static SettingsService? Settings()
@@ -1598,25 +1604,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             return null;
         }
     }
-
-    // ── Keymap ───────────────────────────────────────────────────────────────
-    // Read at construction AND kept live. The keymap is the one 2D setting a user edits while the tab is
-    // open and then immediately tests, so "applies on next activation" would read as the rebind having
-    // silently failed. IOptionsMonitor is resolved through the same lazy locator as SettingsService —
-    // the descriptor's ViewModelFactory is a bare new(), so there is no constructor to inject into, and
-    // no container (a headless test) simply means the shipped defaults.
-
-    private IDisposable? _keymapWatch;
-    private Playback2DKeymapProfile _keymap = Playback2DKeymapProfile.Default;
-
-    /// <summary>
-    ///     The resolved keymap this tab routes keys through: the shipped table with the user's overrides
-    ///     composed over it. The View reads it on every keypress, so a rebind takes effect immediately.
-    /// </summary>
-    public Playback2DKeymapProfile Keymap => _keymap;
-
-    /// <summary>Override rows the profile refused, one line each. Empty on a clean settings file.</summary>
-    public IReadOnlyList<string> KeymapRejections { get; private set; } = [];
 
     private void LoadKeymapSettings()
     {
@@ -1632,15 +1619,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
         catch (Exception)
         {
-            // A degraded container must not cost the tab its keys — it just loses live rebinding.
+            // A degraded container must not cost the tab its keys; it just loses live rebinding.
         }
     }
-
-    // What the profile was last composed from. SettingsViewModel spells this guard `_writing` around its
-    // own Write calls; comparing the VALUE covers the same case and every OTHER write too — the ink
-    // pickers' most of all, which reload settings hundreds of times a second during a colour drag while
-    // touching no key at all.
-    private string[] _appliedKeybindOverrides = [];
 
     // The desktop file watcher raises OnChange on a THREADPOOL thread for an external edit. Swapping the
     // profile is a reference write, but the PropertyChanged that follows it is not, so marshal.
@@ -1663,11 +1644,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
     }
 
-    // The single composition point — production load, the live watch, and the tests all come through
+    // The single composition point: production load, the live watch, and the tests all come through
     // here, so there is one answer to "what is this tab's keymap".
     internal void ApplyKeymapOverrides(IEnumerable<string> overrides)
     {
-        _keymap = Playback2DKeymapProfile.FromOverrides(overrides, out IReadOnlyList<string> rejected);
+        Keymap = Playback2DKeymapProfile.FromOverrides(overrides, out IReadOnlyList<string> rejected);
         KeymapRejections = rejected;
         OnPropertyChanged(nameof(Keymap));
         OnPropertyChanged(nameof(KeymapRejections));
@@ -1676,7 +1657,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // same moment it reaches the router. Pushed rather than pulled through a $parent binding: the
         // toolbar's DataContext is the panel, and a five-deep ancestor cast that silently yields "" on a
         // standalone mount is a worse contract than one assignment.
-        Annotations.ApplyKeymap(_keymap);
+        Annotations.ApplyKeymap(Keymap);
     }
 
     private void LoadLevelSettings()
@@ -1716,7 +1697,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     // The ROUND track has no persisted key on purpose: it is the timeline's spine (the band strip and the
     // "round N" footer label both come off it), so a stored "off" would read as a broken control on the
-    // next launch. The three optional tracks are the ones registry §3.10 names.
+    // next launch. Only the three optional tracks have persisted keys.
     private void LoadTimelineSettings()
     {
         if (Settings()?.Current.Playback2D is not { } saved)
@@ -1752,16 +1733,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
         catch (Exception)
         {
-            // A read-only config directory must never take the tab down over a view preference — the
+            // A read-only config directory must never take the tab down over a view preference; the
             // same trade SaveLevelSettings makes.
         }
     }
-
-    // ── Viewport chrome persistence ──────────────────────────────────────────────────────────────────
-    // The guard is not ceremony: the generated setters call back into SaveChromeSettings, so seeding the
-    // two properties from settings would write them straight back — on every construction of every tab,
-    // including the ones a headless test throws away.
-    private bool _loadingChrome;
 
     private void LoadChromeSettings()
     {
@@ -1776,7 +1751,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <summary>
     ///     Seeds the chrome state from a persisted section. Internal because the production path resolves
     ///     its <c>SettingsService</c> from <c>App.Services</c>, which a headless test has no way to
-    ///     populate — so the READ half of the round trip is only reachable through this seam, exactly as
+    ///     populate, so the READ half of the round trip is only reachable through this seam, exactly as
     ///     <see cref="ApplyKeymapOverrides" /> is for the keymap.
     /// </summary>
     /// <param name="saved">The persisted 2D section.</param>
@@ -1820,7 +1795,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
         catch (Exception)
         {
-            // A read-only config directory must never take the tab down over a view preference — the
+            // A read-only config directory must never take the tab down over a view preference; the
             // same trade SaveLevelSettings and SaveTimelineSettings make.
         }
     }
@@ -1866,14 +1841,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // is the state-restoration parity the Open-file button and the library browser must share.
     private void OnDemoReset()
     {
-        ResyncToCurrentDemo(demoChanged: true);
+        ResyncToCurrentDemo(true);
 
         // A demo reload is the one moment the sidecar on disk really is the newer truth, so this one
-        // forces — unlike a tab re-activation, which must keep the in-memory document.
-        AttachAnnotationsToCurrentDemo(force: true);
+        // forces, unlike a tab re-activation, which must keep the in-memory document.
+        AttachAnnotationsToCurrentDemo(true);
     }
 
-    // Rebuilds ALL per-demo draw-state from the CURRENT context — shared by on-activation and by the
+    // Rebuilds ALL per-demo draw-state from the CURRENT context, shared by on-activation and by the
     // demo-reset signal. Re-seeds the roster display + map asset (SeedRosterDisplay → EnsureMapAsset), drops
     // every per-demo cache so nothing glides in from a prior demo/position, then builds the current
     // frame + kill window immediately.
@@ -1889,7 +1864,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             return;
         }
 
-        // BEFORE SeedRosterDisplay, which builds the kill timeline — and a kill row carries the sides of
+        // BEFORE SeedRosterDisplay, which builds the kill timeline, and a kill row carries the sides of
         // its attacker and victim, resolved through this adapter. Built after, the rows of a re-opened
         // demo would be sided against the PREVIOUS demo's player_team changes: not a crash, just a feed
         // quietly attributing kills to the wrong teams. The ctor is a field assignment (every cache it
@@ -1898,21 +1873,20 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         // BEFORE SeedRosterDisplay, which clears and rebuilds Attributes.
         //
-        // The follow target is SLOT-keyed, and a slot means nothing across demos. Left alone, a swap kept
-        // FollowedSlot pointing at whoever the NEW demo happens to have in that slot — the ring and the
-        // camera silently changed player — while FollowStatus still read "following bravo · requested"
-        // and no card was highlighted, because SelectedPlayer still referenced a PlayerAttributes
-        // instance that is no longer in Attributes at all. Three pieces of state disagreeing about one
-        // fact.
+        // The follow target is SLOT-keyed, and a slot means nothing across demos. Left alone, a swap
+        // leaves FollowedSlot pointing at whoever the NEW demo happens to have in that slot (the ring
+        // and the camera silently change player) while FollowStatus still reads "following bravo ·
+        // requested" and no card is highlighted, because SelectedPlayer still references a
+        // PlayerAttributes instance that is no longer in Attributes at all.
         //
         // TWO inputs, one clear. `demoChanged` is the explicit DemoReset signal; the path comparison
-        // catches the case that signal cannot see — a demo swapped while this tab was DEACTIVATED, whose
+        // catches the case that signal cannot see: a demo swapped while this tab was DEACTIVATED, whose
         // only notification is the next activation's resync. Activation on the same demo must NOT clear:
         // the View is destroyed and rebuilt on every tab switch, and the follow target surviving that in
         // the VM is the whole reason Playback2DView.BindViewModel re-projects it.
         //
         // Routed through the funnel rather than by assigning the three fields, so the view's
-        // FollowSlotChanged mirror, the per-row flag and the timeline footer clear with them — the funnel
+        // FollowSlotChanged mirror, the per-row flag and the timeline footer clear with them: the funnel
         // is the single place that knows what "following nobody" means. Not ClearFollow(): that also
         // raises FitRequested, and the fit is already coming from the resync's own frame rebuild.
         demoChanged |= !string.Equals(_followDemoPath, _context.DemoPath, StringComparison.OrdinalIgnoreCase);
@@ -1928,8 +1902,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // AFTER activation (host order), BuildFrame re-seeds on the empty→populated transition too (#2).
         SeedRosterDisplay();
 
-        // Drop every per-demo cache the builder holds — ring deltas, death-marker positions, trails and
-        // the once-per-demo section-height read — so nothing glides in from a prior demo or position.
+        // Drop every per-demo cache the builder holds (ring deltas, death-marker positions, trails, the
+        // once-per-demo section-height read) so nothing glides in from a prior demo or position.
         _frameBuilder.Reset();
         _tickRate = _context.TickRate > 0 ? _context.TickRate : 64;
         UpdateKillFeedWindow(_context.CurrentTick); // show the kills around the resync position immediately
@@ -1937,7 +1911,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         // Activation and DemoReset are exactly the two moments the demo's event set can change, so the
         // timeline is rebuilt here and nowhere else. The fresh adapter that drops the previous demo's
-        // per-name cache is constructed at the top of this method — see why there.
+        // per-name cache is constructed at the top of this method; see why there.
         Timeline.Rebuild(_timelineData);
         Timeline.UpdatePlayhead(_context.CurrentFrameIndex, _context.CurrentTick);
         RefreshGates();
@@ -2017,8 +1991,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     <para>
     ///         The old asset is disposed at Background priority rather than inline: the render thread may
     ///         still be replaying a cached SKPicture that references one of these images for the frame in
-    ///         flight. B1 made that genuinely load-bearing rather than belt-and-braces — the render gate
-    ///         plus this one dispatcher hop is what covers the window.
+    ///         flight. The render gate plus this one dispatcher hop is what covers that window.
     ///     </para>
     /// </summary>
     private void ReplaceMapAsset(LoadedMapAsset? next)
@@ -2115,12 +2088,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         UpdateKillFeedWindow(snapshot.Tick);
 
         // Seek detection (backward → drop the ring delta + death-marker caches; any large jump → drop the
-        // live-accumulated trails) now lives in SceneFrameBuilder, which owns the frame delta.
+        // live-accumulated trails) lives in SceneFrameBuilder, which owns the frame delta.
         BuildFrame(snapshot.Players, snapshot.Entities, snapshot.FrameIndex, snapshot.Tick);
         Status = $"2D Playback — active · frame {snapshot.FrameIndex} · " +
-                 $"{_frame.Markers.Count} players · {PushCount} pushes";
+                 $"{CurrentFrame.Markers.Count} players · {PushCount} pushes";
 
-        // The playhead follows the shared clock's push — never a private timer — so it tracks play, step,
+        // The playhead follows the shared clock's push, never a private timer, so it tracks play, step,
         // NavStrip nav, palette jumps and LiveSync-driven seeks alike. A binary search and two sets.
         Timeline.UpdatePlayhead(snapshot.FrameIndex, snapshot.Tick);
 
@@ -2187,11 +2160,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // slice is unchanged (it changes only when the playhead crosses a kill's tick or its expiry).
     private void UpdateKillFeedWindow(int nowTick)
     {
-        // The windowing itself is KillFeedTimeline's (B4 D5). What stays here is the unchanged-slice
+        // The windowing itself is KillFeedTimeline's. What stays here is the unchanged-slice
         // short-circuit, which is a UI concern: an ObservableCollection rebuilt every push would churn
         // the ItemsControl sixty-four times a second for a feed that changes twice a round.
-        KillFeedTimeline.Window(_allKills, nowTick, _tickRate, _killRows, KillFeedWindowSeconds,
-            MaxKillFeedRows);
+        KillFeedTimeline.Window(_allKills, nowTick, _tickRate, _killRows);
 
         int count = _killRows.Count;
         int firstTick = count > 0 ? _killRows[0].Tick : 0;
@@ -2229,12 +2201,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         ev.Fields.TryGetValue(key, out object? v) && v is bool b && b;
 
     // Builds one push: seed the roster display if it arrived late, run the ATTRIBUTES pass over the
-    // players (panel state — stays here), then hand the same tick to SceneFrameBuilder for the SCENE
+    // players (panel state, stays here), then hand the same tick to SceneFrameBuilder for the SCENE
     // state and copy the results onto the bound surface.
     //
-    // Two passes over `players` on purpose. Before B0 a single loop interleaved the panel read with
-    // marker construction; splitting panel from scene is the whole point of the extraction, and
-    // players.Count is ~10, so the second pass is free. Do not "optimise" them back together.
+    // Two passes over `players` on purpose: splitting the panel read from marker construction is the
+    // point of the extraction, and players.Count is ~10, so the second pass is free. Do not "optimise"
+    // them back together.
     private void BuildFrame(IReadOnlyList<IPlayerState> players, IReadOnlyEntityView entities, int frameIndex,
         int tick)
     {
@@ -2269,8 +2241,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             FollowSlot = FollowedSlot
         };
 
-        _frame = _frameBuilder.Build(in input);
-        PublishGameInfo(_frame.GameInfo);
+        CurrentFrame = _frameBuilder.Build(in input);
+        PublishGameInfo(CurrentFrame.GameInfo);
 
         foreach (IPlayerState p in players)
         {
@@ -2281,7 +2253,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
             // Attributes for EVERY roster player — a dead/orphaned player keeps its controller-sourced
             // stats (K/D/A, cash, score) and grays out, instead of vanishing from the panel.
-            UpdateAttributes(p, entities, health, alive, _frame.GameInfo.RoundsPlayed);
+            UpdateAttributes(p, entities, health, alive, CurrentFrame.GameInfo.RoundsPlayed);
         }
     }
 
@@ -2530,9 +2502,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     // Short marker label: player number (slot+1) if no name, else two-initials from the roster name.
-    // Slot → SteamId for the scene's markers. B2's entity-anchored ink joins on the SteamId and nothing
-    // else, because roster SLOTS RECYCLE across a demo (design §5.4) — and both halves of that feature
-    // treat 0 as "unresolvable", so without this the anchor can neither be captured nor drawn.
+    // Slot → SteamId for the scene's markers. The entity-anchored ink joins on the SteamId and nothing
+    // else, because roster SLOTS RECYCLE across a demo, and both halves of that feature treat 0 as
+    // "unresolvable", so without this the anchor can neither be captured nor drawn.
     private ulong SteamIdFor(int slot) =>
         _steamIdBySlot.TryGetValue(slot, out ulong steamId) ? steamId : 0;
 
@@ -2546,6 +2518,27 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         return (slot + 1).ToString(CultureInfo.InvariantCulture);
     }
+
+    /// <summary>The 2D tab's session blob. Tool state only: never the document, camera or playhead.</summary>
+    /// <param name="ActiveTool">The <c>ToolKind</c> name.</param>
+    /// <param name="InkColorHex"><c>#AARRGGBB</c>.</param>
+    /// <param name="InkWidth">World units.</param>
+    /// <param name="InkOpacity">0..1.</param>
+    /// <param name="Visibility">The <c>EnvelopeMode</c> name.</param>
+    /// <param name="FadeInTicks">Lead-in ticks.</param>
+    /// <param name="FadeOutTicks">Lead-out ticks.</param>
+    /// <param name="HoldTicks">Fully-opaque hold.</param>
+    /// <param name="AnchorToEntities">Whether new strokes follow a nearby player.</param>
+    public sealed record Playback2DTabState(
+        string ActiveTool,
+        string InkColorHex,
+        double InkWidth,
+        double InkOpacity,
+        string Visibility,
+        int FadeInTicks,
+        int FadeOutTicks,
+        int HoldTicks,
+        bool AnchorToEntities);
 
     private enum NadeKind
     {

@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.Highlights;
 
@@ -24,11 +23,6 @@ public class HighlightAddClipsPickerTests
     private static EvSpec Ev(string name, string steam, int round, int tick, string type) =>
         new(name, steam, round, tick, type);
 
-    // The unified record stores each player ONCE and events reference them by SLOT, so a fixture cannot hand
-    // a name/steamId to an event any more — it has to put them in the roster and link by slot. Row() below
-    // assigns slots by first appearance, which is what makes these specs enough.
-    private sealed record EvSpec(string Name, string Steam, int Round, int Tick, string Type);
-
     private static DemoCacheRecord Row(string path, string map, long modified, EvSpec[] events,
         DemoAnalysisState state = DemoAnalysisState.Indexed)
     {
@@ -41,7 +35,12 @@ public class HighlightAddClipsPickerTests
             {
                 slot = slotOf.Count;
                 slotOf[e.Steam] = slot;
-                roster.Add(new CachedPlayerInfo { Slot = slot, Name = e.Name, SteamId64 = e.Steam });
+                roster.Add(new CachedPlayerInfo
+                {
+                    Slot = slot,
+                    Name = e.Name,
+                    SteamId64 = e.Steam
+                });
             }
 
             int dot = e.Type.IndexOf('.', StringComparison.Ordinal);
@@ -63,9 +62,20 @@ public class HighlightAddClipsPickerTests
             TickRate = 64,
             TickCount = 200_000,
             ModifiedTicks = modified,
-            Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 },
+            Analysis = new TierStamp
+            {
+                Schema = DemoCacheRecord.AnalysisSchema,
+                ComputedAtTicks = 1
+            },
             AnalysisState = state,
-            Rounds = [new Services.DemoCache.CachedRound { Number = 1, StartTickFrameClock = 1000 }],
+            Rounds =
+            [
+                new CachedRound
+                {
+                    Number = 1,
+                    StartTickFrameClock = 1000
+                }
+            ],
             Players = roster,
             Highlights = harvested
         };
@@ -257,4 +267,9 @@ public class HighlightAddClipsPickerTests
         await Assert.That(noScan.CanRescan).IsFalse();
         await Assert.That(noScan.ShowScanPendingNote).IsFalse();
     }
+
+    // The unified record stores each player ONCE and events reference them by SLOT, so a fixture cannot hand
+    // a name/steamId to an event any more — it has to put them in the roster and link by slot. Row() below
+    // assigns slots by first appearance, which is what makes these specs enough.
+    private sealed record EvSpec(string Name, string Steam, int Round, int Tick, string Type);
 }

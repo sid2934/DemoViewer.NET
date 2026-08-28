@@ -14,7 +14,7 @@
         acquires one. Source has no graph.
 
         Here rather than in six csproj files, because the guard's whole job is to catch a taxonomy
-        that has drifted — and "the new test project forgot to link the file that checks for drift"
+        that has drifted, and "the new test project forgot to link the file that checks for drift"
         is the first way that happens. A project named *.Tests gets it by existing.
     -->
     <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">

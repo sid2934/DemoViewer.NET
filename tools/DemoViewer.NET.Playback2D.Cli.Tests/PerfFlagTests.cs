@@ -7,8 +7,8 @@ using System.Text.Json.Nodes;
 namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
-///     The <c>--perf</c> flag surface (plan <c>P1-perf-instrumentation</c> §2, §4): the block is
-///     <b>additive</b> — absent without the flag, and never displacing anything that was already in the
+///     The <c>--perf</c> flag surface (plan <c>P1-perf-instrumentation</c> §2, §4). The block is
+///     <b>additive</b>: absent without the flag, and never displacing anything that was already in the
 ///     <c>schema_version: 1</c> payload.
 /// </summary>
 [NotInParallel]
@@ -45,7 +45,7 @@ public class PerfFlagTests
         await Assert.That(perf["max_frame_fps"]!.GetValue<double>()).IsGreaterThan(0);
 
         // The three stages a bench drives; readback and encode belong to export and must NOT appear
-        // here, because a stage nobody measured would read as "free" rather than "absent".
+        // here. An unmeasured stage reads as "free" rather than "absent".
         JsonArray stages = (JsonArray)perf["stages"]!;
         HashSet<string> names = [.. stages.Select(s => ((JsonObject)s!)["name"]!.GetValue<string>())];
         await Assert.That(names).Contains("advance");
@@ -111,7 +111,7 @@ public class PerfFlagTests
 
     /// <summary>
     ///     <c>--perf</c> is only offered where there is something to capture. On a command that does not
-    ///     support it, the unknown-option check must reject it rather than silently ignore it — the same
+    ///     support it, the unknown-option check must reject it rather than silently ignore it, the same
     ///     discipline every other flag on this tool is held to.
     /// </summary>
     [Test]

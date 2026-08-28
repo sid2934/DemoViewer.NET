@@ -12,7 +12,7 @@ namespace DemoViewer.NET.ViewModels.Playback;
 
 /// <summary>
 ///     The strip-ready presentation surface for the demo-derived game-event filter
-///. It does NOT own the filter list — that single source of truth
+///     . It does NOT own the filter list — that single source of truth
 ///     is the shell's <c>GameEventFilters</c> (<see cref="GameEventFilterItem" />, populated from the
 ///     actual demo). This VM wraps that collection with the Select-all / Deselect-all commands and the
 ///     active-filter tooltip the nav strip's event-jump flyout binds to, replacing the

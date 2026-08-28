@@ -15,7 +15,7 @@ public class AnnotationHitTestTests
     [Test]
     public async Task HitsWithinHalfWidthPlusRadius()
     {
-        AnnotationElement stroke = Line(width: 6f);
+        AnnotationElement stroke = Line(6f);
 
         await Assert.That(AnnotationHitTester.HitTest(stroke, 50, 7, 5)).IsTrue()
             .Because("7 is inside half the 6-unit width plus the 5-unit eraser radius");
@@ -25,7 +25,7 @@ public class AnnotationHitTestTests
     [Test]
     public async Task MissesOutsideOutline()
     {
-        AnnotationElement stroke = Line(width: 6f);
+        AnnotationElement stroke = Line(6f);
 
         await Assert.That(AnnotationHitTester.HitTest(stroke, 50, 400, 4)).IsFalse();
         await Assert.That(AnnotationHitTester.HitTest(stroke, -400, 0, 4)).IsFalse();
@@ -34,7 +34,7 @@ public class AnnotationHitTestTests
     [Test]
     public async Task WideStroke_InteriorPointHits()
     {
-        AnnotationElement stroke = Line(width: 24f);
+        AnnotationElement stroke = Line(24f);
 
         await Assert.That(AnnotationHitTester.HitTest(stroke, 50, 0, 0)).IsTrue()
             .Because("a point in the middle of a wide stroke is inside its outline polygon");
@@ -53,8 +53,8 @@ public class AnnotationHitTestTests
     public async Task TopmostWinsWhenOverlapping()
     {
         AnnotationDocument doc = new();
-        AnnotationElement under = Line(width: 6f);
-        AnnotationElement over = Line(width: 6f);
+        AnnotationElement under = Line(6f);
+        AnnotationElement over = Line(6f);
         doc.Apply(new DocDelta.Add(under, 0));
         doc.Apply(new DocDelta.Add(over, 1));
 
@@ -71,7 +71,7 @@ public class AnnotationHitTestTests
     public async Task HitTestAll_NoHits_ReturnsZero_AndClearsTheList()
     {
         AnnotationDocument doc = new();
-        doc.Apply(new DocDelta.Add(Line(width: 6f), 0));
+        doc.Apply(new DocDelta.Add(Line(6f), 0));
 
         List<Guid> hits = [Guid.NewGuid()];
         int count = AnnotationHitTester.HitTestAll(doc, 0, 5000, 4, hits);

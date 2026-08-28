@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Text.Json;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -49,6 +50,21 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
 {
     private const double NarrowBreakpoint = 760;
 
+    // CASE-INSENSITIVE ON PURPOSE. Today the shell writes module state with
+    // JsonSerializer.SerializeToElement(state) and SettingsService reads the section with options that set no
+    // naming policy, so both sides say "StagedClips" and a default read matches. That agreement is INCIDENTAL:
+    // one `JsonSerializerDefaults.Web` added anywhere on the write path silently renames every property to
+    // camelCase, this binds nothing, and the tray restores to empty with no error anywhere — the exact silent
+    // loss this whole path exists to prevent. One flag makes the read immune to that.
+    private static readonly JsonSerializerOptions _restoreOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    private readonly DemoCacheStore _demoCache;
+
+    private readonly IFeatureGate? _featureGate;
+
     // Canonical tray ORDER. Paired with _selection rather than folded into it: a Dictionary gives the O(1)
     // IsStaged that Match Overview's [ + ] buttons need on every row build, and a List gives the sequence the
     // rendered reel is emitted in. Keeping both in sync is three lines; deriving either from the other is not.
@@ -60,10 +76,7 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
     // so the config pane needs nothing else.
     private readonly Dictionary<HighlightKey, HighlightSelection> _selection = [];
 
-    private readonly IFeatureGate? _featureGate;
-
     private readonly SettingsService? _settingsService;
-    private readonly DemoCacheStore _demoCache;
 
     /// <summary>Config-pane column star weight (splitter position).</summary>
     [ObservableProperty]
@@ -74,17 +87,23 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
     [ObservableProperty]
     private bool _isNarrow;
 
+    private ReelJobStatusViewModel? _jobStatus;
+
+    private AddClipsPickerViewModel? _picker;
+
     // Index rows only — the tray no longer holds every demo's events resident. Highlight COUNTS live on
     // the index entry precisely so this stays cheap; the fat sidecars are read one demo at a time.
     private IReadOnlyList<DemoCacheIndexEntry> _rows = [];
 
-    /// <summary>Narrow layout: the config pane is drilled into (the tray is the landing pane).</summary>
-    [ObservableProperty]
-    private bool _showConfigPane;
+    private HighlightScanStatusViewModel? _scanStatus;
 
     /// <summary>The destructive-action guard rail for <c>Clear tray</c> (an inline confirm, never a modal).</summary>
     [ObservableProperty]
     private bool _showClearConfirm;
+
+    /// <summary>Narrow layout: the config pane is drilled into (the tray is the landing pane).</summary>
+    [ObservableProperty]
+    private bool _showConfigPane;
 
     [ObservableProperty]
     private string _statusMessage = "";
@@ -154,6 +173,7 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
             _featureGate.Changed += OnFeatureGateChanged;
             ApplyEncodingGate();
         }
+
         // Self-notifying, so a composition-time registration cannot silently render a zero-height slot
         // because someone forgot the explicit raise. The failure mode was invisible by construction.
         EnrichmentSections.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasEnrichments));
@@ -178,6 +198,348 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
 
     /// <summary>True once anything is staged.</summary>
     public bool HasStagedClips => _order.Count > 0;
+
+    // ── Job strip + enrichments ───────────────────────────────────────────────
+
+    /// <summary>
+    ///     The SAME <see cref="ReelJobStatusViewModel" /> the status-strip chip is bound to (the inline
+    ///     strip is a second view of one job, never a second job model). Shell-owned and
+    ///     <see cref="IDisposable" /> — this VM subscribes but must never dispose it.
+    /// </summary>
+    public ReelJobStatusViewModel? JobStatus
+    {
+        get => _jobStatus;
+        set
+        {
+            if (ReferenceEquals(_jobStatus, value))
+            {
+                return;
+            }
+
+            if (_jobStatus is not null)
+            {
+                _jobStatus.PropertyChanged -= OnJobStatusPropertyChanged;
+            }
+
+            _jobStatus = value;
+            if (_jobStatus is not null)
+            {
+                _jobStatus.PropertyChanged += OnJobStatusPropertyChanged;
+            }
+
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ShowJobStrip));
+        }
+    }
+
+    /// <summary>
+    ///     The library-wide scan chip's view-model (the FOURTH <c>StatusChip</c> consumer),
+    ///     assigned by the shell exactly as <see cref="JobStatus" /> is: constructed and owned there, added
+    ///     to <c>MainViewModel.Chips</c> there, never disposed here.
+    ///     <para>
+    ///         It differs from <see cref="JobStatus" /> in one way worth stating, because the "never a
+    ///         second job model" rule does NOT apply: <see cref="HighlightScanStatusViewModel" /> is a pure
+    ///         projection of the scanner + cache and holds no job state, so a shell that builds its own
+    ///         instance (so the chip exists before this tab is first activated) cannot drift from this one.
+    ///     </para>
+    /// </summary>
+    public HighlightScanStatusViewModel? ScanStatus
+    {
+        get => _scanStatus;
+        set
+        {
+            if (ReferenceEquals(_scanStatus, value))
+            {
+                return;
+            }
+
+            // No PropertyChanged subscription: with the transitional badge gone the tab renders nothing
+            // derived from this mapper — the status-strip chip does, and the shell drives that.
+            _scanStatus = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    ///     The inline job strip shows only while a job exists. Without the PropertyChanged subscription in
+    ///     <see cref="JobStatus" /> this would be evaluated once at bind time and then be permanently right or
+    ///     permanently wrong — a strip that never appears, or never leaves.
+    /// </summary>
+    public bool ShowJobStrip => _jobStatus is not null && !_jobStatus.IsIdle;
+
+    /// <summary>
+    ///     The enrichment slot. An enrichment is a <c>ViewModelBase</c> appended HERE AT COMPOSITION plus a
+    ///     matching View — zero edits to this file or the view. Registering mid-run is forbidden: the slot is
+    ///     in the tree from frame one and renders zero height when empty, and a section that appears later is
+    ///     exactly the layout jump the redesign exists to prevent.
+    /// </summary>
+    public ObservableCollection<object> EnrichmentSections { get; } = [];
+
+    /// <summary>Gates the enrichment container so an empty collection costs zero height.</summary>
+    public bool HasEnrichments => EnrichmentSections.Count > 0;
+
+    // ── Scan / empty states ───────────────────────────────────────────────────
+
+    /// <summary>Reel authoring needs a real filesystem and a local CS2 — desktop only (WASM degrades).</summary>
+    public bool CanScan { get; } = !OperatingSystem.IsBrowser();
+
+    /// <summary>WASM: the tab is registered-but-degraded — an explanatory body replaces the dashboard.</summary>
+    public bool IsBrowser { get; } = OperatingSystem.IsBrowser();
+
+    // Library-wide scan progress lives in the status-strip chip now (HighlightScanStatusViewModel) —
+    // visible from every tab, which is the point: a background sweep is not a thing you should have to open
+    // the Reels tab to notice. The tab's own transitional badge and its ScanQueueSummary / ShowScanChip /
+    // ShowScanBadge / HasScanStatus backing went with it once the shell registered that chip.
+
+    /// <summary>The dashboard is the authoring surface — hidden only on the browser host.</summary>
+    public bool ShowBrowseSurface => !IsBrowser;
+
+    /// <summary>WASM degraded note — the tab's purpose is now authoring, wholly absent in a browser.</summary>
+    public bool ShowWasmNote => IsBrowser;
+
+    /// <summary>Nothing staged — the tray's own empty state (never the library's).</summary>
+    public bool ShowEmptyTray => !HasStagedClips && !IsBrowser;
+
+    /// <summary>
+    ///     A trap worth naming: "no clips staged" and "library not indexed" are DIFFERENT emptinesses. The
+    ///     primary copy is always about the tray; this secondary line appears only when no demo anywhere has a
+    ///     usable highlight record, because only then is scanning the user's actual next step.
+    /// </summary>
+    public bool ShowLibraryNotIndexedLine => ShowEmptyTray && CanScan && !AnyHighlightsIndexed;
+
+    /// <summary>The "Scan my library" CTA is offered only when nothing is already scanning.</summary>
+    public bool ShowScanCta => CanScan && !_scanner.IsScanning && _scanner.QueueLength == 0;
+
+    /// <summary>Any demo in the cache carries at least one harvested highlight (a usable T3 record).</summary>
+    public bool AnyHighlightsIndexed => _rows.Any(r => r.HighlightCount > 0);
+
+    // ── Layout flags (the shipped master-detail pattern, weights inverted) ────
+
+    /// <summary>Column span of the tray pane: full (3) when narrow, else 1.</summary>
+    public int TrayColumnSpan => IsNarrow ? 3 : 1;
+
+    /// <summary>Config pane's grid column: 0 when narrow (it replaces the tray), else 2.</summary>
+    public int ConfigColumn => IsNarrow ? 0 : 2;
+
+    /// <summary>Config pane's column span.</summary>
+    public int ConfigColumnSpan => IsNarrow ? 3 : 1;
+
+    /// <summary>Tray visible when wide, or narrow-and-not-drilled-in.</summary>
+    public bool TrayVisible => !IsNarrow || !ShowConfigPane;
+
+    /// <summary>Config pane visible when wide, or narrow-and-drilled-in.</summary>
+    public bool ConfigVisible => !IsNarrow || ShowConfigPane;
+
+    /// <summary>The GridSplitter shows only in the wide two-column layout.</summary>
+    public bool SplitterVisible => !IsNarrow;
+
+    /// <summary>"◀ Back to clips" shows only in the narrow drilled-in state.</summary>
+    public bool ShowBackButton => IsNarrow && ShowConfigPane;
+
+    /// <summary>The narrow-layout "Reel settings ▸" affordance.</summary>
+    public bool ShowConfigButton => IsNarrow && !ShowConfigPane;
+
+    /// <summary>Drives the inline note's visibility.</summary>
+    public bool HasStatusMessage => !string.IsNullOrEmpty(StatusMessage);
+
+    /// <summary>
+    ///     Tooltip for <c>Add clips…</c>. It stays ENABLED with nothing indexed — opening an honest empty
+    ///     picker that names the reason beats a disabled button the user cannot interrogate — but the tip
+    ///     says so up front.
+    /// </summary>
+    public string AddClipsHint => AnyHighlightsIndexed
+        ? "Pick highlights from across your library"
+        : "Nothing in your library has been analysed for highlights yet, so the picker will be empty.";
+
+    /// <summary>
+    ///     The open <c>Add clips…</c> picker, or null. Held here rather than in the view so the overlay
+    ///     survives the module framework's view teardown on a tab switch, like every other piece of tab state.
+    /// </summary>
+    public AddClipsPickerViewModel? Picker
+    {
+        get => _picker;
+        set
+        {
+            if (ReferenceEquals(_picker, value))
+            {
+                return;
+            }
+
+            _picker = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsPickerOpen));
+        }
+    }
+
+    /// <summary>Gates the overlay (and the scrim that swallows clicks on the dashboard behind it).</summary>
+    public bool IsPickerOpen => _picker is not null;
+
+    // ── IClipTrayHost (the ▲▼✕ seam) ──────────────────────────────────────────
+
+    /// <inheritdoc />
+    public void MoveGroup(string groupKey, int delta)
+    {
+        List<string> groups = GroupOrder();
+        int from = groups.IndexOf(groupKey);
+        if (from >= 0)
+        {
+            MoveGroupTo(groupKey, from + delta);
+        }
+    }
+
+    /// <inheritdoc />
+    public void MoveGroupTo(string groupKey, int targetIndex)
+    {
+        List<string> groups = GroupOrder();
+        int from = groups.IndexOf(groupKey);
+        if (from < 0)
+        {
+            return;
+        }
+
+        int to = Math.Clamp(targetIndex, 0, groups.Count - 1);
+        if (to == from)
+        {
+            return;
+        }
+
+        groups.RemoveAt(from);
+        groups.Insert(to, groupKey);
+
+        // Rewrite the canonical order group-by-group. This NORMALISES the tray to be group-contiguous, which
+        // is the property the renderer cares about (ReelJobService reloads the demo whenever clip.DemoPath
+        // changes). Relative order INSIDE a group is preserved.
+        Dictionary<string, List<HighlightKey>> byGroup = new(StringComparer.Ordinal);
+        foreach (HighlightKey key in _order)
+        {
+            string g = GroupKeyOf(key);
+            if (!byGroup.TryGetValue(g, out List<HighlightKey>? bucket))
+            {
+                bucket = [];
+                byGroup[g] = bucket;
+            }
+
+            bucket.Add(key);
+        }
+
+        _order.Clear();
+        foreach (string g in groups)
+        {
+            _order.AddRange(byGroup.GetValueOrDefault(g, []));
+        }
+
+        PushTray();
+    }
+
+    /// <inheritdoc />
+    public void RemoveGroup(string groupKey)
+    {
+        List<HighlightKey> doomed = [.. _order.Where(k => GroupKeyOf(k) == groupKey)];
+        if (doomed.Count == 0)
+        {
+            return;
+        }
+
+        foreach (HighlightKey key in doomed)
+        {
+            _selection.Remove(key);
+            _order.Remove(key);
+        }
+
+        PushTray();
+    }
+
+    /// <inheritdoc />
+    public void RemoveClip(HighlightKey key) => Unstage(key);
+
+    // ── IWorkspaceTabViewModel ────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public void OnActivated(IModuleContext context)
+    {
+        // Tab-activation staleness trigger. Cheap (no parse) — reconciles rows against the library and
+        // re-fingerprints, then re-projects when the store raises Changed.
+        if (CanScan)
+        {
+            _scanner.RefreshStaleness();
+        }
+
+        Reproject();
+    }
+
+    /// <inheritdoc />
+    public void OnDeactivated()
+    {
+    }
+
+    /// <inheritdoc />
+    public object? SnapshotState() => new HighlightsSessionState
+    {
+        StagedClips =
+        [
+            .. _order.Select(k => new StagedClipState
+            {
+                FilePath = k.FilePath,
+                RulesetId = k.RulesetId,
+                HighlightId = k.HighlightId,
+                Tick = k.Tick,
+                PlayerSlot = k.PlayerSlot
+            })
+        ],
+        TrayColumnStars = TrayColumnWidth.IsStar ? TrayColumnWidth.Value : 1.4,
+        ConfigColumnStars = ConfigColumnWidth.IsStar ? ConfigColumnWidth.Value : 1.0
+    };
+
+    /// <inheritdoc />
+    public void RestoreState(object? state)
+    {
+        // TWO shapes reach here and both are real. The shell round-trips module state through the session
+        // FILE, so what comes back is a JsonElement, not the DTO SnapshotState() returned — a direct cast
+        // would silently restore nothing and the tray would evaporate on every restart, which is precisely
+        // the exact loss this branch exists to prevent. The DTO branch stays because tests (and any in-process
+        // save/restore) hand back the object itself.
+        HighlightsSessionState? s = state switch
+        {
+            HighlightsSessionState direct => direct,
+            JsonElement element => TryDeserialize(element),
+            _ => null
+        };
+
+        if (s is null)
+        {
+            return;
+        }
+
+        if (s.TrayColumnStars > 0)
+        {
+            TrayColumnWidth = new GridLength(s.TrayColumnStars, GridUnitType.Star);
+        }
+
+        if (s.ConfigColumnStars > 0)
+        {
+            ConfigColumnWidth = new GridLength(s.ConfigColumnStars, GridUnitType.Star);
+        }
+
+        // Keys are RE-RESOLVED against the live cache, never trusted. A demo can be deleted, re-scanned under
+        // a new ruleset, or moved between sessions; a stale key would otherwise resurrect a clip whose window
+        // maths (tickRate / tickCount / rounds) no longer exists, and the plan would silently be wrong.
+        _selection.Clear();
+        _order.Clear();
+        int dropped = 0;
+        foreach (StagedClipState clip in s.StagedClips ?? [])
+        {
+            if (!StageQuietly(clip))
+            {
+                dropped++;
+            }
+        }
+
+        StatusMessage = dropped == 0
+            ? ""
+            : $"{dropped} staged clip{(dropped == 1 ? "" : "s")} could not be restored — the demo or its " +
+              "highlights are no longer in the cache.";
+        PushTray();
+    }
 
     /// <summary>O(1) staged test — Match Overview's <c>[ + ]</c> buttons call this per row build.</summary>
     /// <param name="key">The highlight's identity.</param>
@@ -275,325 +637,11 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
         return true;
     }
 
-    // ── IClipTrayHost (the ▲▼✕ seam) ──────────────────────────────────────────
-
-    /// <inheritdoc />
-    public void MoveGroup(string groupKey, int delta)
-    {
-        List<string> groups = GroupOrder();
-        int from = groups.IndexOf(groupKey);
-        if (from >= 0)
-        {
-            MoveGroupTo(groupKey, from + delta);
-        }
-    }
-
-    /// <inheritdoc />
-    public void MoveGroupTo(string groupKey, int targetIndex)
-    {
-        List<string> groups = GroupOrder();
-        int from = groups.IndexOf(groupKey);
-        if (from < 0)
-        {
-            return;
-        }
-
-        int to = Math.Clamp(targetIndex, 0, groups.Count - 1);
-        if (to == from)
-        {
-            return;
-        }
-
-        groups.RemoveAt(from);
-        groups.Insert(to, groupKey);
-
-        // Rewrite the canonical order group-by-group. This NORMALISES the tray to be group-contiguous, which
-        // is the property the renderer cares about (ReelJobService reloads the demo whenever clip.DemoPath
-        // changes). Relative order INSIDE a group is preserved.
-        Dictionary<string, List<HighlightKey>> byGroup = new(StringComparer.Ordinal);
-        foreach (HighlightKey key in _order)
-        {
-            string g = GroupKeyOf(key);
-            if (!byGroup.TryGetValue(g, out List<HighlightKey>? bucket))
-            {
-                bucket = [];
-                byGroup[g] = bucket;
-            }
-
-            bucket.Add(key);
-        }
-
-        _order.Clear();
-        foreach (string g in groups)
-        {
-            _order.AddRange(byGroup.GetValueOrDefault(g, []));
-        }
-
-        PushTray();
-    }
-
-    /// <inheritdoc />
-    public void RemoveGroup(string groupKey)
-    {
-        List<HighlightKey> doomed = [.. _order.Where(k => GroupKeyOf(k) == groupKey)];
-        if (doomed.Count == 0)
-        {
-            return;
-        }
-
-        foreach (HighlightKey key in doomed)
-        {
-            _selection.Remove(key);
-            _order.Remove(key);
-        }
-
-        PushTray();
-    }
-
-    /// <inheritdoc />
-    public void RemoveClip(HighlightKey key) => Unstage(key);
-
-    // ── Job strip + enrichments ───────────────────────────────────────────────
-
-    /// <summary>
-    ///     The SAME <see cref="ReelJobStatusViewModel" /> the status-strip chip is bound to (the inline
-    ///     strip is a second view of one job, never a second job model). Shell-owned and
-    ///     <see cref="IDisposable" /> — this VM subscribes but must never dispose it.
-    /// </summary>
-    public ReelJobStatusViewModel? JobStatus
-    {
-        get => _jobStatus;
-        set
-        {
-            if (ReferenceEquals(_jobStatus, value))
-            {
-                return;
-            }
-
-            if (_jobStatus is not null)
-            {
-                _jobStatus.PropertyChanged -= OnJobStatusPropertyChanged;
-            }
-
-            _jobStatus = value;
-            if (_jobStatus is not null)
-            {
-                _jobStatus.PropertyChanged += OnJobStatusPropertyChanged;
-            }
-
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(ShowJobStrip));
-        }
-    }
-
-    private ReelJobStatusViewModel? _jobStatus;
-
-    /// <summary>
-    ///     The library-wide scan chip's view-model (the FOURTH <c>StatusChip</c> consumer),
-    ///     assigned by the shell exactly as <see cref="JobStatus" /> is: constructed and owned there, added
-    ///     to <c>MainViewModel.Chips</c> there, never disposed here.
-    ///     <para>
-    ///         It differs from <see cref="JobStatus" /> in one way worth stating, because the "never a
-    ///         second job model" rule does NOT apply: <see cref="HighlightScanStatusViewModel" /> is a pure
-    ///         projection of the scanner + cache and holds no job state, so a shell that builds its own
-    ///         instance (so the chip exists before this tab is first activated) cannot drift from this one.
-    ///     </para>
-    /// </summary>
-    public HighlightScanStatusViewModel? ScanStatus
-    {
-        get => _scanStatus;
-        set
-        {
-            if (ReferenceEquals(_scanStatus, value))
-            {
-                return;
-            }
-
-            // No PropertyChanged subscription: with the transitional badge gone the tab renders nothing
-            // derived from this mapper — the status-strip chip does, and the shell drives that.
-            _scanStatus = value;
-            OnPropertyChanged();
-        }
-    }
-
-    private HighlightScanStatusViewModel? _scanStatus;
-
-    /// <summary>
-    ///     The inline job strip shows only while a job exists. Without the PropertyChanged subscription in
-    ///     <see cref="JobStatus" /> this would be evaluated once at bind time and then be permanently right or
-    ///     permanently wrong — a strip that never appears, or never leaves.
-    /// </summary>
-    public bool ShowJobStrip => _jobStatus is not null && !_jobStatus.IsIdle;
-
-    /// <summary>
-    ///     The enrichment slot. An enrichment is a <c>ViewModelBase</c> appended HERE AT COMPOSITION plus a
-    ///     matching View — zero edits to this file or the view. Registering mid-run is forbidden: the slot is
-    ///     in the tree from frame one and renders zero height when empty, and a section that appears later is
-    ///     exactly the layout jump the redesign exists to prevent.
-    /// </summary>
-    public ObservableCollection<object> EnrichmentSections { get; } = [];
-
-    /// <summary>Gates the enrichment container so an empty collection costs zero height.</summary>
-    public bool HasEnrichments => EnrichmentSections.Count > 0;
-
     /// <summary>
     ///     Re-raises <see cref="HasEnrichments" />. The constructor already subscribes to the collection, so
     ///     callers do not have to remember this — it stays public only as an explicit escape hatch.
     /// </summary>
     public void NotifyEnrichmentsChanged() => OnPropertyChanged(nameof(HasEnrichments));
-
-    // ── Scan / empty states ───────────────────────────────────────────────────
-
-    /// <summary>Reel authoring needs a real filesystem and a local CS2 — desktop only (WASM degrades).</summary>
-    public bool CanScan { get; } = !OperatingSystem.IsBrowser();
-
-    /// <summary>WASM: the tab is registered-but-degraded — an explanatory body replaces the dashboard.</summary>
-    public bool IsBrowser { get; } = OperatingSystem.IsBrowser();
-
-    // Library-wide scan progress lives in the status-strip chip now (HighlightScanStatusViewModel) —
-    // visible from every tab, which is the point: a background sweep is not a thing you should have to open
-    // the Reels tab to notice. The tab's own transitional badge and its ScanQueueSummary / ShowScanChip /
-    // ShowScanBadge / HasScanStatus backing went with it once the shell registered that chip.
-
-    /// <summary>The dashboard is the authoring surface — hidden only on the browser host.</summary>
-    public bool ShowBrowseSurface => !IsBrowser;
-
-    /// <summary>WASM degraded note — the tab's purpose is now authoring, wholly absent in a browser.</summary>
-    public bool ShowWasmNote => IsBrowser;
-
-    /// <summary>Nothing staged — the tray's own empty state (never the library's).</summary>
-    public bool ShowEmptyTray => !HasStagedClips && !IsBrowser;
-
-    /// <summary>
-    ///     A trap worth naming: "no clips staged" and "library not indexed" are DIFFERENT emptinesses. The
-    ///     primary copy is always about the tray; this secondary line appears only when no demo anywhere has a
-    ///     usable highlight record, because only then is scanning the user's actual next step.
-    /// </summary>
-    public bool ShowLibraryNotIndexedLine => ShowEmptyTray && CanScan && !AnyHighlightsIndexed;
-
-    /// <summary>The "Scan my library" CTA is offered only when nothing is already scanning.</summary>
-    public bool ShowScanCta => CanScan && !_scanner.IsScanning && _scanner.QueueLength == 0;
-
-    /// <summary>Any demo in the cache carries at least one harvested highlight (a usable T3 record).</summary>
-    public bool AnyHighlightsIndexed => _rows.Any(r => r.HighlightCount > 0);
-
-    // ── Layout flags (the shipped master-detail pattern, weights inverted) ────
-
-    /// <summary>Column span of the tray pane: full (3) when narrow, else 1.</summary>
-    public int TrayColumnSpan => IsNarrow ? 3 : 1;
-
-    /// <summary>Config pane's grid column: 0 when narrow (it replaces the tray), else 2.</summary>
-    public int ConfigColumn => IsNarrow ? 0 : 2;
-
-    /// <summary>Config pane's column span.</summary>
-    public int ConfigColumnSpan => IsNarrow ? 3 : 1;
-
-    /// <summary>Tray visible when wide, or narrow-and-not-drilled-in.</summary>
-    public bool TrayVisible => !IsNarrow || !ShowConfigPane;
-
-    /// <summary>Config pane visible when wide, or narrow-and-drilled-in.</summary>
-    public bool ConfigVisible => !IsNarrow || ShowConfigPane;
-
-    /// <summary>The GridSplitter shows only in the wide two-column layout.</summary>
-    public bool SplitterVisible => !IsNarrow;
-
-    /// <summary>"◀ Back to clips" shows only in the narrow drilled-in state.</summary>
-    public bool ShowBackButton => IsNarrow && ShowConfigPane;
-
-    /// <summary>The narrow-layout "Reel settings ▸" affordance.</summary>
-    public bool ShowConfigButton => IsNarrow && !ShowConfigPane;
-
-    /// <summary>Drives the inline note's visibility.</summary>
-    public bool HasStatusMessage => !string.IsNullOrEmpty(StatusMessage);
-
-    // ── IWorkspaceTabViewModel ────────────────────────────────────────────────
-
-    /// <inheritdoc />
-    public void OnActivated(IModuleContext context)
-    {
-        // Tab-activation staleness trigger. Cheap (no parse) — reconciles rows against the library and
-        // re-fingerprints, then re-projects when the store raises Changed.
-        if (CanScan)
-        {
-            _scanner.RefreshStaleness();
-        }
-
-        Reproject();
-    }
-
-    /// <inheritdoc />
-    public void OnDeactivated()
-    {
-    }
-
-    /// <inheritdoc />
-    public object? SnapshotState() => new HighlightsSessionState
-    {
-        StagedClips =
-        [
-            .. _order.Select(k => new StagedClipState
-            {
-                FilePath = k.FilePath,
-                RulesetId = k.RulesetId,
-                HighlightId = k.HighlightId,
-                Tick = k.Tick,
-                PlayerSlot = k.PlayerSlot
-            })
-        ],
-        TrayColumnStars = TrayColumnWidth.IsStar ? TrayColumnWidth.Value : 1.4,
-        ConfigColumnStars = ConfigColumnWidth.IsStar ? ConfigColumnWidth.Value : 1.0
-    };
-
-    /// <inheritdoc />
-    public void RestoreState(object? state)
-    {
-        // TWO shapes reach here and both are real. The shell round-trips module state through the session
-        // FILE, so what comes back is a JsonElement, not the DTO SnapshotState() returned — a direct cast
-        // would silently restore nothing and the tray would evaporate on every restart, which is precisely
-        // the exact loss this branch exists to prevent. The DTO branch stays because tests (and any in-process
-        // save/restore) hand back the object itself.
-        HighlightsSessionState? s = state switch
-        {
-            HighlightsSessionState direct => direct,
-            JsonElement element => TryDeserialize(element),
-            _ => null
-        };
-
-        if (s is null)
-        {
-            return;
-        }
-
-        if (s.TrayColumnStars > 0)
-        {
-            TrayColumnWidth = new GridLength(s.TrayColumnStars, GridUnitType.Star);
-        }
-
-        if (s.ConfigColumnStars > 0)
-        {
-            ConfigColumnWidth = new GridLength(s.ConfigColumnStars, GridUnitType.Star);
-        }
-
-        // Keys are RE-RESOLVED against the live cache, never trusted. A demo can be deleted, re-scanned under
-        // a new ruleset, or moved between sessions; a stale key would otherwise resurrect a clip whose window
-        // maths (tickRate / tickCount / rounds) no longer exists, and the plan would silently be wrong.
-        _selection.Clear();
-        _order.Clear();
-        int dropped = 0;
-        foreach (StagedClipState clip in s.StagedClips ?? [])
-        {
-            if (!StageQuietly(clip))
-            {
-                dropped++;
-            }
-        }
-
-        StatusMessage = dropped == 0
-            ? ""
-            : $"{dropped} staged clip{(dropped == 1 ? "" : "s")} could not be restored — the demo or its " +
-              "highlights are no longer in the cache.";
-        PushTray();
-    }
 
     // A session file is user-writable, survives app versions, and predates any field this DTO grows later —
     // so a shape that no longer matches must degrade to "restore nothing", not throw. Activate() wraps this
@@ -616,17 +664,6 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
             return null;
         }
     }
-
-    // CASE-INSENSITIVE ON PURPOSE. Today the shell writes module state with
-    // JsonSerializer.SerializeToElement(state) and SettingsService reads the section with options that set no
-    // naming policy, so both sides say "StagedClips" and a default read matches. That agreement is INCIDENTAL:
-    // one `JsonSerializerDefaults.Web` added anywhere on the write path silently renames every property to
-    // camelCase, this binds nothing, and the tray restores to empty with no error anywhere — the exact silent
-    // loss this whole path exists to prevent. One flag makes the read immune to that.
-    private static readonly JsonSerializerOptions _restoreOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
 
     partial void OnStatusMessageChanged(string value) => OnPropertyChanged(nameof(HasStatusMessage));
 
@@ -660,8 +697,7 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
         // visible hitch respectively, and it scales with the library. Only sidecars the index says carry
         // highlights are opened; the rest cost a dictionary read.
         int libraryRowCount = _demoCache.Count;
-        List<DemoCacheRecord> records = await Task.Run(
-            () => _demoCache.LoadRecords(e => e.HighlightCount > 0));
+        List<DemoCacheRecord> records = await Task.Run(() => _demoCache.LoadRecords(e => e.HighlightCount > 0));
 
         // Re-opening rebuilds from the CURRENT cache: the picker snapshots rows deliberately (a backfill
         // would otherwise reset scroll and wipe the multi-select mid-assembly), so "re-open to see new
@@ -679,40 +715,6 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
             CanScan ? _scanner.RescanAll : null,
             _scanner.QueueLength);
     }
-
-    /// <summary>
-    ///     Tooltip for <c>Add clips…</c>. It stays ENABLED with nothing indexed — opening an honest empty
-    ///     picker that names the reason beats a disabled button the user cannot interrogate — but the tip
-    ///     says so up front.
-    /// </summary>
-    public string AddClipsHint => AnyHighlightsIndexed
-        ? "Pick highlights from across your library"
-        : "Nothing in your library has been analysed for highlights yet, so the picker will be empty.";
-
-    /// <summary>
-    ///     The open <c>Add clips…</c> picker, or null. Held here rather than in the view so the overlay
-    ///     survives the module framework's view teardown on a tab switch, like every other piece of tab state.
-    /// </summary>
-    public AddClipsPickerViewModel? Picker
-    {
-        get => _picker;
-        set
-        {
-            if (ReferenceEquals(_picker, value))
-            {
-                return;
-            }
-
-            _picker = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(IsPickerOpen));
-        }
-    }
-
-    private AddClipsPickerViewModel? _picker;
-
-    /// <summary>Gates the overlay (and the scrim that swallows clicks on the dashboard behind it).</summary>
-    public bool IsPickerOpen => _picker is not null;
 
     /// <summary>Dismisses the picker — the scrim click, the ✕, and Escape all land here.</summary>
     [RelayCommand]
@@ -813,7 +815,7 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
 
     private void OnScanProgressChanged() => RaiseScanState();
 
-    private void OnJobStatusPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
+    private void OnJobStatusPropertyChanged(object? sender, PropertyChangedEventArgs e) =>
         OnPropertyChanged(nameof(ShowJobStrip));
 
     private void RaiseScanState()

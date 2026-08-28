@@ -1,8 +1,8 @@
 #region
 
 using CS2DemoKit.Analysis;
-using DemoViewer.NET.Modules.Highlights;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.Highlights;
 using DemoViewer.NET.ViewModels.MatchOverview;
@@ -33,19 +33,6 @@ public class MatchOverviewStagingTests
         return (new HighlightsTabViewModel(demoCache, scanner), demoCache);
     }
 
-    private sealed class NoopHarvester : IHighlightHarvester
-    {
-        public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate)
-            => ("fp", new Dictionary<string, string>());
-
-        public AnalysisRun RunBareAnalysis(ParsedDemo demo) =>
-            throw new NotSupportedException("staging tests never scan");
-
-        public void InvalidateRules()
-        {
-        }
-    }
-
     // The one demo both surfaces read: Match Overview renders it, the tray windows clips out of it.
     private static DemoCacheRecord Record() => new()
     {
@@ -53,16 +40,37 @@ public class MatchOverviewStagingTests
         Size = 10,
         ModifiedTicks = 20,
         Map = "de_dust2",
-        Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 },
-        Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 },
+        Parse = new TierStamp
+        {
+            Schema = DemoCacheRecord.ParseSchema,
+            ComputedAtTicks = 1
+        },
+        Analysis = new TierStamp
+        {
+            Schema = DemoCacheRecord.AnalysisSchema,
+            ComputedAtTicks = 1
+        },
         AnalysisState = DemoAnalysisState.Indexed,
-        Players = [new CachedPlayerInfo { Slot = 1, Name = "s1mple", SteamId64 = "765", Team = 3 }],
+        Players =
+        [
+            new CachedPlayerInfo
+            {
+                Slot = 1,
+                Name = "s1mple",
+                SteamId64 = "765",
+                Team = 3
+            }
+        ],
         Highlights =
         [
             new CachedHighlightEvent
             {
-                RulesetId = "clutch", HighlightId = "ace", Tick = 54_000,
-                PlayerSlot = 1, RoundNumber = 7, RenderedTitle = "s1mple — ace"
+                RulesetId = "clutch",
+                HighlightId = "ace",
+                Tick = 54_000,
+                PlayerSlot = 1,
+                RoundNumber = 7,
+                RenderedTitle = "s1mple — ace"
             }
         ]
     };
@@ -179,26 +187,55 @@ public class MatchOverviewStagingTests
         Size = 10,
         ModifiedTicks = 20,
         Map = "de_dust2",
-        Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 },
-        Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 },
+        Parse = new TierStamp
+        {
+            Schema = DemoCacheRecord.ParseSchema,
+            ComputedAtTicks = 1
+        },
+        Analysis = new TierStamp
+        {
+            Schema = DemoCacheRecord.AnalysisSchema,
+            ComputedAtTicks = 1
+        },
         AnalysisState = DemoAnalysisState.Indexed,
-        Players = [new CachedPlayerInfo { Slot = 1, Name = "s1mple", SteamId64 = "765", Team = 3 }],
+        Players =
+        [
+            new CachedPlayerInfo
+            {
+                Slot = 1,
+                Name = "s1mple",
+                SteamId64 = "765",
+                Team = 3
+            }
+        ],
         Highlights =
         [
             new CachedHighlightEvent
             {
-                RulesetId = "clutch", HighlightId = "ace", Tick = 54_000,
-                PlayerSlot = 1, RoundNumber = 7, RenderedTitle = "s1mple — ace"
+                RulesetId = "clutch",
+                HighlightId = "ace",
+                Tick = 54_000,
+                PlayerSlot = 1,
+                RoundNumber = 7,
+                RenderedTitle = "s1mple — ace"
             },
             new CachedHighlightEvent
             {
-                RulesetId = "multikill", HighlightId = "quad_kill", Tick = 61_000,
-                PlayerSlot = 1, RoundNumber = 9, RenderedTitle = "s1mple — 4K"
+                RulesetId = "multikill",
+                HighlightId = "quad_kill",
+                Tick = 61_000,
+                PlayerSlot = 1,
+                RoundNumber = 9,
+                RenderedTitle = "s1mple — 4K"
             },
             new CachedHighlightEvent
             {
-                RulesetId = "objective", HighlightId = "ninja_defuse", Tick = 72_000,
-                PlayerSlot = 1, RoundNumber = 12, RenderedTitle = "s1mple — ninja defuse"
+                RulesetId = "objective",
+                HighlightId = "ninja_defuse",
+                Tick = 72_000,
+                PlayerSlot = 1,
+                RoundNumber = 12,
+                RenderedTitle = "s1mple — ninja defuse"
             }
         ]
     };
@@ -248,6 +285,19 @@ public class MatchOverviewStagingTests
         {
             await Assert.That(group.Highlights.All(h => h.IsStaged)).IsTrue();
             await Assert.That(multiTray.StagedCount).IsEqualTo(3);
+        }
+    }
+
+    private sealed class NoopHarvester : IHighlightHarvester
+    {
+        public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate)
+            => ("fp", new Dictionary<string, string>());
+
+        public AnalysisRun RunBareAnalysis(ParsedDemo demo) =>
+            throw new NotSupportedException("staging tests never scan");
+
+        public void InvalidateRules()
+        {
         }
     }
 }

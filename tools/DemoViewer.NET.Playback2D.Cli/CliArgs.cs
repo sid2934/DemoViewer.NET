@@ -31,7 +31,7 @@ internal sealed class CliUsageException : Exception
 }
 
 /// <summary>
-///     The hand-rolled argument parser (C1 decision 2 — no new dependency). It understands both repo
+///     The hand-rolled argument parser (C1 decision 2: no new dependency). It understands both repo
 ///     styles, <c>--name value</c> (DemoTrimmer) and <c>--name=value</c> (AnalysisBench), plus bare
 ///     flags, leading positional verbs and a <c>--</c> terminator.
 ///     <para>
@@ -43,8 +43,8 @@ internal sealed class CliUsageException : Exception
 internal sealed class CliArgs
 {
     private readonly HashSet<string> _consumed = new(StringComparer.Ordinal);
-    private readonly List<string> _order = [];
     private readonly Dictionary<string, string?> _options = new(StringComparer.Ordinal);
+    private readonly List<string> _order = [];
     private readonly List<string> _positional = [];
 
     private CliArgs()

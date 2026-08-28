@@ -117,7 +117,7 @@ public class RenderSurfaceProbeTests
     [Test]
     public async Task Create_ExplicitPreference_OutranksTheEnvironment()
     {
-        using ProbeEnvironment env = ProbeEnvironment.WithBackend("cpu", missingEglLibrary: true);
+        using ProbeEnvironment env = ProbeEnvironment.WithBackend("cpu", true);
 
         InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(() =>
             RenderSurfaceProviderFactory.Create(RenderBackendPreference.ForceGpu));
@@ -142,7 +142,7 @@ public class RenderSurfaceProbeTests
     [Test]
     public async Task Create_ForceGpu_ConsultsTheHardware_EvenWhenTheEnvironmentSaysCpu()
     {
-        using ProbeEnvironment env = ProbeEnvironment.WithBackend("cpu", missingEglLibrary: true);
+        using ProbeEnvironment env = ProbeEnvironment.WithBackend("cpu", true);
 
         InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(() =>
             RenderSurfaceProviderFactory.Create(RenderBackendPreference.ForceGpu));

@@ -1,11 +1,10 @@
 #region
 
 using System.Numerics;
+using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
-using CS2DemoKit.Analysis.Visibility;
 using TUnit.Core.Exceptions;
 
 #endregion

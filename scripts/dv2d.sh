@@ -5,6 +5,6 @@
 #   scripts/dv2d.sh golden verify
 #   scripts/dv2d.sh bench --name duel-mirage-b --frames 512 --gate
 #
-# Exit codes pass through unchanged — in particular 4 means "a gate failed", which is the only code
-# CI treats as "the change is bad".
+# Exit codes pass through unchanged. In particular 4 means "a gate failed", the only code CI treats as
+# "the change is bad".
 exec dotnet run -c Release --project "$(dirname "$0")/../tools/DemoViewer.NET.Playback2D.Cli" -- "$@"

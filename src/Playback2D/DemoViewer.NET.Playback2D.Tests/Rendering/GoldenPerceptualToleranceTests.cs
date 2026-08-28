@@ -18,6 +18,20 @@ namespace DemoViewer.NET.Playback2DTests.Rendering;
 /// </summary>
 public class GoldenPerceptualToleranceTests
 {
+    // ── The glyph tier ──────────────────────────────────────────────────────────────────────────────
+    // GoldenTolerance.ForLabelledFrame resolves per platform, so asserting the comparator's RULES
+    // through it would test one branch on Windows and the other on Linux. These use an open tier as a
+    // literal instead (a stand-in for the shape the factory produces, not its numbers). The factory's
+    // own policy is pinned separately below.
+
+    private static readonly GoldenTolerance _openGlyphTier =
+        GoldenTolerance.DefaultPerceptual with
+        {
+            GlyphOutlierChannelDelta = 96,
+            MaxGlyphOutlierFraction = 0.0001,
+            MinWindowSsim = 0.90
+        };
+
     [Test]
     public async Task Identical_Passes_WithPerfectSsim()
     {
@@ -34,10 +48,9 @@ public class GoldenPerceptualToleranceTests
     }
 
     /// <summary>
-    ///     A uniform lift inside the 8/255 band passes — on a mid-to-bright base. SSIM's luminance term
-    ///     is a ratio, so the same absolute step is a larger relative change on a dark base; the
-    ///     companion case below pins that, because it is the sort of asymmetry a future reader would
-    ///     otherwise rediscover as a mysterious flake.
+    ///     A uniform lift inside the 8/255 band passes on a mid-to-bright base. SSIM's luminance term is
+    ///     a ratio, so the same absolute step is a larger relative change on a dark base; the companion
+    ///     case below pins that asymmetry, which otherwise gets rediscovered as a mysterious flake.
     /// </summary>
     [Test]
     public async Task UniformPlusSix_OnABrightBase_Passes()
@@ -88,8 +101,8 @@ public class GoldenPerceptualToleranceTests
 
     /// <summary>
     ///     Two percent of pixels lifted by 20: under the 32 ceiling, so the fraction rule is what
-    ///     must catch it. Distinguishing the two failures matters — one means "a few edges rounded
-    ///     differently", the other means "something moved".
+    ///     must catch it. The two failures mean different things: "a few edges rounded differently"
+    ///     against "something moved".
     /// </summary>
     [Test]
     public async Task SparseLifts_OverTheFractionBudget_Fail()
@@ -124,14 +137,14 @@ public class GoldenPerceptualToleranceTests
     }
 
     /// <summary>
-    ///     The boundary case this policy pins. A lone pixel lifted 30 levels sits under both
-    ///     per-channel rules — under the 32 ceiling and far under the 0.5 % budget — and still fails, on
-    ///     the worst-window SSIM.
+    ///     The boundary case this policy pins. A lone pixel lifted 30 levels sits under both per-channel
+    ///     rules (under the 32 ceiling and far under the 0.5 % budget) and still fails, on the
+    ///     worst-window SSIM.
     ///     <para>
-    ///         That is the metric doing exactly its job rather than a false positive: a solitary spike in
-    ///         an otherwise flat neighbourhood is local structure that was not there before, which is the
-    ///         same signature as a missing glyph or a stray marker. It is also why the windowed floor,
-    ///         not the mean, is the interesting number — a global mean averages one bad window away.
+    ///         Not a false positive: a solitary spike in an otherwise flat neighbourhood is local
+    ///         structure that was not there before, the same signature as a missing glyph or a stray
+    ///         marker. It is also why the windowed floor is the interesting number and the mean is not.
+    ///         A global mean averages one bad window away.
     ///     </para>
     /// </summary>
     [Test]
@@ -154,7 +167,7 @@ public class GoldenPerceptualToleranceTests
 
     /// <summary>
     ///     <b>The case per-channel tolerance alone would pass.</b> A low-amplitude checkerboard shifted
-    ///     one pixel changes every pixel by six levels — inside the band, zero outliers, no alpha drift —
+    ///     one pixel changes every pixel by six levels: inside the band, zero outliers, no alpha drift,
     ///     while the structure is now anti-correlated with the original. If this test ever goes green,
     ///     SSIM has stopped working and the whole cross-backend policy is decorative.
     /// </summary>
@@ -211,7 +224,7 @@ public class GoldenPerceptualToleranceTests
     }
 
     /// <summary>
-    ///     An image narrower than the 11×11 window still gets a real SSIM rather than a free pass — the
+    ///     An image narrower than the 11×11 window still gets a real SSIM rather than a free pass: the
     ///     window shrinks to fit. A thumbnail comparison that silently reported 1.0 would be worse than
     ///     no comparison at all.
     /// </summary>
@@ -235,8 +248,8 @@ public class GoldenPerceptualToleranceTests
     ///     of the Gaussian weights.
     ///     <para>
     ///         This is the case that catches a wrong <c>C₁</c>, a mis-normalised kernel, or luma weights
-    ///         that do not sum to one — none of which the pass/fail cases above would notice, because
-    ///         every one of them would still fall on the same side of its threshold.
+    ///         that do not sum to one. The pass/fail cases above notice none of those: every one of them
+    ///         would still fall on the same side of its threshold.
     ///     </para>
     /// </summary>
     [Test]
@@ -249,7 +262,7 @@ public class GoldenPerceptualToleranceTests
             GoldenImageComparer.Compare(expected, actual, GoldenTolerance.DefaultPerceptual);
 
         const double c1 = 0.01 * 255 * (0.01 * 255);
-        double closedForm = ((2 * 100.0 * 110.0) + c1) / ((100.0 * 100.0) + (110.0 * 110.0) + c1);
+        double closedForm = (2 * 100.0 * 110.0 + c1) / (100.0 * 100.0 + 110.0 * 110.0 + c1);
 
         await Assert.That(closedForm).IsEqualTo(0.99547).Within(0.00001);
         await Assert.That(result.Ssim).IsEqualTo(closedForm).Within(0.00002);
@@ -257,16 +270,16 @@ public class GoldenPerceptualToleranceTests
     }
 
     /// <summary>
-    ///     The other half of the formula — the contrast/structure term, which the flat case leaves at
+    ///     The other half of the formula: the contrast/structure term, which the flat case leaves at
     ///     exactly 1 and therefore cannot test at all.
     ///     <para>
     ///         A period-2 checkerboard of <c>m ± d</c> has, under any symmetric normalised window,
     ///         μ = m and σ² = d²; shifting it one pixel flips its sign, giving σxy = −d² while μ is
     ///         unchanged. SSIM then reduces to <c>(−2d² + C₂) / (2d² + C₂)</c> with
     ///         <c>C₂ = (0.03·255)² = 58.5225</c>, which for d = 3 is
-    ///         <c>40.5225 / 76.5225 = 0.529554…</c> — pinning the covariance path, <c>C₂</c>, and the
-    ///         separable two-pass convolution together, since a pass that failed to compose into a true
-    ///         2-D window would not land on this number.
+    ///         <c>40.5225 / 76.5225 = 0.529554…</c>. That pins the covariance path, <c>C₂</c>, and the
+    ///         separable two-pass convolution together: a pass that failed to compose into a true 2-D
+    ///         window would not land on this number.
     ///     </para>
     /// </summary>
     [Test]
@@ -280,45 +293,33 @@ public class GoldenPerceptualToleranceTests
 
         const double c2 = 0.03 * 255 * (0.03 * 255);
         const double variance = 3.0 * 3.0;
-        double closedForm = ((-2 * variance) + c2) / ((2 * variance) + c2);
+        double closedForm = (-2 * variance + c2) / (2 * variance + c2);
 
         await Assert.That(closedForm).IsEqualTo(0.52955).Within(0.00001);
         await Assert.That(result.Ssim).IsEqualTo(closedForm).Within(0.0005);
         await Assert.That(result.MinWindowSsim).IsEqualTo(closedForm).Within(0.0005);
     }
 
-    // ── The glyph tier ──────────────────────────────────────────────────────────────────────────────
-    // GoldenTolerance.ForLabelledFrame resolves per platform, so asserting the comparator's RULES
-    // through it would test one branch on Windows and the other on Linux. These use an open tier as a
-    // literal instead — a stand-in for the shape the factory produces, not its numbers — and the
-    // factory's own policy is pinned separately below.
-
-    private static readonly GoldenTolerance _openGlyphTier =
-        GoldenTolerance.DefaultPerceptual with
-        {
-            GlyphOutlierChannelDelta = 96,
-            MaxGlyphOutlierFraction = 0.0001,
-            MinWindowSsim = 0.90
-        };
-
     // The channel rules, isolated. A lone 70-level spike in a flat field is exactly the local structure
     // ALonePixelUnderBothChannelRules_StillFailsOnWindowedSsim exists to catch, so SSIM is stood down
     // here to keep each case about one rule.
     private static GoldenTolerance ChannelRulesOnly(GoldenTolerance tolerance) =>
-        tolerance with { MinSsim = 0, MinWindowSsim = 0 };
+        tolerance with
+        {
+            MinSsim = 0,
+            MinWindowSsim = 0
+        };
 
     /// <summary>
-    ///     <b>The Windows gate did not move.</b> Every stock tolerance keeps the glyph tier shut, which is
-    ///     what makes the two rules added for it collapse back into the single ceiling rule the
-    ///     comparator has always had.
+    ///     <b>The Windows gate is unchanged.</b> Every stock tolerance keeps the glyph tier shut, which
+    ///     collapses the two rules added for it back into the comparator's single ceiling rule.
     /// </summary>
     [Test]
     public async Task EveryStockTolerance_KeepsTheGlyphTierClosed()
     {
         foreach (GoldenTolerance tolerance in new[]
                  {
-                     GoldenTolerance.ByteExact, GoldenTolerance.DefaultPerceptual,
-                     GoldenTolerance.CrossBackend
+                     GoldenTolerance.ByteExact, GoldenTolerance.DefaultPerceptual, GoldenTolerance.CrossBackend
                  })
         {
             await Assert.That(tolerance.GlyphOutlierChannelDelta).IsEqualTo(0);
@@ -336,8 +337,8 @@ public class GoldenPerceptualToleranceTests
     /// <summary>
     ///     The platform policy, stated as an assertion rather than left implicit in a factory: on the
     ///     machine that authored the corpus a text-bearing golden is judged by exactly the default
-    ///     budget, and off it by the default budget plus three named, bounded allowances — the third of
-    ///     which is counted in labels, so a frame that draws none gets no allowance on any platform.
+    ///     budget, and off it by the default budget plus three named, bounded allowances. The third is
+    ///     counted in labels, so a frame that draws none gets no allowance on any platform.
     /// </summary>
     [Test]
     public async Task ForLabelledFrame_RelaxesNothing_OnTheAuthoringPlatform()
@@ -412,7 +413,7 @@ public class GoldenPerceptualToleranceTests
 
     /// <summary>
     ///     And the tier has a ceiling of its own. One pixel at 130 is past 96, so it fails however few
-    ///     pixels are involved — a wrong colour is not a rasterisation difference at any count.
+    ///     pixels are involved. A wrong colour is not a rasterisation difference at any count.
     /// </summary>
     [Test]
     public async Task TheGlyphTier_StillFails_AboveItsOwnCeiling()

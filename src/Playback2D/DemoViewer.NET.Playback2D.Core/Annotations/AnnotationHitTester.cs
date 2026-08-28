@@ -8,13 +8,13 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Core.Annotations;
 
 /// <summary>
-///     Stroke-level hit-testing for the eraser. Erase removes WHOLE elements — there is no pixel erase
-///     anywhere in the codebase, and design §5.4 defers it explicitly, so the only question this type
-///     answers is "does the eraser disc touch this element".
+///     Stroke-level hit-testing for the eraser. Erase removes WHOLE elements; there is no pixel erase
+///     anywhere in the codebase, so the only question this type answers is "does the eraser disc touch
+///     this element".
 ///     <para>
 ///         Three tiers, cheapest first: an axis-aligned bounds reject, a point-to-polyline distance
-///         against the raw samples inflated by half the stroke width plus the eraser radius, and — for a
-///         stroke wide enough that the inflation is a visible over-estimate — an exact test against the
+///         against the raw samples inflated by half the stroke width plus the eraser radius, and, for a
+///         stroke wide enough that the inflation is a visible over-estimate, an exact test against the
 ///         derived outline polygon.
 ///     </para>
 /// </summary>
@@ -26,9 +26,14 @@ public static class AnnotationHitTester
     /// </summary>
     private const float WideStrokeWorld = 8f;
 
-    [ThreadStatic] private static List<StrokePoint>? _scratch;
-    [ThreadStatic] private static List<SKPoint>? _outline;
-    [ThreadStatic] private static InkPoint[]? _samples;
+    [ThreadStatic]
+    private static List<StrokePoint>? _scratch;
+
+    [ThreadStatic]
+    private static List<SKPoint>? _outline;
+
+    [ThreadStatic]
+    private static InkPoint[]? _samples;
 
     /// <summary>
     ///     Whether the eraser disc at <paramref name="worldX" />/<paramref name="worldY" /> with radius
@@ -77,8 +82,8 @@ public static class AnnotationHitTester
     }
 
     /// <summary>
-    ///     Every element the eraser disc touches, <b>topmost first</b> — the document draws oldest-first,
-    ///     so the last element is the one the user sees on top and the one they mean to erase.
+    ///     Every element the eraser disc touches, <b>topmost first</b>. The document draws oldest-first,
+    ///     so the last element is the one the user sees on top and means to erase.
     /// </summary>
     /// <param name="doc">The document to search.</param>
     /// <param name="worldX">Eraser centre, world X.</param>
@@ -163,7 +168,7 @@ public static class AnnotationHitTester
         FreehandOutline.GetOutline(_samples.AsSpan(0, count), in options, scratch, outline);
         if (outline.Count < 3)
         {
-            return true; // degenerate outline — the polyline test already said yes
+            return true; // degenerate outline; the polyline test already said yes
         }
 
         if (PointInPolygon(outline, x, y))

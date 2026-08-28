@@ -1,3 +1,5 @@
+using System.Security;
+
 namespace DemoViewer.NET.Playback2D.Core.Rendering;
 
 /// <summary>
@@ -73,7 +75,7 @@ public static class RenderBackendPreferenceParser
         {
             value = Environment.GetEnvironmentVariable(variable);
         }
-        catch (System.Security.SecurityException)
+        catch (SecurityException)
         {
             // A sandboxed host that refuses environment reads is not an error condition for us: it
             // simply means nobody expressed a preference here.

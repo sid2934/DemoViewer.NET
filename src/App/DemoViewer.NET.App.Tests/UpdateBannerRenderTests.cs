@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.Layout;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
@@ -38,7 +39,7 @@ public class UpdateBannerRenderTests
             await vm.CheckOnStartupAsync();
             await Assert.That(vm.IsUpdateAvailable).IsTrue();
 
-            Window window = BuildBannerWindow(vm, offer: true);
+            Window window = BuildBannerWindow(vm, true);
             WriteableBitmap? frame = Render(window);
             await Assert.That(frame).IsNotNull();
 
@@ -60,7 +61,7 @@ public class UpdateBannerRenderTests
             UpdateViewModel vm = new(new StubService());
             await vm.CheckOnStartupAsync();
 
-            Window window = BuildBannerWindow(vm, offer: false);
+            Window window = BuildBannerWindow(vm, false);
             WriteableBitmap? frame = Render(window);
             await Assert.That(frame).IsNotNull();
 
@@ -89,33 +90,56 @@ public class UpdateBannerRenderTests
                     new TextBlock
                     {
                         Text = $"DemoViewer.NET {vm.AvailableVersion} is available.",
-                        VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+                        VerticalAlignment = VerticalAlignment.Center
                     },
                     new StackPanel
                     {
-                        Orientation = Avalonia.Layout.Orientation.Horizontal,
+                        Orientation = Orientation.Horizontal,
                         Spacing = 8,
                         Children =
                         {
                             // "Details…" mirrors the v0.6.0 banner (it re-opens the update-notice
                             // pop-up; the command lives on MainViewModel, so the mirror uses a
                             // placeholder — presence and layout are what this smoke proves).
-                            new Button { Content = "Details…" },
-                            new Button { Content = "Update & Restart", Command = vm.UpdateAndRestartCommand },
-                            new Button { Content = "Later", Command = vm.DismissCommand }
+                            new Button
+                            {
+                                Content = "Details…"
+                            },
+                            new Button
+                            {
+                                Content = "Update & Restart",
+                                Command = vm.UpdateAndRestartCommand
+                            },
+                            new Button
+                            {
+                                Content = "Later",
+                                Command = vm.DismissCommand
+                            }
                         }
                     }
                 }
             }
             : new StackPanel
             {
-                Orientation = Avalonia.Layout.Orientation.Horizontal,
+                Orientation = Orientation.Horizontal,
                 Spacing = 12,
                 Children =
                 {
-                    new TextBlock { Text = "Downloading update…" },
-                    new ProgressBar { Width = 220, Minimum = 0, Maximum = 100, Value = 42 },
-                    new TextBlock { Text = "42%" }
+                    new TextBlock
+                    {
+                        Text = "Downloading update…"
+                    },
+                    new ProgressBar
+                    {
+                        Width = 220,
+                        Minimum = 0,
+                        Maximum = 100,
+                        Value = 42
+                    },
+                    new TextBlock
+                    {
+                        Text = "42%"
+                    }
                 }
             };
 
@@ -123,7 +147,11 @@ public class UpdateBannerRenderTests
         {
             Width = 720,
             Height = 120,
-            Content = new Border { Padding = new Thickness(12, 8), Child = content }
+            Content = new Border
+            {
+                Padding = new Thickness(12, 8),
+                Child = content
+            }
         };
     }
 

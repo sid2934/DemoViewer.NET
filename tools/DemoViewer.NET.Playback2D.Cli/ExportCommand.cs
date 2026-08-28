@@ -27,13 +27,13 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     <c>dv2d export</c> — the headless front end to <c>SceneExportSession</c>.
+///     <c>dv2d export</c>: the headless front end to <c>SceneExportSession</c>.
 ///     <para>
-///         It is argument parsing and nothing more: the range, the format, the size and the camera become
-///         an <c>ExportRequest</c>, the frames come from <c>TrackerFrameSource</c>, the sink is chosen by
-///         <c>--format</c> plus what <c>FfmpegLocator</c> found, and the session does the rest. Every rule
-///         it appears to enforce is <c>SceneExportSession.Validate</c>'s, which is the same validator the
-///         in-app dialog calls — a CLI that could produce a file the app refuses would be a second
+///         Argument parsing and nothing more. The range, the format, the size and the camera become an
+///         <c>ExportRequest</c>, the frames come from <c>TrackerFrameSource</c>, the sink is chosen by
+///         <c>--format</c> plus what <c>FfmpegLocator</c> found, and the session does the rest. Every
+///         rule it appears to enforce is <c>SceneExportSession.Validate</c>'s, the same validator the
+///         in-app dialog calls. A CLI that could produce a file the app refuses would be a second
 ///         encoder policy in disguise.
 ///     </para>
 ///     <para>
@@ -68,10 +68,9 @@ internal static class ExportCommand
         bool hud = args.Flag("hud");
         bool ffmpegLog = args.Flag("ffmpeg-log");
 
-        // The two options the app had and the CLI did not, which is what made "a request the dialog
-        // accepts is a request the CLI accepts" true of the VALIDATOR and false of the picture. The
-        // exported video's palette was a hard-coded ScenePalette.Dark and its ink was always absent, so
-        // the same request produced two materially different files depending on which front end ran it.
+        // Palette and ink are the two options the dialog had and the CLI did not. Both have to come off
+        // the request or "a request the dialog accepts is a request the CLI accepts" holds for the
+        // VALIDATOR and not for the picture: same request, two materially different files.
         ScenePalette palette = ResolvePalette(args.String("palette"));
         bool annotations = args.Flag("annotations");
         if (args.String("annotations") is { Length: > 0 } annotationValue)
@@ -81,9 +80,9 @@ internal static class ExportCommand
                 $"the demo's own '{AnnotationStore.SidecarExtension}' sidecar.");
         }
 
-        // P2: which rung of the encoder ladder, and how much to spend per frame. `auto` walks the
-        // ladder; `software` skips the hardware rungs (the machine-independent answer a bisect wants);
-        // a rung's own name is taken literally and refused if it does not verify.
+        // Which rung of the encoder ladder, and how much to spend per frame. `auto` walks the ladder;
+        // `software` skips the hardware rungs (the machine-independent answer a bisect wants); a rung's
+        // own name is taken literally and refused if it does not verify.
         string encoderRequest = args.String("encoder") ?? EncoderLadder.Auto;
         string? qualityRequest = args.String("quality");
         if (qualityRequest is not null && !ExportQualities.TryParse(qualityRequest, out _))
@@ -101,17 +100,16 @@ internal static class ExportCommand
         bool perf = PerfOutput.Requested(args);
         IReadOnlyList<string>? layers = args.List("layers");
         AssetsRoot assets = AssetsRootResolver.Resolve(args);
-        // ForceCpu as the bottom rung, like the golden lane above it and for the same kind of reason: an
-        // auto-probe that finds ANGLE would hand SceneExportSession a thread-affine provider, which the
-        // session refuses. Auto-probing into a guaranteed refusal is not a default; an explicit --gpu
-        // still reaches that refusal, and says so.
+        // ForceCpu as the bottom rung, same as the golden lane. An auto-probe that finds ANGLE would
+        // hand SceneExportSession a thread-affine provider, which the session refuses; auto-probing into
+        // a guaranteed refusal is no default. An explicit --gpu still reaches that refusal, and says so.
         ResolvedBackend backend = BackendResolver.Resolve(args, RenderBackendPreference.ForceCpu);
         args.ThrowIfUnconsumed();
 
         // SceneExportSession refuses this too, because the app can reach it without going through here.
-        // But the refusal it throws is an ExportValidationException, which lands on exit 3.
-        // "This build cannot export on a GPU" is an environment answer, exit 6 — the same code
-        // `--layout single` gives for the same kind of reason: a real feature, not in this build yet.
+        // But its refusal is an ExportValidationException, which lands on exit 3. "This build cannot
+        // export on a GPU" is an environment answer, exit 6: the same code `--layout single` gives, and
+        // for the same reason, a real feature that is not in this build yet.
         if (backend.Backend != RenderBackend.CpuRaster)
         {
             backend.Provider.Dispose();
@@ -129,7 +127,7 @@ internal static class ExportCommand
 
         // The ink FIRST, because whether the annotation id belongs in the layer set is "was one loaded",
         // not "was one asked for": a --annotations run against a demo with no sidecar must not name a
-        // layer the render then starves, which is the manifest lie BuildLayerIds' own comment is about.
+        // layer the render then starves.
         AnnotationSession? ink = annotations
             ? await LoadInkAsync(demoPath, tickRate, frames.Count, ct).ConfigureAwait(false)
             : null;
@@ -151,7 +149,10 @@ internal static class ExportCommand
             Radars = mapAssets is null ? null : MapAssetPipeline.DescribeRadars(mapAssets)
         };
 
-        request = request with { EndFrame = Math.Max(0, source.FrameCount - 1) };
+        request = request with
+        {
+            EndFrame = Math.Max(0, source.FrameCount - 1)
+        };
 
         // AFTER the source exists, because the clock reads the source. See BuildHud.
         IHudDataSource? hudData = hud ? BuildHud(source, tickRate) : null;
@@ -175,15 +176,15 @@ internal static class ExportCommand
                 "Install ffmpeg, or export GIF.");
         }
 
-        // The ladder walk (P2 D1), BEFORE the range is rendered: one test encode per hardware rung,
-        // cached for the life of this process. A refusal here — `--encoder h264_nvenc` on a machine
-        // whose driver cannot run it — must arrive now, not after two minutes of frames have gone into
-        // a pipe. Skipped entirely when nothing will be encoded.
+        // The ladder walk, BEFORE the range is rendered: one test encode per hardware rung, cached for
+        // the life of this process. A refusal (`--encoder h264_nvenc` on a machine whose driver cannot
+        // run it) must arrive now, not after two minutes of frames have gone into a pipe. Skipped
+        // entirely when nothing will be encoded.
         EncoderSelection? encoder;
         long probeStarted = Stopwatch.GetTimestamp();
         try
         {
-            encoder = noEncode || (gif && !ffmpeg.Found)
+            encoder = noEncode || gif && !ffmpeg.Found
                 ? null
                 : new EncoderSelector(new EncoderProbeCache())
                     .Select(format, encoderRequest, quality, ffmpeg.Directory, ct);
@@ -263,8 +264,8 @@ internal static class ExportCommand
 
                 // Additive: `encoder` above keeps its old meaning (WHICH PROGRAM encodes), and these say
                 // which codec inside it, chosen how. A hardware encoder is not bit-reproducible, so the
-                // file's bytes are a function of this machine — writing the machine's answer down is
-                // what makes a file comparable to another one later.
+                // file's bytes are a function of this machine. Record the machine's answer or two files
+                // cannot be compared later.
                 ["video_encoder"] = encoder?.Encoder.Name,
                 ["video_encoder_kind"] = encoder is null
                     ? null
@@ -281,7 +282,7 @@ internal static class ExportCommand
             };
 
             // Additive: one new key on the documented schema_version 1 shape, absent without the flag.
-            // It is what decomposes realtime_ratio above into the five costs that produce it.
+            // Decomposes realtime_ratio above into the five costs that produce it.
             if (perfReport is not null)
             {
                 payload["perf"] = PerfOutput.ToJson(perfReport);
@@ -322,9 +323,9 @@ internal static class ExportCommand
         return ExitCode.Success;
     }
 
-    // Every rung the ladder walked, in the order it walked them — the losers included. A report that
-    // showed only the winner could not distinguish "there was no GPU" from "the GPU said no", and those
-    // send a user to two different places.
+    // Every rung the ladder walked, in the order it walked them, losers included. A report showing only
+    // the winner could not distinguish "there was no GPU" from "the GPU said no", and those two send a
+    // user to different places.
     private static JsonArray? ToAttempts(EncoderSelection? encoder)
     {
         if (encoder is null)
@@ -397,33 +398,30 @@ internal static class ExportCommand
     }
 
     /// <summary>
-    ///     The default id set, plus whatever the flags opted into. <b>The CLI half of the export's
-    ///     cross-surface parity</b>, and the counterpart of
+    ///     The default id set, plus whatever the flags opted into. The CLI counterpart of
     ///     <c>Playback2DExportDialogViewModel.BuildLayerIds</c>: both project
     ///     <see cref="SceneLayerCatalog.SceneStackIds" /> rather than listing ids, so one request cannot
     ///     mean two different videos.
     /// </summary>
     /// <param name="layers">An explicit <c>--layers</c> list, or null for the default set.</param>
     /// <param name="hud">Whether <c>--hud</c> was given.</param>
-    /// <param name="hasInk">Whether a sidecar was actually loaded — see the call site.</param>
+    /// <param name="hasInk">Whether a sidecar was actually loaded. See the call site.</param>
     internal static HashSet<string> BuildLayerIds(IReadOnlyList<string>? layers, bool hud, bool hasInk)
     {
-        // The opt-in set, not a "hud." prefix test. The prefix spelling was self-maintaining for HUD
-        // ids and blind to every other opt-in layer: once playback2d.annotations became a SceneStackId,
-        // a no --layers export started NAMING the ink in its default set and in the sidecar manifest's
-        // `layers` array. One source: SceneLayerIds.OptIn.
+        // The opt-in set (SceneLayerIds.OptIn), NOT a "hud." prefix test. The prefix spelling was blind
+        // to every non-HUD opt-in layer: once playback2d.annotations became a SceneStackId, an export
+        // with no --layers named the ink in its default set and in the sidecar manifest's `layers`.
         //
-        // Vision comes out for the same reason and one more. It is NOT opt-in in the catalog, so a
-        // default export named it, while the app's dialog ships it OFF because the solve is the frame's
-        // biggest per-frame cost — two front ends, one request, two different videos. And the CLI has no
-        // visibility engine to hand VisionLayer anyway, so every one of those manifests listed a layer
-        // that drew nothing. `--layers` can still name it explicitly; that is a choice.
+        // Vision comes out too. It is NOT opt-in in the catalog, so a default export named it while the
+        // app's dialog ships it OFF (the solve is the frame's biggest per-frame cost): one request, two
+        // different videos. The CLI has no visibility engine to hand VisionLayer either. `--layers` can
+        // still name it explicitly.
         //
-        // That last sentence is about EXPORT only. VisionLayer now falls back to a frame's pre-solved
-        // SceneVision, which is why `render`/`golden`/`bench` draw cones from a fixture — but an
-        // export's frames come off SceneFrameBuilder, whose Vision input nothing fills, so `dv2d export
-        // --layers …,playback2d.vision` is still an empty layer. Feeding it means constructing a
-        // VisibilityEngine for the demo's map here; nobody has needed it yet.
+        // That last part is EXPORT only. VisionLayer falls back to a frame's pre-solved SceneVision, so
+        // `render`/`golden`/`bench` do draw cones from a fixture. An export's frames come off
+        // SceneFrameBuilder, whose Vision input nothing fills, so `dv2d export --layers
+        // …,playback2d.vision` is still an empty layer. Feeding it needs a VisibilityEngine for the
+        // demo's map; nobody has needed it yet.
         HashSet<string> ids = layers is null
             ?
             [
@@ -448,9 +446,8 @@ internal static class ExportCommand
         return ids;
     }
 
-    // dark (the shipping default) or light. It used to be a hard-coded ScenePalette.Dark, so a CLI
-    // export of a request the app would have drawn in Light came out inverted — the one difference a
-    // side-by-side comparison notices before any other.
+    // dark (the shipping default) or light. Hard-coding Dark here inverts every export of a request the
+    // app would have drawn in Light.
     private static ScenePalette ResolvePalette(string? requested) => requested?.ToLowerInvariant() switch
     {
         null or "dark" => ScenePalette.Dark,
@@ -485,21 +482,18 @@ internal static class ExportCommand
         return new AnnotationSession(document);
     }
 
-    // The clock reads the SOURCE's own game info — the round and the score SceneFrameBuilder reads off
-    // CCSGameRulesProxy and the two CCSTeam entities for the frame being drawn — rather than a captured
+    // The clock reads the SOURCE's own game info (the round and score SceneFrameBuilder reads off
+    // CCSGameRulesProxy and the two CCSTeam entities for the frame being drawn) rather than a captured
     // SceneGameInfo value, which would freeze the scoreboard at frame 0.
     //
     // Reading it through the source keeps the clock a pure function of the frame: SceneExportSession
     // calls FrameAt immediately before Advance, and ClockLayer asks during Advance, so LastGameInfo is
     // always the drawn frame's.
     //
-    // The kill feed is still empty: kill rows come from a parsed event timeline the app builds from
-    // AllGameEvents, and the CLI has no equivalent. --hud on the CLI draws a true clock over an empty
-    // feed; inventing rows would be worse than the absence. Internal, not private, so a test can call
-    // this exact closure rather than a reimplemented equivalent.
-    //
-    // The roster is not the feed's gap: it comes off the same frame the clock does, so `--hud` on the
-    // CLI draws real cards even though it has no kill rows to draw.
+    // The kill feed stays empty: kill rows come from a parsed event timeline the app builds from
+    // AllGameEvents, and the CLI has no equivalent. The roster is not in that gap, it comes off the
+    // same frame the clock does, so `--hud` draws real cards over an empty feed. Internal rather than
+    // private so a test can call this exact closure.
     internal static TimelineHudDataSource BuildHud(TrackerFrameSource source, int tickRate) =>
         new([], tickRate, _ => ClockReading.From(source.LastGameInfo),
             rosterAt: _ => source.LastRoster);

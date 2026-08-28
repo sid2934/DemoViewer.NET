@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Avalonia;
@@ -11,6 +10,7 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Views.Playback2D;
 
 #endregion
@@ -235,7 +235,7 @@ public class Playback2DCameraModeTests
     }
 
     // The surface mounts in code rather than declaring it in XAML, so it comes out of the
-    // ContentControl slot. This suite is carried forward against the LEGACY control — the
+    // ContentControl slot. This suite is carried forward against the LEGACY control: the
     // v2 host's equivalents live in Scene2DHostInputTests.
     private static Playback2DViewport FindViewport(Playback2DView view) =>
         Playback2DTimelineHarness.Viewport(view);

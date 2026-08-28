@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Playback2D.Core.Rendering;
 ///     CLI, tests and thumbnails all come through here, which is what makes "swap CPU for GPU" a
 ///     one-line change instead of a search-and-replace.
 ///     <para>
-///         <b>The probe runs once per process and its result — success <i>or</i> failure — is cached.</b>
+///         <b>The probe runs once per process and its result, success <i>or</i> failure, is cached.</b>
 ///         An explicit lock plus a nullable result field, deliberately not <c>Lazy&lt;T&gt;</c>: a
 ///         faulted <c>Lazy</c> re-throws its stored exception forever, which is the trap the repo
 ///         already documents in <c>HeadlessSession</c>. Here a failed probe is ordinary data anyway.
@@ -56,11 +56,11 @@ public static class RenderSurfaceProviderFactory
 
     /// <summary>
     ///     The entry point every consumer uses. Honours <paramref name="preference" />, falling back to
-    ///     the CPU provider whenever the GPU is unavailable — the only case that throws is
+    ///     the CPU provider whenever the GPU is unavailable: the only case that throws is
     ///     <see cref="RenderBackendPreference.ForceGpu" />, which exists precisely so a CI lane can fail
     ///     rather than silently measure software rendering.
     ///     <para>
-    ///         Passing <see cref="RenderBackendPreference.Auto" /> — including by omitting the argument —
+    ///         Passing <see cref="RenderBackendPreference.Auto" />, including by omitting the argument,
     ///         consults <c>DV2D_RENDER_BACKEND</c>, so <c>DV2D_RENDER_BACKEND=cpu</c> forces the whole
     ///         process onto the CPU path without every call site threading a flag through. An explicitly
     ///         non-Auto argument outranks the environment, which is §2.5's precedence exactly.
@@ -87,7 +87,7 @@ public static class RenderSurfaceProviderFactory
 
         // The cached probe short-circuits to "forced-cpu" when the AMBIENT DV2D_RENDER_BACKEND says cpu.
         // That is a policy answer, not a capability one, and an explicit argument outranks the
-        // environment (§2.5) — control only reaches here with a non-Auto preference, because Auto
+        // environment (§2.5); control only reaches here with a non-Auto preference, because Auto
         // resolved to ForceCpu and returned above. Letting the ambient variable stand would make
         // Create(ForceGpu) throw on a machine whose GPU works perfectly, contradicting §6.2's "throws
         // only ... when no GPU backend is available", and would let a stale shell variable silently
@@ -95,7 +95,7 @@ public static class RenderSurfaceProviderFactory
         bool declinedByPolicy = !probe.GpuAvailable && string.Equals(probe.Reason, ForcedCpuReason,
             StringComparison.Ordinal);
 
-        // A probe that said "GPU available" can still lose the context between then and now — a driver
+        // A probe that said "GPU available" can still lose the context between then and now: a driver
         // reset, a display change, a second provider on a thread the first one owns. Treat it as a
         // fallback, not an invariant violation.
         if (probe.GpuAvailable || declinedByPolicy)
@@ -125,7 +125,7 @@ public static class RenderSurfaceProviderFactory
     /// <summary>
     ///     The decision itself, with its two environmental inputs injected: the host platform and the
     ///     GPU attempt. Split out so the browser and macOS short-circuits are unit-testable on a
-    ///     developer's desktop — running the suite on WASM to prove a WASM branch is not a trade worth
+    ///     developer's desktop: running the suite on WASM to prove a WASM branch is not a trade worth
     ///     making (plan §7.1).
     /// </summary>
     /// <param name="platform">The host platform to decide for.</param>
@@ -141,7 +141,8 @@ public static class RenderSurfaceProviderFactory
 
         long start = time.GetTimestamp();
 
-        string? shortCircuit = preference == RenderBackendPreference.ForceCpu ? ForcedCpuReason
+        string? shortCircuit = preference == RenderBackendPreference.ForceCpu
+            ? ForcedCpuReason
             : platform switch
             {
                 // WASM surfaces belong to Avalonia's compositor; the CPU provider is the only offscreen
@@ -232,16 +233,16 @@ public static class RenderSurfaceProviderFactory
 /// <summary>The host families the probe decides differently for.</summary>
 internal enum ProbeHostPlatform
 {
-    /// <summary>Windows — ANGLE over D3D11.</summary>
+    /// <summary>Windows: ANGLE over D3D11.</summary>
     Windows,
 
-    /// <summary>Linux — EGL, surfaceless first so containers work.</summary>
+    /// <summary>Linux: EGL, surfaceless first so containers work.</summary>
     Linux,
 
-    /// <summary>macOS — deferred by design §5.8 point 3.</summary>
+    /// <summary>macOS: deferred by design §5.8 point 3.</summary>
     MacOs,
 
-    /// <summary>WASM — Avalonia owns the surface; CPU is the only offscreen path.</summary>
+    /// <summary>WASM: Avalonia owns the surface; CPU is the only offscreen path.</summary>
     Browser,
 
     /// <summary>Anything else, including mobile heads.</summary>

@@ -4,8 +4,8 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Models;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Models;
 
 #endregion
 

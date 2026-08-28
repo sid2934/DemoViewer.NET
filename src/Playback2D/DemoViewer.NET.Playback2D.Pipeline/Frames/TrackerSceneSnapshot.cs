@@ -28,18 +28,20 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Frames;
 /// </summary>
 public sealed class TrackerSceneSnapshot
 {
-    private readonly EntityView _entities = new();
-    private readonly Dictionary<string, string> _labelCache = new(StringComparer.Ordinal);
-    private readonly Dictionary<int, string> _labelBySlot = [];
-    private readonly Dictionary<int, EntityState> _pawnBySlot = [];
-    private readonly List<PooledPlayer> _pool = [];
-    private readonly List<IPlayerState> _players = [];
-    private readonly Dictionary<int, ulong> _steamIdBySlot = [];
+    // CS2 seats controllers at entity index slot+1. Sixty-four covers every slot a GOTV demo can carry.
+    private const int MaxSlots = 64;
 
     // Held, not written inline at the call site. A lambda that captures `this` is NOT cached by Roslyn
     // (only a fully non-capturing one is), so `ForEachLivePawn(tracker, (slot, pawn) => …)` allocates a
     // fresh delegate on every single frame — in the one adapter that runs once per exported frame.
     private readonly Action<int, EntityState> _collectPawn;
+    private readonly EntityView _entities = new();
+    private readonly Dictionary<int, string> _labelBySlot = [];
+    private readonly Dictionary<string, string> _labelCache = new(StringComparer.Ordinal);
+    private readonly Dictionary<int, EntityState> _pawnBySlot = [];
+    private readonly List<IPlayerState> _players = [];
+    private readonly List<PooledPlayer> _pool = [];
+    private readonly Dictionary<int, ulong> _steamIdBySlot = [];
 
     /// <summary>Creates a snapshot with its pools and its per-frame callback allocated once.</summary>
     public TrackerSceneSnapshot() => _collectPawn = (slot, pawn) => _pawnBySlot[slot] = pawn;
@@ -97,9 +99,6 @@ public sealed class TrackerSceneSnapshot
             _players.Add(state);
         }
     }
-
-    // CS2 seats controllers at entity index slot+1. Sixty-four covers every slot a GOTV demo can carry.
-    private const int MaxSlots = 64;
 
     private static EntityState? ControllerFor(EntitySet set, int slot)
     {

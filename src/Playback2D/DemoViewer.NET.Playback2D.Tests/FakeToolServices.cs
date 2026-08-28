@@ -32,6 +32,12 @@ internal sealed class FakeToolServices : IToolServices
         _panes = panes;
     }
 
+    /// <summary>Markers <see cref="TryResolveEntityAnchor" /> searches.</summary>
+    public List<PlayerMarker> Markers { get; } = [];
+
+    /// <summary>How many repaints the tools asked for.</summary>
+    public int RenderRequests { get; private set; }
+
     public AnnotationSession Session { get; }
 
     public int CurrentTick { get; set; }
@@ -42,16 +48,6 @@ internal sealed class FakeToolServices : IToolServices
     ///     happens when drawing on a paused demo.
     /// </summary>
     public long NowMilliseconds { get; set; }
-
-    /// <summary>Advances the authoring clock and returns the new reading.</summary>
-    /// <param name="milliseconds">How far to advance.</param>
-    public long Advance(long milliseconds) => NowMilliseconds += milliseconds;
-
-    /// <summary>Markers <see cref="TryResolveEntityAnchor" /> searches.</summary>
-    public List<PlayerMarker> Markers { get; } = [];
-
-    /// <summary>How many repaints the tools asked for.</summary>
-    public int RenderRequests { get; private set; }
 
     public LevelPane? PaneAt(SKPoint screen) =>
         _panes is not null ? _panes.PaneAt(screen.X, screen.Y) : _single;
@@ -164,4 +160,8 @@ internal sealed class FakeToolServices : IToolServices
     }
 
     public void RequestRender() => RenderRequests++;
+
+    /// <summary>Advances the authoring clock and returns the new reading.</summary>
+    /// <param name="milliseconds">How far to advance.</param>
+    public long Advance(long milliseconds) => NowMilliseconds += milliseconds;
 }

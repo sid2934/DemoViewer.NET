@@ -1,6 +1,5 @@
 #region
 
-using System.Reflection;
 using SkiaSharp;
 
 #endregion
@@ -9,18 +8,18 @@ namespace DemoViewer.NET.Playback2D.Core;
 
 /// <summary>
 ///     Shaped, measured, reusable text. The pre-v2 control built one Avalonia <c>FormattedText</c> per
-///     marker per frame and one per floor band — ten-plus shaping passes and ten-plus allocations every
+///     marker per frame and one per floor band: ten-plus shaping passes and ten-plus allocations every
 ///     frame, for strings that change only when the roster does.
 ///     <para>
 ///         <b>The typeface is embedded, never resolved from the host.</b> <c>SKTypeface.Default</c> is
 ///         the platform UI font, so the same scene rasterises differently on a developer's Windows box
 ///         and on the ubuntu golden lane and every text-bearing golden becomes machine-specific. One
-///         <c>Inter-Regular.ttf</c> ships inside this assembly instead — see
+///         <c>Inter-Regular.ttf</c> ships inside this assembly instead; see
 ///         <c>THIRD-PARTY-NOTICES.md</c> §d for the license.
 ///     </para>
 ///     <para>
-///         <b>Not thread-safe by design.</b> <see cref="Get" /> both reads and MUTATES — a miss shapes,
-///         measures, files and evicts — and every layer calls it from <c>Render</c>, never from
+///         <b>Not thread-safe by design.</b> <see cref="Get" /> both reads and MUTATES (a miss shapes,
+///         measures, files and evicts), and every layer calls it from <c>Render</c>, never from
 ///         <c>Advance</c>: the strings a layer draws are composed in <c>Render</c>, from the snapshot
 ///         <c>Advance</c> captured. The discipline that makes this safe is the host's render gate, which
 ///         serialises <c>Render</c>, and nothing else. A cache that locked would be lying about where
@@ -32,7 +31,7 @@ public sealed class TextBlobCache : IDisposable
     /// <summary>The manifest name of the embedded face. Public so a test can assert it is present.</summary>
     public const string TypefaceResourceName = "DemoViewer.NET.Playback2D.Core.Assets.Inter-Regular.ttf";
 
-    /// <summary>Default LRU capacity — far above the ~12 live strings a scene actually draws.</summary>
+    /// <summary>Default LRU capacity: far above the ~12 live strings a scene actually draws.</summary>
     public const int DefaultCapacity = 512;
 
     // Glyph ids for a miss are measured out of a stack buffer. Every string this cache is ever asked
@@ -44,21 +43,21 @@ public sealed class TextBlobCache : IDisposable
     // Insertion-ordered map doubling as the LRU: a hit re-inserts at the tail. A LinkedList<T> would
     // save the re-insert but costs one node allocation per entry, which is the thing being removed.
     private readonly Dictionary<Key, Entry> _entries;
-    private readonly Dictionary<float, SKFont> _fonts = new(2);
-    private readonly List<Key> _order;
 
     // The manifest name to load, and the face to borrow if it is not there. Fields rather than the
     // constants they normally hold so the missing-resource branch is testable WITHOUT the test having to
     // dispose SKTypeface.Default to find out whether this class would have: a suite that proved the bug
     // by destroying the process-wide singleton would report it as every other text test failing.
     private readonly SKTypeface _fallbackTypeface;
+    private readonly Dictionary<float, SKFont> _fonts = new(2);
+    private readonly List<Key> _order;
     private readonly string _typefaceResourceName;
 
     private bool _disposed;
-    private SKTypeface? _typeface;
 
-    // Whether _typeface is ours to dispose. False on the missing-resource fallback — see Dispose.
+    // Whether _typeface is ours to dispose. False on the missing-resource fallback; see Dispose.
     private bool _ownsTypeface;
+    private SKTypeface? _typeface;
 
     /// <summary>Creates a cache with a bounded LRU.</summary>
     /// <param name="capacity">Maximum live blobs; the least recently used is evicted past it.</param>
@@ -70,7 +69,7 @@ public sealed class TextBlobCache : IDisposable
     /// <summary>Creates a cache with a substituted typeface source. Test seam; see the fields it sets.</summary>
     /// <param name="capacity">Maximum live blobs.</param>
     /// <param name="typefaceResourceName">Manifest resource to load the face from.</param>
-    /// <param name="fallbackTypeface">The face to borrow — never dispose — when that resource is absent.</param>
+    /// <param name="fallbackTypeface">The face to borrow (never dispose) when that resource is absent.</param>
     internal TextBlobCache(int capacity, string typefaceResourceName, SKTypeface fallbackTypeface)
     {
         Capacity = Math.Max(1, capacity);
@@ -117,7 +116,7 @@ public sealed class TextBlobCache : IDisposable
     ///         <see cref="SKTypeface.Default" />, which is a process-wide Skia singleton, and several
     ///         caches exist at once (every layer builds its own when no shared one is passed). Disposing
     ///         it here would unref the singleton once per cache and kill text rendering for the whole
-    ///         process — from a packaging fault whose only intended cost should have been the wrong font.
+    ///         process, from a packaging fault whose only intended cost should have been the wrong font.
     ///     </para>
     /// </summary>
     public void Dispose()
@@ -157,7 +156,7 @@ public sealed class TextBlobCache : IDisposable
     ///     caller that draws nothing must not crash).
     ///     <para>
     ///         The returned blob is owned by the cache and is valid until it is evicted or the cache is
-    ///         disposed — never dispose it at a call site.
+    ///         disposed. Never dispose it at a call site.
     ///     </para>
     ///     <para>
     ///         <b>Everything is measured on the miss path.</b> A hit copies five values out of the entry
@@ -208,7 +207,7 @@ public sealed class TextBlobCache : IDisposable
     ///     </para>
     ///     <para>
     ///         <c>SKFont.MeasureText(ReadOnlySpan&lt;ushort&gt;, out SKRect)</c> <b>does</b> exist in
-    ///         2.88.9 — it takes glyph ids rather than a string, which is easy to miss — and returns the
+    ///         2.88.9 (it takes glyph ids rather than a string, which is easy to miss) and returns the
     ///         run's advance plus its tight ink box.
     ///     </para>
     /// </summary>
@@ -296,7 +295,7 @@ public sealed class TextBlobCache : IDisposable
     }
 
     // Sets _ownsTypeface as it decides, because "did we load it or borrow it" is knowable exactly here
-    // and nowhere else afterwards — SKTypeface.Default is not reference-comparable in any way worth
+    // and nowhere else afterwards: SKTypeface.Default is not reference-comparable in any way worth
     // relying on, and re-deriving the answer at Dispose time would be re-deciding it.
     private SKTypeface LoadEmbeddedTypeface()
     {
@@ -320,9 +319,13 @@ public sealed class TextBlobCache : IDisposable
     private readonly record struct Key(string Text, float SizePx);
 
     private readonly record struct Entry(
-        SKTextBlob Blob, SKRect Ink, float Advance, float Ascent, float Descent)
+        SKTextBlob Blob,
+        SKRect Ink,
+        float Advance,
+        float Ascent,
+        float Descent)
     {
-        /// <summary>The value handed to a caller. A struct copy — no allocation on the hit path.</summary>
+        /// <summary>The value handed to a caller. A struct copy: no allocation on the hit path.</summary>
         public ShapedText Shaped => new(Blob, Ink, Advance, Ascent, Descent);
     }
 }
@@ -334,7 +337,7 @@ public sealed class TextBlobCache : IDisposable
 ///     <para>
 ///         Three measurements, not one rectangle: text is positioned two different ways and they want
 ///         two different numbers. Horizontal placement uses the <b>advance</b>, so a
-///         string's position does not jitter with which glyphs happen to have side bearings — "AA" and
+///         string's position does not jitter with which glyphs happen to have side bearings: "AA" and
 ///         "WW" centre the same way. Vertical placement uses the font's <b>metrics</b>, so every label
 ///         in a scene shares one baseline instead of each one centring its own ink (which would put
 ///         "7" and "g" on visibly different lines). The ink box is kept for the one job it is right
@@ -343,7 +346,7 @@ public sealed class TextBlobCache : IDisposable
 /// </summary>
 /// <param name="Blob">The shaped run, valid until evicted.</param>
 /// <param name="Bounds">
-///     <b>Tight</b> ink bounds relative to the blob's baseline origin — from
+///     <b>Tight</b> ink bounds relative to the blob's baseline origin: from
 ///     <c>SKFont.MeasureText</c>, not from <c>SKTextBlob.Bounds</c>, which is a conservative
 ///     font-wide box. <c>Bounds.Top</c> is negative (above the baseline).
 /// </param>
@@ -351,16 +354,20 @@ public sealed class TextBlobCache : IDisposable
 /// <param name="Ascent">The font's ascent, negative (above the baseline).</param>
 /// <param name="Descent">The font's descent, positive (below the baseline).</param>
 public readonly record struct ShapedText(
-    SKTextBlob Blob, SKRect Bounds, float Advance, float Ascent, float Descent)
+    SKTextBlob Blob,
+    SKRect Bounds,
+    float Advance,
+    float Ascent,
+    float Descent)
 {
     /// <summary>
-    ///     Layout width in pixels — the <b>advance</b>, which is what a caller sizing a panel or
+    ///     Layout width in pixels: the <b>advance</b>, which is what a caller sizing a panel or
     ///     right-aligning a row means by "how wide is this text".
     /// </summary>
     public float Width => Advance;
 
     /// <summary>
-    ///     Layout height in pixels — one line box (<c>Descent - Ascent</c>), which is what a caller
+    ///     Layout height in pixels: one line box (<c>Descent - Ascent</c>), which is what a caller
     ///     stacking rows means by "how tall is this text". Constant for a given size, so rows do not
     ///     shift depending on whether a line happens to contain a descender.
     /// </summary>
@@ -368,7 +375,7 @@ public readonly record struct ShapedText(
 
     /// <summary>
     ///     The baseline origin that puts the text's <b>line box</b> top-left at <paramref name="x" />,
-    ///     <paramref name="y" /> — the conversion from the pre-v2
+    ///     <paramref name="y" />: the conversion from the pre-v2
     ///     <c>DrawingContext.DrawText(text, point)</c> positioning, which also positioned a line box and
     ///     not an ink box, to Skia's baseline positioning.
     /// </summary>
@@ -385,5 +392,5 @@ public readonly record struct ShapedText(
     /// <param name="cx">Centre X.</param>
     /// <param name="cy">Centre Y.</param>
     public (float X, float Y) OriginForCentre(float cx, float cy) =>
-        (cx - (Advance / 2f), cy - ((Ascent + Descent) / 2f));
+        (cx - Advance / 2f, cy - (Ascent + Descent) / 2f);
 }

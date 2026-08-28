@@ -1,6 +1,7 @@
 #region
 
 using System.Text.Json.Nodes;
+using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Goldens;
 using SkiaSharp;
 
@@ -53,7 +54,7 @@ public class GoldenCommandTests
     ///         <b>not</b> forgive a real regression, and the other entries verify clean around it.
     ///     </para>
     ///     <para>
-    ///         The corruption lands at (1,1) — the frame's top-left corner, nowhere near a glyph — and
+    ///         The corruption lands at (1,1) (the frame's top-left corner, nowhere near a glyph) and
     ///         inverts the red channel, a delta of 213 against a dark background. That is over the glyph
     ///         tier's own 96 ceiling twice over, so it fails on <c>max channel delta</c>: the first rule,
     ///         and the one no budget can spend its way past.
@@ -75,7 +76,7 @@ public class GoldenCommandTests
         await Assert.That(counts["mismatched"]!.GetValue<int>()).IsEqualTo(1);
 
         // "For the right reason": the one mismatch is the entry that was corrupted, everything else
-        // matched, and the failure names the ceiling rather than a budget that merely ran out.
+        // matched, and the failure names the ceiling rather than a budget that ran out.
         JsonNode row = ((JsonArray)payload["results"]!)
             .Single(r => r!["status"]!.GetValue<string>() == "mismatch")!;
         await Assert.That(row["name"]!.GetValue<string>()).IsEqualTo("synthetic-tenplayers");
@@ -92,7 +93,7 @@ public class GoldenCommandTests
     ///     strictly stricter than what that mode resolves to.
     ///     <para>
     ///         Both halves matter and neither alone would do. A one-step nudge to a golden is inside
-    ///         every perceptual budget — the ±8 band, both SSIM floors — so the default verify stays
+    ///         every perceptual budget (the ±8 band, both SSIM floors), so the default verify stays
     ///         green; byte-exact refuses the same corpus. Scoped to one entry with <c>--name</c> because
     ///         a whole-corpus byte-exact verify is only green on the platform that authored the PNGs,
     ///         which is the property this flag exists to let a maintainer check locally, not an
@@ -232,7 +233,7 @@ internal sealed class CorpusCopy : IDisposable
     public void Dispose() => _temp.Dispose();
 
     /// <summary>
-    ///     Inverts the red channel of one pixel in an entry's golden — a delta of 213 against the dark
+    ///     Inverts the red channel of one pixel in an entry's golden: a delta of 213 against the dark
     ///     palette background, at (1,1) where no glyph reaches. Well over the glyph tier's 96 ceiling, so
     ///     it is caught by the same perceptual budget CI runs at, not only by byte-exact.
     /// </summary>
@@ -241,7 +242,7 @@ internal sealed class CorpusCopy : IDisposable
         Rewrite(name, static p => new SKColor((byte)(p.Red ^ 0xFF), p.Green, p.Blue, p.Alpha));
 
     /// <summary>
-    ///     Moves one pixel of an entry's golden by a single step — the smallest possible change, and one
+    ///     Moves one pixel of an entry's golden by a single step: the smallest possible change, and one
     ///     that every perceptual budget forgives (it is inside the ±8 band, so it spends neither the
     ///     0.5 % coverage budget nor the glyph tier). What byte-exact must still refuse.
     /// </summary>
@@ -254,7 +255,7 @@ internal sealed class CorpusCopy : IDisposable
     {
         GoldenCorpus corpus = GoldenCorpus.Load(Path);
         GoldenCorpusEntry entry = corpus.Find(name)!;
-        string goldenPath = entry.GoldenPath(Playback2D.Core.Rendering.RenderBackend.CpuRaster);
+        string goldenPath = entry.GoldenPath(RenderBackend.CpuRaster);
 
         using SKBitmap bitmap = SKBitmap.Decode(goldenPath);
         bitmap.SetPixel(1, 1, change(bitmap.GetPixel(1, 1)));

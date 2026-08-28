@@ -36,14 +36,14 @@ namespace DemoViewer.NET.Playback2DTests;
 [Category("Budget")]
 public class Playback2DWasmBudgetTests
 {
+    private const double CombinedP99CeilingMs = 32.0;
+
     // The browser's viewport, not the desktop's. A WASM canvas at 1080p is not the case worth gating.
     private static readonly SKSizeI _size = new(1280, 720);
 
     // B5's relaxed numbers. Deliberately NOT scaled by DV2D_BUDGET_SCALE: these are already the loose
     // lane, and scaling a loose lane produces a gate that cannot fail.
     private static readonly BudgetPolicy _wasmBudget = new(4.0, 24.0, 0);
-
-    private const double CombinedP99CeilingMs = 32.0;
 
     /// <summary>
     ///     The full scene — ten players, trails, area effects, vision, two levels, plus B2's ink layer —

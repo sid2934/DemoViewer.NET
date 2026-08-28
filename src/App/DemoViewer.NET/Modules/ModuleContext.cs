@@ -1,11 +1,11 @@
 #region
-using System.Numerics;
 
-using DemoViewer.NET.Modules.Abstractions;
+using System.Numerics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
-using DemoViewer.NET.Services;
+using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.ViewModels.Playback;
 
 #endregion
@@ -92,6 +92,17 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
 
     private static EntitySet EmptyEntitySet { get; } = new();
 
+    /// <summary>
+    ///     The 2D tab's video-export host, or null when this build has none (browser, tests, designer) —
+    ///     in which case the tab's Export affordance stays hidden rather than half-wired.
+    ///     <para>
+    ///         Deliberately NOT on <see cref="IModuleContext" />: that interface exposes no tracker, no
+    ///         raw buffer and no parser, and an export needs the frame list. It is a first-party
+    ///         capability the shell hands one tab explicitly, exactly like <see cref="SetLiveSyncHud" />.
+    ///     </para>
+    /// </summary>
+    public Playback2DExportHost? ExportHost { get; private set; }
+
     /// <inheritdoc />
     public ParsedDemo? CurrentDemo { get; private set; }
 
@@ -126,7 +137,7 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
 
     public IReadOnlyList<int> EventFrames(string eventName) =>
         _navigator is not null && eventName is not null
-        && _navigator.EventBoundaryFramesByName.TryGetValue(eventName, out int[]? frames)
+                               && _navigator.EventBoundaryFramesByName.TryGetValue(eventName, out int[]? frames)
             ? frames
             : Array.Empty<int>();
 
@@ -253,20 +264,9 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     /// <summary>Sets the shell's feature projection once at composition (mirrors <see cref="SetLiveSyncHud" />).</summary>
     public void SetFeatures(IModuleFeatureGate? features) => Features = features;
 
-    /// <summary>
-    ///     The 2D tab's video-export host, or null when this build has none (browser, tests, designer) —
-    ///     in which case the tab's Export affordance stays hidden rather than half-wired.
-    ///     <para>
-    ///         Deliberately NOT on <see cref="IModuleContext" />: that interface exposes no tracker, no
-    ///         raw buffer and no parser, and an export needs the frame list. It is a first-party
-    ///         capability the shell hands one tab explicitly, exactly like <see cref="SetLiveSyncHud" />.
-    ///     </para>
-    /// </summary>
-    public Playback2D.Playback2DExportHost? ExportHost { get; private set; }
-
     /// <summary>Wires the export host once at composition (mirrors <see cref="SetLiveSyncHud" />).</summary>
     /// <param name="host">The host, or null for a build with no export.</param>
-    public void SetExportHost(Playback2D.Playback2DExportHost? host) => ExportHost = host;
+    public void SetExportHost(Playback2DExportHost? host) => ExportHost = host;
 
     /// <summary>
     ///     Sets the shared game-clock calibration on demo load (mirrors <see cref="SetRoster" />). The

@@ -1,13 +1,12 @@
 #region
 
 using System.Collections.Concurrent;
-using DemoViewer.NET.Playback2D.Core;
+using System.Globalization;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Rendering;
-using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
@@ -42,7 +41,11 @@ public class ExportRequestValidationTests
     [Test]
     public async Task AnEmptyRange_IsRefused()
     {
-        ExportRequest request = ExportFixtures.Request(10) with { StartFrame = 8, EndFrame = 4 };
+        ExportRequest request = ExportFixtures.Request(10) with
+        {
+            StartFrame = 8,
+            EndFrame = 4
+        };
         await Assert.That(Refusal(request)).IsNotNull();
     }
 
@@ -75,7 +78,7 @@ public class ExportRequestValidationTests
         string? refusal = Refusal(request);
         await Assert.That(refusal).IsNotNull();
         await Assert.That(refusal!).Contains(SceneExportSession.GifMaxFrames.ToString(
-            System.Globalization.CultureInfo.InvariantCulture));
+            CultureInfo.InvariantCulture));
     }
 
     [Test]
@@ -137,7 +140,10 @@ public class SceneExportSessionLoopTests
         using CpuSurfaceProvider surfaces = new();
         RecordingFrameSink sink = new();
 
-        HashSet<string> only = new(StringComparer.Ordinal) { SceneLayerIds.Markers };
+        HashSet<string> only = new(StringComparer.Ordinal)
+        {
+            SceneLayerIds.Markers
+        };
         ExportRequest request = ExportFixtures.Request(2, layerIds: only);
 
         bool[] before = [.. compositor.Layers.Select(l => l.IsEnabled)];
@@ -181,7 +187,9 @@ public class SceneExportSessionLoopTests
 
         HashSet<string> ids = new(StringComparer.Ordinal)
         {
-            SceneLayerIds.Markers, SceneLayerIds.HudClock, SceneLayerIds.HudKillFeed
+            SceneLayerIds.Markers,
+            SceneLayerIds.HudClock,
+            SceneLayerIds.HudKillFeed
         };
 
         await new SceneExportSession(compositor).RunAsync(ExportFixtures.Request(3, layerIds: ids),
@@ -321,7 +329,7 @@ public class SceneExportSessionCancellationTests
     {
         using SceneCompositor compositor = SceneLayerCatalog.CreateSceneStack();
         using CpuSurfaceProvider surfaces = new();
-        RecordingFrameSink sink = new(throwOnFrame: 4);
+        RecordingFrameSink sink = new(4);
 
         InvalidOperationException? failure = null;
         try
@@ -423,7 +431,8 @@ public class SceneExportSessionProgressTests
 ///         There were three of those lists — <c>CreateSceneStack</c>'s <c>isHud</c> pair, the session's
 ///         <c>OptInLayerIds</c>, and <c>ExportRequest.LayerIds</c>' prose — and a layer that reached two of
 ///         them was force-enabled on every export by the third. These cases drive off
-///         <see cref="SceneLayerIds.OptIn" /> itself rather than naming ids, so a future opt-in layer like <c>hud.roster</c> is
+///         <see cref="SceneLayerIds.OptIn" /> itself rather than naming ids, so a future opt-in layer like
+///         <c>hud.roster</c> is
 ///         covered by them the moment it is added.
 ///     </para>
 /// </summary>
@@ -480,7 +489,7 @@ public class ExportOptInLayerTests
     [Test]
     public async Task NamingTheInk_WithADocument_ChangesTheExportedFrames()
     {
-        IReadOnlyList<string> blank = await Export(Ink(strokes: 0));
+        IReadOnlyList<string> blank = await Export(Ink(0));
         IReadOnlyList<string> drawn = await Export(Ink());
 
         // The end of the promise design §1 goal 2 makes: not "the id is accepted" but "the ink is in the
@@ -500,7 +509,8 @@ public class ExportOptInLayerTests
     {
         HashSet<string> ids = new(StringComparer.Ordinal)
         {
-            SceneLayerIds.Markers, SceneLayerIds.Annotations
+            SceneLayerIds.Markers,
+            SceneLayerIds.Annotations
         };
 
         using SceneCompositor compositor =

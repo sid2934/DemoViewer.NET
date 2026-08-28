@@ -3,13 +3,12 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Reflection;
-using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Models;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Models;
 using DemoViewer.NET.ViewModels.Common;
 using DemoViewer.NET.ViewModels.Shell;
 using Google.Protobuf;
@@ -39,6 +38,15 @@ public sealed partial class ParserTabViewModel : ObservableObject
     ///     followed by the exact proto payload bytes.
     /// </summary>
     private const int NormalizedHeaderSize = 8;
+
+    /// <summary>
+    ///     A link into the parser's source on GitHub. The parse pipeline and entity decoder ship as
+    ///     the CS2DemoKit packages, so their files are not in this checkout and there is nothing for
+    ///     <c>code --goto</c> to open — the chain links out to the upstream repository instead.
+    /// </summary>
+    private const string EntityTrackerSourcePath = "src/CS2DemoKit.Parser/EntityTracking/EntityTracker.cs";
+
+    private const string DemoParserSourcePath = "src/CS2DemoKit.Parser/DemoParser.cs";
 
     private byte[]? _cachedDecompressedPayload;
 
@@ -1660,15 +1668,6 @@ public sealed partial class ParserTabViewModel : ObservableObject
 
         RebuildDecompressedByteIndex();
     }
-
-    /// <summary>
-    ///     A link into the parser's source on GitHub. The parse pipeline and entity decoder ship as
-    ///     the CS2DemoKit packages, so their files are not in this checkout and there is nothing for
-    ///     <c>code --goto</c> to open — the chain links out to the upstream repository instead.
-    /// </summary>
-    private const string EntityTrackerSourcePath = "src/CS2DemoKit.Parser/EntityTracking/EntityTracker.cs";
-
-    private const string DemoParserSourcePath = "src/CS2DemoKit.Parser/DemoParser.cs";
 
     private static string KitUrl(string repoRelativePath, int? line = null) =>
         $"https://github.com/CS2OpenDev/CS2DemoKit/blob/main/{repoRelativePath}"

@@ -50,45 +50,8 @@ internal sealed class ChannelVideoFrameSource : IEnumerable<IVideoFrame>, IEnume
             SingleWriter = true
         });
 
-    /// <inheritdoc />
-    public IVideoFrame Current => _current!;
-
-    /// <inheritdoc />
-    object IEnumerator.Current => Current;
-
     /// <summary>Frames the reader has pulled. Diagnostics and tests.</summary>
     public int FramesRead { get; private set; }
-
-    /// <summary>Copies one frame in, waiting while the encoder is four frames behind.</summary>
-    /// <param name="rgba">The borrowed staging buffer; copied before this returns.</param>
-    /// <param name="width">Frame width.</param>
-    /// <param name="height">Frame height.</param>
-    /// <param name="ct">Cancels the wait.</param>
-    public async ValueTask WriteAsync(ReadOnlyMemory<byte> rgba, int width, int height, CancellationToken ct)
-    {
-        PooledRgbaFrame frame = Rent(rgba.Length);
-        rgba.Span.CopyTo(frame.Buffer.AsSpan(0, rgba.Length));
-        frame.Set(width, height, rgba.Length);
-
-        try
-        {
-            await _channel.Writer.WriteAsync(frame, ct).ConfigureAwait(false);
-        }
-        catch
-        {
-            // A refused write must not leak the rented array — a cancelled 1080p export would otherwise
-            // drop 8 MB on the floor per frame in flight.
-            Recycle(frame);
-            throw;
-        }
-    }
-
-    /// <summary>Signals end-of-stream. ffmpeg sees EOF on the pipe and exits normally.</summary>
-    public void Complete() => _channel.Writer.TryComplete();
-
-    /// <summary>Signals end-of-stream with a fault, so a waiting reader stops rather than hanging.</summary>
-    /// <param name="error">The reason.</param>
-    public void Fault(Exception error) => _channel.Writer.TryComplete(error);
 
     /// <inheritdoc />
     public IEnumerator<IVideoFrame> GetEnumerator()
@@ -105,6 +68,12 @@ internal sealed class ChannelVideoFrameSource : IEnumerable<IVideoFrame>, IEnume
 
     /// <inheritdoc />
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    /// <inheritdoc />
+    public IVideoFrame Current => _current!;
+
+    /// <inheritdoc />
+    object IEnumerator.Current => Current;
 
     /// <inheritdoc />
     public bool MoveNext()
@@ -144,6 +113,37 @@ internal sealed class ChannelVideoFrameSource : IEnumerable<IVideoFrame>, IEnume
         }
     }
 
+    /// <summary>Copies one frame in, waiting while the encoder is four frames behind.</summary>
+    /// <param name="rgba">The borrowed staging buffer; copied before this returns.</param>
+    /// <param name="width">Frame width.</param>
+    /// <param name="height">Frame height.</param>
+    /// <param name="ct">Cancels the wait.</param>
+    public async ValueTask WriteAsync(ReadOnlyMemory<byte> rgba, int width, int height, CancellationToken ct)
+    {
+        PooledRgbaFrame frame = Rent(rgba.Length);
+        rgba.Span.CopyTo(frame.Buffer.AsSpan(0, rgba.Length));
+        frame.Set(width, height, rgba.Length);
+
+        try
+        {
+            await _channel.Writer.WriteAsync(frame, ct).ConfigureAwait(false);
+        }
+        catch
+        {
+            // A refused write must not leak the rented array: a cancelled 1080p export would otherwise
+            // drop 8 MB on the floor per frame in flight.
+            Recycle(frame);
+            throw;
+        }
+    }
+
+    /// <summary>Signals end-of-stream. ffmpeg sees EOF on the pipe and exits normally.</summary>
+    public void Complete() => _channel.Writer.TryComplete();
+
+    /// <summary>Signals end-of-stream with a fault, so a waiting reader stops rather than hanging.</summary>
+    /// <param name="error">The reason.</param>
+    public void Fault(Exception error) => _channel.Writer.TryComplete(error);
+
     private void RecycleCurrent()
     {
         if (_current is null)
@@ -179,12 +179,11 @@ internal sealed class ChannelVideoFrameSource : IEnumerable<IVideoFrame>, IEnume
 /// </summary>
 internal sealed class PooledRgbaFrame : IVideoFrame
 {
-    private byte[] _buffer = [];
     private int _length;
     private bool _rented;
 
     /// <summary>The rented backing array. Only the first <c>Length</c> bytes are meaningful.</summary>
-    public byte[] Buffer => _buffer;
+    public byte[] Buffer { get; private set; } = [];
 
     /// <inheritdoc />
     public int Width { get; private set; }
@@ -195,7 +194,7 @@ internal sealed class PooledRgbaFrame : IVideoFrame
     /// <inheritdoc />
     /// <remarks>
     ///     <c>rgba</c> is what <c>RawVideoPipeSource</c> turns into <c>-pix_fmt rgba</c>, and it is the
-    ///     byte order <c>SKColorType.Rgba8888</c> hands back — the two must agree or every frame comes out
+    ///     byte order <c>SKColorType.Rgba8888</c> hands back: the two must agree or every frame comes out
     ///     with red and blue swapped.
     /// </remarks>
     public string Format => "rgba";
@@ -204,27 +203,27 @@ internal sealed class PooledRgbaFrame : IVideoFrame
     public void Serialize(Stream pipe)
     {
         ArgumentNullException.ThrowIfNull(pipe);
-        pipe.Write(_buffer, 0, _length);
+        pipe.Write(Buffer, 0, _length);
     }
 
     /// <inheritdoc />
     public Task SerializeAsync(Stream pipe, CancellationToken token)
     {
         ArgumentNullException.ThrowIfNull(pipe);
-        return pipe.WriteAsync(_buffer.AsMemory(0, _length), token).AsTask();
+        return pipe.WriteAsync(Buffer.AsMemory(0, _length), token).AsTask();
     }
 
     /// <summary>Grows the rented buffer if needed.</summary>
     /// <param name="length">Bytes this frame will carry.</param>
     public void EnsureCapacity(int length)
     {
-        if (_rented && _buffer.Length >= length)
+        if (_rented && Buffer.Length >= length)
         {
             return;
         }
 
         ReleaseBuffer();
-        _buffer = ArrayPool<byte>.Shared.Rent(length);
+        Buffer = ArrayPool<byte>.Shared.Rent(length);
         _rented = true;
     }
 
@@ -247,8 +246,8 @@ internal sealed class PooledRgbaFrame : IVideoFrame
             return;
         }
 
-        ArrayPool<byte>.Shared.Return(_buffer);
-        _buffer = [];
+        ArrayPool<byte>.Shared.Return(Buffer);
+        Buffer = [];
         _rented = false;
         _length = 0;
     }

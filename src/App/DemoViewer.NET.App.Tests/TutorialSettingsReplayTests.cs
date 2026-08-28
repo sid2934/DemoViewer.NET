@@ -2,7 +2,6 @@
 
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
-using DemoViewer.NET.Services;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Settings;
 using Microsoft.Extensions.DependencyInjection;

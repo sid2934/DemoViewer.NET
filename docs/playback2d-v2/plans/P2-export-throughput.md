@@ -1,4 +1,4 @@
-# P2 — export throughput (encoder ladder, quality presets, input path)
+# P2: export throughput (encoder ladder, quality presets, input path)
 
 **Design authority:** [`../design.md`](../design.md) §5.7, §6 · **Registry:** [`00-overview.md`](00-overview.md) §3
 **Measurement authority:** [`P1-perf-instrumentation.md`](P1-perf-instrumentation.md) §7
@@ -26,7 +26,7 @@ Two facts from §7 shape everything below.
 1. **The encoder is the frame.** Over half of it, and the same range with `--no-encode` runs at 2.5×
    realtime on both demos. There is no content problem and no decode problem to fix.
 2. **ffmpeg does not merely follow the renderer, it competes with it.** The same frames raster at
-   2.785 ms p50 with no encoder and 4.143 ms with libvpx running beside them — **+49 %**. libvpx-vp9
+   2.785 ms p50 with no encoder and 4.143 ms with libvpx running beside them, **+49 %**. libvpx-vp9
    with `-row-mt 1` takes every core it can reach, and the render loop is one of the things it takes
    them from.
 
@@ -48,14 +48,14 @@ and, longer term,
 
 > "a single exporting node responsible for producing as many as possible as quickly as possible".
 
-The first sentence is this phase. The second is **not built here** — but every seam it needs is,
+The first sentence is this phase. The second is **not built here**, but every seam it needs is,
 and §7 records the shape so the phase that builds it does not have to re-cut this one.
 
 ---
 
 ## 3. Decisions
 
-### D1 — Probe, do not trust the list. Two frames, once, cached.
+### D1: Probe, do not trust the list. Two frames, once, cached.
 
 `ffmpeg -encoders` is a **build** manifest, not a **machine** manifest. On the development box for
 this phase, a 2-frame test encode at 256×256 says:
@@ -64,9 +64,9 @@ this phase, a 2-frame test encode at 256×256 says:
 |---|---|---|
 | `av1_nvenc` | yes | **ok** (678 ms) |
 | `h264_nvenc` | yes | **ok** (598 ms) |
-| `av1_qsv` | yes | **fails** — `Error creating a MFX session: -9` (no Intel device) |
-| `h264_qsv` | yes | **fails** — same |
-| `av1_amf` | yes | **fails** — `CreateComponent(AMFVideoEncoderHW_AV1) failed with error 30` |
+| `av1_qsv` | yes | **fails**: `Error creating a MFX session: -9` (no Intel device) |
+| `h264_qsv` | yes | **fails**: same |
+| `av1_amf` | yes | **fails**: `CreateComponent(AMFVideoEncoderHW_AV1) failed with error 30` |
 | `h264_amf` | yes | **ok** (618 ms) |
 
 Four of six listed hardware encoders are wrong about themselves on one machine, and two of them are

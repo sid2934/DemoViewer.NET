@@ -327,7 +327,7 @@ public class InputToolRouterTests
         // The rest of the drag still draws, and the LEFT release is what commits it.
         router.OnMoved(Sample(pane, new SKPoint(400, 260)));
         SKPoint end = new(480, 300);
-        bool closedByOwner = router.OnReleased(Sample(pane, end, ToolPointerButton.Left));
+        bool closedByOwner = router.OnReleased(Sample(pane, end));
 
         await Assert.That(closedByOwner).IsTrue();
         await Assert.That(router.IsGestureOpen).IsFalse();

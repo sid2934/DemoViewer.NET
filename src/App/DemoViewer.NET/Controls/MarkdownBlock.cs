@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Layout;
 using Avalonia.Media;
 
 #endregion
@@ -24,7 +25,7 @@ namespace DemoViewer.NET.Controls;
 /// </summary>
 public sealed partial class MarkdownBlock : ContentControl
 {
-    /// <summary>The markdown source to render. Null/empty clears the content.</summary>
+    /// <summary>The Markdown source to render. Null/empty clears the content.</summary>
     public static readonly StyledProperty<string?> MarkdownProperty =
         AvaloniaProperty.Register<MarkdownBlock, string?>(nameof(Markdown));
 
@@ -232,7 +233,7 @@ public sealed partial class MarkdownBlock : ContentControl
         {
             Header = summary,
             IsExpanded = false,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Content = new Border
             {
                 Padding = new Thickness(4, 8, 0, 0),

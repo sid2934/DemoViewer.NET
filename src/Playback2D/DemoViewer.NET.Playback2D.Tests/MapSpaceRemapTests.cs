@@ -9,10 +9,9 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     A level's identity must survive a boundary that drifts — which is what the density-valley
-///     histogram does for the whole demo — and must NOT survive a genuine floor split, because two
-///     floors sharing one identity is one camera, one picture cache and one annotation anchor pointing
-///     at the wrong storey.
+///     A level's identity must survive a boundary that drifts (the density-valley histogram drifts one
+///     for the whole demo) and must NOT survive a genuine floor split. Two floors sharing one identity
+///     is one camera, one picture cache and one annotation anchor pointing at the wrong storey.
 /// </summary>
 public class MapSpaceRemapTests
 {
@@ -37,7 +36,7 @@ public class MapSpaceRemapTests
 
     /// <summary>
     ///     Half-UP, not banker's. <c>Math.Round(-1.5)</c> is -2 and <c>Math.Round(-0.5)</c> is 0, so a
-    ///     round-to-even rule is asymmetric about zero — and CS2 maps sit at negative Z routinely.
+    ///     round-to-even rule is asymmetric about zero, and CS2 maps sit at negative Z routinely.
     /// </summary>
     [Test]
     public async Task QuantizeZ_RoundsHalfUp_Symmetrically()
@@ -65,10 +64,10 @@ public class MapSpaceRemapTests
     }
 
     /// <summary>
-    ///     The whole point of overlap-carry: the boundary between two bands moves by a bucket as the
-    ///     histogram accumulates, and both identities hold. Under a plain ZMin key-equality rule the upper
-    ///     band's ZMin changed, so it was Removed and re-Added — losing its camera every time the
-    ///     histogram twitched.
+    ///     What overlap-carry is for: the boundary between two bands moves by a bucket as the histogram
+    ///     accumulates, and both identities hold. Under a plain ZMin key-equality rule the upper band's
+    ///     ZMin changes, so it is Removed and re-Added, losing its camera every time the histogram
+    ///     twitches.
     /// </summary>
     [Test]
     public async Task BoundaryDrift_OneBucket_PreservesIds()
@@ -120,8 +119,8 @@ public class MapSpaceRemapTests
 
     /// <summary>
     ///     A key that was ever minted is never minted again. Without the monotonic set, removing a level
-    ///     and later re-observing the same band would hand the newcomer the departed level's identity —
-    ///     and with it whatever camera, cached picture or annotation still remembered that id.
+    ///     and later re-observing the same band hands the newcomer the departed level's identity, and
+    ///     with it whatever camera, cached picture or annotation still remembered that id.
     /// </summary>
     [Test]
     public async Task MintedKeys_NeverCollide_AfterRemoveThenAdd()
@@ -139,10 +138,10 @@ public class MapSpaceRemapTests
 
     /// <summary>
     ///     <b>The other side of <see cref="MintedKeys_NeverCollide_AfterRemoveThenAdd" />.</b> The bump
-    ///     that protects a departed level's identity also breaks the equation every annotation consumer
-    ///     used to rely on, <c>level.Id == IdForZMin(level.ZMin)</c>, so an anchor resolved by the minting
-    ///     rule stops matching the pane that is visibly drawing it. <see cref="MapSpace.IdForAnchor" /> is
-    ///     where ZMin-keyed level identity now actually lives.
+    ///     that protects a departed level's identity also breaks
+    ///     <c>level.Id == IdForZMin(level.ZMin)</c>, so an anchor resolved by the minting rule stops
+    ///     matching the pane that is visibly drawing it. <see cref="MapSpace.IdForAnchor" /> is where
+    ///     ZMin-keyed level identity lives.
     /// </summary>
     [Test]
     public async Task IdForAnchor_FollowsTheCarriedIdentity_NotTheMintingRule()
@@ -150,8 +149,8 @@ public class MapSpaceRemapTests
         MapSpace space = new();
         space.Rebuild([new FloorSlice(-448, -384), new FloorSlice(-384, -128)]);
 
-        // Lose the lower floor, then find it again — exactly what a histogram that briefly sees no
-        // samples down there does, and what a demo reload does deliberately.
+        // Lose the lower floor, then find it again: what a histogram that briefly sees no samples down
+        // there does, and what a demo reload does deliberately.
         space.Rebuild([new FloorSlice(-384, -128)]);
         space.Rebuild([new FloorSlice(-448, -384), new FloorSlice(-384, -128)]);
 
@@ -169,7 +168,7 @@ public class MapSpaceRemapTests
 
     /// <summary>
     ///     Contiguous bands share a boundary value, so containment alone answers "both" and picks the
-    ///     floor BELOW — the same trap <see cref="TryRemapAnchor_OnASharedBoundary_PrefersTheBandAbove" />
+    ///     floor BELOW, the same trap <see cref="TryRemapAnchor_OnASharedBoundary_PrefersTheBandAbove" />
     ///     documents. The quantized key has to win first, and the gap case still has to land somewhere.
     /// </summary>
     [Test]
@@ -196,9 +195,9 @@ public class MapSpaceRemapTests
 
     /// <summary>
     ///     <b>Reset removes every level, and has to say so.</b> A handler that reconciles against
-    ///     <c>LastChange</c> — <c>PaneSet.RetainUnarranged</c>, which <c>Scene2DHost</c> calls — was told
-    ///     <c>LevelSetChange.None</c>, so a demo unload kept a pane and a camera for every floor of the
-    ///     demo that had just closed.
+    ///     <c>LastChange</c> (<c>PaneSet.RetainUnarranged</c>, which <c>Scene2DHost</c> calls) told
+    ///     <c>LevelSetChange.None</c> keeps a pane and a camera for every floor of the demo that has
+    ///     just closed.
     /// </summary>
     [Test]
     public async Task Reset_PublishesEveryLevelAsRemoved_SoPanesReconcile()
@@ -252,7 +251,7 @@ public class MapSpaceRemapTests
 
     /// <summary>
     ///     Rule (b): the band that WAS at this Z is gone from under the anchor, but the level that
-    ///     inherited its identity is still there — follow the identity, not the number.
+    ///     inherited its identity is still there. Follow the identity, not the number.
     /// </summary>
     [Test]
     public async Task TryRemapAnchor_FollowsTheIdentity_WhenTheBandMovedAway()
@@ -271,9 +270,8 @@ public class MapSpaceRemapTests
     ///     <c>FloorSplitter</c> emits slice N's <c>MaxZ</c> as slice N+1's <c>MinZ</c>, and de_nuke's baked
     ///     bundle publishes <c>[-100000..-528]</c> / <c>[-528..100000]</c>. An anchor stamped with the
     ///     upper level's <c>ZMin</c> therefore sits exactly on the shared boundary, and the boundary is
-    ///     the thing that drifts — the same drift <see cref="BoundaryDrift_OneBucket_PreservesIds" />
-    ///     celebrates surviving. The anchor must follow the identity it named, not the geometry that
-    ///     moved out from under it.
+    ///     the thing that drifts (see <see cref="BoundaryDrift_OneBucket_PreservesIds" />). The anchor
+    ///     must follow the identity it named, not the geometry that moved out from under it.
     /// </summary>
     [Test]
     public async Task TryRemapAnchor_OnContiguousBands_FollowsTheIdentity_NotTheBandBelow()
@@ -303,7 +301,7 @@ public class MapSpaceRemapTests
         space.Rebuild([new FloorSlice(0, 640), new FloorSlice(640, 1280)]);
 
         // Only the TOP of the upper band moves, so the anchor's own level is untouched and its identity
-        // is not in LevelsBefore's way — this isolates the containment tie-break.
+        // is not in LevelsBefore's way. That isolates the containment tie-break.
         LevelSetChange change = space.Rebuild([new FloorSlice(0, 640), new FloorSlice(640, 1344)]);
 
         await Assert.That(change.TryRemapAnchor(640, out double rebased)).IsTrue();
@@ -316,9 +314,9 @@ public class MapSpaceRemapTests
 
     /// <summary>
     ///     A malformed authoritative bundle can publish a zero-width band; <c>Rebuild</c> widens it so
-    ///     nothing downstream divides by a zero span. The same list fed again must still be a
-    ///     no-op — otherwise every frame that re-derives the levels raises
-    ///     <c>LevelSetChanged</c>, and every frame drops the compositor's picture caches with it.
+    ///     nothing downstream divides by a zero span. The same list fed again must still be a no-op, or
+    ///     every frame that re-derives the levels raises <c>LevelSetChanged</c> and drops the
+    ///     compositor's picture caches with it.
     /// </summary>
     [Test]
     public async Task Rebuild_IsIdempotent_ForADegenerateBand()

@@ -11,19 +11,20 @@ using Avalonia.Threading;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Views.Playback2D;
+using SkiaSharp;
 
 #endregion
 
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Avalonia half of B1: the v2 host actually mounting, rendering through the custom draw
-///     operation, panning the band under the cursor, falling back to the <c>WriteableBitmap</c> path,
-///     and surviving the render gate under contention.
+///     The Avalonia half of the v2 host: mounting, rendering through the custom draw operation, panning
+///     the band under the cursor, falling back to the <c>WriteableBitmap</c> path, and surviving the
+///     render gate under contention.
 ///     <para>
 ///         Everything that can be asserted without a window is asserted in the direct-execution suite
-///         instead (<c>src/Playback2D/DemoViewer.NET.Playback2D.Tests</c>). What is left here genuinely
-///         needs a visual tree, a dispatcher and a real render pass.
+///         instead (<c>src/Playback2D/DemoViewer.NET.Playback2D.Tests</c>). What is left here needs a
+///         visual tree, a dispatcher and a real render pass.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -53,8 +54,8 @@ public class Scene2DHostTests
 
     /// <summary>
     ///     The environment variable is the CI and bisecting path, and it outranks the setting. It is an
-    ///     env var rather than a <c>FeatureCatalog</c> id on purpose (plan decision D-9): catalog ids are
-    ///     permanent persisted keys and this toggle is deleted with the old control in B5.
+    ///     env var rather than a <c>FeatureCatalog</c> id on purpose: catalog ids are permanent persisted
+    ///     keys, and this toggle goes away with the old control.
     /// </summary>
     [Test]
     public async Task EnvironmentVariable_SelectsTheSurface_AndOutranksTheSetting()
@@ -84,8 +85,7 @@ public class Scene2DHostTests
 
     /// <summary>
     ///     Both surfaces satisfy <see cref="IPlayback2DSurface" />, so the mode menu, the follow funnel
-    ///     and the Fit button drive either one. If this ever fails, the toggle has stopped being a
-    ///     toggle and become a fork.
+    ///     and the Fit button drive either one. A failure here means the two surfaces have diverged.
     /// </summary>
     [Test]
     public async Task BothSurfaces_SatisfyThePlayback2DSurfaceContract()
@@ -200,8 +200,7 @@ public class Scene2DHostTests
 
     /// <summary>
     ///     The self-terminating animation loop. It exists so an idle tab requests no frames at all; if
-    ///     it ever stops terminating, the app quietly burns a core in the background and nobody notices
-    ///     until they hear the fan.
+    ///     it ever stops terminating, the app burns a core in the background with nothing to report it.
     /// </summary>
     [Test]
     public async Task AnimationLoop_StopsRearmingOnceEverythingHasSettled()
@@ -241,8 +240,8 @@ public class Scene2DHostTests
     }
 
     /// <summary>
-    ///     The <c>WriteableBitmap</c> fallback (plan T13, risk R12). It never runs in normal use, so it
-    ///     is forced on every run — a path that only executes on a broken backend is a path that rots.
+    ///     The <c>WriteableBitmap</c> fallback. It never runs in normal use, so it is forced on every
+    ///     run: a path that only executes on a broken backend is a path that rots.
     /// </summary>
     [Test]
     public async Task CpuFallback_RendersAndSurvivesResizes()
@@ -283,9 +282,9 @@ public class Scene2DHostTests
     }
 
     /// <summary>
-    ///     Design risk 2, as a test: the UI thread advances and submits while a worker replays the draw
-    ///     operation's work against the same compositor. Under the gate this must produce no exception
-    ///     and a strictly monotonic submission id — a torn frame would show up as one or the other.
+    ///     The UI thread advances and submits while a worker replays the draw operation's work against
+    ///     the same compositor. Under the gate this must produce no exception and a strictly monotonic
+    ///     submission id: a torn frame would show up as one or the other.
     /// </summary>
     [Test]
     [Category("Integration")]
@@ -308,9 +307,9 @@ public class Scene2DHostTests
             {
                 try
                 {
-                    using SkiaSharp.SKSurface surface = SkiaSharp.SKSurface.Create(
-                        new SkiaSharp.SKImageInfo(200, 200, SkiaSharp.SKColorType.Rgba8888,
-                            SkiaSharp.SKAlphaType.Premul));
+                    using SKSurface surface = SKSurface.Create(
+                        new SKImageInfo(200, 200, SKColorType.Rgba8888,
+                            SKAlphaType.Premul));
                     while (!cancel.Token.IsCancellationRequested)
                     {
                         host.RenderForGateStressTest(surface.Canvas);
@@ -342,7 +341,7 @@ public class Scene2DHostTests
     /// <summary>
     ///     A control that is detached and re-attached must still draw.
     ///     <para>
-    ///         The v2 host disposes its compositor from <c>OnDetachedFromVisualTree</c>, which is right —
+    ///         The v2 host disposes its compositor from <c>OnDetachedFromVisualTree</c>, which is right:
     ///         a tab activation builds a fresh view, and leaking a compositor's SKPaints, SKPaths and
     ///         recorded pictures per activation is a native-memory climb. But detach is not only
     ///         teardown: Avalonia detaches and re-attaches on a re-parent, a re-template, and a

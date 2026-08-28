@@ -11,19 +11,20 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     A <see cref="EnvelopeMode.RealTime" /> stroke records WHEN each sample was drawn, as the sparse
-///     run table §2 describes, and commits it on release.
+///     A <see cref="EnvelopeMode.RealTime" /> stroke records WHEN each sample was drawn as a sparse run
+///     table, and commits it on release. The encoding is specced in
+///     <c>docs/playback2d-v2/plans/D7-realtime-ink.md</c>.
 ///     <para>
 ///         Every case here drives <see cref="FakeToolServices.NowMilliseconds" /> by hand while
 ///         <see cref="FakeToolServices.CurrentTick" /> stays wherever it was put. That separation is the
-///         feature, not a testing convenience: §1's whole argument is that the playhead is frozen for the
-///         length of a gesture drawn on a paused demo, so a cadence read from it would be instantaneous.
+///         feature, not a testing convenience: the playhead is frozen for the length of a gesture drawn
+///         on a paused demo, so a cadence read from it would be instantaneous.
 ///     </para>
 /// </summary>
 public class StrokeCadenceTests
 {
     /// <summary>
-    ///     One steady drag: two boundaries — the first sample and the last — and a duration that is the
+    ///     One steady drag: two boundaries (the first sample and the last) and a duration that is the
     ///     wall-clock the hand actually spent, converted once.
     /// </summary>
     [Test]
@@ -60,9 +61,9 @@ public class StrokeCadenceTests
     ///     <b>The whole feature.</b> An author who stops to think mid-stroke gets a boundary at the stop,
     ///     and the replayed head stalls there instead of gliding through it.
     ///     <para>
-    ///         The stall is the assertion that matters. A run table that merely recorded the total
+    ///         The stall is the assertion that matters. A run table that recorded only the total
     ///         duration would pass "there are boundaries" and still interpolate straight across the
-    ///         pause — which is exactly the encoding §2 rejects, and is invisible until you ask what
+    ///         pause, and that is invisible until you ask what
     ///         <see cref="StrokeTiming.RevealedCount" /> does tick by tick.
     ///     </para>
     /// </summary>
@@ -77,7 +78,7 @@ public class StrokeCadenceTests
             h.Step(50); // samples 1..10, at 50..500 ms
         }
 
-        h.Step(600); // sample 11 at 1100 ms — the author stopped to think
+        h.Step(600); // sample 11 at 1100 ms; the author stopped to think
 
         for (int i = 0; i < 10; i++)
         {
@@ -93,15 +94,15 @@ public class StrokeCadenceTests
         Console.WriteLine($"[cadence] pause: {samples} samples, k={timing.Runs.Count}, "
                           + $"runs={Describe(timing)}");
 
-        // The pause is the widest gap between two adjacent boundaries — read off the table rather than
+        // The pause is the widest gap between two adjacent boundaries, read off the table rather than
         // assumed at a sample index, so this still means "the stop" whatever the spacing filter kept.
         (int intoThePause, int outOfIt) = WidestGap(timing);
         await Assert.That(outOfIt - intoThePause).IsGreaterThanOrEqualTo(36)
             .Because("600 ms of thinking is 38 ticks; a table that ran a single linear fit through the "
                      + "whole stroke would place those two neighbours about 3 ticks apart");
 
-        // The stall itself, tick by tick over the whole pause — the reveal is monotone AND continuous in
-        // the tick (§5), so this is what a 30 fps export samples too, whichever ticks it happens to hit.
+        // The stall itself, tick by tick over the whole pause. The reveal is monotone AND continuous in
+        // the tick, so this is what a 30 fps export samples too, whichever ticks it happens to hit.
         int stalled = timing.RevealedCount(intoThePause, samples);
         for (int tick = intoThePause; tick < outOfIt; tick++)
         {
@@ -116,9 +117,9 @@ public class StrokeCadenceTests
     }
 
     /// <summary>
-    ///     §2's encoding, stated as a budget: a boundary marks a change of speed, so a realistic
+    ///     The encoding stated as a budget: a boundary marks a change of speed, so a realistic
     ///     telestration carries a handful of them and not one per point. Smooth variation inside a
-    ///     continuous motion is deliberately NOT a boundary — it is invisible at 64 Hz through a fading
+    ///     continuous motion is deliberately NOT a boundary. It is invisible at 64 Hz through a fading
     ///     tail, and paying 300 near-identical deltas to record it is what the sparse table exists to
     ///     avoid.
     /// </summary>
@@ -128,13 +129,13 @@ public class StrokeCadenceTests
         Hand h = new();
 
         h.Press();
-        Sweep(h, 90, 9, 2);  // circle the spot, hand speeding up and slowing twice
-        h.Step(620);         // ...stop and think
-        Sweep(h, 70, 7, 1);  // run a line out
-        h.Step(380);         // ...stop
+        Sweep(h, 90, 9, 2); // circle the spot, hand speeding up and slowing twice
+        h.Step(620); // ...stop and think
+        Sweep(h, 70, 7, 1); // run a line out
+        h.Step(380); // ...stop
         Sweep(h, 60, 11, 1); // hook it round
-        h.Step(500);         // ...stop
-        Sweep(h, 79, 8, 2);  // and the tail
+        h.Step(500); // ...stop
+        Sweep(h, 79, 8, 2); // and the tail
         h.Lift(8);
 
         AnnotationElement element = h.Committed;
@@ -155,9 +156,9 @@ public class StrokeCadenceTests
     }
 
     /// <summary>
-    ///     §1's regression, which is the reason the clock is on <c>IToolServices</c> at all: most
-    ///     annotation happens on a PAUSED demo, where <c>CurrentTick</c> does not move for the length of
-    ///     the gesture. A cadence anchored to it would collapse to nothing.
+    ///     Why the clock is on <c>IToolServices</c> at all: most annotation happens on a PAUSED demo,
+    ///     where <c>CurrentTick</c> does not move for the length of the gesture. A cadence anchored to it
+    ///     collapses to nothing.
     /// </summary>
     [Test]
     public async Task AStrokeDrawnWhileThePlayheadIsFrozen_StillRecordsRealCadence()
@@ -191,11 +192,9 @@ public class StrokeCadenceTests
     ///     The same hand, the same milliseconds, on a 128-tick parse: the cadence is expressed in the
     ///     DEMO's ticks, so it carries twice as many of them.
     ///     <para>
-    ///         A prior conversion through a hard-coded 64 was the best available, since nothing on Core's
-    ///         side of the <c>IToolServices</c> seam could read a rate — but it meant a stroke drawn on a
-    ///         128-tick demo replayed at HALF the speed it was drawn at, because the run table said "one
-    ///         second" where the renderer counted two. Both assertions below fail on the literal, and the
-    ///         second one is the whole bug: same wall clock in, same wall clock back out.
+    ///         Converting through a hard-coded 64 replays a stroke drawn on a 128-tick demo at HALF the
+    ///         speed it was drawn at: the run table says "one second" where the renderer counts two.
+    ///         Both assertions below fail on the literal.
     ///     </para>
     /// </summary>
     [Test]
@@ -204,7 +203,10 @@ public class StrokeCadenceTests
         Hand at64 = new();
         Hand at128 = new(ticksPerSecond: 128);
 
-        foreach (Hand h in new[] { at64, at128 })
+        foreach (Hand h in new[]
+                 {
+                     at64, at128
+                 })
         {
             h.Press();
             for (int i = 0; i < 24; i++)
@@ -225,18 +227,18 @@ public class StrokeCadenceTests
             .Because("1000 ms is 128 ticks on a 128-tick parse; converted at a literal 64 it would say "
                      + "64, and the replay would crawl at half the speed the hand actually moved");
 
-        // Ticks back into seconds through each session's own rate: the SAME second of authoring, which
-        // is the invariant a rate-blind conversion breaks.
+        // Ticks back into seconds through each session's own rate: the SAME second of authoring. That is
+        // the invariant a rate-blind conversion breaks.
         await Assert.That(fast.DurationTicks / 128.0).IsEqualTo(slow.DurationTicks / 64.0);
     }
 
     /// <summary>
-    ///     A coalesced batch carries no times of its own — Avalonia stamps the EVENT — so the samples in
+    ///     A coalesced batch carries no times of its own (Avalonia stamps the EVENT), so the samples in
     ///     one are spread across the interval since the previous event.
     ///     <para>
-    ///         Read through the reveal, which is the only thing that consumes the offsets: a quarter of
-    ///         the batch's 1000 ms has to have revealed a quarter of it. Stamped at the event time
-    ///         instead, all four would sit at the far end and 16 ticks in would still show one sample.
+    ///         Read through the reveal, the only thing that consumes the offsets: a quarter of the
+    ///         batch's 1000 ms has to have revealed a quarter of it. Stamped at the event time instead,
+    ///         all four would sit at the far end and 16 ticks in would still show one sample.
     ///     </para>
     /// </summary>
     [Test]
@@ -270,8 +272,8 @@ public class StrokeCadenceTests
     }
 
     /// <summary>
-    ///     A tap has no cadence to record. It still commits — it is a dot (design §5.4) — and the timing
-    ///     it carries is the "everything at once" one, not a table with a single useless entry in it.
+    ///     A tap has no cadence to record. It still commits, as a dot, and the timing it carries is the
+    ///     "everything at once" one, not a table with a single useless entry in it.
     /// </summary>
     [Test]
     public async Task ATapWithNoMovement_CommitsTheInstantTiming()
@@ -279,7 +281,7 @@ public class StrokeCadenceTests
         Hand h = new();
 
         h.Press();
-        h.Lift(0, move: false);
+        h.Lift(0, false);
 
         AnnotationElement element = h.Committed;
         await Assert.That(element.Points.Count).IsEqualTo(2);
@@ -289,10 +291,10 @@ public class StrokeCadenceTests
     }
 
     /// <summary>
-    ///     A clock that steps backwards mid-gesture — the case the monotonic contract on
-    ///     <c>IToolServices.NowMilliseconds</c> exists to forbid — must degrade to a repeated instant
-    ///     rather than write a table with a negative offset in it, which is the one shape
-    ///     <see cref="StrokeTiming" />'s readers assume away.
+    ///     A clock that steps backwards mid-gesture, the case the monotonic contract on
+    ///     <c>IToolServices.NowMilliseconds</c> exists to forbid, must degrade to a repeated instant.
+    ///     A table with a negative offset in it is the one shape <see cref="StrokeTiming" />'s readers
+    ///     assume away.
     /// </summary>
     [Test]
     public async Task AClockThatWentBackwards_DoesNotInvertTheTable()
@@ -327,7 +329,7 @@ public class StrokeCadenceTests
         await Assert.That(timing.Runs[^1].TickOffset).IsEqualTo(timing.DurationTicks);
     }
 
-    // The adjacent boundary pair furthest apart in time — the stop the hand made, as the table saw it.
+    // The adjacent boundary pair furthest apart in time: the stop the hand made, as the table saw it.
     private static (int Before, int After) WidestGap(StrokeTiming timing)
     {
         int widest = 1;
@@ -344,13 +346,13 @@ public class StrokeCadenceTests
     }
 
     // A hand whose speed rises and falls smoothly, `cycles` times over `samples` strokes of the pen.
-    // No pauses: this is the variation §2 is explicit must NOT produce boundaries.
+    // No pauses: this is the variation that must NOT produce boundaries.
     private static void Sweep(Hand h, int samples, double baseGapMs, int cycles)
     {
         for (int i = 1; i <= samples; i++)
         {
             double phase = 2 * Math.PI * cycles * i / samples;
-            h.Step((long)Math.Max(1, baseGapMs * (1 + (0.5 * Math.Sin(phase)))));
+            h.Step((long)Math.Max(1, baseGapMs * (1 + 0.5 * Math.Sin(phase))));
         }
     }
 
@@ -359,7 +361,7 @@ public class StrokeCadenceTests
             string.Create(CultureInfo.InvariantCulture, $"{r.SampleIndex}@{r.TickOffset}")));
 
     /// <summary>
-    ///     A hand drawing a straight line to the right, one <see cref="StepWorld" /> at a time — well
+    ///     A hand drawing a straight line to the right, one <see cref="StepWorld" /> at a time. Well
     ///     clear of the spacing filter, so every sample driven here is a sample the element keeps and the
     ///     boundary indices below mean what they say.
     /// </summary>
@@ -424,7 +426,7 @@ public class StrokeCadenceTests
             Tool.OnMoved(AnnotationFakes.Press(Pane, new SKPoint(_x, 0), intermediate: batch), Services);
         }
 
-        /// <summary>Waits, then releases — which is what commits the element.</summary>
+        /// <summary>Waits, then releases. The release is what commits the element.</summary>
         /// <param name="ms">How long the hand took to get here.</param>
         /// <param name="move">False to release where the press landed, i.e. a tap.</param>
         public void Lift(long ms, bool move = true)

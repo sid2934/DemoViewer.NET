@@ -11,17 +11,17 @@ namespace DemoViewer.NET.Playback2D.Core.Annotations;
 ///     <para>
 ///         <b>One gesture is one undo entry.</b> <see cref="BeginGesture" /> opens a mark; every
 ///         <see cref="Apply" /> until the handle is disposed lands in the same batch, and disposing pushes
-///         that batch as a SINGLE history entry — so a 400-sample stroke and a drag-erase across thirty
+///         that batch as a SINGLE history entry, so a 400-sample stroke and a drag-erase across thirty
 ///         strokes each cost the user exactly one Ctrl+Z. A gesture that produced no deltas pushes
-///         nothing (plan decision D4).
+///         nothing.
 ///     </para>
 ///     <para>
 ///         <b>Inverses are computed at apply time</b>, not stored in the delta: a <c>Remove</c>'s inverse
 ///         needs the element that was removed, and a <c>Replace</c>'s needs the value it displaced. That
-///         is what keeps <see cref="DocDelta" /> minimal and serializable.
+///         keeps <see cref="DocDelta" /> minimal and serializable.
 ///     </para>
 ///     <para>
-///         <b>The history holds annotations and nothing else</b> (design risk 13). There is no reference
+///         <b>The history holds annotations and nothing else.</b> There is no reference
 ///         to a camera, a playhead or a selection anywhere on this type, so "undo after a seek" can only
 ///         ever undo the stroke.
 ///     </para>
@@ -34,7 +34,7 @@ public sealed class AnnotationDocument
 {
     /// <summary>
     ///     Hard cap on undo entries. A stroke is ~1 KB of samples, so 200 gestures is generous and still
-    ///     bounded — the repo's "no unbounded buffer" invariant. The oldest entry is dropped.
+    ///     bounded, per the repo's "no unbounded buffer" invariant. The oldest entry is dropped.
     /// </summary>
     public const int MaxHistoryEntries = 200;
 
@@ -68,8 +68,8 @@ public sealed class AnnotationDocument
     public string? OpenGestureName => _gesture?.Name;
 
     /// <summary>
-    ///     Raised after any mutation, once per mutation, <b>and once more when a gesture closes</b> — the
-    ///     moment its deltas become a single undo entry and <see cref="UndoDepth" /> finally moves.
+    ///     Raised after any mutation, once per mutation, <b>and once more when a gesture closes</b>: the
+    ///     moment its deltas become a single undo entry and <see cref="UndoDepth" /> moves.
     /// </summary>
     public event Action? Changed;
 
@@ -78,8 +78,8 @@ public sealed class AnnotationDocument
     ///     into one history entry; disposing a gesture that produced no deltas pushes nothing.
     ///     <para>
     ///         <b>Non-reentrant.</b> The router guarantees exactly one active tool, so a second open
-    ///         gesture is a bug — and a silently nested one would merge two users' worth of intent into a
-    ///         single undo entry.
+    ///         gesture is a bug, and a silently nested one would merge two gestures' worth of intent into
+    ///         a single undo entry.
     ///     </para>
     /// </summary>
     /// <param name="name">Diagnostic name, e.g. <c>"draw"</c> or <c>"erase"</c>.</param>
@@ -154,8 +154,8 @@ public sealed class AnnotationDocument
     ///     Applies a delta as a MIGRATION: it bumps <see cref="Version" /> and raises
     ///     <see cref="Changed" />, but pushes nothing onto either stack and clears neither.
     ///     <para>
-    ///         For level-set rebases and schema migrations — the user did not act, so Ctrl+Z must not
-    ///         restore a state that describes a level set which no longer exists (plan correction 9).
+    ///         For level-set rebases and schema migrations: the user did not act, so Ctrl+Z must not
+    ///         restore a state that describes a level set which no longer exists.
     ///     </para>
     /// </summary>
     /// <param name="delta">The mutation.</param>
@@ -170,13 +170,17 @@ public sealed class AnnotationDocument
     }
 
     /// <summary>
-    ///     Undoes the newest history entry. Returns false when there is nothing to undo, <b>or while a
-    ///     gesture is open</b>.
+    ///     Undoes the newest history entry. Returns false when there is nothing to undo,
+    ///     <b>
+    ///         or while a
+    ///         gesture is open
+    ///     </b>
+    ///     .
     ///     <para>
     ///         Ctrl+Z is reachable from the keyboard while the pointer is captured mid-stroke. Undoing
     ///         there popped the PREVIOUS entry, and the in-flight stroke's own <see cref="Apply" /> then
-    ///         cleared the redo stack — leaving the earlier stroke deleted with no way back. The open
-    ///         gesture is the user's current intent; history editing waits for it to finish.
+    ///         cleared the redo stack, leaving the earlier stroke deleted with no way back. History
+    ///         editing waits for the open gesture to finish.
     ///     </para>
     /// </summary>
     public bool Undo()
@@ -247,9 +251,9 @@ public sealed class AnnotationDocument
     ///     <paramref name="zMinMap" />, in the LIVE elements <b>and</b> in every element captured in the
     ///     undo/redo history.
     ///     <para>
-    ///         <b>History-transparent</b> (plan decision D6): a level-set rebuild is a system event, not a
-    ///         user gesture. It consumes no undo slot, and rewriting the history is what stops a later
-    ///         Ctrl+Z from restoring an anchor pointing at a level that no longer exists.
+    ///         <b>History-transparent</b>: a level-set rebuild is a system event, not a user gesture. It
+    ///         consumes no undo slot, and rewriting the history stops a later Ctrl+Z from restoring an
+    ///         anchor pointing at a level that no longer exists.
     ///     </para>
     /// </summary>
     /// <param name="zMinMap">Old quantized level ZMin → new quantized level ZMin.</param>
@@ -285,8 +289,8 @@ public sealed class AnnotationDocument
     }
 
     /// <summary>
-    ///     Bulk load (persistence, tests, "clear all" with an empty sequence). Clears the history — a
-    ///     load is not an action the user can undo into the previous demo's ink — and raises exactly one
+    ///     Bulk load (persistence, tests, "clear all" with an empty sequence). Clears the history, since a
+    ///     load is not an action the user can undo into the previous demo's ink, and raises exactly one
     ///     <see cref="Changed" />.
     /// </summary>
     /// <param name="elements">The elements to hold, oldest first.</param>
@@ -316,8 +320,7 @@ public sealed class AnnotationDocument
     }
 
     // ── Mutation core. Returns false when the delta changed nothing (an absent id), in which case no
-    //    inverse exists and nothing is recorded — that is what makes a no-hit erase gesture cost zero
-    //    undo entries.
+    //    inverse exists and nothing is recorded, so a no-hit erase gesture costs zero undo entries.
     private bool TryApply(DocDelta delta, out DocDelta? inverse)
     {
         switch (delta)
@@ -463,8 +466,8 @@ public sealed class AnnotationDocument
         _open.Clear();
 
         // Closing a gesture is when its deltas actually BECOME an undo entry: until now they sat in the
-        // open batch and UndoDepth still read zero. Announce it, or every consumer tracking undo depth —
-        // the toolbar's undo button first among them — stays stale until the next unrelated mutation.
+        // open batch and UndoDepth still read zero. Announce it, or every consumer tracking undo depth
+        // (the toolbar's undo button first) stays stale until the next unrelated mutation.
         //
         // Version is deliberately NOT bumped: no content changed, and bumping it would make the ink
         // layer re-record every level's dry picture at the end of every single stroke.

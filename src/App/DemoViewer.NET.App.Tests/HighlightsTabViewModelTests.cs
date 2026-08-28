@@ -3,11 +3,11 @@
 using System.Text.Json;
 using Avalonia.Controls;
 using CS2DemoKit.Analysis;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.ViewModels.Highlights;
 
@@ -69,7 +69,11 @@ public class HighlightsTabViewModelTests
         TickRate = 64,
         TickCount = 120_000,
         ModifiedTicks = modified,
-        Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 },
+        Analysis = new TierStamp
+        {
+            Schema = DemoCacheRecord.AnalysisSchema,
+            ComputedAtTicks = 1
+        },
         AnalysisState = state,
         ConfigFingerprint = "fp@64",
         Sha256 = "sha-" + Path.GetFileName(path),
@@ -85,7 +89,7 @@ public class HighlightsTabViewModelTests
         ],
         Rounds =
         [
-            new Services.DemoCache.CachedRound
+            new CachedRound
             {
                 Number = 1,
                 StartTickFrameClock = 1000
@@ -443,7 +447,10 @@ public class HighlightsTabViewModelTests
         // A session file outlives app versions and is user-writable: a shape that no longer matches must
         // degrade to "restore nothing", never throw away the whole tab restore.
         HighlightsTabViewModel garbage = Vm(store, scanner);
-        garbage.RestoreState(JsonSerializer.SerializeToElement(new { StagedClips = "not-an-array" }));
+        garbage.RestoreState(JsonSerializer.SerializeToElement(new
+        {
+            StagedClips = "not-an-array"
+        }));
         await Assert.That(garbage.StagedCount).IsEqualTo(0);
     }
 
@@ -504,21 +511,6 @@ public class HighlightsTabViewModelTests
         gate.Enabled = true;
         gate.Raise();
         await Assert.That(vm.ReelConfig.IsEncodingVisible).IsTrue();
-    }
-
-    // Minimal IFeatureGate stand-in: only highlights.encoding is interesting here.
-    private sealed class FakeGate : IFeatureGate
-    {
-        public bool Enabled { get; set; } = true;
-        public UserCategory Category => UserCategory.PowerUser;
-        public int HiddenCount => 0;
-
-        public event EventHandler? Changed;
-
-        public bool IsEnabled(string featureId) =>
-            featureId != "highlights.encoding" || Enabled;
-
-        public void Raise() => Changed?.Invoke(this, EventArgs.Empty);
     }
 
     // ── Empty states + stubs + layout ─────────────────────────────────────────
@@ -707,6 +699,21 @@ public class HighlightsTabViewModelTests
         await Assert.That(vm.StagedCount).IsEqualTo(1);
         await Assert.That(vm.StagedSelections[0].Record.Path).IsEqualTo("/d/a.dem");
         await Assert.That(vm.StatusMessage).Contains("no longer in the highlights cache");
+    }
+
+    // Minimal IFeatureGate stand-in: only highlights.encoding is interesting here.
+    private sealed class FakeGate : IFeatureGate
+    {
+        public bool Enabled { get; set; } = true;
+        public UserCategory Category => UserCategory.PowerUser;
+        public int HiddenCount => 0;
+
+        public event EventHandler? Changed;
+
+        public bool IsEnabled(string featureId) =>
+            featureId != "highlights.encoding" || Enabled;
+
+        public void Raise() => Changed?.Invoke(this, EventArgs.Empty);
     }
 
     private sealed class FakeHarvester : IHighlightHarvester

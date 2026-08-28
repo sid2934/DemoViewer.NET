@@ -50,14 +50,20 @@ public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSour
     /// <param name="builder">Turns tracker state into a <see cref="Scene2DFrame" />. Owned by the caller.</param>
     /// <param name="startFrame">First demo frame; seeded via <c>SeekToFrameNoSnapshot</c>.</param>
     /// <param name="endFrame">Inclusive last demo frame.</param>
-    /// <param name="fps">Output frame rate. With <paramref name="speed" /> it fixes
-    ///     <c>SceneTime.DeltaSeconds = speed / fps</c> (design §5.1 determinism).</param>
+    /// <param name="fps">
+    ///     Output frame rate. With <paramref name="speed" /> it fixes
+    ///     <c>SceneTime.DeltaSeconds = speed / fps</c> (design §5.1 determinism).
+    /// </param>
     /// <param name="speed">Playback-rate multiplier; 1 is realtime.</param>
     /// <param name="tickRate">The demo's tick rate; values ≤ 0 are treated as 64.</param>
-    /// <param name="createTracker">Defaults to <c>() =&gt; new EntityTracker()</c>.
-    ///     NEVER <c>MainViewModel.CreateTracker</c>.</param>
-    /// <param name="throwOnNonSequentialAccess">true in tests: a non-monotonic caller fails instead of
-    ///     silently paying a re-seed per frame.</param>
+    /// <param name="createTracker">
+    ///     Defaults to <c>() =&gt; new EntityTracker()</c>.
+    ///     NEVER <c>MainViewModel.CreateTracker</c>.
+    /// </param>
+    /// <param name="throwOnNonSequentialAccess">
+    ///     true in tests: a non-monotonic caller fails instead of
+    ///     silently paying a re-seed per frame.
+    /// </param>
     public TrackerFrameSource(IReadOnlyList<DemoFrame> frames, SceneFrameBuilder builder,
         int startFrame, int endFrame, int fps, double speed, int tickRate,
         Func<EntityTracker>? createTracker = null, bool throwOnNonSequentialAccess = false)
@@ -91,50 +97,61 @@ public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSour
         FrameCount = OutputFrameCount(frames, startFrame, endFrame, fps, speed, _tickRate);
     }
 
-    /// <summary>
-    ///     How many output frames a demo range produces at a given rate — the same arithmetic the
-    ///     constructor uses, exposed so a caller can size an <c>ExportRequest</c> without building a
-    ///     source first. A dialog that computed its own frame count would eventually disagree with the
-    ///     source, and the disagreement would show up as a GIF cap that refuses one length and encodes
-    ///     another.
-    /// </summary>
-    /// <param name="frames">The parsed frame list.</param>
-    /// <param name="startFrame">First demo frame, inclusive.</param>
-    /// <param name="endFrame">Last demo frame, inclusive.</param>
-    /// <param name="fps">Output frame rate.</param>
-    /// <param name="speed">Playback-rate multiplier.</param>
-    /// <param name="tickRate">Demo tick rate; values ≤ 0 are treated as 64.</param>
-    public static int OutputFrameCount(IReadOnlyList<DemoFrame> frames, int startFrame, int endFrame,
-        int fps, double speed, int tickRate)
-    {
-        ArgumentNullException.ThrowIfNull(frames);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fps);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(speed);
-
-        if (frames.Count == 0 || startFrame < 0 || endFrame < startFrame || endFrame >= frames.Count)
-        {
-            return 0;
-        }
-
-        int rate = tickRate > 0 ? tickRate : 64;
-        double ticksPerOutputFrame = speed * rate / fps;
-        long tickSpan = frames[endFrame].ServerTick - frames[startFrame].ServerTick;
-        return tickSpan <= 0 || ticksPerOutputFrame <= 0
-            ? 1
-            : 1 + (int)Math.Floor(tickSpan / ticksPerOutputFrame);
-    }
-
-    /// <summary>The number of output frames this source produces.</summary>
-    public int FrameCount { get; }
-
     /// <summary>The demo frame index output frame 0 lands on.</summary>
     public int StartFrame { get; }
 
     /// <summary>True once <see cref="Prepare" /> has seeded the tracker.</summary>
     public bool IsPrepared => _tracker is not null;
 
-    /// <inheritdoc />
-    public bool NeedsPreparation => _tracker is null;
+    /// <summary>
+    ///     The round/score state of the frame <see cref="FrameAt" /> built most recently, or
+    ///     <see cref="SceneGameInfo.Empty" /> before the first one.
+    ///     <para>
+    ///         It exists because a HUD clock is a <b>function of tick</b>
+    ///         (<c>IHudDataSource</c>), and an export's only reader of game rules is this source: a front
+    ///         end that closed over its own live frame instead would burn a frozen scoreboard into the
+    ///         video (the app), or none at all (the CLI). Both did.
+    ///     </para>
+    ///     <para>
+    ///         <b>Reading it from a clock delegate is ordered correctly by construction.</b>
+    ///         <c>SceneExportSession.RunAsync</c> is strictly <c>TimeAt</c> → <c>FrameAt</c> →
+    ///         <c>Advance</c> → <c>Render</c> for each output frame, and <c>ClockLayer</c> asks its data
+    ///         source during <c>Advance</c> — so the last frame built here is always the frame being
+    ///         drawn. A caller that renders out of that order gets the previous frame's scoreboard, which
+    ///         is why this is a property on the source rather than a hidden global.
+    ///     </para>
+    /// </summary>
+    public SceneGameInfo LastGameInfo { get; private set; } = SceneGameInfo.Empty;
+
+    /// <summary>
+    ///     The player cards of the frame <see cref="FrameAt" /> built most recently, or empty before the
+    ///     first one — <c>hud.roster</c>'s half of what <see cref="LastGameInfo" /> is to <c>hud.clock</c>.
+    ///     <para>
+    ///         Ordered correctly for the same reason as <see cref="LastGameInfo" />: a HUD layer is a
+    ///         function of tick and asks its data source during <c>Advance</c>. Wire it as the roster
+    ///         half of a <c>TimelineHudDataSource</c>:
+    ///         <c>
+    ///             new TimelineHudDataSource(kills, rate, _ =&gt; ClockReading.From(src.LastGameInfo),
+    ///             rosterAt: _ =&gt; src.LastRoster)
+    ///         </c>
+    ///         .
+    ///     </para>
+    ///     <para>
+    ///         <b>Borrowed, not copied</b> — it is the builder's pooled list, valid until the next
+    ///         <see cref="FrameAt" /> on this source, exactly like the <c>Scene2DFrame</c> beside it.
+    ///     </para>
+    /// </summary>
+    public IReadOnlyList<HudPlayerRow> LastRoster { get; private set; } = [];
+
+    /// <summary>The map name stamped onto every built frame. Set before the first <see cref="FrameAt" />.</summary>
+    public string? MapName { get; set; }
+
+    /// <summary>
+    ///     The decoded radar art stamped onto every built frame, from a loaded map bundle. Set before the
+    ///     first <see cref="FrameAt" />; leaving it null renders the synthetic grid instead of the map
+    ///     image, which is what a demo-backed render looks like with no assets on disk.
+    /// </summary>
+    public IReadOnlyList<MapRadarImage>? Radars { get; set; }
 
     /// <summary>Drops the private tracker. Idempotent.</summary>
     public void Dispose()
@@ -148,6 +165,9 @@ public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSour
         _tracker = null;
         _demoIndexByFrame = [];
     }
+
+    /// <inheritdoc />
+    public bool NeedsPreparation => _tracker is null;
 
     /// <summary>
     ///     The one-time from-zero replay to <see cref="StartFrame" />, plus the output-frame → demo-frame
@@ -169,6 +189,9 @@ public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSour
         _tracker = seek.Tracker;
         _cursor = StartFrame;
     }
+
+    /// <summary>The number of output frames this source produces.</summary>
+    public int FrameCount { get; }
 
     /// <summary>The injected clock for one output frame.</summary>
     /// <param name="frameIndex">Source-relative output frame index, 0-based.</param>
@@ -244,51 +267,37 @@ public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSour
     }
 
     /// <summary>
-    ///     The round/score state of the frame <see cref="FrameAt" /> built most recently, or
-    ///     <see cref="SceneGameInfo.Empty" /> before the first one.
-    ///     <para>
-    ///         It exists because a HUD clock is a <b>function of tick</b>
-    ///         (<c>IHudDataSource</c>), and an export's only reader of game rules is this source: a front
-    ///         end that closed over its own live frame instead would burn a frozen scoreboard into the
-    ///         video (the app), or none at all (the CLI). Both did.
-    ///     </para>
-    ///     <para>
-    ///         <b>Reading it from a clock delegate is ordered correctly by construction.</b>
-    ///         <c>SceneExportSession.RunAsync</c> is strictly <c>TimeAt</c> → <c>FrameAt</c> →
-    ///         <c>Advance</c> → <c>Render</c> for each output frame, and <c>ClockLayer</c> asks its data
-    ///         source during <c>Advance</c> — so the last frame built here is always the frame being
-    ///         drawn. A caller that renders out of that order gets the previous frame's scoreboard, which
-    ///         is why this is a property on the source rather than a hidden global.
-    ///     </para>
+    ///     How many output frames a demo range produces at a given rate — the same arithmetic the
+    ///     constructor uses, exposed so a caller can size an <c>ExportRequest</c> without building a
+    ///     source first. A dialog that computed its own frame count would eventually disagree with the
+    ///     source, and the disagreement would show up as a GIF cap that refuses one length and encodes
+    ///     another.
     /// </summary>
-    public SceneGameInfo LastGameInfo { get; private set; } = SceneGameInfo.Empty;
+    /// <param name="frames">The parsed frame list.</param>
+    /// <param name="startFrame">First demo frame, inclusive.</param>
+    /// <param name="endFrame">Last demo frame, inclusive.</param>
+    /// <param name="fps">Output frame rate.</param>
+    /// <param name="speed">Playback-rate multiplier.</param>
+    /// <param name="tickRate">Demo tick rate; values ≤ 0 are treated as 64.</param>
+    public static int OutputFrameCount(IReadOnlyList<DemoFrame> frames, int startFrame, int endFrame,
+        int fps, double speed, int tickRate)
+    {
+        ArgumentNullException.ThrowIfNull(frames);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fps);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(speed);
 
-    /// <summary>
-    ///     The player cards of the frame <see cref="FrameAt" /> built most recently, or empty before the
-    ///     first one — <c>hud.roster</c>'s half of what <see cref="LastGameInfo" /> is to <c>hud.clock</c>.
-    ///     <para>
-    ///         Ordered correctly for the same reason as <see cref="LastGameInfo" />: a HUD layer is a
-    ///         function of tick and asks its data source during <c>Advance</c>. Wire it as the roster
-    ///         half of a <c>TimelineHudDataSource</c>:
-    ///         <c>new TimelineHudDataSource(kills, rate, _ =&gt; ClockReading.From(src.LastGameInfo),
-    ///         rosterAt: _ =&gt; src.LastRoster)</c>.
-    ///     </para>
-    ///     <para>
-    ///         <b>Borrowed, not copied</b> — it is the builder's pooled list, valid until the next
-    ///         <see cref="FrameAt" /> on this source, exactly like the <c>Scene2DFrame</c> beside it.
-    ///     </para>
-    /// </summary>
-    public IReadOnlyList<HudPlayerRow> LastRoster { get; private set; } = [];
+        if (frames.Count == 0 || startFrame < 0 || endFrame < startFrame || endFrame >= frames.Count)
+        {
+            return 0;
+        }
 
-    /// <summary>The map name stamped onto every built frame. Set before the first <see cref="FrameAt" />.</summary>
-    public string? MapName { get; set; }
-
-    /// <summary>
-    ///     The decoded radar art stamped onto every built frame, from a loaded map bundle. Set before the
-    ///     first <see cref="FrameAt" />; leaving it null renders the synthetic grid instead of the map
-    ///     image, which is what a demo-backed render looks like with no assets on disk.
-    /// </summary>
-    public IReadOnlyList<MapRadarImage>? Radars { get; set; }
+        int rate = tickRate > 0 ? tickRate : 64;
+        double ticksPerOutputFrame = speed * rate / fps;
+        long tickSpan = frames[endFrame].ServerTick - frames[startFrame].ServerTick;
+        return tickSpan <= 0 || ticksPerOutputFrame <= 0
+            ? 1
+            : 1 + (int)Math.Floor(tickSpan / ticksPerOutputFrame);
+    }
 
     /// <summary>The demo frame index one output frame maps to.</summary>
     /// <param name="frameIndex">Source-relative output frame index, 0-based.</param>
@@ -327,7 +336,7 @@ public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSour
         int hi = frames.Count;
         while (lo < hi)
         {
-            int mid = lo + ((hi - lo) >> 1);
+            int mid = lo + (hi - lo >> 1);
             if (frames[mid].ServerTick < serverTick)
             {
                 lo = mid + 1;
