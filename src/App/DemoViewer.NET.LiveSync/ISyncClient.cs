@@ -14,7 +14,7 @@ namespace DemoViewer.NET.LiveSync;
 ///     methods instead of the full session. The engine picks per-capability between the v1.0 unacked
 ///     seek (echo-ledger confirmation) and the v1.1 arrival-verified acked seek.
 /// </summary>
-internal interface ISyncClient
+public interface ISyncClient
 {
     /// <param name="demoPath">Host path of the demo.</param>
     /// <param name="interactiveDemoUi">
@@ -55,7 +55,7 @@ internal interface ISyncClient
 ///     notifies the capture backend); every other command lives on <see cref="CsvgVideoSession.Engine" />,
 ///     the per-run <see cref="ICs2EngineSession" />.
 /// </summary>
-internal sealed class CsvgSyncClientAdapter(CsvgVideoSession session) : ISyncClient
+public sealed class CsvgSyncClientAdapter(CsvgVideoSession session) : ISyncClient
 {
     public Task LoadDemoAsync(string demoPath, bool interactiveDemoUi, CancellationToken cancellationToken) =>
         session.LoadDemoAsync(demoPath, interactiveDemoUi, cancellationToken);

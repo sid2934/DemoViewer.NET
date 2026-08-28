@@ -17,7 +17,7 @@ namespace DemoViewer.NET.LiveSync;
 /// </param>
 /// <param name="SeekTimeout">Unconfirmed-seek expiry → Degraded.</param>
 /// <param name="PlayPauseTimeout">Missing play/pause status echo → Degraded.</param>
-internal sealed record SyncTimings(
+public sealed record SyncTimings(
     TimeSpan Settle,
     TimeSpan SeekConfirmGrace,
     TimeSpan SeekTimeout,
@@ -45,7 +45,7 @@ internal sealed record SyncTimings(
 ///         a paused state (<c>SeekToFrame</c> stops the play loop first).
 ///     </para>
 /// </summary>
-internal sealed class SyncEngine : IAsyncDisposable
+public sealed class SyncEngine : IAsyncDisposable
 {
     /// <summary>±tick window for believed-position "close enough" and v1.0 seek confirmation.</summary>
     public const int SeekConfirmTolerance = 32;

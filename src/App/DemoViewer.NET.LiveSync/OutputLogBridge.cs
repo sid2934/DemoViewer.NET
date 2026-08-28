@@ -22,7 +22,7 @@ namespace DemoViewer.NET.LiveSync;
 ///         is off (source-generated framework loggers skip building state when IsEnabled is false).
 ///     </para>
 /// </summary>
-internal sealed class OutputLogBridge(
+public sealed class OutputLogBridge(
     Action<LogLevel, string, string> sink,
     Func<LogLevel> minLevel,
     Func<bool> includeFramework) : ILoggerProvider

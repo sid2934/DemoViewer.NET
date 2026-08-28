@@ -12,7 +12,7 @@ namespace DemoViewer.NET.LiveSync;
 ///     integration tests can assert decisions against REAL wire events
 ///     without an Avalonia loop. <see cref="InboundSync.OnDemoState" /> applies the decision.
 /// </summary>
-internal static class InboundLogic
+public static class InboundLogic
 {
     /// <summary>What one observed tick-stream change means (the pump's per-tick decision).</summary>
     public enum TickSignal

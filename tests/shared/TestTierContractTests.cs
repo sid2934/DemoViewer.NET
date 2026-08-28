@@ -504,12 +504,12 @@ public partial class TestTierContractTests
     /// <summary>The argument of each <c>Assert.That(…)</c> in a body, parens balanced.</summary>
     private static IEnumerable<string> AssertionSubjects(string body)
     {
-        const string call = "Assert.That(";
-        for (int at = body.IndexOf(call, StringComparison.Ordinal);
+        const string Call = "Assert.That(";
+        for (int at = body.IndexOf(Call, StringComparison.Ordinal);
              at >= 0;
-             at = body.IndexOf(call, at + call.Length, StringComparison.Ordinal))
+             at = body.IndexOf(Call, at + Call.Length, StringComparison.Ordinal))
         {
-            int start = at + call.Length;
+            int start = at + Call.Length;
             int depth = 1;
             int end = start;
             while (end < body.Length && depth > 0)

@@ -402,7 +402,7 @@ public sealed class LiveSyncService : ILiveSyncService
     };
 
     /// <summary>Projects CSVG capability tokens onto the engine-feature matrix.</summary>
-    internal static LiveSyncCapabilities MapCapabilities(IReadOnlySet<string> tokens) => new(
+    public static LiveSyncCapabilities MapCapabilities(IReadOnlySet<string> tokens) => new(
         tokens.Contains(CsvgCapabilities.DemoStateEvents),
         tokens.Contains(CsvgCapabilities.CommandAck),
         tokens.Contains(CsvgCapabilities.SeekAck),

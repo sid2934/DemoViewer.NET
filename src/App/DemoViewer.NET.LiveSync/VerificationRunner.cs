@@ -15,7 +15,7 @@ namespace DemoViewer.NET.LiveSync;
 ///     playhead remote-apply + <c>EndVerification</c> after. Headlessly testable against the
 ///     real mock.
 /// </summary>
-internal static class VerificationRunner
+public static class VerificationRunner
 {
     /// <summary>Defaults: ~3 s of pre-roll context, ~1 s of follow-through at 64 tick.</summary>
     public const int DefaultPreRollTicks = 192;

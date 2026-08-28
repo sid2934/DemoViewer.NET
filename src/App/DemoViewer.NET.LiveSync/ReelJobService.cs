@@ -425,13 +425,13 @@ public sealed class ReelJobService(
     ///     space here — exactly once, on every path that reaches CS2 (the real compilation and the
     ///     dry-run walk both come through this method, so the two can never disagree).
     /// </summary>
-    internal static (int StartTick, int EndTick) Cs2Range(ReelClip clip, int tickOffset)
+    public static (int StartTick, int EndTick) Cs2Range(ReelClip clip, int tickOffset)
     {
         ArgumentNullException.ThrowIfNull(clip);
         return (checked((int)(clip.StartTick + tickOffset)), checked((int)(clip.EndTick + tickOffset)));
     }
 
-    internal static Cs2Compilation BuildCompilation(ReelRequest request, int width, int height, int tickOffset) => new()
+    public static Cs2Compilation BuildCompilation(ReelRequest request, int width, int height, int tickOffset) => new()
     {
         Settings = new Cs2CompilationSettings
         {
