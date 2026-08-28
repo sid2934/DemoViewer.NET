@@ -40,11 +40,7 @@ public static class EncoderLadder
     ///     bisect, a bitrate comparison or a "why does this file look different on my laptop" wants.
     /// </summary>
     public const string Software = "software";
-
-    private static readonly VideoEncoder?[] _webm = [Av1Nvenc, Av1Qsv, Av1Amf, Vp9];
-    private static readonly VideoEncoder?[] _mp4 = [H264Nvenc, H264Qsv, H264Amf, X264];
-    private static readonly VideoEncoder?[] _gif = [Gif];
-
+    
     /// <summary>
     ///     AV1 on NVENC. Ada's AV1 block; on Turing and older the probe fails and the ladder moves on.
     ///     <para>
@@ -142,16 +138,25 @@ public static class EncoderLadder
     public static VideoEncoder Gif { get; } = new(
         "gif", "gif", EncoderAcceleration.Software, "", "", "", "");
 
+    private static readonly VideoEncoder[] _webm = [Av1Nvenc, Av1Qsv, Av1Amf, Vp9];
+    private static readonly VideoEncoder[] _mp4 = [H264Nvenc, H264Qsv, H264Amf, X264];
+    private static readonly VideoEncoder[] _gif = [Gif];
+    
     /// <summary>
-    ///     The rungs for a format, best first. An unknown format id gets the WebM ladder, matching
+    ///     The rungs for a format, the best first. An unknown format id gets the WebM ladder, matching
     ///     <c>SceneExportSession.SupportedFps</c>'s treatment of the same case.
     /// </summary>
     /// <param name="formatId">One of <see cref="ExportFormats" />.</param>
-    public static IReadOnlyList<VideoEncoder> For(string? formatId) =>
-        (string.Equals(formatId, ExportFormats.Mp4, StringComparison.Ordinal) ? _mp4
-            : string.Equals(formatId, ExportFormats.Gif, StringComparison.Ordinal) ? _gif
-            : _webm)!;
-
+    public static IReadOnlyList<VideoEncoder> For(string? formatId)
+    {
+        return formatId?.Trim().ToLowerInvariant() switch
+        {
+            ExportFormats.Mp4 => _mp4,
+            ExportFormats.Gif => _gif,
+            _ => _webm
+        };
+    }
+    
     /// <summary>
     ///     The software rung of a format's ladder — always its last entry. What
     ///     <c>--encoder software</c> resolves to, and the sink's default when no selection was made.
