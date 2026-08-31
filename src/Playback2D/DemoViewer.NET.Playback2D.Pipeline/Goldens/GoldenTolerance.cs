@@ -243,3 +243,56 @@ public readonly record struct GoldenDeltaProfile(
         $"within±8 {FractionWithin(8):P2}, within±32 {FractionWithin(32):P2}, " +
         $"max {MaxChannelDelta} at ({MaxDeltaX},{MaxDeltaY})");
 }
+
+/// <summary>
+///     The gate for the <c>nuke-multilevel</c> golden — the pre-v2 control's own capture — stated over the
+///     delta <b>distribution</b> instead of over a maximum.
+///     <para>
+///         Both of its readers reach it across a rasteriser boundary, and a maximum describes neither
+///         crossing. The v2 compositor reaches it through raw <c>SKCanvas</c> where the golden came from
+///         Avalonia's <c>DrawingContext</c>, so one anti-aliased edge pixel rounding the other way is
+///         already a full-amplitude difference. The pre-v2 capture reaches it through the same drawing
+///         code but a different OS text stack, and this golden is LIGHT-palette with a live marker's
+///         initials drawn in black on a bright disc — so one coverage flip at a glyph stem is worth the
+///         whole ~200 of text-to-disc contrast, roughly four times what the same flip costs on the dark
+///         synthetic corpus. <see cref="GoldenTolerance.DefaultPerceptual" /> cannot express that and
+///         <see cref="GoldenTolerance.ForLabelledFrame" /> cannot either: its 96 ceiling and its 6 px
+///         per-label budget were both measured on that dark corpus. What separates "the same picture"
+///         from "a regression" here is how much of the frame sits within a delta anyone could see.
+///     </para>
+///     <para>
+///         The two numbers are the ones measured for <c>GoldenParityTests</c> and written up in
+///         <c>docs/playback2d-v2/plans/B1-text-metrics-review.md</c>, set just below the observed curve so
+///         a mis-placed layer, a wrong colour or a dropped pass moves it far enough to fail. They live
+///         here so that both readers of the golden are held to one curve.
+///     </para>
+/// </summary>
+/// <param name="MinWithin8">Fraction of the frame that must differ by at most 8 per channel.</param>
+/// <param name="MinWithin32">Fraction that must differ by at most 32.</param>
+public readonly record struct GoldenDistribution(double MinWithin8, double MinWithin32)
+{
+    /// <summary>The measured gate for the pre-v2 <c>nuke-multilevel</c> capture.</summary>
+    public static readonly GoldenDistribution PreV2Capture = new(0.99, 0.995);
+
+    /// <summary>
+    ///     Judges one profile, returning null when it passes and a one-line diagnosis when it does not —
+    ///     the same shape as <see cref="GoldenComparison.FailureReason" />, so a caller can assert on
+    ///     either without a second code path.
+    /// </summary>
+    /// <param name="profile">The measured delta distribution.</param>
+    public string? Evaluate(GoldenDeltaProfile profile)
+    {
+        double within8 = profile.FractionWithin(8);
+        if (within8 < MinWithin8)
+        {
+            return string.Create(CultureInfo.InvariantCulture,
+                $"only {within8:P4} of the frame is within ±8, under the {MinWithin8:P2} floor");
+        }
+
+        double within32 = profile.FractionWithin(32);
+        return within32 < MinWithin32
+            ? string.Create(CultureInfo.InvariantCulture,
+                $"only {within32:P4} of the frame is within ±32, under the {MinWithin32:P2} floor")
+            : null;
+    }
+}

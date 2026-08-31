@@ -176,7 +176,7 @@
         "bytes_per_frame": 0
       },
       "pending": true,
-      "notes": "PENDING for dv2d, permanently as things stand, and NOT because an input is missing. This golden is the PRE-V2 control's own output: captured through headless Avalonia by Playback2DGoldenCaptureTests, under the LIGHT palette the headless theme resolves, and it is gated by GoldenParityTests against a delta DISTRIBUTION (99 % within +/-8, 99.5 % within +/-32) because two rasterisers cannot agree pixel for pixel. dv2d renders Dark and compares at GoldenTolerance.DefaultPerceptual, which can express neither. The note here used to say 'B1 clears pending when the compositor can render it'; B1 shipped, and the reason it still cannot is the palette and the tolerance, not the pane model."
+      "notes": "PENDING for dv2d, permanently as things stand, and NOT because an input is missing. This golden is the PRE-V2 control's own output: captured through headless Avalonia by Playback2DGoldenCaptureTests, under the LIGHT palette the headless theme resolves, and it is gated against a delta DISTRIBUTION (99 % within +/-8, 99.5 % within +/-32, GoldenDistribution.PreV2Capture) by both of its readers - GoldenParityTests for the v2 compositor, and Playback2DGoldenCaptureTests whenever it runs off the platform that authored the corpus - because neither two rasterisers nor two OS text stacks agree pixel for pixel. dv2d renders Dark and compares at GoldenTolerance.DefaultPerceptual, which can express neither. The note here used to say 'B1 clears pending when the compositor can render it'; B1 shipped, and the reason it still cannot is the palette and the tolerance, not the pane model."
     },
     {
       "name": "nuke-multilevel-upper",
