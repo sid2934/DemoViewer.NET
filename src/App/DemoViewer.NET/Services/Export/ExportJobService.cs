@@ -170,8 +170,12 @@ public sealed class ExportJobService : IExportJobService, IDisposable
         IDisposable? slot = null;
         ExportJobStatus? terminal = null;
 
+        // Eta is named rather than omitted, and named rather than passed positionally. Preparing has no
+        // rate to extrapolate from, so null is the answer and not an oversight — and an omitted optional
+        // is invisible in the IL, which is the gap Playback2DCompositionTests exists to close. It reads
+        // as a redundant argument to an IDE inspection; it is the one argument here that is not.
         SetStatus(new ExportJobStatus(ExportPhase.Preparing, 0, request.Core.FrameCount, 0, TimeSpan.Zero,
-            request.OutputPath, null));
+            request.OutputPath, null, Eta: null));
 
         try
         {
