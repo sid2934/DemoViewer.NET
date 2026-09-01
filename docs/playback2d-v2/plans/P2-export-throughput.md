@@ -77,10 +77,10 @@ this box and fail an hour into a full-match export.
 So the ladder verifies. The verification is:
 
 - **a real encode**, of two 256×256 frames of `yuv420p` fed on **stdin as `rawvideo`**, to `-f null -`.
-  No `lavfi`, no filter graph, no container, no temp file — the probe must not be able to fail for a
+  No `lavfi`, no filter graph, no container, no temp file: the probe must not be able to fail for a
   reason that is not the encoder. 256×256 clears every hardware minimum (AV1 NVENC's is 160×128).
 - **hardware rungs only.** A software rung that `-encoders` lists is trusted from the listing.
-  The failure mode the probe exists for — "listed, initialises, then dies on a missing device" — is a
+  The failure mode the probe exists for ("listed, initialises, then dies on a missing device") is a
   driver fact. `libvpx-vp9` present in the build and broken at runtime is not a thing that happens,
   and paying 600 ms per export on a GPU-less CI runner to re-learn it would be a tax on the one lane
   that can never benefit.
@@ -94,11 +94,11 @@ The cache holds *environment* facts, so `EncoderProbeCache.Shared` exists as a c
 selection is not cached and not global**: `EncoderSelection` is a value handed to one sink, which is
 what D5 needs.
 
-**Only an answer is remembered — a cancellation is not one** (found in review). `EncoderProbeCache`
+**Only an answer is remembered. A cancellation is not one** (found in review). `EncoderProbeCache`
 already declined to memoise a cancelled *result*; the `-encoders` listing underneath it did not, and
 an empty listing is indistinguishable from "this build carries no encoders". Cancelling an export
 while the ladder was being walked therefore poisoned the one cache an app session has: every later
-export was told every rung was "not built into this ffmpeg" and dropped to the software floor —
+export was told every rung was "not built into this ffmpeg" and dropped to the software floor,
 silently, permanently, until the user happened to press Re-check. Two rules now:
 
 - **An empty listing is never memoised.** A listing that named something is a fact about a build; an
@@ -112,35 +112,35 @@ silently, permanently, until the user happened to press Re-check. Two rules now:
 Both are covered by `FfmpegEncoderProbeTests.ACancelledListing_IsNotRemembered` and
 `…ACancelledProbe_DoesNotSitOutTheTimeout`.
 
-### D2 — The ladders
+### D2: The ladders
 
 Per output format, best-first. `--encoder auto` (the default) walks it and takes the first rung that
 verifies.
 
-**WebM** — `av1_nvenc` → `av1_qsv` → `av1_amf` → `libvpx-vp9`
+**WebM**: `av1_nvenc` → `av1_qsv` → `av1_amf` → `libvpx-vp9`
 
 AV1 in a `.webm` is legal: the WebM project added AV1 to the container in 2018, and `ffprobe` on our
-own output reads `format_name=matroska,webm  codec_name=av1`. **The container does not change** — a
+own output reads `format_name=matroska,webm  codec_name=av1`. **The container does not change**: a
 `.webm` stays a `.webm`, which is what keeps the format id, the file extension, the dialog and every
 persisted default untouched. It is also the reason AV1 is preferred over HEVC on this rung: HEVC
 cannot go in a WebM at all.
 
-**MP4** — `h264_nvenc` → `h264_qsv` → `h264_amf` → `libx264`
+**MP4**: `h264_nvenc` → `h264_qsv` → `h264_amf` → `libx264`
 
 H.264 rather than HEVC/AV1 for the MP4 rung on compatibility grounds: an `.mp4` is the format a user
 picks when they are about to hand the file to somebody else.
 
-**GIF** — unchanged. The palettegen/paletteuse chain is not an encoder choice and has no ladder;
+**GIF**: unchanged. The palettegen/paletteuse chain is not an encoder choice and has no ladder;
 it reports as the pseudo-rung `gif` so the JSON has one shape.
 
 **Ordering, and the QSV/AMF rungs.** Vendor order is NVENC, then QSV, then AMF. It is not a quality
-claim — it is that on a machine with both a discrete NVIDIA card and an integrated GPU, the discrete
+claim: it is that on a machine with both a discrete NVIDIA card and an integrated GPU, the discrete
 card is the one that is not also drawing the desktop. On a machine with only an iGPU the first rung
 fails its probe in milliseconds (not listed) or in ~600 ms (listed, no device) and the ladder moves
-on. **`av1_qsv`, `h264_qsv` and `av1_amf` are shipped unverified on this hardware** — the probe is
+on. **`av1_qsv`, `h264_qsv` and `av1_amf` are shipped unverified on this hardware**: the probe is
 exactly what makes shipping them safe.
 
-### D3 — Quality presets, and what "decent bitrate" resolves to
+### D3: Quality presets, and what "decent bitrate" resolves to
 
 Three ids, `draft | standard | best`, mapped **per encoder**, default `standard`.
 
@@ -175,46 +175,46 @@ Four things this table decides.
 - **`best` is not "today, but slower".** VP9 `best` is today's quality (0.99986 vs 0.99987) at 1.5×
   today's speed, because `-deadline good -cpu-used 2` is still faster than libvpx's unflagged default.
 - **`draft` is a real rung, not a joke.** Even `av1_nvenc` draft holds 0.995 SSIM at 100 kbps.
-- **`libx264 -preset medium -crf 30` — today's MP4 default — is beaten on both axes.** `veryfast`
+- **`libx264 -preset medium -crf 30`, today's MP4 default, is beaten on both axes.** `veryfast`
   at CRF 21 is faster *and* scores higher; today's setting spends its time on a rate target so low
   the quality is thrown away before the preset can help.
 
 Bitrates are all inside 82–280 kbps at 720p60 because the content is a 2D radar: flat fills, sharp
 text, a mostly static background. "Decent bitrate" for this content means *not visibly quantising the
-text and the player dots*, which is what the `cq`/`crf` values were chosen against — not a target
+text and the player dots*, which is what the `cq`/`crf` values were chosen against, not a target
 number of megabits.
 
-### D4 — `--encoder` and `--quality` are honest, and an explicit request is never silently substituted
+### D4: `--encoder` and `--quality` are honest, and an explicit request is never silently substituted
 
 `--encoder <name|auto|software>` on `dv2d export`, plus `Playback2D:ExportEncoder` (default `auto`)
 and `Playback2D:ExportQuality` (default `standard`) in settings.
 
-- `auto` — walk the ladder.
-- `software` — skip every hardware rung. The reproducible, machine-independent answer; what a
+- `auto`: walk the ladder.
+- `software`: skip every hardware rung. The reproducible, machine-independent answer; what a
   bisect or a golden-adjacent comparison wants.
-- a rung's name — take that rung. **If it does not verify, the export is refused** with the probe's
+- a rung's name: take that rung. **If it does not verify, the export is refused** with the probe's
   own message, rather than falling through to something else. A user who asked for `h264_nvenc` and
   silently got `libx264` has been told a lie about what their file is. `auto` is the default
   precisely so this refusal is something you opt into.
-- anything not on that format's ladder — a usage error that lists the valid names.
+- anything not on that format's ladder: a usage error that lists the valid names.
 
 The chosen encoder, why it was chosen, and every rung that was tried and rejected go into
 `export --json` (additive keys on the existing `schema_version: 1` payload) and into the human line.
 
-### D5 — The selection is per session. Nothing about it is process-global.
+### D5: The selection is per session. Nothing about it is process-global.
 
 `EncoderSelection` is a value: `(VideoEncoder Encoder, ExportQuality Quality, string Reason,
 IReadOnlyList<EncoderProbeResult> Attempts)`. It is resolved by the caller, handed to
 `FfmpegSinkOptions`, and lives exactly as long as that sink. Two exports in one process may hold two
 different selections at the same time; nothing in the ladder, the selector or the sink reads or
 writes shared mutable state. The probe **cache** is shared, and it is a `ConcurrentDictionary` of
-facts about the machine — safe to share precisely because nothing about a session can change what it
+facts about the machine, safe to share precisely because nothing about a session can change what it
 holds.
 
 This is the same argument that already keeps `GlobalFFOptions` out of the sink (B4: "a CLI export and
 an in-app export must be able to disagree"), applied to the encoder.
 
-### D6 — The determinism contract does not move (plan D13)
+### D6: The determinism contract does not move (plan D13)
 
 The determinism gate hashes **pre-encode RGBA frames** through `HashingFrameSink`. Nothing in this
 phase touches the render loop, the readback, or that sink, so the gate is encoder-independent by
@@ -225,7 +225,7 @@ differ, and the same input on two different NVIDIA driver versions certainly can
 it is why D13 hashes raw frames in the first place, and it is why the chosen encoder is recorded in
 `export --json`: a file's bytes are a function of the machine, so the machine is written down.
 
-### D7 — Input path: measure before converting
+### D7: Input path: measure before converting
 
 With a fast encoder the pipe (raw RGBA, 221 MB/s at 720p60) and ffmpeg's own `swscale` become
 candidates. Converting BGRA→NV12 on our side with `System.Runtime.Intrinsics` would cut pipe traffic
@@ -233,7 +233,7 @@ by 62.5 % and remove `swscale` from the graph.
 
 **It is implemented only if `--perf` shows an end-to-end win with the new encoders.** The pre-measurement
 says it probably will not: feeding the same 450 frames as `rgba` versus as `nv12` costs
-`av1_nvenc` 35 ms and `h264_nvenc` 23 ms over the whole run — 0.05–0.08 ms per frame — while the raw
+`av1_nvenc` 35 ms and `h264_nvenc` 23 ms over the whole run (0.05–0.08 ms per frame) while the raw
 read-floor difference alone is 238 ms. `swscale` is overlapped with the encode and is not on the
 critical path. Our side would pay ~0.5–1.0 ms per frame of *render-loop* time to save it, which is
 the wrong direction. The measurement and the decision are recorded in §8 either way; the same
@@ -243,7 +243,7 @@ discipline applies to double-buffering the read-back.
 
 ## 4. Where the code goes
 
-All new types are Pipeline. **Core is untouched** — `ExportRequest`, `IFrameSink` and
+All new types are Pipeline. **Core is untouched**: `ExportRequest`, `IFrameSink` and
 `SceneExportSession` do not learn what an encoder is, which is what keeps registry §3.8's signatures
 and design §5.7 intact.
 
@@ -265,7 +265,7 @@ App and CLI additions:
 |---|---|
 | `dv2d export` | `--encoder <name\|auto\|software>`, `--quality <draft\|standard\|best>` |
 | `export --json` | additive `video_encoder`, `video_encoder_kind`, `encoder_reason`, `quality`, `encoder_attempts` |
-| `Playback2DSettings` | `ExportEncoder` (default `auto`), `ExportQuality` (default `standard`) — both flattened into `SettingsService.WriteInMemory`, per registry §3.10 |
+| `Playback2DSettings` | `ExportEncoder` (default `auto`), `ExportQuality` (default `standard`), both flattened into `SettingsService.WriteInMemory`, per registry §3.10 |
 | export dialog | a quality picker and an encoder picker, both settings-backed, beside Format and Frame rate |
 | `Scene2DExportRequest` | trailing `EncoderOverride`/`Quality` params, defaulted |
 
@@ -278,7 +278,7 @@ prove it without one either.
 
 - `EncoderLadder` is data. `EncoderSelector` takes an `IEncoderProbe`. A test supplies a fake probe
   that fails the hardware rungs and asserts the selection lands on `libvpx-vp9` / `libx264` with a
-  `Reason` that names what was tried — **no process, no PATH, no GPU**, so the assertion is identical
+  `Reason` that names what was tried (**no process, no PATH, no GPU**), so the assertion is identical
   on a workstation and on a hosted runner.
 - `FfmpegEncoderProbe`'s own behaviour (spawning ffmpeg) is covered by cases that skip cleanly when
   `FfmpegLocator` finds nothing, the way `FfmpegAcquisitionTests` and `ExportFailureTests` already do.
@@ -300,7 +300,7 @@ prove it without one either.
 | Pipeline | software rungs are selected from the listing without a test encode (probe call count == 0) |
 | Pipeline | preset mapping: each (encoder, quality) pair emits its documented arguments |
 | Pipeline | the built ffmpeg argument line carries the selected rung's `-c:v` and its quality arguments |
-| Pipeline | GIF is untouched by the ladder — still one input, still palettegen/paletteuse |
+| Pipeline | GIF is untouched by the ladder: still one input, still palettegen/paletteuse |
 | Pipeline | the probe cache calls the underlying probe once per (directory, encoder) |
 | CLI | `--encoder` / `--quality` parse; bad values are usage errors |
 | CLI | `export --json` carries the additive keys and stays `schema_version: 1`, snake_case |
@@ -310,7 +310,7 @@ prove it without one either.
 
 ---
 
-## 7. The export-node seams (design only — NOT built here)
+## 7. The export-node seams (design only, NOT built here)
 
 The long-term shape is "one node, many exports, as fast as the box allows". This phase does not build
 it. What it does is make sure nothing here has to be undone first.
@@ -334,7 +334,7 @@ Three constraints the builder of that node will hit, and what P2 already did abo
 1. **NVENC session limits are real.** Consumer NVIDIA drivers cap concurrent NVENC sessions (3 on
    older drivers, 5 on current ones, 8 on Ada; the professional drivers are unlimited). A queue that
    starts eight hardware exports will have the ninth fail *at encoder init*, not at admission. The
-   node therefore needs a **semaphore over hardware sessions, not over exports** — and the ladder is
+   node therefore needs a **semaphore over hardware sessions, not over exports**, and the ladder is
    already the place that knows whether a session is a hardware one (`VideoEncoder.IsHardware`).
    The natural shape is: acquire a hardware permit → if the wait would be long, or the permit pool is
    exhausted, resolve the *same* request against `software` instead and keep going. That is a
@@ -364,7 +364,7 @@ an earlier session.
 > does the other demo in that folder (`…_408.dem`). The range and the numbers are unaffected; only
 > the label was wrong. §8.7 re-measures it and says which of the numbers survive.
 
-### 8.1 The condition — and why it is the interesting one
+### 8.1 The condition, and why it is the interesting one
 
 **A copy of CS2 was running on this machine for every row below, holding 70–99 % of the GPU and
 about 3.7 CPU cores.** That was discovered mid-campaign (`nvidia-smi` said 100 % / 250 W while our
@@ -376,7 +376,7 @@ demo viewer; a user exporting a clip has, very often, just come out of the game.
 machine is recorded deliberately, and the honest caveats are recorded with it:
 
 - **NVENC is not immune to 3D load.** It is separate silicon, and `utilization.encoder` stayed at
-  0 % for CS2 — but frame submission goes through the same GPU scheduler, and it starves. The
+  0 % for CS2, but frame submission goes through the same GPU scheduler, and it starves. The
   isolated 900-frame `av1_nvenc` bench that ran at **561–657 fps** on the quiet machine ran at
   **52, 110, 53, 88, 96 and 305 fps** on the busy one. Same command, same file, six runs.
 - **Run-to-run spread is therefore wide.** `h264_nvenc` at standard measured 86.1, 146.5 and
@@ -387,7 +387,7 @@ machine is recorded deliberately, and the honest caveats are recorded with it:
 
 ### 8.2 The ladder table
 
-Stage columns are p50 ms. SSIM is each output against `sw-best` over all 7 201 frames — a *relative*
+Stage columns are p50 ms. SSIM is each output against `sw-best` over all 7 201 frames, a *relative*
 figure, anchored on the rung measured at 0.99986 against its true source in §D3, not an absolute
 one. Bitrate is `ffprobe`'s.
 
@@ -410,7 +410,7 @@ one. Bitrate is `ffprobe`'s.
 **The headline: 1.10× → 2.80× realtime**, on the same range, same size, same layers, same machine
 state. A 45-minute match that took 41 minutes to export takes about 16.
 
-> **Scope, added in review (§8.7).** That multiple holds *while the encoder is the frame* — which is
+> **Scope, added in review (§8.7).** That multiple holds *while the encoder is the frame*, which is
 > what P1 measured and what every row above was taken in, with the radar layer costing ~1.5 ms. It is
 > not a promise about every machine: an independent re-run found the same range rendering its radar at
 > **11.8 ms** per frame, and at that price the encoder is 4 % of the frame and none of the rungs below
@@ -421,8 +421,8 @@ state. A 45-minute match that took 41 minutes to export takes about 16.
 `-deadline`/`-cpu-used` defect being paid back, and it is the number every CI runner and every
 GPU-less laptop gets. It costs 14 % more bits (176 → 200 kbps) and 0.0007 of relative SSIM.
 
-**`av1_nvenc` makes the encoder disappear from the frame.** The encode stage — time the render loop
-sits blocked on the sink — goes from 7.49 ms (54 % of the frame, P1's headline) to **0.16 ms, 3 %**.
+**`av1_nvenc` makes the encoder disappear from the frame.** The encode stage (time the render loop
+sits blocked on the sink) goes from 7.49 ms (54 % of the frame, P1's headline) to **0.16 ms, 3 %**.
 It is now *cheaper than SHA-256'ing the frame*: the `--no-encode` row's `HashingFrameSink` costs
 1.53 ms, ten times what handing the same frame to NVENC costs. "No encoder" is no longer the fast
 path, which is a sentence P1 could not have written.
@@ -433,11 +433,11 @@ path, which is a sentence P1 could not have written.
 encoder simply stopped taking its cores, and it gave back more than its own stage was worth.
 
 **The bottleneck has moved.** The frame is now render 58 % + readback 32 % + source 6 %; encode is
-3 %. Any further export work is renderer work — P1's radar blit and the `ReadPixels` — not encoder
+3 %. Any further export work is renderer work (P1's radar blit and the `ReadPixels`), not encoder
 work. That is a different phase.
 
 **Hardware costs bits, and that is the trade.** `av1_nvenc` at standard spends 205 kbps for 0.99857;
-`libx264` at standard spends **97 kbps for 0.99841** — half the bits at the same quality, because a
+`libx264` at standard spends **97 kbps for 0.99841**: half the bits at the same quality, because a
 fixed-function encoder is less efficient than a software one that can search. Both are tiny at 720p60
 (a 2-minute clip is 1.5–3 MB), so the ladder still prefers speed. A user who wants the smallest file
 rather than the fastest export has `--encoder software` and always will.
@@ -463,13 +463,13 @@ of the pipe is not either, and a conversion would make things worse. Three numbe
 
 | thing | cost per 720p frame |
 |---|---|
-| what we pay today — one 3.5 MB memcpy into the sink's pooled buffer | **0.123 ms** (29.9 GB/s) |
+| what we pay today: one 3.5 MB memcpy into the sink's pooled buffer | **0.123 ms** (29.9 GB/s) |
 | BGRA→NV12, scalar | 1.835 ms |
 | BGRA→NV12, 128-bit SIMD luma + scalar chroma | 1.871 ms |
 | what it would save ffmpeg (`rgba` vs `nv12` input, same 450 frames) | 0.05–0.08 ms, **already overlapped** |
 
-The memcpy figure is corroborated in-pipeline: with `av1_nvenc` the whole `encode` stage — that copy
-plus the channel hand-off — measures 0.15–0.18 ms p50, which is the micro-benchmark plus change.
+The memcpy figure is corroborated in-pipeline: with `av1_nvenc` the whole `encode` stage (that copy
+plus the channel hand-off) measures 0.15–0.18 ms p50, which is the micro-benchmark plus change.
 
 So converting on our side would put **+1.7 ms of new work on the render thread** (a thread whose
 whole frame is 4.3–5.4 ms) to remove 0.06 ms from a process that is not the bottleneck: an export
@@ -479,12 +479,12 @@ measurement is why.**
 
 The same discipline settles read-back double-buffering: the read-back is already overlapped with
 ffmpeg by the capacity-4 bounded channel, and what a second buffer would remove is the same 0.123 ms
-copy. It would need an `IFrameSink` rent/commit API — a Core contract change (registry §3.8) — to buy
+copy. It would need an `IFrameSink` rent/commit API, a Core contract change (registry §3.8), to buy
 2 % of a frame. Not implemented.
 
 ### 8.6 The shipped default, with no flags at all
 
-Everything above names its rung explicitly. This is what a user actually gets — `dv2d export --demo …
+Everything above names its rung explicitly. This is what a user actually gets: `dv2d export --demo …
 --from 72000 --to 79680 --size 1280x720 --fps 60 --hud`, nothing else:
 
 ```
@@ -496,7 +496,7 @@ encoder_probe_ms   1331.9
                    source 0.30 · render 3.16 · readback 1.76 · encode 0.17
 ```
 
-**2.50× against the old default's 1.10×**, with no flag, no configuration and no reading — in the
+**2.50× against the old default's 1.10×**, with no flag, no configuration and no reading, in the
 regime §8.3's scope note describes, and measured under the CS2 contention §8.1 records.
 
 ### 8.7 Independent re-measurement (adversarial review)
@@ -505,7 +505,7 @@ Re-run on the same box against the same demo and range, on a **quiet machine** (
 `nvidia-smi` 0 %, CPU 2–7 %), with the `78cd116` binary rebuilt in a fresh worktree and interleaved
 first *and* last so drift would show. Two regimes, because the review found they disagree.
 
-**Regime A — the shipped default, radar on.** 1 714 frames, `--hud`, CPU raster.
+**Regime A: the shipped default, radar on.** 1 714 frames, `--hud`, CPU raster.
 
 | case | encoder | fps | ×rt | render p50 | encode p50 |
 |---|---|---:|---:|---:|---:|
@@ -516,12 +516,12 @@ first *and* last so drift would show. Two regimes, because the review found they
 | old default (again) | `libvpx-vp9` untuned | 59.8 | 1.00× | 12.60 | 1.00 |
 
 **Every row is 1.0×, before and after.** The radar layer alone measures **11.84 ms p50** (picture
-cache `hit_rate 1.00`, 1 713 replays — the cache is working; the replay is simply that expensive on
+cache `hit_rate 1.00`, 1 713 replays: the cache is working; the replay is simply that expensive on
 a CPU raster), which is 84 % of the frame. The encode column is not an encoder cost in this regime at
 all: it is back-pressure on the capacity-4 channel, and against a 12 ms renderer no encoder here ever
 fills it, which is why the column is non-monotonic noise that ranks *untuned* libvpx fastest.
 
-**Regime B — `--no-radar`, where the encoder is the frame again.** 6 843 frames, full range. This
+**Regime B: `--no-radar`, where the encoder is the frame again.** 6 843 frames, full range. This
 reproduces P1 §7's condition: `--no-encode --no-radar` render was 1.311 ms there and is 1.5–1.7 ms
 here, so the non-radar pipeline agrees closely with what P1 measured.
 
@@ -556,12 +556,12 @@ The two `old-default` runs agree to 0.1 fps, so the spread here is real signal.
 
 - **The absolute end-to-end multiple is a property of the renderer, not of this phase.** With the
   radar drawing, P2 moves nothing; the "45 min → 16 min" arithmetic needs the radar blit fixed first.
-  That is renderer work, which §8.3 already identifies as the next phase — it is simply a
+  That is renderer work, which §8.3 already identifies as the next phase: it is simply a
   *precondition* for the headline rather than a consequence of it.
 - **`av1_nvenc` standard leaves ~12 % on the table against `h264_nvenc` standard** (199.7 vs 224.5
   fps) and shows a 2.73 ms encode stage where h264 shows 0.13. `-rc-lookahead 8 -bf 3` makes NVENC
   hold frames before it emits any, and a capacity-4 channel is narrower than that look-ahead, so the
-  render loop waits on the reorder delay. Not a defect — the file is smaller and cleaner for it — but
+  render loop waits on the reorder delay. Not a defect (the file is smaller and cleaner for it), but
   a capacity worth revisiting if the renderer ever stops being the bottleneck.
 
 **Visual check, independently.** Frames pulled at t = 20 s from `av1_nvenc` draft/standard/best and
@@ -583,14 +583,14 @@ the quiet machine before CS2 was launched, and once inside the matrix with it ru
 |---|---:|---:|---:|
 | old default (`libvpx-vp9`, all CPU) | 71.4 fps / 1.20× | 68.6 fps / 1.10× | **−3.9 %** |
 
-So **the software rows are barely affected** — CS2 takes about 3.7 of 32 logical cores and the export
+So **the software rows are barely affected**: CS2 takes about 3.7 of 32 logical cores and the export
 does not miss them. Every software comparison in §8.2, including the 1.76× that the
 `-deadline`/`-cpu-used` fix is worth, is therefore solid.
 
 The hardware rows are the uncertain ones, and the uncertainty has a floor rather than being open-ended:
 this pipeline needs roughly **180 encoded frames per second**, and a *contended* NVENC still delivered
 that (the encode stage measured 0.15–0.18 ms p50 throughout). The export is render-bound in every
-hardware row — render + readback are 84 % of the frame — so a quiet GPU cannot move the total by much
+hardware row (render + readback are 84 % of the frame), so a quiet GPU cannot move the total by much
 more than the render and readback stages themselves would gain from having CS2's cores back. The
 honest statement is: **2.5–2.8× realtime measured under contention, and a quiet machine is not slower
 than that.**
@@ -610,7 +610,7 @@ runner the walk is one listing plus zero test encodes, because software rungs ar
 1. **`EncoderProbeResult` carries no duration.** The design sketched one. `BannedApiTests` bans
    `System.Diagnostics.Stopwatch` in Pipeline outside `…Benchmarking` and `…Export`, and the right
    response to a determinism gate catching a diagnostic clock is to remove the clock, not to widen the
-   exemption — its own doc comment says the exemptions are narrow on purpose. The whole ladder walk is
+   exemption. Its own doc comment says the exemptions are narrow on purpose. The whole ladder walk is
    timed by the front end instead and reported as `encoder_probe_ms`, which is the number a user wants
    anyway.
 2. **`FfmpegSinkOptions.Crf` and `.H264Preset` are removed rather than deprecated.** With a ladder they
