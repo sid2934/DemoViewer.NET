@@ -3,9 +3,8 @@
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Output;
-using CS2DemoKit.Analysis.Profiles;
-using DemoViewer.NET.Modules.Highlights;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -13,13 +12,13 @@ using DemoViewer.NET.Services.DemoCache;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Tier 3 of the unified demo cache — the producer half of the redesign's step 4, which the migration
+///     Tier 3 of the unified demo cache: the producer half of the redesign's step 4, which the migration
 ///     landed without.
 ///     <para>
 ///         The gap these tests close: every reader built in steps 5–9 projects
 ///         <see cref="DemoCacheRecord.Highlights" />, but the only thing that ever WROTE it was the one-shot
 ///         legacy migration. The scanner kept writing <c>highlights.json</c> alone, so from the moment the
-///         migration ran, a scanned demo had highlights the Reels tab could see and Match Overview could not —
+///         migration ran, a scanned demo had highlights the Reels tab could see and Match Overview could not,
 ///         and Match Overview is the page whose whole job is showing them.
 ///     </para>
 ///     <para>
@@ -38,44 +37,6 @@ public class DemoCacheTier3Tests
         [], [], new Dictionary<int, PlayerInfo>(), null, "de_test",
         0, 1f / 64, "test", "test", "csgo", 0, 0, 0, "valve_demo_2", "", "", DemoProfile.Unknown);
 
-    private sealed class NoopHarvester : IHighlightHarvester
-    {
-        public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate)
-            => ("fp-A@64", new Dictionary<string, string> { ["clutch.ace"] = "h1" });
-
-        public AnalysisRun RunBareAnalysis(ParsedDemo demo) =>
-            throw new NotSupportedException("these tests supply rows via processorOverride");
-
-        public void InvalidateRules()
-        {
-        }
-    }
-
-    // Records WHICH mode the scanner asked for. Both throw: the point is the choice, not the run.
-    private sealed class ModeRecordingHarvester : IHighlightHarvester
-    {
-        public List<string> Calls { get; } = [];
-
-        public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate)
-            => ("fp-A@64", new Dictionary<string, string>());
-
-        public AnalysisRun RunBareAnalysis(ParsedDemo demo)
-        {
-            Calls.Add("bare");
-            throw new NotSupportedException("stop here — the mode is what is under test");
-        }
-
-        public AnalysisRun RunFullAnalysis(ParsedDemo demo)
-        {
-            Calls.Add("full");
-            throw new NotSupportedException("stop here — the mode is what is under test");
-        }
-
-        public void InvalidateRules()
-        {
-        }
-    }
-
     private static List<HighlightFired> Harvest(params int[] ticks) =>
     [
         .. ticks.Select(t => new HighlightFired(
@@ -89,15 +50,38 @@ public class DemoCacheTier3Tests
         Size = 4242,
         ModifiedTicks = localTicks,
         Map = "de_dust2",
-        Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 },
+        Parse = new TierStamp
+        {
+            Schema = DemoCacheRecord.ParseSchema,
+            ComputedAtTicks = 1
+        },
         DurationSeconds = 2298,
         TickRate = 64,
         Players =
         [
-            new CachedPlayerInfo { Slot = 1, Name = "s1mple", SteamId64 = "765", Team = 3 },
-            new CachedPlayerInfo { Slot = 2, Name = "ZywOo", SteamId64 = "766", Team = 2 }
+            new CachedPlayerInfo
+            {
+                Slot = 1,
+                Name = "s1mple",
+                SteamId64 = "765",
+                Team = 3
+            },
+            new CachedPlayerInfo
+            {
+                Slot = 2,
+                Name = "ZywOo",
+                SteamId64 = "766",
+                Team = 2
+            }
         ],
-        Rounds = [new Services.DemoCache.CachedRound { Number = 1, StartTickFrameClock = 5000 }],
+        Rounds =
+        [
+            new CachedRound
+            {
+                Number = 1,
+                StartTickFrameClock = 5000
+            }
+        ],
         CtScore = 13,
         TScore = 9
     };
@@ -147,7 +131,7 @@ public class DemoCacheTier3Tests
     ///     the scanner stamps <c>LastWriteTimeUtc</c>. Routing the tier-3 fill through the identity-asserting
     ///     <c>Update</c> would hand a UTC tick count to a locally-stamped record, <c>MatchesFile</c> would fail
     ///     for every user not on UTC, and "identity drift discards everything" would throw away the tier-2
-    ///     roster and score — on EVERY scan. The bug would have looked like the library spontaneously
+    ///     roster and score, on EVERY scan. The bug would have looked like the library spontaneously
     ///     forgetting demos it had already indexed.
     /// </summary>
     [Test]
@@ -186,7 +170,7 @@ public class DemoCacheTier3Tests
     }
 
     /// <summary>
-    ///     A failed scan records the failure but must not blank a previous good harvest — the page has
+    ///     A failed scan records the failure but must not blank a previous good harvest: the page has
     ///     distinct copy for "the last pass failed", and showing it with the old highlights still visible is
     ///     strictly more useful than showing it over an empty section.
     /// </summary>
@@ -210,7 +194,7 @@ public class DemoCacheTier3Tests
             using (HighlightScanService bad = Scanner(cache,
                        (_, _) => throw new InvalidOperationException("rules blew up")))
             {
-                bad.RequestScan(demo); // forced — a current demo is not in the derived backlog
+                bad.RequestScan(demo); // forced: a current demo is not in the derived backlog
                 bad.Evaluate(demo, SyntheticDemo());
             }
 
@@ -241,16 +225,32 @@ public class DemoCacheTier3Tests
             ["TotalK", "TotalD", "TotalA", "ADR", "HLTV", "CTW", "TW"],
             [
                 new MetricRow(
-                    new Dictionary<string, object?> { ["player_slot"] = 1, ["player_name"] = "s1mple", ["team"] = 3 },
                     new Dictionary<string, object?>
                     {
-                        ["TotalK"] = 24, ["TotalD"] = 14, ["TotalA"] = 5,
-                        ["ADR"] = 92.47, ["HLTV"] = 1.34, ["CTW"] = 7, ["TW"] = 6
+                        ["player_slot"] = 1,
+                        ["player_name"] = "s1mple",
+                        ["team"] = 3
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["TotalK"] = 24,
+                        ["TotalD"] = 14,
+                        ["TotalA"] = 5,
+                        ["ADR"] = 92.47,
+                        ["HLTV"] = 1.34,
+                        ["CTW"] = 7,
+                        ["TW"] = 6
                     }),
                 // A totals row carries no slot and must be dropped rather than rendered as a blank name.
                 new MetricRow(
-                    new Dictionary<string, object?> { ["player_name"] = "TOTAL" },
-                    new Dictionary<string, object?> { ["TotalK"] = 100 })
+                    new Dictionary<string, object?>
+                    {
+                        ["player_name"] = "TOTAL"
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["TotalK"] = 100
+                    })
             ]);
 
         List<CachedStatRow> rows = DemoCacheAnalysisProjector.ProjectScoreboard(table);
@@ -270,7 +270,7 @@ public class DemoCacheTier3Tests
 
     /// <summary>
     ///     "Compute full stats" has to actually compute stats. The scoreboard is projected from snapshot
-    ///     vectors, which the bare run does not produce at all — so a forced scan that stayed bare would
+    ///     vectors, which the bare run does not produce at all, so a forced scan that stayed bare would
     ///     deliver highlights and leave the stats half of the page reading "needs a full analysis pass" with
     ///     the very button that fixes it having just run. The background sweep must stay bare, because being
     ///     snapshot-free is what makes a library-wide scan affordable.
@@ -289,7 +289,7 @@ public class DemoCacheTier3Tests
             using HighlightScanService scanner =
                 new(cache, harvester, () => [forcedDemo, sweptDemo], () => true, a => a());
 
-            // RequestScan is what the completeness chip's action calls — it marks the demo forced.
+            // RequestScan is what the completeness chip's action calls. It marks the demo forced.
             scanner.RequestScan(forcedDemo);
             scanner.Evaluate(forcedDemo, SyntheticDemo());
 
@@ -315,7 +315,7 @@ public class DemoCacheTier3Tests
     ///     A user's "Compute full stats" survives the Library piggyback beating it to the row.
     ///     <para>
     ///         Both owners coalesce onto ONE parse, and the Library's own evaluate fans out to
-    ///         <c>OnParsedOpportunistically</c> — a BARE run that upserts <c>Indexed</c>. The "row is no
+    ///         <c>OnParsedOpportunistically</c>: a BARE run that upserts <c>Indexed</c>. The "row is no
     ///         longer Pending, don't waste the slot" skip was sound while every run was equivalent and became
     ///         wrong the moment bare and full stopped being the same thing: the press would be silently
     ///         consumed, the forced flag cleared, and the user left with highlights, no scoreboard, and no
@@ -340,7 +340,11 @@ public class DemoCacheTier3Tests
             cache.Upsert(new DemoCacheRecord
             {
                 Path = demo,
-                Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 },
+                Analysis = new TierStamp
+                {
+                    Schema = DemoCacheRecord.AnalysisSchema,
+                    ComputedAtTicks = 1
+                },
                 AnalysisState = DemoAnalysisState.Indexed,
                 ConfigFingerprint = "fp-A@64"
             });
@@ -358,7 +362,7 @@ public class DemoCacheTier3Tests
     }
 
     /// <summary>
-    ///     Tier 3's two halves are written by two writers that both fire on an interactive open — the
+    ///     Tier 3's two halves are written by two writers that both fire on an interactive open: the
     ///     highlights mirror (off-thread, from the open-demo harvest) and the scoreboard write. Both are
     ///     read-modify-write cycles on the SAME record, so without serialization both read the pre-write
     ///     state and whichever upserts last erases the other's tier: an open would land highlights or stats,
@@ -377,7 +381,7 @@ public class DemoCacheTier3Tests
             // Forces the interleaving rather than hoping for it. Each writer announces that it is inside its
             // mutate and waits for the other. Serialized, the second cannot enter until the first has
             // upserted, so the waits simply time out and both tiers survive. UNSERIALIZED, both are inside at
-            // once — each holding a copy read before the other's write — and whichever upserts last erases
+            // once, each holding a copy read before the other's write, and whichever upserts last erases
             // the other's tier, which is exactly the failure this asserts against.
             //
             // (Hammering both in a loop does NOT detect this: every iteration rewrites the same field, so a
@@ -393,7 +397,10 @@ public class DemoCacheTier3Tests
                     [
                         new CachedHighlightEvent
                         {
-                            RulesetId = "clutch", HighlightId = "ace", Tick = 54_000, PlayerSlot = 1
+                            RulesetId = "clutch",
+                            HighlightId = "ace",
+                            Tick = 54_000,
+                            PlayerSlot = 1
                         }
                     ];
                     DemoCacheStore.StampAnalysis(r);
@@ -402,7 +409,15 @@ public class DemoCacheTier3Tests
                 })),
                 Task.Run(() => cache.UpdateExisting(demo, r =>
                 {
-                    r.Scoreboard = [new CachedStatRow { Slot = 1, Team = 3, Kills = 24 }];
+                    r.Scoreboard =
+                    [
+                        new CachedStatRow
+                        {
+                            Slot = 1,
+                            Team = 3,
+                            Kills = 24
+                        }
+                    ];
                     DemoCacheStore.StampAnalysis(r);
                     scoreboardInside.Set();
                     highlightsInside.Wait(patience);
@@ -427,7 +442,7 @@ public class DemoCacheTier3Tests
     }
 
     /// <summary>
-    ///     Per-side wins are refused rather than guessed when one team's rows disagree — the columns are
+    ///     Per-side wins are refused rather than guessed when one team's rows disagree: the columns are
     ///     supposed to be team-wide totals, and a demo where they are not is a demo whose split we cannot
     ///     derive. A missing number beats a wrong one on a page that shows a score.
     /// </summary>
@@ -440,11 +455,27 @@ public class DemoCacheTier3Tests
             ["CTW", "TW"],
             [
                 new MetricRow(
-                    new Dictionary<string, object?> { ["player_slot"] = 1, ["team"] = 3 },
-                    new Dictionary<string, object?> { ["CTW"] = 7, ["TW"] = 6 }),
+                    new Dictionary<string, object?>
+                    {
+                        ["player_slot"] = 1,
+                        ["team"] = 3
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["CTW"] = 7,
+                        ["TW"] = 6
+                    }),
                 new MetricRow(
-                    new Dictionary<string, object?> { ["player_slot"] = 2, ["team"] = 3 },
-                    new Dictionary<string, object?> { ["CTW"] = 5, ["TW"] = 6 })
+                    new Dictionary<string, object?>
+                    {
+                        ["player_slot"] = 2,
+                        ["team"] = 3
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["CTW"] = 5,
+                        ["TW"] = 6
+                    })
             ]);
 
         (int? ct, int? t) = DemoCacheAnalysisProjector.ComputeSideWins(table);
@@ -453,6 +484,47 @@ public class DemoCacheTier3Tests
         {
             await Assert.That(ct).IsNull();
             await Assert.That(t).IsNull();
+        }
+    }
+
+    private sealed class NoopHarvester : IHighlightHarvester
+    {
+        public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate)
+            => ("fp-A@64", new Dictionary<string, string>
+            {
+                ["clutch.ace"] = "h1"
+            });
+
+        public AnalysisRun RunBareAnalysis(ParsedDemo demo) =>
+            throw new NotSupportedException("these tests supply rows via processorOverride");
+
+        public void InvalidateRules()
+        {
+        }
+    }
+
+    // Records WHICH mode the scanner asked for. Both throw: the point is the choice, not the run.
+    private sealed class ModeRecordingHarvester : IHighlightHarvester
+    {
+        public List<string> Calls { get; } = [];
+
+        public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate)
+            => ("fp-A@64", new Dictionary<string, string>());
+
+        public AnalysisRun RunBareAnalysis(ParsedDemo demo)
+        {
+            Calls.Add("bare");
+            throw new NotSupportedException("stop here — the mode is what is under test");
+        }
+
+        public AnalysisRun RunFullAnalysis(ParsedDemo demo)
+        {
+            Calls.Add("full");
+            throw new NotSupportedException("stop here — the mode is what is under test");
+        }
+
+        public void InvalidateRules()
+        {
         }
     }
 }

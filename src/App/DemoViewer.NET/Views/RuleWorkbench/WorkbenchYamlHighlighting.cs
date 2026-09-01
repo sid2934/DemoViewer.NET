@@ -19,16 +19,16 @@ namespace DemoViewer.NET.Views.RuleWorkbench;
 ///     Generic YAML colouring paints every key the same blue, which hides the rules language's structure;
 ///     this instead colours by the token's <em>role</em>:
 ///     <list type="bullet">
-///         <item>section keywords (<c>ruleset/stats/highlights/show/for/use</c>) — magenta, the scaffolding;</item>
-///         <item>stat kinds (<c>count/sum/tally/compute/flag/…</c>) — bright cyan, the verb that defines a stat;</item>
-///         <item>modifiers (<c>per/when/while/where/on/as/…</c>) — blue;</item>
-///         <item>literals (<c>each_player/round/match/true/false/null</c>) — teal;</item>
-///         <item>catalog <em>event/view</em> names (<c>kill/death/bomb_planted/…</c>) — yellow, the triggers;</item>
+///         <item>section keywords (<c>ruleset/stats/highlights/show/for/use</c>): magenta, the scaffolding;</item>
+///         <item>stat kinds (<c>count/sum/tally/compute/flag/…</c>): bright cyan, the verb that defines a stat;</item>
+///         <item>modifiers (<c>per/when/while/where/on/as/…</c>): blue;</item>
+///         <item>literals (<c>each_player/round/match/true/false/null</c>): teal;</item>
+///         <item>catalog <em>event/view</em> names (<c>kill/death/bomb_planted/…</c>): yellow, the triggers;</item>
 ///         <item>
-///             catalog <em>facets</em> and dotted read-paths (<c>enemy/round.number/player.entity.*/event.*</c>)
-///             — light blue, the vocabulary you read;
+///             catalog <em>facets</em> and dotted read-paths (<c>enemy/round.number/player.entity.*/event.*</c>):
+///             light blue, the vocabulary you read;
 ///         </item>
-///         <item>a user's own stat/highlight ids — gold, so declarations stand out from keywords.</item>
+///         <item>a user's own stat/highlight ids: gold, so declarations stand out from keywords.</item>
 ///     </list>
 ///     The event/facet keyword sets are injected from the live <see cref="CatalogRoot" /> so the highlighting
 ///     tracks the actual authoring vocabulary rather than a hard-coded list.
@@ -68,7 +68,7 @@ internal static class WorkbenchYamlHighlighting
         """;
 
     // Guarded: the app only touches this from the UI thread, but the test suite exercises
-    // Definition/DefinitionFor from parallel test threads — an unguarded Dictionary corrupts.
+    // Definition/DefinitionFor from parallel test threads: an unguarded Dictionary corrupts.
     private static readonly Dictionary<ThemeVariant, IHighlightingDefinition> _byVariant = new();
     private static readonly object _cacheGate = new();
 
@@ -108,8 +108,8 @@ internal static class WorkbenchYamlHighlighting
 
     /// <summary>
     ///     The cached highlighting definition for a theme VARIANT (T1). Each role colour is resolved from the
-    ///     <c>Syntax&lt;Role&gt;</c> token namespace for <paramref name="variant" />, so ANY theme —
-    ///     Dark / Light / High-Contrast / E-Girl / a user drop-in — colours the editor with no code change
+    ///     <c>Syntax&lt;Role&gt;</c> token namespace for <paramref name="variant" />, so ANY theme,
+    ///     Dark / Light / High-Contrast / E-Girl / a user drop-in, colours the editor with no code change
     ///     here; the RuleWorkbench view re-sets this on <c>ActualThemeVariantChanged</c>. Built once per variant
     ///     (AvaloniaEdit caches the parsed definition; a fresh instance per variant is the refresh).
     /// </summary>
@@ -186,7 +186,7 @@ internal static class WorkbenchYamlHighlighting
             .Replace("%%EVENTS%%", Words(events))
             .Replace("%%FACETS%%", Words(facets));
 
-        // Drop any keyword group left empty (e.g. the catalog failed to load) — an empty <Keywords> is invalid.
+        // Drop any keyword group left empty (e.g. the catalog failed to load): an empty <Keywords> is invalid.
         xshd = _emptyKeywords.Replace(xshd, string.Empty);
 
         using StringReader stringReader = new(xshd);

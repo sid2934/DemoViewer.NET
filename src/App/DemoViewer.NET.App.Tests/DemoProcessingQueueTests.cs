@@ -10,7 +10,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The global demo-processing queue (demo-processing-queue.md). A fake parser stands in for the
-///     heavy demo parse — no demos, no bytes — so the tests exercise priority ordering, coalescing,
+///     heavy demo parse, no demos, no bytes, so the tests exercise priority ordering, coalescing,
 ///     the size cap + refeed, max-concurrency, pause/disable, removal, and the awaitable foreground
 ///     path deterministically. Correctness of the concurrency primitive is the whole point here.
 /// </summary>
@@ -193,7 +193,7 @@ public class DemoProcessingQueueTests
                 }
             }
 
-            // The consumer refeeds on capacity — the reject-on-full + idempotent-refeed contract.
+            // The consumer refeeds on capacity, the reject-on-full + idempotent-refeed contract.
             q.CapacityAvailable += Feed;
             Feed(); // initial submit (2 admitted, 3 rejected)
 
@@ -210,12 +210,31 @@ public class DemoProcessingQueueTests
         }
     }
 
+    /// <summary>
+    ///     <c>max=2</c> admits exactly two workers at once: a floor as well as a ceiling.
+    ///     <para>
+    ///         Held on a gate, not a sleep. This used to give each parse a 120 ms <c>Thread.Sleep</c> and
+    ///         then assert the observed peak had reached 2, which is a bet that the scheduler overlaps
+    ///         them. On a two-core runner executing four batches in parallel the first job finished
+    ///         before the second started, the peak was 1, and CI went red on a queue that was behaving
+    ///         perfectly ("but found 1", 2026-08-26). Blocking every parse until two are inside tests the
+    ///         contract (the queue ADMITS two) rather than the machine's timing.
+    ///     </para>
+    ///     <para>
+    ///         The two failure modes stay distinguishable. A queue that admits only one fails on
+    ///         <c>WaitForAsync</c>'s timeout, naming what it waited for; one that admits three is caught
+    ///         by the equality below, which still reads the peak.
+    ///     </para>
+    /// </summary>
     [Test]
     public async Task MaxConcurrency_Two_RunsUpToTwoInFlight()
     {
+        using ManualResetEventSlim held = new(false);
         RecordingParser parser = new()
         {
-            SleepMs = 120
+            // Parked INSIDE ParseFile, after the concurrency counter has been incremented, so a blocked
+            // worker counts as in flight, which is what makes the peak observable without a race.
+            Block = held
         };
         using DemoProcessingQueue q = NewQueue(parser, out HeavyJobGate gate);
         using (gate)
@@ -226,8 +245,20 @@ public class DemoProcessingQueueTests
                 q.SubmitBackground(Req($"/d/{i}.dem", "lib", DemoJobPriority.Background, i));
             }
 
+            try
+            {
+                await WaitForAsync(() => parser.MaxConcurrent >= 2, "two workers in flight at max=2");
+            }
+            finally
+            {
+                // Never leave a worker parked, even on the failing path: the queue's Dispose joins its
+                // workers, so an unreleased gate would turn a clean assertion failure into a hang.
+                held.Set();
+            }
+
             await WaitForAsync(() => parser.Processed.Count == 4, "all four processed at max=2");
-            await Assert.That(parser.MaxConcurrent).IsEqualTo(2).Because("two workers run concurrently at max=2");
+            await Assert.That(parser.MaxConcurrent).IsEqualTo(2)
+                .Because("max=2 is a ceiling as well as a floor");
         }
     }
 
@@ -342,7 +373,7 @@ public class DemoProcessingQueueTests
             q.SubmitBackground(Req("/d/x.dem", "highlights", DemoJobPriority.Background, 5,
                 _ => Interlocked.Increment(ref hlRan)));
 
-            // The library cancels ITS submission — the item survives for highlights.
+            // The library cancels ITS submission. The item survives for highlights.
             libHandle.Cancel();
             await Assert.That(q.Snapshot().Count).IsEqualTo(1).Because("a co-owner keeps the item alive");
             await Assert.That(q.Snapshot()[0].Owners).IsEquivalentTo(["highlights"]);
@@ -418,18 +449,18 @@ public class DemoProcessingQueueTests
 
     private sealed class RecordingParser
     {
-        private readonly object _lock = new();
         public readonly HashSet<string> FailPaths = new(StringComparer.OrdinalIgnoreCase);
         public readonly ParsedDemo ForegroundDemo = SyntheticDemo();
         public readonly List<string> Processed = [];
-
-        private int _concurrent;
-        private int _maxConcurrent;
+        private readonly object _lock = new();
         public ManualResetEventSlim? Block; // if set, ParseFile waits on it
         public int ByteCalls;
         public int FileCalls;
         public ParsedDemo? LastFileDemo;
         public int SleepMs;
+
+        private int _concurrent;
+        private int _maxConcurrent;
         public int MaxConcurrent => Volatile.Read(ref _maxConcurrent);
 
         public ParsedDemo ParseFile(string path)

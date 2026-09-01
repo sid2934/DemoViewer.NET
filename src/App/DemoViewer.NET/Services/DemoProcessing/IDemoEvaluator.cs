@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 ///     request tagged <see cref="Id" />; the queue coalesces them by path so the demo is parsed ONCE
 ///     and each interested evaluator's <see cref="Evaluate" /> runs on that single held
 ///     <see cref="ParsedDemo" />. Adding a new background feature = implementing this interface and
-///     registering it — no extra parse.
+///     registering it: no extra parse.
 ///     <para>
 ///         WASM-safe: the abstraction assumes no ASP.NET and no physical-file specifics beyond a path
 ///         string, mirroring <see cref="IDemoProcessingQueue" />.
@@ -25,7 +25,7 @@ public interface IDemoEvaluator
     string Id { get; }
 
     /// <summary>
-    ///     Cheap interest/staleness check for <paramref name="path" /> — NO <see cref="ParsedDemo" /> yet
+    ///     Cheap interest/staleness check for <paramref name="path" />: NO <see cref="ParsedDemo" /> yet
     ///     (mirrors the current per-feeder "needs work?" gate). Returning false means this evaluator has
     ///     nothing to do for the demo, so it is not submitted on its behalf.
     /// </summary>
@@ -34,7 +34,7 @@ public interface IDemoEvaluator
     /// <summary>
     ///     Does this evaluator's work on the single held parse. Runs INSIDE the queue's gate slot with
     ///     the <see cref="ParsedDemo" /> still in memory (the one-heavy-parse invariant), so it must
-    ///     finish SYNCHRONOUSLY before the slot releases. Failures are isolated by the queue — a throw
+    ///     finish SYNCHRONOUSLY before the slot releases. Failures are isolated by the queue: a throw
     ///     here never fails the parse or another evaluator.
     /// </summary>
     void Evaluate(string path, ParsedDemo parsed);
@@ -54,13 +54,13 @@ public interface IDemoEvaluator
     /// </summary>
     DemoJobPriority PriorityFor(string path) => DemoJobPriority.Background;
 
-    /// <summary>Within-tier ordering hint, higher = sooner (typically the file's mtime ticks — newest first).</summary>
+    /// <summary>Within-tier ordering hint, higher = sooner (typically the file's mtime ticks, newest first).</summary>
     long OrderHint(string path) => 0;
 
     /// <summary>
     ///     Opportunistic hand-off of a demo that is ALREADY parsed elsewhere (an interactive open, or
     ///     another evaluator's tier-2), routed via <see cref="DemoEvaluationCoordinator.FanOutParsed" />.
-    ///     Unlike <see cref="Evaluate" /> this is NOT gated on <see cref="Wants" /> — it is the "here is a
+    ///     Unlike <see cref="Evaluate" /> this is NOT gated on <see cref="Wants" />: it is the "here is a
     ///     free parse, refresh from it if useful" hook (the order-independence the old Library→Highlights
     ///     piggyback provided): the evaluator decides internally whether the demo is one it tracks and
     ///     whether a refresh is warranted. It runs SYNCHRONOUSLY on the caller's thread with the parse held

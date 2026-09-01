@@ -4,9 +4,9 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.Models;
-using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.ViewModels.Common;
 using FuzzySharp;
 
@@ -19,8 +19,8 @@ namespace DemoViewer.NET.ViewModels.Commands;
 ///     tick-jump (prefix "t"), fuzzy entity-class lookup, and ".proto" message lookup. Sources are
 ///     read live via callbacks so the palette always reflects the currently-loaded demo.
 ///     <para>
-///         The design doc took an <c>IFrameNavigationService</c>; we pass the shared
-///         <see cref="FrameNavigationViewModel" /> (the navigation seam) instead — see that type's
+///         The design doc took an <c>IFrameNavigationService</c>; this VM passes the shared
+///         <see cref="FrameNavigationViewModel" /> (the navigation seam) instead: see that type's
 ///         docs for the rationale.
 ///     </para>
 /// </summary>
@@ -142,6 +142,6 @@ public sealed record CommandPaletteItem(string Icon, string Label, string Detail
     /// <summary>Entity-class result (purple glyph).</summary>
     public bool IsKindClass => Detail == "class";
 
-    /// <summary>.proto path result — the fallback kind (orange glyph).</summary>
+    /// <summary>.proto path result: the fallback kind (orange glyph).</summary>
     public bool IsKindProto => !IsKindFrame && !IsKindTick && !IsKindClass;
 }

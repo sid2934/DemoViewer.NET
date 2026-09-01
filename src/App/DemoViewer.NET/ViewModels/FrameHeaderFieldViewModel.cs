@@ -31,6 +31,6 @@ public sealed class FrameHeaderFieldViewModel
     /// <summary>Absolute file offset of this varint in the .dem file, e.g. "@ 0x3A1F".</summary>
     public string OffsetText { get; init; } = "";
 
-    /// <summary>Tooltip shown on hover — explains the field and its encoding.</summary>
+    /// <summary>Tooltip shown on hover: explains the field and its encoding.</summary>
     public string Tooltip { get; init; } = "";
 }

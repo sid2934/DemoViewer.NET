@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Debugging;
 /// <summary>
 ///     Holds the set of active breakpoints, decides whether navigation should halt
 ///     at a given frame, and exposes the most-recently-hit breakpoint for UI.
-///     Stateless w.r.t. parse — the actual seek/step is driven by MainViewModel;
+///     Stateless w.r.t. parse: the actual seek/step is driven by MainViewModel;
 ///     this service just answers "stop here?"
 /// </summary>
 public sealed class DebuggerService
@@ -25,8 +25,8 @@ public sealed class DebuggerService
     /// <summary>
     ///     Frame index at the moment <see cref="LastHit" /> was set, when known. Tier 1 frame/tick/
     ///     event hits set this naturally (the matching frame IS the hit point). Tier 3 parser hits
-    ///     set this via the optional <c>currentFrameIndex</c> arg on <see cref="CheckParserState" /> —
-    ///     the parser is iterating frames during seek when the hit fires, and we capture the index
+    ///     set this via the optional <c>currentFrameIndex</c> arg on <see cref="CheckParserState" />:
+    ///     the parser is iterating frames during seek when the hit fires, and the index is captured
     ///     so the UI can "Jump to" the right frame even though the seek continues past it.
     ///     -1 when no hit, or when the hit had no associated frame.
     /// </summary>
@@ -104,7 +104,7 @@ public sealed class DebuggerService
     /// <summary>
     ///     Test whether the entity tracker reaching a given (packet#, error-state) tuple
     ///     should trip a Tier 3 parser breakpoint. Called from MainViewModel's tracker
-    ///     PacketProcessed handler — <paramref name="currentFrameIndex" /> is the frame
+    ///     PacketProcessed handler: <paramref name="currentFrameIndex" /> is the frame
     ///     the tracker is currently iterating over (passed so the UI can later jump there).
     /// </summary>
     public Breakpoint? CheckParserState(int packetCount, bool hasNewDecodeError, int newDeltaUnknownDelta, int currentFrameIndex)
@@ -146,7 +146,7 @@ public sealed class DebuggerService
     public void Clear() => Breakpoints.Clear();
 
     /// <summary>
-    ///     Clear <see cref="LastHit" />; called by Continue to indicate "we're running again".
+    ///     Clear <see cref="LastHit" />; called by Continue to indicate execution is running again.
     /// </summary>
     public void Continue()
     {

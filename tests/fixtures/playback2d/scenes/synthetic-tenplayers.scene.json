@@ -1,0 +1,241 @@
+{
+  "schemaVersion": "playback2d-scene/1",
+  "time": {
+    "tick": 12800,
+    "frameIndex": 200,
+    "demoSeconds": 200.0,
+    "deltaSeconds": 0.015625,
+    "isDiscontinuity": false
+  },
+  "camera": {
+    "viewWidth": 640,
+    "viewHeight": 360,
+    "centerX": 0.0,
+    "centerY": 0.0,
+    "baseScale": 0.0752727273,
+    "zoom": 1.0,
+    "panX": 0.0,
+    "panY": 0.0
+  },
+  "size": {
+    "width": 640,
+    "height": 360
+  },
+  "mapName": "de_synthetic",
+  "frame": {
+    "time": {
+      "tick": 12800,
+      "frameIndex": 200,
+      "demoSeconds": 200.0,
+      "deltaSeconds": 0.015625,
+      "isDiscontinuity": false
+    },
+    "markers": [
+      {
+        "slot": 0,
+        "team": 2,
+        "worldX": 2000.0,
+        "worldY": 0.0,
+        "worldZ": 64.0,
+        "yawDegrees": 0.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "NE",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960265728
+      },
+      {
+        "slot": 1,
+        "team": 2,
+        "worldX": 1618.0,
+        "worldY": 1175.6,
+        "worldZ": 65.0,
+        "yawDegrees": 36.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "SH",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960265729
+      },
+      {
+        "slot": 2,
+        "team": 2,
+        "worldX": 618.0,
+        "worldY": 1902.1,
+        "worldZ": 66.0,
+        "yawDegrees": 72.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "MO",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960265730
+      },
+      {
+        "slot": 3,
+        "team": 2,
+        "worldX": -618.0,
+        "worldY": 1902.1,
+        "worldZ": 67.0,
+        "yawDegrees": 108.0,
+        "ring": "Dead",
+        "ringAlpha": 1.0,
+        "label": "DA",
+        "isAlive": false,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960265731
+      },
+      {
+        "slot": 4,
+        "team": 2,
+        "worldX": -1618.0,
+        "worldY": 1175.6,
+        "worldZ": 68.0,
+        "yawDegrees": 144.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "JO",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960265732
+      },
+      {
+        "slot": 5,
+        "team": 3,
+        "worldX": -2000.0,
+        "worldY": 0.0,
+        "worldZ": 69.0,
+        "yawDegrees": 180.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "KI",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960265733
+      },
+      {
+        "slot": 6,
+        "team": 3,
+        "worldX": -1618.0,
+        "worldY": -1175.6,
+        "worldZ": 70.0,
+        "yawDegrees": 216.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "RO",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960265734
+      },
+      {
+        "slot": 7,
+        "team": 3,
+        "worldX": -618.0,
+        "worldY": -1902.1,
+        "worldZ": 71.0,
+        "yawDegrees": 252.0,
+        "ring": "Blinded",
+        "ringAlpha": 0.65,
+        "label": "QU",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960265735
+      },
+      {
+        "slot": 8,
+        "team": 3,
+        "worldX": 618.0,
+        "worldY": -1902.1,
+        "worldZ": 72.0,
+        "yawDegrees": 288.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "VA",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960265736
+      },
+      {
+        "slot": 9,
+        "team": 3,
+        "worldX": 1618.0,
+        "worldY": -1175.6,
+        "worldZ": 73.0,
+        "yawDegrees": 324.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "LU",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960265737
+      }
+    ],
+    "areaEffects": [],
+    "trails": [],
+    "killFeed": [
+      {
+        "tick": 12740,
+        "attacker": "NE",
+        "victim": "DA",
+        "weapon": "ak47",
+        "headshot": true,
+        "penetrated": false,
+        "noScope": false,
+        "throughSmoke": false,
+        "attackerBlind": false,
+        "attackerInAir": false,
+        "assistedFlash": false
+      }
+    ],
+    "gameInfo": {
+      "phase": "Live",
+      "bombState": "—",
+      "roundNumber": 3,
+      "roundsPlayed": 2,
+      "roundSeconds": 74.5,
+      "roundTime": "1:15",
+      "bombTicking": false,
+      "defuseInProgress": false,
+      "defuseKitNote": "—",
+      "defuseSeconds": "NaN",
+      "defuseTime": "—",
+      "tScore": 1,
+      "ctScore": 1
+    },
+    "map": {
+      "mapName": "de_synthetic",
+      "networkedBounds": {
+        "minX": -2600,
+        "minY": -2600,
+        "maxX": 2600,
+        "maxY": 2600
+      },
+      "observedBounds": {
+        "minX": -2600,
+        "minY": -2600,
+        "maxX": 2600,
+        "maxY": 2600
+      },
+      "radars": []
+    },
+    "vision": {
+      "isAvailable": false,
+      "cones": [],
+      "sightlines": []
+    },
+    "followSlot": 0
+  },
+  "notes": "Ten markers on a 2000u ring, five per side, one Dead (slot 3) and one Blinded (slot 7). The exit-criterion render test renders this one."
+}

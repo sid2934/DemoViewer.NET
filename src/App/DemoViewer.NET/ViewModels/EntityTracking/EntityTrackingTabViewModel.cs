@@ -3,13 +3,12 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Controls;
-using DemoViewer.NET.Models;
+using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser.Models;
-using DemoViewer.NET.Services;
+using DemoViewer.NET.Controls;
+using DemoViewer.NET.Models;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.ViewModels.Common;
 using DemoViewer.NET.ViewModels.Diagnostics;
@@ -37,16 +36,15 @@ namespace DemoViewer.NET.ViewModels.EntityTracking;
 /// </summary>
 public sealed partial class EntityTrackingTabViewModel : ObservableObject
 {
-    // Diagnostics-pillar logger (v0.6.0 — the seek-error surfaces show clean text, this carries
-    // the real exception). Lazy: the ambient factory is wired after construction.
-    private ILogger? _diagLog;
-    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.EntityTracking");
-
     /// <summary>Master node list for the current seek, before the class filter is applied.</summary>
     private List<EntityNode> _allEntityNodes = [];
 
     /// <summary>Active class filter from the browser (null = all classes).</summary>
     private string? _classFilter;
+
+    // Diagnostics-pillar logger (v0.6.0, the seek-error surfaces show clean text, this carries
+    // the real exception). Lazy: the ambient factory is wired after construction.
+    private ILogger? _diagLog;
 
     [ObservableProperty]
     private int _entityDeltaFieldCount;
@@ -120,6 +118,8 @@ public sealed partial class EntityTrackingTabViewModel : ObservableObject
         ClassBrowser.ClassFilterChanged += OnClassFilterChanged;
     }
 
+    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.EntityTracking");
+
     /// <summary>Full unfiltered field list for the currently selected entity (for delta filter toggle).</summary>
     internal List<PayloadNode>? AllEntityFieldNodes { get; set; }
 
@@ -143,7 +143,7 @@ public sealed partial class EntityTrackingTabViewModel : ObservableObject
 
     /// <summary>Public read accessor for <see cref="CurrentTrackerInternal" />.</summary>
     public EntityTracker? CurrentTracker => CurrentTrackerInternal;
-    // 3.5b — TickGroups + HasTickGroups moved to ReplayTabViewModel. EntityTab's
+    // 3.5b: TickGroups + HasTickGroups moved to ReplayTabViewModel. EntityTab's
     // seek pipelines never consumed the collection directly (they operate on
     // frame indices), so this is a pure relocation. Legacy MainViewModel's
     // pass-through shims for HasTickGroups now route to ReplayTab.
@@ -171,14 +171,14 @@ public sealed partial class EntityTrackingTabViewModel : ObservableObject
     }
 
     /// <summary>
-    ///     Pass-through source for the authoritative tracker — wired by MainViewModel to
+    ///     Pass-through source for the authoritative tracker, wired by MainViewModel to
     ///     <c>() => Playback.AuthoritativeTracker</c>. When set, reads of
     ///     <see cref="CurrentTrackerInternal" /> come from the controller, not EntityTab's local field.
     /// </summary>
     public Func<EntityTracker?>? TrackerSource { get; set; }
 
     /// <summary>
-    ///     Publishes a freshly-built tracker to the controller as the new authoritative instance —
+    ///     Publishes a freshly-built tracker to the controller as the new authoritative instance,
     ///     wired by MainViewModel to <c>Playback.PublishTracker</c> (atomic swap-in).
     /// </summary>
     public Action<EntityTracker>? PublishTracker { get; set; }
@@ -203,7 +203,7 @@ public sealed partial class EntityTrackingTabViewModel : ObservableObject
     /// <summary>Entity list items.</summary>
     public ObservableCollection<EntityListItem> EntityListItems { get; } = [];
 
-    /// <summary>First entity with changed fields after the last delta rebuild — used for auto-select.</summary>
+    /// <summary>First entity with changed fields after the last delta rebuild, used for auto-select.</summary>
     internal EntityState? FirstChangedEntity { get; set; }
 
     /// <summary>
@@ -259,7 +259,7 @@ public sealed partial class EntityTrackingTabViewModel : ObservableObject
     /// <summary>
     ///     Demo-unload reset: cancels any in-flight seek and drops every entity-scale reference this tab
     ///     holds. The node/delta/inspector trees all reference <see cref="EntityState" />s owned by an
-    ///     <see cref="EntityTracker" />, which in turn holds the decoded baselines and class shapes — so
+    ///     <see cref="EntityTracker" />, which in turn holds the decoded baselines and class shapes, so
     ///     a standalone close has to clear them here, not just null the tracker.
     /// </summary>
     internal void ResetForDemoUnload()
@@ -397,7 +397,7 @@ public sealed partial class EntityTrackingTabViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            // Superseded by a newer seek (or the demo closed mid-seek) — the newer seek owns the
+            // Superseded by a newer seek (or the demo closed mid-seek): the newer seek owns the
             // status line, so a stale "cancelled" note here would only fight it.
         }
         catch (Exception ex)
@@ -489,7 +489,7 @@ public sealed partial class EntityTrackingTabViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            // Superseded by a newer seek (or the demo closed mid-seek) — the newer seek owns the
+            // Superseded by a newer seek (or the demo closed mid-seek): the newer seek owns the
             // status line, so a stale "cancelled" note here would only fight it.
         }
         catch (Exception ex)
@@ -585,7 +585,7 @@ public sealed partial class EntityTrackingTabViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            // Superseded by a newer seek (or the demo closed mid-seek) — the newer seek owns the
+            // Superseded by a newer seek (or the demo closed mid-seek): the newer seek owns the
             // status line, so a stale "cancelled" note here would only fight it.
         }
         catch (Exception ex)

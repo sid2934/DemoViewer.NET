@@ -33,12 +33,44 @@ public class DemoCacheStoreTests
         [
             // A hostile RAW name: the cache stores names verbatim (the CSVG spec_player currency) and
             // sanitizes only at the render boundary.
-            new CachedPlayerInfo { Slot = 1, Name = "s1mple‮", SteamId64 = "7656119", Team = 3 },
-            new CachedPlayerInfo { Slot = 2, Name = "ZywOo", SteamId64 = "7656120", Team = 2 },
-            new CachedPlayerInfo { Slot = 3, Name = "BOT Rock", SteamId64 = "", Team = 3, IsBot = true },
-            new CachedPlayerInfo { Slot = 9, Name = "an observer", SteamId64 = "7656199", Team = 0 }
+            new CachedPlayerInfo
+            {
+                Slot = 1,
+                Name = "s1mple‮",
+                SteamId64 = "7656119",
+                Team = 3
+            },
+            new CachedPlayerInfo
+            {
+                Slot = 2,
+                Name = "ZywOo",
+                SteamId64 = "7656120",
+                Team = 2
+            },
+            new CachedPlayerInfo
+            {
+                Slot = 3,
+                Name = "BOT Rock",
+                SteamId64 = "",
+                Team = 3,
+                IsBot = true
+            },
+            new CachedPlayerInfo
+            {
+                Slot = 9,
+                Name = "an observer",
+                SteamId64 = "7656199",
+                Team = 0
+            }
         ],
-        Rounds = [new CachedRound { Number = 1, StartTickFrameClock = 5000 }],
+        Rounds =
+        [
+            new CachedRound
+            {
+                Number = 1,
+                StartTickFrameClock = 5000
+            }
+        ],
         CtScore = 13,
         TScore = 9,
         CtClan = "NAVI",
@@ -124,7 +156,17 @@ public class DemoCacheStoreTests
 
             store.Update("/demos/b.dem", 1000, 2000, r =>
             {
-                r.Scoreboard = [new CachedStatRow { Slot = 1, Team = 3, Kills = 24, Deaths = 14, Rating = 1.31 }];
+                r.Scoreboard =
+                [
+                    new CachedStatRow
+                    {
+                        Slot = 1,
+                        Team = 3,
+                        Kills = 24,
+                        Deaths = 14,
+                        Rating = 1.31
+                    }
+                ];
                 r.AnalysisState = DemoAnalysisState.Indexed;
                 r.ConfigFingerprint = "fp-1";
                 DemoCacheStore.StampAnalysis(r);
@@ -160,7 +202,7 @@ public class DemoCacheStoreTests
         try
         {
             DemoCacheStore store = new(root);
-            DemoCacheRecord original = Record("/demos/c.dem", 1000, 2000);
+            DemoCacheRecord original = Record("/demos/c.dem");
             DemoCacheStore.StampParse(original);
             store.Upsert(original);
 
@@ -234,7 +276,7 @@ public class DemoCacheStoreTests
     }
 
     /// <summary>
-    ///     An O(library) pass raises one Changed, not one per demo — consumers re-project wholesale per event,
+    ///     An O(library) pass raises one Changed, not one per demo: consumers re-project wholesale per event,
     ///     so an unbatched sweep is an O(n²) storm on the dispatcher.
     /// </summary>
     [Test]
@@ -277,7 +319,7 @@ public class DemoCacheStoreTests
 
     /// <summary>
     ///     A single-demo write names the demo it changed. Per-demo consumers (Match Overview re-rendering the
-    ///     demo it is showing) key off this — without it they re-project on every unrelated write, so browsing
+    ///     demo it is showing) key off this: without it they re-project on every unrelated write, so browsing
     ///     the Library during a background index costs a sidecar read and a full page rebuild per demo
     ///     indexed, and the rebuild pops open every highlight group the user had collapsed.
     /// </summary>
@@ -312,7 +354,7 @@ public class DemoCacheStoreTests
 
     /// <summary>
     ///     Readers must never be handed the store's own instance. Match Overview reads a record on the UI
-    ///     thread while a background tier-2 pass writes the same demo — a shared mutable record would let the
+    ///     thread while a background tier-2 pass writes the same demo. A shared mutable record would let the
     ///     page watch fields change under it mid-render, with no lock a caller could reasonably take.
     /// </summary>
     [Test]
@@ -380,7 +422,7 @@ public class DemoCacheStoreTests
 
     /// <summary>
     ///     Sidecar names must survive a restart. <c>string.GetHashCode</c>/<c>System.HashCode</c> are
-    ///     randomized per process, so a name derived from one would be unfindable on the next launch — this
+    ///     randomized per process, so a name derived from one would be unfindable on the next launch. This
     ///     asserts the key is a real content hash of the path.
     /// </summary>
     [Test]

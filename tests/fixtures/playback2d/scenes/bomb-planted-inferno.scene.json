@@ -1,0 +1,209 @@
+{
+  "schemaVersion": "playback2d-scene/1",
+  "time": {
+    "tick": 30720,
+    "frameIndex": 30764,
+    "demoSeconds": 480.0,
+    "deltaSeconds": 0.015625,
+    "isDiscontinuity": false
+  },
+  "camera": {
+    "viewWidth": 640,
+    "viewHeight": 360,
+    "centerX": 1900.0,
+    "centerY": 500.0,
+    "baseScale": 0.2,
+    "zoom": 1.0,
+    "panX": 0.0,
+    "panY": 0.0
+  },
+  "size": {
+    "width": 640,
+    "height": 360
+  },
+  "mapName": "de_inferno",
+  "mapVersion": "3cff1c4e",
+  "frame": {
+    "time": {
+      "tick": 30720,
+      "frameIndex": 30764,
+      "demoSeconds": 480.0,
+      "deltaSeconds": 0.015625,
+      "isDiscontinuity": false
+    },
+    "markers": [
+      {
+        "slot": 1,
+        "team": 2,
+        "worldX": 2120.0,
+        "worldY": 380.0,
+        "worldZ": 160.0,
+        "yawDegrees": 200.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "BE",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300002
+      },
+      {
+        "slot": 3,
+        "team": 2,
+        "worldX": 1760.0,
+        "worldY": 690.0,
+        "worldZ": 160.0,
+        "yawDegrees": 250.0,
+        "ring": "Shooting",
+        "ringAlpha": 0.75,
+        "label": "DE",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300004
+      },
+      {
+        "slot": 4,
+        "team": 2,
+        "worldX": 2260.0,
+        "worldY": 760.0,
+        "worldZ": 160.0,
+        "yawDegrees": 190.0,
+        "ring": "Dead",
+        "ringAlpha": 1.0,
+        "label": "EL",
+        "isAlive": false,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300005
+      },
+      {
+        "slot": 7,
+        "team": 3,
+        "worldX": 1480.0,
+        "worldY": 200.0,
+        "worldZ": 160.0,
+        "yawDegrees": 40.0,
+        "ring": "TakingDamage",
+        "ringAlpha": 0.65,
+        "label": "HU",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.5,
+        "steamId": 76561197960300008
+      }
+    ],
+    "areaEffects": [
+      {
+        "kind": "Smoke",
+        "worldX": 1620.0,
+        "worldY": 470.0,
+        "worldZ": 160.0,
+        "worldRadius": 144.0
+      },
+      {
+        "kind": "Fire",
+        "worldX": 1980.0,
+        "worldY": 620.0,
+        "worldZ": 160.0,
+        "worldRadius": 28.0
+      },
+      {
+        "kind": "Fire",
+        "worldX": 2028.0,
+        "worldY": 596.0,
+        "worldZ": 160.0,
+        "worldRadius": 28.0
+      },
+      {
+        "kind": "Fire",
+        "worldX": 2076.0,
+        "worldY": 636.0,
+        "worldZ": 160.0,
+        "worldRadius": 28.0
+      },
+      {
+        "kind": "Fire",
+        "worldX": 2010.0,
+        "worldY": 676.0,
+        "worldZ": 160.0,
+        "worldRadius": 28.0
+      }
+    ],
+    "trails": [],
+    "bomb": {
+      "worldX": 2050.0,
+      "worldY": 500.0,
+      "worldZ": 160.0,
+      "detonationFraction": 0.62,
+      "beingDefused": true,
+      "defuseFraction": 0.35
+    },
+    "killFeed": [
+      {
+        "tick": 30690,
+        "attacker": "HU",
+        "assister": "GA",
+        "victim": "EL",
+        "weapon": "m4a1_silencer",
+        "headshot": false,
+        "penetrated": true,
+        "noScope": false,
+        "throughSmoke": true,
+        "attackerBlind": false,
+        "attackerInAir": false,
+        "assistedFlash": true
+      }
+    ],
+    "gameInfo": {
+      "phase": "Live",
+      "bombState": "Planted",
+      "roundNumber": 9,
+      "roundsPlayed": 8,
+      "roundSeconds": 0.0,
+      "roundTime": "0:00",
+      "bombTicking": true,
+      "defuseInProgress": true,
+      "defuseKitNote": "with kit",
+      "defuseSeconds": 3.3,
+      "defuseTime": "0:03",
+      "tScore": 5,
+      "ctScore": 3
+    },
+    "map": {
+      "mapName": "de_inferno",
+      "networkedBounds": {
+        "minX": -2087,
+        "minY": -1147.6,
+        "maxX": 2930.6,
+        "maxY": 3870
+      },
+      "observedBounds": {
+        "minX": 1480,
+        "minY": 200,
+        "maxX": 2260,
+        "maxY": 760
+      },
+      "radars": [
+        {
+          "name": "de_inferno.png",
+          "bounds": {
+            "minX": -2087,
+            "minY": -1147.6,
+            "maxX": 2930.6,
+            "maxY": 3870
+          },
+          "minZ": -100000,
+          "maxZ": 100000
+        }
+      ]
+    },
+    "vision": {
+      "isAvailable": false,
+      "cones": [],
+      "sightlines": []
+    },
+    "followSlot": -1
+  },
+  "notes": "A ticking bomb mid-defuse on Inferno A, with a smoke, four inferno cells and a populated kill feed — the bomb-ring and clock-HUD fixture."
+}

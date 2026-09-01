@@ -6,8 +6,8 @@ using Avalonia.Headless;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CS2DemoKit.Analysis.Output;
-using DemoViewer.NET.Modules;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Modules;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.TestSupport;
@@ -20,38 +20,44 @@ using DemoViewer.NET.Views.MatchOverview;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Match Overview landing page — the surface that makes a library double-click feel instant. Two
+///     The Match Overview landing page: the surface that makes a library double-click feel instant. Two
 ///     properties are load-bearing and each has a gate here:
 ///     <list type="number">
 ///         <item>
 ///             <b>No layout jump.</b> Every section exists from the first rendered frame and only its values
 ///             change, so the page's total content height is IDENTICAL before the parse, after the parse and
-///             after analysis. This is asserted on the measured content height — the actual thing a user sees
-///             move — because element-presence assertions alone would pass even if a card doubled in height.
+///             after analysis. This is asserted on the measured content height, the actual thing a user sees
+///             move, because element-presence assertions alone would pass even if a card doubled in height.
 ///         </item>
 ///         <item>
 ///             <b>The three stages actually advance</b> across a real open through the real load funnel, and
 ///             the post-analysis score / scoreboard match what the Stats tab derived (one evaluation, one set
-///             of numbers — a second projection would be a second thing to drift).
+///             of numbers: a second projection would be a second thing to drift).
 ///         </item>
 ///     </list>
 /// </summary>
 [NotInParallel]
 public class MatchOverviewLandingTests
 {
-    // Fills what SetSummary(ParsedDemo) fills, without needing a real ParsedDemo — the roster shape of a
+    // Fills what SetSummary(ParsedDemo) fills, without needing a real ParsedDemo: the roster shape of a
     // standard 5v5 with one filler bot per side.
     private static void ApplyParsedStage(MatchOverviewTabViewModel vm)
     {
         vm.DurationDisplay = "42:18";
         vm.TickRateDisplay = "64";
         vm.PlayerCountDisplay = "10";
-        foreach (string n in new[] { "s1mple", "b1t", "electroNic", "Perfecto", "BOT Rock" })
+        foreach (string n in new[]
+                 {
+                     "s1mple", "b1t", "electroNic", "Perfecto", "BOT Rock"
+                 })
         {
             vm.CounterTerrorists.Add(new OverviewPlayer(n, n.StartsWith("BOT", StringComparison.Ordinal)));
         }
 
-        foreach (string n in new[] { "ZywOo", "apEX", "flameZ", "mezii", "BOT Wolf" })
+        foreach (string n in new[]
+                 {
+                     "ZywOo", "apEX", "flameZ", "mezii", "BOT Wolf"
+                 })
         {
             vm.Terrorists.Add(new OverviewPlayer(n, n.StartsWith("BOT", StringComparison.Ordinal)));
         }
@@ -82,14 +88,22 @@ public class MatchOverviewLandingTests
 
         if (tier >= DemoCacheTier.Header)
         {
-            r.Header = new TierStamp { Schema = DemoCacheRecord.HeaderSchema, ComputedAtTicks = 1 };
+            r.Header = new TierStamp
+            {
+                Schema = DemoCacheRecord.HeaderSchema,
+                ComputedAtTicks = 1
+            };
             r.Map = "de_dust2";
             r.Server = "FACEIT Server EU #4021";
         }
 
         if (tier >= DemoCacheTier.Parse)
         {
-            r.Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 };
+            r.Parse = new TierStamp
+            {
+                Schema = DemoCacheRecord.ParseSchema,
+                ComputedAtTicks = 1
+            };
             r.DurationSeconds = 2292;
             r.TickRate = 64;
             r.TickCount = 146688;
@@ -99,7 +113,11 @@ public class MatchOverviewLandingTests
             r.TClan = "FaZe";
             for (int i = 0; i < 24; i++)
             {
-                r.Rounds.Add(new CachedRound { Number = i + 1, StartTickFrameClock = 1000 + (i * 5000) });
+                r.Rounds.Add(new CachedRound
+                {
+                    Number = i + 1,
+                    StartTickFrameClock = 1000 + i * 5000
+                });
             }
 
             string[] ct = ["s1mple", "b1t", "electroNic", "Perfecto", "BOT Rock"];
@@ -112,7 +130,7 @@ public class MatchOverviewLandingTests
                     Slot = slot++,
                     Name = n,
                     SteamId64 = "7656119800000000" + slot,
-                    // A MIGRATED row has names with no team — the case the roster cards must present as
+                    // A MIGRATED row has names with no team: the case the roster cards must present as
                     // "team split needs a re-index" rather than as two empty teams.
                     Team = teamSplit ? 3 : 0,
                     IsBot = n.StartsWith("BOT", StringComparison.Ordinal)
@@ -135,7 +153,11 @@ public class MatchOverviewLandingTests
         r.AnalysisState = analysisState;
         if (tier >= DemoCacheTier.Analysis)
         {
-            r.Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 };
+            r.Analysis = new TierStamp
+            {
+                Schema = DemoCacheRecord.AnalysisSchema,
+                ComputedAtTicks = 1
+            };
             r.AnalysisRoundCount = 22;
             r.CtSideWins = 12;
             r.TSideWins = 10;
@@ -149,7 +171,7 @@ public class MatchOverviewLandingTests
                     Deaths = 10 + i,
                     Assists = 5,
                     Adr = 90.5 - i,
-                    Rating = 1.34 - (i * 0.05)
+                    Rating = 1.34 - i * 0.05
                 });
             }
 
@@ -186,7 +208,7 @@ public class MatchOverviewLandingTests
     }
 
     // A stand-in for the analysis engine's per-player match table, using the column keys the real
-    // PlayerGameStatsProjector emits (see ColumnCatalogue) — 10 players, the standard full lobby.
+    // PlayerGameStatsProjector emits (see ColumnCatalogue): 10 players, the standard full lobby.
     private static MetricTable GameTable()
     {
         (string Name, int Team, int K, int D, int A, double Adr, double Rating)[] rows =
@@ -208,7 +230,11 @@ public class MatchOverviewLandingTests
             ["player_name", "team"],
             ["TotalK", "TotalD", "TotalA", "ADR", "HLTV", "CTW", "TW"],
             rows.Select(r => new MetricRow(
-                    new Dictionary<string, object?> { ["player_name"] = r.Name, ["team"] = r.Team },
+                    new Dictionary<string, object?>
+                    {
+                        ["player_name"] = r.Name,
+                        ["team"] = r.Team
+                    },
                     new Dictionary<string, object?>
                     {
                         ["TotalK"] = r.K,
@@ -218,7 +244,7 @@ public class MatchOverviewLandingTests
                         ["HLTV"] = r.Rating,
                         // Per-team round wins by side. The CT-ending team took 6 as CT + 7 as T = 13; the
                         // T-ending team 6 + 3 = 9. So the SIDE split (CT 12 / T 10) differs from the TEAM
-                        // totals (13 / 9) — exactly the half-swap case the page must not conflate.
+                        // totals (13 / 9), exactly the half-swap case the page must not conflate.
                         ["CTW"] = r.Team == 3 ? 6 : 6,
                         ["TW"] = r.Team == 3 ? 7 : 3
                     }))
@@ -233,12 +259,12 @@ public class MatchOverviewLandingTests
     /// </summary>
     /// <remarks>
     ///     Run at BOTH sides of the two-column breakpoint (1000px). The no-jump property has to hold within
-    ///     each layout — the wide body reserves two columns whose heights differ, so a regression that only
+    ///     each layout: the wide body reserves two columns whose heights differ, so a regression that only
     ///     shows when the right column is the taller one would slip past a single-width test.
     /// </remarks>
     [Test]
-    [Arguments(1400)] // wide — two columns
-    [Arguments(820)] // narrow — stacked
+    [Arguments(1400)] // wide: two columns
+    [Arguments(820)] // narrow: stacked
     public async Task ContentHeight_IsIdentical_BeforeParse_AfterParse_AndAfterAnalysis(int windowWidth)
     {
         await HeadlessSession.RunOnUi(async () =>
@@ -277,7 +303,11 @@ public class MatchOverviewLandingTests
             double parsed = content.DesiredSize.Height;
 
             vm.BeginAnalysis(vm.SubjectKey);
-            vm.SetAnalysis(vm.SubjectKey, GameTable(), new Dictionary<int, int?> { [0] = 13, [1] = 9 }, 22);
+            vm.SetAnalysis(vm.SubjectKey, GameTable(), new Dictionary<int, int?>
+            {
+                [0] = 13,
+                [1] = 9
+            }, 22);
             vm.SetTeamScores(vm.SubjectKey, 13, 9);
             Pump();
             double ready = content.DesiredSize.Height;
@@ -327,10 +357,12 @@ public class MatchOverviewLandingTests
             Control content = (Control)scroller.Content!;
             double live = content.DesiredSize.Height;
 
-            // Every cached tier, including the richest one — an analysis-tier record fills the scoreboard AND
+            // Every cached tier, including the richest one: an analysis-tier record fills the scoreboard AND
             // the highlight section, which is the state most likely to overflow a reserved slot.
             foreach (DemoCacheTier tier in new[]
-                     { DemoCacheTier.Header, DemoCacheTier.Parse, DemoCacheTier.Analysis })
+                     {
+                         DemoCacheTier.Header, DemoCacheTier.Parse, DemoCacheTier.Analysis
+                     })
             {
                 vm.SetCachedRecord(Record(tier,
                     tier == DemoCacheTier.Analysis ? DemoAnalysisState.Indexed : DemoAnalysisState.Pending));
@@ -351,7 +383,7 @@ public class MatchOverviewLandingTests
             }
 
             // SEEDED-LIVE: a live page carrying cached highlights and a cached scoreboard. This state did not
-            // exist before SeedFromCache — a live page's moments column was necessarily empty while loading,
+            // exist before SeedFromCache. A live page's moments column was necessarily empty while loading,
             // so the reserved MinHeights were only ever measured against an empty section in this mode. It is
             // now the FIRST thing the user sees on opening an indexed demo, and it is the state most likely
             // to overflow a reserve, because it is loading chrome and full content at the same time.
@@ -382,6 +414,7 @@ public class MatchOverviewLandingTests
     ///     SAME numbers the Stats tab derived from that one evaluation.
     /// </summary>
     [Test]
+    [Category("RealDemo")]
     public async Task RealOpen_AdvancesAllThreeStages_AndMatchesTheStatsTab()
     {
         string demo = DemoTestHelper.RequireDemo();
@@ -395,7 +428,7 @@ public class MatchOverviewLandingTests
                 await Assert.That(overview.HasContent).IsFalse().Because("nothing is open yet");
 
                 await vm.LoadDemoFromPathAsync(demo);
-                // The final score resolves off the load path (CCSTeam replay / library entry) — wait for it,
+                // The final score resolves off the load path (CCSTeam replay / library entry): wait for it,
                 // since the round count reconciles against it.
                 for (int i = 0; i < 400 && !overview.HasScore; i++)
                 {
@@ -432,7 +465,7 @@ public class MatchOverviewLandingTests
                         .IsGreaterThan(0);
                 }
 
-                // Analysis-stage values agree with the Stats tab — the no-drift invariant. Comparing the row
+                // Analysis-stage values agree with the Stats tab: the no-drift invariant. Comparing the row
                 // SET (not just the count) is what would catch a projection reading the wrong dimension key.
                 await Assert.That(overview.PlayerStats.Count).IsEqualTo(vm.StatsTab.GameRows.Count)
                     .Because("both project the same analysis game table");
@@ -517,8 +550,8 @@ public class MatchOverviewLandingTests
 
     /// <summary>
     ///     A SECOND open whose analysis produces nothing must not inherit the FIRST demo's score. The shell
-    ///     reads the score from StatsTab, whose derived-score dictionary is per-demo state, so a leak there —
-    ///     or any caller handing over a stale dict beside a null table — would paint the previous match's
+    ///     reads the score from StatsTab, whose derived-score dictionary is per-demo state, so a leak there,
+    ///     or any caller handing over a stale dict beside a null table, would paint the previous match's
     ///     13 – 9 next to an empty scoreboard. A fresh-VM test cannot see this; only a sequential open can.
     /// </summary>
     [Test]
@@ -528,8 +561,12 @@ public class MatchOverviewLandingTests
         {
             MatchOverviewTabViewModel vm = new();
 
-            // Demo A — a complete run, with its authoritative score.
-            Dictionary<int, int?> scores = new() { [0] = 13, [1] = 9 };
+            // Demo A: a complete run, with its authoritative score.
+            Dictionary<int, int?> scores = new()
+            {
+                [0] = 13,
+                [1] = 9
+            };
             vm.BeginOpening("first.dem", "Mirage", "Server", "first.dem");
             ApplyParsedStage(vm);
             vm.BeginAnalysis(vm.SubjectKey);
@@ -537,7 +574,7 @@ public class MatchOverviewLandingTests
             vm.SetTeamScores(vm.SubjectKey, 13, 9);
             await Assert.That(vm.CtTeamScoreDisplay).IsEqualTo("13").Because("demo A really did finish 13-9");
 
-            // Demo B — analysis ran but produced no table, and no score has resolved yet. The stale dict is
+            // Demo B: analysis ran but produced no table, and no score has resolved yet. The stale dict is
             // passed DELIBERATELY: that is what a caller whose per-demo state outlived the unload would do,
             // and the VM must not trust it.
             vm.BeginOpening("second.dem", "Nuke", "Server", "second.dem");
@@ -567,7 +604,7 @@ public class MatchOverviewLandingTests
     ///     <para>
     ///         This is not hypothetical. <c>ResolveTeamNamesAsync</c> and the analysis run are async
     ///         continuations that routinely outlive the open that started them, while this VM is a singleton
-    ///         owned by the shell — so a slow continuation for A lands on B's page. The previous guard was
+    ///         owned by the shell, so a slow continuation for A lands on B's page. The previous guard was
     ///         <c>HasContent</c>, which cannot tell "a demo is open" from "THIS demo is open", so every one of
     ///         these pushes was accepted. The cached render makes the race routine rather than rare:
     ///         previewing B while A is still loading is a normal gesture.
@@ -590,7 +627,11 @@ public class MatchOverviewLandingTests
             vm.SetStage("/demos/alpha.dem", "Parsing demo…", 0.9);
             vm.SetTeamNames("/demos/alpha.dem", "NAVI", "FaZe");
             vm.SetTeamScores("/demos/alpha.dem", 13, 9);
-            vm.SetAnalysis("/demos/alpha.dem", GameTable(), new Dictionary<int, int?> { [0] = 13, [1] = 9 }, 22);
+            vm.SetAnalysis("/demos/alpha.dem", GameTable(), new Dictionary<int, int?>
+            {
+                [0] = 13,
+                [1] = 9
+            }, 22);
             vm.Fail("/demos/alpha.dem", "alpha exploded");
 
             using (Assert.Multiple())
@@ -618,7 +659,7 @@ public class MatchOverviewLandingTests
 
     /// <summary>
     ///     A roster whose team split is not known yet must not claim the match had zero players on a side.
-    ///     The header badges bound to <c>CounterTerrorists.Count</c>, which renders a confident "0" — the one
+    ///     The header badges bound to <c>CounterTerrorists.Count</c>, which renders a confident "0", the one
     ///     kind of number this page never prints. See <c>CtRosterCountDisplay</c>.
     /// </summary>
     [Test]
@@ -650,6 +691,7 @@ public class MatchOverviewLandingTests
     ///     state and must be cleared on unload, exactly like the tables it is derived from.
     /// </summary>
     [Test]
+    [Category("RealDemo")]
     public async Task StatsTab_ClearsItsDerivedScore_OnDemoUnload()
     {
         string demo = DemoTestHelper.RequireDemo();
@@ -684,14 +726,15 @@ public class MatchOverviewLandingTests
     ///     The team-total vs side-total distinction, pinned against a real demo. A team's score is its total
     ///     across BOTH halves, attributed to it by the side it finished on; the per-side split is a different
     ///     number entirely, because sides swap. Presenting a team total under a bare side label was the
-    ///     original defect — on the reference demo the team ending CT totalled 3 while the CT side won 15 of
+    ///     original defect: on the reference demo the team ending CT totalled 3 while the CT side won 15 of
     ///     16 rounds, so the old plate claimed "Counter-Terrorists 3" about a side that won 15.
     ///     <para>
-    ///         Both pairs must total the round count, and this test also asserts they DIFFER on this demo —
+    ///         Both pairs must total the round count, and this test also asserts they DIFFER on this demo:
     ///         a demo where they happened to coincide would let the bug back in unnoticed.
     ///     </para>
     /// </summary>
     [Test]
+    [Category("RealDemo")]
     public async Task TeamTotals_AndSideTotals_AreDistinct_AndBothSumToTheRoundCount()
     {
         string demo = DemoTestHelper.RequireDemo();
@@ -728,7 +771,7 @@ public class MatchOverviewLandingTests
                                  + "team total from a side total and the original defect would slip back in");
                 }
 
-                // The team totals come from CCSTeam.m_iScore — the same source the Library card badge reads.
+                // The team totals come from CCSTeam.m_iScore, the same source the Library card badge reads.
                 // MatchOverviewScoreSourceTests owns that equivalence across every available demo.
             }
             finally
@@ -740,7 +783,7 @@ public class MatchOverviewLandingTests
 
     /// <summary>
     ///     The progress bar must not sit frozen through a multi-second stage. While a stage is in flight the
-    ///     VM creeps the value toward that stage's ceiling, and the two properties that keep the creep honest
+    ///     VM creeps the value toward that stage's ceiling, and the two properties that stop the creep from overstating progress
     ///     are asserted here: it MOVES, and it never reaches or passes the ceiling (so it can never claim a
     ///     stage is nearly done when the stage has barely started, and finishing a stage always produces real
     ///     forward motion). It must also stop dead once the load is over.
@@ -774,7 +817,11 @@ public class MatchOverviewLandingTests
             // Finishing the load stops the creep and pins the bar at full.
             ApplyParsedStage(vm);
             vm.BeginAnalysis(vm.SubjectKey);
-            vm.SetAnalysis(vm.SubjectKey, GameTable(), new Dictionary<int, int?> { [0] = 13, [1] = 9 }, 22);
+            vm.SetAnalysis(vm.SubjectKey, GameTable(), new Dictionary<int, int?>
+            {
+                [0] = 13,
+                [1] = 9
+            }, 22);
             vm.SetTeamScores(vm.SubjectKey, 13, 9);
             await Assert.That(vm.Progress).IsEqualTo(1.0);
 
@@ -786,7 +833,7 @@ public class MatchOverviewLandingTests
 
     /// <summary>
     ///     The "sample clip" banner flags ONLY the bundled tour sample, through the real load funnel: opening
-    ///     the sample path sets it (and it survives a failed parse — the label is about WHAT was opened, not
+    ///     the sample path sets it (and it survives a failed parse: the label is about WHAT was opened, not
     ///     whether it loaded), opening any other demo clears it. Garbage bytes on purpose: banner truth must
     ///     not depend on load outcome.
     /// </summary>
@@ -828,7 +875,7 @@ public class MatchOverviewLandingTests
     /// <summary>
     ///     The player count is the count of people who PLAYED. Regression for the reported bug: every
     ///     demo showed 11 for a 10-player match, because the GOTV proxy occupies a <c>userinfo</c> slot
-    ///     with a name and was counted — while never appearing in either roster (it has no team), so
+    ///     with a name and was counted, while never appearing in either roster (it has no team), so
     ///     the headline number disagreed with the rosters printed directly beneath it.
     ///     <para>
     ///         End-to-end against the bundled sample (a real demo, sub-second parse) rather than a
@@ -848,7 +895,7 @@ public class MatchOverviewLandingTests
         vm.SetSummary(vm.SubjectKey, parsed);
 
         // The demo carries MORE userinfo entries than players: the GOTV proxies each occupy a slot.
-        // Derived, not pinned — the bundled sample's source match can change (it has: a matchmaking
+        // Derived, not pinned: the bundled sample's source match can change (it has: a matchmaking
         // demo with one 'DemoRecorder' became a tournament demo with two 'CSTV' proxies), and a
         // hardcoded total turns that into a failure that looks like a regression but is not one.
         List<PlayerInfo> proxies = parsed.Players.Values.Where(p => p.IsHltv).ToList();
@@ -899,8 +946,10 @@ public class MatchOverviewLandingTests
             };
             window.Show();
 
-            static Border Card(MatchOverviewTabView v) =>
-                v.GetVisualDescendants().OfType<Border>().First(b => b.MinHeight == 300);
+            static Border Card(MatchOverviewTabView v)
+            {
+                return v.GetVisualDescendants().OfType<Border>().First(b => b.MinHeight == 300);
+            }
 
             // Empty: holds the reserve.
             vm.SetCachedRecord(Record(DemoCacheTier.Parse));
@@ -917,9 +966,9 @@ public class MatchOverviewLandingTests
                 {
                     RulesetId = "clutch",
                     HighlightId = "multi",
-                    Tick = 10_000 + (i * 500),
+                    Tick = 10_000 + i * 500,
                     PlayerSlot = i % 4,
-                    RoundNumber = (i % 22) + 1,
+                    RoundNumber = i % 22 + 1,
                     RenderedTitle = $"highlight number {i + 1} with a fairly long rendered title"
                 });
             }
@@ -938,10 +987,10 @@ public class MatchOverviewLandingTests
     ///     messages describe the same fact from different places, so they have to agree.
     ///     <para>
     ///         This caught a real one: a finished live open set <c>Completeness = Full</c> while the highlight
-    ///         card said "needs a full analysis pass" — a FULL chip above a not-analysed card, on one screen,
+    ///         card said "needs a full analysis pass", a FULL chip above a not-analysed card, on one screen,
     ///         about one demo. The cause is genuine (the interactive pipeline fills the scoreboard; highlights
     ///         come from the separate rules pass the cache stores), so the fix was to stop claiming Full for a
-    ///         live open and to give the highlight card its own honest sentence and action.
+    ///         live open and to give the highlight card a sentence that says what is actually happening, and its own action.
     ///     </para>
     /// </summary>
     [Test]
@@ -975,20 +1024,24 @@ public class MatchOverviewLandingTests
             ApplyParsedStage(live);
             await Check(live, "live/parsed");
             live.BeginAnalysis(live.SubjectKey);
-            live.SetAnalysis(live.SubjectKey, GameTable(), new Dictionary<int, int?> { [0] = 13, [1] = 9 }, 22);
+            live.SetAnalysis(live.SubjectKey, GameTable(), new Dictionary<int, int?>
+            {
+                [0] = 13,
+                [1] = 9
+            }, 22);
             live.SetTeamScores(live.SubjectKey, 13, 9);
             await Check(live, "live/ready");
             await Assert.That(live.Completeness).IsNotEqualTo(OverviewCompleteness.Full)
                 .Because("a finished OPEN is not a full cache record — highlights come from a different pass");
 
-            // DELIBERATE REVERSAL — this asserted IsTrue, and its premise has since changed.
+            // DELIBERATE REVERSAL: this asserted IsTrue, and its premise has since changed.
             //
-            // It was written when a live open did not harvest highlights at all, so the card's honest
+            // It was written when a live open did not harvest highlights at all, so the card's then-true
             // sentence was "needs a full analysis pass" and the user genuinely needed a button. An open now
             // harvests them unconditionally (Analysis.EvaluationCompleted → OnOpenDemoEvaluated), just
             // off-thread, landing after this point. The card therefore says "Harvesting highlights…", and an
             // action under THAT would contradict the sentence above it and, if pressed, queue a second full
-            // pass over the demo already being harvested — a redundant parse plus snapshot analysis through
+            // pass over the demo already being harvested: a redundant parse plus snapshot analysis through
             // a gate that allows one heavy job machine-wide.
             await Assert.That(live.HasHighlightsAction).IsFalse()
                 .Because("the open is already harvesting — offering to start it again is both a "
@@ -999,10 +1052,7 @@ public class MatchOverviewLandingTests
             // Every cached tier, including the failed one.
             foreach ((DemoCacheTier tier, DemoAnalysisState st) in new[]
                      {
-                         (DemoCacheTier.Header, DemoAnalysisState.Pending),
-                         (DemoCacheTier.Parse, DemoAnalysisState.Pending),
-                         (DemoCacheTier.Analysis, DemoAnalysisState.Failed),
-                         (DemoCacheTier.Analysis, DemoAnalysisState.Indexed)
+                         (DemoCacheTier.Header, DemoAnalysisState.Pending), (DemoCacheTier.Parse, DemoAnalysisState.Pending), (DemoCacheTier.Analysis, DemoAnalysisState.Failed), (DemoCacheTier.Analysis, DemoAnalysisState.Indexed)
                      })
             {
                 MatchOverviewTabViewModel c = new(computeFullStats: _ => { });
@@ -1014,8 +1064,8 @@ public class MatchOverviewLandingTests
 
     /// <summary>
     ///     A cached render shows every stage PENDING with zero progress. Nothing ran, so claiming a completed
-    ///     pipeline would be the page's own honesty rule broken from the inside — the completeness chip is
-    ///     what carries the real state, and marking the strip done would also make a subsequent real open
+    ///     pipeline would break the rule that only the completeness chip reports which tiers are actually
+    ///     filled: marking the strip done would also make a subsequent real open
     ///     look like it had already finished.
     /// </summary>
     [Test]
@@ -1093,12 +1143,15 @@ public class MatchOverviewLandingTests
             // intents, and conflating them would make a glance at the cache cost a full load.
             vm.SetCachedRecord(Record(DemoCacheTier.Parse));
             vm.ComputeFullStatsCommand.Execute(null);
-            await Assert.That(computed).IsEquivalentTo(new List<string> { "/demos/cached_de_dust2.dem" });
+            await Assert.That(computed).IsEquivalentTo(new List<string>
+            {
+                "/demos/cached_de_dust2.dem"
+            });
         });
     }
 
     /// <summary>
-    ///     A tier-2 cached record fills the facts, rosters and score for real — the payoff of extending the
+    ///     A tier-2 cached record fills the facts, rosters and score for real: the payoff of extending the
     ///     cheap pass rather than making the rules pass ambient. Only the scoreboard and highlights wait.
     /// </summary>
     [Test]
@@ -1135,7 +1188,7 @@ public class MatchOverviewLandingTests
 
     /// <summary>
     ///     A MIGRATED legacy row has player NAMES but no teams. The rosters must say so rather than draw two
-    ///     empty teams — and, critically, the header badges must not assert a confident "0", the one kind of
+    ///     empty teams, and, critically, the header badges must not assert a confident "0", the one kind of
     ///     number this page never prints.
     /// </summary>
     [Test]
@@ -1154,7 +1207,7 @@ public class MatchOverviewLandingTests
                 await Assert.That(vm.RosterMessage).IsEqualTo("Team split needs a re-index.");
                 await Assert.That(vm.CounterTerrorists).IsEmpty();
                 await Assert.That(vm.Terrorists).IsEmpty();
-                // The facts the row DOES carry are still real — a missing split is not a missing demo.
+                // The facts the row DOES carry are still real. A missing split is not a missing demo.
                 await Assert.That(vm.PlayerCountDisplay).IsEqualTo("10");
                 await Assert.That(vm.DurationDisplay).IsEqualTo("38:12");
             }
@@ -1165,7 +1218,7 @@ public class MatchOverviewLandingTests
     ///     Highlights are joined to the roster by SLOT (the unified record does not repeat a name per event),
     ///     grouped per player CT-block first, and ordered by tick within a player. Verify is offered only in
     ///     LIVE mode: on a cached page the demo shown is not the demo CS2 has loaded, so seeking would play
-    ///     the wrong moment — the Highlights tab's demo-identity rule, arriving here for free.
+    ///     the wrong moment, the Highlights tab's demo-identity rule, arriving here for free.
     /// </summary>
     [Test]
     public async Task CachedHighlights_JoinBySlot_GroupPerPlayer_AndCannotVerifyFromACachedPage()
@@ -1183,7 +1236,7 @@ public class MatchOverviewLandingTests
                 await Assert.That(vm.HighlightGroups[0].PlayerName).IsEqualTo("s1mple");
                 await Assert.That(vm.HighlightGroups[0].IsCt).IsTrue();
                 await Assert.That(vm.HighlightGroups[1].PlayerName).IsEqualTo("ZywOo");
-                // Within a player, ordered by tick — not by the order they were harvested.
+                // Within a player, ordered by tick, not by the order they were harvested.
                 await Assert.That(vm.HighlightGroups[0].Highlights[0].Tick).IsEqualTo(54321);
                 await Assert.That(vm.HighlightGroups[0].Highlights[1].Tick).IsEqualTo(61200);
                 await Assert.That(vm.HighlightGroups[0].Highlights[0].RoundDisplay).IsEqualTo("r7");
@@ -1216,7 +1269,11 @@ public class MatchOverviewLandingTests
 
             vm.SetStage(key, "Parsing demo…", 0.5);
             vm.BeginAnalysis(key);
-            vm.SetAnalysis(key, GameTable(), new Dictionary<int, int?> { [0] = 13, [1] = 9 }, 22);
+            vm.SetAnalysis(key, GameTable(), new Dictionary<int, int?>
+            {
+                [0] = 13,
+                [1] = 9
+            }, 22);
             vm.Fail(key, "boom");
 
             using (Assert.Multiple())
@@ -1229,7 +1286,7 @@ public class MatchOverviewLandingTests
                 await Assert.That(vm.Stages.Any(s => s.IsDone)).IsFalse();
             }
 
-            // And a real open takes the page back — mode is a filter, not a latch.
+            // And a real open takes the page back: mode is a filter, not a latch.
             vm.BeginOpening("cached_de_dust2.dem", "Dust II", "Server", key);
             await Assert.That(vm.Mode).IsEqualTo(OverviewMode.Live);
             vm.SetStage(key, "Parsing demo…", 0.3);
@@ -1249,7 +1306,7 @@ public class MatchOverviewLandingTests
         {
             List<string> opened = [];
             MatchOverviewTabViewModel vm = new(
-                viewStats: () => { }, viewPlayback: () => { }, openDemo: opened.Add);
+                () => { }, () => { }, openDemo: opened.Add);
 
             vm.SetCachedRecord(Record(DemoCacheTier.Analysis, DemoAnalysisState.Indexed));
             using (Assert.Multiple())
@@ -1262,13 +1319,20 @@ public class MatchOverviewLandingTests
             }
 
             vm.OpenDemoCommand.Execute(null);
-            await Assert.That(opened).IsEquivalentTo(new List<string> { "/demos/cached_de_dust2.dem" });
+            await Assert.That(opened).IsEquivalentTo(new List<string>
+            {
+                "/demos/cached_de_dust2.dem"
+            });
 
             // A real open re-enables them through the normal fill path.
             vm.BeginOpening("x.dem", "Nuke", "Server", "/demos/x.dem");
             ApplyParsedStage(vm);
             vm.BeginAnalysis(vm.SubjectKey);
-            vm.SetAnalysis(vm.SubjectKey, GameTable(), new Dictionary<int, int?> { [0] = 13, [1] = 9 }, 22);
+            vm.SetAnalysis(vm.SubjectKey, GameTable(), new Dictionary<int, int?>
+            {
+                [0] = 13,
+                [1] = 9
+            }, 22);
             using (Assert.Multiple())
             {
                 await Assert.That(vm.CanExploreStats).IsTrue();

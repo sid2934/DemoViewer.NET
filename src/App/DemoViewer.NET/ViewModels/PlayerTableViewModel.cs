@@ -46,7 +46,7 @@ public sealed class PlayerTableViewModel(
 
     /// <summary>
     ///     The <c>_chain_{id}</c> join-key owning each column, aligned 1:1 with <see cref="ColumnNames" />
-    ///     (<c>null</c> for unattributed columns). This is the COMPLETE column→chain authority — it is
+    ///     (<c>null</c> for unattributed columns). This is the COMPLETE column→chain authority: it is
     ///     populated from <c>PerPlayerColumnAssignment.ChainId</c> for every column, including computed
     ///     ones (Expression / threshold-tally) that have no lifecycle edge. Sub-graph column projection
     ///     selects columns off this, never off column edges (which only exist for event-driven columns).

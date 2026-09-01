@@ -2,7 +2,6 @@
 
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Interactivity;
 using DemoViewer.NET.ViewModels.Shell;
 
@@ -39,17 +38,17 @@ public partial class MainView : UserControl
         vm.SetStorageProvider(top?.StorageProvider);
 
         // Idle-activity hook (desktop). ONE set of TUNNELING handlers on the window's TopLevel catches every
-        // pointer / key / wheel interaction before any control handles it — regardless of which control is
-        // the target — so ANY user interaction resets the idle countdown with no per-control wiring.
+        // pointer / key / wheel interaction before any control handles it, regardless of which control is
+        // the target, so ANY user interaction resets the idle countdown with no per-control wiring.
         // handledEventsToo:true so an already-handled event still counts as activity. The handler does a
         // single field write (MainViewModel.NotifyIdleActivity → IdleController.NotifyActivity).
         if (top is not null && !ReferenceEquals(top, _idleActivityTop))
         {
             _idleActivityTop = top;
-            top.AddHandler(InputElement.PointerMovedEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
-            top.AddHandler(InputElement.PointerPressedEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
-            top.AddHandler(InputElement.PointerWheelChangedEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
-            top.AddHandler(InputElement.KeyDownEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
+            top.AddHandler(PointerMovedEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
+            top.AddHandler(PointerPressedEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
+            top.AddHandler(PointerWheelChangedEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
+            top.AddHandler(KeyDownEvent, OnIdleActivity, RoutingStrategies.Tunnel, true);
         }
 
 #if DEBUG
@@ -68,10 +67,10 @@ public partial class MainView : UserControl
             return;
         }
 
-        top.RemoveHandler(InputElement.PointerMovedEvent, OnIdleActivity);
-        top.RemoveHandler(InputElement.PointerPressedEvent, OnIdleActivity);
-        top.RemoveHandler(InputElement.PointerWheelChangedEvent, OnIdleActivity);
-        top.RemoveHandler(InputElement.KeyDownEvent, OnIdleActivity);
+        top.RemoveHandler(PointerMovedEvent, OnIdleActivity);
+        top.RemoveHandler(PointerPressedEvent, OnIdleActivity);
+        top.RemoveHandler(PointerWheelChangedEvent, OnIdleActivity);
+        top.RemoveHandler(KeyDownEvent, OnIdleActivity);
         _idleActivityTop = null;
     }
 

@@ -1,8 +1,8 @@
 #region
 
 using CS2DemoKit.Analysis;
-using DemoViewer.NET.Modules.Highlights;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.Highlights;
 using DemoViewer.NET.ViewModels.MatchOverview;
@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests;
 ///     the good bits, move on.
 ///     <para>
 ///         The tray is the authority throughout. Match Overview holds no clip state of its own and never
-///         assumes a stage succeeded — the tray resolves the owning cache row itself, because it needs that
+///         assumes a stage succeeded: the tray resolves the owning cache row itself, because it needs that
 ///         row's tick rate and round boundaries to compute a clip window at all.
 ///     </para>
 /// </summary>
@@ -33,19 +33,6 @@ public class MatchOverviewStagingTests
         return (new HighlightsTabViewModel(demoCache, scanner), demoCache);
     }
 
-    private sealed class NoopHarvester : IHighlightHarvester
-    {
-        public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate)
-            => ("fp", new Dictionary<string, string>());
-
-        public AnalysisRun RunBareAnalysis(ParsedDemo demo) =>
-            throw new NotSupportedException("staging tests never scan");
-
-        public void InvalidateRules()
-        {
-        }
-    }
-
     // The one demo both surfaces read: Match Overview renders it, the tray windows clips out of it.
     private static DemoCacheRecord Record() => new()
     {
@@ -53,16 +40,37 @@ public class MatchOverviewStagingTests
         Size = 10,
         ModifiedTicks = 20,
         Map = "de_dust2",
-        Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 },
-        Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 },
+        Parse = new TierStamp
+        {
+            Schema = DemoCacheRecord.ParseSchema,
+            ComputedAtTicks = 1
+        },
+        Analysis = new TierStamp
+        {
+            Schema = DemoCacheRecord.AnalysisSchema,
+            ComputedAtTicks = 1
+        },
         AnalysisState = DemoAnalysisState.Indexed,
-        Players = [new CachedPlayerInfo { Slot = 1, Name = "s1mple", SteamId64 = "765", Team = 3 }],
+        Players =
+        [
+            new CachedPlayerInfo
+            {
+                Slot = 1,
+                Name = "s1mple",
+                SteamId64 = "765",
+                Team = 3
+            }
+        ],
         Highlights =
         [
             new CachedHighlightEvent
             {
-                RulesetId = "clutch", HighlightId = "ace", Tick = 54_000,
-                PlayerSlot = 1, RoundNumber = 7, RenderedTitle = "s1mple — ace"
+                RulesetId = "clutch",
+                HighlightId = "ace",
+                Tick = 54_000,
+                PlayerSlot = 1,
+                RoundNumber = 7,
+                RenderedTitle = "s1mple — ace"
             }
         ]
     };
@@ -111,7 +119,7 @@ public class MatchOverviewStagingTests
 
     /// <summary>
     ///     Re-rendering the page must show what is already in the tray. Otherwise a staged clip shows a
-    ///     <c>[ + ]</c>, and pressing it would toggle the clip OUT — the button doing the opposite of what it
+    ///     <c>[ + ]</c>, and pressing it would toggle the clip OUT, the button doing the opposite of what it
     ///     says.
     /// </summary>
     [Test]
@@ -124,7 +132,7 @@ public class MatchOverviewStagingTests
         FirstRow(vm).StageCommand.Execute(null);
         await Assert.That(tray.StagedCount).IsEqualTo(1);
 
-        // Navigate away and back — the page rebuilds its rows from the cache record.
+        // Navigate away and back: the page rebuilds its rows from the cache record.
         vm.Clear();
         vm.SetCachedRecord(Record());
 
@@ -133,7 +141,7 @@ public class MatchOverviewStagingTests
 
     /// <summary>
     ///     The tray resolves the owning cache row itself and refuses a clip it cannot window. Match Overview
-    ///     must reflect the REPORTED outcome — an optimistic ✓ would claim a clip is staged when the tray
+    ///     must reflect the REPORTED outcome: an optimistic ✓ would claim a clip is staged when the tray
     ///     holds nothing, and the tray is what actually renders.
     /// </summary>
     [Test]
@@ -157,7 +165,7 @@ public class MatchOverviewStagingTests
     }
 
     /// <summary>
-    ///     Un-wired (no shell, browser host, tests), the button must be inert — not throwing, and not
+    ///     Un-wired (no shell, browser host, tests), the button must be inert, not throwing, and not
     ///     pretending it staged something.
     /// </summary>
     [Test]
@@ -172,38 +180,67 @@ public class MatchOverviewStagingTests
         await Assert.That(row.IsStaged).IsFalse();
     }
 
-    // A three-highlight record for one player — the Select-all header button's subject.
+    // A three-highlight record for one player, the Select-all header button's subject.
     private static DemoCacheRecord MultiRecord() => new()
     {
         Path = Demo,
         Size = 10,
         ModifiedTicks = 20,
         Map = "de_dust2",
-        Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 },
-        Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 },
+        Parse = new TierStamp
+        {
+            Schema = DemoCacheRecord.ParseSchema,
+            ComputedAtTicks = 1
+        },
+        Analysis = new TierStamp
+        {
+            Schema = DemoCacheRecord.AnalysisSchema,
+            ComputedAtTicks = 1
+        },
         AnalysisState = DemoAnalysisState.Indexed,
-        Players = [new CachedPlayerInfo { Slot = 1, Name = "s1mple", SteamId64 = "765", Team = 3 }],
+        Players =
+        [
+            new CachedPlayerInfo
+            {
+                Slot = 1,
+                Name = "s1mple",
+                SteamId64 = "765",
+                Team = 3
+            }
+        ],
         Highlights =
         [
             new CachedHighlightEvent
             {
-                RulesetId = "clutch", HighlightId = "ace", Tick = 54_000,
-                PlayerSlot = 1, RoundNumber = 7, RenderedTitle = "s1mple — ace"
+                RulesetId = "clutch",
+                HighlightId = "ace",
+                Tick = 54_000,
+                PlayerSlot = 1,
+                RoundNumber = 7,
+                RenderedTitle = "s1mple — ace"
             },
             new CachedHighlightEvent
             {
-                RulesetId = "multikill", HighlightId = "quad_kill", Tick = 61_000,
-                PlayerSlot = 1, RoundNumber = 9, RenderedTitle = "s1mple — 4K"
+                RulesetId = "multikill",
+                HighlightId = "quad_kill",
+                Tick = 61_000,
+                PlayerSlot = 1,
+                RoundNumber = 9,
+                RenderedTitle = "s1mple — 4K"
             },
             new CachedHighlightEvent
             {
-                RulesetId = "objective", HighlightId = "ninja_defuse", Tick = 72_000,
-                PlayerSlot = 1, RoundNumber = 12, RenderedTitle = "s1mple — ninja defuse"
+                RulesetId = "objective",
+                HighlightId = "ninja_defuse",
+                Tick = 72_000,
+                PlayerSlot = 1,
+                RoundNumber = 12,
+                RenderedTitle = "s1mple — ninja defuse"
             }
         ]
     };
 
-    // Per-player sections start COLLAPSED — a demo can produce a dozen of them, and pre-expanding buries the
+    // Per-player sections start COLLAPSED: a demo can produce a dozen of them, and pre-expanding buries the
     // "who had moments" overview.
     [Test]
     public async Task PerPlayerSections_StartCollapsed()
@@ -248,6 +285,19 @@ public class MatchOverviewStagingTests
         {
             await Assert.That(group.Highlights.All(h => h.IsStaged)).IsTrue();
             await Assert.That(multiTray.StagedCount).IsEqualTo(3);
+        }
+    }
+
+    private sealed class NoopHarvester : IHighlightHarvester
+    {
+        public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate)
+            => ("fp", new Dictionary<string, string>());
+
+        public AnalysisRun RunBareAnalysis(ParsedDemo demo) =>
+            throw new NotSupportedException("staging tests never scan");
+
+        public void InvalidateRules()
+        {
         }
     }
 }

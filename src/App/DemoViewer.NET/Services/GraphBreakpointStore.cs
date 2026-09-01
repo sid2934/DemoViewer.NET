@@ -10,7 +10,7 @@ using DemoViewer.NET.Debugging;
 namespace DemoViewer.NET.Services;
 
 /// <summary>
-///     The persisted projection of a <see cref="GraphBreakpoint" /> — its identity (node name, or the
+///     The persisted projection of a <see cref="GraphBreakpoint" />: its identity (node name, or the
 ///     edge source/dest/label/condition-label 4-tuple), its rule-expression condition, and its enabled
 ///     flag. Transient fields are deliberately not serialized: the runtime <see cref="GraphBreakpoint.Id" />
 ///     re-mints on load, <see cref="GraphBreakpoint.HitIndices" /> recompute from the new evaluation, and
@@ -49,7 +49,7 @@ public sealed record PersistedGraphBreakpoint(
 ///     Best-effort, <em>per-demo</em> disk persistence for Analysis-graph breakpoints.
 ///     Mirrors <see cref="BookmarkStore" />: there's no filesystem in the WASM/browser sandbox, so every
 ///     method short-circuits when <see cref="OperatingSystem.IsBrowser" /> is true (breakpoints stay
-///     in-memory there). A runtime check — not a <c>#if BROWSER</c> define — because the same assembly is
+///     in-memory there). A runtime check, not a <c>#if BROWSER</c> define, because the same assembly is
 ///     shared by the desktop and browser hosts.
 ///     <para>
 ///         Desktop persists to <c>%AppData%/DemoViewer.NET/GraphBreakpoints.json</c>: a map of
@@ -60,7 +60,7 @@ public sealed record PersistedGraphBreakpoint(
 /// </summary>
 public sealed class GraphBreakpointStore
 {
-    // One options instance for BOTH read and write so the string-enum encoding stays symmetric — a
+    // One options instance for BOTH read and write so the string-enum encoding stays symmetric: a
     // converter on only one side would write a file the other side can't parse (→ silent empty load).
     private static readonly JsonSerializerOptions _options = new()
     {
@@ -84,7 +84,7 @@ public sealed class GraphBreakpointStore
         _path = AppPaths.GraphBreakpointsFile;
     }
 
-    /// <summary>The lowercase hex SHA-256 of a demo's bytes — its stable content key.</summary>
+    /// <summary>The lowercase hex SHA-256 of a demo's bytes, its stable content key.</summary>
     public static string ComputeDemoKey(ReadOnlySpan<byte> demoBytes) =>
         Convert.ToHexStringLower(SHA256.HashData(demoBytes));
 
@@ -120,7 +120,7 @@ public sealed class GraphBreakpointStore
 
     /// <summary>
     ///     Pure merge: a new map equal to <paramref name="existing" /> with <paramref name="demoKey" />
-    ///     set to <paramref name="entries" /> — or removed when <paramref name="entries" /> is empty.
+    ///     set to <paramref name="entries" />, or removed when <paramref name="entries" /> is empty.
     ///     Neither argument is mutated. Isolated as a static so the per-key replace/remove logic (the
     ///     bug-prone part of "don't clobber other demos") is deterministic and unit-testable.
     /// </summary>

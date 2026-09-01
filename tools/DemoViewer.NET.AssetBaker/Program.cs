@@ -14,7 +14,7 @@ const string BakerVersion = "0.1+vrf19.2.6339";
 
 // ── args: <map> [<map>...] [--diag] ──
 // With no map args, bake the full shipping set (the Active Duty / commonly-demoed pool). Each
-// needs a source vpk (cs2-assets/maps/), a radar vtex_c, and an overview txt — all present in the
+// needs a source vpk (cs2-assets/maps/), a radar vtex_c, and an overview txt, all present in the
 // gitignored cs2-assets/ cache. Pass explicit map names to bake a subset.
 bool diag = args.Contains("--diag");
 string[] maps = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
@@ -23,7 +23,7 @@ if (maps.Length == 0)
     maps =
     [
         "de_nuke", "de_dust2", "de_mirage", "de_inferno", "de_anubis",
-        "de_ancient", "de_overpass", "de_vertigo", "de_cache",
+        "de_ancient", "de_overpass", "de_vertigo", "de_cache"
     ];
 }
 
@@ -33,7 +33,7 @@ string overviewDir = Path.Combine(radarDir, "overviews");
 string mapsDir = Path.Combine(assets, "maps");
 // Bake OUT of the gitignored raw cache (cs2-assets/) and INTO the committed, shipped assets/ dir
 // (repo root, sibling of cs2-assets/). scripts/publish.sh copies assets/ next to the exe, and the
-// app's MapAssetLoader + CollisionAssetLocator probe assets/<map>/ — so a re-bake ships as-is.
+// app's MapAssetLoader + CollisionAssetLocator probe assets/<map>/, so a re-bake ships as-is.
 string bakedRoot = Path.Combine(Directory.GetParent(assets)!.FullName, "assets");
 
 Console.WriteLine($"cs2-assets (raw source): {assets}");

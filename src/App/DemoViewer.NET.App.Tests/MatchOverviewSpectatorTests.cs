@@ -13,7 +13,7 @@ namespace DemoViewer.NET.AppTests;
 ///     <para>
 ///         The card's contract is that its headline number equals the two rosters printed beneath
 ///         it. Counting every named non-proxy entry broke that on any demo carrying observers,
-///         coaches or admins — four of the seven tournament demos in this repo do, and would have
+///         coaches or admins. Four of the seven tournament demos in this repo do, and would have
 ///         read "13" over rosters of ten. Matchmaking demos hid it by having none, which is why it
 ///         survived the original fix.
 ///     </para>
@@ -37,7 +37,10 @@ public class MatchOverviewSpectatorTests
         players[10] = new PlayerInfo(10, "observer", 201UL, 10, 0, false);
         players[11] = new PlayerInfo(11, "coach", 202UL, 11, 1, false);
         players[12] = new PlayerInfo(12, "admin", 203UL, 12, 0, false);
-        players[13] = new PlayerInfo(13, "CSTV", 0UL, 13, 0, true) { IsHltv = true };
+        players[13] = new PlayerInfo(13, "CSTV", 0UL, 13, 0, true)
+        {
+            IsHltv = true
+        };
 
         MatchOverviewTabViewModel vm = new();
         vm.BeginOpening("synthetic.dem", null, null, "synthetic.dem");
@@ -56,7 +59,7 @@ public class MatchOverviewSpectatorTests
         await Assert.That(vm.PlayerCountDisplay)
             .IsEqualTo((vm.Terrorists.Count + vm.CounterTerrorists.Count).ToString(CultureInfo.InvariantCulture));
 
-        // The proxy is neither a player nor a spectator — it is infrastructure.
+        // The proxy is neither a player nor a spectator. It is infrastructure.
         IReadOnlyList<string> named = vm.Terrorists.Concat(vm.CounterTerrorists).Select(p => p.Name).ToList();
         await Assert.That(named).DoesNotContain("CSTV");
     }

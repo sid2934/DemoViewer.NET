@@ -1,12 +1,12 @@
 #region
 
-using DemoViewer.NET.Modules;
-using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Playback2D;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
-using DemoViewer.NET.Services;
+using DemoViewer.NET.Modules;
+using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Playback;
 using TUnit.Core.Exceptions;
@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     De-risks the bomb-timer ring (A4): the planted-C4 world position must reconstruct from its
-///     CBodyComponent cell coords (the open question — does CPlantedC4 carry the same m_cell* fields as a
+///     CBodyComponent cell coords (the open question: does CPlantedC4 carry the same m_cell* fields as a
 ///     pawn?). Activates a real VM at a frame shortly after a real bomb_planted and asserts the
 ///     <see cref="Playback2DTabViewModel.Bomb" /> draw-state is present, in-bounds, and counting down near
 ///     full (just planted).

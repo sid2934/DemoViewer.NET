@@ -40,10 +40,10 @@ public sealed class AnalysisTabViewModel(FrameNavigationViewModel navigation) : 
     // ── Session state ─────────────────────────────────────────
 
     /// <summary>
-    ///     The Analysis tab has no durable per-tab selection of its own — the active frame is
-    ///     shell-driven and the rule results are recomputed on every load — so the snapshot is empty.
+    ///     The Analysis tab has no durable per-tab selection of its own: the active frame is
+    ///     shell-driven and the rule results are recomputed on every load, so the snapshot is empty.
     ///     The method exists for a uniform per-tab persistence contract, hence the
-    ///     stateless body (CA1822 suppressed deliberately — keeping it an instance method matches the
+    ///     stateless body (CA1822 suppressed deliberately: keeping it an instance method matches the
     ///     other tabs and lets the shell call <c>AnalysisTab.SnapshotState()</c> uniformly).
     /// </summary>
     [SuppressMessage("Performance", "CA1822:Mark members as static",
@@ -56,7 +56,7 @@ public sealed class AnalysisTabViewModel(FrameNavigationViewModel navigation) : 
     /// <summary>
     ///     Run an analysis-originated frame seek with re-entry guard. The host
     ///     supplies <paramref name="apply" /> to perform the actual <c>SelectedFrame</c>
-    ///     + <c>SeekControls.SetCurrentFrame</c> writes — this VM only owns the flag.
+    ///     + <c>SeekControls.SetCurrentFrame</c> writes: this VM only owns the flag.
     /// </summary>
     internal void RunSuppressedFrameSeek(Action apply)
     {

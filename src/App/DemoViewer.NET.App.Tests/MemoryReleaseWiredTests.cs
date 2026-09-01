@@ -1,8 +1,8 @@
 #region
 
 using System.Runtime.CompilerServices;
-using DemoViewer.NET.Modules;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Modules;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.TestSupport;
@@ -13,7 +13,7 @@ using DemoViewer.NET.ViewModels.Shell;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The close-demo memory gate, run with the shell WIRED the way the real app wires it —
+///     The close-demo memory gate, run with the shell WIRED the way the real app wires it:
 ///     a real <see cref="DemoProcessingQueue" /> and <see cref="DemoEvaluationCoordinator" />.
 ///     <para>
 ///         <see cref="MemoryReleaseTests" /> leaves both null (the default ctor args), which is exactly why
@@ -24,6 +24,7 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("RealDemo")]
 public class MemoryReleaseWiredTests
 {
     [Test]
@@ -36,7 +37,7 @@ public class MemoryReleaseWiredTests
         await HeadlessSession.RunOnUi(async () =>
         {
             HeavyJobGate gate = new();
-            DemoProcessingQueue queue = new(gate, post: a => a());
+            DemoProcessingQueue queue = new(gate, a => a());
             DemoEvaluationCoordinator coordinator = new([], queue, () => []);
 
             MainViewModel? vm = new(
@@ -51,7 +52,7 @@ public class MemoryReleaseWiredTests
             await vm.CloseDemoCommand.ExecuteAsync(null);
             vm = null;
 
-            // Give any fire-and-forget post-open work its chance to finish and drop its capture — the
+            // Give any fire-and-forget post-open work its chance to finish and drop its capture: the
             // documented "release may be a few seconds late" window. If the demo is still alive after
             // this, it is held by a durable root, not by in-flight work.
             for (int i = 0; i < 10; i++)

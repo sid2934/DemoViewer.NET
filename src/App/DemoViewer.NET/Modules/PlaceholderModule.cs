@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Modules;
 
 /// <summary>
 ///     A trivial no-op module that proves the framework end-to-end (registration → activation →
-///     inactive-zero-cost) WITHOUT building a real viewport — that is the 2D
+///     inactive-zero-cost) WITHOUT building a real viewport: that is the 2D
 ///     pilot's job. Its single tab subscribes to <c>IModuleContext.Advanced</c> on activation, counts
 ///     pushes, and unsubscribes on deactivation so it does zero per-tick work while inactive. The
 ///     count proves pushes accrue only while this tab is the active tab.
@@ -34,11 +34,11 @@ public sealed class PlaceholderModule : IWorkspaceModule
             Header = "Sandbox",
             Order = 100,
             Placement = TabPlacement.Diagnostics,
-            // ViewModelFactory (not DataContext): Activate only populates TabViewModel — and
-            // only calls OnActivated — through the factory. The DataContext form left
+            // ViewModelFactory (not DataContext): Activate only populates TabViewModel, and
+            // only calls OnActivated, through the factory. The DataContext form left
             // TabViewModel null and skipped the whole module lifecycle (the exact trap
             // Playback2DModule's header comment documents); masked for months by the
-            // vacuous-pass harness bug, exposed by honest awaiting.
+            // vacuous-pass harness bug, exposed once the harness actually awaited the task.
             ViewModelFactory = () => vm,
             ViewFactory = BuildView
         };

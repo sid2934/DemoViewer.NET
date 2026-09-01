@@ -7,12 +7,12 @@ using System.Threading.Channels;
 namespace DemoViewer.NET.Services.Diagnostics;
 
 /// <summary>
-///     A bounded, rolling, non-blocking file sink for the unified diagnostics logs — written under
+///     A bounded, rolling, non-blocking file sink for the unified diagnostics logs, written under
 ///     <see cref="AppPaths.LogsDir" /> (a stable app-data location, not temp) so a copied diagnostics
 ///     report can attach recent history for a user-reported issue.
 ///     <para>
 ///         <b>Non-blocking:</b> producers call <see cref="Write" />, which drops a preformatted line
-///         into a bounded channel and returns immediately — no file I/O on the caller's thread (which
+///         into a bounded channel and returns immediately: no file I/O on the caller's thread (which
 ///         may be the UI thread). A single background pump serializes writes to disk. The channel is
 ///         bounded and drops on overflow, so a stalled disk can never balloon memory.
 ///     </para>
@@ -62,7 +62,7 @@ public sealed class DiagnosticsFileLog : IDisposable
         }
         catch
         {
-            // Best-effort drain on shutdown — never block teardown on a stuck disk.
+            // Best-effort drain on shutdown: never block teardown on a stuck disk.
         }
 
         _writer?.Dispose();
@@ -71,7 +71,7 @@ public sealed class DiagnosticsFileLog : IDisposable
 
     /// <summary>
     ///     Creates the sink, ensuring the logs directory exists. Returns <c>null</c> on WASM (no
-    ///     filesystem) or if the directory can't be created — the caller then runs without file
+    ///     filesystem) or if the directory can't be created, the caller then runs without file
     ///     mirroring. <paramref name="maxKilobytes" /> / <paramref name="maxFiles" /> are read live.
     /// </summary>
     public static DiagnosticsFileLog? TryCreate(Func<int> maxKilobytes, Func<int> maxFiles)
@@ -111,7 +111,7 @@ public sealed class DiagnosticsFileLog : IDisposable
     /// <summary>
     ///     Reads at most the last <paramref name="maxLines" /> lines of a log file for the copy-diagnostics
     ///     attachment. Opens with <see cref="FileShare.ReadWrite" /> so it succeeds even while THIS sink
-    ///     holds the active file open for writing (the common case — a demo has been loaded). Best-effort:
+    ///     holds the active file open for writing (the common case: a demo has been loaded). Best-effort:
     ///     returns an empty list on any error rather than throwing.
     /// </summary>
     public static List<string> ReadTail(string path, int maxLines)
@@ -152,7 +152,7 @@ public sealed class DiagnosticsFileLog : IDisposable
                 }
                 catch
                 {
-                    // A single bad write (locked file, full disk) must not kill the pump — drop and go on.
+                    // A single bad write (locked file, full disk) must not kill the pump: drop and go on.
                 }
             }
         }
@@ -170,7 +170,7 @@ public sealed class DiagnosticsFileLog : IDisposable
         }
 
         _written = File.Exists(_activeFile) ? new FileInfo(_activeFile).Length : 0;
-        // AutoFlush so a crash keeps the lines leading up to it — the whole point of the file mirror.
+        // AutoFlush so a crash keeps the lines leading up to it, the whole point of the file mirror.
         _writer = new StreamWriter(_activeFile, true)
         {
             AutoFlush = true

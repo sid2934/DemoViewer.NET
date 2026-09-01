@@ -27,7 +27,7 @@ public sealed class GraphBreakpointService
     /// <summary>Message index of <see cref="LastHit" />, or -1 when none.</summary>
     public int LastHitMessageIndex { get; private set; } = -1;
 
-    /// <summary>Fired when the breakpoint set changes (add/remove/enabled/condition) — host recomputes hits + repaints.</summary>
+    /// <summary>Fired when the breakpoint set changes (add/remove/enabled/condition): host recomputes hits + repaints.</summary>
     public event Action? Changed;
 
     /// <summary>Fired when <see cref="LastHit" /> changes (including back to null on Continue).</summary>

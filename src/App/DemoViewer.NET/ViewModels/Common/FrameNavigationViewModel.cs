@@ -14,7 +14,7 @@ namespace DemoViewer.NET.ViewModels.Common;
 ///     <para>
 ///         The design doc named these on an <c>IFrameNavigationService</c> interface. We instead hang them
 ///         on the existing shared <see cref="FrameNavigationViewModel" /> (already passed into every
-///         tab VM ctor) as wired callback delegates — the same dependency direction as
+///         tab VM ctor) as wired callback delegates: the same dependency direction as
 ///         <c>EntityTab.CreateTracker</c> / <c>ReplayTab.OnTickGroupSelected</c>. The shell wires the
 ///         concrete seek logic in its constructor; consumers take the VM, not an interface.
 ///     </para>
@@ -26,7 +26,7 @@ public sealed class FrameNavigationViewModel : ObservableObject
     /// <summary>Switches to the Entity Tracking tab and filters/selects the given class name.</summary>
     public Action<string>? RevealClassHandler { get; set; }
 
-    // ── Navigation hooks — wired by MainViewModel ctor ──────────────
+    // ── Navigation hooks, wired by MainViewModel ctor ──────────────
 
     /// <summary>Selects the frame at the given 0-based index. No-op if out of range.</summary>
     public Action<int>? SeekToFrameHandler { get; set; }

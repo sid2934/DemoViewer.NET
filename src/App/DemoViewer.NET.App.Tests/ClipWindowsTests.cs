@@ -10,7 +10,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Clip-window math battery. The two table cases the design
 ///     REQUIRES: <c>TickOffset ≠ 0</c> (every clamp must happen in the frame clock before the
-///     offset applies once) and a mid-match demo (<c>ServerStartTick ≠ 0</c> — highlight ticks
+///     offset applies once) and a mid-match demo (<c>ServerStartTick ≠ 0</c>: highlight ticks
 ///     are already frame clock, so NOTHING may subtract it; the math never sees it at all).
 ///     <para>
 ///         The math itself moved into <c>CS2DemoKit.Analysis.Clips</c> for packaging; this
@@ -29,7 +29,7 @@ public class ClipWindowsTests
     {
         (long start, long end) = ClipWindows.Compute(
             5000, null, Rate,
-            15, 5, 100_000, 0);
+            15, 5, 100_000);
 
         await Assert.That(start).IsEqualTo(5000 - 960);
         await Assert.That(end).IsEqualTo(5000 + 320);
@@ -38,26 +38,26 @@ public class ClipWindowsTests
     [Test]
     public async Task Compute_RoundStartFloorsLeadIn_AndDemoStartClamps()
     {
-        // Round started 200 ticks before the event — the lead-in must not reach the prior round.
-        (long start, _) = ClipWindows.Compute(5000, 4800, Rate, 15, 5, 100_000, 0);
+        // Round started 200 ticks before the event: the lead-in must not reach the prior round.
+        (long start, _) = ClipWindows.Compute(5000, 4800, Rate, 15, 5, 100_000);
         await Assert.That(start).IsEqualTo(4800);
 
-        // Event near demo start — clamps at 0, never negative.
-        (long early, _) = ClipWindows.Compute(100, null, Rate, 15, 5, 100_000, 0);
+        // Event near demo start: clamps at 0, never negative.
+        (long early, _) = ClipWindows.Compute(100, null, Rate, 15, 5, 100_000);
         await Assert.That(early).IsEqualTo(0);
     }
 
     [Test]
     public async Task Compute_ClipStartPullsStartBack_ButRoundStartStillFloors()
     {
-        // A 4K spanning 20 s: fires at the completing kill (tick 6000), first kill at tick 4600 —
+        // A 4K spanning 20 s: fires at the completing kill (tick 6000), first kill at tick 4600,
         // further back than the 15 s (960-tick) lead-in would reach (6000 − 960 = 5040). The window
         // must start at the first kill, not the lead-in.
         (long start, _) = ClipWindows.Compute(6000, null, Rate, 15, 5, 100_000, 0, 4600);
         await Assert.That(start).IsEqualTo(4600)
             .Because("the clip start reaches back to the first contributing kill, past the lead-in");
 
-        // A clipStart INSIDE the lead-in must never shrink the window — the lead-in still wins.
+        // A clipStart INSIDE the lead-in must never shrink the window: the lead-in still wins.
         (long leadInWins, _) = ClipWindows.Compute(6000, null, Rate, 15, 5, 100_000, 0, 5500);
         await Assert.That(leadInWins).IsEqualTo(6000 - 960)
             .Because("a clipStart later than the lead-in reach must not pull the start forward");
@@ -69,7 +69,7 @@ public class ClipWindowsTests
             .Because("the round-start floor applies AFTER the clip-start pull-back, bounding the clip to its round");
 
         // A null clipStart is byte-identical to the pre-existing lead-in-only behavior.
-        (long noClip, _) = ClipWindows.Compute(6000, null, Rate, 15, 5, 100_000, 0);
+        (long noClip, _) = ClipWindows.Compute(6000, null, Rate, 15, 5, 100_000);
         await Assert.That(noClip).IsEqualTo(6000 - 960)
             .Because("null clipStart preserves the current behavior");
 
@@ -81,7 +81,7 @@ public class ClipWindowsTests
     [Test]
     public async Task Compute_DemoEndClampsLeadOut()
     {
-        (_, long end) = ClipWindows.Compute(99_900, null, Rate, 15, 5, 100_000, 0);
+        (_, long end) = ClipWindows.Compute(99_900, null, Rate, 15, 5, 100_000);
         await Assert.That(end).IsEqualTo(100_000);
     }
 
@@ -95,7 +95,7 @@ public class ClipWindowsTests
         await Assert.That(start).IsEqualTo(5000 - 960 + Offset);
         await Assert.That(end).IsEqualTo(5000 + 320 + Offset);
 
-        // Clamp-at-demo-start case: the FRAME clamp lands at 0, THEN the offset applies — if the
+        // Clamp-at-demo-start case: the FRAME clamp lands at 0, THEN the offset applies: if the
         // offset were mixed into the clamp space the start would wrongly stick at 0.
         (long clampedStart, _) = ClipWindows.Compute(100, null, Rate, 15, 5, 100_000, Offset);
         await Assert.That(clampedStart).IsEqualTo(0 + Offset);
@@ -108,11 +108,11 @@ public class ClipWindowsTests
     [Test]
     public async Task Compute_MidMatchDemo_NeverSubtractsServerStartTick()
     {
-        // A mid-match GOTV recording has ServerStartTick ≈ 40_000 — but highlight ticks are
+        // A mid-match GOTV recording has ServerStartTick ≈ 40_000, but highlight ticks are
         // ALREADY frame clock (small values near demo start). The window must come out around
         // the small tick untouched; any accidental −ServerStartTick would go hugely negative
         // and clamp to 0, which this asserts against.
-        (long start, long end) = ClipWindows.Compute(2000, null, Rate, 15, 5, 60_000, 0);
+        (long start, long end) = ClipWindows.Compute(2000, null, Rate, 15, 5, 60_000);
         await Assert.That(start).IsEqualTo(2000 - 960);
         await Assert.That(end).IsEqualTo(2000 + 320);
     }
@@ -120,7 +120,7 @@ public class ClipWindowsTests
     [Test]
     public async Task Compute_DegenerateWindow_YieldsAtLeastOneTick()
     {
-        (long start, long end) = ClipWindows.Compute(0, null, Rate, 0, 0, 0, 0);
+        (long start, long end) = ClipWindows.Compute(0, null, Rate, 0, 0, 0);
         await Assert.That(end).IsEqualTo(start + 1);
     }
 

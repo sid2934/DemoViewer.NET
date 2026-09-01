@@ -32,7 +32,7 @@ public enum BreakpointKind
 }
 
 /// <summary>
-///     A user-set debugger stop point. Session-only by design — breakpoints are deliberately
+///     A user-set debugger stop point. Session-only by design: breakpoints are deliberately
 ///     not persisted across runs ("Tier 1 + 3, session-only"). Each instance has a stable
 ///     <see cref="Id" /> for UI list selection.
 /// </summary>

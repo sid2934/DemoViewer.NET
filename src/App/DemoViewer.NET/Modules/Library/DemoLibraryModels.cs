@@ -16,7 +16,7 @@ public enum DemoIndexState
     /// <summary>Background full parse in progress (players/duration).</summary>
     Indexing,
 
-    /// <summary>Fully indexed — map + players + duration all known.</summary>
+    /// <summary>Fully indexed, map + players + duration all known.</summary>
     Indexed,
 
     /// <summary>Parse failed (corrupt / unsupported); filesystem fields still shown.</summary>
@@ -25,7 +25,7 @@ public enum DemoIndexState
 
 /// <summary>
 ///     One demo in the library browser. Filesystem fields (name/size/date) are set once at discovery;
-///     the metadata fields fill in across the two indexing tiers — <b>tier 1</b> (cheap first-frame header:
+///     the metadata fields fill in across the two indexing tiers: <b>tier 1</b> (cheap first-frame header:
 ///     <see cref="MapName" />, <see cref="ServerName" />) then <b>tier 2</b> (background full parse:
 ///     <see cref="Players" />, <see cref="DurationSeconds" />). Observable so the grid updates live as
 ///     enrichment completes.
@@ -37,7 +37,7 @@ public partial class DemoEntry : ObservableObject
     [ObservableProperty]
     private string? _ctClan;
 
-    // Final scoreboard — CCSTeam.m_iScore per side at match end (CT = team 3, T = team 2), entity-replayed
+    // Final scoreboard: CCSTeam.m_iScore per side at match end (CT = team 3, T = team 2), entity-replayed
     // in tier 2 AFTER players/duration (so those show first). Null until computed / when the demo has no
     // clean final score. Clans are populated on pro/HLTV demos (empty on matchmaking).
     [ObservableProperty]
@@ -67,9 +67,6 @@ public partial class DemoEntry : ObservableObject
     [ObservableProperty]
     private int _roundCount;
 
-    [ObservableProperty]
-    private string? _serverName;
-
     /// <summary>
     ///     The cache row behind this entry holds a stale half-resolved score, so the score was WITHHELD when
     ///     the row was applied and has not been re-derived yet. Set by <c>DemoLibraryService.ApplyCache</c>;
@@ -77,6 +74,9 @@ public partial class DemoEntry : ObservableObject
     /// </summary>
     [ObservableProperty]
     private bool _scoreRepairPending;
+
+    [ObservableProperty]
+    private string? _serverName;
 
     [ObservableProperty]
     private DemoIndexState _state = DemoIndexState.Pending;
@@ -99,7 +99,7 @@ public partial class DemoEntry : ObservableObject
     /// <summary>File size in bytes.</summary>
     public required long FileSizeBytes { get; init; }
 
-    /// <summary>Last-modified time (local) — the browser's default "date".</summary>
+    /// <summary>Last-modified time (local), the browser's default "date".</summary>
     public required DateTime Modified { get; init; }
 
     /// <summary>Prettified map name for display, e.g. <c>de_nuke → "Nuke"</c>. Falls back to "Unknown".</summary>
@@ -114,7 +114,7 @@ public partial class DemoEntry : ObservableObject
     /// <summary>
     ///     Comma-joined player names, or a placeholder while tier 2 is pending. Sanitized for
     ///     display: this string feeds a WRAPPING TextBlock, and hostile player names (invisible
-    ///     bidi controls + orphaned combining marks) crash Avalonia's wrap splitter — see
+    ///     bidi controls + orphaned combining marks) crash Avalonia's wrap splitter: see
     ///     <see cref="DisplayText.Sanitize" />.
     /// </summary>
     public string PlayersDisplay => Players.Count > 0
@@ -136,7 +136,7 @@ public partial class DemoEntry : ObservableObject
     ///     Show the "score needs re-deriving" badge: the cache row holds a stale half-score, it was withheld
     ///     rather than rendered, and nothing has re-derived it yet.
     ///     <para>
-    ///         This state exists because an absent score is otherwise SILENT — <see cref="HasScore" /> needs
+    ///         This state exists because an absent score is otherwise SILENT: <see cref="HasScore" /> needs
     ///         both sides, so a withheld score just quietly loses the badge and reads identically to a demo
     ///         whose score genuinely cannot be resolved (warmup, truncated). Since re-deriving is on-demand
     ///         and costs a full parse per demo, that silence would leave hundreds of cards looking scoreless
@@ -145,22 +145,22 @@ public partial class DemoEntry : ObservableObject
     ///     </para>
     ///     <para>
     ///         ANDed with <c>!HasScore</c> so a completed re-derivation stops showing it even if the flag has
-    ///         not been cleared yet — the score itself is the more reliable evidence of the two.
+    ///         not been cleared yet, the score itself is the more reliable evidence of the two.
     ///     </para>
     /// </summary>
     public bool NeedsScoreRepair => ScoreRepairPending && !HasScore;
 
-    /// <summary>True when clan/team names are known (pro/HLTV demos) — matchmaking demos have none.</summary>
+    /// <summary>True when clan/team names are known (pro/HLTV demos), matchmaking demos have none.</summary>
     public bool HasClans => !string.IsNullOrWhiteSpace(CtClan) && !string.IsNullOrWhiteSpace(TClan);
 
     /// <summary>
     ///     True while THIS demo's tier-2 full parse is in flight. The indexer runs one demo at a
-    ///     time, so at most one entry is ever true — the card's animated top bar and the list row's
+    ///     time, so at most one entry is ever true: the card's animated top bar and the list row's
     ///     pulsing dot are unique "being analyzed right now" signals.
     /// </summary>
     public bool IsIndexing => State == DemoIndexState.Indexing;
 
-    /// <summary>True when the full parse failed — drives the static red indicator.</summary>
+    /// <summary>True when the full parse failed: drives the static red indicator.</summary>
     public bool IsFailed => State == DemoIndexState.Failed;
 
     /// <summary>Card subtitle: the clan matchup on pro demos (e.g. "Vitality vs FUT"), else the server name.</summary>
@@ -170,7 +170,7 @@ public partial class DemoEntry : ObservableObject
     public bool HasDuplicates => DuplicateFolders.Count > 0;
 
     /// <summary>
-    ///     Compact duplicate hint, e.g. "＋1 copy" — a byte-identical copy lives in another folder,
+    ///     Compact duplicate hint, e.g. "＋1 copy", a byte-identical copy lives in another folder,
     ///     collapsed into this one card. The tooltip lists the folders (<see cref="DuplicateTooltip" />).
     /// </summary>
     public string DuplicateHint => DuplicateFolders.Count switch
@@ -199,7 +199,7 @@ public partial class DemoEntry : ObservableObject
     partial void OnDurationSecondsChanged(double value) => OnPropertyChanged(nameof(DurationDisplay));
 
     // NeedsScoreRepair is derived from BOTH the flag and the score, so both sides have to notify. Raising it
-    // only from the flag leaves the badge correct on first render and stale the moment a repair completes —
+    // only from the flag leaves the badge correct on first render and stale the moment a repair completes:
     // the card would keep saying "needs re-deriving" over a score it had just written.
     partial void OnCtScoreChanged(int? value)
     {
@@ -318,7 +318,7 @@ public partial class DemoEntry : ObservableObject
 /// <summary>Root persisted library state (folders + metadata cache). Serialized to AppData as JSON.</summary>
 public sealed class DemoLibraryData
 {
-    /// <summary>Cache schema version — bump to invalidate stale rows when fields change.</summary>
+    /// <summary>Cache schema version: bump to invalidate stale rows when fields change.</summary>
     public int SchemaVersion { get; set; } = DemoLibraryCacheEntry.CurrentSchema;
 
     /// <summary>User-configured root folders to scan (recursively) for demos.</summary>
@@ -330,7 +330,7 @@ public sealed class DemoLibraryData
 
 /// <summary>
 ///     One cached demo-metadata row. Validity is keyed on (<see cref="Path" />, <see cref="Size" />,
-///     <see cref="ModifiedTicks" />) — a size/mtime change invalidates it and forces a re-index.
+///     <see cref="ModifiedTicks" />), a size/mtime change invalidates it and forces a re-index.
 /// </summary>
 public sealed class DemoLibraryCacheEntry
 {
@@ -373,7 +373,7 @@ public sealed class DemoLibraryCacheEntry
     public bool FullyIndexed { get; set; }
 
     /// <summary>
-    ///     Content hash (SHA-256, lowercase hex) of the file bytes — the Phase-4b content-dedup key.
+    ///     Content hash (SHA-256, lowercase hex) of the file bytes, the Phase-4b content-dedup key.
     ///     Nullable → additive, no schema bump. Computed only for files that SHARE an exact byte size
     ///     with another discovered file (the size pre-filter: byte-identical copies always share a size,
     ///     so a unique-size file can have no content twin and is never hashed). Cached like the rest of the

@@ -11,11 +11,11 @@ namespace DemoViewer.NET.Services.Diagnostics;
 /// <summary>
 ///     The custom <see cref="ILoggerProvider" /> that turns the first-party internal <see cref="ILogger" />
 ///     pillar (analysis / app lifecycle) into rows on the unified <see cref="DiagnosticsTelemetryHub" />
-///     and — when configured — lines in the rolling <see cref="DiagnosticsFileLog" />. This is the App-side
+///     and, when configured, lines in the rolling <see cref="DiagnosticsFileLog" />. This is the App-side
 ///     realization of the ambient <c>DiagnosticsLog</c> seam: the App builds a factory around this provider
 ///     at startup and assigns it, so libraries' coarse log calls surface live in the Diagnostics tab.
 ///     <para>
-///         Purely in-memory + local file — no OTLP/exporter, so it is WASM-safe (the file sink no-ops
+///         Purely in-memory + local file: no OTLP/exporter, so it is WASM-safe (the file sink no-ops
 ///         where there is no filesystem). Gating is live: the <c>enabled</c> master switch and the
 ///         <c>minLevel</c> floor are re-read on every <see cref="ILogger.IsEnabled" />, so a settings
 ///         change takes effect with no restart.
@@ -80,7 +80,7 @@ public sealed class HubLoggerProvider(
             string label = LevelLabel(logLevel);
             DateTime now = DateTime.Now;
 
-            // Coalesced onto the UI thread by the hub (background-safe) — one drain per burst.
+            // Coalesced onto the UI thread by the hub (background-safe): one drain per burst.
             hub.Enqueue(new TelemetryLogRow(source, logLevel, label,
                 category, message, now.ToString("HH:mm:ss", CultureInfo.InvariantCulture)));
 

@@ -1,0 +1,107 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Playback2D"
+             x:Class="DemoViewer.NET.Views.Playback2D.Playback2DExportStatusView"
+             x:DataType="vm:Playback2DExportStatusViewModel"
+             MinWidth="300" MaxWidth="380">
+
+    <!--
+        2D export chip flyout (docs/playback2d-v2/export.md). Hosted inside the StatusChip's
+        Border.card-flyout, so this view provides inner padding + content only — ReelJobStatusView's shape,
+        because the two jobs are the same shape.
+
+        NOT Pb2d* tokens. This is app chrome hanging off the status strip, not the viewport column, so it
+        resolves the app-chrome palette like every other chip flyout (design-system D21).
+
+        The progress bar is DETERMINATE, which is the one real difference from the reel: the export status
+        contract carries FramesDone / FramesTotal, so a fill here is a measurement rather than a decoration.
+    -->
+
+    <StackPanel Margin="14" Spacing="10">
+
+        <TextBlock Text="2D video export" Classes="col-label"
+                   Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+            <Ellipse Grid.Column="0" Classes="dot" Width="10" Height="10" VerticalAlignment="Top"
+                     Margin="0 3 0 0"
+                     Classes.stateOff="{Binding Chip.IsStateOff}"
+                     Classes.stateWorking="{Binding Chip.IsStateWorking}"
+                     Classes.stateGood="{Binding Chip.IsStateGood}"
+                     Classes.stateDegraded="{Binding Chip.IsStateDegraded}"
+                     Classes.stateError="{Binding Chip.IsStateError}"
+                     Classes.pulsing="{Binding Chip.IsPulsing}" />
+            <TextBlock Grid.Column="1" Text="{Binding Headline}" x:Name="ExportHeadline"
+                       Foreground="{DynamicResource TextValue}" FontSize="12" TextWrapping="Wrap" />
+        </Grid>
+
+        <Rectangle Classes="divider" Height="1" />
+
+        <!-- Frames / throughput / elapsed / ETA. Shown in every non-idle phase, because "it failed after
+             4 700 of 4 800 frames" is a different report from "it failed immediately". -->
+        <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource TextMid}"
+                   TextWrapping="Wrap" IsVisible="{Binding !IsIdle}" />
+
+        <!-- ══ RUNNING ═════════════════════════════════════════════════════════════════ -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsRunning}">
+            <ProgressBar Minimum="0" Maximum="1" Value="{Binding ProgressFraction}" Height="4"
+                         Foreground="{DynamicResource AccentInteractive}" />
+            <Button x:Name="CancelExportButton" Content="Cancel export" Classes="ghost" Padding="12 5"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Command="{Binding CancelCommand}"
+                    ToolTip.Tip="Stops the render, kills ffmpeg and removes the partial file." />
+        </StackPanel>
+
+        <!-- ══ COMPLETED ═══════════════════════════════════════════════════════════════ -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsCompleted}">
+            <StackPanel Spacing="2"
+                        IsVisible="{Binding OutputPath, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock Text="Output" Classes="col-label" />
+                <TextBlock Text="{Binding OutputPath}" Classes="mono" FontSize="11"
+                           Foreground="{DynamicResource TextValue}" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Content="Open folder" Classes="ghost" Padding="12 5"
+                        IsVisible="{Binding CanOpenFolder}" Command="{Binding OpenFolderCommand}" />
+                <Button Content="Dismiss" Classes="ghost" Padding="12 5" Command="{Binding DismissCommand}" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- ══ FAILED ══════════════════════════════════════════════════════════════════ -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsFailed}">
+            <!-- AccentError icon + neutral body: AccentError as body text fails AA on the card. -->
+            <Grid ColumnDefinitions="Auto,*"
+                  IsVisible="{Binding ErrorText, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock Grid.Column="0" Text="⚠" Foreground="{DynamicResource AccentError}" FontSize="12"
+                           VerticalAlignment="Top" Margin="0 0 6 0" />
+                <ScrollViewer Grid.Column="1" MaxHeight="140" VerticalScrollBarVisibility="Auto">
+                    <SelectableTextBlock x:Name="ExportErrorText" Text="{Binding ErrorText}" FontSize="11"
+                                         Foreground="{DynamicResource TextValue}" TextWrapping="Wrap" />
+                </ScrollViewer>
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Content="Copy error" Classes="ghost" Padding="12 5"
+                        IsVisible="{Binding HasError}" Click="OnCopyErrorClick"
+                        ToolTip.Tip="Copy the full export diagnostic (phase, frames, error, ffmpeg log)." />
+                <Button Content="Dismiss" Classes="ghost" Padding="12 5" Command="{Binding DismissCommand}" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- ══ CANCELLED ═══════════════════════════════════════════════════════════════ -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsCancelled}">
+            <Button Content="Dismiss" Classes="ghost" Padding="12 5" HorizontalAlignment="Right"
+                    Command="{Binding DismissCommand}" />
+        </StackPanel>
+
+        <!-- The encoder line and ffmpeg's stderr. Collapsed by default: it is diagnostics, not status,
+             and it is the thing a bug report needs rather than the thing a user watches. -->
+        <Expander Header="Encoder log" IsVisible="{Binding HasLog}" FontSize="11">
+            <ScrollViewer MaxHeight="160" VerticalScrollBarVisibility="Auto">
+                <SelectableTextBlock Text="{Binding LogText}" Classes="mono" FontSize="10"
+                                     Foreground="{DynamicResource TextDim}" TextWrapping="NoWrap" />
+            </ScrollViewer>
+        </Expander>
+
+    </StackPanel>
+
+</UserControl>

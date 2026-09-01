@@ -14,7 +14,7 @@ namespace DemoViewer.NET.Views.Library;
 ///     Demo-library landing tab view. Code-behind carries two view concerns: the double-click-to-open handler
 ///     (a card/list row carries its <see cref="DemoEntry" /> in <c>Tag</c>; double-tapping invokes the VM's
 ///     open command), and the drag-drop-a-.dem-to-open handlers which forward a dropped file's local
-///     path to <see cref="LibraryTabViewModel.OpenPathCommand" /> — the same shared load core the recents /
+///     path to <see cref="LibraryTabViewModel.OpenPathCommand" />: the same shared load core the recents /
 ///     browser use. Both just route to VM commands; no data is pushed into controls from here.
 /// </summary>
 public partial class LibraryTabView : UserControl
@@ -80,13 +80,13 @@ public partial class LibraryTabView : UserControl
 
         if (vm.CanDropFiles && FirstDemoPath(e) is { } path)
         {
-            // Fire-and-forget via the command (starts the async task) — no async-void handler.
+            // Fire-and-forget via the command (starts the async task): no async-void handler.
             vm.OpenPathCommand.Execute(path);
         }
     }
 
     // The local path of the first dropped .dem file, or null if the payload has none (or isn't files).
-    // Uses the Avalonia 11.3 IDataTransfer receive API (DataFormat.File / TryGetFiles) — the successor to the
+    // Uses the Avalonia 11.3 IDataTransfer receive API (DataFormat.File / TryGetFiles): the successor to the
     // now-obsolete e.Data.GetFiles(); TryGetFiles is desktop-only, which suits the desktop drag-drop path.
     private static string? FirstDemoPath(DragEventArgs e)
     {

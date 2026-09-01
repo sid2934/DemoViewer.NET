@@ -1,0 +1,583 @@
+#region
+
+using System.Globalization;
+using SkiaSharp;
+
+#endregion
+
+namespace DemoViewer.NET.Playback2D.Core.Levels;
+
+/// <summary>
+///     The resolved set of floors for the current map, and the one authority on "which floor is this
+///     world Z on".
+///     <para>
+///         <b>Assignment is a parity clone of <see cref="FloorSplitter.SliceIndexFor" />.</b>
+///         Contains-first, then nearest by band centre. That fallback is load-bearing: a player on a
+///         ramp between bands, or standing above the highest observed band, must still be drawn
+///         somewhere, and the pre-v2 control's "nearest" answer is what the goldens contain.
+///         <c>MapSpaceTests</c> pins the two implementations against each other over a Z table.
+///     </para>
+///     <para>
+///         <b>Identity is minted, then CARRIED.</b> A quantized lower Z mints the id of a genuinely new
+///         band; every rebuild after that matches bands to levels by overlap, so a boundary drifting one
+///         or two buckets (which the density-valley histogram does all demo long) keeps every identity
+///         intact. See <see cref="Rebuild" /> and <see cref="MapLevelId" />.
+///     </para>
+/// </summary>
+public sealed class MapSpace
+{
+    /// <summary>
+    ///     Z quantum for id minting, equal to <see cref="FloorSplitter" />'s default bucket width. Every
+    ///     histogram-derived boundary is already an exact multiple of it
+    ///     (<c>FloorSplitter.ComputeSlices</c>), so quantization is the identity function on the common
+    ///     path and only snaps the arbitrary-double authoritative nav bands.
+    /// </summary>
+    public const double LevelQuantum = 64.0;
+
+    /// <summary>
+    ///     How much of the thinner of two bands must be shared before a rebuild treats them as the same
+    ///     floor. A boundary drifting by one or two buckets moves the score by under 0.05 on any real
+    ///     band, so identity survives drift; a genuine 1→2 split scores below this on at least one side,
+    ///     so the new floor is <c>Added</c> rather than welded onto its neighbour.
+    /// </summary>
+    public const double MatchThreshold = 0.50;
+
+    private static readonly string[] _names =
+        ["L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7"];
+
+    private readonly List<MapLevel> _levels = [];
+    private readonly List<MapLevelId> _scratchAdded = [];
+    private readonly List<MapLevelId> _scratchRemoved = [];
+    private readonly List<MapLevelId> _scratchRetained = [];
+
+    // Every key this space has EVER minted, so a level that is removed and a band that later reappears
+    // in the same place are two identities, not one wearing the other's camera and annotations.
+    private readonly HashSet<int> _usedKeys = [];
+
+    /// <summary>The current levels, lowest band first. Empty before the first rebuild.</summary>
+    public IReadOnlyList<MapLevel> Levels => _levels;
+
+    /// <summary>How the radar images were matched to <see cref="Levels" />.</summary>
+    public RadarBindingQuality RadarBinding { get; private set; } = RadarBindingQuality.None;
+
+    /// <summary>The last rebuild's outcome. <see cref="LevelSetChange.None" /> before the first.</summary>
+    public LevelSetChange LastChange { get; private set; } = LevelSetChange.None;
+
+    /// <summary>
+    ///     Bumped on every rebuild that actually changed the set. Cheaper than comparing band lists, and
+    ///     it is what <c>PaneSet.Reconcile</c> early-outs on so a steady-state frame allocates nothing.
+    /// </summary>
+    public int Version { get; private set; }
+
+    /// <summary>Raised once per rebuild that changed the set. Never raised by an idempotent rebuild.</summary>
+    public event Action? LevelSetChanged;
+
+    /// <summary>
+    ///     Quantizes a world Z to the id grid. <b>Half-up, not banker's</b>: CS2 maps sit at negative Z
+    ///     routinely, and <c>Math.Round</c>'s round-half-to-even would make the rule asymmetric about
+    ///     zero: a silent identity change at exactly the boundary values.
+    /// </summary>
+    /// <param name="z">World Z.</param>
+    public static double QuantizeZ(double z) => Math.Floor(z / LevelQuantum + 0.5) * LevelQuantum;
+
+    /// <summary>Mints the id a genuinely new band with this lower Z would carry.</summary>
+    /// <param name="zMin">The band's lower world Z.</param>
+    public static MapLevelId IdForZMin(double zMin) => new((int)Math.Floor(zMin / LevelQuantum + 0.5));
+
+    /// <summary>
+    ///     The id of the level a stored <c>SpaceRef.World(LevelMinZ)</c> anchor belongs to
+    ///     <b>
+    ///         in this
+    ///         space
+    ///     </b>
+    ///     . The one function annotation consumers may use to turn an anchor into a level id.
+    ///     <para>
+    ///         Not <see cref="IdForZMin" />: that is the MINTING rule, and <see cref="Mint" /> walks a
+    ///         colliding key upward, so after a floor is lost and re-found,
+    ///         <c>level.Id != IdForZMin(level.ZMin)</c>. A consumer that derives an id from Z instead of
+    ///         asking the space compares a minting key against a carried identity and gets false:
+    ///         world-anchored ink vanishes, or draws on whichever floor happens to own the old key.
+    ///     </para>
+    ///     <para>
+    ///         Resolution order mirrors <see cref="LevelSetChange.TryRemapAnchor" />, for the same
+    ///         reasons. <b>The quantized key first</b>, since an anchor is stamped with
+    ///         <see cref="QuantizeZ" />(level.ZMin) and real band lists are contiguous, so letting
+    ///         containment win first would sink every boundary anchor one floor. Then half-open
+    ///         containment (an anchor is a band's LOWER bound, never its top), then closed containment
+    ///         for the top of the highest band, then the nearest band centre, so an anchor never belongs
+    ///         to no level at all.
+    ///     </para>
+    /// </summary>
+    /// <param name="zMin">The anchor's stored level lower Z, as <c>DrawTool</c> quantized it.</param>
+    /// <returns>The owning level's id; <see cref="IdForZMin" />'s answer when the space has no levels.</returns>
+    public MapLevelId IdForAnchor(double zMin)
+    {
+        int count = _levels.Count;
+        if (count == 0)
+        {
+            return IdForZMin(zMin);
+        }
+
+        int key = IdForZMin(zMin).Key;
+        for (int i = 0; i < count; i++)
+        {
+            if (IdForZMin(_levels[i].ZMin).Key == key)
+            {
+                return _levels[i].Id;
+            }
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            if (zMin >= _levels[i].ZMin && zMin < _levels[i].ZMax)
+            {
+                return _levels[i].Id;
+            }
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            if (_levels[i].Contains(zMin))
+            {
+                return _levels[i].Id;
+            }
+        }
+
+        int nearest = 0;
+        double best = double.MaxValue;
+        for (int i = 0; i < count; i++)
+        {
+            double d = Math.Abs(zMin - _levels[i].MidZ);
+            if (d < best)
+            {
+                best = d;
+                nearest = i;
+            }
+        }
+
+        return _levels[nearest].Id;
+    }
+
+    /// <summary>
+    ///     The level a world Z belongs on. Never null once the space has levels; returns null only
+    ///     before the first rebuild.
+    /// </summary>
+    /// <param name="worldZ">World Z.</param>
+    public MapLevel? LevelFor(double worldZ)
+    {
+        int index = LevelIndexFor(worldZ);
+        return index >= 0 && index < _levels.Count ? _levels[index] : null;
+    }
+
+    /// <summary>
+    ///     The level index a world Z belongs on, or 0 when the space is empty.
+    ///     <b>
+    ///         Behaviourally
+    ///         identical to <see cref="FloorSplitter.SliceIndexFor" />.
+    ///     </b>
+    /// </summary>
+    /// <param name="worldZ">World Z.</param>
+    public int LevelIndexFor(double worldZ)
+    {
+        int count = _levels.Count;
+        if (count == 0)
+        {
+            return 0;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            if (_levels[i].Contains(worldZ))
+            {
+                return i;
+            }
+        }
+
+        // In a gap (or beyond the observed range): snap to the nearest band centre, exactly as the
+        // pre-v2 splitter does, so nothing ever vanishes for want of a band.
+        int nearest = 0;
+        double best = double.MaxValue;
+        for (int i = 0; i < count; i++)
+        {
+            double d = Math.Abs(worldZ - _levels[i].MidZ);
+            if (d < best)
+            {
+                best = d;
+                nearest = i;
+            }
+        }
+
+        return nearest;
+    }
+
+    /// <summary>
+    ///     The <b>sticky</b> answer given the caller's previous one: keeps <paramref name="previous" />
+    ///     until <paramref name="worldZ" /> has cleared that band by at least
+    ///     <see cref="LevelHysteresis.SpatialBand" />.
+    ///     <para>
+    ///         This is the spatial half of the hysteresis and carries no dwell: an entity must never lag
+    ///         its own level. The temporal half lives in <see cref="LevelHysteresis" />, which AutoFollow's
+    ///         view decision uses. The band comes from <see cref="LevelHysteresisOptions.Default" />: this
+    ///         overload has no options parameter, and its production caller
+    ///         (<see cref="LevelCrossingTracker" />) has none to give. A caller that carries its own tuning
+    ///         applies the band itself, as <see cref="LevelHysteresis.Update" /> does.
+    ///     </para>
+    ///     <para>
+    ///         <b>Drawing does not go through here.</b> <c>SceneRenderContext.BelongsHere</c> uses the
+    ///         stateless <see cref="LevelIndexFor" />, because a pane filter that depended on call order
+    ///         would make a golden depend on how many frames preceded it.
+    ///     </para>
+    /// </summary>
+    /// <param name="worldZ">World Z.</param>
+    /// <param name="previous">The level this caller was last assigned, or null.</param>
+    public MapLevel? LevelFor(double worldZ, MapLevelId? previous)
+    {
+        MapLevel? resolved = LevelFor(worldZ);
+        if (resolved is null || previous is not { } previousId || previousId.IsNone ||
+            previousId == resolved.Id)
+        {
+            return resolved;
+        }
+
+        MapLevel? held = ById(previousId);
+        if (held is null)
+        {
+            return resolved;
+        }
+
+        double band = LevelHysteresis.SpatialBand(held, resolved, LevelHysteresisOptions.Default);
+        return DistanceOutside(held, worldZ) <= band ? held : resolved;
+    }
+
+    /// <summary>How far <paramref name="worldZ" /> lies outside a band; 0 when inside it.</summary>
+    /// <param name="level">The band.</param>
+    /// <param name="worldZ">World Z.</param>
+    public static double DistanceOutside(MapLevel level, double worldZ)
+    {
+        ArgumentNullException.ThrowIfNull(level);
+
+        if (worldZ > level.ZMax)
+        {
+            return worldZ - level.ZMax;
+        }
+
+        return worldZ < level.ZMin ? level.ZMin - worldZ : 0;
+    }
+
+    /// <summary>The level with this id, or null.</summary>
+    /// <param name="id">A level id.</param>
+    public MapLevel? ById(MapLevelId id)
+    {
+        for (int i = 0; i < _levels.Count; i++)
+        {
+            if (_levels[i].Id == id)
+            {
+                return _levels[i];
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The index of the level with this id, or -1.</summary>
+    /// <param name="id">A level id.</param>
+    public int IndexOf(MapLevelId id)
+    {
+        for (int i = 0; i < _levels.Count; i++)
+        {
+            if (_levels[i].Id == id)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    ///     Re-derives the level set from a band list, <b>carrying</b> each surviving level's identity by
+    ///     band overlap and minting an id only for a genuinely new band.
+    ///     <para>
+    ///         <b>Idempotent</b>: an unchanged band list (same Z to within a thousandth, same radar
+    ///         binding) returns <see cref="LevelSetChange.None" /> and raises nothing. The caller does run
+    ///         this every frame, because the map bundle can arrive late.
+    ///     </para>
+    ///     <para>
+    ///         <see cref="LastChange" /> is assigned BEFORE <see cref="LevelSetChanged" /> is raised, so
+    ///         a handler can read the change off the property.
+    ///     </para>
+    /// </summary>
+    /// <param name="bands">The floor bands, lowest first.</param>
+    /// <param name="radarByLevel">Radar image per band, positionally aligned; null for none.</param>
+    /// <param name="quality">How confidently the radar images were matched.</param>
+    /// <param name="radarNamesByLevel">
+    ///     Bundle file names for <paramref name="radarByLevel" />, positionally aligned. Optional;
+    ///     <see cref="MapLevel.RadarImageName" /> is diagnostics, fixtures and radar placement.
+    /// </param>
+    public LevelSetChange Rebuild(IReadOnlyList<FloorSlice> bands,
+        IReadOnlyList<SKImage?>? radarByLevel = null,
+        RadarBindingQuality quality = RadarBindingQuality.None,
+        IReadOnlyList<string?>? radarNamesByLevel = null)
+    {
+        ArgumentNullException.ThrowIfNull(bands);
+
+        if (IsUnchanged(bands, radarByLevel, quality))
+        {
+            LastChange = LevelSetChange.None;
+            return LastChange;
+        }
+
+        int oldCount = _levels.Count;
+        int newCount = bands.Count;
+
+        // 1. Normalise (see NormalizedMax).
+        double[] minZ = new double[newCount];
+        double[] maxZ = new double[newCount];
+        for (int i = 0; i < newCount; i++)
+        {
+            minZ[i] = bands[i].MinZ;
+            maxZ[i] = NormalizedMax(bands[i]);
+        }
+
+        // 2-3. Score every (old, new) pair by shared fraction of the thinner band, then match greedily
+        //      in descending score while the pair still clears MatchThreshold. Both lists are ≤ ~4.
+        int[] oldForNew = new int[newCount];
+        int[] newForOld = new int[oldCount];
+        Array.Fill(oldForNew, -1);
+        Array.Fill(newForOld, -1);
+
+        while (true)
+        {
+            double best = -1;
+            int bestOld = -1;
+            int bestNew = -1;
+
+            for (int o = 0; o < oldCount; o++)
+            {
+                if (newForOld[o] >= 0)
+                {
+                    continue;
+                }
+
+                for (int n = 0; n < newCount; n++)
+                {
+                    if (oldForNew[n] >= 0)
+                    {
+                        continue;
+                    }
+
+                    double score = OverlapScore(_levels[o].ZMin, _levels[o].ZMax, minZ[n], maxZ[n]);
+                    if (score >= MatchThreshold && score > best)
+                    {
+                        best = score;
+                        bestOld = o;
+                        bestNew = n;
+                    }
+                }
+            }
+
+            if (bestOld < 0)
+            {
+                break;
+            }
+
+            oldForNew[bestNew] = bestOld;
+            newForOld[bestOld] = bestNew;
+        }
+
+        _scratchAdded.Clear();
+        _scratchRemoved.Clear();
+        _scratchRetained.Clear();
+
+        Dictionary<MapLevelId, MapLevelId> remapped = new(oldCount);
+        (MapLevelId Id, double ZMin)[] before = new (MapLevelId, double)[oldCount];
+        for (int o = 0; o < oldCount; o++)
+        {
+            before[o] = (_levels[o].Id, _levels[o].ZMin);
+            if (newForOld[o] < 0)
+            {
+                _scratchRemoved.Add(_levels[o].Id);
+            }
+        }
+
+        // 4-6. Carry, mint, name.
+        List<MapLevel> next = new(newCount);
+        for (int i = 0; i < newCount; i++)
+        {
+            MapLevelId id;
+            if (oldForNew[i] >= 0)
+            {
+                id = _levels[oldForNew[i]].Id;
+                remapped[id] = id;
+                _scratchRetained.Add(id);
+            }
+            else
+            {
+                id = Mint(minZ[i], next);
+                _scratchAdded.Add(id);
+            }
+
+            _usedKeys.Add(id.Key);
+            next.Add(new MapLevel
+            {
+                Id = id,
+                Name = NameFor(i),
+                ZMin = minZ[i],
+                ZMax = maxZ[i],
+                Radar = radarByLevel is not null && i < radarByLevel.Count ? radarByLevel[i] : null,
+                RadarImageName = radarNamesByLevel is not null && i < radarNamesByLevel.Count
+                    ? radarNamesByLevel[i]
+                    : null
+            });
+        }
+
+        _levels.Clear();
+        _levels.AddRange(next);
+        RadarBinding = quality;
+        Version++;
+
+        LastChange = new LevelSetChange(true, _scratchAdded.ToArray(), _scratchRemoved.ToArray(),
+            _scratchRetained.ToArray())
+        {
+            Remapped = remapped,
+            LevelsAfter = next,
+            LevelsBefore = before
+        };
+        LevelSetChanged?.Invoke();
+        return LastChange;
+    }
+
+    /// <summary>
+    ///     Clears every level. For a demo unload; the next rebuild starts from nothing.
+    ///     <para>
+    ///         <b>Publishes a real removal.</b> <see cref="Rebuild" />'s contract is that
+    ///         <see cref="LastChange" /> describes what happened before <see cref="LevelSetChanged" /> is
+    ///         raised, and a reset removes every level. Publishing <see cref="LevelSetChange.None" /> here
+    ///         would tell every handler that reconciles against it (<c>PaneSet.RetainUnarranged</c> is the
+    ///         shipped one) that nothing had gone, so a demo unload would keep a pane, a camera and a
+    ///         picture cache for every floor of the demo that had just closed.
+    ///     </para>
+    ///     <para>
+    ///         <see cref="LevelSetChange.LevelsAfter" /> stays empty, which is what makes
+    ///         <see cref="LevelSetChange.TryRemapAnchor" /> refuse: there is nothing to rebase an
+    ///         annotation anchor ONTO, and rebasing it at unload would rewrite the sidecar of the demo
+    ///         being closed.
+    ///     </para>
+    /// </summary>
+    public void Reset()
+    {
+        if (_levels.Count == 0 && RadarBinding == RadarBindingQuality.None && _usedKeys.Count == 0)
+        {
+            return;
+        }
+
+        _scratchRemoved.Clear();
+        (MapLevelId Id, double ZMin)[] before = new (MapLevelId, double)[_levels.Count];
+        for (int i = 0; i < _levels.Count; i++)
+        {
+            before[i] = (_levels[i].Id, _levels[i].ZMin);
+            _scratchRemoved.Add(_levels[i].Id);
+        }
+
+        _levels.Clear();
+        _usedKeys.Clear();
+        RadarBinding = RadarBindingQuality.None;
+        LastChange = new LevelSetChange(true, [], _scratchRemoved.ToArray(), [])
+        {
+            LevelsBefore = before
+        };
+        Version++;
+        LevelSetChanged?.Invoke();
+    }
+
+    /// <summary>
+    ///     The shared fraction of the thinner of two bands, in [0, 1]. 0 when they do not overlap or
+    ///     either is degenerate.
+    /// </summary>
+    /// <param name="aMin">First band's lower Z.</param>
+    /// <param name="aMax">First band's upper Z.</param>
+    /// <param name="bMin">Second band's lower Z.</param>
+    /// <param name="bMax">Second band's upper Z.</param>
+    public static double OverlapScore(double aMin, double aMax, double bMin, double bMax)
+    {
+        double overlap = Math.Min(aMax, bMax) - Math.Max(aMin, bMin);
+        if (overlap <= 0)
+        {
+            return 0;
+        }
+
+        double thinner = Math.Min(aMax - aMin, bMax - bMin);
+        return thinner > 0 ? Math.Min(1.0, overlap / thinner) : 0;
+    }
+
+    // The minting rule plus its collision bump: a key already live, or ever minted by this space, walks
+    // upward until it is free. Without the "ever minted" half, removing a level and later re-observing
+    // the same band would hand the newcomer the departed level's identity, and with it whatever camera
+    // or annotation still remembered that id.
+    private MapLevelId Mint(double zMin, List<MapLevel> staged)
+    {
+        int key = IdForZMin(zMin).Key;
+        while (_usedKeys.Contains(key) || IsStaged(staged, key))
+        {
+            key++;
+        }
+
+        return new MapLevelId(key);
+    }
+
+    // A degenerate band can only come from a malformed authoritative bundle; widening it by one quantum
+    // keeps every downstream Span > 0 rather than dividing by zero later.
+    private static double NormalizedMax(FloorSlice band) =>
+        band.MaxZ > band.MinZ ? band.MaxZ : band.MinZ + LevelQuantum;
+
+    private static bool IsStaged(List<MapLevel> staged, int key)
+    {
+        for (int i = 0; i < staged.Count; i++)
+        {
+            if (staged[i].Id.Key == key)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Display only, by ascending-ZMin ordinal. Names re-order freely across a rebuild; ids never do.
+    private static string NameFor(int index) =>
+        index < _names.Length
+            ? _names[index]
+            : string.Create(CultureInfo.InvariantCulture, $"L{index}");
+
+    private bool IsUnchanged(IReadOnlyList<FloorSlice> bands, IReadOnlyList<SKImage?>? radarByLevel,
+        RadarBindingQuality quality)
+    {
+        if (_levels.Count != bands.Count || RadarBinding != quality)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < bands.Count; i++)
+        {
+            MapLevel level = _levels[i];
+            FloorSlice band = bands[i];
+
+            // Against the NORMALIZED max, not the raw one: Rebuild widens a degenerate band, so comparing
+            // raw would find the widened level "different" from the band it was built from and rebuild on
+            // every call, raising LevelSetChanged and dropping every picture cache.
+            if (Math.Abs(level.ZMin - band.MinZ) > 1e-3 ||
+                Math.Abs(level.ZMax - NormalizedMax(band)) > 1e-3)
+            {
+                return false;
+            }
+
+            SKImage? radar = radarByLevel is not null && i < radarByLevel.Count ? radarByLevel[i] : null;
+            if (!ReferenceEquals(level.Radar, radar))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}

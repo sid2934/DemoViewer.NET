@@ -15,6 +15,7 @@ namespace DemoViewer.NET.AppTests;
 ///     heavy loads (open, then the resume re-parse), so it is <see cref="NotInParallelAttribute" /> and heavy.
 /// </summary>
 [NotInParallel]
+[Category("RealDemo")]
 public class IdleResumeRoundTripTests
 {
     [Test]
@@ -29,7 +30,7 @@ public class IdleResumeRoundTripTests
             await vm.AutoLoadDemoAsync(demo);
             await Assert.That(vm.HasFile).IsTrue().Because("the demo must load before we can idle-close it");
 
-            // Seek to a non-trivial frame and note the active tab — this is what resume must restore.
+            // Seek to a non-trivial frame and note the active tab. This is what resume must restore.
             int targetFrame = Math.Min(120, vm.Playback.TotalFrames - 1);
             vm.Playback.SeekToFrame(targetFrame);
             string? tabId = vm.SelectedTab?.TabId;

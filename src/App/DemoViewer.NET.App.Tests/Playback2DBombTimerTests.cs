@@ -1,11 +1,11 @@
 #region
 
-using DemoViewer.NET.Modules;
-using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Playback2D;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Modules;
+using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Playback;
 using TUnit.Core.Exceptions;
@@ -77,7 +77,7 @@ public class Playback2DBombTimerTests
         }
 
         // Find the contiguous m_bBeingDefused run ending at bomb_defused with ONE forward-advancing
-        // tracker (O(n), not a fresh replay-from-0 per frame), then take a frame mid-run — sampling near
+        // tracker (O(n), not a fresh replay-from-0 per frame), then take a frame mid-run: sampling near
         // completion (as the throwaway probe did) leaves ~0s remaining.
         (int runStart, int runEnd) = DefuseRun(frames, defuseFrame);
         if (runStart < 0)
@@ -116,7 +116,7 @@ public class Playback2DBombTimerTests
         }
 
         // Same calibration the host does at load (and the round-timer gate). One clockBase, shared by both
-        // timers — that is precisely what the bomb≈40 assertion independently proves.
+        // timers. That is precisely what the bomb≈40 assertion independently proves.
         (double clockBase, bool valid) = GameClock.ComputeClockBase(frames, firstFreeze, tickRate);
         if (!valid)
         {
@@ -182,7 +182,7 @@ public class Playback2DBombTimerTests
         {
             if (i > from)
             {
-                tracker.AdvanceOneFrame(frames[i]); // O(1) step forward — no replay-from-0 per frame
+                tracker.AdvanceOneFrame(frames[i]); // O(1) step forward, no replay-from-0 per frame
             }
 
             if (IsBeingDefused(tracker))

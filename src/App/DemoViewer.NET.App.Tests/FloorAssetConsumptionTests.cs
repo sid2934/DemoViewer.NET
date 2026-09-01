@@ -1,6 +1,7 @@
 #region
 
-using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -10,7 +11,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     First increment of the app-side map-asset consumption: the viewport's
 ///     <see cref="FloorSplitter" /> adopts nav-derived floor bands from a baked bundle, overriding its
-///     Z-histogram heuristic; the <see cref="MapAssetLoader" /> loads those bundles VRF-free and degrades
+///     Z-histogram heuristic; the <see cref="MapAssetPipeline" /> loads those bundles VRF-free and degrades
 ///     gracefully when absent. The real-bundle integration checks skip when the AssetBaker hasn't run.
 /// </summary>
 public class FloorAssetConsumptionTests
@@ -89,7 +90,7 @@ public class FloorAssetConsumptionTests
                                 """;
             await File.WriteAllTextAsync(Path.Combine(dir, "bundle.json"), Json);
 
-            LoadedMapAsset? loaded = MapAssetLoader.TryLoadFromDirectory(dir);
+            LoadedMapAsset? loaded = MapAssetPipeline.TryLoadFromDirectory(dir);
 
             await Assert.That(loaded).IsNotNull();
             await Assert.That(loaded!.Bundle.MapName).IsEqualTo("de_test");
@@ -106,15 +107,15 @@ public class FloorAssetConsumptionTests
     [Test]
     public async Task Loader_MissingOrNull_ReturnsNull()
     {
-        await Assert.That(MapAssetLoader.TryLoad("does_not_exist_map_xyz")).IsNull();
-        await Assert.That(MapAssetLoader.TryLoad(null)).IsNull();
-        await Assert.That(MapAssetLoader.TryLoad("  ")).IsNull();
+        await Assert.That(MapAssetPipeline.TryLoad("does_not_exist_map_xyz")).IsNull();
+        await Assert.That(MapAssetPipeline.TryLoad(null)).IsNull();
+        await Assert.That(MapAssetPipeline.TryLoad("  ")).IsNull();
     }
 
     [Test]
     public async Task Integration_NukeBundle_TwoFloors_BoundaryInValley()
     {
-        LoadedMapAsset? nuke = MapAssetLoader.TryLoad("de_nuke");
+        LoadedMapAsset? nuke = MapAssetPipeline.TryLoad("de_nuke");
         if (nuke is null)
         {
             throw new SkipTestException("de_nuke bundle not baked (run tools/DemoViewer.NET.AssetBaker)");
@@ -130,7 +131,7 @@ public class FloorAssetConsumptionTests
     [Test]
     public async Task Integration_Dust2Bundle_SingleFloor()
     {
-        LoadedMapAsset? dust2 = MapAssetLoader.TryLoad("de_dust2");
+        LoadedMapAsset? dust2 = MapAssetPipeline.TryLoad("de_dust2");
         if (dust2 is null)
         {
             throw new SkipTestException("de_dust2 bundle not baked");

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The renderer-agnostic scene core (docs/playback2d-v2/design.md §4). References SkiaSharp and
+      NOTHING else: no Avalonia, no parser, no Modules.Abstractions. That constraint is the whole
+      value of this assembly (it is what lets export, the CLI and CI render without a window) and it
+      is enforced by ArchitectureTests, not by convention.
+    -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>DemoViewer.NET.Playback2D.Core</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="SkiaSharp"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!--
+          The scene's typeface, embedded rather than resolved from the host (integrator correction 6).
+          SKTypeface.Default is "Segoe UI" on Windows and something else entirely on the ubuntu golden
+          lane, so a system face makes every text-bearing golden machine-specific. Licence notice:
+          THIRD-PARTY-NOTICES.md §d (SIL OFL 1.1).
+        -->
+        <EmbeddedResource Include="Assets\Inter-Regular.ttf"
+                          LogicalName="DemoViewer.NET.Playback2D.Core.Assets.Inter-Regular.ttf"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Pipeline"/>
+        <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Tests"/>
+    </ItemGroup>
+
+</Project>

@@ -57,7 +57,7 @@ public class Playback2DEventNavTests
 
         await Assert.That(vm.HasKillEvents).IsFalse();
 
-        // Commands are still safe to invoke (the button is just hidden) — they request the kill filter, which
+        // Commands are still safe to invoke (the button is just hidden): they request the kill filter, which
         // the navigator simply can't satisfy. No throw.
         vm.NextKillCommand.Execute(null);
         await Assert.That(ctx.LastNextFilter!).Contains("player_death");

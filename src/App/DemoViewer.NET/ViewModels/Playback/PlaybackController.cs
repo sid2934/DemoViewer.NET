@@ -12,7 +12,7 @@ namespace DemoViewer.NET.ViewModels.Playback;
 
 /// <summary>
 ///     The lightweight transient pushed to <c>PlaybackController.Advanced</c> on each (coalesced)
-///     render frame while playing. Carries only the position — the read-only entity / player-joined
+///     render frame while playing. Carries only the position, the read-only entity / player-joined
 ///     surface is the <c>IPlaybackSnapshot</c> facade that wraps this. Two deliberate layers:
 ///     the controller raises <c>Advanced&lt;PlaybackFrame&gt;</c>; the module context raises
 ///     <c>Advanced&lt;IPlaybackSnapshot&gt;</c>.
@@ -21,16 +21,16 @@ public readonly record struct PlaybackFrame(int FrameIndex, int Tick);
 
 /// <summary>
 ///     The single authoritative owner of "current position" and of the authoritative
-///     <see cref="EntityTracker" />. Every position move — manual frame selection, the
-///     seek controls, the Replay tick-nav, the command palette, and the play loop — routes
-///     through this one object, so there is exactly one code path that advances the clock. This
+///     <see cref="EntityTracker" />. Every position move routes through this one object: manual
+///     frame selection, the seek controls, the Replay tick-nav, the command palette, and the play
+///     loop, so there is exactly one code path that advances the clock. This
 ///     eliminates the "two competing playback notions" risk by construction.
 ///     <para>
 ///         The controller owns the observable position
 ///         state (<see cref="CurrentFrameIndex" /> / <see cref="CurrentTick" /> / <see cref="IsPlaying" />
 ///         / <see cref="Speed" />) and is the single fan-out point for a position move. The actual
-///         side-effect body — set selected frame, drive seek controls, kick the entity seek, refresh
-///         debugger CanExecute, seek analysis — is wired in by the shell via <see cref="ApplySeek" />
+///         side-effect body, set selected frame, drive seek controls, kick the entity seek, refresh
+///         debugger CanExecute, seek analysis, is wired in by the shell via <see cref="ApplySeek" />
 ///         (the established callback-delegate dependency direction; the shell never holds a
 ///         back-reference here either way). A re-entrancy guard ensures that when the fan-out (or any
 ///         navigation method) assigns <c>ParserTab.SelectedFrame</c>, the resulting setter callback does
@@ -65,8 +65,6 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     // Speed, the integer part is how many frames to step this tick, the fraction carries forward.
     private double _frameAccumulator;
 
-    private IReadOnlyList<DemoFrame>? _frames;
-
     [ObservableProperty]
     private bool _isPlaying;
 
@@ -77,7 +75,18 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     private DispatcherTimer? _timer;
 
     /// <summary>Total frames in the loaded demo, 0 when none loaded.</summary>
-    public int TotalFrames => _frames?.Count ?? 0;
+    public int TotalFrames => Frames?.Count ?? 0;
+
+    /// <summary>
+    ///     The loaded demo's frame list, or null when none is loaded.
+    ///     <para>
+    ///         Read-only and immutable post-parse, which is what makes a second reader safe: B4's video
+    ///         export walks this same list with its own private <c>EntityTracker</c> while this
+    ///         controller's tracker walks it for the playhead. Handing it out is deliberately narrower
+    ///         than exposing the tracker: a caller can read frames, not mutate decode state.
+    ///     </para>
+    /// </summary>
+    public IReadOnlyList<DemoFrame>? Frames { get; private set; }
 
     /// <summary>True once a demo is loaded and has at least one frame.</summary>
     public bool HasDemo => TotalFrames > 0;
@@ -91,7 +100,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
 
     /// <summary>
     ///     The shell-wired DISCRETE fan-out applied on a one-off position move (click / scrub /
-    ///     palette / StepBack). This is the lifted body of <c>HandleFrameSelectedFromParserTab</c> —
+    ///     palette / StepBack). This is the lifted body of <c>HandleFrameSelectedFromParserTab</c>:
     ///     it does the light-sync work (selected frame, seek controls, command CanExecute, analysis
     ///     seek) AND kicks the heavy ASYNC checkpoint-replay entity seek. Wired once in the shell ctor.
     /// </summary>
@@ -107,7 +116,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     public Action<int>? ApplyLightSeek { get; set; }
 
     /// <summary>
-    ///     The single authoritative <see cref="EntityTracker" />. NEVER exposed publicly — the
+    ///     The single authoritative <see cref="EntityTracker" />. NEVER exposed publicly: the
     ///     read-only <c>IModuleContext</c> wraps it. The discrete async seek publishes its freshly-built
     ///     tracker here via <see cref="PublishTracker" />; the incremental step mutates this instance in
     ///     place via <see cref="EntityTracker.AdvanceOneFrame" />. Null until the first seek completes
@@ -158,7 +167,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
 
         // A discrete seek's freshly-built tracker has just landed at CurrentFrameIndex. The
         // SeekToFrame fan-out updates the built-in tabs synchronously, but the module-facing Advanced
-        // push only ever fired from the play loop — so modules (the 2D viewport) didn't update on
+        // push only ever fired from the play loop, so modules (the 2D viewport) didn't update on
         // nav-bar / frame-box / prev-next / semantic-nav moves while paused. Push now that the tracker is
         // ready at the new position. Coalesced + UI-thread-marshaled, so it's safe off the seek worker.
         RequestCoalescedAdvance();
@@ -193,7 +202,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     /// </summary>
     public void LoadDemo(IReadOnlyList<DemoFrame> frames, int tickRate)
     {
-        _frames = frames;
+        Frames = frames;
         TickRate = tickRate > 0 ? tickRate : 64;
         Reset();
     }
@@ -201,12 +210,12 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     /// <summary>
     ///     Full unload: drops the frame list on top of everything <see cref="Reset" /> clears. The frame
     ///     list is the controller's only demo-scale reference, and every <see cref="DemoFrame" /> slices
-    ///     zero-copy into the demo byte buffer — so leaving it set would pin the whole file after a close.
+    ///     zero-copy into the demo byte buffer, so leaving it set would pin the whole file after a close.
     ///     <see cref="LoadDemo" /> replaces it on the reload path; this is the standalone-close path.
     /// </summary>
     public void Unload()
     {
-        _frames = null;
+        Frames = null;
         TickRate = 64;
         Reset();
     }
@@ -231,7 +240,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     {
         if (_applying)
         {
-            // Re-entrant call from the SelectedFrame setter inside the fan-out — already in flight.
+            // Re-entrant call from the SelectedFrame setter inside the fan-out, already in flight.
             return;
         }
 
@@ -246,7 +255,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
 
         // frameIndex == -1 is the "clear selection" signal (e.g. SelectedFrame set to null on
         // unload). It must still run the fan-out (reset _selectedFrameIndex, refresh command
-        // CanExecute) — matching the legacy HandleFrameSelectedFromParserTab(-1) behavior. Other
+        // CanExecute), matching the legacy HandleFrameSelectedFromParserTab(-1) behavior. Other
         // negative / out-of-range indices are no-ops, matching the legacy seek guards.
         if (frameIndex < -1 || frameIndex >= TotalFrames)
         {
@@ -264,7 +273,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
         }
 
         CurrentFrameIndex = frameIndex;
-        if (_frames is { } f && frameIndex >= 0 && frameIndex < f.Count)
+        if (Frames is { } f && frameIndex >= 0 && frameIndex < f.Count)
         {
             CurrentTick = f[frameIndex].ServerTick;
         }
@@ -272,29 +281,53 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
         NotifyFrameChanged?.Invoke(frameIndex);
     }
 
+    /// <summary>
+    ///     The frame index of the FIRST frame whose <c>ServerTick</c> is at or after
+    ///     <paramref name="tick" />, or -1 when no demo is loaded or every frame precedes it. O(log n)
+    ///     binary search (std lower_bound) over the frame list, which is tick-ordered by construction,
+    ///     the same invariant <c>TickBoundaries.FrameIndices</c> and the previous linear scan relied on.
+    ///     Pure: it moves nothing. The 2D timeline uses it to place tick-stamped event markers on the
+    ///     frame-index axis.
+    /// </summary>
+    public int FrameIndexAtTick(int tick)
+    {
+        if (Frames is not { } f)
+        {
+            return -1;
+        }
+
+        int lo = 0, hi = f.Count;
+        while (lo < hi)
+        {
+            int mid = lo + (hi - lo >> 1);
+            if (f[mid].ServerTick < tick)
+            {
+                lo = mid + 1;
+            }
+            else
+            {
+                hi = mid;
+            }
+        }
+
+        return lo < f.Count ? lo : -1;
+    }
+
     /// <summary>Selects the first frame whose server tick is at or after <paramref name="tick" />.</summary>
     public void SeekToTick(int tick)
     {
-        if (_frames is not { } f)
+        int index = FrameIndexAtTick(tick);
+        if (index >= 0)
         {
-            return;
-        }
-
-        for (int i = 0; i < f.Count; i++)
-        {
-            if (f[i].ServerTick >= tick)
-            {
-                SeekToFrame(i);
-                return;
-            }
+            SeekToFrame(index);
         }
     }
 
     /// <summary>
     ///     Incremental forward step: when the authoritative tracker is ready and sits exactly at
     ///     the current frame, advance it by ONE frame in place via
-    ///     <see cref="EntityTracker.AdvanceOneFrame" /> (O(1)) and rebuild EntityTab synchronously —
-    ///     this is the play-loop primitive. Otherwise (cold start / a discrete seek still in flight)
+    ///     <see cref="EntityTracker.AdvanceOneFrame" /> (O(1)) and rebuild EntityTab synchronously.
+    ///     This is the play-loop primitive. Otherwise (cold start / a discrete seek still in flight)
     ///     fall back to a discrete <see cref="SeekToFrame" />.
     ///     <para>
     ///         The light-sync fan-out (selected frame, seek controls, command CanExecute, analysis
@@ -306,7 +339,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     public void StepForward()
     {
         int next = CurrentFrameIndex + 1;
-        if (next < 0 || next >= TotalFrames || _frames is not { } f)
+        if (next < 0 || next >= TotalFrames || Frames is not { } f)
         {
             return;
         }
@@ -351,7 +384,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
         StepEntityRebuild?.Invoke(tracker, prevSnapshot);
         NotifyFrameChanged?.Invoke(next);
 
-        // The in-place forward step mutated the authoritative tracker synchronously — push to
+        // The in-place forward step mutated the authoritative tracker synchronously: push to
         // modules so the 2D viewport advances on a paused nav-bar frame-step (StepBack/SeekToFrame route
         // through PublishTracker; this is the one move that steps in place and would otherwise be silent).
         RequestCoalescedAdvance();
@@ -394,7 +427,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
         }
         else if (AuthoritativeTracker is null || AuthoritativeTracker.CurrentFrameIndex != CurrentFrameIndex)
         {
-            // Not ready (e.g. position synced but no tracker) — kick a discrete seek; the readiness
+            // Not ready (e.g. position synced but no tracker): kick a discrete seek; the readiness
             // skip in the tick handler covers the gap until it lands.
             SeekToFrame(CurrentFrameIndex);
         }
@@ -411,7 +444,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
 
     /// <summary>
     ///     Stops auto-play and snaps the discrete tabs (Parser / Entity / Analysis) to the frame
-    ///     playback stopped on — the loop itself never touched them, so this is where they
+    ///     playback stopped on, the loop itself never touched them, so this is where they
     ///     catch up. No-op when not playing.
     /// </summary>
     [RelayCommand]
@@ -426,12 +459,12 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
 
         // Snap the discrete tabs to where we stopped. The authoritative tracker already sits at the
         // current frame (the loop stepped it), so this is a light fan-out + a SYNCHRONOUS EntityTab
-        // rebuild — NOT an O(N) async re-seek.
+        // rebuild, NOT an O(N) async re-seek.
         //
         // The guard is load-bearing: during the lean play loop SelectedFrame was never updated,
         // so the snap's ApplyLightSeekFanOut sets SelectedFrame=Frames[current], whose setter echoes
         // back through OnFrameSelected -> SeekToFrame. Without _applying set, that echo would run the
-        // FULL discrete fan-out (EntityTab.SeekEntitiesAsync — the debounced from-zero replay) and swap
+        // FULL discrete fan-out (EntityTab.SeekEntitiesAsync, the debounced from-zero replay) and swap
         // a fresh tracker over the stepped instance. With the guard, the echo's SeekToFrame early-
         // returns; the direct synchronous rebuild inside SnapDiscreteTabsToCurrent still runs.
         if (CurrentFrameIndex >= 0)
@@ -481,10 +514,10 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     // DispatcherTimer interval. The timer fires at a FIXED rate (the demo tick rate); the play loop scales
     // playback by stepping Speed frames per fire (OnTimerTick: _frameAccumulator += Speed). Speed must scale
     // exactly ONE of those two factors. Pacing the timer at TickRate×Speed AS WELL as stepping ~Speed frames
-    // per fire double-applied Speed — playback ran at TickRate×Speed² (0.5× was quarter-speed, 2× quadruple;
+    // per fire double-applied Speed: playback ran at TickRate×Speed² (0.5× was quarter-speed, 2× quadruple;
     // only 1× was correct). Fixed timer + Speed-scaled step ⇒ frames/sec linear in Speed. WASM cap:
     // browser threads are constrained, so cap the timer rate (on a capped browser thread the frame rate is
-    // then thread-limited — a separate, pre-existing constraint, not this Speed bug).
+    // then thread-limited, a separate, pre-existing constraint, not this Speed bug).
     private TimeSpan TimerInterval()
     {
         double cap = OperatingSystem.IsBrowser() ? 32.0 : 1000.0;
@@ -495,19 +528,19 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     /// <summary>
     ///     Test seam (cadence-invariant gate): the play loop's effective playback rate in frames/second =
     ///     (timer fires/sec) × (frames stepped per fire) = (1000 / intervalMs) × <see cref="Speed" />. Must be
-    ///     LINEAR in Speed — the historical bug paced the timer at TickRate×Speed too, making it quadratic.
+    ///     LINEAR in Speed: the historical bug paced the timer at TickRate×Speed too, making it quadratic.
     /// </summary>
     internal double EffectiveFramesPerSecond() => 1000.0 / TimerInterval().TotalMilliseconds * Speed;
 
     private void OnTimerTick(object? sender, EventArgs e)
     {
-        if (!IsPlaying || _frames is not { } f)
+        if (!IsPlaying || Frames is not { } f)
         {
             StopTimer();
             return;
         }
 
-        // Readiness skip: a discrete async seek is landing — don't step a
+        // Readiness skip: a discrete async seek is landing. Don't step a
         // mismatched / null instance. Cheap int compare; the loop resumes once the seek publishes.
         if (AuthoritativeTracker is not { } tracker || tracker.CurrentFrameIndex != CurrentFrameIndex)
         {
@@ -515,7 +548,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
         }
 
         // Speed accumulator: integer part = frames to step this tick; fraction
-        // carries forward. Handles <1× and >1× uniformly. We never skip DECODING a frame — only
+        // carries forward. Handles <1× and >1× uniformly. We never skip DECODING a frame, only
         // NOTIFYING about intermediate ones (the coalesced push below).
         _frameAccumulator += Speed;
         int stepCount = (int)_frameAccumulator;
@@ -543,9 +576,9 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
         if (stepped > 0)
         {
             // Lean per-tick fan-out: only the coalesced Advanced push. The frame readout no
-            // longer needs an explicit callback — CurrentFrameIndex is set above (raising
+            // longer needs an explicit callback: CurrentFrameIndex is set above (raising
             // PropertyChanged), which the NavStrip's NavFrameText observes directly. No SelectedFrame=,
-            // no Analysis seek, no EntityTab rebuild — those are deferred to Pause().
+            // no Analysis seek, no EntityTab rebuild. Those are deferred to Pause().
             RequestCoalescedAdvance();
         }
 
@@ -557,7 +590,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     }
 
     // Coalesced Advanced push: at most one per render frame regardless of Speed. If a push is
-    // already queued for this render frame, don't queue another — the tracker keeps stepping, but the
+    // already queued for this render frame, don't queue another. The tracker keeps stepping, but the
     // UI is notified once.
     private void RequestCoalescedAdvance()
     {
@@ -583,7 +616,7 @@ public sealed partial class PlaybackController : ObservableObject, IDisposable
     public void SyncPositionFromShell(int frameIndex)
     {
         CurrentFrameIndex = frameIndex;
-        if (_frames is { } f && frameIndex >= 0 && frameIndex < f.Count)
+        if (Frames is { } f && frameIndex >= 0 && frameIndex < f.Count)
         {
             CurrentTick = f[frameIndex].ServerTick;
         }

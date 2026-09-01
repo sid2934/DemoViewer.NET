@@ -20,13 +20,14 @@ using DemoViewer.NET.Views.Stats;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Player-details dashboard tests — synthetic fixture per the
+///     Player-details dashboard tests: synthetic fixture per the
 ///     StatsTabTests pattern. Covers: PlayerSlot threading on StatsRow (the P0 linchpin), overlay
 ///     open/guard/close life-cycle (including force-close on Update), player switching with section
 ///     retention, panel projections (core strip, form geometry, achievements, weapon breakdown with
 ///     both empty states), and a headless Skia render of the OPEN overlay.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class PlayerDetailsTests
 {
     private static readonly string[] _expectedChains = ["ace", "clutch_1v3"];
@@ -291,7 +292,7 @@ public class PlayerDetailsTests
     }
 
     /// <summary>
-    ///     Round-scoped BOOL columns (HasKAST / FK / FD) arrive as bool true, not numbers — the Opn
+    ///     Round-scoped BOOL columns (HasKAST / FK / FD) arrive as bool true, not numbers. The Opn
     ///     glyph and form strips must read them truthily. (Regression: AsDouble(bool) is 0, which
     ///     left Opn blank and duel ticks empty on real demos while synthetic numeric fixtures passed.)
     /// </summary>

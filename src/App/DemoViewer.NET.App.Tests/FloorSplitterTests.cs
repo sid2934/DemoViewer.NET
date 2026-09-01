@@ -1,13 +1,13 @@
 #region
 
-using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core.Levels;
 
 #endregion
 
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Gates for the Z floor-split histogram heuristic. Pure / deterministic — no Avalonia,
+///     Gates for the Z floor-split histogram heuristic. Pure / deterministic: no Avalonia,
 ///     no demo. Covers the single-cluster common case (one section), the multi-floor case (Nuke/Vertigo-like
 ///     two-storey Z separation → two sections), slice assignment, and gap snapping.
 /// </summary>
@@ -77,12 +77,12 @@ public class FloorSplitterTests
     {
         FloorSplitter s = new();
 
-        // A single floor with a shallow density dip (a ramp/stairs within the floor — players still fill the
+        // A single floor with a shallow density dip (a ramp/stairs within the floor, players still fill the
         // in-between Z). A valley ABOVE ValleyDepthFraction of the smaller peak does NOT split (density-valley
         // semantics; replaces the old empty-Z-gap heuristic that collapsed on real multi-floor maps).
         Repeat(s, 0.0, 100);
         Repeat(s, 64.0, 70);
-        Repeat(s, 128.0, 60); // the dip — still ~60% of the flanking peaks → one floor
+        Repeat(s, 128.0, 60); // the dip, still ~60% of the flanking peaks → one floor
         Repeat(s, 192.0, 75);
         Repeat(s, 256.0, 90);
 
@@ -117,7 +117,7 @@ public class FloorSplitterTests
             s.Observe(z);
         }
 
-        // A Z in the empty gap (a player on a ramp) snaps to the nearer floor — never a phantom slice.
+        // A Z in the empty gap (a player on a ramp) snaps to the nearer floor, never a phantom slice.
         await Assert.That(s.SliceIndexFor(300.0)).IsEqualTo(0); // closer to the low cluster
         await Assert.That(s.SliceIndexFor(700.0)).IsEqualTo(1); // closer to the high cluster
     }
@@ -133,7 +133,7 @@ public class FloorSplitterTests
         await Assert.That(s.Slices.Count).IsEqualTo(2);
 
         // Flood the lower floor so the upper floor's RELATIVE dwell-mass dilutes far below the threshold
-        // (≡ the upper floor sitting empty for a long stretch). The split must STAY at two — the upper
+        // (≡ the upper floor sitting empty for a long stretch). The split must STAY at two: the upper
         // viewport must not vanish (count hysteresis: once revealed, a floor sticks for the demo).
         Repeat(s, 0.0, 5000);
         await Assert.That(s.Slices.Count).IsEqualTo(2);

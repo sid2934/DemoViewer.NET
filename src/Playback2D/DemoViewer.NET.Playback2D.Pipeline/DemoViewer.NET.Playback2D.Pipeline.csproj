@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      Demo-domain adaptation for the scene core: frame building, map-asset decode, fixtures, and
+      (from B4) the private tracker replay and encoder sinks. References Core + the CS2DemoKit parser
+      packages + the (now Avalonia-free) module abstractions. Still NO Avalonia — enforced by test.
+    -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>DemoViewer.NET.Playback2D.Pipeline</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="CS2DemoKit.Parser"/>
+        <PackageReference Include="CS2DemoKit.Analysis"/>
+        <!-- B4 export sinks. FFMpegCore only builds arguments and pipes rawvideo to an ffmpeg
+             SUBPROCESS; ImageSharp is the no-ffmpeg GIF floor. Both are managed-only, so the Browser
+             head still restores and publishes — nothing calls System.Diagnostics.Process unless a
+             sink is constructed, and playback2d.export is gated off on browser. -->
+        <PackageReference Include="FFMpegCore"/>
+        <PackageReference Include="SixLabors.ImageSharp"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference
+                Include="..\DemoViewer.NET.Playback2D.Core\DemoViewer.NET.Playback2D.Core.csproj"/>
+        <ProjectReference
+                Include="..\..\App\DemoViewer.NET.Modules.Abstractions\DemoViewer.NET.Modules.Abstractions.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Tests"/>
+    </ItemGroup>
+
+</Project>

@@ -10,7 +10,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     <see cref="DemoEvaluationCoordinator" /> parity battery (Phase 2): proves the "one parse, many
-///     evaluators" contract against the REAL <see cref="DemoProcessingQueue" /> with a fake parser —
+///     evaluators" contract against the REAL <see cref="DemoProcessingQueue" /> with a fake parser:
 ///     interested evaluators all run on a single parse, uninterested ones don't submit, failures are
 ///     isolated, parse failures reach <c>OnFailed</c>, and re-considering a processed demo is a no-op.
 ///     Pure logic; no filesystem (the fake parser ignores the path).
@@ -127,7 +127,7 @@ public class DemoEvaluationCoordinatorTests
                 Interlocked.Increment(ref parses);
                 return Synthetic();
             });
-        // Wants only while not yet evaluated — mirrors a real staleness gate.
+        // Wants only while not yet evaluated, mirrors a real staleness gate.
         Fake a = new("a", p =>
             {
                 lock (evaluatedOnce)
@@ -156,7 +156,7 @@ public class DemoEvaluationCoordinatorTests
 
     /// <summary>
     ///     FanOutParsed (Phase 4a) hands an ALREADY-parsed demo to every evaluator's
-    ///     OnParsedOpportunistically EXCEPT those named in the skip set — no queue submit, no second parse.
+    ///     OnParsedOpportunistically EXCEPT those named in the skip set, no queue submit, no second parse.
     /// </summary>
     [Test]
     public async Task FanOutParsed_HandsToAllExceptSkipped()
@@ -178,7 +178,7 @@ public class DemoEvaluationCoordinatorTests
     }
 
     /// <summary>
-    ///     A throwing OnParsedOpportunistically handler is isolated — the trigger never throws and the
+    ///     A throwing OnParsedOpportunistically handler is isolated. The trigger never throws and the
     ///     other evaluators are still fed.
     /// </summary>
     [Test]

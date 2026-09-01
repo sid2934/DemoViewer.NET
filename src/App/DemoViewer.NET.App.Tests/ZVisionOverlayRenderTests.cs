@@ -7,12 +7,12 @@ using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
-using DemoViewer.NET.Modules;
-using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Playback2D;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Modules;
+using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Playback;
 using TUnit.Core.Exceptions;
@@ -50,15 +50,15 @@ public class ZVisionOverlayRenderTests
         // frames before death. A far better frame for the vision overlay than round-start (everyone at spawn).
         // Fire + payload: the filter reads Penetrated/Attacker/Weapon off the payload and
         // FrameNumber off the envelope.
-        var kill = demo.AllGameEvents
+        (GameEvent Fire, PlayerDeathEvent Death)? kill = demo.AllGameEvents
             .Where(e => e.Payload is PlayerDeathEvent)
             .Select(e => (Fire: e, Death: (PlayerDeathEvent)e.Payload!))
             .Where(x => x.Death.Penetrated == 0 && x.Death.Attacker >= 0
-                        && x.Death.Attacker != x.Death.UserId
-                        && x.Fire.FrameNumber > frames.Count / 4
-                        && x.Fire.FrameNumber < frames.Count - 1
-                        && !x.Death.Weapon.Contains("grenade", StringComparison.OrdinalIgnoreCase)
-                        && !x.Death.Weapon.Equals("inferno", StringComparison.OrdinalIgnoreCase))
+                                                && x.Death.Attacker != x.Death.UserId
+                                                && x.Fire.FrameNumber > frames.Count / 4
+                                                && x.Fire.FrameNumber < frames.Count - 1
+                                                && !x.Death.Weapon.Contains("grenade", StringComparison.OrdinalIgnoreCase)
+                                                && !x.Death.Weapon.Equals("inferno", StringComparison.OrdinalIgnoreCase))
             .Skip(10)
             .Cast<(GameEvent Fire, PlayerDeathEvent Death)?>()
             .FirstOrDefault();

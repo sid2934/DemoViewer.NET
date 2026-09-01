@@ -41,7 +41,7 @@ internal static class DemoInspector
 
         Console.WriteLine();
         Console.WriteLine("-- frame command histogram (raw on-disk bytes) --");
-        var byCommand = demo.Frames
+        IOrderedEnumerable<(string Command, int Count, long Bytes)> byCommand = demo.Frames
             .GroupBy(f => f.Command, StringComparer.Ordinal)
             .Select(g => (Command: g.Key, Count: g.Count(), Bytes: g.Sum(f => (long)f.RawLength)))
             .OrderByDescending(x => x.Bytes);
@@ -83,7 +83,7 @@ internal static class DemoInspector
         Console.WriteLine();
     }
 
-    /// <summary>Inner net-message byte breakdown over a retained window — the "what is actually inside" table.</summary>
+    /// <summary>Inner net-message byte breakdown over a retained window: the "what is actually inside" table.</summary>
     public static void InspectWindowMessages(ParsedDemo demo, TrimWindow window)
     {
         Dictionary<string, (int Count, long Bytes)> byType = new(StringComparer.Ordinal);

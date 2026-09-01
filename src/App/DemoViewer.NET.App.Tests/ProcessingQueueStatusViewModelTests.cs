@@ -12,7 +12,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Pure-VM coverage of <see cref="ProcessingQueueStatusViewModel" /> (+ its
-///     <see cref="DemoQueueRowViewModel" /> rows) — the demo-processing-queue.md status-chip mapper. No
+///     <see cref="DemoQueueRowViewModel" /> rows): the demo-processing-queue.md status-chip mapper. No
 ///     Avalonia / headless session, so it runs in parallel. Asserts the queue-state → chip vocabulary, the
 ///     status line, the Items → Rows projection + state→dot flags, per-item remove, and Pause/Resume, all
 ///     over a minimal in-memory <see cref="IDemoProcessingQueue" /> double (the real queue would need real

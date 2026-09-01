@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Services;
 ///     Best-effort disk persistence for <see cref="Bookmark" />s (F8.5 / A4).
 ///     <para>
 ///         File I/O does NOT work in the WASM/browser sandbox, so every method short-circuits when
-///         <see cref="System.OperatingSystem.IsBrowser()" /> is true — bookmarks stay in-memory there.
+///         <see cref="System.OperatingSystem.IsBrowser()" /> is true: bookmarks stay in-memory there.
 ///         A runtime check is used rather than a <c>#if BROWSER</c> define because the same
 ///         <c>DemoViewer.NET</c> assembly is compiled once and shared by both the desktop and browser
 ///         hosts; the define would need a csproj flag and would silently no-op in the wrong host.

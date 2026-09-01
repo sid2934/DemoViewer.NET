@@ -7,7 +7,7 @@ using DemoViewer.NET.Modules.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Gates for the attributes-panel row's derived display properties. Pure — no Avalonia, no
+///     Gates for the attributes-panel row's derived display properties. Pure: no Avalonia, no
 ///     demo. The deep field-population path (HP/armour/weapon/cash from a real pawn/controller) is covered
 ///     by the headless smoke test against a real demo.
 /// </summary>

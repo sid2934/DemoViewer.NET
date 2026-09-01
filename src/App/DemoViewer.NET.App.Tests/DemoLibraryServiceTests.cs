@@ -3,9 +3,9 @@
 using System.Collections.Concurrent;
 using System.Collections.Specialized;
 using System.Text.Json;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Library;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.TestSupport;
@@ -33,10 +33,100 @@ public class DemoLibraryServiceTests
         string dir = Path.Combine(Path.GetTempPath(), "dvlib_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         string link = Path.Combine(dir, "match.dem");
-        File.CreateSymbolicLink(link, demoPath);
+        try
+        {
+            File.CreateSymbolicLink(link, demoPath);
+        }
+        catch (Exception e) when (IsSymlinkPrivilegeRefusal(e))
+        {
+            throw SkipForNoSymlinks(e);
+        }
+
         string dataPath = Path.Combine(dir, "library.json");
         return (dir, dataPath);
     }
+
+    /// <summary>
+    ///     Whether the platform refused to create a link rather than failing for a reason about this
+    ///     test. On Windows a symlink needs <c>SeCreateSymbolicLinkPrivilege</c> (Developer Mode, or an
+    ///     elevated shell), and without it the call throws
+    ///     <c>IOException: A required privilege is not held by the client</c> (win32 1314). That is a
+    ///     property of the host account, so the outcome is a skip with the reason attached: without this
+    ///     check, the cases below failed on any ordinary Windows checkout, a red suite with no actionable
+    ///     signal. A filesystem that genuinely cannot link (some containers, some network mounts) refuses
+    ///     the same way.
+    /// </summary>
+    private static bool IsSymlinkPrivilegeRefusal(Exception e) =>
+        e is UnauthorizedAccessException or PlatformNotSupportedException ||
+        e is IOException && OperatingSystem.IsWindows();
+
+    /// <summary>
+    ///     How many fully-indexed rows <c>library.json</c> currently holds. Tolerant of "not there yet"
+    ///     and of a half-written file, because it is polled while a worker thread is writing it: the
+    ///     point is the transition to 2, not any single read.
+    ///     <para>
+    ///         <b><c>FileShare.ReadWrite | FileShare.Delete</c> is the load-bearing detail.</b>
+    ///         <c>File.ReadAllText</c> opens with <c>FileShare.Read</c>, which forbids a concurrent
+    ///         writer. <c>DemoLibraryService.Save</c> is <c>File.WriteAllText</c> inside a
+    ///         <c>catch { /* best-effort */ }</c>, on a queue worker, so a poller using the obvious
+    ///         helper CAUSES a lost write, silently, and then times out waiting for the write it
+    ///         prevented. Observed exactly that:
+    ///         <c>
+    ///             rows=0 parses=2 states=[Indexed,Indexed]
+    ///             backlog=[]
+    ///         </c>
+    ///         : everything done, nothing on disk.
+    ///     </para>
+    /// </summary>
+    private static int FullyIndexedInCacheFile(string dataPath)
+    {
+        try
+        {
+            using FileStream stream = new(dataPath, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using JsonDocument doc = JsonDocument.Parse(stream);
+            if (!doc.RootElement.TryGetProperty("Cache", out JsonElement cache))
+            {
+                return 0;
+            }
+
+            return cache.EnumerateArray().Count(row =>
+                row.TryGetProperty("FullyIndexed", out JsonElement f) && f.ValueKind == JsonValueKind.True);
+        }
+        catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
+        {
+            return 0; // absent, mid-write, or momentarily locked: poll again
+        }
+    }
+
+    /// <summary>
+    ///     <c>Library.Folders</c> as the file actually stores it, parsed rather than grepped.
+    ///     <para>
+    ///         The assertion these replace was <c>File.ReadAllText(settings.json).Contains(folder)</c>,
+    ///         and it was wrong about the writer rather than about the behaviour: JSON escapes a
+    ///         backslash, so a Windows temp path is on disk as <c>C:\\Users\\…\\dvlib_ab12</c> and the raw
+    ///         path is never a substring of it. It passed on Linux and failed on every Windows run. The
+    ///         negative half was worse: <c>.Contains(folder) == false</c> was <b>vacuously true</b>
+    ///         there, so "the removed folder must not linger" asserted nothing at all on the platform
+    ///         where it was green.
+    ///     </para>
+    /// </summary>
+    private static string[] PersistedFolders(string settingsPath)
+    {
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(settingsPath));
+        if (!doc.RootElement.TryGetProperty("Library", out JsonElement library) ||
+            !library.TryGetProperty("Folders", out JsonElement folders))
+        {
+            return [];
+        }
+
+        return [.. folders.EnumerateArray().Select(f => f.GetString() ?? string.Empty)];
+    }
+
+    private static SkipTestException SkipForNoSymlinks(Exception e) => new(
+        "this host cannot create symbolic links, so the canonical-path dedup case has nothing to " +
+        "dedup. On Windows that means Developer Mode is off and the shell is not elevated " +
+        $"(SeCreateSymbolicLinkPrivilege). Underlying: {e.GetType().Name}: {e.Message}");
 
     private static ParsedDemo SyntheticDemo(int tickRate = 64) => SyntheticParsedDemo.Create(
         [], [], new Dictionary<int, PlayerInfo>(), null,
@@ -44,14 +134,20 @@ public class DemoLibraryServiceTests
         "test", "csgo", 0, 0, 0,
         "valve_demo_2", "", "", DemoProfile.Unknown);
 
-    private static async Task WaitForAsync(Func<bool> condition, string what, int timeoutMs = 5000)
+    private static Task WaitForAsync(Func<bool> condition, string what, int timeoutMs = 5000) =>
+        WaitForAsync(condition, () => what, timeoutMs);
+
+    // `describe` is a delegate rather than a string so it can report what was ACTUALLY observed at the
+    // deadline. A timeout that only says what it wanted is the least useful failure a queue test can
+    // produce: everything interesting is on the other side of a worker thread.
+    private static async Task WaitForAsync(Func<bool> condition, Func<string> describe, int timeoutMs = 5000)
     {
         DateTime deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         while (!condition())
         {
             if (DateTime.UtcNow > deadline)
             {
-                throw new TimeoutException($"timed out waiting for {what}");
+                throw new TimeoutException($"timed out waiting for {describe()}");
             }
 
             await Task.Delay(5);
@@ -62,6 +158,15 @@ public class DemoLibraryServiceTests
     ///     Queue-path tier-2 (demo-processing-queue.md): RescanAsync submits tier-2 to the shared
     ///     queue (returning before it drains), and the END-OF-BACKLOG Save persists the cache so a second
     ///     launch loads from cache WITHOUT re-parsing. Uses a fake queue parser so no real demo is needed.
+    ///     <para>
+    ///         <b>Waits for the persisted CACHE, never for <c>State == DemoIndexState.Indexed</c>.</b>
+    ///         <c>IndexTier2Core</c> posts that state before <c>ClearTier2Backlog</c> drains the backlog
+    ///         and calls <c>Save()</c> on a queue worker thread, and <c>File.Exists(dataPath)</c> proves
+    ///         nothing either: <c>AddFoldersAsync</c> already wrote that file once to persist the FOLDER
+    ///         list with an empty cache. The wait lives inside the <c>using</c> so a Save that only happens
+    ///         at Dispose still fails, and it must not be a plain read: see
+    ///         <see cref="FullyIndexedInCacheFile" />.
+    ///     </para>
     /// </summary>
     [Test]
     public async Task QueuePath_PersistsCache_SoSecondLaunchDoesNotReparse()
@@ -90,10 +195,21 @@ public class DemoLibraryServiceTests
                 await WaitForAsync(
                     () => svc.Entries.Count == 2 && svc.Entries.All(e => e.State == DemoIndexState.Indexed),
                     "queue tier-2 drained");
+
+                // The drained Save runs on a queue worker AFTER the state flips, so "Indexed" is not yet
+                // "on disk". Wait for what the second launch will actually read.
+                await WaitForAsync(() => FullyIndexedInCacheFile(dataPath) == 2,
+                    () => "the end-of-backlog Save to persist both cache rows; saw " +
+                          $"rows={FullyIndexedInCacheFile(dataPath)} parses={Volatile.Read(ref parses1)} " +
+                          $"states=[{string.Join(",", svc.Entries.Select(e => e.State))}] " +
+                          $"backlog=[{string.Join(",", svc.Tier2Backlog().Select(Path.GetFileName))}] " +
+                          $"fileExists={File.Exists(dataPath)}");
             }
 
             await Assert.That(parses1).IsEqualTo(2).Because("both demos parsed once via the queue");
-            await Assert.That(File.Exists(dataPath)).IsTrue().Because("end-of-backlog Save persisted the cache");
+            await Assert.That(FullyIndexedInCacheFile(dataPath)).IsEqualTo(2)
+                .Because("end-of-backlog Save persisted the cache — File.Exists would not prove it, " +
+                         "because AddFoldersAsync writes the same file to persist the folder list");
 
             // Second launch: a THROWING parser proves the cached demos are not re-parsed.
             DemoProcessingQueue queue2 = new(new HeavyJobGate(), a => a(),
@@ -171,12 +287,13 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Dedup (Phase 1, canonical path): the SAME physical file reachable from two registered folders —
-    ///     here a real folder plus a directory symlink pointing at it — must appear as ONE card and be
+    ///     Dedup, canonical path: the SAME physical file reachable from two registered folders,
+    ///     here a real folder plus a directory symlink pointing at it, must appear as ONE card and be
     ///     processed ONCE. Before canonicalization the two registrations produced distinct path strings
     ///     (real/a.dem vs link/a.dem) → two cards + two full parses.
     /// </summary>
     [Test]
+    [Category("Environmental")]
     public async Task Scan_DeduplicatesSameFile_AcrossSymlinkedFolders()
     {
         string real = Path.Combine(Path.GetTempPath(), "dvlib_" + Guid.NewGuid().ToString("N"));
@@ -185,7 +302,14 @@ public class DemoLibraryServiceTests
         await File.WriteAllBytesAsync(Path.Combine(real, "a.dem"), [1, 2, 3]);
         try
         {
-            Directory.CreateSymbolicLink(link, real); // link/ is a symlink to real/
+            try
+            {
+                Directory.CreateSymbolicLink(link, real); // link/ is a symlink to real/
+            }
+            catch (Exception e) when (IsSymlinkPrivilegeRefusal(e))
+            {
+                throw SkipForNoSymlinks(e);
+            }
 
             int parses = 0;
             DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
@@ -230,7 +354,7 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Coordinator cutover (Phase 3a): a demo whose parse THROWS is marked Failed and its tier-2 backlog
+    ///     Coordinator cutover: a demo whose parse THROWS is marked Failed and its tier-2 backlog
     ///     entry is cleared synchronously, so a subsequent CapacityAvailable / ConsiderAll does NOT re-submit
     ///     it. Guards the infinite-reparse trap (Wants must go false on failure, not just on success).
     /// </summary>
@@ -278,10 +402,10 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Interactive-open fan-out (Phase 4a): a pending library demo that the queue REJECTED to the
+    ///     Interactive-open fan-out: a pending library demo that the queue REJECTED to the
     ///     coordinator backlog (its background tier was full) and is then OPENED interactively must fill its
-    ///     card from the open's already-parsed demo — never a second background parse. This is the exact
-    ///     double-parse Phase 4a kills: after <see cref="DemoLibraryService.OnParsedOpportunistically" /> the
+    ///     card from the open's already-parsed demo, never a second background parse. This guards exactly
+    ///     that double-parse: after <see cref="DemoLibraryService.OnParsedOpportunistically" /> the
     ///     demo is no longer <see cref="DemoLibraryService.Wants" />-ed, so the capacity re-feed skips it.
     /// </summary>
     [Test]
@@ -358,7 +482,7 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Content dedup (Phase 4b): the SAME bytes copied into two DIFFERENT real folders (not a symlink —
+    ///     Content dedup: the SAME bytes copied into two DIFFERENT real folders (not a symlink,
     ///     a genuine copy, which canonical-path dedup cannot catch) must appear as ONE card and be processed
     ///     ONCE. The primary is the lexicographically-smallest path; the other folder surfaces as a copy hint.
     /// </summary>
@@ -418,14 +542,15 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Interactive-open fan-out over a REAL demo (Phase 4a, real-frame coverage): the synthetic sibling
-    ///     proves the no-reparse control flow; this proves the actual work — handing a real, fully-parsed
-    ///     demo to <see cref="DemoLibraryService.OnParsedOpportunistically" /> runs the real entity-decode
-    ///     score replay through the opportunistic hook and fills the card (players + duration + final score),
+    ///     Interactive-open fan-out over a REAL demo: the synthetic sibling proves the no-reparse control
+    ///     flow; this proves the actual work: handing a real, fully-parsed demo to
+    ///     <see cref="DemoLibraryService.OnParsedOpportunistically" /> runs the real entity-decode score
+    ///     replay through the opportunistic hook and fills the card (players + duration + final score),
     ///     while the background queue never parses the file. As in the synthetic sibling, the demo is held in
-    ///     the coordinator BACKLOG (rejected — the single background slot is occupied by a blocking sacrifice
+    ///     the coordinator BACKLOG (rejected: the single background slot is occupied by a blocking sacrifice
     ///     file), which is exactly the case fan-out uniquely covers (a queued item would instead coalesce
-    ///     onto the foreground open). Closes the gap where every other Phase-4 test used an empty-frame demo.
+    ///     onto the foreground open). Closes the gap where every other test in this group used an
+    ///     empty-frame demo.
     /// </summary>
     [Test]
     public async Task OpenFanOut_RealDemo_FillsCardFromHeldParse_NoBackgroundParse()
@@ -443,7 +568,7 @@ public class DemoLibraryServiceTests
         {
             ConcurrentBag<string> parsedNames = new();
             using ManualResetEventSlim release = new(false);
-            // A just-created sacrifice file — its mtime is newer than the (older) real demo, so it is
+            // A just-created sacrifice file: its mtime is newer than the (older) real demo, so it is
             // considered first and occupies the single background slot; the real demo is then REJECTED to
             // the coordinator backlog. It blocks so the slot never frees before the "open" lands.
             await File.WriteAllBytesAsync(Path.Combine(dir, "zzz_block.dem"), [1, 2, 3]);
@@ -480,7 +605,7 @@ public class DemoLibraryServiceTests
             byte[] bytes = await File.ReadAllBytesAsync(demo);
             ParsedDemo real = await Task.Run(() => DemoParser.Parse(bytes.AsMemory()));
             svc.OnParsedOpportunistically(canonical, real);
-            // Free the worker now (the card is already indexed, Wants is false — the capacity re-poll must
+            // Free the worker now (the card is already indexed, Wants is false. The capacity re-poll must
             // not (re)parse the real demo). Releasing before the assertions also avoids a stuck 60 s waiter
             // if one fails.
             release.Set();
@@ -510,7 +635,7 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Distinct demos that happen to share an exact byte SIZE must NOT be deduped — the size pre-filter
+    ///     Distinct demos that happen to share an exact byte SIZE must NOT be deduped: the size pre-filter
     ///     triggers a hash, but the differing content hashes keep them as two separate cards (no false merge).
     /// </summary>
     [Test]
@@ -548,9 +673,9 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Shadow promotion (Phase 4b): when the PRIMARY copy (smallest path) is deleted, a surviving shadow
+    ///     Shadow promotion: when the PRIMARY copy (smallest path) is deleted, a surviving shadow
     ///     becomes the new primary. It may never have been parsed on its own path, so it must enter the
-    ///     tier-2 backlog and index — the card must not go blank / stuck Pending.
+    ///     tier-2 backlog and index: the card must not go blank / stuck Pending.
     /// </summary>
     [Test]
     public async Task Scan_PrimaryDeleted_ShadowPromoted_AndIndexed()
@@ -585,8 +710,8 @@ public class DemoLibraryServiceTests
             // Delete the primary; the shadow in dir2 must be promoted and (re)indexed on its own path.
             File.Delete(primaryFile);
             await svc.RescanAsync();
-            // The surviving copy is under dir2; compare by the unique folder-name segment (not the full path
-            // — macOS temp is a symlink /var → /private/var, so the stored canonical path is prefixed).
+            // The surviving copy is under dir2; compare by the unique folder-name segment (not the full path:
+            // macOS temp is a symlink /var → /private/var, so the stored canonical path is prefixed).
             string dir2Leaf = Path.GetFileName(dir2);
             await WaitForAsync(
                 () => svc.Entries.Count == 1 && svc.Entries[0].State == DemoIndexState.Indexed
@@ -629,8 +754,8 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     macOS AppleDouble sidecars ("._name.dem") — the ~368 B resource-fork/xattr companions written when
-    ///     a demo is copied across a non-native filesystem (SMB/exFAT/NFS) — match the "*.dem" glob but are not
+    ///     macOS AppleDouble sidecars ("._name.dem"), the ~368 B resource-fork/xattr companions written when
+    ///     a demo is copied across a non-native filesystem (SMB/exFAT/NFS), match the "*.dem" glob but are not
     ///     demos; parsing one produced a bogus failed "Unknown" library card. The scan must skip them.
     /// </summary>
     [Test]
@@ -640,9 +765,9 @@ public class DemoLibraryServiceTests
         Directory.CreateDirectory(dir);
         try
         {
-            // A regular .dem file — enumerated (its junk bytes fail to parse → Failed, but it IS an entry).
+            // A regular .dem file, enumerated (its junk bytes fail to parse → Failed, but it IS an entry).
             await File.WriteAllBytesAsync(Path.Combine(dir, "match730.dem"), new byte[4096]);
-            // Its AppleDouble sidecar sitting right next to it — must be excluded from the index entirely.
+            // Its AppleDouble sidecar sitting right next to it must be excluded from the index entirely.
             await File.WriteAllBytesAsync(Path.Combine(dir, "._match730.dem"), new byte[368]);
 
             using DemoLibraryService svc = new(_inline, Path.Combine(dir, "library.json"));
@@ -666,7 +791,7 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Bulk adds must raise ONE Reset, not N Add events — a large folder's reconcile pass
+    ///     Bulk adds must raise ONE Reset, not N Add events: a large folder's reconcile pass
     ///     otherwise triggers a full filter + container rebuild per entry (O(N²) UI churn).
     /// </summary>
     [Test]
@@ -691,7 +816,7 @@ public class DemoLibraryServiceTests
 
     /// <summary>
     ///     When constructed WITH a settings service, the configured folder list is the one in
-    ///     <c>AppSettings.Library.Folders</c> — not library.json — so the two P1.1 consumers stay in sync.
+    ///     <c>AppSettings.Library.Folders</c>, not library.json, so the two P1.1 consumers stay in sync.
     /// </summary>
     [Test]
     public async Task SettingsBacked_ReadsFoldersFromAppSettings()
@@ -720,14 +845,21 @@ public class DemoLibraryServiceTests
 
     /// <summary>
     ///     Add/Remove folder writes through to settings.json (the settings service is authoritative), so the
-    ///     change is durable and visible to every AppSettings consumer — and a Remove shrinks the on-disk
+    ///     change is durable and visible to every AppSettings consumer, and a Remove shrinks the on-disk
     ///     list (no stale folder left behind).
+    ///     <para>
+    ///         <b>No longer <c>[Category("Environmental")]</c>.</b> It carried the tag because it failed on
+    ///         Windows, but nothing here depends on the host: it read the settings file as a string and
+    ///         looked for a raw path inside escaped JSON. See <see cref="PersistedFolders" />. The class's
+    ///         own <c>[Category("Integration")]</c> already keeps it out of the fast and standard tiers, so
+    ///         dropping the second tag changes no tier's contents, only what the tag claims.
+    ///     </para>
     /// </summary>
     [Test]
     public async Task SettingsBacked_AddRemoveFolder_WritesThroughToSettingsJson()
     {
         string cfgDir = NewTempDir();
-        string folder = NewTempDir(); // must exist — AddFoldersAsync ignores non-existent paths
+        string folder = NewTempDir(); // must exist: AddFoldersAsync ignores non-existent paths
         string settingsPath = Path.Combine(cfgDir, "settings.json");
         try
         {
@@ -737,14 +869,14 @@ public class DemoLibraryServiceTests
             await svc.AddFoldersAsync([folder]); // Inline post → synchronous rescan (empty folder → no demos)
 
             await Assert.That(File.Exists(settingsPath)).IsTrue();
-            await Assert.That(await File.ReadAllTextAsync(settingsPath)).Contains(folder);
+            await Assert.That(PersistedFolders(settingsPath)).Contains(folder);
             await Assert.That(settings.Current.Library.Folders.Contains(folder)).IsTrue();
 
             await svc.RemoveFolderAsync(folder);
 
             await Assert.That(settings.Current.Library.Folders.Contains(folder)).IsFalse()
                 .Because("RemoveFolder writes the shrunk list back through settings");
-            await Assert.That((await File.ReadAllTextAsync(settingsPath)).Contains(folder)).IsFalse()
+            await Assert.That(PersistedFolders(settingsPath)).DoesNotContain(folder)
                 .Because("the removed folder must not linger in settings.json");
         }
         finally
@@ -779,7 +911,7 @@ public class DemoLibraryServiceTests
             await Assert.That(settings.Current.Library.Folders.Contains(legacyFolder)).IsTrue()
                 .Because("the one-time migration lifts library.json's folders into settings.json");
 
-            // A fresh settings + service now sources folders from settings (already populated) — the lift
+            // A fresh settings + service now sources folders from settings (already populated): the lift
             // does not run again / duplicate.
             SettingsService settings2 = new(cfgDir);
             using DemoLibraryService svc2 = new(_inline, libJson, settings2);
@@ -795,7 +927,7 @@ public class DemoLibraryServiceTests
 
     /// <summary>
     ///     A truly clean install (no library.json, empty settings) has nothing to migrate, so the settings
-    ///     service is NOT written on construction — <see cref="SettingsService.NeedsFirstRun" /> stays true
+    ///     service is NOT written on construction, so <see cref="SettingsService.NeedsFirstRun" /> stays true
     ///     for the first-run experience.
     /// </summary>
     [Test]
@@ -839,7 +971,7 @@ public class DemoLibraryServiceTests
         }
     }
 
-    // Writes a legacy-shape library.json (folders owned by the cache file, current schema) — the pre-P1.1
+    // Writes a legacy-shape library.json (folders owned by the cache file, current schema), the pre-P1.1
     // persistence that the settings migration must lift.
     private static void WriteLegacyLibraryJson(string path, params string[] folders)
     {

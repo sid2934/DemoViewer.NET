@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Modules.Library;
 ///     single <see cref="NotifyCollectionChangedAction.Reset" /> instead of one Add event per item.
 ///     A large library scan adds hundreds of entries in one reconcile pass; per-item events make
 ///     every bound consumer (filter re-application, ItemsControl container generation) run once per
-///     entry — O(N²) total. One Reset = one rebuild.
+///     entry: O(N²) total. One Reset = one rebuild.
 /// </summary>
 public sealed class BulkObservableCollection<T> : ObservableCollection<T>
 {

@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Modules;
 
 /// <summary>
 ///     The placeholder tab's VM. Subscribes to <c>IModuleContext.Advanced</c> on activation and
-///     unsubscribes on deactivation, counting pushes — the concrete proof that only the active
+///     unsubscribes on deactivation, counting pushes: the concrete proof that only the active
 ///     module receives pushes; inactive modules do zero per-tick work). Also exercises the on-activation
 ///     resync pull (<c>CurrentPlayers</c>) so the host player-join is reachable end-to-end.
 /// </summary>

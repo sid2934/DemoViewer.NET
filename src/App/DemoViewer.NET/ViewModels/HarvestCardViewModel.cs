@@ -4,8 +4,8 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Models;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Models;
 
 #endregion
 
@@ -32,7 +32,7 @@ public sealed partial class HarvestCardViewModel : ObservableObject
     /// <param name="messageTypeName">Proto-style type name (or <c>"unknown(N)"</c>).</param>
     /// <param name="byteSize">Payload byte length shown in the header.</param>
     /// <param name="isUnknown">
-    ///     True for a net-message the parser could not decode — styled distinctly and rendered
+    ///     True for a net-message the parser could not decode: styled distinctly and rendered
     ///     from a raw proto-wire scan (<see cref="RawUnknownBytes" />) rather than a typed payload.
     /// </param>
     public HarvestCardViewModel(string messageTypeName, int byteSize, bool isUnknown = false)
@@ -49,7 +49,7 @@ public sealed partial class HarvestCardViewModel : ObservableObject
     // ── Computed from identity (set once in ctor) ────────────────────────────
     // The accent strip + cat badge no longer bind a code-held AccentBrush (v0.6.0 code-color
     // promotion): InspectorCard drives them from the same IsKind* flags the header wash uses,
-    // through Classifier* theme tokens — so the whole card identity restyles per theme.
+    // through Classifier* theme tokens, so the whole card identity restyles per theme.
 
     /// <summary>Byte size.</summary>
     public int ByteSize { get; }
@@ -60,7 +60,7 @@ public sealed partial class HarvestCardViewModel : ObservableObject
     /// <summary>Category label.</summary>
     public string CategoryLabel { get; }
 
-    /// <summary>Header label shown in the UI — appends the event sub-label when present.</summary>
+    /// <summary>Header label shown in the UI: appends the event sub-label when present.</summary>
     public string DisplayTypeName => EventSubLabel is { Length: > 0 }
         ? $"{MessageTypeName} / {EventSubLabel}"
         : MessageTypeName;
@@ -122,12 +122,12 @@ public sealed partial class HarvestCardViewModel : ObservableObject
     public ObservableCollection<HarvestPropertyViewModel> Properties { get; } = [];
 
     /// <summary>
-    ///     Raw PayloadNode tree — kept in sync with Properties for entity injection
+    ///     Raw PayloadNode tree: kept in sync with Properties for entity injection
     ///     and parse-chain building.
     /// </summary>
     internal List<PayloadNode> RawNodes { get; } = [];
 
-    /// <summary>Card-level click handler — set by the card builder in MainViewModel.</summary>
+    /// <summary>Card-level click handler: set by the card builder in MainViewModel.</summary>
     public ICommand? SelectCommand { get; set; }
 
     /// <summary>Clears IsSelected on every property row without triggering card-level callbacks.</summary>

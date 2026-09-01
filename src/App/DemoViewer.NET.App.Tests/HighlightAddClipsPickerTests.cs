@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.Highlights;
 
@@ -9,13 +8,13 @@ using DemoViewer.NET.ViewModels.Highlights;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The cross-demo <b>Add clips</b> picker — the
+///     The cross-demo <b>Add clips</b> picker: the
 ///     surface that keeps multi-demo reels possible with the card grid gone. Covers what the picker newly
 ///     owns: the four re-homed filters over highlight ROWS, the no-filter-match empty state,
-///     the honest coverage footer, and the snapshot semantics.
+///     the coverage footer's exactness about what was actually analysed, and the snapshot semantics.
 ///     <para>
 ///         The tray round-trip (<c>[ + ]</c> / <c>[ ✓ ]</c> ↔ the staged tray) is asserted where the tray
-///         lives, in <c>HighlightsTabViewModelTests</c> — it is a contract BETWEEN the two, and testing it
+///         lives, in <c>HighlightsTabViewModelTests</c>: it is a contract BETWEEN the two, and testing it
 ///         against a mock tray here would prove only that the mock works.
 ///     </para>
 /// </summary>
@@ -23,11 +22,6 @@ public class HighlightAddClipsPickerTests
 {
     private static EvSpec Ev(string name, string steam, int round, int tick, string type) =>
         new(name, steam, round, tick, type);
-
-    // The unified record stores each player ONCE and events reference them by SLOT, so a fixture cannot hand
-    // a name/steamId to an event any more — it has to put them in the roster and link by slot. Row() below
-    // assigns slots by first appearance, which is what makes these specs enough.
-    private sealed record EvSpec(string Name, string Steam, int Round, int Tick, string Type);
 
     private static DemoCacheRecord Row(string path, string map, long modified, EvSpec[] events,
         DemoAnalysisState state = DemoAnalysisState.Indexed)
@@ -41,7 +35,12 @@ public class HighlightAddClipsPickerTests
             {
                 slot = slotOf.Count;
                 slotOf[e.Steam] = slot;
-                roster.Add(new CachedPlayerInfo { Slot = slot, Name = e.Name, SteamId64 = e.Steam });
+                roster.Add(new CachedPlayerInfo
+                {
+                    Slot = slot,
+                    Name = e.Name,
+                    SteamId64 = e.Steam
+                });
             }
 
             int dot = e.Type.IndexOf('.', StringComparison.Ordinal);
@@ -63,15 +62,26 @@ public class HighlightAddClipsPickerTests
             TickRate = 64,
             TickCount = 200_000,
             ModifiedTicks = modified,
-            Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 },
+            Analysis = new TierStamp
+            {
+                Schema = DemoCacheRecord.AnalysisSchema,
+                ComputedAtTicks = 1
+            },
             AnalysisState = state,
-            Rounds = [new Services.DemoCache.CachedRound { Number = 1, StartTickFrameClock = 1000 }],
+            Rounds =
+            [
+                new CachedRound
+                {
+                    Number = 1,
+                    StartTickFrameClock = 1000
+                }
+            ],
             Players = roster,
             Highlights = harvested
         };
     }
 
-    // A picker over a plain row list with a no-op tray — every assertion here is about projection, not staging.
+    // A picker over a plain row list with a no-op tray. Every assertion here is about projection, not staging.
     private static AddClipsPickerViewModel Picker(params DemoCacheRecord[] rows) =>
         new(rows, rows.Length, _ => false, _ => { }, _ => { }, () => { });
 
@@ -103,7 +113,7 @@ public class HighlightAddClipsPickerTests
     {
         // THE SUBTLETY, resolved deliberately. The measured library has 346/348 rows Pending yet 267
         // events present: a re-queued row keeps its previous harvest. Counting ScanState == Indexed would
-        // print "0 analysed demos" above a list of visible highlights — a page contradicting itself.
+        // print "0 analysed demos" above a list of visible highlights, a page contradicting itself.
         AddClipsPickerViewModel picker = Picker(
             Row("/d/pending.dem", "de_nuke", 3, [Ev("ZywOo", "2", 4, 30_000, "clutch.retake_3k")],
                 DemoAnalysisState.Pending),
@@ -115,8 +125,8 @@ public class HighlightAddClipsPickerTests
         await Assert.That(picker.DemosWithHighlights).IsEqualTo(2);
         await Assert.That(picker.LibraryRowCount).IsEqualTo(3);
         await Assert.That(picker.CoverageLine).IsEqualTo("2 highlights across 2 demos");
-        // The wireframe's "Only demos with full stats appear here" is FALSE under this definition — a Pending
-        // row with a harvest appears — so the copy follows the definition, not the wireframe.
+        // The wireframe's "Only demos with full stats appear here" is FALSE under this definition. A Pending
+        // row with a harvest appears, so the copy follows the definition, not the wireframe.
         await Assert.That(picker.CoverageNote).Contains("analysed for highlights");
         await Assert.That(picker.CoverageNote).Contains("2 of 3");
     }
@@ -145,7 +155,7 @@ public class HighlightAddClipsPickerTests
         await Assert.That(picker.Rows.Count).IsEqualTo(3);
         await Assert.That(picker.HasActiveFilters).IsFalse();
 
-        // Player multi-select carries LIBRARY-WIDE counts — the affordance's whole point is telling you how
+        // Player multi-select carries LIBRARY-WIDE counts. The affordance's whole point is telling you how
         // much is behind each choice before you pick it.
         PlayerFilterItem s1mple = picker.PlayerFilters.Single(p => p.Display == "s1mple");
         await Assert.That(s1mple.Count).IsEqualTo(2);
@@ -184,7 +194,7 @@ public class HighlightAddClipsPickerTests
         await Assert.That(picker.Rows.Count).IsEqualTo(1);
         ace.IsSelected = false;
 
-        // Search spans everything the row shows — map, file, player and title — because a user searching
+        // Search spans everything the row shows: map, file, player and title, because a user searching
         // "retake" is describing what they can see, not which field it came from.
         picker.SearchText = "retake";
         await Assert.That(picker.Rows.Count).IsEqualTo(1);
@@ -216,7 +226,7 @@ public class HighlightAddClipsPickerTests
     public async Task Picks_Survive_A_FilterChange()
     {
         // Rows are re-projected into a fresh visible collection on every filter change, but multi-select
-        // lives on the ROW view-model — the same reason virtualization cannot be allowed to own it. A user
+        // lives on the ROW view-model, the same reason virtualization cannot be allowed to own it. A user
         // who ticks, then filters, then presses Add meant all of their ticks.
         AddClipsPickerViewModel picker = Picker(
             Row("/d/a.dem", "de_dust2", 3, [Ev("s1mple", "1", 7, 54_000, "clutch.ace")]),
@@ -257,4 +267,9 @@ public class HighlightAddClipsPickerTests
         await Assert.That(noScan.CanRescan).IsFalse();
         await Assert.That(noScan.ShowScanPendingNote).IsFalse();
     }
+
+    // The unified record stores each player ONCE and events reference them by SLOT, so a fixture cannot hand
+    // a name/steamId to an event any more. It has to put them in the roster and link by slot. Row() below
+    // assigns slots by first appearance, which is what makes these specs enough.
+    private sealed record EvSpec(string Name, string Steam, int Round, int Tick, string Type);
 }

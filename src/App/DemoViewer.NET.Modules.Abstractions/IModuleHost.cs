@@ -1,6 +1,6 @@
 namespace DemoViewer.NET.Modules.Abstractions;
 
-/// <summary>Severity for <see cref="IModuleHost.Log" /> — routed to the shell's Output panel channel.</summary>
+/// <summary>Severity for <see cref="IModuleHost.Log" />: routed to the shell's Output panel channel.</summary>
 public enum ModuleLogLevel
 {
     /// <summary>Diagnostic detail.</summary>
@@ -17,7 +17,8 @@ public enum ModuleLogLevel
 }
 
 /// <summary>
-///     The creation-time surface handed to <see cref="IWorkspaceModule.CreateTabs" />. Kept
+///     The creation-time surface handed to <c>IWorkspaceModule.CreateTabs</c> (that contract lives in the
+///     sibling …Modules.Abstractions.Ui assembly, so it cannot be crefed from here). Kept
 ///     separate from <see cref="IModuleContext" /> so the creation-time surface (context, capability
 ///     query, logging) is distinct from the runtime surface (clock + state).
 /// </summary>

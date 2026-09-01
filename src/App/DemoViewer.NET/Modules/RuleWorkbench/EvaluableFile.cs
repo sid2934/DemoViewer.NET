@@ -7,7 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace DemoViewer.NET.Modules.RuleWorkbench;
 
 /// <summary>
-///     One selectable ruleset file in the Workbench's "Advanced Evaluate" multiselect — a
+///     One selectable ruleset file in the Workbench's "Advanced Evaluate" multiselect: a
 ///     shipped or user <c>*.rules.yaml</c> the author can include in an evaluation.
 /// </summary>
 public sealed partial class EvaluableFile : ObservableObject

@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Modules.RuleWorkbench;
 
 /// <summary>
 ///     The Rulesets v2 authoring Workbench module
-///. Contributes one Main-strip <c>Authoring</c>
+///     . Contributes one Main-strip <c>Authoring</c>
 ///     tab: an in-app editor + live diagnostics + trace for v2 rulesets, sitting on the app's v2
 ///     checker/evaluator seam.
 ///     <para>
@@ -21,7 +21,7 @@ namespace DemoViewer.NET.Modules.RuleWorkbench;
 ///     </para>
 ///     <para>
 ///         Uses <see cref="WorkspaceTabDescriptor.ViewModelFactory" /> (lazy + retained) so
-///         <c>Activate()</c> drives the VM's <c>OnActivated</c>/<c>OnDeactivated</c> lifecycle —
+///         <c>Activate()</c> drives the VM's <c>OnActivated</c>/<c>OnDeactivated</c> lifecycle:
 ///         the same wiring contract as the 2D Playback pilot.
 ///     </para>
 /// </summary>

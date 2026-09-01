@@ -19,20 +19,21 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Headless Skia smoke test for the 2D Playback module (the project's src/App/DemoViewer.NET.App.Tests
 ///     practice). Activates the VM through its pure surface, feeds a few ADVANCING synthetic snapshots, and
-///     renders the View to a Skia frame — asserting it is NON-BLANK with team-coloured marker pixels.
+///     renders the View to a Skia frame, asserting it is NON-BLANK with team-coloured marker pixels.
 ///     <para>
 ///         <b>Fully synthetic / deterministic.</b> The headless harness can't reliably
 ///         complete the fire-and-forget async demo load (Task.Run parse + Analysis.RunAsync). So this test
-///         feeds the VM hand-built <see cref="IPlaybackSnapshot" />s directly via fake context interfaces —
+///         feeds the VM hand-built <see cref="IPlaybackSnapshot" />s directly via fake context interfaces:
 ///         no demo parsing, no async, no DispatcherTimer. It owns exactly the markers/panels → PIXELS leg;
 ///         the real-data → markers leg is pinned by Playback2DModuleLifecycleTests, real-data → WorldPosition
 ///         by PositionUtilGateTests, and the game-info field paths by GameInfoFieldProbeTests.
 ///     </para>
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DHeadlessSmokeTests
 {
-    // Background fill of the viewport (#15181C) — markers must introduce pixels distinct from it.
+    // Background fill of the viewport (#15181C): markers must introduce pixels distinct from it.
     private const byte BgR = 0x15, BgG = 0x18, BgB = 0x1C;
 
     [Test]
@@ -75,6 +76,9 @@ public class Playback2DHeadlessSmokeTests
             await Assert.That(vm.Markers.Count).IsEqualTo(2);
 
             // Render the View standalone.
+            // Carried-forward suite: pin the LEGACY surface. Mounting the surface happens in
+            // code, so a view built without this would get the v2 host.
+            Playback2DRenderer.ResetForTest(Playback2DRendererKind.Legacy);
             Playback2DView view = new()
             {
                 DataContext = vm

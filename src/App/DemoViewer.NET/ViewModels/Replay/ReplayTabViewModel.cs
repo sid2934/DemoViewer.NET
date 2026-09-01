@@ -17,7 +17,7 @@ namespace DemoViewer.NET.ViewModels.Replay;
 ///     Owns Replay-tab PRESENTATION state: tick-group collection, the per-tick presentation surfaces
 ///     (<see cref="TickViewFrames" />, <see cref="SubTickEvents" />, <see cref="FrameGameEvents" />),
 ///     and the tick-group selection fan-out. The parallel tick/round/special navigation and the
-///     orphaned ReplaySeekControls were removed in the navigation review — the shell NavStrip +
+///     orphaned ReplaySeekControls were removed in the navigation review: the shell NavStrip +
 ///     SemanticNavigator are the single nav surface.
 ///     <para>
 ///         Extracted from <c>MainViewModel</c>. The cluster was originally
@@ -27,7 +27,7 @@ namespace DemoViewer.NET.ViewModels.Replay;
 ///     </para>
 ///     <para>
 ///         <see cref="TickGroups" /> moved here from EntityTab:
-///         EntityTab never consumed the collection directly — its seek pipelines operate
+///         EntityTab never consumed the collection directly: its seek pipelines operate
 ///         on frame indices. The legacy <c>HasTickGroups</c> pass-through on the shell now
 ///         routes here instead.
 ///     </para>
@@ -36,24 +36,24 @@ namespace DemoViewer.NET.ViewModels.Replay;
 ///     </para>
 ///     <list type="bullet">
 ///         <item>
-///             <see cref="FrameSource" /> / <see cref="DemoBytesSource" /> — read parsed
+///             <see cref="FrameSource" /> / <see cref="DemoBytesSource" />: read parsed
 ///             frames + raw bytes for tick-group building and decompression.
 ///         </item>
 ///         <item>
 ///             <see cref="ParserCardReset" /> / <see cref="ParserCardAppend" /> /
-///             <see cref="ParserHeaderSink" /> / <see cref="ParserHasMessageCardsSink" /> —
+///             <see cref="ParserHeaderSink" /> / <see cref="ParserHasMessageCardsSink" />:
 ///             push card builds into <c>ParserTab</c>.
 ///         </item>
 ///         <item>
-///             <see cref="OnTickGroupSelected" /> / <see cref="OnTickFrameSelected" /> —
+///             <see cref="OnTickGroupSelected" /> / <see cref="OnTickFrameSelected" />:
 ///             shell kicks off the matching <c>EntityTab</c> seek for the new selection.
 ///         </item>
 ///         <item>
-///             <see cref="SlotNameResolver" /> — resolves a game-event userid to a player
+///             <see cref="SlotNameResolver" />: resolves a game-event userid to a player
 ///             name (shell-owned name lookup tables).
 ///         </item>
 ///         <item>
-///             <see cref="NotifyCanGoNextTickChanged" /> — re-evaluate the parser-tab
+///             <see cref="NotifyCanGoNextTickChanged" />: re-evaluate the parser-tab
 ///             debugger commands' CanExecute (they observe <c>HasTickGroups</c> indirectly via
 ///             their own gates; tick-group rebuilds trigger a manual notify).
 ///         </item>
@@ -90,7 +90,7 @@ public sealed partial class ReplayTabViewModel : ObservableObject
     public ReplayTabViewModel(FrameNavigationViewModel navigation) => Navigation = navigation;
 
     // navigation-review Phase D: the orphaned ReplaySeekControls + its parallel tick/round/special
-    // navigation are gone — the shell NavStrip + SemanticNavigator are the single nav surface. Only
+    // navigation are gone: the shell NavStrip + SemanticNavigator are the single nav surface. Only
     // this VM's tick-group PRESENTATION state (TickGroups / SelectedTickGroup / FrameGameEvents /
     // SubTickEvents / tick-view frame lists) and the entity-seek fan-out it drives remain.
     /// <summary>Source of the raw .dem byte buffer (used during card-build to decompress payloads).</summary>
@@ -168,7 +168,7 @@ public sealed partial class ReplayTabViewModel : ObservableObject
     /// <summary>Tick groups.</summary>
     public TrimmableObservableCollection<TickGroup> TickGroups { get; } = [];
 
-    /// <summary>Styled row view-models for the tick-view frame list — parallel to <see cref="TickViewFrames" />.</summary>
+    /// <summary>Styled row view-models for the tick-view frame list, parallel to <see cref="TickViewFrames" />.</summary>
     public ObservableCollection<HarvestFrameRowViewModel> TickViewFrameRows { get; } = [];
 
     /// <summary>Tick view frames.</summary>
@@ -240,12 +240,12 @@ public sealed partial class ReplayTabViewModel : ObservableObject
     /// <summary>
     ///     Demo-unload reset: <see cref="ResetForFileLoad" /> plus <see cref="TickGroups" /> itself.
     ///     The reload path rebuilds the groups right after, so it may leave them standing; a standalone
-    ///     close must drop them — every <see cref="TickGroup" /> holds a frame list, and frames slice
+    ///     close must drop them: every <see cref="TickGroup" /> holds a frame list, and frames slice
     ///     zero-copy into the demo byte buffer.
     /// </summary>
     public void ResetForDemoUnload()
     {
-        // Order matters: drop the selections FIRST. SelectedTickFrame is a DemoFrame — one live frame
+        // Order matters: drop the selections FIRST. SelectedTickFrame is a DemoFrame: one live frame
         // reference is enough to pin the whole demo byte buffer (zero-copy slicing), and the tick-view
         // selection survives the collection clears below because it is a scalar, not a collection member.
         SelectedTickFrame = null;
@@ -260,7 +260,7 @@ public sealed partial class ReplayTabViewModel : ObservableObject
 
     /// <summary>
     ///     Clears the per-tick presentation surfaces (used by the file-load reset).
-    ///     Does NOT touch <see cref="TickGroups" /> itself — those get rebuilt by
+    ///     Does NOT touch <see cref="TickGroups" /> itself: those get rebuilt by
     ///     <see cref="BuildTickGroups" /> after re-parse.
     /// </summary>
     public void ResetForFileLoad()
@@ -362,15 +362,15 @@ public sealed partial class ReplayTabViewModel : ObservableObject
             : $"{group.Frames[0].Command}  •  tick {gameTick}  •  {totalMessages} messages";
         ParserHeaderSink?.Invoke(header);
 
-        // Build cards on a background thread — decompression + proto decoding can be heavy for
+        // Build cards on a background thread: decompression + proto decoding can be heavy for
         // large tick groups (e.g. the pre-game group with hundreds of frames).
         _ = BuildCardsAsync(group, cts.Token);
     }
 
-    // navigation-review Phase D — the parallel tick-group navigation (NextTick / PreviousTick /
+    // navigation-review Phase D: the parallel tick-group navigation (NextTick / PreviousTick /
     // NextRoundTick / PreviousRoundTick / NextSpecialTick / PreviousSpecialTick / NextGameEventTick),
     // their CanExecute gates, the SeekToGameTick replay-seek, and the FrameContains*/TickGroupContains*
-    // helpers are gone — the shell NavStrip + SemanticNavigator are the single nav surface. The
+    // helpers are gone: the shell NavStrip + SemanticNavigator are the single nav surface. The
     // tick-group PRESENTATION (TickGroups / SelectedTickGroup selection fan-out) stays below.
 
     partial void OnIsTickViewChanged(bool value)

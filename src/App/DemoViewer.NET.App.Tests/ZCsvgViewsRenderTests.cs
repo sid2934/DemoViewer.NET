@@ -8,10 +8,10 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.ViewModels.Highlights;
 using DemoViewer.NET.ViewModels.LiveSync;
@@ -26,7 +26,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Headless render smoke for the four CSVG-integration views: each real view
 ///     is built over a populated VM, attached to a window, laid out, and
-///     Skia-rendered — catching XAML load, compiled-binding, DataTemplate, and converter errors
+///     Skia-rendered: catching XAML load, compiled-binding, DataTemplate, and converter errors
 ///     the compile can't. Construct-and-render only; behavioral coverage lives in the pure-VM
 ///     batteries (LiveSyncStatusViewModelTests, HighlightsTabViewModelTests, reel batteries).
 /// </summary>
@@ -80,25 +80,56 @@ public class ZCsvgViewsRenderTests
         TickRate = 64,
         TickCount = 120_000,
         Sha256 = "sha",
-        Analysis = new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 },
+        Analysis = new TierStamp
+        {
+            Schema = DemoCacheRecord.AnalysisSchema,
+            ComputedAtTicks = 1
+        },
         AnalysisState = DemoAnalysisState.Indexed,
         Players =
         [
-            new CachedPlayerInfo { Slot = 0, Name = "s1mple", SteamId64 = "1", Team = 2 },
-            new CachedPlayerInfo { Slot = 1, Name = "ZywOo", SteamId64 = "2", Team = 3 }
+            new CachedPlayerInfo
+            {
+                Slot = 0,
+                Name = "s1mple",
+                SteamId64 = "1",
+                Team = 2
+            },
+            new CachedPlayerInfo
+            {
+                Slot = 1,
+                Name = "ZywOo",
+                SteamId64 = "2",
+                Team = 3
+            }
         ],
-        Rounds = [new Services.DemoCache.CachedRound { Number = 1, StartTickFrameClock = 1000 }],
+        Rounds =
+        [
+            new CachedRound
+            {
+                Number = 1,
+                StartTickFrameClock = 1000
+            }
+        ],
         Highlights =
         [
             new CachedHighlightEvent
             {
-                RulesetId = "rules", HighlightId = "clutch.ace", PlayerSlot = 0,
-                RoundNumber = 1, Tick = 5000, RenderedTitle = "s1mple — 1v3 clutch"
+                RulesetId = "rules",
+                HighlightId = "clutch.ace",
+                PlayerSlot = 0,
+                RoundNumber = 1,
+                Tick = 5000,
+                RenderedTitle = "s1mple — 1v3 clutch"
             },
             new CachedHighlightEvent
             {
-                RulesetId = "rules", HighlightId = "clutch.retake", PlayerSlot = 1,
-                RoundNumber = 1, Tick = 7000, RenderedTitle = "ZywOo — retake"
+                RulesetId = "rules",
+                HighlightId = "clutch.retake",
+                PlayerSlot = 1,
+                RoundNumber = 1,
+                Tick = 7000,
+                RenderedTitle = "ZywOo — retake"
             }
         ]
     };
@@ -176,7 +207,7 @@ public class ZCsvgViewsRenderTests
             PlaybackController playback = new();
             LiveSyncStatusViewModel syncVm = new(liveSync, null, playback,
                 () => { }, _ => Task.CompletedTask);
-            // Degraded WITH a remote demo path — the densest flyout section (Open in DemoViewer
+            // Degraded WITH a remote demo path: the densest flyout section (Open in DemoViewer
             // offer + Re-sync + the newly-bound ReasonText surface all present).
             liveSync.Raise(new LiveSyncState(LiveSyncStateKind.Degraded,
                 "CS2 is now playing a different demo (other.dem).",

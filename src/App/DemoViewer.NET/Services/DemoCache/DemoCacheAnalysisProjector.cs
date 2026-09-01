@@ -17,7 +17,7 @@ namespace DemoViewer.NET.Services.DemoCache;
 ///         Match Overview page is built to avoid.
 ///     </para>
 ///     <para>
-///         The column names are the analysis engine's own (<c>TotalK</c>, <c>ADR</c>, <c>HLTV</c>, …) — the
+///         The column names are the analysis engine's own (<c>TotalK</c>, <c>ADR</c>, <c>HLTV</c>, …): the
 ///         same keys the Stats tab and Match Overview's live scoreboard read, so the cached render shows the
 ///         numbers the interactive run produced rather than a second projection that can drift from them.
 ///     </para>
@@ -29,7 +29,7 @@ public static class DemoCacheAnalysisProjector
     ///     <para>
     ///         Rows without a resolvable <c>player_slot</c> are dropped: the record stores players once and
     ///         references them by slot, so a row that cannot be joined back to the roster would render as a
-    ///         blank name — worse than not being there. Totals rows are excluded the same way (they carry no
+    ///         blank name, worse than not being there. Totals rows are excluded the same way (they carry no
     ///         slot).
     ///     </para>
     /// </summary>
@@ -65,7 +65,7 @@ public static class DemoCacheAnalysisProjector
     /// <summary>
     ///     Rounds won by each SIDE across the match. Every row of a team carries that team's own
     ///     <c>CTW</c>/<c>TW</c>, so one row per team gives the match-wide split; teams whose rows disagree, or
-    ///     a table missing the columns entirely, yield nulls — a missing number beats a wrong one.
+    ///     a table missing the columns entirely, yield nulls: a missing number beats a wrong one.
     /// </summary>
     public static (int? Ct, int? T) ComputeSideWins(MetricTable gameTable)
     {

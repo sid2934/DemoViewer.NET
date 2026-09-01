@@ -11,13 +11,13 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Builds synthetic <see cref="ParsedDemo" /> fixtures for tests that need a demo-shaped object
-///     without a demo file — library/queue/stats surfaces where the assertion is about our own
+///     without a demo file: library/queue/stats surfaces where the assertion is about our own
 ///     plumbing, not about parsing.
 ///     <para>
 ///         <b>Why reflection.</b> <see cref="ParsedDemo" />'s constructor is internal, and these
 ///         tests used to reach it through an <c>InternalsVisibleTo</c> grant back when the parser
 ///         was a project in this repo. It is a NuGet package now and grants nothing to this
-///         assembly, which is correct — a library should not know its consumers' test assemblies by
+///         assembly, which is correct: a library should not know its consumers' test assemblies by
 ///         name. Reflection keeps that boundary intact.
 ///     </para>
 ///     <para>
@@ -25,7 +25,7 @@ namespace DemoViewer.NET.AppTests;
 ///         rather than at compile time. <see cref="Create" /> is the single place that knows the
 ///         signature, and it throws a directed message rather than a bare
 ///         <see cref="NullReferenceException" /> when it can no longer bind. The durable fix is a
-///         supported factory in CS2DemoKit.Parser — file it upstream and delete this file.
+///         supported factory in CS2DemoKit.Parser. File it upstream and delete this file.
 ///     </para>
 /// </summary>
 internal static class SyntheticParsedDemo

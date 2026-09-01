@@ -10,7 +10,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Guards the issue-#6 harness contract: a failure in Avalonia's per-dispatch
 ///     isolated-application setup must be reported with its real cause and attributed to the
-///     harness, while a failure in the test body must still be reported as the test's own — run
+///     harness, while a failure in the test body must still be reported as the test's own, run
 ///     exactly once, unretried.
 /// </summary>
 [NotInParallel]
@@ -75,12 +75,11 @@ public class HeadlessSessionDiagnosticsTests
     {
         int bodyRuns = 0;
 
-        InvalidOperationException? thrown = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await HeadlessSession.RunOnUi(() =>
-            {
-                bodyRuns++;
-                throw new InvalidOperationException("the body's own failure");
-            }));
+        InvalidOperationException? thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () => await HeadlessSession.RunOnUi(() =>
+        {
+            bodyRuns++;
+            throw new InvalidOperationException("the body's own failure");
+        }));
 
         await Assert.That(thrown!.Message).IsEqualTo("the body's own failure");
         await Assert.That(bodyRuns).IsEqualTo(1);
@@ -95,13 +94,12 @@ public class HeadlessSessionDiagnosticsTests
     {
         int bodyRuns = 0;
 
-        InvalidOperationException? thrown = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await HeadlessSession.RunOnUi(async () =>
-            {
-                bodyRuns++;
-                await Task.Yield();
-                throw new InvalidOperationException("the async body's own failure");
-            }));
+        InvalidOperationException? thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () => await HeadlessSession.RunOnUi(async () =>
+        {
+            bodyRuns++;
+            await Task.Yield();
+            throw new InvalidOperationException("the async body's own failure");
+        }));
 
         await Assert.That(thrown!.Message).IsEqualTo("the async body's own failure");
         await Assert.That(bodyRuns).IsEqualTo(1);

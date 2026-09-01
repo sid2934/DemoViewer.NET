@@ -8,6 +8,7 @@ using DemoViewer.NET.LiveSync;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Options;
+using Velopack;
 
 #endregion
 
@@ -35,19 +36,19 @@ internal sealed class Program
         // exits the process before any Avalonia/CSVG/SynchronizationContext init would run. On a
         // normal launch it returns immediately. Unpackaged/dev runs (no Velopack metadata) are a
         // no-op, so this is safe under `dotnet run` and the headless UI-capture host too.
-        Velopack.VelopackApp.Build().Run();
+        VelopackApp.Build().Run();
 
         // Last-chance crash log: an unhandled exception aborts the process, and on macOS the OS
-        // report (.ips) carries only unsymbolicated JIT frames — persist the MANAGED stack.
+        // report (.ips) carries only unsymbolicated JIT frames. Persist the MANAGED stack.
         AppDomain.CurrentDomain.UnhandledException += (_, e) => WriteCrashLog(e.ExceptionObject);
 
         // CSVG live sync: the engine lives in the desktop-only
-        // DemoViewer.NET.LiveSync project (CSVG + ASP.NET Core — the App/Browser projects must
+        // DemoViewer.NET.LiveSync project (CSVG + ASP.NET Core: the App/Browser projects must
         // never reference it), so this host injects its factory through the AppHostHooks static
         // seam before the lifetime starts. App.axaml.cs invokes it once the shell exists.
         AppHostHooks.LiveSyncFactory = static shell => new LiveSyncService(shell);
 
-        // Reel generation — same seam. The concrete LiveSyncService
+        // Reel generation: same seam. The concrete LiveSyncService
         // is handed through so the F1↔F3b single-CS2 interlock can suspend an active sync session;
         // job log lines surface in the Output panel's "Live Sync" channel.
         AppHostHooks.ReelJobFactory = static (shell, liveSync) => new ReelJobService(
@@ -60,7 +61,7 @@ internal sealed class Program
                 shell.Output.BuildTest.Append(new OutputRow(
                     -1, "REEL", "INFO", line))));
 
-        // In-app updater — same static seam, same reason: the Velopack package is referenced only by
+        // In-app updater, same static seam, same reason: the Velopack package is referenced only by
         // this project, so nothing Velopack-typed may appear in the App project (WASM poison for the
         // Browser head). VelopackApp.Build().Run() above handles install/update HOOKS only; it never
         // contacts a server. Without this factory the published releases.{channel}.json feeds would
@@ -69,7 +70,7 @@ internal sealed class Program
 
         // DEMOVIEWER_PROFILE=1 attaches the analysis profiling listeners (Meter counters + phase-timeline
         // spans) for the whole app session and dumps a combined (session-aggregate) report on exit.
-        // Default (env unset): a null session — no listeners, no cost. The report goes to Console.Out, so
+        // Default (env unset): a null session, no listeners, no cost. The report goes to Console.Out, so
         // on Windows (this is a WinExe) it only appears when launched from a terminal or via `dotnet run`.
         // Live / per-moment capture without any of this is available via dotnet-counters / dotnet-trace
         // (see docs/profiling.md).
@@ -84,7 +85,7 @@ internal sealed class Program
             string? path = AppPaths.CrashLogFile;
             if (path is null)
             {
-                return; // no filesystem (WASM) — never on desktop, but be safe
+                return; // no filesystem (WASM), never on desktop, but be safe
             }
 
             File.AppendAllText(path,

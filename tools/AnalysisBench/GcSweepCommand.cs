@@ -1,11 +1,10 @@
 #region
 
 using System.Diagnostics;
+using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using CS2DemoKit.Analysis;
-using CS2DemoKit.Analysis.Abstractions;
-using CS2DemoKit.Analysis.Config;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
@@ -15,20 +14,20 @@ using CS2DemoKit.Parser;
 namespace AnalysisBench;
 
 /// <summary>
-///     <c>gc-sweep</c> — measures parse/analysis cost AND resource footprint under every GC
+///     <c>gc-sweep</c>: measures parse/analysis cost AND resource footprint under every GC
 ///     configuration worth considering, so the Server-vs-Workstation decision is made on numbers
 ///     rather than on the framework default.
 ///     <para>
 ///         <b>Why this spawns child processes.</b> Server/Workstation, concurrent (background) GC,
 ///         RetainVM, heap count, ConserveMemory and DATAS are all read ONCE by the CLR at startup and
-///         are immutable thereafter — no in-process API can change them. So each configuration must run
+///         are immutable thereafter. No in-process API can change them. So each configuration must run
 ///         in its own process, launched with the matching <c>DOTNET_*</c> environment variables. The
 ///         parent enumerates the matrix, runs one child per config, and tabulates the results.
 ///     </para>
 ///     <para>
 ///         <b>Hex gotcha.</b> Numeric <c>DOTNET_GC*</c> knobs are parsed as HEX (the legacy
 ///         <c>COMPlus_</c> convention), not decimal. Every numeric value used here is ≤ 9, where hex and
-///         decimal coincide — keep it that way, or a "16" silently becomes 22.
+///         decimal coincide. Keep it that way, or a "16" silently becomes 22.
 ///     </para>
 ///     <para>
 ///         The footprint numbers that matter are the FINAL ones: they are taken after the demo is
@@ -40,14 +39,10 @@ internal static class GcSweepCommand
 {
     private const double Mb = 1024 * 1024;
 
-    private static readonly JsonSerializerOptions _indented = new() { WriteIndented = true };
-
-    /// <summary>One GC configuration: a display name plus the environment it implies.</summary>
-    private sealed record GcConfig(string Name, Dictionary<string, string> Env)
+    private static readonly JsonSerializerOptions _indented = new()
     {
-        public static GcConfig Of(string name, params (string Key, string Value)[] vars) =>
-            new(name, vars.ToDictionary(v => v.Key, v => v.Value, StringComparer.Ordinal));
-    }
+        WriteIndented = true
+    };
 
     // The matrix. Server+Concurrent is what the Desktop app ships today (csproj sets
     // ServerGarbageCollection/ConcurrentGarbageCollection true), so it is the baseline to beat.
@@ -65,7 +60,7 @@ internal static class GcSweepCommand
         // Workstation's throughput gap is a gen0-cadence problem, not a fundamental one: the default gen0
         // budget is a few MB, so a 3.5 GB-allocating parse takes ~420 gen0 collections where Server GC
         // takes 3. A bigger gen0 budget trades peak footprint for far fewer collections.
-        // NOTE: DOTNET_GCgen0size is parsed as HEX bytes — 4000000 here is 0x4000000 = 64 MB, not 4 million.
+        // NOTE: DOTNET_GCgen0size is parsed as HEX bytes: 4000000 here is 0x4000000 = 64 MB, not 4 million.
         GcConfig.Of("workstation, concurrent, gen0=32MB",
             ("DOTNET_gcServer", "0"), ("DOTNET_gcConcurrent", "1"), ("DOTNET_GCgen0size", "2000000")),
         GcConfig.Of("workstation, concurrent, gen0=64MB",
@@ -90,11 +85,11 @@ internal static class GcSweepCommand
             ("DOTNET_gcServer", "1"), ("DOTNET_gcConcurrent", "1"), ("DOTNET_GCConserveMemory", "9")),
         // Can Server GC's speed be kept while capping what it holds? A hard limit forces collection
         // rather than growth. HEX bytes: C0000000 = 3 GiB, 80000000 = 2 GiB. Peak managed heap is ~2.9 GB
-        // even on Workstation, so a limit below that should be expected to OOM — that IS the finding.
+        // even on Workstation, so a limit below that should be expected to OOM. That IS the finding.
         // The "squeeze when idle" idea: keep Server GC's throughput, then force it to hand memory back at
         // the moment we know the app is going idle (demo closed). GC.RefreshMemoryLimit re-reads
         // GCHeapHardLimit at RUNTIME, so a temporary low limit should compel the GC to shrink to fit.
-        // GCSWEEP_SQUEEZE is our own env var, not a runtime knob — the probe reads it.
+        // GCSWEEP_SQUEEZE is our own env var, not a runtime knob. The probe reads it.
         GcConfig.Of("SERVER, concurrent + idle squeeze (RefreshMemoryLimit)",
             ("DOTNET_gcServer", "1"), ("DOTNET_gcConcurrent", "1"), ("GCSWEEP_SQUEEZE", "1")),
 
@@ -154,7 +149,10 @@ internal static class GcSweepCommand
                 continue;
             }
 
-            results.Add(r with { Config = config.Name });
+            results.Add(r with
+            {
+                Config = config.Name
+            });
             Console.WriteLine($"{r.TotalMs,7:F0} ms   final RSS {r.FinalRssMb,7:F0} MB");
         }
 
@@ -258,13 +256,13 @@ internal static class GcSweepCommand
 
         sampler.Stop();
 
-        // Model the app's Close. Measure() confined every demo reference to ITS frame — which is gone by
-        // now — so this collect sees the same reachability an idle app does after closing a demo. Nulling
+        // Model the app's Close. Measure() confined every demo reference to ITS frame, which is gone by
+        // now, so this collect sees the same reachability an idle app does after closing a demo. Nulling
         // locals in place is not enough: the `using` in a method introduces a try/finally that can keep
         // slots live to the end of the frame, which made an earlier version of this probe report the whole
         // 820 MB demo as "final heap".
-        System.Runtime.GCSettings.LargeObjectHeapCompactionMode =
-            System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+        GCSettings.LargeObjectHeapCompactionMode =
+            GCLargeObjectHeapCompactionMode.CompactOnce;
         for (int i = 0; i < 3; i++)
         {
             GC.Collect(2, GCCollectionMode.Aggressive, true, true);
@@ -341,7 +339,7 @@ internal static class GcSweepCommand
         int messages = result.Messages.Count; // forces the result to be genuinely materialized
         TimeSpan total = Stopwatch.GetElapsedTime(t0);
 
-        // LIVE heap with the demo + rule graph + evaluation still held — i.e. what the app occupies while
+        // LIVE heap with the demo + rule graph + evaluation still held, i.e. what the app occupies while
         // a demo is open. Distinct from peak (dominated by transient parse garbage) and from final (after
         // close). This is the number a cache-size change like lazy field descriptors moves.
         long liveHeap = GC.GetTotalMemory(true);
@@ -354,38 +352,6 @@ internal static class GcSweepCommand
             (GC.GetTotalPauseDuration() - pauseBefore).TotalMilliseconds,
             (GC.GetTotalAllocatedBytes() - allocBefore) / 1024.0 / 1024.0 / 1024.0,
             messages, liveHeap / Mb);
-    }
-
-    private sealed record Phase(
-        double ReadMs, double ParseMs, double BuildMs, double EvalMs, double TotalMs,
-        int Gen0, int Gen1, int Gen2, double PauseMs, double AllocatedGb, int Messages, double LiveHeapMb);
-
-    /// <summary>Background peak-footprint sampler — peak RSS/heap are transients the phase timings miss.</summary>
-    private sealed class Sampler : IDisposable
-    {
-        private readonly CancellationTokenSource _cts = new();
-        public long PeakRss;
-        public long PeakManaged;
-
-        public void Start()
-        {
-            Thread t = new(() =>
-            {
-                Process self = Process.GetCurrentProcess();
-                while (!_cts.IsCancellationRequested)
-                {
-                    self.Refresh();
-                    PeakRss = Math.Max(PeakRss, self.WorkingSet64);
-                    PeakManaged = Math.Max(PeakManaged, GC.GetTotalMemory(false));
-                    Thread.Sleep(25);
-                }
-            }) { IsBackground = true };
-            t.Start();
-        }
-
-        public void Stop() => _cts.Cancel();
-
-        public void Dispose() => _cts.Dispose();
     }
 
     private static string FindRulesDir()
@@ -405,10 +371,74 @@ internal static class GcSweepCommand
         return Path.Combine(AppContext.BaseDirectory, "rules");
     }
 
+    /// <summary>One GC configuration: a display name plus the environment it implies.</summary>
+    private sealed record GcConfig(string Name, Dictionary<string, string> Env)
+    {
+        public static GcConfig Of(string name, params (string Key, string Value)[] vars) =>
+            new(name, vars.ToDictionary(v => v.Key, v => v.Value, StringComparer.Ordinal));
+    }
+
+    private sealed record Phase(
+        double ReadMs,
+        double ParseMs,
+        double BuildMs,
+        double EvalMs,
+        double TotalMs,
+        int Gen0,
+        int Gen1,
+        int Gen2,
+        double PauseMs,
+        double AllocatedGb,
+        int Messages,
+        double LiveHeapMb);
+
+    /// <summary>Background peak-footprint sampler: peak RSS/heap are transients the phase timings miss.</summary>
+    private sealed class Sampler : IDisposable
+    {
+        private readonly CancellationTokenSource _cts = new();
+        public long PeakManaged;
+        public long PeakRss;
+
+        public void Dispose() => _cts.Dispose();
+
+        public void Start()
+        {
+            Thread t = new(() =>
+            {
+                Process self = Process.GetCurrentProcess();
+                while (!_cts.IsCancellationRequested)
+                {
+                    self.Refresh();
+                    PeakRss = Math.Max(PeakRss, self.WorkingSet64);
+                    PeakManaged = Math.Max(PeakManaged, GC.GetTotalMemory(false));
+                    Thread.Sleep(25);
+                }
+            })
+            {
+                IsBackground = true
+            };
+            t.Start();
+        }
+
+        public void Stop() => _cts.Cancel();
+    }
+
     internal sealed record ProbeResult(
         string Config,
-        double ReadMs, double ParseMs, double BuildMs, double EvalMs, double TotalMs,
-        double PeakManagedMb, double PeakRssMb,
-        double FinalManagedMb, double FinalCommittedMb, double FinalRssMb,
-        int Gen0, int Gen1, int Gen2, double PauseMs, double AllocatedGb, double LiveHeapMb);
+        double ReadMs,
+        double ParseMs,
+        double BuildMs,
+        double EvalMs,
+        double TotalMs,
+        double PeakManagedMb,
+        double PeakRssMb,
+        double FinalManagedMb,
+        double FinalCommittedMb,
+        double FinalRssMb,
+        int Gen0,
+        int Gen1,
+        int Gen2,
+        double PauseMs,
+        double AllocatedGb,
+        double LiveHeapMb);
 }

@@ -23,6 +23,10 @@
         <PackageReference Include="Avalonia.Themes.Fluent"/>
         <PackageReference Include="Avalonia.Fonts.Inter"/>
         <PackageReference Include="Avalonia.AvaloniaEdit"/>
+        <!-- ISkiaSharpApiLeaseFeature for Scene2DHost's custom draw operation. Present transitively via
+             the Desktop and Browser heads, but the type needs a direct compile-time reference here.
+             SkiaSharp itself is a DERIVED pin on this package's version — see Directory.Packages.props. -->
+        <PackageReference Include="Avalonia.Skia"/>
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
         <PackageReference Include="Avalonia.Diagnostics">
             <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
@@ -48,6 +52,14 @@
 
     <ItemGroup>
         <ProjectReference Include="..\DemoViewer.NET.Modules.Abstractions\DemoViewer.NET.Modules.Abstractions.csproj"/>
+        <!-- The Avalonia-shaped half of the module contract (WorkspaceTabDescriptor / IWorkspaceModule).
+             Same namespace as the project above — see its csproj for why the split exists. -->
+        <ProjectReference
+                Include="..\DemoViewer.NET.Modules.Abstractions.Ui\DemoViewer.NET.Modules.Abstractions.Ui.csproj"/>
+        <ProjectReference
+                Include="..\..\Playback2D\DemoViewer.NET.Playback2D.Core\DemoViewer.NET.Playback2D.Core.csproj"/>
+        <ProjectReference
+                Include="..\..\Playback2D\DemoViewer.NET.Playback2D.Pipeline\DemoViewer.NET.Playback2D.Pipeline.csproj"/>
         <PackageReference Include="CS2DemoKit.Parser"/>
         <PackageReference Include="CS2DemoKit.Analysis"/>
         <ProjectReference Include="..\..\Visualization\DemoViewer.NET.Visualization\DemoViewer.NET.Visualization.csproj"/>

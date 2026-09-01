@@ -10,8 +10,8 @@ namespace DemoViewer.NET.ViewModels.Playback;
 /// <summary>
 ///     The shell-owned semantic-navigation service: the "boundary movement" counterpart to
 ///     <see cref="PlaybackController" />'s "position movement". Where the
-///     controller knows where the clock is, this service knows where the <em>boundaries</em> are —
-///     rounds, game-events (by name), and distinct ticks — and moves the controller to them.
+///     controller knows where the clock is, this service knows where the <em>boundaries</em> are:
+///     rounds, game-events (by name), and distinct ticks, and moves the controller to them.
 ///     <para>
 ///         Following the same move already made for the clock, the
 ///         boundary indices are precomputed <b>once</b> after parse (via <see cref="Build" />, drained
@@ -49,7 +49,7 @@ public sealed class SemanticNavigator
 
     /// <summary>
     ///     For each game-event name present in the demo, the sorted (de-duplicated) frame indices where
-    ///     it occurs. This is the demo-derived event set — the same data <c>GameEventFilters</c> is
+    ///     it occurs. This is the demo-derived event set: the same data <c>GameEventFilters</c> is
     ///     populated from. Empty until <see cref="Build" /> runs.
     /// </summary>
     public IReadOnlyDictionary<string, int[]> EventBoundaryFramesByName { get; private set; } = new Dictionary<string, int[]>(StringComparer.OrdinalIgnoreCase);
@@ -57,7 +57,7 @@ public sealed class SemanticNavigator
     /// <summary>
     ///     First frame index of each distinct <see cref="DemoFrame.ServerTick" />. Sorted ascending.
     ///     Empty until <see cref="Build" /> runs. Computed by the parser-tier
-    ///     <see cref="TickBoundaries.FrameIndices" /> — the same precompute <c>TickMapper</c> consumes.
+    ///     <see cref="TickBoundaries.FrameIndices" />: the same precompute <c>TickMapper</c> consumes.
     /// </summary>
     public IReadOnlyList<int> TickBoundaryFrames => _tickBoundaryFrames;
 
@@ -71,7 +71,7 @@ public sealed class SemanticNavigator
         List<int> roundFrames = new();
         Dictionary<string, List<int>> eventFrames = new(StringComparer.OrdinalIgnoreCase);
 
-        // Tick boundaries are a parser-tier fact (TickMapper consumes the same array) — one shared
+        // Tick boundaries are a parser-tier fact (TickMapper consumes the same array): one shared
         // implementation, so a live-sync seek and a NextTick press can never disagree about where a
         // tick starts. Its extra linear pass is noise next to the inner-message scan below.
         int[] tickFrames = TickBoundaries.FrameIndices(frames);
@@ -80,9 +80,9 @@ public sealed class SemanticNavigator
         {
             DemoFrame frame = frames[i];
 
-            // Scan inner messages for game events — same source as the legacy navigation and the
+            // Scan inner messages for game events: same source as the legacy navigation and the
             // demo-derived GameEventFilters. A frame can be both a round boundary and an event
-            // boundary (and an event can appear multiple times in one frame — de-duped per name below).
+            // boundary (and an event can appear multiple times in one frame, de-duped per name below).
             bool roundThisFrame = false;
             foreach (NetMessage msg in frame.InnerMessages)
             {
@@ -146,11 +146,11 @@ public sealed class SemanticNavigator
     ///     Seeks to the first frame of the PREVIOUS distinct tick. Unlike round/event boundaries (which
     ///     are discrete target frames the cursor is either exactly on or not), tick boundaries are
     ///     <em>group starts</em> and the current frame can sit in the middle of a group. So we take the
-    ///     floor boundary (the current group's own start) and step to the boundary before it — this
+    ///     floor boundary (the current group's own start) and step to the boundary before it. This
     ///     moves to a strictly earlier tick from anywhere inside the current group, matching the legacy
     ///     <c>PreviousFrameByTick</c> "first frame with a different ServerTick, going backwards" intent.
-    ///     (Deviation noted: lands on the previous group's START frame, not its last frame as legacy did
-    ///     — the symmetric, strip-friendly choice.)
+    ///     (Deviation noted: lands on the previous group's START frame, not its last frame as legacy
+    ///     did. The symmetric, strip-friendly choice.)
     /// </summary>
     public void PrevTick()
     {

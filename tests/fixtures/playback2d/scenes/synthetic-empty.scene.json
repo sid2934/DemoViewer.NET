@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "playback2d-scene/1",
+  "time": {
+    "tick": 0,
+    "frameIndex": 0,
+    "demoSeconds": 0.0,
+    "deltaSeconds": 0.015625,
+    "isDiscontinuity": false
+  },
+  "camera": {
+    "viewWidth": 640,
+    "viewHeight": 360,
+    "centerX": 0.0,
+    "centerY": 0.0,
+    "baseScale": 0.0552,
+    "zoom": 1.0,
+    "panX": 0.0,
+    "panY": 0.0
+  },
+  "size": {
+    "width": 640,
+    "height": 360
+  },
+  "mapName": "de_synthetic",
+  "frame": {
+    "time": {
+      "tick": 0,
+      "frameIndex": 0,
+      "demoSeconds": 0.0,
+      "deltaSeconds": 0.015625,
+      "isDiscontinuity": false
+    },
+    "markers": [],
+    "areaEffects": [],
+    "trails": [],
+    "killFeed": [],
+    "gameInfo": {
+      "phase": "Warmup",
+      "bombState": "—",
+      "roundNumber": 0,
+      "roundsPlayed": -1,
+      "roundSeconds": "NaN",
+      "roundTime": "—",
+      "bombTicking": false,
+      "defuseInProgress": false,
+      "defuseKitNote": "—",
+      "defuseSeconds": "NaN",
+      "defuseTime": "—",
+      "tScore": 0,
+      "ctScore": 0
+    },
+    "map": {
+      "mapName": "de_synthetic",
+      "networkedBounds": {
+        "minX": -3000,
+        "minY": -3000,
+        "maxX": 3000,
+        "maxY": 3000
+      },
+      "observedBounds": {
+        "minX": -3000,
+        "minY": -3000,
+        "maxX": 3000,
+        "maxY": 3000
+      },
+      "radars": []
+    },
+    "vision": {
+      "isAvailable": false,
+      "cones": [],
+      "sightlines": []
+    },
+    "followSlot": -1
+  },
+  "notes": "The degenerate scene: nothing alive, nothing thrown, nothing planted. Guards every layer's empty path."
+}

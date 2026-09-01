@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Layout;
 using Avalonia.Media;
 
 #endregion
@@ -11,9 +12,9 @@ using Avalonia.Media;
 namespace DemoViewer.NET.Controls;
 
 /// <summary>
-///     Renders a small, dependency-free subset of GitHub-flavored markdown — headings, paragraphs,
+///     Renders a small, dependency-free subset of GitHub-flavored markdown: headings, paragraphs,
 ///     bullet lists, blockquotes, <c>**bold**</c> / <c>`code`</c> inlines, and
-///     <c>&lt;details&gt;</c>/<c>&lt;summary&gt;</c> blocks (as collapsed expanders) — enough for
+///     <c>&lt;details&gt;</c>/<c>&lt;summary&gt;</c> blocks (as collapsed expanders), enough for
 ///     the release-note bodies shown by the update notice and What's New windows.
 ///     <para>
 ///         Deliberately NOT a general markdown engine: unknown syntax degrades to plain text,
@@ -24,11 +25,11 @@ namespace DemoViewer.NET.Controls;
 /// </summary>
 public sealed partial class MarkdownBlock : ContentControl
 {
-    /// <summary>The markdown source to render. Null/empty clears the content.</summary>
+    /// <summary>The Markdown source to render. Null/empty clears the content.</summary>
     public static readonly StyledProperty<string?> MarkdownProperty =
         AvaloniaProperty.Register<MarkdownBlock, string?>(nameof(Markdown));
 
-    // Theme-neutral half-alpha gray for the blockquote bar — readable on dark and light without
+    // Theme-neutral half-alpha gray for the blockquote bar, readable on dark and light without
     // depending on a resource key existing in every theme.
     private static readonly IBrush _quoteBarBrush = new SolidColorBrush(Color.FromArgb(0x66, 0x88, 0x88, 0x88));
 
@@ -201,7 +202,7 @@ public sealed partial class MarkdownBlock : ContentControl
         return tb;
     }
 
-    // A <details> block becomes a collapsed Expander headed by its <summary> text — exactly how
+    // A <details> block becomes a collapsed Expander headed by its <summary> text, exactly how
     // the release bodies use it ("What was new in 0.5.1"). Tracks nesting depth so a details
     // inside a details stays inside the outer body.
     private static Expander ParseDetails(string[] lines, ref int i)
@@ -232,7 +233,7 @@ public sealed partial class MarkdownBlock : ContentControl
         {
             Header = summary,
             IsExpanded = false,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Content = new Border
             {
                 Padding = new Thickness(4, 8, 0, 0),
@@ -243,7 +244,7 @@ public sealed partial class MarkdownBlock : ContentControl
 
     // ── Inline rendering ────────────────────────────────────────────────────
 
-    // **bold**, `code`, and [text](url) — links render as their text (underlined); the windows
+    // **bold**, `code`, and [text](url), links render as their text (underlined); the windows
     // hosting this control offer an explicit "View on GitHub" button instead of in-text nav.
     private static void AddInlines(InlineCollection inlines, string text)
     {

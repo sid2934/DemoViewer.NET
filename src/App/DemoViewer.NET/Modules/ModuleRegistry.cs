@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Modules;
 
 /// <summary>
 ///     First-party static module registry. Populated by the composition root before the shell
-///     is constructed; a plain list (no MS.DI — modules don't come from the container). De-dups by
+///     is constructed; a plain list (no MS.DI, modules don't come from the container). De-dups by
 ///     <see cref="IWorkspaceModule.Id" />.
 /// </summary>
 public sealed class ModuleRegistry

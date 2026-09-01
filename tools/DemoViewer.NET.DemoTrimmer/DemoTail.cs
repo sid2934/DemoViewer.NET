@@ -16,7 +16,12 @@ namespace DemoViewer.NET.DemoTrimmer;
 /// <param name="PayloadLength">Payload byte length as written (compressed length when compressed).</param>
 /// <param name="Compressed">Whether the payload is Snappy-compressed.</param>
 internal readonly record struct RawFrame(
-    int Offset, int HeaderLength, int CommandId, int Tick, int PayloadLength, bool Compressed)
+    int Offset,
+    int HeaderLength,
+    int CommandId,
+    int Tick,
+    int PayloadLength,
+    bool Compressed)
 {
     public int PayloadStart => Offset + HeaderLength;
 
@@ -26,13 +31,13 @@ internal readonly record struct RawFrame(
 
 /// <summary>
 ///     The three frames that live <b>after</b> <c>DEM_Stop</c> and are therefore invisible to
-///     <see cref="ParsedDemo.Frames" /> — the parse loop breaks at <c>DEM_Stop</c>.
+///     <see cref="ParsedDemo.Frames" />, because the parse loop breaks at <c>DEM_Stop</c>.
 ///     <para>
 ///         <b>Measured layout of both reference demos</b> (matchmaking 172 MiB, pro 318 MiB):
 ///         <c>… DEM_Packet@last · DEM_Stop@last · DEM_SpawnGroups@last · DEM_FileInfo@last · EOF</c>,
 ///         with the 16-byte file header's two int32s pointing at the last two. A trimmer that only
 ///         re-emits <see cref="ParsedDemo.Frames" /> silently drops all three and leaves both header
-///         offsets zero — which is very likely fatal to the real CS2 client, so the trimmer reads them
+///         offsets zero, which is very likely fatal to the real CS2 client, so the trimmer reads them
 ///         straight out of the raw bytes instead.
 ///     </para>
 /// </summary>
@@ -90,7 +95,7 @@ internal sealed record DemoTail(RawFrame? Stop, RawFrame? SpawnGroups, RawFrame?
             return false;
         }
 
-        if (cursor + (long)size > data.Length)
+        if (cursor + size > data.Length)
         {
             return false;
         }

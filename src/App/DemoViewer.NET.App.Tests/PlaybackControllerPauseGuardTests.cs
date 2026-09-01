@@ -8,8 +8,8 @@ using DemoViewer.NET.ViewModels.Playback;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Deterministic pure-controller gate for the <c>_applying</c> re-entrancy guard
-///     — the exact mechanism the Pause snap relies on. The guard's job: when the fan-out body (or the
+///     Deterministic pure-controller gate for the <c>_applying</c> re-entrancy guard,
+///     the exact mechanism the Pause snap relies on. The guard's job: when the fan-out body (or the
 ///     Pause snap's light fan-out) assigns SelectedFrame, the setter echoes back into
 ///     <see cref="PlaybackController.SeekToFrame" />; that re-entry must be ABSORBED so a single move
 ///     never double-fires the heavy discrete fan-out (<see cref="PlaybackController.ApplySeek" />).
@@ -43,7 +43,7 @@ public class PlaybackControllerPauseGuardTests
 
         controller.SeekToFrame(10);
 
-        // Exactly ONE heavy fan-out despite the re-entrant echo — the guard worked.
+        // Exactly ONE heavy fan-out despite the re-entrant echo: the guard worked.
         await Assert.That(applySeekCount).IsEqualTo(1);
         await Assert.That(controller.CurrentFrameIndex).IsEqualTo(10);
     }

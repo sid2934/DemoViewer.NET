@@ -9,22 +9,22 @@ namespace DemoViewer.NET.Services.DemoCache;
 
 /// <summary>
 ///     The one-shot migration of <c>library.json</c> + <c>highlights.json</c> into the unified cache
-///.
+///     .
 ///     <para>
 ///         <b>This does not delete or rename anything.</b> <see cref="DemoLibraryService" /> still reads
 ///         <c>library.json</c> on construction, so moving it aside here would make every user re-index their
 ///         whole library on the next launch. The legacy files are retired only once their readers have moved
-///         over — a later step, deliberately separated from the step that copies the data.
+///         over, a later step, deliberately separated from the step that copies the data.
 ///     </para>
 ///     <para>
 ///         <b>Merge, never overwrite.</b> The library indexer dual-writes into this store from its first
-///         pass, so records may already exist and may be FRESHER than the legacy data — a re-indexed demo has
+///         pass, so records may already exist and may be FRESHER than the legacy data, a re-indexed demo has
 ///         a real team split where the legacy row has names only. Every field below fills a gap; none
 ///         clobbers a populated one.
 ///     </para>
 ///     <para>
-///         <b>Risk is unusually low.</b> The measured <c>highlights.json</c> is 99.4% empty stubs — 346 of
-///         348 rows never scanned — so exactly one demo carries a payload worth preserving. And this is a
+///         <b>Risk is unusually low.</b> The measured <c>highlights.json</c> is 99.4% empty stubs: 346 of
+///         348 rows never scanned, so exactly one demo carries a payload worth preserving. And this is a
 ///         rebuildable cache: anything that fails to migrate is simply re-indexed.
 ///     </para>
 /// </summary>
@@ -36,22 +36,16 @@ public static class LegacyCacheMigration
     /// </summary>
     public const int CurrentVersion = 1;
 
-    /// <summary>Outcome of a migration attempt, for logging and tests.</summary>
-    /// <param name="Ran">False when it was skipped (already migrated, or no filesystem).</param>
-    /// <param name="FromLibrary">Demos whose record gained data from <c>library.json</c>.</param>
-    /// <param name="FromHighlights">Demos whose record gained data from <c>highlights.json</c>.</param>
-    public readonly record struct MigrationResult(bool Ran, int FromLibrary, int FromHighlights);
-
     /// <summary>
     ///     Runs the migration if it has not already run against <paramref name="store" />. Safe to call on
-    ///     every startup — the marker makes it a no-op after the first.
+    ///     every startup, the marker makes it a no-op after the first.
     /// </summary>
     public static MigrationResult Run(
         DemoCacheStore store,
         string? libraryCachePath,
         string? highlightsCachePath)
     {
-        // Gated on an explicit marker, NOT on "does index.json exist" — the dual-write creates that file
+        // Gated on an explicit marker, NOT on "does index.json exist", the dual-write creates that file
         // during the first indexing pass, so an existence check would skip the migration forever and
         // silently drop the legacy data.
         if (store.LegacyMigrationVersion >= CurrentVersion)
@@ -90,7 +84,7 @@ public static class LegacyCacheMigration
         }
         catch (Exception)
         {
-            return 0; // corrupt legacy file — the library rebuilds from disk anyway
+            return 0; // corrupt legacy file, the library rebuilds from disk anyway
         }
 
         int migrated = 0;
@@ -110,7 +104,7 @@ public static class LegacyCacheMigration
                         DemoCacheStore.StampHeader(record);
                     }
 
-                    // A record that already has a real parse tier is FRESHER than this legacy row — it has
+                    // A record that already has a real parse tier is FRESHER than this legacy row, it has
                     // the team split, tick rate and round boundaries the legacy row never had. Leave it.
                     if (record.Parse.IsPresent)
                     {
@@ -127,7 +121,7 @@ public static class LegacyCacheMigration
                     record.CtClan = legacy.CtClan;
                     record.TClan = legacy.Clan;
 
-                    // BOTH-OR-NOTHING, matching ExtractFinalScore's own contract — it returns all-nulls
+                    // BOTH-OR-NOTHING, matching ExtractFinalScore's own contract, it returns all-nulls
                     // unless it resolved both sides.
                     //
                     // Real caches contain half-scores anyway: on the reference library 555 rows have a CT
@@ -141,8 +135,8 @@ public static class LegacyCacheMigration
                         record.TScore = t;
                     }
 
-                    // Names only — the legacy cache never stored teams, slots or steam ids. Team 0 is
-                    // honest about that: HasTeamSplit reads false, the index projection falls back to
+                    // Names only: the legacy cache never stored teams, slots or steam ids. Team 0 signals
+                    // exactly that: HasTeamSplit reads false, the index projection falls back to
                     // printing all names so the Library card still fills, and Match Overview's roster cards
                     // can say "team split needs a re-index" rather than showing two empty teams. A
                     // re-index replaces these wholesale.
@@ -150,7 +144,12 @@ public static class LegacyCacheMigration
                     [
                         .. (legacy.Players ?? [])
                         .Where(n => !string.IsNullOrWhiteSpace(n))
-                        .Select(n => new CachedPlayerInfo { Name = n, Slot = -1, Team = 0 })
+                        .Select(n => new CachedPlayerInfo
+                        {
+                            Name = n,
+                            Slot = -1,
+                            Team = 0
+                        })
                     ];
 
                     DemoCacheStore.StampParse(record);
@@ -160,7 +159,7 @@ public static class LegacyCacheMigration
             }
             catch (Exception)
             {
-                // Rebuildable — one bad row never stops the pass.
+                // Rebuildable, one bad row never stops the pass.
             }
         }
 
@@ -177,7 +176,7 @@ public static class LegacyCacheMigration
         List<LegacyHighlightsRow> rows;
         try
         {
-            // Default options on purpose — the retired store wrote PascalCase with no naming policy.
+            // Default options on purpose, the retired store wrote PascalCase with no naming policy.
             // LegacyHighlightsModels.cs is the surviving record of that format.
             LegacyHighlightsFile? data =
                 JsonSerializer.Deserialize<LegacyHighlightsFile>(File.ReadAllText(path));
@@ -193,7 +192,7 @@ public static class LegacyCacheMigration
         {
             // The overwhelming majority of rows are identity stubs that were queued and never scanned
             // (measured: 346 of 348). They carry nothing the library row does not already have, so skipping
-            // them keeps the migration honest about what it actually moved.
+            // them keeps the migrated count matching what it actually moved.
             if (legacy.ScanState != LegacyHighlightScanState.Indexed && legacy.Events.Count == 0)
             {
                 continue;
@@ -275,7 +274,7 @@ public static class LegacyCacheMigration
                         })
                     ];
 
-                    // The legacy scoreboard does not exist — highlights.json never stored one. Tier 3 is
+                    // The legacy scoreboard does not exist: highlights.json never stored one. Tier 3 is
                     // therefore only PARTIALLY present after migration, which the completeness model already
                     // handles: the highlights section fills, the scoreboard still offers Compute full stats.
                     if (record.Highlights.Count > 0 || record.AnalysisState != DemoAnalysisState.Pending)
@@ -294,4 +293,10 @@ public static class LegacyCacheMigration
 
         return migrated;
     }
+
+    /// <summary>Outcome of a migration attempt, for logging and tests.</summary>
+    /// <param name="Ran">False when it was skipped (already migrated, or no filesystem).</param>
+    /// <param name="FromLibrary">Demos whose record gained data from <c>library.json</c>.</param>
+    /// <param name="FromHighlights">Demos whose record gained data from <c>highlights.json</c>.</param>
+    public readonly record struct MigrationResult(bool Ran, int FromLibrary, int FromHighlights);
 }

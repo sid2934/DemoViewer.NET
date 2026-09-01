@@ -10,6 +10,7 @@ using Avalonia.Threading;
 
 namespace DemoViewer.NET.AppTests;
 
+[Category("Render")]
 public class HarnessSmokeTest
 {
     [Test]

@@ -1,13 +1,13 @@
 #region
 
 using System.Numerics;
-using DemoViewer.NET.Modules;
-using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Playback2D;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
-using DemoViewer.NET.Services;
+using DemoViewer.NET.Modules;
+using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -19,7 +19,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Gates the A4 grenade flight-trail overlay end-to-end on a REAL demo: stepping the real
 ///     <see cref="EntityTracker" /> through the frames LEADING UP TO a real <c>smokegrenade_detonate</c>
 ///     (when the smoke projectile is in flight), the VM must accumulate a multi-point <c>GrenadeKind.Smoke</c>
-///     trail at sane in-world coordinates — proving the projectile classes resolve through the live entity
+///     trail at sane in-world coordinates, proving the projectile classes resolve through the live entity
 ///     view and that <c>CBodyComponent</c> cell coords reconstruct the flight path (not just synthetic
 ///     doubles). Drives the VM through a minimal harness backed by the REAL <see cref="ReadOnlyEntityView" />
 ///     so the multi-push accumulation is exercised without pumping the host's coalescing dispatcher.
@@ -101,7 +101,7 @@ public class Playback2DTrajectoryRealDemoTests
     {
         // The review-pass fade fix assumes a LANDED smoke stops MOVING (so its flight trail fades over ~2s
         // even though the cloud entity persists ~18s). Verify on real data: a smoke that persists across the
-        // whole post-detonation window holds its per-axis movement under the 0.5u SamePoint append threshold —
+        // whole post-detonation window holds its per-axis movement under the 0.5u SamePoint append threshold,
         // so it never re-appends and the trail fades cleanly instead of flickering for the cloud's whole life.
         string path = DemoTestHelper.RequireDemo();
         ParsedDemo demo = DemoTestHelper.GetOrParse(path);
@@ -156,7 +156,7 @@ public class Playback2DTrajectoryRealDemoTests
             }
         }
 
-        // Persistent smokes = present across (almost) the whole window — the landed cloud(s).
+        // Persistent smokes = present across (almost) the whole window, the landed cloud(s).
         List<int> persistent = seen.Where(kv => kv.Value >= steps - 2).Select(kv => kv.Key).ToList();
         if (persistent.Count == 0)
         {

@@ -9,11 +9,11 @@ namespace DemoViewer.NET.ViewModels.Common;
 /// <summary>
 ///     An <see cref="ObservableCollection{T}" /> that can hand its backing array's capacity back.
 ///     <para>
-///         <c>Clear()</c> nulls the elements — which is what releases the items — but it does NOT shrink
+///         <c>Clear()</c> nulls the elements, which is what releases the items, but it does NOT shrink
 ///         the backing array, and <see cref="Collection{T}.Items" /> is protected, so a caller cannot trim
 ///         it from outside. That is invisible until a collection has grown large: a demo with ~131k frames
 ///         leaves <c>Frames</c>, <c>FrameRows</c> and <c>TickGroups</c> each holding a 131,072-slot array
-///         of nulls — 1 MB apiece, still there long after the demo is closed. A heap dump names them as
+///         of nulls, 1 MB apiece, still there long after the demo is closed. A heap dump names them as
 ///         surviving <c>DemoFrame[]</c> / <c>TickGroup[]</c> / <c>HarvestFrameRowViewModel[]</c>, which
 ///         reads alarmingly like a retained demo when it is really just spare capacity.
 ///     </para>

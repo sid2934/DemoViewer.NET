@@ -18,9 +18,10 @@ namespace DemoViewer.NET.AppTests;
 ///     a naive "does it advance?" test would miss: the loop is LEAN (discrete tabs untouched
 ///     while playing, snapped only on Pause) and the <c>Advanced</c> push is coalesced (bounded
 ///     pushes regardless of speed). Inactive-module zero cost is gated in the module-framework
-///     tests — there are no modules here.
+///     tests: there are no modules here.
 /// </summary>
 [NotInParallel]
+[Category("RealDemo")]
 public class PlaybackLoopPhase2Tests
 {
     [Test]
@@ -49,7 +50,7 @@ public class PlaybackLoopPhase2Tests
             int posDuringPlay = vm.Playback.CurrentFrameIndex;
             await Assert.That(posDuringPlay).IsGreaterThan(5); // it advanced
 
-            // Leanness: while playing, the loop does NOT touch the discrete tabs — the Parser
+            // Leanness: while playing, the loop does NOT touch the discrete tabs: the Parser
             // selection is still the pre-play frame, even though the clock advanced.
             await Assert.That(vm.SelectedFrame).IsEqualTo(selectedBeforePlay);
 

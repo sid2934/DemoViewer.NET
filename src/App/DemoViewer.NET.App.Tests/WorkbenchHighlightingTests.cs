@@ -10,14 +10,14 @@ using DemoViewer.NET.Views.RuleWorkbench;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Workbench highlighting is DSL-aware — it colours a token by its ROLE
+///     The Workbench highlighting is DSL-aware: it colours a token by its ROLE
 ///     (section / kind / modifier / literal / event / path / user-id), not one flat "key" blue. These gates
 ///     highlight a real ruleset and assert each token lands in the right colour class.
 /// </summary>
 /// <remarks>
 ///     Runs on the UI thread even though nothing here is visual: the highlighting definition is built from
 ///     XAML and its <c>SolidColorBrush</c>es are <c>AvaloniaObject</c>s, which verify dispatcher access in
-///     their constructor. Off-thread these passed only while no dispatch had yet bound the UI thread — a
+///     their constructor. Off-thread these passed only while no dispatch had yet bound the UI thread, a
 ///     race the assembly warm-up now settles, and the "Call from invalid thread" half of issue #6.
 /// </remarks>
 public class WorkbenchHighlightingTests

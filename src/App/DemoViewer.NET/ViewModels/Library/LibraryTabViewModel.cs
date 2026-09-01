@@ -31,7 +31,7 @@ public sealed record RecentFileItem(string Path, string? MapName, string FileNam
     /// <summary>Second-line metadata for a recents row: "&lt;map&gt; · &lt;opened age&gt;".</summary>
     public string Meta => $"{MapDisplay} · {DateDisplay}";
 
-    /// <summary>Dim a row whose file no longer exists — still clickable, and the click prunes it.</summary>
+    /// <summary>Dim a row whose file no longer exists. It stays clickable, and the click prunes it.</summary>
     public double RowOpacity => Exists ? 1.0 : 0.4;
 }
 
@@ -58,14 +58,14 @@ public partial class MapFilterItem(string display, string mapKey) : ObservableOb
     /// <summary>Prettified map name shown in the checklist and matched against <see cref="DemoEntry.MapDisplay" />.</summary>
     public string Display { get; } = display;
 
-    /// <summary>A raw map name (e.g. <c>de_dust2</c>) for the accent-colour dot — kept consistent with the card accent.</summary>
+    /// <summary>A raw map name (e.g. <c>de_dust2</c>) for the accent-colour dot, kept consistent with the card accent.</summary>
     public string MapKey { get; } = mapKey;
 }
 
 /// <summary>
 ///     One virtualization row of the card browser: up to <see cref="LibraryTabViewModel.CardColumns" />
 ///     consecutive entries of the filtered list. The card grid renders as a VERTICAL virtualized list of
-///     these rows (WrapPanel has no virtualizing counterpart — a large library would otherwise realize
+///     these rows (WrapPanel has no virtualizing counterpart: a large library would otherwise realize
 ///     every card; see the chunked-rows pattern in the library perf review).
 /// </summary>
 public sealed record CardRow(IReadOnlyList<DemoEntry> Items);
@@ -74,7 +74,7 @@ public sealed record CardRow(IReadOnlyList<DemoEntry> Items);
 ///     View-model for the demo-library landing tab. Wraps the <see cref="DemoLibraryService" /> indexer and
 ///     exposes a filtered/sorted view (<see cref="FilteredEntries" />) over its discovered demos, plus the
 ///     card/list toggle and the filter controls: free-text search (filename + map + players), a MULTI-select
-///     map filter (<see cref="MapFilters" /> — none checked = all maps), a single-select player filter
+///     map filter (<see cref="MapFilters" />, none checked = all maps), a single-select player filter
 ///     (<see cref="AvailablePlayers" />), and sort. Opening a demo routes through the injected shell load
 ///     callback and switches to the Parser tab.
 /// </summary>
@@ -92,7 +92,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     private bool _isCardView = true; // user default: card view
 
     /// <summary>
-    ///     True while a file drag is hovering the Library surface — drives the highlighted full-surface
+    ///     True while a file drag is hovering the Library surface: drives the highlighted full-surface
     ///     drop affordance. Toggled by the view's drag handlers (a view concern) but kept here as an
     ///     observable so the overlay is a plain reactive binding, and so a capture variant can render the
     ///     drag-over look headlessly (a real drag can't be synthesized off-display).
@@ -107,26 +107,6 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
     [ObservableProperty]
     private DemoEntry? _selectedEntry;
-
-    /// <summary>
-    ///     Raised when the user selects a demo card WITHOUT opening it (single click / arrow key). The shell
-    ///     answers by rendering that demo's cached record on Match Overview.
-    ///     <para>
-    ///         <b>This must never start work.</b> Selection is a browsing gesture — it reads the cache and
-    ///         nothing else. Opening stays on double-click, where the multi-second parse is something the user
-    ///         asked for; one heavy parse is machine-wide, so a preview that parsed would make arrow-keying
-    ///         the grid worse than useless.
-    ///     </para>
-    /// </summary>
-    public event Action<DemoEntry>? DemoPreviewRequested;
-
-    partial void OnSelectedEntryChanged(DemoEntry? value)
-    {
-        if (value is not null)
-        {
-            DemoPreviewRequested?.Invoke(value);
-        }
-    }
 
     [ObservableProperty]
     private string _selectedPlayer = AllPlayers;
@@ -196,10 +176,10 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     /// </summary>
     public ObservableCollection<CardRow> CardRows { get; } = [];
 
-    /// <summary>Cards per row — driven by the view from the measured viewport width. Never below 1.</summary>
+    /// <summary>Cards per row: driven by the view from the measured viewport width. Never below 1.</summary>
     public int CardColumns { get; private set; } = 4;
 
-    /// <summary>The multi-select map filter — one checkable item per distinct map. None checked = all maps.</summary>
+    /// <summary>The multi-select map filter: one checkable item per distinct map. None checked = all maps.</summary>
     public ObservableCollection<MapFilterItem> MapFilters { get; } = [];
 
     /// <summary>Distinct player names across the library, for the player filter; index 0 is "All players".</summary>
@@ -235,26 +215,26 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     public bool HasFoldersButNoDemos => !HasNoFolders && _library.Entries.Count == 0;
 
     /// <summary>
-    ///     True when demos exist but every one is filtered out (v0.6.0) — drives the "no demos match
+    ///     True when demos exist but every one is filtered out (v0.6.0): drives the "no demos match
     ///     your filters" empty state next to the existing clear-filters affordance.
     /// </summary>
     public bool HasRowsButAllFiltered => _library.Entries.Count > 0 && FilteredEntries.Count == 0;
 
     /// <summary>
-    ///     True when a bundled sample demo resolved at construction (<c>TourDemoLocator</c> — the shell
+    ///     True when a bundled sample demo resolved at construction (<c>TourDemoLocator</c>: the shell
     ///     injects the path; null on Browser/WASM, the designer, and older tests). Drives the hero's
-    ///     "Try a sample match" CTA. Fixed at construction — the shipped asset doesn't move at runtime.
+    ///     "Try a sample match" CTA. Fixed at construction. The shipped asset doesn't move at runtime.
     /// </summary>
     public bool HasSampleDemo => _sampleDemoPath is not null;
 
     /// <summary>
     ///     True when file drag-drop is available (desktop). WASM/browser has no local-path drop, so the
     ///     landing's drop hint + overlay are suppressed there (graceful degradation). Get-only (fixed at
-    ///     construction) — a stable per-host capability, not reactive.
+    ///     construction), a stable per-host capability, not reactive.
     /// </summary>
     public bool CanDropFiles { get; } = !OperatingSystem.IsBrowser();
 
-    /// <summary>Label for the map-filter flyout button — shows the checked count when the filter is active.</summary>
+    /// <summary>Label for the map-filter flyout button: shows the checked count when the filter is active.</summary>
     public string MapFilterSummary
     {
         get
@@ -264,9 +244,23 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         }
     }
 
-    /// <summary>True when any filter (search / map / player) is narrowing the list — drives the Clear button.</summary>
+    /// <summary>True when any filter (search / map / player) is narrowing the list: drives the Clear button.</summary>
     public bool HasActiveFilters =>
         !string.IsNullOrWhiteSpace(SearchText) || SelectedPlayer != AllPlayers || MapFilters.Any(m => m.IsSelected);
+
+    /// <summary>How many demos are waiting on a score re-derivation.</summary>
+    public int ScoreRepairCount => _library.ScoreRepairPendingCount;
+
+    /// <summary>Drives the toolbar action's visibility: absent entirely at zero, which is the normal case.</summary>
+    public bool HasScoreRepairPending => ScoreRepairCount > 0;
+
+    /// <summary>
+    ///     Names the work rather than the mechanism. "Repair" alone reads as fixing something broken; these
+    ///     demos are intact and only their cached score is missing.
+    /// </summary>
+    public string ScoreRepairLabel => ScoreRepairCount == 1
+        ? "Re-derive 1 score"
+        : $"Re-derive {ScoreRepairCount} scores";
 
     public void OnActivated(IModuleContext context)
     {
@@ -280,6 +274,26 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
     public void OnDeactivated()
     {
+    }
+
+    /// <summary>
+    ///     Raised when the user selects a demo card WITHOUT opening it (single click / arrow key). The shell
+    ///     answers by rendering that demo's cached record on Match Overview.
+    ///     <para>
+    ///         <b>This must never start work.</b> Selection is a browsing gesture. It reads the cache and
+    ///         nothing else. Opening stays on double-click, where the multi-second parse is something the user
+    ///         asked for; one heavy parse is machine-wide, so a preview that parsed would make arrow-keying
+    ///         the grid worse than useless.
+    ///     </para>
+    /// </summary>
+    public event Action<DemoEntry>? DemoPreviewRequested;
+
+    partial void OnSelectedEntryChanged(DemoEntry? value)
+    {
+        if (value is not null)
+        {
+            DemoPreviewRequested?.Invoke(value);
+        }
     }
 
     partial void OnIsCardViewChanged(bool value) => OnPropertyChanged(nameof(IsListView));
@@ -313,22 +327,8 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         await _library.RescanAsync();
     }
 
-    /// <summary>How many demos are waiting on a score re-derivation.</summary>
-    public int ScoreRepairCount => _library.ScoreRepairPendingCount;
-
-    /// <summary>Drives the toolbar action's visibility — absent entirely at zero, which is the normal case.</summary>
-    public bool HasScoreRepairPending => ScoreRepairCount > 0;
-
     /// <summary>
-    ///     Names the work rather than the mechanism. "Repair" alone reads as fixing something broken; these
-    ///     demos are intact and only their cached score is missing.
-    /// </summary>
-    public string ScoreRepairLabel => ScoreRepairCount == 1
-        ? "Re-derive 1 score"
-        : $"Re-derive {ScoreRepairCount} scores";
-
-    /// <summary>
-    ///     The explicit half-score repair. Enlists the flagged demos for a full re-parse — potentially
+    ///     The explicit half-score repair. Enlists the flagged demos for a full re-parse, potentially
     ///     hours of background work, which is precisely why it is a button and not a launch behaviour.
     /// </summary>
     [RelayCommand]
@@ -341,7 +341,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
     /// <summary>
     ///     Opens a specific library card/entry (the card double-click path) through the shared shell load
-    ///     core. Deliberately does NOT switch tabs itself: the shared load funnel owns the landing —
+    ///     core. Deliberately does NOT switch tabs itself: the shared load funnel owns the landing:
     ///     Match Overview on a normal open, stay-put while the tutorial is touring (a pre-switch here is
     ///     exactly what used to yank the tour's spotlighted card-click onto the Parser tab). Renamed from
     ///     <c>OpenDemoCommand</c> so the name <c>OpenDemoCommand</c> can mean the file-picker CTA
@@ -361,7 +361,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
     /// <summary>
     ///     The primary "Open Demo…" call-to-action: routes through the shell's shared file picker
-    ///     (<c>OpenFileAsync</c> → <c>LoadDemoFromBytesAsync</c>) — the same funnel the toolbar and Parser
+    ///     (<c>OpenFileAsync</c> → <c>LoadDemoFromBytesAsync</c>), the same funnel the toolbar and Parser
     ///     empty-state buttons use, so every open records exactly one recent. No-op when no picker is wired
     ///     (designer / older tests). Does NOT switch tabs unconditionally: the picker can be cancelled and a
     ///     <see cref="Func{Task}" /> can't report success, so a post-open navigation is left to the landing.
@@ -376,7 +376,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     }
 
     /// <summary>
-    ///     Opens the bundled sample demo (the hero's "Try a sample match" CTA — and the walkthrough
+    ///     Opens the bundled sample demo (the hero's "Try a sample match" CTA, and the walkthrough
     ///     gateway's target when the library is empty). Routes through the SAME shared load core as every
     ///     other open (<c>_openDemo</c> → <c>LoadDemoFromPathAsync</c>: records a recent, the funnel lands
     ///     the tab, the tour's <c>NotifyDemoLoaded</c> resumes). No-op when no sample ships.
@@ -391,7 +391,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     }
 
     /// <summary>
-    ///     Opens a demo by absolute filesystem path — the drag-drop landing path. Routes through the SAME
+    ///     Opens a demo by absolute filesystem path: the drag-drop landing path. Routes through the SAME
     ///     shared load core the recents/browser use (<c>_openDemo</c> → <c>LoadDemoFromPathAsync</c>, which
     ///     records the recent); the funnel lands the tab (Match Overview). A null/empty or non-<c>.dem</c>
     ///     path is a no-op, so a stray drop of the wrong file type does nothing.
@@ -680,7 +680,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         RaiseEmptyStates();
     }
 
-    // Both empty-state flags derive from (entries, filtered) — re-raised on every filter pass, and on
+    // Both empty-state flags derive from (entries, filtered), re-raised on every filter pass, and on
     // folder changes below (a removed last folder flips HasFoldersButNoDemos off in favor of the hero).
     private void RaiseEmptyStates()
     {

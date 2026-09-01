@@ -25,17 +25,17 @@ namespace DemoViewer.NET.LiveSync;
 ///     The private, in-process CSVG gRPC host:
 ///     a slim <see cref="WebApplication" /> whose only jobs are hosting CSVG's
 ///     <see cref="Cs2GameService" /> on localhost:50051/HTTP2 (the port the CS2 plugin and mock
-///     server dial back to — fixed by the plugin, not configurable) and owning the CSVG service
-///     container. Its DI world is fully isolated from the app's — CSVG never sees app services and
+///     server dial back to, which is fixed by the plugin and not configurable) and owning the CSVG service
+///     container. Its DI world is fully isolated from the app's. CSVG never sees app services and
 ///     the app resolves only <see cref="Session" /> from it.
 ///     <para>
 ///         Started lazily on user enable, never at app start. The configuration is EXCLUSIVELY the
-///         in-memory projection of <see cref="LiveSyncSettings" /> — every ambient source
+///         in-memory projection of <see cref="LiveSyncSettings" />: every ambient source
 ///         (appsettings.json next to the app binary, DOTNET_/ASPNETCORE_ environment variables)
 ///         is cleared so machine state cannot bleed into CSVG's options.
 ///     </para>
 /// </summary>
-internal sealed class CsvgWebHost : IAsyncDisposable
+public sealed class CsvgWebHost : IAsyncDisposable
 {
     /// <summary>The fixed plugin dial-back port.</summary>
     public const int GrpcPort = 50051;
@@ -45,14 +45,14 @@ internal sealed class CsvgWebHost : IAsyncDisposable
     private CsvgWebHost(WebApplication app) => _app = app;
 
     /// <summary>
-    ///     The CSVG video session (2.0 object graph — replaces the deleted <c>ICsvgClient</c>),
+    ///     The CSVG video session (2.0 object graph, replaces the deleted <c>ICsvgClient</c>),
     ///     owned by this host's container. Registered as a singleton by
     ///     <c>AddCs2VideoGeneratorCore</c>; demo control lives on <see cref="CsvgVideoSession.Engine" />.
     /// </summary>
     public CsvgVideoSession Session => _app.Services.GetRequiredService<CsvgVideoSession>();
 
     /// <summary>
-    ///     The mock user-action injection channel — the mock manager doubles as the
+    ///     The mock user-action injection channel: the mock manager doubles as the
     ///     injector in mock mode; a no-op stub otherwise. Test-facing: the integration suite
     ///     drives in-game user actions through it and asserts DV's mirroring.
     /// </summary>
@@ -96,7 +96,7 @@ internal sealed class CsvgWebHost : IAsyncDisposable
             builder.Logging.AddProvider(logBridge);
         }
 
-        // The log bridge (OutputLogBridge) is the SOLE provider and the SOLE gate — it decides per
+        // The log bridge (OutputLogBridge) is the SOLE provider and the SOLE gate: it decides per
         // record, reading the min-level + framework-capture toggles LIVE so the user can change
         // verbosity on this running host with no reconnect. Floor MEL at Trace (+ explicit Trace
         // filters for the framework prefixes, defeating any default cap CreateSlimBuilder may add)
@@ -136,7 +136,7 @@ internal sealed class CsvgWebHost : IAsyncDisposable
     /// <summary>
     ///     Projects DV's <see cref="LiveSyncSettings" /> into CSVG's <c>Cs2VideoGenerator</c>
     ///     configuration section. <paramref name="captureProvider" /> pins
-    ///     <c>VideoCaptureProvider</c> when set — the reel host passes
+    ///     <c>VideoCaptureProvider</c> when set: the reel host passes
     ///     <c>CaptureProviderNames.InEngineHooked</c> so capture is deterministic rather than
     ///     inheriting CSVG 2.0's new <c>InEngine</c> default; the playback-only sync host leaves it
     ///     null (its <c>watch</c> session runs <c>initializeCapture: false</c>, so the provider is
@@ -170,7 +170,7 @@ internal sealed class CsvgWebHost : IAsyncDisposable
         }
 
         // Guided ffmpeg (v0.6.0): CSVG resolves ffmpeg from PATH unless Ffmpeg:BinaryDirectory is
-        // set — and since this projection is the ONLY config source (ambient sources are cleared
+        // set. Since this projection is the ONLY config source (ambient sources are cleared
         // above), the user-populated drop-in folder (<config>/tools/ffmpeg, see FfmpegDependency)
         // would be unreachable without this line. Projected only when the drop-in copy is the
         // resolution; a PATH install keeps CSVG's default behavior.
@@ -191,7 +191,7 @@ internal sealed class CsvgWebHost : IAsyncDisposable
 
 /// <summary>
 ///     Port 50051 is owned by another process. The message is the user-facing copy
-///; the flyout offers Retry / Disable.
+///     ; the flyout offers Retry / Disable.
 /// </summary>
 public sealed class LiveSyncPortInUseException(Exception inner) : InvalidOperationException(
     $"Another program is using the CS2 sync port ({CsvgWebHost.GrpcPort}). " +

@@ -1,0 +1,240 @@
+{
+  "schemaVersion": "playback2d-scene/1",
+  "time": {
+    "tick": 20480,
+    "frameIndex": 20512,
+    "demoSeconds": 320.0,
+    "deltaSeconds": 0.015625,
+    "isDiscontinuity": false
+  },
+  "camera": {
+    "viewWidth": 640,
+    "viewHeight": 360,
+    "centerX": -670.0,
+    "centerY": -847.0,
+    "baseScale": 0.0646875,
+    "zoom": 1.0,
+    "panX": 0.0,
+    "panY": 0.0
+  },
+  "size": {
+    "width": 640,
+    "height": 360
+  },
+  "mapName": "de_mirage",
+  "mapVersion": "1efb9403",
+  "frame": {
+    "time": {
+      "tick": 20480,
+      "frameIndex": 20512,
+      "demoSeconds": 320.0,
+      "deltaSeconds": 0.015625,
+      "isDiscontinuity": false
+    },
+    "markers": [
+      {
+        "slot": 0,
+        "team": 2,
+        "worldX": -1240.0,
+        "worldY": -1900.0,
+        "worldZ": -180.0,
+        "yawDegrees": 45.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "AL",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300001
+      },
+      {
+        "slot": 1,
+        "team": 2,
+        "worldX": -980.0,
+        "worldY": -1740.0,
+        "worldZ": -180.0,
+        "yawDegrees": 60.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "BE",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300002
+      },
+      {
+        "slot": 2,
+        "team": 2,
+        "worldX": -1520.0,
+        "worldY": -2050.0,
+        "worldZ": -180.0,
+        "yawDegrees": 30.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "CA",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300003
+      },
+      {
+        "slot": 3,
+        "team": 2,
+        "worldX": -760.0,
+        "worldY": -2210.0,
+        "worldZ": -180.0,
+        "yawDegrees": 75.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "DE",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300004
+      },
+      {
+        "slot": 4,
+        "team": 2,
+        "worldX": -1090.0,
+        "worldY": -2380.0,
+        "worldZ": -180.0,
+        "yawDegrees": 90.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "EL",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300005
+      },
+      {
+        "slot": 5,
+        "team": 3,
+        "worldX": -350.0,
+        "worldY": 480.0,
+        "worldZ": -160.0,
+        "yawDegrees": 250.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "FR",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300006
+      },
+      {
+        "slot": 6,
+        "team": 3,
+        "worldX": -1980.0,
+        "worldY": 420.0,
+        "worldZ": -160.0,
+        "yawDegrees": 200.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "GA",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300007
+      },
+      {
+        "slot": 7,
+        "team": 3,
+        "worldX": 620.0,
+        "worldY": -560.0,
+        "worldZ": -160.0,
+        "yawDegrees": 180.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "HU",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300008
+      },
+      {
+        "slot": 8,
+        "team": 3,
+        "worldX": -260.0,
+        "worldY": -1120.0,
+        "worldZ": -160.0,
+        "yawDegrees": 270.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "IN",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300009
+      },
+      {
+        "slot": 9,
+        "team": 3,
+        "worldX": -1400.0,
+        "worldY": 60.0,
+        "worldZ": -160.0,
+        "yawDegrees": 215.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "JO",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300010
+      }
+    ],
+    "areaEffects": [],
+    "trails": [],
+    "killFeed": [],
+    "gameInfo": {
+      "phase": "Live",
+      "bombState": "Carried",
+      "roundNumber": 4,
+      "roundsPlayed": 3,
+      "roundSeconds": 108.0,
+      "roundTime": "1:48",
+      "bombTicking": false,
+      "defuseInProgress": false,
+      "defuseKitNote": "—",
+      "defuseSeconds": 0.0,
+      "defuseTime": "—",
+      "tScore": 2,
+      "ctScore": 1
+    },
+    "map": {
+      "mapName": "de_mirage",
+      "networkedBounds": {
+        "minX": -3230,
+        "minY": -3407,
+        "maxX": 1890,
+        "maxY": 1713
+      },
+      "observedBounds": {
+        "minX": -1980,
+        "minY": -2380,
+        "maxX": 620,
+        "maxY": 480
+      },
+      "radars": [
+        {
+          "name": "de_mirage.png",
+          "bounds": {
+            "minX": -3230,
+            "minY": -3407,
+            "maxX": 1890,
+            "maxY": 1713
+          },
+          "minZ": -100000,
+          "maxZ": 100000
+        }
+      ]
+    },
+    "vision": {
+      "isAvailable": false,
+      "cones": [],
+      "sightlines": []
+    },
+    "followSlot": -1
+  },
+  "notes": "Markers only, both full teams, framed on the whole map — the fit-map camera baseline and the simplest thing that can break the world-to-screen transform."
+}

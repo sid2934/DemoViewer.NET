@@ -10,19 +10,19 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.ViewModels.Diagnostics;
 
 /// <summary>
-///     App-side, bounded, WASM-safe sink for ALL diagnostics log rows — the first-party internal
+///     App-side, bounded, WASM-safe sink for ALL diagnostics log rows, the first-party internal
 ///     pillar (analysis lifecycle, app orchestration; fed by a custom <c>ILoggerProvider</c>) AND the
 ///     out-of-process CSVG host logs (fed by the desktop LiveSync engine across the <c>AppHostHooks</c>
 ///     seam). One hub, one filterable list in the Diagnostics tab, plus the bottom Output drawer's
 ///     "Live Sync" mirror. Lives in the App project so the Browser head compiles (it simply stays
-///     empty there — no in-process host emits on WASM).
+///     empty there, no in-process host emits on WASM).
 ///     <para>
 ///         <b>Two ingest paths, one bounded store.</b> Background producers (the internal logger
 ///         provider, on arbitrary threads) call <see cref="Enqueue" />, which coalesces bursts into a
-///         single UI-thread drain — never one <c>Dispatcher.Post</c> per row. The existing CSVG bridge,
+///         single UI-thread drain, never one <c>Dispatcher.Post</c> per row. The existing CSVG bridge,
 ///         already marshalled to the UI thread per line, calls <see cref="AppendOnUiThread" /> directly.
 ///         Both funnel into the same ring, capped live at <see cref="_maxRows" /> (default from
-///         <c>DiagnosticsSettings.MaxLogRows</c>) so memory stays bounded — an unbounded log channel was
+///         <c>DiagnosticsSettings.MaxLogRows</c>) so memory stays bounded: an unbounded log channel was
 ///         a real prior leak.
 ///     </para>
 /// </summary>
@@ -36,7 +36,7 @@ public sealed class DiagnosticsTelemetryHub
     /// <summary>
     ///     Constructs the hub. <paramref name="maxRows" /> supplies the ring cap live (re-read on every
     ///     append, so a settings change takes effect immediately); default 5000. <paramref name="uiPost" />
-    ///     marshals a drain onto the UI thread — defaults to <see cref="Dispatcher" />, but tests inject a
+    ///     marshals a drain onto the UI thread: defaults to <see cref="Dispatcher" />, but tests inject a
     ///     synchronous <c>a =&gt; a()</c> so <see cref="Enqueue" /> drains inline.
     /// </summary>
     public DiagnosticsTelemetryHub(Func<int>? maxRows = null, Action<Action>? uiPost = null)
@@ -53,7 +53,7 @@ public sealed class DiagnosticsTelemetryHub
 
     /// <summary>
     ///     Thread-safe ingest for background producers. Queues the row and, if no drain is already
-    ///     pending, schedules exactly one UI-thread drain — so a burst of N rows costs one marshal.
+    ///     pending, schedules exactly one UI-thread drain, so a burst of N rows costs one marshal.
     /// </summary>
     public void Enqueue(TelemetryLogRow row)
     {
@@ -115,7 +115,7 @@ public sealed class DiagnosticsTelemetryHub
 ///     One diagnostics log row, from any source. <see cref="Source" /> ("Analysis", "App", "CSVG", …)
 ///     tags provenance for the tab's source column/filter; <see cref="Level" /> (framework
 ///     <see cref="LogLevel" />) drives the severity filter and the view's lvl-* class styles the
-///     chip tint (v0.6.0 — was a code-held brush trio, the third copy of the severity ramp).
+///     chip tint (v0.6.0, was a code-held brush trio, the third copy of the severity ramp).
 /// </summary>
 public sealed record TelemetryLogRow(
     string Source,
@@ -131,6 +131,6 @@ public sealed record TelemetryLogRow(
     /// <summary>Warning row (AccentAmber chip).</summary>
     public bool IsSevWarn => Level == LogLevel.Warning;
 
-    /// <summary>Trace/Debug row (TextMid chip — the muted developer tiers).</summary>
+    /// <summary>Trace/Debug row (TextMid chip, the muted developer tiers).</summary>
     public bool IsSevDebug => Level is LogLevel.Trace or LogLevel.Debug;
 }

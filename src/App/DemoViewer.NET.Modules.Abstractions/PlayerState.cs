@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Modules.Abstractions;
 ///     hands every module this list on the snapshot, so no module ever touches <c>m_hController</c> or
 ///     re-rolls the position math.
 ///     <para>
-///         <b>TRANSIENT — valid only inside the <c>Advanced</c> callback.</b> Copy out the scalars you
+///         <b>TRANSIENT: valid only inside the <c>Advanced</c> callback.</b> Copy out the scalars you
 ///         need; do not retain the instance (it may be pooled and re-aimed for the next push).
 ///     </para>
 ///     Identity (slot/steamID/name) lives on the stable <see cref="PlayerRosterEntry" />; join by
@@ -31,8 +31,8 @@ public interface IPlayerState
     int Team { get; }
 
     /// <summary>
-    ///     False for spectators / unassigned / pre-spawn slots (no live pawn) — the module skips these
-    /// rather than rendering a phantom marker.
+    ///     False for spectators / unassigned / pre-spawn slots (no live pawn). The module skips these
+    ///     rather than rendering a phantom marker.
     /// </summary>
     bool HasLivePawn { get; }
 

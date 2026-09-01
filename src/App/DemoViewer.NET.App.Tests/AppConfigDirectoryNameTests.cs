@@ -12,8 +12,8 @@ namespace DemoViewer.NET.AppTests;
 ///     <para>
 ///         The name lives in <see cref="RuleSetLocator" />, which ships in CS2DemoKit.Analysis and
 ///         defaults to the library's own name. <see cref="AppPaths" /> claims it back for this
-///         application at assembly load. If that ever stops happening — a package upgrade renaming
-///         the property, the module initializer being dropped in a refactor — every install's
+///         application at assembly load. If that ever stops happening, a package upgrade renaming
+///         the property or the module initializer being dropped in a refactor, every install's
 ///         settings, session state, recents, bookmarks, library cache and user rules resolve to a
 ///         directory that has never held any of them, and the app comes up looking factory-fresh.
 ///         That failure is silent by nature, so it gets a test rather than a comment.

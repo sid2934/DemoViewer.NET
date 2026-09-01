@@ -72,7 +72,7 @@ public partial class DebuggerViewModel : ObservableObject
     /// <summary>Breakpoints.</summary>
     public ObservableCollection<Breakpoint> Breakpoints => _service.Breakpoints;
 
-    /// <summary>True when the captured hit frame is valid — drives the "Jump to" button visibility.</summary>
+    /// <summary>True when the captured hit frame is valid: drives the "Jump to" button visibility.</summary>
     public bool HasHitFrame => HitFrameIndex >= 0;
 
     /// <summary>Has tracker error.</summary>

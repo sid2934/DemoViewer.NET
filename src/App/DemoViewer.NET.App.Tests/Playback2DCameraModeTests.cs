@@ -10,6 +10,7 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Views.Playback2D;
 
 #endregion
@@ -18,13 +19,15 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Headless render gates for the four camera modes. Each mode (Fit / Alive / Map / Follow) is set
-///     on the viewport and the View is rendered to a Skia frame, asserting it is NON-BLANK — the smooth
-///     modes' CONVERGENCE is unit-tested purely in <see cref="SliceCameraTests" />, so here we only confirm
+///     on the viewport and the View is rendered to a Skia frame, asserting it is NON-BLANK: the smooth
+///     modes' CONVERGENCE is unit-tested purely in <c>SliceCameraTests</c> (which moved to the
+///     direct-execution Playback2D suite in B0), so here we only confirm
 ///     each mode renders without crashing through the render loop (the split: pure math tests the
 ///     lerp, render tests confirm a mode draws). Fully synthetic / deterministic (no demo / no async), the
 ///     same practice as <see cref="Playback2DHeadlessSmokeTests" />.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class Playback2DCameraModeTests
 {
     private const byte BgR = 0x15, BgG = 0x18, BgB = 0x1C;
@@ -61,6 +64,9 @@ public class Playback2DCameraModeTests
                 ctx.Push(new ModeSnapshot(frame, frame * 64, players));
             }
 
+            // Carried-forward suite: pin the LEGACY surface. Mounting the surface happens in
+            // code, so a view built without this would get the v2 host.
+            Playback2DRenderer.ResetForTest(Playback2DRendererKind.Legacy);
             Playback2DView view = new()
             {
                 DataContext = vm
@@ -75,7 +81,7 @@ public class Playback2DCameraModeTests
 
             Playback2DViewport viewport = FindViewport(view);
 
-            // The Follow picker reads the VM roster — confirm it surfaces both players.
+            // The Follow picker reads the VM roster. Confirm it surfaces both players.
             await Assert.That(vm.FollowablePlayers.Count).IsEqualTo(2);
 
             foreach (CameraMode mode in new[]
@@ -134,7 +140,7 @@ public class Playback2DCameraModeTests
             vm.OnActivated(ctx);
 
             // TWO players far apart so the followed one is clearly NOT where a Fit (which frames the midpoint)
-            // would centre — proving the Follow lerp actually moved the camera onto slot 0.
+            // would centre, proving the Follow lerp actually moved the camera onto slot 0.
             const float Px = 2200, Py = -1600;
             ctx.Push(new ModeSnapshot(0, 0, new List<IPlayerState>
             {
@@ -142,6 +148,9 @@ public class Playback2DCameraModeTests
                 ModePlayer(1, 3, -2200, 1600, 64, 0)
             }));
 
+            // Carried-forward suite: pin the LEGACY surface. Mounting the surface happens in
+            // code, so a view built without this would get the v2 host.
+            Playback2DRenderer.ResetForTest(Playback2DRendererKind.Legacy);
             Playback2DView view = new()
             {
                 DataContext = vm
@@ -165,7 +174,7 @@ public class Playback2DCameraModeTests
                 Dispatcher.UIThread.RunJobs();
             }
 
-            // The followed player should now map near the viewport centre (within a generous tolerance —
+            // The followed player should now map near the viewport centre (within a generous tolerance:
             // single-floor band is the full height here).
             ViewportTransform t = viewport.PrimaryCameraTransform;
             (double sx, double sy) = t.WorldToScreen(Px, Py);
@@ -180,7 +189,7 @@ public class Playback2DCameraModeTests
     [Test]
     public async Task ManualPanZoom_FlipsModeToManualOverride_WithoutCrash()
     {
-        // A manual gesture on a slice in a smooth mode must not throw and must still render — the auto-mode
+        // A manual gesture on a slice in a smooth mode must not throw and must still render: the auto-mode
         // pauses for that slice (verified behaviourally: the frame still draws after the override).
         await HeadlessSession.RunOnUi(async () =>
         {
@@ -198,6 +207,9 @@ public class Playback2DCameraModeTests
                 ModePlayer(0, 2, 0, 0, 64, 0)
             }));
 
+            // Carried-forward suite: pin the LEGACY surface. Mounting the surface happens in
+            // code, so a view built without this would get the v2 host.
+            Playback2DRenderer.ResetForTest(Playback2DRendererKind.Legacy);
             Playback2DView view = new()
             {
                 DataContext = vm
@@ -222,12 +234,11 @@ public class Playback2DCameraModeTests
         });
     }
 
-    private static Playback2DViewport FindViewport(Playback2DView view)
-    {
-        // The viewport is the named control inside the view's template.
-        Playback2DViewport? vp = view.FindControl<Playback2DViewport>("Viewport");
-        return vp ?? throw new InvalidOperationException("viewport not found");
-    }
+    // The surface mounts in code rather than declaring it in XAML, so it comes out of the
+    // ContentControl slot. This suite is carried forward against the LEGACY control: the
+    // v2 host's equivalents live in Scene2DHostInputTests.
+    private static Playback2DViewport FindViewport(Playback2DView view) =>
+        Playback2DTimelineHarness.Viewport(view);
 
     private static ModePlayerState ModePlayer(int slot, int team, double x, double y, double z, float yaw)
     {

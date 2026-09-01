@@ -61,9 +61,9 @@ public class ZLibraryRenderTests
                 _ => Task.CompletedTask,
                 () => Task.FromResult<IReadOnlyList<string>>([]));
 
-            // Inject demos directly (bypassing a real scan) — the VM picks them up via CollectionChanged.
+            // Inject demos directly (bypassing a real scan): the VM picks them up via CollectionChanged.
             // One of each indicator state: Indexed (normal), Indexing (animated amber top bar / pulsing
-            // dot — property-asserted below, pixels are animation-phase-dependent), Failed (static red).
+            // dot, property-asserted below, pixels are animation-phase-dependent), Failed (static red).
             svc.Entries.Add(SampleEntry("de_nuke", "ZywOo,apEX,flameZ,Spinx,mezii"));
             svc.Entries.Add(SampleEntry("de_dust2", "s1mple,b1t,Aleksib,iM,jL"));
             DemoEntry indexing = SampleEntry("de_mirage", "x");
@@ -128,7 +128,7 @@ public class ZLibraryRenderTests
 
     /// <summary>
     ///     Headless render smoke for the P3.2b landing hero: with NO folders configured, the empty state is
-    ///     a proper hero — app title + primary "Open Demo…" + a recents list (one dimmed missing row) + the
+    ///     a proper hero: app title + primary "Open Demo…" + a recents list (one dimmed missing row) + the
     ///     drop hint. Asserts the hero produces visible ink and that the recents projected (incl. the
     ///     grey-out Exists flag), catching XAML/binding faults the compile can't (the recents template, the
     ///     RowOpacity/Meta bindings, the DragDrop.AllowDrop attach).
@@ -190,7 +190,7 @@ public class ZLibraryRenderTests
                 // is an earlier sibling filling the same space; the hero must be declared LAST so it hit-tests
                 // on TOP, or the primary CTA is dead. Hit-test the primary Button's centre → the topmost visual
                 // there must be the Button (or a descendant), NOT the underlying ListBox.
-                // The hero's primary CTA — the effectively-visible one (there's a second Classes="primary"
+                // The hero's primary CTA: the effectively-visible one (there's a second Classes="primary"
                 // Open-Demo in the actions strip, collapsed in the empty state → skip it).
                 Button? primary = FindPrimary(view);
                 if (primary is not null)

@@ -7,7 +7,7 @@ using System.Security;
 namespace DemoViewer.NET.Services;
 
 /// <summary>
-///     Resolves the bundled sample demo (<c>assets/tour/*.dem</c> — the trimmed three-round match the
+///     Resolves the bundled sample demo (<c>assets/tour/*.dem</c>, the trimmed three-round match the
 ///     Library's "Try a sample match" CTA and the first-run walkthrough open when the user has no demos
 ///     of their own). App-only (the sample demo is a product asset, not a library concern), but it follows
 ///     the same shipped-asset convention as the packaged <c>CollisionAssetLocator</c>:
@@ -17,17 +17,17 @@ namespace DemoViewer.NET.Services;
 ///         <b>Resolution order</b> (first hit wins; mirrors <c>CollisionAssetLocator</c>):
 ///         <list type="number">
 ///             <item>
-///                 <c>DEMOVIEWER_TOUR_DEMO</c> env var — <b>authoritative</b> when set: an existing
+///                 <c>DEMOVIEWER_TOUR_DEMO</c> env var, <b>authoritative</b> when set: an existing
 ///                 <c>.dem</c> path wins outright, anything else (including a deliberately bogus path)
 ///                 resolves to "no sample" with no fallback, so it doubles as a disable switch.
 ///             </item>
 ///             <item>
 ///                 Walk up from <see cref="AppContext.BaseDirectory" /> to the first
 ///                 <c>assets/tour/</c> holding a <c>.dem</c>; the ordinal-first file is the sample
-///                 (there ships exactly one — nothing keys on the filename).
+///                 (there ships exactly one, so nothing keys on the filename).
 ///             </item>
 ///         </list>
-///         No resolvable sample → <c>null</c>, never a throw — callers degrade (the CTA hides, the
+///         No resolvable sample → <c>null</c>, never a throw: callers degrade (the CTA hides, the
 ///         walkthrough gateway falls back to the Open-Demo button). Browser/WASM has no filesystem to
 ///         walk, so it lands on <c>null</c> through the same path.
 ///     </para>

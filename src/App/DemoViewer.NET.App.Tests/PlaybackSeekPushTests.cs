@@ -12,9 +12,9 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     A DISCRETE seek (nav bar / frame box / prev-next / semantic nav) must push the module-facing
-///     <c>Advanced</c> event so module viewports (the 2D playback) update on navigation — not only during
+///     <c>Advanced</c> event so module viewports (the 2D playback) update on navigation, not only during
 ///     the play loop. The push is a coalesced, Render-priority dispatch, so the test pumps the dispatcher
-///     (RunJobs) before asserting — a synchronous assert would see nothing (posted-but-never-pumped).
+///     (RunJobs) before asserting. A synchronous assert would see nothing (posted-but-never-pumped).
 /// </summary>
 [NotInParallel]
 [Category("Integration")]

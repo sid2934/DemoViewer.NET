@@ -11,7 +11,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Covers the shell-side Reel-chip lifecycle: the chip is present while
 ///     a job runs OR a finished result is not yet dismissed, Dismiss removes it, and a NEW run un-dismisses
-///     and re-shows it. This is <see cref="MainViewModel.AttachReelJob" /> + the private reconcile — logic the
+///     and re-shows it. This is <see cref="MainViewModel.AttachReelJob" /> + the private reconcile: logic the
 ///     pure <c>ReelJobStatusViewModel</c> mapping tests do not exercise. Needs the shell, so it runs on the UI
 ///     thread over a fake job service (no real reel job is started).
 /// </summary>
@@ -39,7 +39,7 @@ public class ReelChipShellReconcileTests
             job.Raise(Status(ReelJobPhase.Completed, 3, 3, "/out/reel.mp4"));
             await Assert.That(vm.Chips.Count).IsEqualTo(1).Because("finished-not-dismissed ⇒ still present");
 
-            // The chip's FlyoutContent IS the ReelJobStatusViewModel (StatusChip pattern) — invoke Dismiss.
+            // The chip's FlyoutContent IS the ReelJobStatusViewModel (StatusChip pattern). Invoke Dismiss.
             ReelJobStatusViewModel reelVm = (ReelJobStatusViewModel)vm.Chips[0].FlyoutContent!;
             reelVm.DismissCommand.Execute(null);
             await Assert.That(vm.Chips.Count).IsEqualTo(0).Because("Dismiss removes the finished chip");

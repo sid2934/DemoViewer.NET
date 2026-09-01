@@ -15,20 +15,14 @@ namespace DemoViewer.NET.AppTests;
 ///     drives a recording fake, which is exactly why v0.7.1 shipped a launch crash: the composition
 ///     root ran the "What's new" gate during framework-init, and Avalonia throws
 ///     "Cannot show window with non-visible owner" from <c>Show(owner)</c> when the main window has
-///     been constructed but not yet shown. These pin the service's own contract — an owner is used
+///     been constructed but not yet shown. These pin the service's own contract: an owner is used
 ///     only when it can legally act as one, and a pop-up shows free-standing rather than throwing
 ///     otherwise.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class DesktopWindowServiceOwnerTests
 {
-    /// <summary>Returns no notes, so opening the window never touches the network.</summary>
-    private sealed class SilentNotesService : IReleaseNotesService
-    {
-        public Task<ReleaseNotes?> GetForVersionAsync(string version, CancellationToken ct = default) =>
-            Task.FromResult<ReleaseNotes?>(null);
-    }
-
     // Class handlers cannot be removed, so this is installed once for the process and the capture
     // list is cleared per case.
     private static readonly List<WhatsNewWindow> _opened = [];
@@ -51,7 +45,7 @@ public class DesktopWindowServiceOwnerTests
 
     /// <summary>
     ///     The v0.7.1 crash, inverted: an owner that exists but has never been shown must not be
-    ///     handed to <c>Show(owner)</c>. The pop-up still opens — free-standing.
+    ///     handed to <c>Show(owner)</c>. The pop-up still opens, free-standing.
     /// </summary>
     [Test]
     public async Task UnshownOwner_ShowsFreeStanding_InsteadOfThrowing()
@@ -61,7 +55,7 @@ public class DesktopWindowServiceOwnerTests
             _opened.Clear();
             TrackWhatsNewWindows();
 
-            // Constructed, never shown — the exact state of MainWindow during framework-init.
+            // Constructed, never shown, the exact state of MainWindow during framework-init.
             Window owner = new();
             DesktopWindowService service = new(() => owner);
 
@@ -98,5 +92,12 @@ public class DesktopWindowServiceOwnerTests
             _opened[0].Close();
             owner.Close();
         });
+    }
+
+    /// <summary>Returns no notes, so opening the window never touches the network.</summary>
+    private sealed class SilentNotesService : IReleaseNotesService
+    {
+        public Task<ReleaseNotes?> GetForVersionAsync(string version, CancellationToken ct = default) =>
+            Task.FromResult<ReleaseNotes?>(null);
     }
 }

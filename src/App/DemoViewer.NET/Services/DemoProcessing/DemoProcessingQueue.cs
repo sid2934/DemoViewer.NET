@@ -16,7 +16,7 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 ///     The global demo-processing queue (demo-processing-queue.md). The single source all background
 ///     demo parse/analyse work is pulled from, plus the awaitable highest-priority foreground open.
 ///     <para>
-///         <b>Two authorities, one live number.</b> This pump is the PRIMARY limiter — it starts
+///         <b>Two authorities, one live number.</b> This pump is the PRIMARY limiter: it starts
 ///         up to <see cref="MaxConcurrency" /> background worker loops, owns priority ordering,
 ///         coalescing, the size cap, and pause/disable. <see cref="HeavyJobGate" /> is the hard SAFETY
 ///         BACKSTOP that cannot be exceeded even if the pump miscounts; both read the same live
@@ -31,7 +31,7 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 ///     <para>
 ///         <b>Threading.</b> Authoritative state lives in <c>_entries</c> under <c>_sync</c>. The
 ///         UI-bindable <see cref="Items" /> mirror is reconciled by id via the injected <c>post</c>
-///         delegate (the dispatcher in-app; inline in tests). All waits are <c>await</c> — WASM-safe.
+///         delegate (the dispatcher in-app; inline in tests). All waits are <c>await</c>: WASM-safe.
 ///     </para>
 /// </summary>
 [SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",
@@ -40,6 +40,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 {
     // How many terminal items linger in the mirror for UI feedback before the oldest are pruned.
     private const int TerminalHistoryCap = 30;
+
+    // Diagnostics-pillar logger (v0.6.0: replaced Console.WriteLine). Lazy (the ambient factory is
+    // wired after construction) and static so the static SafeInvoke helper can log through it.
+    private static ILogger? _diagLog;
 
     private readonly List<Entry> _entries = [];
     private readonly HeavyJobGate _gate;
@@ -61,11 +65,6 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private int _maxQueueSize = 200;
     private bool _paused;
     private long _seq;
-
-    // Diagnostics-pillar logger (v0.6.0 — replaced Console.WriteLine). Lazy (the ambient factory is
-    // wired after construction) and static so the static SafeInvoke helper can log through it.
-    private static ILogger? _diagLog;
-    private static ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger(AppLog.QueueCategory);
 
     /// <param name="gate">The machine-wide heavy-parse gate (concurrency backstop + reel/interactive).</param>
     /// <param name="post">Marshals mirror mutations to the UI thread (inline in tests).</param>
@@ -91,6 +90,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         Items = new ReadOnlyObservableCollection<DemoQueueItem>(_items);
         _gate.MaxConcurrency = _maxConcurrency;
     }
+
+    private static ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger(AppLog.QueueCategory);
 
     public ReadOnlyObservableCollection<DemoQueueItem> Items { get; }
 
@@ -230,7 +231,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         CancellationToken cancellationToken = default)
     {
         // Best-effort coalesce: if this exact path is already being parsed, await THAT result rather
-        // than starting a redundant multi-GB parse. Never blocks on the pump — the fallback below
+        // than starting a redundant multi-GB parse. Never blocks on the pump: the fallback below
         // always runs a direct parse under the interactive slot.
         if (path is not null)
         {
@@ -342,7 +343,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
             else if (e.State == DemoQueueItemState.Running)
             {
-                // The parse is not abortable — mark it so FinishEntry discards the result and runs no
+                // The parse is not abortable: mark it so FinishEntry discards the result and runs no
                 // post-processing when it completes.
                 e.CancelRequested = true;
             }
@@ -450,7 +451,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 }
 
                 // Acquire a background slot (yields to interactive/reel; respects the hard cap). Between
-                // demos the worker re-acquires, so it steps aside at each demo boundary — exactly like
+                // demos the worker re-acquires, so it steps aside at each demo boundary, exactly like
                 // the historical per-consumer loops.
                 using IDisposable slot = await _gate.AcquireBackgroundAsync(_shutdownToken).ConfigureAwait(false);
 
@@ -462,7 +463,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
                 if (entry is null)
                 {
-                    continue; // work vanished / paused after the top check — re-evaluate, maybe exit
+                    continue; // work vanished / paused after the top check, re-evaluate, maybe exit
                 }
 
                 ParsedDemo? parsed = null;
@@ -481,7 +482,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
         catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
         {
-            // Shutdown (token cancelled, or the CTS disposed at app exit) — the durable backlogs keep
+            // Shutdown (token cancelled, or the CTS disposed at app exit): the durable backlogs keep
             // the work. Never surfaces as an unobserved task exception.
         }
         finally
@@ -529,7 +530,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         List<TaskCompletionSource<ParsedDemo>> foreground;
         lock (_sync)
         {
-            // Close the entry to further coalescing ATOMICALLY with capturing the handler snapshot —
+            // Close the entry to further coalescing ATOMICALLY with capturing the handler snapshot:
             // any waiter/attachment added after this point (during the OnParsed window below) would
             // never be signalled. Late callers coalesce onto nothing and start their own work instead.
             entry.Finalizing = true;
@@ -554,7 +555,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             return;
         }
 
-        // Success. Satisfy foreground waiters FIRST (responsiveness — they must not wait behind the
+        // Success. Satisfy foreground waiters FIRST (responsiveness: they must not wait behind the
         // heavy background post-processing), THEN run each owner's OnParsed inside the slot.
         foreach (TaskCompletionSource<ParsedDemo> w in foreground)
         {
@@ -649,7 +650,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         _post(() =>
         {
             // Snapshot INSIDE the posted action, not before it. Posts run FIFO on the UI thread, so
-            // taking the snapshot here makes the LAST-enqueued reconcile read the LATEST state —
+            // taking the snapshot here makes the LAST-enqueued reconcile read the LATEST state:
             // capturing before the post let two concurrent RaiseChanged calls enqueue in one order
             // while their older/newer snapshots landed in the reverse, leaving the mirror stale.
             IReadOnlyList<DemoQueueItemSnapshot> snapshot = Snapshot();
@@ -718,7 +719,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         {
             // A single owner's post-processing failure never breaks the parse or another owner's
             // handler (mirrors the Tier2DemoParsed piggyback isolation). Diagnostics pillar, not
-            // Console (v0.6.0) — Console is invisible in a windowed Release build.
+            // Console (v0.6.0): Console is invisible in a windowed Release build.
             AppLog.QueueOwnerHandlerFailed(DiagLog, ex);
         }
     }
@@ -752,7 +753,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         // Set under _sync the instant FinishEntry captures its waiter/attachment snapshot, BEFORE it
         // releases the lock to run the (multi-second) handlers. The entry stays Running across that
         // window, so without this a foreground/background caller could coalesce onto it and append a
-        // waiter AFTER the snapshot — which FinishEntry never re-reads, orphaning it forever (the
+        // waiter AFTER the snapshot, which FinishEntry never re-reads, orphaning it forever (the
         // critical FinishEntry TOCTOU). Finalizing excludes the entry from all coalescing.
         public bool Finalizing { get; set; }
         public List<Attachment> Attachments { get; } = [];

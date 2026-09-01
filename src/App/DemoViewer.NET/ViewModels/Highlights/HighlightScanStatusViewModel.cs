@@ -11,13 +11,17 @@ namespace DemoViewer.NET.ViewModels.Highlights;
 
 /// <summary>
 ///     Library-wide highlight-scan progress as the <b>fourth</b> <c>StatusChip</c> consumer
-///     (row 2) — the home the card grid's
+///     (row 2), the home the card grid's
 ///     <c>ScanQueueSummary</c> badge and its per-card scanning animation were re-assigned to. The design
-///     system says verbatim that three consumers now share the control and <em>"a fourth should extend it,
-///     not fork"</em>, so this owns a <see cref="StatusChipViewModel" /> whose <c>FlyoutContent</c> is this
+///     system says verbatim that three consumers now share the control and
+///     <em>
+///         "a fourth should extend it,
+///         not fork"
+///     </em>
+///     , so this owns a <see cref="StatusChipViewModel" /> whose <c>FlyoutContent</c> is this
 ///     VM and adds nothing to the shared control.
 ///     <para>
-///         <b>Pure projection — safe to instantiate more than once.</b> Unlike
+///         <b>Pure projection: safe to instantiate more than once.</b> Unlike
 ///         <see cref="ReelJobStatusViewModel" /> (which must be a single instance,
 ///         because the chip and the inline strip are two views of one <em>job</em>), this holds no job state
 ///         at all: every property is derived from the live <see cref="HighlightScanService" /> plus the
@@ -37,6 +41,19 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
     private readonly HighlightScanService _scanner;
     private readonly DemoCacheStore _store;
 
+    /// <summary>Demos completed in the current batch (<see cref="BatchTotal" /> − remaining).</summary>
+    [ObservableProperty]
+    private int _batchDone;
+
+    // ── Determinate batch progress (v0.6.0, item 12) ──────────────────────────
+    // The scanner exposes only the REMAINING queue, so the batch size is tracked here: the peak of
+    // (queued + in-flight) since the last idle. New requests joining mid-batch raise the peak, so
+    // the bar never runs backwards; idle resets it for the next batch.
+
+    /// <summary>Total demos in the current scan batch (the peak backlog since last idle).</summary>
+    [ObservableProperty]
+    private int _batchTotal;
+
     private bool _disposed;
 
     /// <summary>How many rows still failed their last scan (the <c>Retry all failed</c> population).</summary>
@@ -52,7 +69,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
     private int _queueDepth;
 
     /// <summary>
-    ///     The demo believed to be scanning right now — the ONE thing the per-card animation carried that a
+    ///     The demo believed to be scanning right now, the ONE thing the per-card animation carried that a
     ///     chip cannot: which demo. Null when nothing is in flight.
     /// </summary>
     [ObservableProperty]
@@ -69,28 +86,6 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
     /// <summary>The flyout's one-line summary ("12 queued · scanning …", "Everything is indexed", …).</summary>
     [ObservableProperty]
     private string _statusLine = "";
-
-    // ── Determinate batch progress (v0.6.0, item 12) ──────────────────────────
-    // The scanner exposes only the REMAINING queue, so the batch size is tracked here: the peak of
-    // (queued + in-flight) since the last idle. New requests joining mid-batch raise the peak, so
-    // the bar never runs backwards; idle resets it for the next batch.
-
-    /// <summary>Total demos in the current scan batch (the peak backlog since last idle).</summary>
-    [ObservableProperty]
-    private int _batchTotal;
-
-    /// <summary>Demos completed in the current batch (<see cref="BatchTotal" /> − remaining).</summary>
-    [ObservableProperty]
-    private int _batchDone;
-
-    /// <summary>
-    ///     Gates the "N of M" line + bar: meaningful only while work remains AND the batch has more
-    ///     than one demo (a single-demo scan gets adequate feedback from the pulsing dot).
-    /// </summary>
-    public bool HasBatchProgress => BatchTotal > 1 && (IsScanning || QueueDepth > 0);
-
-    /// <summary>"N of M scanned" for the flyout.</summary>
-    public string BatchProgressText => $"{BatchDone} of {BatchTotal} scanned";
 
     /// <summary>
     ///     Builds the projection over the live scanner + cache and seeds it immediately (never blank), then
@@ -118,10 +113,19 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
         Refresh();
     }
 
+    /// <summary>
+    ///     Gates the "N of M" line + bar: meaningful only while work remains AND the batch has more
+    ///     than one demo (a single-demo scan gets adequate feedback from the pulsing dot).
+    /// </summary>
+    public bool HasBatchProgress => BatchTotal > 1 && (IsScanning || QueueDepth > 0);
+
+    /// <summary>"N of M scanned" for the flyout.</summary>
+    public string BatchProgressText => $"{BatchDone} of {BatchTotal} scanned";
+
     /// <summary>The status-strip chip this VM drives (the shell adds it to <c>MainViewModel.Chips</c>).</summary>
     public StatusChipViewModel Chip { get; }
 
-    /// <summary>True when at least one row failed — gates the flyout's <c>Retry all failed</c> action.</summary>
+    /// <summary>True when at least one row failed: gates the flyout's <c>Retry all failed</c> action.</summary>
     public bool HasFailed => FailedCount > 0;
 
     /// <summary>True when at least one row is carrying a stale harvest.</summary>
@@ -131,7 +135,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
     public bool HasScanningName => !string.IsNullOrEmpty(ScanningName);
 
     /// <summary>
-    ///     Whether the chip is worth showing at all — the presence rule the shell reconciles against
+    ///     Whether the chip is worth showing at all, the presence rule the shell reconciles against
     ///     (mirroring <c>ReconcileQueueChip</c>). An idle, fully-indexed library adds no strip clutter.
     /// </summary>
     public bool IsRelevant => QueueDepth > 0 || IsScanning || FailedCount > 0;
@@ -170,7 +174,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
         }
     }
 
-    /// <summary>Whole-library rescan — the flyout's copy of the dashboard/picker action.</summary>
+    /// <summary>Whole-library rescan, the flyout's copy of the dashboard/picker action.</summary>
     [RelayCommand]
     private void RescanAll() => _scanner.RescanAll();
 
@@ -179,7 +183,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
 
     private void Refresh()
     {
-        // The backlog is DERIVED now — the scanner owns the rule (fingerprint + tier state), so asking it is
+        // The backlog is DERIVED now: the scanner owns the rule (fingerprint + tier state), so asking it is
         // the only way these counts and its own queue can never disagree.
         IReadOnlyList<string> queued = _scanner.PendingPaths();
         IReadOnlyList<DemoCacheIndexEntry> rows = _store.Index;
@@ -191,7 +195,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
 
         QueueDepth = queued.Count;
         FailedCount = rows.Count(r => r.AnalysisState == DemoAnalysisState.Failed);
-        // Stale = queued but still carrying a previous harvest — the re-queued-yet-showing-results case. Same
+        // Stale = queued but still carrying a previous harvest, the re-queued-yet-showing-results case. Same
         // rule as before; it just reads highlight COUNT off the index instead of a Pending flag.
         StaleCount = queued.Count(p => byPath.TryGetValue(p, out DemoCacheIndexEntry? e) && e.HighlightCount > 0);
         IsScanning = _scanner.IsScanning;
@@ -234,7 +238,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
         RetryAllFailedCommand.NotifyCanExecuteChanged();
     }
 
-    // The chip LABEL carries the state in words — the dot is a redundant colour cue (WCAG 1.4.1, and the
+    // The chip LABEL carries the state in words. The dot is a redundant colour cue (WCAG 1.4.1, and the
     // StatusChip contrast contract forbids tinting the label to signal state).
     private string BuildChipLabel()
     {

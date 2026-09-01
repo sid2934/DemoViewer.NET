@@ -7,10 +7,9 @@ using System.Text.Json;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Diagnostics;
-using DemoViewer.NET.Configuration;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -23,21 +22,21 @@ namespace DemoViewer.NET.Modules.Library;
 
 /// <summary>
 ///     Scans user-configured folders for <c>*.dem</c> files and indexes their metadata in two tiers:
-///     <b>tier 1</b> is the cheap first-frame header read (map / server — near-instant, via
+///     <b>tier 1</b> is the cheap first-frame header read (map / server, near-instant, via
 ///     <see cref="DownstreamUtilities.TryReadQuickInfo(string,out DownstreamUtilities.DemoQuickInfo)" />);
 ///     <b>
 ///         tier
 ///         2
 ///     </b>
-///     is a background <b>full parse</b> for players + duration (the only place those live — not in the
+///     is a background <b>full parse</b> for players + duration (the only place those live: not in the
 ///     header, not in the .dem.info companion). Results are cached to disk keyed on (path, size, mtime) so
 ///     relaunches are instant and only new/changed files are re-indexed.
 ///     <para>
 ///         <b>Threading.</b> Enumeration + parsing run on background threads; every mutation of the bound
 ///         <see cref="Entries" />/<see cref="Folders" /> collections and of a <see cref="DemoEntry" />'s
 ///         observable fields is marshalled through the injected <c>post</c> delegate (the UI dispatcher in the
-///         app; an inline invoker in tests). Full parses run <b>sequentially</b> — one demo at a time, under
-///         the machine-wide gate when present — because a full parse holds the whole demo in RAM and this
+///         app; an inline invoker in tests). Full parses run <b>sequentially</b>: one demo at a time, under
+///         the machine-wide gate when present, because a full parse holds the whole demo in RAM and this
 ///         project has a documented parser-parallelism OOM history.
 ///     </para>
 ///     <para>
@@ -52,7 +51,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         WriteIndented = true
     };
 
-    // The only class the final-score replay reads — passed as EntityTracker.StoreClassFilter so every
+    // The only class the final-score replay reads, passed as EntityTracker.StoreClassFilter so every
     // other class is decoded-and-discarded (bits consumed, fields not stored) for a cheaper replay.
     private static readonly IReadOnlySet<string> _scoreClasses = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -72,11 +71,6 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     private readonly object _cacheLock = new();
     private readonly string? _dataPath; // library.json, or null on WASM
 
-    // Diagnostics-pillar logger (v0.6.0 — replaced Console.WriteLine, which a windowed Release build
-    // never shows). Lazy like MainViewModel.DiagLog: the ambient factory is wired after construction.
-    private ILogger? _diagLog;
-    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger(AppLog.LibraryCategory);
-
     // The unified demo cache, dual-written alongside library.json during the transition. Null → legacy only.
     private readonly DemoCacheStore? _demoCache;
     private readonly Dictionary<string, DemoEntry> _pendingFull = new(StringComparer.OrdinalIgnoreCase);
@@ -87,7 +81,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // construction, written on Add/Remove). Null → the legacy path where library.json owns the folder list.
     // The metadata cache stays in library.json either way.
 
-    // Paths with a tier-2 replay in flight RIGHT NOW — dedupes the two RunTier2 callers (the queue's
+    // Paths with a tier-2 replay in flight RIGHT NOW, deduping the two RunTier2 callers (the queue's
     // Evaluate and an interactive open's OnParsedOpportunistically) when they race the same demo: a second
     // concurrent replay would be wasted work and could flip Indexed↔Failed on a throw.
     private readonly HashSet<string> _tier2InProgress = new(StringComparer.OrdinalIgnoreCase);
@@ -96,10 +90,14 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // each rescan; the coordinator's Wants(path) reads its membership). The coordinator's own outstanding
     // set prevents double-submit, so no separate _enqueued set is needed here.
     private readonly object _tier2Lock = new();
+
+    // Diagnostics-pillar logger (v0.6.0, replaced Console.WriteLine, which a windowed Release build
+    // never shows). Lazy like MainViewModel.DiagLog: the ambient factory is wired after construction.
+    private ILogger? _diagLog;
     private int _enrichedSinceSave;
 
     // A plain array mirror of Folders, refreshed on the (UI) thread that mutates the UI-bound
-    // ObservableCollection. Save() runs on a queue worker thread and reads THIS — never enumerating the
+    // ObservableCollection. Save() runs on a queue worker thread and reads THIS, never enumerating the
     // live Folders across a concurrent Add/Remove (which would throw "collection was modified").
     private volatile string[] _folderSnapshot = [];
 
@@ -124,7 +122,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     /// </param>
     /// <param name="demoCache">
     ///     The unified demo cache. When supplied, tier-2
-    ///     results are written HERE AS WELL AS to <c>library.json</c> — a deliberate dual write for the
+    ///     results are written HERE AS WELL AS to <c>library.json</c>, a deliberate dual write for the
     ///     transition, so the cache the app runs on today is never at risk while the new one fills. Null in
     ///     tests and on the legacy path.
     /// </param>
@@ -154,6 +152,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         Folders.CollectionChanged += (_, _) => _folderSnapshot = Folders.ToArray();
     }
 
+    private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger(AppLog.LibraryCategory);
+
     /// <summary>
     ///     The settings service this indexer is folder-backed by, or <c>null</c> on the legacy path.
     ///     Exposed for the composition-root test to assert the container injected the SINGLETON instance.
@@ -162,7 +162,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     // The "one parse, many evaluators" coordinator. When set, this service
     // is registered as an IDemoEvaluator and the coordinator owns submission + the CapacityAvailable
-    // re-feed — this service NEVER touches the queue directly. Null (tests) → the inline one-at-a-time
+    // re-feed. This service NEVER touches the queue directly. Null (tests) → the inline one-at-a-time
     // path, behaviourally identical to the pre-queue null-gate path.
     /// <summary>The evaluation coordinator that drives this service's tier-2 work; null → the inline path.</summary>
     public DemoEvaluationCoordinator? Coordinator { get; set; }
@@ -173,6 +173,18 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     /// <summary>All discovered demos with their (progressively enriched) metadata. Bound to the browser.</summary>
     public BulkObservableCollection<DemoEntry> Entries { get; } = [];
 
+    /// <summary>
+    ///     How many demos IN THE LIBRARY are waiting on a score re-derivation.
+    ///     <para>
+    ///         Counted over <see cref="Entries" />, not over the cache, and the difference is not pedantic: on
+    ///         the reference library 552 rows were repairable but only 342 had a file still on disk. The rest
+    ///         described demos under a folder the user had removed, which nothing can ever re-derive. A count
+    ///         offering to repair 552 things and then repairing 342 would be lying to the user about the
+    ///         work it is proposing.
+    ///     </para>
+    /// </summary>
+    public int ScoreRepairPendingCount => Entries.Count(e => e.ScoreRepairPending);
+
     // ── IDemoEvaluator ("one parse, many evaluators") ──
 
     /// <inheritdoc />
@@ -181,7 +193,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     /// <inheritdoc />
     /// <remarks>
     ///     Cheap membership test against the tier-2 backlog recorded at reconcile. The coordinator
-    ///     re-polls this on every CapacityAvailable, so it MUST go false once processed — which
+    ///     re-polls this on every CapacityAvailable, so it MUST go false once processed, which
     ///     <see cref="ClearTier2Backlog" /> guarantees synchronously in both Evaluate and OnFailed.
     /// </remarks>
     public bool Wants(string path)
@@ -204,10 +216,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     /// <inheritdoc />
     /// <remarks>
-    ///     An interactive open (or another evaluator's tier-2) already parsed this demo — index the
+    ///     An interactive open (or another evaluator's tier-2) already parsed this demo: index the
     ///     Library card from THAT held parse instead of a second background parse. Guarded on tier-2 backlog
     ///     membership: a demo that isn't a known-pending library entry (opened from outside every registered
-    ///     folder, or already indexed) is a no-op — we never inject a foreign demo into the library. When it
+    ///     folder, or already indexed) is a no-op. We never inject a foreign demo into the library. When it
     ///     IS pending this indexes it AND clears the backlog synchronously, so a subsequent coordinator
     ///     re-poll sees <see cref="Wants" /> == false and never submits the redundant background parse.
     ///     <para>
@@ -260,7 +272,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     /// <summary>Cancels any in-flight scan and releases the cancellation source.</summary>
     public void Dispose()
     {
-        // The coordinator owns the CapacityAvailable subscription now — nothing queue-side to detach here.
+        // The coordinator owns the CapacityAvailable subscription now: nothing queue-side to detach here.
         _scanCts?.Cancel();
         _scanCts?.Dispose();
         _scanCts = null;
@@ -270,7 +282,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     public event Action? Changed;
 
     // Populates Folders from the authoritative source. Legacy path (no settings): library.json's folders,
-    // identical to the previous behavior. Settings path: AppSettings.Library.Folders — with a one-time
+    // identical to the previous behavior. Settings path: AppSettings.Library.Folders, with a one-time
     // migration that lifts an existing library.json folder list into settings.json when settings has none
     // yet, so an upgrading install does not silently lose its configured folders.
     private void SeedFolders(List<string> legacyFolders)
@@ -352,29 +364,17 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     /// <summary>
-    ///     How many demos IN THE LIBRARY are waiting on a score re-derivation.
-    ///     <para>
-    ///         Counted over <see cref="Entries" />, not over the cache, and the difference is not pedantic: on
-    ///         the reference library 552 rows were repairable but only 342 had a file still on disk — the rest
-    ///         described demos under a folder the user had removed, which nothing can ever re-derive. A count
-    ///         offering to repair 552 things and then repairing 342 would be lying to the user about the
-    ///         work it is proposing.
-    ///     </para>
-    /// </summary>
-    public int ScoreRepairPendingCount => Entries.Count(e => e.ScoreRepairPending);
-
-    /// <summary>
-    ///     Re-derives the score for every demo carrying <see cref="DemoEntry.ScoreRepairPending" /> — the
+    ///     Re-derives the score for every demo carrying <see cref="DemoEntry.ScoreRepairPending" />, the
     ///     explicit form of the sweep that used to run automatically on first launch.
     ///     <para>
-    ///         It clears <see cref="DemoLibraryCacheEntry.ScoreComputed" /> on the flagged rows — the same
-    ///         field the old hydrate repair cleared, so they re-derive by exactly the same route — and
+    ///         It clears <see cref="DemoLibraryCacheEntry.ScoreComputed" /> on the flagged rows, the same
+    ///         field the old hydrate repair cleared, so they re-derive by exactly the same route, and
     ///         then enlists them in the tier-2 backlog DIRECTLY.
     ///     </para>
     ///     <para>
     ///         <b>Deliberately not via <see cref="RescanAsync" />.</b> <c>Reconcile</c> only evaluates
     ///         NEWLY-discovered files; an entry already in <see cref="Entries" /> hits its <c>continue</c> and
-    ///         is never re-tested for the backlog. So on a populated library — i.e. always, in the real app —
+    ///         is never re-tested for the backlog. So on a populated library, i.e. always in the real app,
     ///         a rescan would flip the flag on disk and enlist NOTHING: a button that mutates the cache,
     ///         reports success and parses nothing. <c>_pendingFull</c> is this evaluator's <see cref="Wants" />
     ///         gate, so populating it IS the enlistment.
@@ -382,12 +382,12 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     ///     <para>
     ///         <see cref="DemoEntry.ScoreRepairPending" /> is deliberately NOT cleared here. The row is not
     ///         repaired until a parse has actually re-derived it, and clearing on submit would drop the card's
-    ///         badge the instant the button was pressed — for a queue that may be hours long.
+    ///         badge the instant the button was pressed, for a queue that may be hours long.
     ///     </para>
     ///     <para>
     ///         <b>An interrupted repair RESUMES on the next launch</b>, because the cleared
-    ///         <c>ScoreComputed</c> is persisted. That is intended — the user asked for this work and quitting
-    ///         is not a retraction — but it is the one path by which flagged rows re-enter the automatic
+    ///         <c>ScoreComputed</c> is persisted. That is intended: the user asked for this work, and quitting
+    ///         is not a retraction. But it is the one path by which flagged rows re-enter the automatic
     ///         backlog, so it is worth knowing when reading the "never automatic" rule. Rows never pressed
     ///         are untouched and stay out of it.
     ///     </para>
@@ -408,7 +408,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
         Save();
 
-        // No queue (WASM, and the inline test path): parse them here, one at a time, and await — the same
+        // No queue (WASM, and the inline test path): parse them here, one at a time, and await: the same
         // shape RescanAsync uses when it has no Coordinator.
         if (Coordinator is null)
         {
@@ -431,7 +431,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         }
 
         // These rows are already Indexed and have players/duration/map to show, so they deliberately do NOT
-        // get the Indexing signal — the same reasoning the backlog submission uses. Pulsing hundreds of
+        // get the Indexing signal, the same reasoning the backlog submission uses. Pulsing hundreds of
         // populated cards at once, for hours, reads as the library breaking rather than topping up.
         foreach (DemoEntry target in targets)
         {
@@ -456,7 +456,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         try
         {
             // Enumerate (path-canonicalized), then collapse byte-identical COPIES at different real
-            // paths onto one primary (content dedup) — cheap via a size pre-filter (only same-size
+            // paths onto one primary (content dedup), cheap via a size pre-filter (only same-size
             // files are hashed) with the hash cached on the metadata row.
             (List<(string Path, long Size, DateTime Modified)> files, List<string> scannedRoots) =
                 await Task.Run(EnumerateFiles, ct);
@@ -506,7 +506,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         if (Coordinator is not null)
         {
             // Coordinator path: record the backlog (its membership is this evaluator's Wants gate) and
-            // ask the coordinator to consider each — it submits ONE queue item per interested evaluator,
+            // ask the coordinator to consider each. It submits ONE queue item per interested evaluator,
             // coalesced by path, so Library + Highlights ride a single parse. RETURN; the queue owns the
             // workers + drain + gate yielding, and each Evaluate persists the cache itself.
             List<DemoEntry> toConsider;
@@ -527,12 +527,12 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
                 // Only a row with nothing to show gets the "being analyzed" signal at SUBMIT time. The real
                 // one is posted when the parse actually starts (IndexTier2Core), and DemoEntry.IsIndexing is
-                // documented as unique — "the indexer runs one demo at a time, so at most one entry is ever
+                // documented as unique: "the indexer runs one demo at a time, so at most one entry is ever
                 // true", which is what the card's animated bar and the row's pulsing dot mean.
                 //
                 // Marking the whole backlog Indexing up front always broke that, but it was invisible while
-                // the backlog was a handful of new demos. The half-score repair enlists ALREADY-INDEXED rows
-                // — 552 of them on the reference library — and those have real players, duration and a map
+                // the backlog was a handful of new demos. The half-score repair enlists ALREADY-INDEXED rows,
+                // 552 of them on the reference library, and those have real players, duration and a map
                 // to show. Pulsing every card in the library at once, for hours, to re-derive one field
                 // each, reads as the app having lost the library rather than as it quietly topping up.
                 if (captured.State != DemoIndexState.Indexed)
@@ -546,7 +546,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             return;
         }
 
-        // Legacy inline path (no queue — tests): parse one at a time on this thread and AWAIT
+        // Legacy inline path (no queue, tests): parse one at a time on this thread and AWAIT
         // completion, so a caller that awaits RescanAsync sees a fully-indexed library.
         try
         {
@@ -575,7 +575,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         {
             if (!_tier2InProgress.Add(path))
             {
-                return; // a replay for this exact path is already running — skip the duplicate
+                return; // a replay for this exact path is already running: skip the duplicate
             }
 
             _pendingFull.TryGetValue(path, out entry);
@@ -600,7 +600,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     /// <summary>
-    ///     The current tier-2 backlog paths — a worker-readable snapshot for the coordinator's
+    ///     The current tier-2 backlog paths, a worker-readable snapshot for the coordinator's
     ///     candidate universe (never enumerate the UI-bound <see cref="Entries" /> off-thread).
     /// </summary>
     public IReadOnlyList<string> Tier2Backlog()
@@ -612,7 +612,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     // Removes a path from the tier-2 backlog (worker thread, under the lock) and, when the backlog drains,
-    // persists the tail (parity with the inline path's final Save — the every-12 Save in IndexTier2Core
+    // persists the tail (parity with the inline path's final Save, the every-12 Save in IndexTier2Core
     // can leave <12 demos only in the in-memory cache).
     private void ClearTier2Backlog(string path)
     {
@@ -658,7 +658,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             string folder = CanonicalizeDirectory(rawFolder);
             if (!Directory.Exists(folder))
             {
-                continue; // unavailable (unmounted volume, deleted folder) — NOT evidence its demos are gone
+                continue; // unavailable (unmounted volume, deleted folder), NOT evidence its demos are gone
             }
 
             scannedRoots.Add(folder);
@@ -670,7 +670,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                     // Skip macOS AppleDouble sidecars ("._name.dem"): resource-fork / xattr metadata
                     // companions macOS writes next to a file when it's copied across a filesystem without
                     // native resource-fork support (SMB / exFAT / NFS). They match "*.dem" but are ~368 B of
-                    // metadata, not a demo — parsing one fails into a bogus "Unknown" library card. AppleDouble
+                    // metadata, not a demo. Parsing one fails into a bogus "Unknown" library card. AppleDouble
                     // names are ALWAYS "._<name>", so a filename-prefix skip is exact: no real demo is named that.
                     if (Path.GetFileName(path).StartsWith("._", StringComparison.Ordinal))
                     {
@@ -679,7 +679,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
                     // Canonicalize the file path (normalize + follow a leaf FILE symlink) so the same
                     // physical file reached via overlapping/nested registrations, a symlink, a trailing
-                    // slash, or a differently-cased path resolves to ONE identity — appearing (and being
+                    // slash, or a differently-cased path resolves to ONE identity, appearing (and being
                     // processed) exactly once. Genuine content copies at different real paths are caught
                     // later by the content hash; here we only collapse paths that point at the same file.
                     string canonical = CanonicalizePath(path);
@@ -695,13 +695,13 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                     }
                     catch (IOException)
                     {
-                        // file vanished mid-scan — skip
+                        // file vanished mid-scan: skip
                     }
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                // unreadable folder — skip
+                // unreadable folder: skip
             }
         }
 
@@ -712,7 +712,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     ///     Drops metadata rows for demos that are provably gone. <see cref="Reconcile" /> has always dropped
     ///     the UI <see cref="Entries" /> for a vanished file but never the persisted <c>_cache</c> row behind
     ///     it, so the cache only ever grew: on the reference library 354 of 719 rows described files that no
-    ///     longer existed — 332 of them under a folder the user had since removed from the library entirely.
+    ///     longer existed, 332 of them under a folder the user had since removed from the library entirely.
     ///     Half the cache (and, once it is dual-written, half the sidecars) was describing demos the app can
     ///     never show.
     ///     <para>
@@ -724,11 +724,11 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     ///     </para>
     ///     <list type="bullet">
     ///         <item>
-    ///             it sits under a root this scan actually REACHED, and the scan did not find it — the folder
+    ///             it sits under a root this scan actually REACHED, and the scan did not find it: the folder
     ///             was read and the file genuinely is not in it; or
     ///         </item>
     ///         <item>
-    ///             it sits under no registered folder at all — out of scope, so nothing can ever index it
+    ///             it sits under no registered folder at all, out of scope, so nothing can ever index it
     ///             again without the user re-adding the folder, which re-indexes anyway.
     ///         </item>
     ///     </list>
@@ -749,9 +749,11 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             return;
         }
 
-        static bool Under(string path, string root) =>
-            path.StartsWith(root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar,
+        static bool Under(string path, string root)
+        {
+            return path.StartsWith(root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar,
                 StringComparison.OrdinalIgnoreCase);
+        }
 
         List<string> doomed = [];
         lock (_cacheLock)
@@ -760,7 +762,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             {
                 if (wanted.ContainsKey(path))
                 {
-                    continue; // found by this scan — alive
+                    continue; // found by this scan: alive
                 }
 
                 bool underScanned = scannedRoots.Any(r => Under(path, r));
@@ -784,7 +786,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         }
 
         // The unified cache holds a whole sidecar FILE per demo, so a stale row there costs real disk rather
-        // than a line of JSON. Drop those too, in one batch — consumers re-project wholesale per change.
+        // than a line of JSON. Drop those too, in one batch. Consumers re-project wholesale per change.
         if (_demoCache is not null)
         {
             using (_demoCache.BeginBatch())
@@ -796,12 +798,12 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             }
         }
 
-        // Diagnostics pillar, not Console (v0.6.0) — Console is invisible in a windowed Release build.
+        // Diagnostics pillar, not Console (v0.6.0). Console is invisible in a windowed Release build.
         AppLog.LibraryCachePruned(DiagLog, doomed.Count);
     }
 
-    // Resolves a registered folder to its real, normalized absolute path — following a DIRECTORY
-    // symlink to its final target — so a symlink-to-a-folder (or a nested/relative/trailing-slash
+    // Resolves a registered folder to its real, normalized absolute path, following a DIRECTORY
+    // symlink to its final target, so a symlink-to-a-folder (or a nested/relative/trailing-slash
     // registration) enumerates the same file identities as the real folder. Best-effort: on any error
     // the input is returned unchanged (the scan still works, just without that canonicalization).
     private static string CanonicalizeDirectory(string folder)
@@ -821,7 +823,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // Normalizes a file path and follows a leaf FILE symlink to its final target, mapping a symlinked
     // or non-normalized path to the same identity as the real file. A symlinked PARENT directory is
     // handled by CanonicalizeDirectory; anything left (e.g. a mid-tree directory symlink, or a genuine
-    // content copy) is caught by the Phase-4 content hash. Best-effort — returns the input on error.
+    // content copy) is caught by the Phase-4 content hash. Best-effort: returns the input on error.
     private static string CanonicalizePath(string path)
     {
         try
@@ -841,7 +843,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // catches genuine COPIES (same bytes, distinct real paths). Cheap by construction: only files that
     // share an EXACT byte size are hashed (byte-identical ⟹ equal size, so a unique-size file can have no
     // twin), and the SHA is cached on the metadata row (path,size,mtime) so rescans don't re-read files.
-    // Returns the primaries (one per content group — the lexicographically-smallest path, a stable choice)
+    // Returns the primaries (one per content group, the lexicographically-smallest path, a stable choice)
     // plus, per primary, the OTHER folders holding a copy (for the "＋N copies" card hint). Runs off-thread.
     private (List<(string Path, long Size, DateTime Modified)> Primaries,
         Dictionary<string, IReadOnlyList<string>> ShadowFolders) ResolveContentIdentities(
@@ -906,7 +908,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     // Returns the cached SHA-256 (lowercase hex) for a file when the (path,size,mtime) key still matches,
     // else streams the bytes to hash it and writes the result back onto the metadata row. Null on an I/O
-    // failure — the caller then treats the file as its own singleton (never wrongly deduped).
+    // failure. The caller then treats the file as its own singleton (never wrongly deduped).
     private string? GetOrComputeSha(string path, long size, DateTime modified)
     {
         lock (_cacheLock)
@@ -927,7 +929,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         return sha;
     }
 
-    // Streaming SHA-256 (constant memory — never loads the whole demo). Best-effort: null on any I/O error.
+    // Streaming SHA-256 (constant memory, never loads the whole demo). Best-effort: null on any I/O error.
     private static string? HashFileStreaming(string path)
     {
         try
@@ -955,7 +957,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         }
 
         // Drop entries whose file no longer exists, moved out of scope, OR became a SHADOW (a smaller-path
-        // copy appeared and took over as primary — this card collapses into that one).
+        // copy appeared and took over as primary: this card collapses into that one).
         for (int i = Entries.Count - 1; i >= 0; i--)
         {
             if (!wanted.ContainsKey(Entries[i].FilePath))
@@ -975,7 +977,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
             if (byPath.TryGetValue(path, out DemoEntry? kept))
             {
-                // Already present (kept across rescans) — just refresh its copy set (a twin may have
+                // Already present (kept across rescans): just refresh its copy set (a twin may have
                 // appeared or vanished since the last scan).
                 if (!kept.DuplicateFolders.SequenceEqual(dupFolders, StringComparer.OrdinalIgnoreCase))
                 {
@@ -1009,7 +1011,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             }
 
             // Full parse needed when the demo isn't indexed yet, OR it's indexed from an OLD cache row that
-            // predates the score field (opportunistic backfill — see [[project_demo_library_browser]]): the
+            // predates the score field (opportunistic backfill, see [[project_demo_library_browser]]): the
             // players/duration stay visible from cache while the score fills in, no full-cache wipe.
             //
             // What this deliberately does NOT sweep: a row REPAIRED at load. It keeps
@@ -1019,7 +1021,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             // when the user asks for it; the card says so in the meantime (DemoEntry.NeedsScoreRepair).
             //
             // What this deliberately does NOT re-index: a row whose ROSTER is names-only because it predates
-            // the tier-2 extension. That state is absent, not wrong, and it is already labelled as absent —
+            // the tier-2 extension. That state is absent, not wrong, and it is already labelled as absent:
             // HasTeamSplit reads false and Match Overview offers a per-demo re-index (LegacyCacheMigration
             // documents that choice). Sweeping it automatically would turn a bounded repair of rows that
             // render incorrectly into a fresh full-library re-parse of ~575 demos on the next launch.
@@ -1033,7 +1035,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         // every bound consumer (VM filter pass + ItemsControl containers) re-run once PER ENTRY.
         Entries.AddRange(added);
 
-        // Index newest-first — the browser's default sort — so the top of the visible list gets its
+        // Index newest-first, the browser's default sort, so the top of the visible list gets its
         // players/score first while the long tail fills in behind it.
         needMap.Sort((a, b) => b.Modified.CompareTo(a.Modified));
         needFull.Sort((a, b) => b.Modified.CompareTo(a.Modified));
@@ -1054,7 +1056,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         // A stale half-resolved score is refused HERE, at the read boundary, rather than being repaired into
         // the cache row.
         //
-        // The obvious alternative — clear the row at hydrate and mark it — is a trap, and it is worth
+        // The obvious alternative, clear the row at hydrate and mark it, is a trap, and it is worth
         // knowing why. Cleared-to-all-nulls reads as COHERENT to IsScoreResultCoherent, so the marker would
         // have to be persisted to survive; and because UpsertCache mutates the very row that was cleared, ANY
         // later Save (a tier-1 map write will do) would persist the cleared row. Lose the marker in that
@@ -1129,7 +1131,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     // Post-parse tier-2 extraction (players / duration / map / final score) + optional fan-out to the OTHER
-    // evaluators + cache write. Runs with the ParsedDemo held — inside the queue's gate slot on the queue
+    // evaluators + cache write. Runs with the ParsedDemo held, inside the queue's gate slot on the queue
     // path, or inline on the legacy path. Self-contained failure handling so a throw marks ONLY this row
     // Failed. fanOutToOthers is true when Library is the producer (background tier-2); false when the parse
     // arrived opportunistically (the coordinator already handled the wider fan-out).
@@ -1167,8 +1169,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 entry.State = DemoIndexState.Indexed;
             });
 
-            // Final score: CCSTeam.m_iScore at match end (no cheap event source exists in CS2 — team_score /
-            // round_end are absent). Best-effort — a replay failure just leaves the score unset.
+            // Final score: CCSTeam.m_iScore at match end (no cheap event source exists in CS2, team_score /
+            // round_end are absent). Best-effort: a replay failure just leaves the score unset.
             try
             {
                 (ctScore, tScore, ctClan, tClan) = ExtractFinalScore(parsed);
@@ -1180,7 +1182,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
             // Fan-out: when Library is the PRODUCER of this parse (background
             // tier-2), hand the still-held parse to the OTHER evaluators (the highlight scanner) so a
-            // stale/missing highlights row refreshes on THIS parse instead of a second one — the generalized
+            // stale/missing highlights row refreshes on THIS parse instead of a second one, the generalized
             // replacement for the old Tier2DemoParsed piggyback. Each evaluator is isolated inside
             // FanOutParsed, so a scan failure never marks the LIBRARY row failed. Skipped when the parse
             // arrived opportunistically (the coordinator's FanOutParsed already fanned to the others; re-
@@ -1202,7 +1204,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         // Mirror ExtractFinalScore's both-or-nothing contract at the WRITE boundary as well as the read
         // one. The extractor upholds it today, so this is not tidiness: it is what stops a future edit
         // there from minting the same half-resolved rows LoadPersisted now has to repair. A half score is
-        // silent — HasScore needs BOTH sides, so the card just quietly loses its badge — and it persists
+        // silent: HasScore needs BOTH sides, so the card just quietly loses its badge, and it persists
         // with ScoreComputed = true, which is exactly the flag that stops it ever being recomputed.
         if (!IsScoreResultCoherent(ctScore, tScore, ctClan, tClan))
         {
@@ -1221,19 +1223,19 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         }
 
         // Unconditional, unlike the block above: the badge means "a re-derivation is owed", and one just ran.
-        // Leaving it set when the extractor honestly returned nothing would make the card ask forever for
+        // Leaving it set when the extractor returned nothing would make the card ask forever for
         // work that has already been done.
         if (entry.ScoreRepairPending)
         {
             _post(() => entry.ScoreRepairPending = false);
         }
 
-        // Rounds + the richer roster are a PARSE product, already in hand — projected ONCE here for both
+        // Rounds + the richer roster are a PARSE product, already in hand, projected ONCE here for both
         // consumers rather than twice. The library row wants the round COUNT, which nothing ever wrote:
         // every cached row carried RoundCount = 0, and the legacy migration faithfully carried that zero
         // into the unified cache. The unified cache wants the boundaries themselves.
         //
-        // Isolated in its own try because a projection failure must leave the row INDEXED — the demo
+        // Isolated in its own try because a projection failure must leave the row INDEXED. The demo
         // parsed fine, and players/duration are already posted to the card.
         List<CachedPlayerInfo>? cachedPlayers = null;
         List<CachedRound>? rounds = null;
@@ -1281,20 +1283,20 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     // The TIER-2 EXTENSION. Everything written here is
-    // already in hand at this point in the pass — PlayerInfo is (Slot, Name, SteamId64, UserId, Team, IsBot)
-    // plus IsHltv, and ParsedDemo exposes TickCount/TickRate/Duration — so the library cache storing NAMES
+    // already in hand at this point in the pass: PlayerInfo is (Slot, Name, SteamId64, UserId, Team, IsBot)
+    // plus IsHltv, and ParsedDemo exposes TickCount/TickRate/Duration, so the library cache storing NAMES
     // ONLY was a choice, not a cost. Capturing the rest (~+0.5 KB/demo) is what lets Match Overview render
-    // rosters split by team, bot tags, honest player/spectator counts and tick rate from cache alone, for
+    // rosters split by team, bot tags, accurate player/spectator counts and tick rate from cache alone, for
     // the ~80% of a real library this pass has already covered.
     //
-    // Deliberately excludes anything needing the rules engine (scoreboard, per-side split, highlights) —
+    // Deliberately excludes anything needing the rules engine (scoreboard, per-side split, highlights):
     // that is tier 3, and it stays behind an explicit per-demo action.
     //
     // Fully defensive: a cache-write failure must never mark the LIBRARY row failed, exactly as a highlight
     // scan failure does not.
     //
     // players/rounds arrive PRE-PROJECTED (ProjectTier2 runs in the caller) because the library row needs the
-    // round count too, and this method no-ops entirely when the unified cache is absent — projecting here
+    // round count too, and this method no-ops entirely when the unified cache is absent. Projecting here
     // would have made the count unobtainable on exactly the path that was writing zeros. Null means the
     // projection threw; every other field is still worth writing.
     private void WriteTier2ToDemoCache(DemoEntry entry, ParsedDemo parsed, string? map, double duration,
@@ -1321,7 +1323,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 record.TickCount = parsed.TickCount;
                 record.ServerStartTick = parsed.ServerStartTick;
 
-                // Null only when the projection threw — keep what the record already holds rather than
+                // Null only when the projection threw: keep what the record already holds rather than
                 // replacing a real roster with an empty one.
                 if (players is not null)
                 {
@@ -1330,7 +1332,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
                 // RoundCount tracks the boundaries whenever we HAVE boundaries. It exists for migrated rows
                 // that carry a count with nothing behind it, and a re-index that wrote Rounds but left the
-                // migrated count alone would leave the record contradicting itself — masked today only
+                // migrated count alone would leave the record contradicting itself, masked today only
                 // because ToIndexEntry happens to prefer Rounds.Count.
                 if (rounds is not null)
                 {
@@ -1347,13 +1349,13 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         }
         catch (Exception)
         {
-            // Rebuildable cache — the library row stands on its own.
+            // Rebuildable cache: the library row stands on its own.
         }
     }
 
     /// <summary>
     ///     The tier-2 projection: roster and round boundaries out of a parsed demo, in the exact shape the
-    ///     unified cache stores. Internal so it can be asserted directly against a real demo — the invariant
+    ///     unified cache stores. Internal so it can be asserted directly against a real demo: the invariant
     ///     that matters (cached player count agrees with the cached rosters) is one this codebase has broken
     ///     before, when counting every named entry reported 13 players above rosters of ten.
     /// </summary>
@@ -1364,20 +1366,20 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             .. parsed.Players.Values
                 // The GOTV proxy holds a userinfo slot with a name but never played; excluding it here is
                 // what makes the cached player count agree with the cached rosters. Bots and spectators ARE
-                // kept, with their team — the projection decides how to present them, and it cannot recover
+                // kept, with their team. The projection decides how to present them, and it cannot recover
                 // a distinction the cache threw away.
                 .Where(p => !p.IsHltv && !string.IsNullOrWhiteSpace(p.Name))
                 .Select(p => new CachedPlayerInfo
                 {
                     Slot = p.Slot,
-                    Name = p.Name, // RAW — sanitize at the render boundary only
+                    Name = p.Name, // RAW: sanitize at the render boundary only
                     SteamId64 = p.SteamId64.ToString(CultureInfo.InvariantCulture),
                     Team = p.Team,
                     IsBot = p.IsBot
                 })
         ];
 
-        // Round boundaries are a PARSE product, not an analysis one — and there is ONE deriver for them
+        // Round boundaries are a PARSE product, not an analysis one, and there is ONE deriver for them
         // now: CS2DemoKit.Analysis.Clips.ClipRounds, in the FRAME clock.
         //
         // Careful: CS2 DOES NOT EMIT round_start. It opens a round with round_freeze_end and closes it with
@@ -1386,7 +1388,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         // showed: zero rounds on every row, including the ones that had actually been scanned.
         //
         // GameTick, not ServerTick: this field is FRAME CLOCK, and the clip math that consumes it
-        // (ClipWindows.RoundStartFor) is frame clock throughout. Never offset it by ServerStartTick —
+        // (ClipWindows.RoundStartFor) is frame clock throughout. Never offset it by ServerStartTick:
         // DemoAnalyzer's own round list is the ABSOLUTE-clock variant and is not interchangeable here.
         List<CachedRound> rounds = ClipRounds.Derive(parsed).ToCachedRounds();
 
@@ -1394,9 +1396,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     // Reads the authoritative final scoreboard: CCSTeam.m_iScore per side (CT = team 3, T = team 2) plus clan
-    // names, entity-replayed to the last frame — exactly what the app's own UpdateGameInfo treats as the score.
+    // names, entity-replayed to the last frame, exactly what the app's own UpdateGameInfo treats as the score.
     // Correct for complete demos; on demos truncated at the buzzer the winner's final-round increment can be
-    // absent from the recorded frames (unrecoverable — no event carries the final score), matching what the app
+    // absent from the recorded frames (unrecoverable, no event carries the final score), matching what the app
     // itself would display. Returns nulls for warmup-only / team-less demos so the card omits the score.
     internal static (int? Ct, int? T, string? CtClan, string? TClan) ExtractFinalScore(ParsedDemo parsed)
     {
@@ -1407,10 +1409,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         }
 
         // The score reads only CCSTeam. The entity bitstream is sequential (every entity must be
-        // DECODED to reach the next), but we STORE only CCSTeam's fields — skipping the per-field
+        // DECODED to reach the next), but we STORE only CCSTeam's fields, skipping the per-field
         // storage + allocation for every other class. Byte-identical score (proven by
         // EntityStoreFilterEquivalenceTests over real demos, including buzzer-truncated ones); ~1.2x
-        // faster and ~30-60% less allocation on this replay — the latter eases the Library-backlog RAM
+        // faster and ~30-60% less allocation on this replay. The latter eases the Library-backlog RAM
         // pressure. Unlike the reverted checkpoint approach this replays ALL deltas from frame 0, so it
         // is truly identical, not merely approximate.
         EntityTracker tracker = new()
@@ -1462,7 +1464,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     ///     <para>
     ///         The extractor is BOTH-OR-NOTHING: it returns all four nulls unless it resolved a score for
     ///         team 2 AND team 3 with a non-zero sum, and it only ever reaches the clan reads on that same
-    ///         path. So "CT 16, T null" is a state the current code cannot emit — yet real caches are full of
+    ///         path. So "CT 16, T null" is a state the current code cannot emit, yet real caches are full of
     ///         it (on the reference library 555 rows carry a CT score and 3 carry the T score), left behind by
     ///         an older model whose <c>TScore</c>/<c>TClan</c> properties were renamed to <c>Score</c>/
     ///         <c>Clan</c> in commit eb79e1e. Every already-written row silently stopped deserializing its T
@@ -1471,9 +1473,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     ///     <para>
     ///         <b>This predicate is the whole loop guard</b>, so its exact shape matters. It flags only states
     ///         the extractor CANNOT produce, which makes the repair self-terminating by construction: whatever
-    ///         a re-derivation writes is coherent, so a repaired row is never suspect a second time — no
+    ///         a re-derivation writes is coherent, so a repaired row is never suspect a second time, no
     ///         "already tried" bookkeeping needed. In particular a single-clan result (both scores, one clan
-    ///         name) is legitimate — HLTV demos where only one side set a clan tag — and is NOT flagged.
+    ///         name) is legitimate, HLTV demos where only one side set a clan tag, and is NOT flagged.
     ///         Flagging it would re-index those demos on every single launch, forever.
     ///     </para>
     /// </summary>
@@ -1486,16 +1488,16 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     {
         if (ctScore is int ct && tScore is int t)
         {
-            return ct + t > 0; // both sides resolved — clans may legitimately be one-sided or absent
+            return ct + t > 0; // both sides resolved: clans may legitimately be one-sided or absent
         }
 
         // Neither side resolved. The extractor bails BEFORE it can have kept a clan, so a clan without a
         // score is the same stale half-result as a score without its other half.
         return ctScore is null && tScore is null
-                                && string.IsNullOrWhiteSpace(ctClan) && string.IsNullOrWhiteSpace(tClan);
+                               && string.IsNullOrWhiteSpace(ctClan) && string.IsNullOrWhiteSpace(tClan);
     }
 
-    // Does this hydrated row hold a score the extractor could not have produced? PURE — it deliberately
+    // Does this hydrated row hold a score the extractor could not have produced? PURE: it deliberately
     // mutates nothing (see the note in ApplyCache for why repairing the row in place is unsafe). The row is
     // left exactly as written and the half score is refused at the read boundary instead.
     private static bool HasIncoherentScore(DemoLibraryCacheEntry row) =>
@@ -1567,7 +1569,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     // Restores the metadata cache from library.json and RETURNS the folder list it stored (empty when
     // there is no file). The caller (SeedFolders) decides whether library.json or settings is the
-    // authoritative folder source — so this never mutates Folders itself.
+    // authoritative folder source, so this never mutates Folders itself.
     private List<string> LoadPersisted()
     {
         List<string> folders = [];
@@ -1592,7 +1594,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
             folders.AddRange(data.Folders);
 
-            // Count only — the rows are hydrated exactly as written. A score that violates
+            // Count only: the rows are hydrated exactly as written. A score that violates
             // ExtractFinalScore's both-or-nothing contract is refused in ApplyCache (which is also where the
             // reason it is not repaired in place is written down), and the user is offered the re-derivation
             // explicitly rather than having ~100 GB of parsing started on their behalf at launch.
@@ -1616,7 +1618,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 // real cache the gap is large: 552 rows were repairable on the reference library but only 342
                 // of them had a file still on disk. The rest described demos under a folder the user had
                 // removed, and nothing can ever re-derive those. PruneStaleCacheRows drops them on the first
-                // scan, so from the second launch onwards the two numbers converge — which is why the figure
+                // scan, so from the second launch onwards the two numbers converge, which is why the figure
                 // the UI offers to repair is ScoreRepairPendingCount (counted over Entries), not this one.
                 AppLog.LibraryHalfResolvedScores(DiagLog, repaired);
             }
@@ -1633,7 +1635,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     public void Save()
     {
         // The unified cache's sidecars are already on disk (Upsert writes them eagerly); only its index is
-        // deferred, so it rides the same checkpoints library.json uses — including the every-12-demos save
+        // deferred, so it rides the same checkpoints library.json uses, including the every-12-demos save
         // inside a long scan, which is what makes an interrupted backfill's progress survive.
         _demoCache?.SaveIndex();
 

@@ -7,7 +7,7 @@ using CS2DemoKit.Analysis.RulesetsV2.Model;
 namespace DemoViewer.NET.Modules.RuleWorkbench;
 
 /// <summary>
-///     One authoring diagnostic row surfaced in the Workbench — a display projection of a
+///     One authoring diagnostic row surfaced in the Workbench: a display projection of a
 ///     <see cref="RulesetDiagnostic" /> from the demo-less v2 checker. <see cref="Location" /> is the
 ///     spec's <c>file(line,col)</c> prefix; <see cref="File" />/<see cref="Line" />/<see cref="Column" />
 ///     are kept separate for a future click-to-open (M2, reusing <c>OpenExternal.OpenLocalFile</c>).

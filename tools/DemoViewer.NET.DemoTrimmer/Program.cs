@@ -1,7 +1,6 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.DemoTrimmer;
 using CS2DemoKit.Parser;
 
 #endregion
@@ -12,7 +11,7 @@ namespace DemoViewer.NET.DemoTrimmer;
 ///     CLI for the demo-trimmer proof of concept: produces a small <c>.dem</c> containing only the first
 ///     few rounds of a large one, for use as a bundled first-run-tour demo.
 ///     <para>
-///         Deliberately single-demo-at-a-time — a 170-450 MB demo plus its <see cref="ParsedDemo" /> plus
+///         Deliberately single-demo-at-a-time: a 170-450 MB demo plus its <see cref="ParsedDemo" /> plus
 ///         an <c>EntityTracker</c> replay is already most of a 16 GB machine's headroom. Never run two
 ///         instances concurrently.
 ///     </para>
@@ -20,21 +19,21 @@ namespace DemoViewer.NET.DemoTrimmer;
 internal static class Program
 {
     private const string Usage = """
-        DemoViewer.NET demo trimmer (proof of concept)
+                                 DemoViewer.NET demo trimmer (proof of concept)
 
-          inspect <demo.dem> [--boundaries N]
-              Frame/byte breakdown, round-boundary ladder, container tail.
+                                   inspect <demo.dem> [--boundaries N]
+                                       Frame/byte breakdown, round-boundary ladder, container tail.
 
-          trim <demo.dem> --out <dir> [options]
-              --rounds 1,3            round counts to emit (default 1,3)
-              --variants v0,v1,...    ladder rungs to emit (default all: v0 v1 v2 v3 v2c v3c)
-              --boundary <event>      round boundary event (default round_freeze_end)
-              --skip-boundaries N     skip N leading boundaries (warmup) (default 0)
-              --prefix <name>         output filename prefix (default: demo file stem)
-              --no-verify             skip re-parse + entity verification
-              --no-baseline           skip the informational full-source (D0) replay
-              --no-identity-check     skip the empty-drop-set encoder round-trip gate
-        """;
+                                   trim <demo.dem> --out <dir> [options]
+                                       --rounds 1,3            round counts to emit (default 1,3)
+                                       --variants v0,v1,...    ladder rungs to emit (default all: v0 v1 v2 v3 v2c v3c)
+                                       --boundary <event>      round boundary event (default round_freeze_end)
+                                       --skip-boundaries N     skip N leading boundaries (warmup) (default 0)
+                                       --prefix <name>         output filename prefix (default: demo file stem)
+                                       --no-verify             skip re-parse + entity verification
+                                       --no-baseline           skip the informational full-source (D0) replay
+                                       --no-identity-check     skip the empty-drop-set encoder round-trip gate
+                                 """;
 
     public static int Main(string[] args)
     {
@@ -67,11 +66,11 @@ internal static class Program
         (byte[] raw, ParsedDemo demo) = Load(path);
         DemoInspector.Inspect(demo, raw, path, boundaries);
 
-        // Also show the "what is inside the packets" split for a 3-round checkpoint window — the
-        // same table the original feasibility measurement reported.
+        // Also show the "what is inside the packets" split for a 3-round checkpoint window. It is
+        // the same table the original feasibility measurement reported.
         try
         {
-            TrimWindow window = WindowSelector.Select(demo, 3, enterAtCheckpoint: true);
+            TrimWindow window = WindowSelector.Select(demo, 3, true);
             DemoInspector.InspectWindowMessages(demo, window);
         }
         catch (InvalidOperationException ex)
@@ -104,7 +103,7 @@ internal static class Program
             $"source: {Path.GetFileName(path)}  {DemoInspector.Mib(raw.LongLength)}  " +
             $"map={demo.MapName} frames={demo.Frames.Count} ticks={demo.TickCount}"));
 
-        // player_team synthesis inputs — sampled ONCE per source (every window shares round 1's
+        // player_team synthesis inputs: sampled ONCE per source (every window shares round 1's
         // seating). A missing descriptor or an empty sample set skips synthesis with a warning
         // rather than emitting a file that will render every player on one team.
         IReadOnlyList<TeamSample> teamSamples = TeamEventSynthesizer.Sample(demo);

@@ -17,7 +17,7 @@ namespace DemoViewer.NET.ViewModels.MatchOverview;
 ///         The page is a CACHE RENDER with a live mode, not a landing page with a cache bolt-on: both modes
 ///         paint the same sections from the same slots, and the only difference is where the values came from
 ///         and whether a pipeline is running behind them. That is what makes opening a demo you were
-///         previewing produce no visual discontinuity — the cached render IS the skeleton the live fill lands
+///         previewing produce no visual discontinuity: the cached render IS the skeleton the live fill lands
 ///         into.
 ///     </para>
 /// </summary>
@@ -34,13 +34,13 @@ public enum OverviewMode
 }
 
 /// <summary>
-///     How complete the data behind the page is — the single honest answer to "why is this section empty?".
+///     How complete the data behind the page is: the single source of truth for "why is this section empty?".
 ///     Every state maps to one action that advances it (see
 ///     <see cref="MatchOverviewTabViewModel.CompletenessActionLabel" />), so the user is never left inferring.
 /// </summary>
 public enum OverviewCompleteness
 {
-    /// <summary>No demo — the empty state owns the page.</summary>
+    /// <summary>No demo: the empty state owns the page.</summary>
     None,
 
     /// <summary>A pipeline is running right now.</summary>
@@ -52,7 +52,7 @@ public enum OverviewCompleteness
     /// <summary>Tier 2 present, tier 3 absent or stale: identity, rosters and score are real; stats are not.</summary>
     Indexed,
 
-    /// <summary>Header only (or less) — nothing has parsed this demo yet.</summary>
+    /// <summary>Header only (or less): nothing has parsed this demo yet.</summary>
     NotIndexed,
 
     /// <summary>The last pass threw. Retryable.</summary>
@@ -60,11 +60,11 @@ public enum OverviewCompleteness
 }
 
 /// <summary>
-///     One highlight group on the Match Overview highlight section — a player and the moments they produced.
+///     One highlight group on the Match Overview highlight section: a player and the moments they produced.
 ///     <para>
 ///         Grouped by <c>PlayerSlot</c> and resolved against the record's roster, because the unified cache
 ///         stores highlights by SLOT rather than re-storing a name on every event row. Team identity rides the
-///         coloured dot beside a neutral name, never the text colour — the page-wide rule.
+///         coloured dot beside a neutral name, never the text colour, the page-wide rule.
 ///     </para>
 /// </summary>
 public sealed partial class OverviewHighlightGroup(string playerName, int team, bool isExpanded = false)
@@ -72,7 +72,7 @@ public sealed partial class OverviewHighlightGroup(string playerName, int team, 
 {
     private bool _isExpanded = isExpanded;
 
-    /// <summary>Sanitized display name — hostile bidi/combining-mark names crash Avalonia's wrap splitter.</summary>
+    /// <summary>Sanitized display name: hostile bidi/combining-mark names crash Avalonia's wrap splitter.</summary>
     public string PlayerName { get; } = playerName;
 
     /// <summary>2 = T, 3 = CT (parser convention).</summary>
@@ -86,7 +86,7 @@ public sealed partial class OverviewHighlightGroup(string playerName, int team, 
     /// <summary>
     ///     Expander state. Lives here (not in the view) so it survives the tab's view teardown. Defaults to
     ///     COLLAPSED: a demo can produce a dozen per-player sections, and a wall of pre-expanded lists buries
-    ///     the "which players had moments" overview the section leads with — the user opens the one they want.
+    ///     the "which players had moments" overview the section leads with. The user opens the one they want.
     /// </summary>
     public bool IsExpanded
     {
@@ -101,7 +101,7 @@ public sealed partial class OverviewHighlightGroup(string playerName, int team, 
     public void NotifyRowsChanged() => OnPropertyChanged(nameof(CountDisplay));
 
     /// <summary>
-    ///     Header "Select all" — stages every not-yet-staged highlight in this player's section into the reel
+    ///     Header "Select all": stages every not-yet-staged highlight in this player's section into the reel
     ///     tray. Deliberately ADD-ONLY: the per-row Stage command TOGGLES, so invoking it on an already-staged
     ///     row would remove it; pressing "Select all" only ever adds, so it is safe to press repeatedly and
     ///     never silently un-stages a clip the user already took.
@@ -136,10 +136,10 @@ public sealed partial class OverviewHighlightRow : ViewModelBase
     private bool _isVerifying;
 
     /// <param name="title">The rendered title, captured at emission and sanitized for display.</param>
-    /// <param name="rawPlayerName">The RAW in-demo name — CSVG's spectate currency, never sanitized.</param>
+    /// <param name="rawPlayerName">The RAW in-demo name: CSVG's spectate currency, never sanitized.</param>
     /// <param name="tick">Frame-clock tick. Passed AS-IS; never converted to server-tick space.</param>
     /// <param name="roundNumber">Round the highlight fired in, or 0 when unknown.</param>
-    /// <param name="typeKey">Qualified <c>{rulesetId}.{highlightId}</c> — the filter identity.</param>
+    /// <param name="typeKey">Qualified <c>{rulesetId}.{highlightId}</c>: the filter identity.</param>
     /// <param name="verifyPresent">Whether the Verify affordance exists at all (the chrome.livesync gate).</param>
     /// <param name="onStage">Staging callback; null leaves the button inert.</param>
     /// <param name="onVerify">Verify callback; null leaves the button inert.</param>
@@ -173,7 +173,7 @@ public sealed partial class OverviewHighlightRow : ViewModelBase
     public string TypeKey { get; }
 
     /// <summary>
-    ///     The demo this highlight belongs to, and the player slot it fired for — together with
+    ///     The demo this highlight belongs to, and the player slot it fired for: together with
     ///     <see cref="TypeKey" /> and <see cref="Tick" /> they are the tray's clip identity.
     ///     <para>
     ///         Carried on the ROW rather than closed over by the staging callback because a reel is
@@ -186,12 +186,12 @@ public sealed partial class OverviewHighlightRow : ViewModelBase
     /// <inheritdoc cref="DemoPath" />
     public int PlayerSlot { get; init; }
 
-    /// <summary>Verify exists at all — governed by <c>chrome.livesync</c>, not by session state.</summary>
+    /// <summary>Verify exists at all: governed by <c>chrome.livesync</c>, not by session state.</summary>
     public bool VerifyPresent { get; }
 
     /// <summary>
     ///     Verify is offered only in LIVE mode. In a cached render the demo on this page is not the demo CS2
-    ///     has loaded, and seeking the open demo to another demo's tick would play the wrong moment — the same
+    ///     has loaded, and seeking the open demo to another demo's tick would play the wrong moment, the same
     ///     demo-identity rule the Highlights tab's per-row gate enforces, arriving here for free.
     /// </summary>
     public bool CanVerify { get; init; }
@@ -205,14 +205,14 @@ public sealed partial class OverviewHighlightRow : ViewModelBase
     [RelayCommand]
     private void Stage()
     {
-        // Does NOT flip IsStaged — the handler does, from what the TRAY reports.
+        // Does NOT flip IsStaged. The handler does, from what the TRAY reports.
         //
         // While this was a step-5 stub it flipped optimistically, which is wrong twice over now that a real
         // tray is on the other end. It made the flag a lie whenever staging failed (the tray refuses a clip
         // whose cache row has gone, e.g. after a rescan), and worse, the handler reads IsStaged to decide
-        // stage-vs-unstage — so a pre-flip turned every press into the opposite action and nothing could
-        // ever be staged at all. With no handler wired the button is simply inert, which is the honest
-        // rendering of "there is no tray to put this in".
+        // stage-vs-unstage, so a pre-flip turned every press into the opposite action and nothing could
+        // ever be staged at all. With no handler wired the button is simply inert, which correctly shows
+        // there is no tray to put this in.
         _onStage?.Invoke(this);
     }
 
@@ -249,12 +249,12 @@ public static class OverviewHighlightProjector
     ///     <para>
     ///         Deliberately not the scoreboard's CT-block-then-T ordering: that one mirrors a scoreboard,
     ///         where side is the organising idea. This is a "what happened in this match" list, so it leads
-    ///         with whoever produced the most — the same reason the scoreboard itself sorts strongest-first
+    ///         with whoever produced the most, the same reason the scoreboard itself sorts strongest-first
     ///         within a side.
     ///     </para>
     ///     <para>
     ///         Players are resolved by SLOT against the record's roster; a highlight whose slot is not in the
-    ///         roster still renders under a placeholder name rather than being dropped — losing a moment
+    ///         roster still renders under a placeholder name rather than being dropped: losing a moment
     ///         because a roster row is missing would be worse than showing it unattributed.
     ///     </para>
     /// </summary>

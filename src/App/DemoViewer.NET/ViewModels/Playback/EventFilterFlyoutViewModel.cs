@@ -12,7 +12,7 @@ namespace DemoViewer.NET.ViewModels.Playback;
 
 /// <summary>
 ///     The strip-ready presentation surface for the demo-derived game-event filter
-///. It does NOT own the filter list — that single source of truth
+///     . It does NOT own the filter list: that single source of truth
 ///     is the shell's <c>GameEventFilters</c> (<see cref="GameEventFilterItem" />, populated from the
 ///     actual demo). This VM wraps that collection with the Select-all / Deselect-all commands and the
 ///     active-filter tooltip the nav strip's event-jump flyout binds to, replacing the
@@ -20,7 +20,7 @@ namespace DemoViewer.NET.ViewModels.Playback;
 ///     <para>
 ///         The flyout's checkbox list binds to <see cref="Filters" /> (the same instance as the shell's
 ///         <c>GameEventFilters</c>), so toggling a checkbox here is exactly what
-///         <c>SelectedSpecialFilter()</c> reads on the next event jump — one filter, one source.
+///         <c>SelectedSpecialFilter()</c> reads on the next event jump: one filter, one source.
 ///     </para>
 /// </summary>
 public sealed partial class EventFilterFlyoutViewModel : ObservableObject
@@ -70,7 +70,7 @@ public sealed partial class EventFilterFlyoutViewModel : ObservableObject
     ///     A SHORT label for the NavStrip SEEK target chip. Where
     ///     <see cref="FilterTooltip" /> is a full sentence for the hover, this is the ≤~1-word chip text:
     ///     <c>Any event</c> (none / all selected → match-any), <c>Round</c> (exactly the
-    ///     <c>round_*</c> preset — reproduces the removed round buttons' label), the single event name
+    ///     <c>round_*</c> preset: reproduces the removed round buttons' label), the single event name
     ///     when one type is selected, or <c>N events</c> for an arbitrary subset. Kept
     ///     <c>MaxWidth</c>-capped by the chip; see the design-system NavStrip contract.
     /// </summary>
@@ -87,7 +87,7 @@ public sealed partial class EventFilterFlyoutViewModel : ObservableObject
                 return "Any event";
             }
 
-            // Round preset: exactly the round_* set is on — reproduces the removed round buttons' label.
+            // Round preset: exactly the round_* set is on: reproduces the removed round buttons' label.
             List<GameEventFilterItem> round = Filters.Where(IsRoundEvent).ToList();
             if (round.Count > 0 && enabled.Count == round.Count && enabled.All(IsRoundEvent))
             {
@@ -119,7 +119,7 @@ public sealed partial class EventFilterFlyoutViewModel : ObservableObject
     // ── Target presets (SEEK consolidation) ───────────────────────────────────────
     // Each preset is a named quick-selection over the SAME demo-derived filter list; nothing enabled
     // falls through to the navigator's "match any". "Round" reproduces the removed NavPrev/NextRound
-    // exactly (SemanticNavigator.PrevRound/NextRound key off the identical StartsWith("round_") union —
+    // exactly (SemanticNavigator.PrevRound/NextRound key off the identical StartsWith("round_") union,
     // and CS2 GOTV round lifecycle is round_freeze_end / round_officially_ended, not round_start, so a
     // named preset is the discoverable way to reach rounds without knowing the exact event name).
 
@@ -136,7 +136,7 @@ public sealed partial class EventFilterFlyoutViewModel : ObservableObject
     private void PresetKills() =>
         ApplyPreset(static n => string.Equals(n, "player_death", StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Preset: select bomb events (<c>bomb_*</c> — planted / defused / begindefuse / etc.).</summary>
+    /// <summary>Preset: select bomb events (<c>bomb_*</c>: planted / defused / begindefuse / etc.).</summary>
     [RelayCommand]
     private void PresetBomb() =>
         ApplyPreset(static n => n.StartsWith("bomb_", StringComparison.OrdinalIgnoreCase));
@@ -156,7 +156,7 @@ public sealed partial class EventFilterFlyoutViewModel : ObservableObject
 
     private void OnFiltersCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        // New demo events are appended at load — subscribe to the new items so the summary stays live.
+        // New demo events are appended at load: subscribe to the new items so the summary stays live.
         if (e.NewItems is not null)
         {
             foreach (object o in e.NewItems)

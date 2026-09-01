@@ -14,7 +14,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Regression for the fast-scroll library crash (reported 2026-07-09): Avalonia's
 ///     line-wrap splitter throws "Cannot split: requested length N consumes entire run"
-///     (ShapedTextRun.Split) on degenerate player names — invisible bidi-isolate format chars plus
+///     (ShapedTextRun.Split) on degenerate player names: invisible bidi-isolate format chars plus
 ///     an orphaned combining mark. The card's players TextBlock wraps, and virtualized scrolling
 ///     re-measures cards at realize time, so one such name crashed the whole app. The fix is
 ///     display-boundary sanitization (<see cref="DisplayText.Sanitize" /> in

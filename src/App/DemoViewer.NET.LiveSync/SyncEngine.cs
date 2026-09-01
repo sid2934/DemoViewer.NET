@@ -8,7 +8,7 @@ using static Cs2VideoGenerator.Core.Proto.DemoPlaybackStatusChange.Types;
 
 namespace DemoViewer.NET.LiveSync;
 
-/// <summary>Timing knobs for <see cref="SyncEngine" /> — shrunk by tests; production uses the defaults.</summary>
+/// <summary>Timing knobs for <see cref="SyncEngine" />, shrunk by tests; production uses the defaults.</summary>
 /// <param name="Settle">The edge-triggered reconcile debounce window (~140 ms).</param>
 /// <param name="SeekConfirmGrace">
 ///     v1.0 provisional-confirm grace: the plugin pre-echoes the TARGET tick before actually
@@ -17,7 +17,7 @@ namespace DemoViewer.NET.LiveSync;
 /// </param>
 /// <param name="SeekTimeout">Unconfirmed-seek expiry → Degraded.</param>
 /// <param name="PlayPauseTimeout">Missing play/pause status echo → Degraded.</param>
-internal sealed record SyncTimings(
+public sealed record SyncTimings(
     TimeSpan Settle,
     TimeSpan SeekConfirmGrace,
     TimeSpan SeekTimeout,
@@ -33,19 +33,19 @@ internal sealed record SyncTimings(
 /// <summary>
 ///     The outbound sync core (one-way): desired-state vs believed-state
 ///     reconciliation, echo-suppression ledger, single-slot latest-wins seek pipeline, and the
-///     serial command pump. Deliberately Avalonia-free — the UI-coupled
+///     serial command pump. Deliberately Avalonia-free: the UI-coupled
 ///     <see cref="SyncStateObserver" /> feeds desired state in, CSVG events feed believed state
 ///     in via <see cref="NotifyTick" /> / <see cref="NotifyPlaybackStatus" />, and the computed
 ///     <see cref="LiveSyncState" /> flows out through <see cref="StatusChanged" /> (raised on
-///     arbitrary threads — the service marshals).
+///     arbitrary threads, the service marshals).
 ///     <para>
 ///         Control plane: DV is the single command authority. While both sides play, CS2's ticks
 ///         are a drift REFERENCE only (the servo consumes them); outbound sync never pushes
-///         position while playing — discrete seeks only, which DV's controller always issues from
+///         position while playing: discrete seeks only, which DV's controller always issues from
 ///         a paused state (<c>SeekToFrame</c> stops the play loop first).
 ///     </para>
 /// </summary>
-internal sealed class SyncEngine : IAsyncDisposable
+public sealed class SyncEngine : IAsyncDisposable
 {
     /// <summary>±tick window for believed-position "close enough" and v1.0 seek confirmation.</summary>
     public const int SeekConfirmTolerance = 32;
@@ -80,7 +80,7 @@ internal sealed class SyncEngine : IAsyncDisposable
 
     private long? _believedTick;
 
-    // Last SENT values — the protocol has no readback. Null = unknown: a failed send rolls back
+    // Last SENT values: the protocol has no readback. Null = unknown: a failed send rolls back
     // here so the next reconcile (incl. Re-sync, which never re-touches these) resends.
     private double? _believedTimescale = 1.0;
     private string? _degradedReason;
@@ -93,8 +93,8 @@ internal sealed class SyncEngine : IAsyncDisposable
     private long? _desiredTick;
     private double _desiredTimescale = 1.0;
 
-    // Inbound honesty flags: inferred pause (v1.0 tick-silence watchdog) and the
-    // CS2-side demo change offer (v1.1 demo-identity).
+    // Inbound flags for state that's inferred, not confirmed: inferred pause (v1.0
+    // tick-silence watchdog) and the CS2-side demo change offer (v1.1 demo-identity).
     private bool _inferredPause;
 
     private LiveSyncState? _lastPublished;
@@ -110,7 +110,7 @@ internal sealed class SyncEngine : IAsyncDisposable
     private bool _seekSlotArmed;
 
     // While a verification range playback owns CS2, the reconciler and the
-    // inbound pump both stand down — the range's seeks/plays/pauses are neither drift nor
+    // inbound pump both stand down. The range's seeks/plays/pauses are neither drift nor
     // user intent, and pushing DV state at CS2 mid-range would fight the playback.
     private volatile bool _verificationInFlight;
 
@@ -134,7 +134,7 @@ internal sealed class SyncEngine : IAsyncDisposable
     public bool VerificationInFlight => _verificationInFlight;
 
     /// <summary>
-    ///     True while a seek is unresolved (in the slot or awaiting confirmation) — the
+    ///     True while a seek is unresolved (in the slot or awaiting confirmation): the
     ///     inbound tick-jump inference must not misread our own seek as a CS2-side one.
     /// </summary>
     internal bool HasPendingSeek
@@ -175,7 +175,7 @@ internal sealed class SyncEngine : IAsyncDisposable
 
     /// <summary>
     ///     New demo intent (or none). Resets the tick/playing intent alongside, and re-arms a
-    ///     Degraded engine — a fresh full-intent push (demo load, DemoReset, Re-sync) supersedes
+    ///     Degraded engine: a fresh full-intent push (demo load, DemoReset, Re-sync) supersedes
     ///     any stale unconfirmed-command reason.
     /// </summary>
     public void SetDesiredDemo(string? demoPath, long? tick, bool playing)
@@ -195,8 +195,8 @@ internal sealed class SyncEngine : IAsyncDisposable
     }
 
     /// <summary>
-    ///     The loaded DV demo has no rooted local path CSVG could open — sync
-    ///     disengages and surfaces the honest Degraded reason.
+    ///     The loaded DV demo has no rooted local path CSVG could open. Sync
+    ///     disengages and surfaces the Degraded reason.
     /// </summary>
     public void NoteDemoPathUnavailable()
     {
@@ -235,7 +235,7 @@ internal sealed class SyncEngine : IAsyncDisposable
 
     /// <summary>
     ///     Playback-speed intent. Mirrored to CS2 only under the "timescale-set"
-    ///     capability — no-op otherwise, so the observer can push unconditionally. Send-only:
+    ///     capability, no-op otherwise, so the observer can push unconditionally. Send-only:
     ///     believed == last sent (the protocol has no engine readback, and in-game console
     ///     changes are invisible).
     /// </summary>
@@ -256,7 +256,7 @@ internal sealed class SyncEngine : IAsyncDisposable
 
     /// <summary>
     ///     Spectate intent: the exact in-demo player name to follow in CS2. Send-only,
-    ///     dedup on change (a v1.0 command — no capability gate; readback awaits
+    ///     dedup on change (a v1.0 command, no capability gate; readback awaits
     ///     "spectator-report"). Known limitation: exact-name targeting breaks on mid-match
     ///     renames until A-P9 steamid spectating validates.
     /// </summary>
@@ -283,7 +283,7 @@ internal sealed class SyncEngine : IAsyncDisposable
     }
 
     /// <summary>
-    ///     Leaves verification mode and re-kicks reconciliation — the realign push (CS2 sits
+    ///     Leaves verification mode and re-kicks reconciliation: the realign push (CS2 sits
     ///     paused at end-of-range; DV was remote-applied to the trigger) flows normally.
     /// </summary>
     public void EndVerification()
@@ -293,8 +293,8 @@ internal sealed class SyncEngine : IAsyncDisposable
     }
 
     /// <summary>
-    ///     v1.0 inference (fallback): tick silence while believed playing — CS2 is PROBABLY
-    ///     paused, honestly labeled as inferred (the hollow-dot state). Cleared by any subsequent
+    ///     v1.0 inference (fallback): tick silence while believed playing. CS2 is PROBABLY
+    ///     paused, labeled as inferred (the hollow-dot state). Cleared by any subsequent
     ///     evidence (tick, status echo, fresh intent push).
     /// </summary>
     public void NoteInferredPause()
@@ -314,7 +314,7 @@ internal sealed class SyncEngine : IAsyncDisposable
     }
 
     /// <summary>
-    ///     v1.0 inference: the tick stream restarted near 0 (or otherwise became unexplainable) —
+    ///     v1.0 inference: the tick stream restarted near 0 (or otherwise became unexplainable).
     ///     CS2's demo state is genuinely unknown. Degraded until Re-sync/evidence.
     /// </summary>
     public void NoteRemoteDemoStateUnknown()
@@ -329,7 +329,7 @@ internal sealed class SyncEngine : IAsyncDisposable
 
     /// <summary>
     ///     v1.1 demo-identity: CS2 reports a DIFFERENT loaded demo (user changed it
-    ///     in-game). Never silently auto-load — surface Degraded with the path so the flyout
+    ///     in-game). Never silently auto-load: surface Degraded with the path so the flyout
     ///     offers "Open in DV" / Re-sync. Believed demo adopts CS2's truth so the reconciler does
     ///     not fight the user by re-pushing DV's demo uninvited.
     /// </summary>
@@ -353,7 +353,7 @@ internal sealed class SyncEngine : IAsyncDisposable
 
     /// <summary>
     ///     Tick-stream update. Cheap (one lock); safe on the synchronous hot path.
-    ///     <paramref name="isPaused" /> is the v1.1 per-tick pause flag — consumed as believed
+    ///     <paramref name="isPaused" /> is the v1.1 per-tick pause flag, consumed as believed
     ///     truth only when the plugin advertises engine-pause-detection (it also confirms a
     ///     matching pending play/pause without waiting for the status echo).
     /// </summary>
@@ -363,7 +363,7 @@ internal sealed class SyncEngine : IAsyncDisposable
         {
             _believedTick = tick;
 
-            // v1.0 inference exit: a tick is evidence CS2 is ticking again — an inferred pause
+            // v1.0 inference exit: a tick is evidence CS2 is ticking again. An inferred pause
             // was wrong (or ended); on that path ticks only flow while the demo plays.
             if (_inferredPause && !_capabilities.EnginePauseDetection)
             {
@@ -387,7 +387,7 @@ internal sealed class SyncEngine : IAsyncDisposable
                 {
                     if (!_pendingSeekProvisional)
                     {
-                        // v1.0 pre-echo defence: an on-target tick is only PROVISIONAL — the
+                        // v1.0 pre-echo defence: an on-target tick is only PROVISIONAL. The
                         // plugin echoes the target before seeking. Confirm after the grace window
                         // unless a far tick contradicts it.
                         _pendingSeekProvisional = true;
@@ -459,7 +459,7 @@ internal sealed class SyncEngine : IAsyncDisposable
     /// <summary>
     ///     <see cref="Timer.Change(TimeSpan, TimeSpan)" /> guarded against the teardown race:
     ///     <see cref="DisposeAsync" /> does not quiesce in-flight timer/pump callbacks, so any of
-    ///     them can reach a sibling timer after it is disposed — swallow; nothing is left to
+    ///     them can reach a sibling timer after it is disposed: swallow, since nothing is left to
     ///     schedule.
     /// </summary>
     private static void ChangeSafe(Timer timer, TimeSpan dueTime)
@@ -470,7 +470,7 @@ internal sealed class SyncEngine : IAsyncDisposable
         }
         catch (ObjectDisposedException)
         {
-            // Disposal race — nothing left to reconcile.
+            // Disposal race: nothing left to reconcile.
         }
     }
 
@@ -484,7 +484,7 @@ internal sealed class SyncEngine : IAsyncDisposable
             {
                 // Load completion re-kicks. A pending CS2-side demo-change offer PAUSES
                 // reconciliation entirely: re-pushing DV's demo uninvited would fight
-                // the user's in-game choice — Open-in-DV or Re-sync resolves it. Verification
+                // the user's in-game choice. Open-in-DV or Re-sync resolves it. Verification
                 // pauses it too: the range playback owns CS2 until EndVerification.
             }
             else if (!string.Equals(_desiredDemo, _believedDemo, StringComparison.Ordinal))
@@ -505,11 +505,11 @@ internal sealed class SyncEngine : IAsyncDisposable
             }
             else if (_desiredDemo is not null)
             {
-                // Position: discrete-seek intent only, and never while BOTH sides play — there,
+                // Position: discrete-seek intent only, and never while BOTH sides play: there,
                 // position drift is the servo's job, never a seek storm. While CS2 is
                 // believed paused, a playing intent still needs its position delivered FIRST
                 // (enable-sync-mid-play / Re-sync-while-playing land here with believed
-                // {tick 0, paused}): seek, then the Play toggle below — otherwise CS2 plays from
+                // {tick 0, paused}): seek, then the Play toggle below. Otherwise CS2 plays from
                 // 0 and the servo hard-resyncs DV back to the demo start.
                 if ((!_desiredPlaying || !_believedPlaying) && _desiredTick is long target)
                 {
@@ -596,14 +596,14 @@ internal sealed class SyncEngine : IAsyncDisposable
         switch (command)
         {
             case SyncCommand.Load load:
-                // Request the interactive in-game demo UI whenever the plugin can honor it —
-                // without the flag the CS2→DV direction cannot exist even on a v1.1 plugin.
+                // Request the interactive in-game demo UI whenever the plugin can honor it.
+                // Without the flag the CS2→DV direction cannot exist even on a v1.1 plugin.
                 await _client.LoadDemoAsync(load.Path, _capabilities.UserDemoUi, _cts.Token).ConfigureAwait(false);
                 lock (_gate)
                 {
                     _believedDemo = load.Path;
                     // The client's load contract: completes with the demo LOADED and PAUSED at
-                    // tick 0 (verified against the mock wire — the load sequence itself pauses
+                    // tick 0 (verified against the mock wire: the load sequence itself pauses
                     // and goes to 0). The post-load reconcile pushes only the position fixup.
                     _believedTick = 0;
                     _believedPlaying = false;
@@ -643,7 +643,7 @@ internal sealed class SyncEngine : IAsyncDisposable
                     pauseAfterSeek = _desiredPlaying ? null : true;
                     if (!AckedSeeks)
                     {
-                        // v1.0 only — the acked path's deadline lives in the client, and an
+                        // v1.0 only: the acked path's deadline lives in the client, and an
                         // engine 5 s expiry would mis-degrade a legitimately-slow far seek.
                         ChangeSafe(_seekTimeoutTimer, _timings.SeekTimeout);
                     }
@@ -668,7 +668,7 @@ internal sealed class SyncEngine : IAsyncDisposable
                                 if (pauseAfterSeek == true)
                                 {
                                     _believedPlaying = false;
-                                    // The arrival-verified ack IS the pause confirmation — a
+                                    // The arrival-verified ack IS the pause confirmation: a
                                     // standalone Pause toggle pending for the same state must
                                     // not sit waiting for an echo and expire.
                                     if (_pendingToggleTarget == false)
@@ -856,7 +856,7 @@ internal sealed class SyncEngine : IAsyncDisposable
         // Delivery is serialized WITH the dedup decision: computing under _gate but invoking
         // outside any lock would let two racing publishers deliver in inverted order, and the
         // _lastPublished dedup then pins subscribers on the stale status until the next genuine
-        // transition. Holding _publishGate across the invoke is safe — the only subscriber
+        // transition. Holding _publishGate across the invoke is safe: the only subscriber
         // (LiveSyncService.OnEngineStatus → SetState) posts to the dispatcher and returns.
         // Ordering is _publishGate → _gate; nothing takes _gate first.
         lock (_publishGate)

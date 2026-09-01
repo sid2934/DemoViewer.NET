@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Services;
 public sealed record RecentFile(string Path, string? MapName, DateTime OpenedAtUtc);
 
 /// <summary>
-///     Best-effort disk persistence for the most-recently-opened demos — the store the
+///     Best-effort disk persistence for the most-recently-opened demos: the store the
 ///     Library landing binds its "recent files" strip to. The list is kept most-recent-first, capped
 ///     at <see cref="MaxRecent" />, and de-duplicated by path (a re-open moves the entry to the front rather
 ///     than adding a duplicate). Ordering is by insertion (front-insert on open), NOT by re-sorting
@@ -27,7 +27,7 @@ public sealed record RecentFile(string Path, string? MapName, DateTime OpenedAtU
 ///         Persistence is delegated to <see cref="SettingsService" />: recents are the <c>Recents</c>
 ///         section of the single consolidated config file (formerly the standalone
 ///         <c>recent-files.json</c>). The live most-recent-first list is always kept in memory here, so a
-///         <c>null</c> settings service (the WASM/browser sandbox — no filesystem — or the designer / older
+///         <c>null</c> settings service (the WASM/browser sandbox, no filesystem, or the designer / older
 ///         test path) simply means "recents stay in-memory for the life of the process"; the actual
 ///         write short-circuits inside <see cref="SettingsService.SaveRecents" />. A runtime check is used
 ///         rather than a <c>#if BROWSER</c> define because the same <c>DemoViewer.NET</c> assembly is
@@ -40,8 +40,8 @@ public sealed class RecentFilesStore
     /// <summary>Maximum recents retained; older entries drop off the tail on each new open.</summary>
     public const int MaxRecent = 10;
 
-    // Paths compare case-insensitively — macOS/Windows filesystems are case-insensitive and the library
-    // indexer keys the same way — so re-opening the same file (any casing) de-dupes rather than duplicating.
+    // Paths compare case-insensitively: macOS/Windows filesystems are case-insensitive and the library
+    // indexer keys the same way, so re-opening the same file (any casing) de-dupes rather than duplicating.
     private static readonly StringComparer _pathComparer = StringComparer.OrdinalIgnoreCase;
     private readonly List<RecentFile> _items;
 
@@ -52,7 +52,7 @@ public sealed class RecentFilesStore
     ///     The consolidated-config serializer that owns the <c>Recents</c> section. The real app
     ///     injects the singleton <see cref="SettingsService" />; a temp-dir-backed one is the test seam
     ///     (keeps tests out of the real config folder). Null → in-memory only, no persistence (the
-    ///     designer / older-test path — matches the pre-consolidation WASM behavior).
+    ///     designer / older-test path: matches the pre-consolidation WASM behavior).
     /// </param>
     public RecentFilesStore(SettingsService? settings = null)
     {

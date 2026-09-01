@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The Avalonia-shaped half of the module contract: WorkspaceTabDescriptor (Func<Control>
+      ViewFactory / Control? ActiveContent) and IWorkspaceModule, which returns descriptors. Split out
+      of DemoViewer.NET.Modules.Abstractions in B0 (docs/playback2d-v2/plans/B0-core-pipeline-foundations.md
+      decision D1) so that project — which owns IPlaybackSnapshot / IPlayerState / IReadOnlyEntityView —
+      can be referenced by the Avalonia-free Playback2D.Pipeline.
+
+      The namespace is deliberately UNCHANGED (DemoViewer.NET.Modules.Abstractions) so no call site
+      needed a using change.
+    -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>DemoViewer.NET.Modules.Abstractions</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference
+                Include="..\DemoViewer.NET.Modules.Abstractions\DemoViewer.NET.Modules.Abstractions.csproj"/>
+    </ItemGroup>
+
+</Project>

@@ -59,7 +59,7 @@ public sealed class AnalysisMessageViewModel
     public bool IsEvent { get; }
 
     /// <summary>
-    ///     True when this message's dispatch key appears in the graph's edge table — i.e. it
+    ///     True when this message's dispatch key appears in the graph's edge table, i.e. it
     ///     could trigger a state transition.
     /// </summary>
     public bool IsMatched { get; }
@@ -70,6 +70,6 @@ public sealed class AnalysisMessageViewModel
     /// </summary>
     public string Label { get; }
 
-    /// <summary>Pre-computed label colour — green for matched, dim for unmatched.</summary>
+    /// <summary>Pre-computed label colour: green for matched, dim for unmatched.</summary>
     public IBrush LabelForeground { get; }
 }

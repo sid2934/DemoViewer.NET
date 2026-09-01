@@ -4,7 +4,7 @@ namespace DemoViewer.NET.Services.LiveSync;
 ///     App-facing contract for highlight-reel generation. The
 ///     implementation lives in the desktop-only LiveSync project (CSVG capture APIs) and arrives
 ///     via <see cref="AppHostHooks.ReelJobFactory" />. The reel dialog hands off to
-///     <see cref="Start" /> and closes — progress surfaces through the Reel status chip bound to
+///     <see cref="Start" /> and closes. Progress surfaces through the Reel status chip bound to
 ///     <see cref="Status" />/<see cref="StatusChanged" /> (no multi-minute modal). One job at a
 ///     time; while one runs, live-sync Enable/Reconnect and interactive demo loads are excluded
 ///     (the F1↔F3b single-CS2 interlock + the HeavyJobGate reel session).
@@ -20,7 +20,7 @@ public interface IReelJobService
     /// <summary>
     ///     Starts the background job. Throws <see cref="InvalidOperationException" /> when one is
     ///     already running. Suspends an active live-sync session first (its chip shows
-    ///     "Paused for reel render"; it ends at a Reconnect prompt — never auto-relaunched).
+    ///     "Paused for reel render"; it ends at a Reconnect prompt, never auto-relaunched).
     /// </summary>
     void Start(ReelRequest request);
 
@@ -30,27 +30,27 @@ public interface IReelJobService
     /// <summary>
     ///     Starts a NEW job from the previous request's unfinished clips (failed + never
     ///     started). No-op when nothing failed or a job is running. Cross-run concatenation is a
-    ///     CSVG follow-up — the retry produces its own output files.
+    ///     CSVG follow-up: the retry produces its own output files.
     /// </summary>
     void RetryRemaining();
 }
 
 /// <summary>
-///     One clip of a reel plan (already coalesced — see
+///     One clip of a reel plan (already coalesced: see
 ///     <c>CS2DemoKit.Analysis.Clips.ClipPlanner</c>).
 ///     <para>
 ///         Ticks are the DV <b>frame clock</b>, not CS2 demo ticks. The <c>TickOffset</c> shim
-///         is applied exactly once, at emission into CS2 (the LiveSync reel job's <c>Cs2Range</c>) —
+///         is applied exactly once, at emission into CS2 (the LiveSync reel job's <c>Cs2Range</c>),
 ///         so every clamp upstream stays in one clock and a non-zero offset cannot skew them.
 ///     </para>
 /// </summary>
 /// <param name="DemoPath">Rooted demo path (pre-flight existence-checked).</param>
-/// <param name="DemoSha256">The cached demo hash — CSVG's MatchChecksum (any stable string).</param>
+/// <param name="DemoSha256">The cached demo hash: CSVG's MatchChecksum (any stable string).</param>
 /// <param name="PlayerSteamId64">Attributed player (steamid spectate when the plugin supports it).</param>
-/// <param name="PlayerNameRaw">RAW in-demo name — the spec_player currency.</param>
-/// <param name="StartTick">Window start — FRAME CLOCK.</param>
-/// <param name="EndTick">Window end — FRAME CLOCK.</param>
-/// <param name="TickRate">The demo's tick rate — playback timeouts derive from it (never hardcode 64).</param>
+/// <param name="PlayerNameRaw">RAW in-demo name: the spec_player currency.</param>
+/// <param name="StartTick">Window start: FRAME CLOCK.</param>
+/// <param name="EndTick">Window end: FRAME CLOCK.</param>
+/// <param name="TickRate">The demo's tick rate: playback timeouts derive from it (never hardcode 64).</param>
 /// <param name="Label">Display label (the merged clip's titles).</param>
 public sealed record ReelClip(
     string DemoPath,
@@ -65,9 +65,9 @@ public sealed record ReelClip(
 /// <summary>The dialog's hand-off: the clip plan plus output/encoding choices.</summary>
 /// <remarks>
 ///     <see cref="Width" />/<see cref="Height" /> are the reel's capture resolution (the user's choice on
-///     the Reels tab). They are trailing-optional: <c>0</c> means "unset — let the job fall back to the CS2
+///     the Reels tab). They are trailing-optional: <c>0</c> means "unset, let the job fall back to the CS2
 ///     window size, then 1080p". The InEngineHooked present-hook backend has no frame header, so this size
-///     is BOTH what CS2 launches at AND what ffmpeg is told each raw frame measures — the two must agree.
+///     is BOTH what CS2 launches at AND what ffmpeg is told each raw frame measures: the two must agree.
 /// </remarks>
 public sealed record ReelRequest(
     IReadOnlyList<ReelClip> Clips,

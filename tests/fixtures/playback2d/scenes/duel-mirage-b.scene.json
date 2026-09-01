@@ -1,0 +1,325 @@
+{
+  "schemaVersion": "playback2d-scene/1",
+  "time": {
+    "tick": 21120,
+    "frameIndex": 21152,
+    "demoSeconds": 330.0,
+    "deltaSeconds": 0.015625,
+    "isDiscontinuity": false
+  },
+  "camera": {
+    "viewWidth": 640,
+    "viewHeight": 360,
+    "centerX": -1880.0,
+    "centerY": 260.0,
+    "baseScale": 0.22,
+    "zoom": 1.0,
+    "panX": 0.0,
+    "panY": 0.0
+  },
+  "size": {
+    "width": 640,
+    "height": 360
+  },
+  "mapName": "de_mirage",
+  "mapVersion": "1efb9403",
+  "frame": {
+    "time": {
+      "tick": 21120,
+      "frameIndex": 21152,
+      "demoSeconds": 330.0,
+      "deltaSeconds": 0.015625,
+      "isDiscontinuity": false
+    },
+    "markers": [
+      {
+        "slot": 0,
+        "team": 2,
+        "worldX": -2280.0,
+        "worldY": 90.0,
+        "worldZ": -170.0,
+        "yawDegrees": 20.0,
+        "ring": "Shooting",
+        "ringAlpha": 0.9,
+        "label": "AL",
+        "isAlive": true,
+        "pitchDegrees": -2.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300001
+      },
+      {
+        "slot": 1,
+        "team": 2,
+        "worldX": -2140.0,
+        "worldY": -120.0,
+        "worldZ": -170.0,
+        "yawDegrees": 35.0,
+        "ring": "Team",
+        "ringAlpha": 1.0,
+        "label": "BE",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.35,
+        "steamId": 76561197960300002
+      },
+      {
+        "slot": 2,
+        "team": 2,
+        "worldX": -2410.0,
+        "worldY": -260.0,
+        "worldZ": -170.0,
+        "yawDegrees": 10.0,
+        "ring": "Dead",
+        "ringAlpha": 1.0,
+        "label": "CA",
+        "isAlive": false,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300003
+      },
+      {
+        "slot": 6,
+        "team": 3,
+        "worldX": -1520.0,
+        "worldY": 610.0,
+        "worldZ": -170.0,
+        "yawDegrees": 205.0,
+        "ring": "TakingDamage",
+        "ringAlpha": 0.7,
+        "label": "GA",
+        "isAlive": true,
+        "pitchDegrees": 1.5,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300007
+      },
+      {
+        "slot": 9,
+        "team": 3,
+        "worldX": -1340.0,
+        "worldY": 380.0,
+        "worldZ": -170.0,
+        "yawDegrees": 225.0,
+        "ring": "Blinded",
+        "ringAlpha": 0.6,
+        "label": "JO",
+        "isAlive": true,
+        "pitchDegrees": 0.0,
+        "duckAmount": 0.0,
+        "steamId": 76561197960300010
+      }
+    ],
+    "areaEffects": [
+      {
+        "kind": "Smoke",
+        "worldX": -1760.0,
+        "worldY": 340.0,
+        "worldZ": -170.0,
+        "worldRadius": 144.0
+      }
+    ],
+    "trails": [
+      {
+        "kind": "Flash",
+        "points": [
+          {
+            "x": -2280.0,
+            "y": 90.0,
+            "z": -110.0
+          },
+          {
+            "x": -2140.0,
+            "y": 210.0,
+            "z": 20.0
+          },
+          {
+            "x": -2000.0,
+            "y": 320.0,
+            "z": 96.0
+          },
+          {
+            "x": -1860.0,
+            "y": 420.0,
+            "z": 120.0
+          },
+          {
+            "x": -1720.0,
+            "y": 510.0,
+            "z": 90.0
+          },
+          {
+            "x": -1580.0,
+            "y": 590.0,
+            "z": -10.0
+          },
+          {
+            "x": -1500.0,
+            "y": 630.0,
+            "z": -150.0
+          }
+        ],
+        "lastTick": 21112,
+        "alpha": 0.85
+      },
+      {
+        "kind": "He",
+        "points": [
+          {
+            "x": -2410.0,
+            "y": -260.0,
+            "z": -110.0
+          },
+          {
+            "x": -2240.0,
+            "y": -80.0,
+            "z": 40.0
+          },
+          {
+            "x": -2070.0,
+            "y": 90.0,
+            "z": 110.0
+          },
+          {
+            "x": -1900.0,
+            "y": 250.0,
+            "z": 80.0
+          },
+          {
+            "x": -1780.0,
+            "y": 360.0,
+            "z": -60.0
+          }
+        ],
+        "lastTick": 21098,
+        "alpha": 0.4
+      }
+    ],
+    "killFeed": [
+      {
+        "tick": 21090,
+        "attacker": "GA",
+        "assister": null,
+        "victim": "CA",
+        "weapon": "ak47",
+        "headshot": true,
+        "penetrated": false,
+        "noScope": false,
+        "throughSmoke": false,
+        "attackerBlind": false,
+        "attackerInAir": false,
+        "assistedFlash": false
+      }
+    ],
+    "gameInfo": {
+      "phase": "Live",
+      "bombState": "Carried",
+      "roundNumber": 4,
+      "roundsPlayed": 3,
+      "roundSeconds": 42.0,
+      "roundTime": "0:42",
+      "bombTicking": false,
+      "defuseInProgress": false,
+      "defuseKitNote": "—",
+      "defuseSeconds": 0.0,
+      "defuseTime": "—",
+      "tScore": 2,
+      "ctScore": 1
+    },
+    "map": {
+      "mapName": "de_mirage",
+      "networkedBounds": {
+        "minX": -3230,
+        "minY": -3407,
+        "maxX": 1890,
+        "maxY": 1713
+      },
+      "observedBounds": {
+        "minX": -2410,
+        "minY": -260,
+        "maxX": -1340,
+        "maxY": 610
+      },
+      "radars": [
+        {
+          "name": "de_mirage.png",
+          "bounds": {
+            "minX": -3230,
+            "minY": -3407,
+            "maxX": 1890,
+            "maxY": 1713
+          },
+          "minZ": -100000,
+          "maxZ": 100000
+        }
+      ]
+    },
+    "vision": {
+      "isAvailable": true,
+      "cones": [
+        {
+          "slot": 0,
+          "team": 2,
+          "apexX": -2280.0,
+          "apexY": 90.0,
+          "apexZ": -106.0,
+          "fan": [
+            {
+              "x": -2280.0,
+              "y": 90.0
+            },
+            {
+              "x": -1700.0,
+              "y": 540.0
+            },
+            {
+              "x": -1560.0,
+              "y": 400.0
+            },
+            {
+              "x": -1490.0,
+              "y": 220.0
+            }
+          ]
+        },
+        {
+          "slot": 6,
+          "team": 3,
+          "apexX": -1520.0,
+          "apexY": 610.0,
+          "apexZ": -106.0,
+          "fan": [
+            {
+              "x": -1520.0,
+              "y": 610.0
+            },
+            {
+              "x": -2120.0,
+              "y": 200.0
+            },
+            {
+              "x": -2260.0,
+              "y": 330.0
+            },
+            {
+              "x": -2310.0,
+              "y": 520.0
+            }
+          ]
+        }
+      ],
+      "sightlines": [
+        {
+          "viewerSlot": 0,
+          "viewerTeam": 2,
+          "x0": -2280.0,
+          "y0": 90.0,
+          "z0": -106.0,
+          "x1": -1520.0,
+          "y1": 610.0,
+          "z1": -106.0
+        }
+      ]
+    },
+    "followSlot": 0
+  },
+  "notes": "The layer-matrix fixture: markers with four ring states, a smoke, two grenade trails, a kill row, two vision cones and one sightline, framed on Mirage B. This is the entry the CI budget gate benches."
+}

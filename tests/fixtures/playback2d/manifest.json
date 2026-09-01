@@ -1,0 +1,236 @@
+{
+  "schema_version": 1,
+  "default_budget": {
+    "render_p99_ms": 8.0,
+    "advance_p99_ms": 2.0,
+    "bytes_per_frame": 0
+  },
+  "entries": [
+    {
+      "name": "synthetic-empty",
+      "scene": "scenes/synthetic-empty.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": null,
+      "map_version": null,
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "The degenerate case: no markers, no utility, no map bundle - so MapSpaceFactory derives no floor band, PaneSet arranges no pane, and the frame is the palette background and nothing else. That is what the committed PNG is, and it is pinned rather than skipped: 'an empty frame draws the background' is a real regression target, and a skip proves nothing. It was PENDING from the C1 merge waiting on B1/B3 to answer whether an empty level set should lay out one whole-host pane; the question is still open, and the day it is answered this golden moves and someone reviews it."
+    },
+    {
+      "name": "synthetic-tenplayers",
+      "scene": "scenes/synthetic-tenplayers.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": null,
+      "map_version": null,
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "Ten markers over +/-2000u, both teams, one Dead and one Blinded ring, over RadarLayer's synthetic grid fallback (no map bundle). The exit-criterion render fixture, and the smallest entry that actually reaches a layer's Render - which is why BenchAllocationTests benches this one."
+    },
+    {
+      "name": "synthetic-utility",
+      "scene": "scenes/synthetic-utility.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": null,
+      "map_version": null,
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "Two smokes, six fire cells, two 40-point grenade trails, and a bomb at 0.42 detonation with a defuse in progress. The area-effect, trail and bomb-ring fixture."
+    },
+    {
+      "name": "fitmap-mirage-eco",
+      "scene": "scenes/fitmap-mirage-eco.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": "de_mirage",
+      "map_version": "1efb9403",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "Markers only, both full teams, framed on the whole map over the baked de_mirage radar: the fit-map camera baseline and the simplest thing that can break the world-to-screen transform."
+    },
+    {
+      "name": "duel-mirage-b",
+      "scene": "scenes/duel-mirage-b.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": "de_mirage",
+      "map_version": "1efb9403",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "The layer matrix on Mirage B: four ring states with initials, a smoke, two grenade trails, a planted bomb, the baked radar, and (since D6 round 3) the two solved view cones plus the AL-to-GA could-see line. The CI budget gate benches this one, so it is also the entry that proves the vision projection allocates nothing per frame. Its kill row is IN the fixture and is NOT in the picture, deliberately: hud.killfeed is opt-in and needs a demo's kill timeline, which a headless fixture render does not have. The note claimed both were drawn, then that neither was; the vision half is now true and the kill-feed half stays false on purpose."
+    },
+    {
+      "name": "bomb-planted-inferno",
+      "scene": "scenes/bomb-planted-inferno.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": "de_inferno",
+      "map_version": "3cff1c4e",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "A ticking bomb mid-defuse with fire cells on the baked de_inferno radar: the bomb-ring fixture. The populated kill feed in the fixture is not drawn here - hud.killfeed is opt-in and unfeedable from a fixture; it is covered by ExportHudAndLadderTests instead."
+    },
+    {
+      "name": "annotated-mirage-b",
+      "scene": "scenes/annotated-mirage-b.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": "de_mirage",
+      "map_version": "1efb9403",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "layers": [
+        "playback2d.radar",
+        "playback2d.trails",
+        "playback2d.areaeffects",
+        "playback2d.vision",
+        "playback2d.markers",
+        "playback2d.bomb",
+        "playback2d.floorlabel",
+        "playback2d.annotations"
+      ],
+      "notes": "duel-mirage-b's frame plus burned-in ink: a static world-anchored arrow across B and a time-anchored ring around the smoke, live at tick 21120 - so the golden covers both halves of AnnotationLayer's split (the cached dry recording and the per-frame animated path). THE ONLY GOLDEN ANYWHERE THAT COVERS playback2d.annotations. The document is annotations/annotated-mirage-b.dvann.json, resolved by convention rather than by a manifest field; golden, bench and render (--ink) all read it through the production AnnotationStore. Was PENDING for B2 with no scene file at all, which is why the feature shipped uncovered."
+    },
+    {
+      "name": "nuke-single-upper",
+      "scene": "scenes/nuke-single-upper.scene.json",
+      "size": {
+        "width": 640,
+        "height": 360
+      },
+      "map": "de_nuke",
+      "map_version": "075a27b3",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "Captured from assets/tour/sample-de_nuke.dem by 'dv2d fixture capture --tick 9694 --camera fit-alive'. Despite the name this is a STACKED render of whatever floors the frame derives - dv2d has no level-selection surface, so it cannot capture one floor. The true single-floor picture is nuke-multilevel-upper below. Renaming this entry costs a re-capture and buys nothing until the CLI grows --level."
+    },
+    {
+      "name": "nuke-multilevel",
+      "scene": "scenes/nuke-multilevel.scene.json",
+      "size": {
+        "width": 900,
+        "height": 900
+      },
+      "map": "de_nuke",
+      "map_version": "075a27b3",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": true,
+      "notes": "PENDING for dv2d, permanently as things stand, and NOT because an input is missing. This golden is the PRE-V2 control's own output: captured through headless Avalonia by Playback2DGoldenCaptureTests, under the LIGHT palette the headless theme resolves, and it is gated against a delta DISTRIBUTION (99 % within +/-8, 99.5 % within +/-32, GoldenDistribution.PreV2Capture) by both of its readers - GoldenParityTests for the v2 compositor, and Playback2DGoldenCaptureTests whenever it runs off the platform that authored the corpus - because neither two rasterisers nor two OS text stacks agree pixel for pixel. dv2d renders Dark and compares at GoldenTolerance.DefaultPerceptual, which can express neither. The note here used to say 'B1 clears pending when the compositor can render it'; B1 shipped, and the reason it still cannot is the palette and the tolerance, not the pane model."
+    },
+    {
+      "name": "nuke-multilevel-upper",
+      "scene": "scenes/nuke-multilevel.scene.json",
+      "size": {
+        "width": 900,
+        "height": 900
+      },
+      "map": "de_nuke",
+      "map_version": "075a27b3",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": true,
+      "notes": "PENDING for dv2d: the nuke-multilevel scene through SingleLayout with the top floor active, written and gated by LevelGoldenTests. dv2d refuses --layout single (SceneRenderPlan.RequireSingleLevelLayout) because it has no way to name a level id, so it cannot reproduce this. Listed anyway so the corpus README's 'which fixtures exist has exactly one answer' holds. This file was committed as nuke-single-upper@900x900.png - the SAME name as the 640x360 entry above, with a different meaning (D6 G-8)."
+    },
+    {
+      "name": "nuke-multilevel-noradar",
+      "scene": "scenes/nuke-multilevel.scene.json",
+      "size": {
+        "width": 900,
+        "height": 900
+      },
+      "map": "de_nuke",
+      "map_version": "075a27b3",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": true,
+      "notes": "PENDING for dv2d: the nuke-multilevel scene with the bundle's nav FLOORS bound but no radar images, so the canvas falls through to the grid - a map whose bundle has floors and no usable pictures is a real shape. Written and gated by LevelGoldenTests. dv2d's --no-radar disables the whole asset root, floors included, so it derives a different level set entirely; there is no flag for 'floors yes, art no'. Had NO manifest entry at all before D6."
+    },
+    {
+      "name": "full-scene-budget",
+      "scene": "scenes/full-scene-budget.scene.json",
+      "size": {
+        "width": 1920,
+        "height": 1080
+      },
+      "map": null,
+      "map_version": null,
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": false,
+      "notes": "The worst-case 1080p scene design section 6's 8 ms render budget is actually stated against: 10 markers, 4 sixty-four-point trails crossing both Z bands, 12 area effects, a defusing bomb, over 2 derived levels with floor captions. Authored in code (SyntheticScenes) and committed as JSON, which BudgetFixtureCorpusTests keeps in step. Was PENDING for B1 with the scene already on disk; map/map_version claimed de_mirage while the fixture's own mapName is synthetic_budget, so a verify would have injected Mirage radar art into a synthetic scene - both are null now, which is what the fixture says."
+    }
+  ]
+}

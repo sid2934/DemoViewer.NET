@@ -244,9 +244,10 @@
             <TextBlock Text="No demo selected"
                        Foreground="{DynamicResource TextCardHeader}"
                        FontSize="19" FontWeight="SemiBold" HorizontalAlignment="Center" />
-            <TextBlock Text="Pick a demo in your Library to see its overview here — instantly, from the index. Open it to go deeper."
-                       Foreground="{DynamicResource TextDim}" TextAlignment="Center"
-                       FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Center" />
+            <TextBlock
+                Text="Pick a demo in your Library to see its overview here — instantly, from the index. Open it to go deeper."
+                Foreground="{DynamicResource TextDim}" TextAlignment="Center"
+                FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Center" />
         </StackPanel>
 
         <!-- ── Content — the full skeleton, present from the first frame in EVERY mode. ─────────────── -->
@@ -444,9 +445,10 @@
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock Text="SAMPLE CLIP" FontSize="11" FontWeight="Bold"
                                    Foreground="{DynamicResource AccentAmber}" VerticalAlignment="Center" />
-                        <TextBlock Text="the first few rounds of a real match, bundled to explore with — scores show a partial result"
-                                   Foreground="{DynamicResource TextMid}" FontSize="12"
-                                   TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <TextBlock
+                            Text="the first few rounds of a real match, bundled to explore with — scores show a partial result"
+                            Foreground="{DynamicResource TextMid}" FontSize="12"
+                            TextWrapping="Wrap" VerticalAlignment="Center" />
                     </StackPanel>
                 </Border>
 
@@ -653,7 +655,8 @@
                                                                Classes="rosterName" />
                                                     <TextBlock Grid.Column="3" Text="{Binding Kills}" Classes="sbCell" />
                                                     <TextBlock Grid.Column="4" Text="{Binding Deaths}" Classes="sbCell" />
-                                                    <TextBlock Grid.Column="5" Text="{Binding Assists}" Classes="sbCell" />
+                                                    <TextBlock Grid.Column="5" Text="{Binding Assists}"
+                                                               Classes="sbCell" />
                                                     <TextBlock Grid.Column="6" Text="{Binding Adr}" Classes="sbCell" />
                                                     <TextBlock Grid.Column="7" Text="{Binding Rating}" Classes="sbCell"
                                                                Foreground="{DynamicResource TextCardHeader}" />
@@ -783,7 +786,8 @@
                                                                            FontSize="13" FontWeight="SemiBold"
                                                                            VerticalAlignment="Center"
                                                                            TextTrimming="CharacterEllipsis" />
-                                                                <TextBlock Grid.Column="2" Text="{Binding CountDisplay}"
+                                                                <TextBlock Grid.Column="2"
+                                                                           Text="{Binding CountDisplay}"
                                                                            Classes="hlMeta" Margin="8 0 0 0" />
                                                                 <Button Grid.Column="4" Classes="chip"
                                                                         Content="Select all"
@@ -797,22 +801,23 @@
                                                                       Margin="6 2 0 6">
                                                             <ItemsControl.ItemTemplate>
                                                                 <DataTemplate x:DataType="vm:OverviewHighlightRow">
-                                                                    <Border BorderBrush="{DynamicResource HexRowSeparator}"
-                                                                            BorderThickness="0 0 0 1" Padding="4 6">
+                                                                    <Border
+                                                                        BorderBrush="{DynamicResource HexRowSeparator}"
+                                                                        BorderThickness="0 0 0 1" Padding="4 6">
                                                                         <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto"
                                                                               ColumnSpacing="8">
                                                                             <TextBlock Grid.Column="0"
-                                                                                       Text="{Binding Title}"
-                                                                                       Foreground="{DynamicResource TextBright}"
-                                                                                       FontSize="12"
-                                                                                       VerticalAlignment="Center"
-                                                                                       TextTrimming="CharacterEllipsis" />
+                                                                                    Text="{Binding Title}"
+                                                                                    Foreground="{DynamicResource TextBright}"
+                                                                                    FontSize="12"
+                                                                                    VerticalAlignment="Center"
+                                                                                    TextTrimming="CharacterEllipsis" />
                                                                             <TextBlock Grid.Column="1"
-                                                                                       Text="{Binding RoundDisplay}"
-                                                                                       Classes="hlMeta" />
+                                                                                    Text="{Binding RoundDisplay}"
+                                                                                    Classes="hlMeta" />
                                                                             <TextBlock Grid.Column="2"
-                                                                                       Text="{Binding TickDisplay}"
-                                                                                       Classes="hlMeta mono" />
+                                                                                    Text="{Binding TickDisplay}"
+                                                                                    Classes="hlMeta mono" />
                                                                             <!-- Staging: the clip tray that
                                                                                  owns the other end lands with
                                                                                  the Reels dashboard, so this
@@ -826,10 +831,10 @@
                                                                                     ToolTip.Tip="Stage this clip for a reel">
                                                                                 <Panel>
                                                                                     <TextBlock Text="+"
-                                                                                               IsVisible="{Binding !IsStaged}" />
+                                                                                        IsVisible="{Binding !IsStaged}" />
                                                                                     <TextBlock Text="✓"
-                                                                                               IsVisible="{Binding IsStaged}"
-                                                                                               Foreground="{DynamicResource StatPositive}" />
+                                                                                        IsVisible="{Binding IsStaged}"
+                                                                                        Foreground="{DynamicResource StatPositive}" />
                                                                                 </Panel>
                                                                             </Button>
                                                                             <Button Grid.Column="4" Classes="ghost"
@@ -841,13 +846,14 @@
                                                                                     ToolTip.Tip="Play this moment live in CS2 (spectating the player)">
                                                                                 <Panel>
                                                                                     <TextBlock Text="Verify live"
-                                                                                               IsVisible="{Binding !IsVerifying}" />
-                                                                                    <StackPanel Orientation="Horizontal"
-                                                                                                Spacing="5"
-                                                                                                IsVisible="{Binding IsVerifying}">
+                                                                                        IsVisible="{Binding !IsVerifying}" />
+                                                                                    <StackPanel
+                                                                                        Orientation="Horizontal"
+                                                                                        Spacing="5"
+                                                                                        IsVisible="{Binding IsVerifying}">
                                                                                         <Ellipse Width="8" Height="8"
-                                                                                                 Classes="dot stateGood pulsing"
-                                                                                                 VerticalAlignment="Center" />
+                                                                                            Classes="dot stateGood pulsing"
+                                                                                            VerticalAlignment="Center" />
                                                                                         <TextBlock Text="Verifying…" />
                                                                                     </StackPanel>
                                                                                 </Panel>

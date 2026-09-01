@@ -1,10 +1,11 @@
 #region
 
+using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
-using CS2DemoKit.Parser;
-using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Playback;
 
@@ -14,7 +15,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Map mode: verifies the VM reads the REAL networked playable-map bounds from
-///     CCSGameRulesProxy.m_pGameRules.m_vMinimapMins / m_vMinimapMaxs (the radar bounding box) — so Map mode
+///     CCSGameRulesProxy.m_pGameRules.m_vMinimapMins / m_vMinimapMaxs (the radar bounding box), so Map mode
 ///     frames the actual map instead of the observed-positions approximation. Sync parse path (no render).
 /// </summary>
 [NotInParallel]

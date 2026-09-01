@@ -46,7 +46,7 @@ public class Playback2DRosterReseedTests
             Alive(0, 2, 110, 210)
         }));
 
-        // The cards + initials now appear — no tab re-activation needed.
+        // The cards + initials now appear, no tab re-activation needed.
         await Assert.That(vm.Markers[0].Label).IsEqualTo("NE"); // initials from the roster name
         PlayerAttributes row = vm.Attributes.Single(a => a.Slot == 0);
         await Assert.That(row.InMatch).IsTrue();

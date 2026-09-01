@@ -1,0 +1,281 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Playback2D"
+             mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="40"
+             x:Class="DemoViewer.NET.Views.Playback2D.AnnotationToolbar"
+             Focusable="False"
+             x:DataType="vm:AnnotationsPanelViewModel">
+
+    <!-- The annotation toolbar: tool picker, ink style, envelope defaults, undo/redo.
+         DOCKED since D4, in the viewport toolbar's own Auto grid row — it no longer floats over the map,
+         so it carries no chrome of its own: the background, the padding and the divider belong to the
+         docked surface it sits in (see design-system "The 2D viewport's chrome"). A translucent
+         Pb2dOverlayBg strip INSIDE an opaque Pb2dPanelBg one reads as a HUD widget someone forgot to
+         unmount, which is exactly the "floating" quality the user reported.
+         It is the LAST member of that docked stack because it is the GATED one: the order there is
+         always-present → optional → gated, so a gate flip can only ever move what is below it. -->
+    <!-- Gated off, the whole toolbar is REMOVED, not merely disabled: a disabled draw button still says
+         "this app can draw here", which is the opposite of what the gate means. The binding lives here
+         rather than on the mounting element so it evaluates against this control's own DataContext; the
+         mount carries its own copy, because a control that collapses only its inner content still
+         contributes the mount's margin to the row. -->
+    <Border IsVisible="{Binding IsEnabled}">
+        <StackPanel Orientation="Vertical" Spacing="4">
+
+            <!-- A WrapPanel, not a horizontal StackPanel: the row's natural width is ~775 px and the 2D
+                 viewport column is narrower than that on any window under ~1100 px. Nothing in the viewport
+                 cell clips, so a fixed row simply ran the trailing controls (Track player, undo/redo/clear)
+                 out of the column and under the roster panel — a later sibling, so it painted over them and
+                 took their clicks. Reflowing instead of clipping is the same call design-system D35 made for
+                 the Library filter toolbar. Docking did NOT retire this: the row gets the whole column
+                 width now (which is why it is on its own line rather than sharing the header's), and the
+                 whole column is still only ~490 px at the 820 px floor. -->
+            <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="4">
+
+                <!-- Tools. ToggleButtons rather than RadioButtons: the same key that selects a tool
+                     toggles back to pan, and a RadioButton group cannot express "none of us". -->
+                <ToggleButton x:Name="PanTool" Padding="8,2" Content="✋"
+                              IsChecked="{Binding IsPanZoomSelected, Mode=OneWay}"
+                              Command="{Binding SelectPanZoomCommand}"
+                              ToolTip.Tip="Pan / zoom" />
+                <!-- Every gesture named below comes off the RESOLVED keymap profile, never a literal: keys
+                     are user-configurable since D1, so a hard-coded "(D)" is wrong for anyone who rebound
+                     it — and wrong in the one place a user looks to find out what the key IS. -->
+                <ToggleButton x:Name="DrawTool" Padding="8,2" Content="✎"
+                              IsChecked="{Binding IsDrawSelected, Mode=OneWay}"
+                              Command="{Binding SelectDrawCommand}"
+                              ToolTip.Tip="{Binding DrawToolTip}" />
+                <ToggleButton x:Name="EraseTool" Padding="8,2" Content="⌫"
+                              IsChecked="{Binding IsEraseSelected, Mode=OneWay}"
+                              Command="{Binding SelectEraseCommand}"
+                              ToolTip.Tip="{Binding EraseToolTip}" />
+
+                <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1" />
+
+                <!-- Ink colour. The live swatch is what the user actually reads at a glance; the picker
+                     behind it is for the once-a-session change.
+                     TWO pickers, because the pointer has two buttons: left draws the primary, right draws
+                     the secondary (or erases, see the R toggle). Width and opacity are deliberately NOT
+                     per-button — two pens that could drift into two widths is a settings bug waiting to
+                     be reported as a rendering one. -->
+                <!-- No fixed Width/Height. The 46x24 they carried was authored against a control that
+                     rendered NOTHING — FluentTheme does not ship the ColorPicker control theme, so both
+                     pickers were templateless holes until App.axaml gained the include (D4). With a real
+                     template the drop-down button's own 32 px min-height hung 4 px out of a 24 px box,
+                     top and bottom, so the size is the template's to decide. -->
+                <ColorPicker x:Name="InkColorPicker" VerticalAlignment="Center"
+                             Color="{Binding InkColor, Mode=TwoWay}"
+                             ToolTip.Tip="Left-button ink" />
+                <ColorPicker x:Name="SecondaryInkColorPicker" VerticalAlignment="Center"
+                             Color="{Binding SecondaryInkColor, Mode=TwoWay}"
+                             IsEnabled="{Binding !RightButtonErases}"
+                             ToolTip.Tip="Right-button ink — right-drag draws with this one" />
+                <ToggleButton x:Name="RightEraseToggle" Padding="6,2" Content="R⌫"
+                              FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                              IsChecked="{Binding RightButtonErases, Mode=TwoWay}"
+                              ToolTip.Tip="Right button erases instead of drawing" />
+
+                <!-- Recently used colours, newest first. Pushed when a stroke COMMITS, not when the picker
+                     moves, so the strip holds what was drawn with rather than what was scrolled past. -->
+                <ItemsControl x:Name="RecentColorsStrip" ItemsSource="{Binding RecentColors}"
+                              IsVisible="{Binding HasRecentColors}" VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="2" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AnnotationSwatch">
+                            <Button Width="16" Height="16" Padding="0" Background="{Binding Brush}"
+                                    BorderBrush="{DynamicResource Pb2dHudDivider}" BorderThickness="1"
+                                    Command="{Binding $parent[ItemsControl].((vm:AnnotationsPanelViewModel)DataContext).ApplyRecentColorCommand}"
+                                    CommandParameter="{Binding}"
+                                    ToolTip.Tip="{Binding Hex}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="w" Foreground="{DynamicResource Pb2dTextDim}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center" />
+                <Slider x:Name="WidthSlider" Width="90" Minimum="1" Maximum="48"
+                        Value="{Binding InkWidth, Mode=TwoWay}" VerticalAlignment="Center"
+                        ToolTip.Tip="Stroke width, in world units — ink zooms with the map" />
+
+                <!-- Opacity. Persisted since B2 and until now unreachable, which made every stroke fully
+                     opaque whatever the settings file said. Floor at 0.1: a 0 pen draws nothing and reads
+                     as a broken tool. -->
+                <TextBlock Text="α" Foreground="{DynamicResource Pb2dTextDim}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center" />
+                <Slider x:Name="OpacitySlider" Width="70" Minimum="0.1" Maximum="1"
+                        Value="{Binding InkOpacity, Mode=TwoWay}" VerticalAlignment="Center"
+                        ToolTip.Tip="Ink opacity, on top of the visibility envelope" />
+
+                <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1" />
+
+                <!-- Visibility envelope. "Pin to now" is the one-click path: it switches to Fade and
+                     re-times the stroke just drawn to open at the playhead.
+                     The item ORDER is EnvelopeMode's declaration order: VisibilityIndex's getter is a raw
+                     cast, so a member appended to the enum has to be appended here in the same breath.
+                     Width is the same lesson the spinners below learned, one control over, and the same
+                     kind of measured number: a Fluent ComboBox spends a CONSTANT 44 px on its drop-down
+                     glyph, border and padding, and "Real-time" — still the longest label after D8 added
+                     the shorter "Round" — renders at 63.4 px. At the 94 this box carried, that is 50 px
+                     of room for 63.4 px of text: clipped mid-word, and invisible to every test that only
+                     asks whether the control is present and bound. 118 = 44 + 74.
+                     RealTimeEnvelopeUiTests measures the rendered label against the presenter AND
+                     re-checks which label is longest, so neither a hungrier theme nor a longer mode name
+                     can silently truncate the mode a user is trying to pick. -->
+                <ComboBox x:Name="VisibilityBox" Width="118" SelectedIndex="{Binding VisibilityIndex, Mode=TwoWay}"
+                          ToolTip.Tip="When new annotations are visible">
+                    <ComboBoxItem Content="Always" />
+                    <ComboBoxItem Content="Fade" />
+                    <ComboBoxItem Content="Custom" />
+                    <ComboBoxItem Content="Real-time" />
+                    <ComboBoxItem Content="Round" />
+                </ComboBox>
+                <Button x:Name="PinToNowButton" Content="Pin to now" Padding="8,2"
+                        Command="{Binding PinToNowCommand}"
+                        ToolTip.Tip="Anchor the newest annotation to the current tick and fade it out" />
+
+                <CheckBox x:Name="AnchorToggle" Content="Track player"
+                          IsChecked="{Binding AnchorToEntities, Mode=TwoWay}"
+                          ToolTip.Tip="Strokes started on a player follow them by SteamId" />
+
+                <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1" />
+
+                <Button x:Name="UndoButton" Content="↶" Padding="8,2"
+                        Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}"
+                        ToolTip.Tip="{Binding UndoToolTip}" />
+                <Button x:Name="RedoButton" Content="↷" Padding="8,2"
+                        Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}"
+                        ToolTip.Tip="{Binding RedoToolTip}" />
+                <Button x:Name="ClearAllButton" Content="Clear" Padding="8,2"
+                        Command="{Binding ClearAllCommand}"
+                        ToolTip.Tip="{Binding ClearAllToolTip}" />
+            </WrapPanel>
+
+            <!-- The envelope editor: a SECOND row, shown for every mode but Always.
+                 Its own row rather than more items in the one above, so the tool row's trailing controls
+                 keep their place when the mode changes — and so a user who never leaves Always (the
+                 shipped default) never sees four spin boxes appear in a toolbar that already reflows at
+                 820 px. Every tick here is a DV FRAME-CLOCK tick, never a CS2 server tick: the LiveSync
+                 servo bends the playhead, so a CS2 anchor drifts against what the user was looking at. -->
+            <!-- TWO UNITS IN ONE ROW, and both are labelled, because one labelled and one bare would be
+                 worse than neither. `in`/`out`/`hold` are DURATIONS and are shown in SECONDS: a tick
+                 answers "how long does this stay up" only if you also know the parse's rate, which the
+                 user does not and (until D8 §1) the code did not either. `from`/`until` are absolute
+                 POSITIONS on the demo's clock and stay in ticks — with Round on the mode list, Custom is
+                 the "type an exact window" mode, and a tick is the right unit to type one in.
+                 Storage is ticks throughout; seconds are a display and entry projection, re-derived off
+                 the tick value on every read so the pair cannot drift apart (AnnotationsPanelViewModel).
+                 The rate is the LOADED DEMO'S, so these boxes read differently on a 128-tick parse — the
+                 point of the whole change. -->
+            <!-- Every spinner in this row is 140 wide, and that number is measured, not chosen.
+                 A Fluent NumericUpDown spends a CONSTANT 68 px on its two spinner buttons and border
+                 plus 16 px of inner TextBox padding, whatever width the control is given — so the 86 px
+                 these boxes shipped at left the `in`/`out` fields with **2 px** of glyph space and
+                 `from`/`until` with 20, i.e. one or two digits of a five-digit tick. Width here buys
+                 glyphs one-for-one: 140 = 84 of chrome + 56 for six digits at the theme's 14 px (a digit
+                 measures 8.35 px, so six need 50.1 — 132 was tried first and fell 2.1 px short), which
+                 covers any tick a real demo produces (the reference Nuke demo is 19 237 frames — five).
+                 D8 did NOT move it: "600.00" is five digits and a period where "123456" was six digits,
+                 so the seconds fields ask for LESS than the width already measured for the tick ones.
+                 One shared width rather than per-field: a row of numeric fields at four different widths
+                 reads as a mistake. EnvelopeSpinnerWidthTests pins this against the rendered text in both
+                 unit domains, so a theme change that makes the chrome hungrier fails rather than
+                 silently clipping again. -->
+            <WrapPanel x:Name="EnvelopeEditor" Orientation="Horizontal" ItemSpacing="6" LineSpacing="4"
+                       IsVisible="{Binding IsEnvelopeEditorVisible}">
+
+                <!-- FormatString "0.00" and not "0.0": a NumericUpDown re-parses its own displayed text
+                     when it loses focus, so the DISPLAY precision is the storage precision after any
+                     round trip through the box. The shipped ramps are 0.125 s and 0.25 s at 64 tick and
+                     0.0625/0.125 at 128 — one decimal collapses those into "0.1"/"0.3" and would keep
+                     collapsing them, which is a control that cannot express its own defaults. Two
+                     decimals pin every one of them to within a tick, and a tick is 15.6 ms.
+                     Increment 0.1 for the ramps: the 4 ticks they stepped by is 0.0625 s, a number
+                     nobody would type, and 0.1 is the round one in the unit now displayed. -->
+                <TextBlock Text="in (s)" Foreground="{DynamicResource Pb2dTextDim}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center" />
+                <NumericUpDown x:Name="FadeInBox" Width="140" Minimum="0" Maximum="600" Increment="0.1"
+                               FormatString="0.00" Value="{Binding FadeInSeconds, Mode=TwoWay}"
+                               ToolTip.Tip="Lead-in ramp, in seconds. The fade sits OUTSIDE the window." />
+
+                <TextBlock Text="out (s)" Foreground="{DynamicResource Pb2dTextDim}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center" />
+                <NumericUpDown x:Name="FadeOutBox" Width="140" Minimum="0" Maximum="600" Increment="0.1"
+                               FormatString="0.00" Value="{Binding FadeOutSeconds, Mode=TwoWay}"
+                               ToolTip.Tip="Lead-out ramp, in seconds. The fade sits OUTSIDE the window." />
+
+                <!-- Fade holds relative to the tick the stroke was drawn at, Real-time holds each SECTION
+                     relative to the offset it was drawn at, Round's window IS the round, and Custom types
+                     the window out in absolute ticks. Showing hold and from/until at once would offer two
+                     answers to "when", and offering hold under Round would offer two answers to "how
+                     long".
+                     Bound to IsHoldEnvelope — "does this control belong here" — rather than to a mode:
+                     `in` and `out` mean the same thing in every mode and carry no visibility binding at
+                     all, and `hold` is the field the two PLAYHEAD-RELATIVE modes share and the other two
+                     do not. Excluding Round was one edit on that bool; binding to a mode would have been
+                     two, with one of them easy to miss.
+                     Increment 0.5 rather than the ramps' 0.1: the 32 ticks this box stepped by IS half a
+                     second at the shipped 64, so the step a user feels is unchanged. -->
+                <TextBlock Text="hold (s)" Foreground="{DynamicResource Pb2dTextDim}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center"
+                           IsVisible="{Binding IsHoldEnvelope}" />
+                <NumericUpDown x:Name="HoldBox" Width="140" Minimum="0" Maximum="600" Increment="0.5"
+                               FormatString="0.00" Value="{Binding HoldSeconds, Mode=TwoWay}"
+                               IsVisible="{Binding IsHoldEnvelope}"
+                               ToolTip.Tip="How long an annotation stays fully opaque, in seconds — the whole element in Fade, each drawn section in Real-time. Set it below your drawing time and a Real-time stroke dissolves behind the pen as you draw." />
+
+                <TextBlock Text="from (tick)" Foreground="{DynamicResource Pb2dTextDim}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center"
+                           IsVisible="{Binding IsCustomEnvelope}" />
+                <NumericUpDown x:Name="CustomFromBox" Width="140" Minimum="0" Maximum="100000000"
+                               Increment="32" FormatString="0"
+                               Value="{Binding CustomFromTick, Mode=TwoWay}"
+                               IsVisible="{Binding IsCustomEnvelope}"
+                               ToolTip.Tip="First fully-opaque tick" />
+
+                <TextBlock Text="until (tick)" Foreground="{DynamicResource Pb2dTextDim}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="11" VerticalAlignment="Center"
+                           IsVisible="{Binding IsCustomEnvelope}" />
+                <NumericUpDown x:Name="CustomUntilBox" Width="140" Minimum="0" Maximum="100000000"
+                               Increment="32" FormatString="0"
+                               Value="{Binding CustomUntilTick, Mode=TwoWay}"
+                               IsVisible="{Binding IsCustomEnvelope}"
+                               ToolTip.Tip="Last fully-opaque tick. Earlier than 'from' collapses the window to zero length." />
+
+                <Button x:Name="CustomNowButton" Content="⌖ now" Padding="8,2"
+                        Command="{Binding CustomWindowFromNowCommand}"
+                        IsVisible="{Binding IsCustomEnvelope}"
+                        ToolTip.Tip="Move the window to the playhead, keeping its length" />
+            </WrapPanel>
+
+            <!-- Persistence + identity status. One line, always honest about where the ink lives. -->
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <!-- The auto-save toggle sits in the PERSISTENCE row rather than the tool row, beside the
+                     line that names the destination: "does this get written, and where" is one question
+                     and the user should not have to find its two halves in two places.
+                     Disabled — not hidden — when no sidecar is possible (no demo, no store, the browser
+                     head): the status line right of it already says why, and a control that vanishes with
+                     no explanation is D6 finding 12's other half. -->
+                <CheckBox x:Name="AutoSaveToggle" Content="Auto-save" FontSize="10"
+                          VerticalAlignment="Center" MinHeight="0"
+                          IsChecked="{Binding AutoSaveSidecar, Mode=TwoWay}"
+                          IsEnabled="{Binding CanAutoSave}"
+                          ToolTip.Tip="Write annotations to the demo's sidecar file as you draw. Off keeps them for this session only — nothing is written on a demo swap or at shutdown either." />
+                <TextBlock x:Name="StatusLabel" Text="{Binding StatusText}"
+                           Foreground="{DynamicResource Pb2dTextDim}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="420" />
+                <TextBlock x:Name="ClockWarning" Text="⚠ different parse"
+                           Foreground="{DynamicResource Pb2dTeamT}"
+                           FontFamily="Consolas,Menlo,monospace" FontSize="10"
+                           VerticalAlignment="Center" IsVisible="{Binding ClockMismatch}"
+                           ToolTip.Tip="These annotations were authored against a different parse of this demo — time anchors may be off. Static annotations are unaffected." />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

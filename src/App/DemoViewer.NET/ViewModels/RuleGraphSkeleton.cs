@@ -10,7 +10,7 @@ namespace DemoViewer.NET.ViewModels;
 
 /// <summary>
 ///     Pure conversion of a <see cref="BuildResult" /> (its <c>Nodes</c> + <c>Edges</c> + group hints)
-///     into the <see cref="GraphViewModel" />-ready node/edge/group view-models — the graph <em>skeleton</em>
+///     into the <see cref="GraphViewModel" />-ready node/edge/group view-models: the graph <em>skeleton</em>
 ///     (topology + pre-eval node values, <c>TrackedIndex = -1</c>), independent of any evaluation. Extracted
 ///     so the progressive-reveal pre-render (<c>AnalysisViewModel.RenderGraphSkeletonAsync</c>) and the
 ///     authoring Workbench's ruleset-structure graph share one conversion rather than duplicating it. This is
@@ -24,7 +24,7 @@ public static class RuleGraphSkeleton
     /// <summary>
     ///     Converts the demo-less, ruleset-focused <see cref="AuthoringGraph.AuthoringGraphModel" /> (built
     ///     from the open ruleset in the Workbench) into graph view-models. Unlike <see cref="Build" />, this
-    ///     path already carries the reduction + per-player flagging — it just maps the model's indexed nodes
+    ///     path already carries the reduction + per-player flagging: it just maps the model's indexed nodes
     ///     and edges onto <see cref="GraphNodeViewModel" />/<see cref="GraphEdgeViewModel" />.
     /// </summary>
     public static Skeleton BuildAuthoring(AuthoringGraph.AuthoringGraphModel model)
@@ -57,7 +57,7 @@ public static class RuleGraphSkeleton
     /// <summary>
     ///     Builds the graph skeleton from <paramref name="build" />. Nodes carry their chain keys and
     ///     pre-eval display value; edges carry label/effect/condition; groups mirror the build's group hints
-    ///     (null when none — the shape <see cref="GraphViewModel.SetGraphAsync" /> expects for "no groups").
+    ///     (null when none: the shape <see cref="GraphViewModel.SetGraphAsync" /> expects for "no groups").
     /// </summary>
     public static Skeleton Build(BuildResult build)
     {

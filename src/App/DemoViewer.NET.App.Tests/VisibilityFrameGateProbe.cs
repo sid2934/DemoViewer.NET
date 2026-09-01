@@ -3,7 +3,6 @@
 using System.Numerics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -22,7 +21,7 @@ namespace DemoViewer.NET.AppTests;
 ///     player-Z histogram from the floor work. Skips if the dust2 demo or baked collision is absent.
 ///     <para>
 ///         The ray-down caster here is a self-contained brute-force primitive (XY-bbox prune +
-///         Möller-Trumbore) — intentionally throwaway for the gate; Phase 1 promotes a BVH-backed engine.
+///         Möller-Trumbore): intentionally throwaway for the gate; Phase 1 promotes a BVH-backed engine.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -126,7 +125,7 @@ public class VisibilityFrameGateProbe
         // 1. Almost every feet-ray finds floor below (a frame mismatch would miss the geometry entirely).
         await Assert.That(hitRate).IsGreaterThan(0.90);
         // 2. Feet rest on the floor: the median gap is a few units, NOT hundreds. This is the decisive
-        //    alignment check — a datum/scale mismatch pushes the median far from 0.
+        //    alignment check: a datum/scale mismatch pushes the median far from 0.
         await Assert.That(Math.Abs(median)).IsLessThan(16.0);
         // 3. The bulk of players sit within a normal standing tolerance of their floor.
         await Assert.That((double)within32 / gaps.Count).IsGreaterThan(0.75);
@@ -135,7 +134,7 @@ public class VisibilityFrameGateProbe
     /// <summary>
     ///     Phase-G eye-height probe: is <c>m_vecViewOffset</c> (or an eye-angle leaf) actually readable off a
     ///     real pawn's field dict? If yes, we use the real eye Z; if no, the attacker eye is approximated
-    ///     (+64 standing / ~46 crouched). Pure diagnostic — never fails; dumps what it finds.
+    ///     (+64 standing / ~46 crouched). Pure diagnostic: never fails; dumps what it finds.
     /// </summary>
     [Test]
     public async Task Probe_EyeOffset_And_EyeAngles_Fields()

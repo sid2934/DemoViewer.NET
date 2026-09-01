@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Features;
 
 /// <summary>
 ///     The default <see cref="IFeatureGate" /> over a live <c>IOptionsMonitor&lt;AppSettings&gt;</c>. A
-///     singleton (it holds the options-monitor subscription) — see <c>App.BuildServices</c>. Every query
+///     singleton (it holds the options-monitor subscription), see <c>App.BuildServices</c>. Every query
 ///     reads the monitor's current value, so a settings write is reflected without reconstructing the gate;
 ///     the <see cref="Changed" /> event is a re-query cue, not a cache invalidation.
 ///     <para>
@@ -28,14 +28,14 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
 
     // Marshal Changed to the UI thread in the headed app (external-file-edit OnChange arrives on a
     // threadpool thread). Disabled by the internal ctor for unit tests: the App.Tests process is shared,
-    // so a sibling headless test can leave an Avalonia dispatcher installed process-wide — a runtime
+    // so a sibling headless test can leave an Avalonia dispatcher installed process-wide: a runtime
     // "is Avalonia up?" probe would flake. A construction-time flag is deterministic instead.
     private readonly bool _marshalChangedToUiThread;
 
     private readonly IOptionsMonitor<AppSettings> _monitor;
     private readonly IDisposable? _subscription;
 
-    /// <summary>Production ctor — marshals <see cref="Changed" /> to the UI thread.</summary>
+    /// <summary>Production ctor: marshals <see cref="Changed" /> to the UI thread.</summary>
     public FeatureGate(IOptionsMonitor<AppSettings> monitor) : this(monitor, true)
     {
     }
@@ -65,7 +65,7 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
         get
         {
             AppSettings settings = _monitor.CurrentValue;
-            // DeveloperMode is the master unlock — it escalates any category to Developer (matches the
+            // DeveloperMode is the master unlock: it escalates any category to Developer (matches the
             // AppSettings.Features.DeveloperMode contract: "unlocks developer-tier surfaces regardless of
             // category").
             return settings.Features.DeveloperMode ? UserCategory.Developer : settings.UserCategory;
@@ -98,7 +98,7 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
             {
                 if (descriptor.Required)
                 {
-                    continue; // Required features are never hidden — excluded from the count.
+                    continue; // Required features are never hidden: excluded from the count.
                 }
 
                 // The Developer-full baseline: what a developer with default settings sees (no overrides).
@@ -135,7 +135,7 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
             : descriptor;
         bool enabled = ResolveOwn(stateSource, category, overrides);
 
-        // (5) CASCADE: a feature under a tab that resolves disabled is implicitly off — regardless of its
+        // (5) CASCADE: a feature under a tab that resolves disabled is implicitly off, regardless of its
         // own/group state. Uses THIS feature's ParentId (chrome has none → no cascade).
         if (enabled && descriptor.ParentId is { } parentId)
         {
@@ -175,7 +175,7 @@ public sealed class FeatureGate : IFeatureGate, IDisposable
             return;
         }
 
-        // In unit tests (marshal disabled) or when already on the UI thread, raise inline — this keeps a
+        // In unit tests (marshal disabled) or when already on the UI thread, raise inline: this keeps a
         // self-write's OnChange synchronously observable. Otherwise (headed app, off-thread external edit)
         // marshal to the UI dispatcher.
         if (!_marshalChangedToUiThread || Dispatcher.UIThread.CheckAccess())

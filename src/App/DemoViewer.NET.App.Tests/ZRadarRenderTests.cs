@@ -8,12 +8,13 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Visibility;
-using DemoViewer.NET.Modules;
-using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Playback2D;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Modules;
+using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Playback;
 using TUnit.Core.Exceptions;
@@ -26,7 +27,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Second increment of the map-asset consumption: the 2D viewport draws the baked radar bitmap under the markers, per
 ///     floor band, placed via the bundle transform. Renders a REAL demo + baked bundle to a Skia frame,
 ///     asserts the radar fills the viewport, and saves the capture so world→radar alignment (players over the
-///     map) is eyeball-verifiable — Nuke (two floors) and dust2 (single floor, carries rotate/zoom). Skips
+///     map) is eyeball-verifiable: Nuke (two floors) and dust2 (single floor, carries rotate/zoom). Skips
 ///     when a demo or its baked bundle is absent.
 /// </summary>
 [NotInParallel]
@@ -94,7 +95,7 @@ public class ZRadarRenderTests
         IReadOnlyList<DemoFrame> frames = demo.Frames;
 
         // A round-start frame (just after freeze end) has ~10 players alive, spread CT-spawn ↔ T-spawn, so the
-        // camera fit frames most of the map — the right shape for judging world→radar alignment.
+        // camera fit frames most of the map: the right shape for judging world→radar alignment.
         int target = FindRoundStartFrame(frames);
         EntityTracker tracker = new();
         tracker.ReplayToIndex(target, frames);
@@ -149,7 +150,7 @@ public class ZRadarRenderTests
             }
 
             floors = vm.AuthoritativeFloors?.Count ?? 0;
-            bitmaps = vm.MapAsset!.RadarBitmaps.Count;
+            bitmaps = vm.MapAsset!.RadarImages.Count;
             images = vm.MapAsset.Bundle.RadarImages;
             transform = vm.MapAsset.Bundle.Transform;
             bounds = vm.MapAsset.Bundle.Bounds;
@@ -194,7 +195,7 @@ public class ZRadarRenderTests
     }
 
     // Counts pixels that differ from the viewport background (BGRA8888 buffer). Safe Marshal.Copy path
-    // (matches Playback2DRealDemoRenderTests — the test project doesn't enable unsafe blocks).
+    // (matches Playback2DRealDemoRenderTests: the test project doesn't enable unsafe blocks).
     private static int ScanNonBackground(WriteableBitmap bmp)
     {
         PixelSize size = bmp.PixelSize;

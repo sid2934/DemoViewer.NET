@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core;
 
 #endregion
 
@@ -10,7 +11,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Deterministic (synthetic, no demo) coverage of the death-marker PERSISTENCE path: when a player's
 ///     pawn orphans on death (no live position this tick), the module must hold a gray marker at the
-///     last-known death spot with the correct roster label until respawn — instead of the icon vanishing
+///     last-known death spot with the correct roster label until respawn, instead of the icon vanishing
 ///     or showing a garbage slot. Complements the real-demo render (single-frame) with the multi-push
 ///     cache behavior the single seek can't exercise.
 /// </summary>
@@ -38,7 +39,7 @@ public class Playback2DDeadMarkerTests
         await Assert.That(vm.Markers.Count).IsEqualTo(1);
         await Assert.That(vm.Markers[0].IsAlive).IsTrue();
 
-        // Frame 2: slot 0's pawn has orphaned — no live pawn, no position (HasLivePawn=false).
+        // Frame 2: slot 0's pawn has orphaned, no live pawn, no position (HasLivePawn=false).
         ctx.Push(new FakeSnap(2, new[]
         {
             Dead(0, 2)
@@ -50,7 +51,7 @@ public class Playback2DDeadMarkerTests
         await Assert.That(held.Ring).IsEqualTo(RingState.Dead);
         await Assert.That(held.WorldX).IsEqualTo(1200f); // held at the last-known death spot
         await Assert.That(held.WorldY).IsEqualTo(-800f);
-        await Assert.That(held.Label).IsEqualTo("NE"); // correct roster label — NOT "16383"
+        await Assert.That(held.Label).IsEqualTo("NE"); // correct roster label, NOT "16383"
         await Assert.That(held.Slot).IsEqualTo(0);
 
         // The attributes row persists, grayed (RowOpacity < 1), with the player still in-match.
@@ -62,7 +63,7 @@ public class Playback2DDeadMarkerTests
 
     /// <summary>
     ///     The multi-frame cache behavior a single alive→dead transition can't exercise: across a sequence
-    ///     of pushes the held death marker must (a) sit at the LATEST alive spot — not the first — proving the
+    ///     of pushes the held death marker must (a) sit at the LATEST alive spot, not the first, proving the
     ///     cache is refreshed every live frame; (b) persist unchanged across SEVERAL consecutive dead frames
     ///     (never drifting, never vanishing, never duplicating); and (c) be replaced by a live marker on
     ///     respawn, which re-arms the cache so a later death holds at the respawn spot.
@@ -94,7 +95,7 @@ public class Playback2DDeadMarkerTests
         await Assert.That(vm.Markers.Single().WorldY).IsEqualTo(-300f);
 
         // Frames 3→5 DEAD/orphaned (no live pawn, no position). The gray marker must hold at spot B on
-        // EVERY frame — not just the first dead frame — and never drift back to the stale A.
+        // EVERY frame, not just the first dead frame, and never drift back to the stale A.
         foreach (int f in new[]
                  {
                      3, 4, 5
@@ -104,7 +105,7 @@ public class Playback2DDeadMarkerTests
             {
                 Dead(0, 2)
             }));
-            PlayerMarker held = vm.Markers.Single(); // exactly one — no vanish, no duplicate
+            PlayerMarker held = vm.Markers.Single(); // exactly one: no vanish, no duplicate
             await Assert.That(held.IsAlive).IsFalse();
             await Assert.That(held.Ring).IsEqualTo(RingState.Dead);
             await Assert.That(held.WorldX).IsEqualTo(500f); // latest alive spot (B), held steady

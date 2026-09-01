@@ -18,7 +18,7 @@ namespace DemoViewer.NET.ViewModels;
 /// <summary>
 ///     Self-contained ViewModel for <c>BinaryPane</c>.
 ///     Manages a byte buffer, a virtualized row window, and a hierarchy of <see cref="HexSpan" />
-///     highlight ranges.  Each instance is fully independent — create one per hex view.
+///     highlight ranges.  Each instance is fully independent: create one per hex view.
 /// </summary>
 public sealed partial class HarvestHexViewModel : ObservableObject
 {
@@ -34,13 +34,13 @@ public sealed partial class HarvestHexViewModel : ObservableObject
 
     // ── Level-to-brush palette ────────────────────────────────────────────────
     // Four built-in tiers, fading from fully saturated (selected) to barely-there (ancestor).
-    // Callers never manage brushes — they only specify Level values.
+    // Callers never manage brushes. They only specify Level values.
     //
     // v0.6.0 code-color promotion: the values are now the HexSwatchSelected/Parent/Ancestor/
     // AncestorDeep THEME TOKENS, resolved by BinaryPane (which owns the visual-tree access) via
     // SetPalette on attach and on live theme switch. The array stays static because the theme is
     // process-wide; the defaults below are the Dark values, kept as no-Application fallbacks
-    // (unit tests, designer). Deliberately resolved ONCE per theme — the per-cell hot path
+    // (unit tests, designer). Deliberately resolved ONCE per theme: the per-cell hot path
     // (thousands of cells, LazyRowList materialization) still reads a plain array slot.
 
     private static IBrush[] _levelBrushes =
@@ -50,17 +50,6 @@ public sealed partial class HarvestHexViewModel : ObservableObject
         new SolidColorBrush(Color.FromArgb(0x55, 0xC0, 0x7C, 0x28)), // L2 amber       (grandparent)
         new SolidColorBrush(Color.FromArgb(0x33, 0x90, 0x78, 0x90)) // L3 slate       (ancestor+)
     ];
-
-    /// <summary>
-    ///     Swaps the process-wide 4-tier highlight palette (L0 selected → L3 deep ancestor).
-    ///     Called by <c>BinaryPane</c> with token-resolved brushes; the caller then triggers
-    ///     <see cref="RepaintHighlights" /> on its own VM so live rows re-materialize.
-    /// </summary>
-    public static void SetPalette(IBrush l0, IBrush l1, IBrush l2, IBrush l3) =>
-        _levelBrushes = [l0, l1, l2, l3];
-
-    /// <summary>Re-materializes the current window's rows so cells pick up a swapped palette.</summary>
-    public void RepaintHighlights() => RebuildRows();
 
     // ── State ─────────────────────────────────────────────────────────────────
     private readonly List<HexSpan> _spans = [];
@@ -117,6 +106,17 @@ public sealed partial class HarvestHexViewModel : ObservableObject
 
     /// <summary>Has header.</summary>
     public bool HasHeader => Header is { Length: > 0 };
+
+    /// <summary>
+    ///     Swaps the process-wide 4-tier highlight palette (L0 selected → L3 deep ancestor).
+    ///     Called by <c>BinaryPane</c> with token-resolved brushes; the caller then triggers
+    ///     <see cref="RepaintHighlights" /> on its own VM so live rows re-materialize.
+    /// </summary>
+    public static void SetPalette(IBrush l0, IBrush l1, IBrush l2, IBrush l3) =>
+        _levelBrushes = [l0, l1, l2, l3];
+
+    /// <summary>Re-materializes the current window's rows so cells pick up a swapped palette.</summary>
+    public void RepaintHighlights() => RebuildRows();
 
     // ── Reverse byte → node hit-testing (F5.2) ────────────────────────────────
 
@@ -187,7 +187,7 @@ public sealed partial class HarvestHexViewModel : ObservableObject
     ///     <para>
     ///         Pass Level 0 for the innermost / currently-selected range, Level 1 for its
     ///         direct parent, Level 2 for the grandparent, etc.  Overlapping spans are
-    ///         resolved by <b>(Level ASC, Length ASC)</b> — lower Level always wins; among
+    ///         resolved by <b>(Level ASC, Length ASC)</b>: lower Level always wins; among
     ///         equal-Level spans the shorter one wins.
     ///     </para>
     ///     The component automatically navigates to the first Level-0 span.

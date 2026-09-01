@@ -1,4 +1,4 @@
-# tests/fixtures/ — reference data for parity tests
+# tests/fixtures/: reference data for parity tests
 
 Per-demo subdirectories named after the demo's filename (without `.dem`),
 plus a couple of top-level fixture files. Every JSON here is reference data
@@ -15,14 +15,14 @@ tests/fixtures/
 │   └── entity-fields.ours.golden.json Per-tick entity-field snapshot (FuriaMirage only)
 ```
 
-## Reliability posture — what each file means
+## Reliability posture: what each file means
 
 The three stat-side providers (`ours`, `leetify`, `expected`) are NOT
 equally trustworthy. Tests in `StatParityTests` treat them differently:
 
 | Provider | Source | Trust level today |
 |---|---|---|
-| `ours` | `AnalysisBench --suite` reads the demo through our parser/analyzer | Reflects what our code currently produces. NOT a reference — it's the thing being measured. |
+| `ours` | `AnalysisBench --suite` reads the demo through our parser/analyzer | Reflects what our code currently produces. NOT a reference; it's the thing being measured. |
 | `leetify` | Leetify's public `?include=playerStats` API response, converted via `LeetifyGoldenStatsConverter` | **The current gold standard.** When ours and Leetify disagree on a stat, the working assumption is that ours is wrong until proven otherwise. |
 | `expected` | Hand-curated values | **Not yet reliable.** Today's files were seeded from ours+leetify agreement, NOT from a human watching the demo. Function: parser-regression tripwire only. |
 
@@ -35,10 +35,10 @@ dependency from CI). That requires actual hand-verification.
 Today's seed files were written from values where `ours` and `leetify`
 agreed exactly on a chosen demo. They serve two interim purposes:
 
-1. **Parser regression detection** — if ours produces a different value
+1. **Parser regression detection:** if ours produces a different value
    for a stat the seed has, the test fails. That catches our parser
    drifting from its own past output, even without a human in the loop.
-2. **Infrastructure proof** — the schema, the loader, the parity-test
+2. **Infrastructure proof:** the schema, the loader, the parity-test
    shape all exist and work. Replacing seeded values with hand-verified
    values is a content swap, no code change required.
 
@@ -51,7 +51,7 @@ and the oracle-sunset clock starts.
 | File | Refresh command |
 |---|---|
 | `ours.golden.json` | `dotnet run -c Release --project tools/AnalysisBench -- --suite` |
-| `leetify.golden.json` | Same — bench writes both as a side-effect. |
+| `leetify.golden.json` | Same; bench writes both as a side-effect. |
 | `expected.golden.json` | **Not auto-refreshable.** Manual edit when hand-verifying. |
 | `entity-fields.ours.golden.json` | `dotnet run --project tools/DemoViewer.NET.EntityFieldDiff -- <demo> --write-snapshot` (requires the gitignored EntityFieldDiff tool + sibling demofile-net repo). |
 
@@ -60,7 +60,7 @@ and the oracle-sunset clock starts.
 Every JSON file has a `schema_version` field. Today schemas are at v1.
 Breaking changes to a schema (new required field, removed field,
 renamed key) should bump the version and update the loader. The current
-loaders don't enforce version compatibility yet — that's a follow-up
+loaders don't enforce version compatibility yet; that's a follow-up
 when a v2 actually exists.
 
 ## What's not in here

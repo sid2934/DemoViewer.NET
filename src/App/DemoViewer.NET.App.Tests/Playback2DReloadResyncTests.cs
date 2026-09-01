@@ -9,10 +9,10 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     State-restoration parity: opening a NEW demo while the 2D Playback tab stays active must fully resync
-///     the module (map image, marker labels, trails) to the new demo — not keep the previous demo's state.
+///     the module (map image, marker labels, trails) to the new demo, not keep the previous demo's state.
 ///     <para>
 ///         The bug this guards: <c>PlaybackController.LoadDemo</c> resets the clock WITHOUT emitting an
-///         <c>Advanced</c> push, and the module's roster re-seed was gated on a player-COUNT change — so two
+///         <c>Advanced</c> push, and the module's roster re-seed was gated on a player-COUNT change, so two
 ///         different-map demos with the same 10-player count would leave the old map + names on screen. The
 ///         host now raises <see cref="IModuleContext.DemoReset" /> after a (re)load, which an active module
 ///         resyncs on. Verified deterministically (synthetic, no demo, no baked bundle needed).
@@ -51,8 +51,8 @@ public class Playback2DReloadResyncTests
         await Assert.That(vm.Markers.Count).IsEqualTo(1);
 
         // A NEW demo loads while the tab stays active: DIFFERENT map, DIFFERENT roster, SAME player count
-        // (the case the old count-based re-seed guard silently missed). LoadDemo emits NO Advanced push —
-        // the shell raises DemoReset instead, and there is no authoritative tracker until the first seek
+        // (the case the old count-based re-seed guard silently missed). LoadDemo emits NO Advanced push.
+        // The shell raises DemoReset instead, and there is no authoritative tracker until the first seek
         // (CurrentPlayers empty), exactly as after a real reload.
         ctx.MapName = "de_mirage";
         ctx.Roster = new List<PlayerRosterEntry>
@@ -67,7 +67,7 @@ public class Playback2DReloadResyncTests
         ctx.SetCurrent(Array.Empty<IPlayerState>());
         ctx.RaiseDemoReset();
 
-        // The map image + roster labels now reflect demo B — full restoration, no manual seek required...
+        // The map image + roster labels now reflect demo B: full restoration, no manual seek required...
         await Assert.That(vm.LoadedMapNameForTest).IsEqualTo("de_mirage");
         await Assert.That(vm.Attributes.Single(a => a.Slot == 0).Name).IsEqualTo("Bob");
         // ...and no marker glides in from demo A's position (markers/trails cleared on resync).
@@ -98,11 +98,11 @@ public class Playback2DReloadResyncTests
         vm.OnDeactivated();
 
         // A reload after deactivation must NOT touch this now-inactive module (zero work while
-        // inactive) — it resyncs on its next OnActivated instead. The DemoReset subscription is dropped.
+        // inactive). It resyncs on its next OnActivated instead. The DemoReset subscription is dropped.
         ctx.MapName = "de_mirage";
         ctx.RaiseDemoReset();
 
-        await Assert.That(vm.LoadedMapNameForTest).IsEqualTo("de_dust2"); // unchanged — module didn't react
+        await Assert.That(vm.LoadedMapNameForTest).IsEqualTo("de_dust2"); // unchanged: module didn't react
     }
 
     private static ResyncPlayer Alive(int slot, int team, float x, float y)

@@ -5,8 +5,8 @@ using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Threading;
-using DemoViewer.NET.Controls;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Controls;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Common;
@@ -24,6 +24,7 @@ namespace DemoViewer.NET.AppTests;
 ///     real view models / data binding (TUnit + Avalonia headless) and captures rendered frames via
 ///     the Skia backend to <see cref="HeadlessSession.ArtifactDir" /> for inspection.
 /// </summary>
+[Category("RealDemo")]
 public class UnknownMessageCardTests
 {
     // ── VM-level correctness: unknowns become wire-decoded cards; selecting one shows its bytes ──
@@ -163,7 +164,7 @@ public sealed record UnknownTypeRow(int FirstFrame, string Tick, string Message)
 
 /// <summary>
 ///     Parses the reference demo once and builds the unknown-message census + grouped rows, shared
-///     across tests. Pure parser work — no UI thread needed.
+///     across tests. Pure parser work: no UI thread needed.
 /// </summary>
 public sealed class DemoCensus
 {
@@ -184,7 +185,7 @@ public sealed class DemoCensus
     public byte[] DemoBytes { get; }
     public Dictionary<int, List<UnknownMessageInfo>> Census { get; }
 
-    /// <summary>Frame (with unknowns) that has the fewest inner messages — keeps the card render compact.</summary>
+    /// <summary>Frame (with unknowns) that has the fewest inner messages: keeps the card render compact.</summary>
     public int SmallestUnknownFrame { get; }
 
     public List<UnknownTypeRow> GroupedRows { get; }

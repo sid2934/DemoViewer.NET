@@ -59,7 +59,7 @@ public partial class RuleWorkbenchView : UserControl
         DataContextChanged += OnDataContextChanged;
     }
 
-    // L2b — the DSL syntax colours follow the app theme. AvaloniaEdit caches its parsed highlighting
+    // L2b: the DSL syntax colours follow the app theme. AvaloniaEdit caches its parsed highlighting
     // definition, so live-updating means re-setting a fresh per-variant definition + redrawing the view.
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
@@ -161,7 +161,7 @@ public partial class RuleWorkbenchView : UserControl
         _editor.Focus();
     }
 
-    // ── M4: data browser — insert a path by double-click or drag ─────────────────────────────────
+    // ── M4: data browser, insert a path by double-click or drag ─────────────────────────────────
 
     private void OnPathDoubleTapped(object? sender, TappedEventArgs e)
     {
@@ -197,7 +197,7 @@ public partial class RuleWorkbenchView : UserControl
     }
 
     // GAP-UI-2: the completion used to fire only on Ctrl+Space and computed its context exactly
-    // once per window — typing past a `:` kept the stale (usually Any → whole-vocabulary) list.
+    // once per window. Typing past a `:` kept the stale (usually Any → whole-vocabulary) list.
     // Now a context-CHANGING character re-narrows the open window by reopen, and the first
     // identifier character auto-opens it when the caret sits in a NARROWABLE position (never on
     // Any, which would pop the full vocabulary on every keystroke in prose-ish places).
@@ -238,7 +238,7 @@ public partial class RuleWorkbenchView : UserControl
             return;
         }
 
-        // The catalog is immutable — load once and cache.
+        // The catalog is immutable: load once and cache.
         _catalog ??= SafeCatalog();
         if (_catalog is null)
         {
@@ -246,7 +246,7 @@ public partial class RuleWorkbenchView : UserControl
         }
 
         // Narrow the suggestions to what fits where the caret sits (type-aware;
-        // block-scoped since v0.6.0 — the enclosing top-level section picks the key vocabulary).
+        // block-scoped since v0.6.0: the enclosing top-level section picks the key vocabulary).
         WorkbenchCompletionContext context =
             WorkbenchCompletionSource.ContextFor(LineBeforeCaret(), TextBeforeCaret());
         IReadOnlyList<WorkbenchCompletion> candidates = WorkbenchCompletionSource.Build(_catalog, _editor.Text, context);
@@ -269,7 +269,7 @@ public partial class RuleWorkbenchView : UserControl
         window.Show();
     }
 
-    /// <summary>The current line's text from its start up to the caret — the completion-context source.</summary>
+    /// <summary>The current line's text from its start up to the caret: the completion-context source.</summary>
     private string LineBeforeCaret()
     {
         TextDocument doc = _editor!.Document;
@@ -277,7 +277,7 @@ public partial class RuleWorkbenchView : UserControl
         return doc.GetText(line.Offset, _editor.CaretOffset - line.Offset);
     }
 
-    /// <summary>Everything from the document start to the caret — the block-scope source (v0.6.0).</summary>
+    /// <summary>Everything from the document start to the caret: the block-scope source (v0.6.0).</summary>
     private string TextBeforeCaret() => _editor!.Document.GetText(0, _editor.CaretOffset);
 
     /// <summary>The offset where the identifier under the caret starts (walking back over word chars + '.').</summary>

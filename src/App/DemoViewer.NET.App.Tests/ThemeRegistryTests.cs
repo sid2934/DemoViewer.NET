@@ -12,8 +12,8 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Proves the central theme system's load-bearing Avalonia behaviour: a CUSTOM <see cref="ThemeVariant" />
 ///     registered by <see cref="ThemeRegistry" /> resolves its own token overrides, and inherits every OMITTED
-///     token from its base (Dark/Light) palette in <c>DarkPalette.axaml</c>. If this holds, a theme is pure data
-///     — a base + a set of overrides — and needs no per-file changes anywhere.
+///     token from its base (Dark/Light) palette in <c>DarkPalette.axaml</c>. If this holds, a theme is pure data,
+///     a base + a set of overrides, and needs no per-file changes anywhere.
 /// </summary>
 [NotInParallel]
 [Category("Integration")]
@@ -72,9 +72,9 @@ public class ThemeRegistryTests
         });
     }
 
-    // T4 — High-Contrast + E-Girl ship as EMBEDDED built-in themes (Themes/*.json), loaded via the same JSON
+    // T4: High-Contrast + E-Girl ship as EMBEDDED built-in themes (Themes/*.json), loaded via the same JSON
     // parser as user drop-ins. Each is a BuiltIn-source custom variant whose overrides resolve and whose omitted
-    // tokens inherit its base — the proof that a new built-in theme needs zero per-file changes.
+    // tokens inherit its base, the proof that a new built-in theme needs zero per-file changes.
     [Test]
     public async Task BuiltInCustomThemes_HighContrastAndEGirl_AreRegistered_AndResolve()
     {

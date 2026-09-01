@@ -51,7 +51,7 @@ public partial class KeyValueTable : UserControl
         set => SetValue(ShowDeltaOnlyProperty, value);
     }
 
-    /// <summary>The rows currently shown — <see cref="Rows" /> filtered by <see cref="ShowDeltaOnly" />.</summary>
+    /// <summary>The rows currently shown: <see cref="Rows" /> filtered by <see cref="ShowDeltaOnly" />.</summary>
     public IReadOnlyList<KvpRow> VisibleRows =>
         Rows is null
             ? []

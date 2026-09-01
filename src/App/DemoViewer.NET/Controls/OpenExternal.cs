@@ -7,7 +7,7 @@ using System.Diagnostics;
 namespace DemoViewer.NET.Controls;
 
 /// <summary>
-///     Helpers for opening source links — VS Code (preferred for local paths with line numbers)
+///     Helpers for opening source links: VS Code (preferred for local paths with line numbers)
 ///     and the OS default browser/handler (fallback). Used by <see cref="ParseLinkChip" /> and
 ///     migrated from <c>ParseChainEntry</c> for reuse by future link-rendering surfaces
 ///     (entity class links, field decode errors).
@@ -18,7 +18,7 @@ public static class OpenExternal
     ///     Open <paramref name="localPath" /> with VS Code first; if that fails, hand off to the
     ///     OS default file handler. <paramref name="column" /> is honored only alongside
     ///     <paramref name="line" /> (<c>code --goto</c> takes <c>file:line:col</c>).
-    ///     Returns false when neither launch could even be attempted (v0.6.0 — callers with a
+    ///     Returns false when neither launch could even be attempted (v0.6.0, callers with a
     ///     status surface say so instead of a click silently doing nothing).
     /// </summary>
     public static bool OpenLocalFile(string localPath, int? line = null, int? column = null)
@@ -38,7 +38,7 @@ public static class OpenExternal
         }
         catch
         {
-            // Missing handler / revoked file association — reported via the return value; a link
+            // Missing handler / revoked file association: reported via the return value; a link
             // click must never crash the app.
             return false;
         }
@@ -60,7 +60,7 @@ public static class OpenExternal
         }
         catch
         {
-            // No registered handler for the scheme — reported via the return value.
+            // No registered handler for the scheme: reported via the return value.
             return false;
         }
     }

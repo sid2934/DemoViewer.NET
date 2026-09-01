@@ -135,7 +135,7 @@ public class LibraryFilterTests
         vm.MapFilters.Single(m => m.MapKey == "de_dust2").IsSelected = true;
         await Assert.That(vm.FilteredEntries.Count).IsEqualTo(1);
 
-        // A new demo on an EXISTING map arrives (re-index) — the map set is unchanged, so the dust2 check
+        // A new demo on an EXISTING map arrives (re-index): the map set is unchanged, so the dust2 check
         // must persist (chips aren't rebuilt) and the new dust2 demo joins the filtered view.
         svc.Entries.Add(Entry("de_dust2", "NiKo,huNter", "c.dem"));
 

@@ -32,7 +32,7 @@ public partial class ReelJobStatusView : UserControl
         IClipboard? clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
         if (clipboard is null)
         {
-            return; // no clipboard host (designer / degraded) — the SelectableTextBlock is the fallback
+            return; // no clipboard host (designer / degraded): the SelectableTextBlock is the fallback
         }
 
         try

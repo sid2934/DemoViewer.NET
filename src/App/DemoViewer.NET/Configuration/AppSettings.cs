@@ -2,7 +2,7 @@ namespace DemoViewer.NET.Configuration;
 
 /// <summary>
 ///     The <em>preference</em> sections of the app's single consolidated per-user config file
-///     (<c>settings.json</c>) — the type <c>IOptionsMonitor&lt;AppSettings&gt;</c> binds. Every property
+///     (<c>settings.json</c>), the type <c>IOptionsMonitor&lt;AppSettings&gt;</c> binds. Every property
 ///     carries a safe, non-null default so a partial, empty, or entirely missing file binds without a
 ///     null-deref: the configuration binder starts from <c>new AppSettings()</c> and layers file/env values
 ///     on top, so any section the file omits keeps the default constructed here.
@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Configuration;
 ///         the configuration binder cannot construct when the section is null, so binding <c>AppSettings</c>
 ///         must not have to touch them. <see cref="SettingsService" /> is the single serializer of the file
 ///         and preserves those extra sections through a JSON-node merge (so a preference write never clobbers
-///         them), reading/writing them via System.Text.Json — never through the config binder or this type.
+///         them), reading/writing them via System.Text.Json, never through the config binder or this type.
 ///     </para>
 /// </summary>
 public sealed class AppSettings
@@ -22,7 +22,7 @@ public sealed class AppSettings
     public LibrarySettings Library { get; set; } = new();
 
     /// <summary>
-    ///     Which feature tier the UI presents. Defaults to <see cref="UserCategory.PowerUser" /> — the
+    ///     Which feature tier the UI presents. Defaults to <see cref="UserCategory.PowerUser" />, the
     ///     skip-the-wizard fallback when no first-run choice has been persisted yet.
     /// </summary>
     public UserCategory UserCategory { get; set; } = UserCategory.PowerUser;
@@ -31,7 +31,7 @@ public sealed class AppSettings
     public FeatureFlags Features { get; set; } = new();
 
     /// <summary>
-    ///     Active UI theme — a <see cref="Theming.Theme.Id" /> from the central <see cref="Theming.ThemeRegistry" />
+    ///     Active UI theme, a <see cref="Theming.Theme.Id" /> from the central <see cref="Theming.ThemeRegistry" />
     ///     (built-in <c>"dark"</c> / <c>"light"</c> / <c>"system"</c> / <c>"high-contrast"</c> / <c>"egirl"</c>, or a
     ///     user drop-in's id). Resolved case-insensitively by <c>App.WireTheme</c>, so legacy capitalized values
     ///     ("Dark"/"Light"/"System") from before the central theme system still map correctly.
@@ -41,17 +41,17 @@ public sealed class AppSettings
     /// <summary>
     ///     True once the user has completed (or skipped) the first-run setup wizard. Drives
     ///     <see cref="SettingsService.NeedsFirstRun" />: the wizard shows until this is set, so it is
-    ///     independent of whether <c>settings.json</c> exists — the demo-library folder migration can
+    ///     independent of whether <c>settings.json</c> exists: the demo-library folder migration can
     ///     create the file as a side effect without wrongly marking setup as done (an upgrading user has
     ///     still never chosen a category, so they should see the wizard). Only the wizard's Finish/Skip
     ///     sets this true.
     /// </summary>
     public bool FirstRunCompleted { get; set; }
 
-    /// <summary>Live CS2 sync (CSVG) configuration — desktop-only feature, section always binder-safe.</summary>
+    /// <summary>Live CS2 sync (CSVG) configuration, desktop-only feature, section always binder-safe.</summary>
     public LiveSyncSettings LiveSync { get; set; } = new();
 
-    /// <summary>Highlights pipeline configuration — desktop-only, binder-safe.</summary>
+    /// <summary>Highlights pipeline configuration, desktop-only, binder-safe.</summary>
     public HighlightsSettings Highlights { get; set; } = new();
 
     /// <summary>Global demo-processing queue configuration, binder-safe.</summary>
@@ -63,8 +63,11 @@ public sealed class AppSettings
     /// <summary>Idle-mode configuration (auto-close the open demo after inactivity to conserve RAM).</summary>
     public IdleSettings Idle { get; set; } = new();
 
+    /// <summary>The 2D Playback module's settings. ONE section for the whole module.</summary>
+    public Playback2DSettings Playback2D { get; set; } = new();
+
     /// <summary>
-    ///     The app version (x.y.z) whose release notes the user has been shown — the post-update
+    ///     The app version (x.y.z) whose release notes the user has been shown, the post-update
     ///     "What's new" gate. Null until a launch records it. Compared against the running version at
     ///     startup; a mismatch on an already-set-up install opens the What's New window once, and the
     ///     value is advanced BEFORE the window shows so a crash cannot re-show it in a loop. Not a
@@ -75,14 +78,14 @@ public sealed class AppSettings
 }
 
 /// <summary>
-///     Configuration for Idle Mode — after a configurable span with no user interaction (and no active
+///     Configuration for Idle Mode: after a configurable span with no user interaction (and no active
 ///     playback), the app captures where to resume, closes the open demo, and drops resource usage via the
 ///     same deterministic-close path the "Close Demo" button uses. Desktop-only; a no-op on WASM (no real
 ///     memory pressure there, and the global input hook / demo-close semantics differ).
 ///     <para>
 ///         The wait is a <see cref="TimeSpan" /> (serialized as <c>"00:15:00"</c>) rather than a whole-minute
 ///         count so the exact duration is user-controllable. "Tick" terminology is deliberately avoided here:
-///         in this codebase a tick is a CS2/demo discrete-time unit, never a wall-clock idle measure — idle
+///         in this codebase a tick is a CS2/demo discrete-time unit, never a wall-clock idle measure. Idle
 ///         timing is plain <see cref="DateTime" /> wall-clock.
 ///     </para>
 /// </summary>
@@ -90,7 +93,7 @@ public sealed class IdleSettings
 {
     /// <summary>
     ///     Master switch. Default ON. When off, the idle countdown never fires and the app never
-    ///     auto-closes a demo — but the enable state is read live, so toggling it takes effect at once.
+    ///     auto-closes a demo, but the enable state is read live, so toggling it takes effect at once.
     /// </summary>
     public bool Enabled { get; set; } = true;
 
@@ -102,7 +105,7 @@ public sealed class IdleSettings
     public TimeSpan IdleTimeoutWait { get; set; } = TimeSpan.FromMinutes(15);
 
     /// <summary>
-    ///     When true (default), background demo processing continues while the app is idle — only the
+    ///     When true (default), background demo processing continues while the app is idle: only the
     ///     FOREGROUND open demo is closed. When false, the queue is transiently paused on entering idle
     ///     and resumed on leaving it, so an idle machine does no background parsing at all.
     /// </summary>
@@ -110,11 +113,11 @@ public sealed class IdleSettings
 }
 
 /// <summary>
-///     Configuration for the unified diagnostics-logging pillar — the first-party internal
+///     Configuration for the unified diagnostics-logging pillar, the first-party internal
 ///     <c>ILogger</c> stream (coarse load/analysis lifecycle + warnings/errors) that shares the
 ///     Diagnostics tab's log surface with the CSVG host logs, plus the optional rolling file sink.
 ///     <para>
-///         Both the in-app window and the file are <b>bounded</b> by the caps here — the design
+///         Both the in-app window and the file are <b>bounded</b> by the caps here: the design
 ///         invariant is that no diagnostics buffer is ever unbounded (a past leak). The coarse
 ///         internal logs are low-rate, so the pillar defaults ON at
 ///         <see cref="LiveSyncLogLevel.Information" />: the standing cost is negligible and the
@@ -125,14 +128,14 @@ public sealed class DiagnosticsSettings
 {
     /// <summary>
     ///     Master switch for the first-party internal logging pillar (feeds the Diagnostics tab's
-    ///     log window and — when <see cref="WriteLogFile" /> — the rolling file). Default ON. Off
+    ///     log window and, when <see cref="WriteLogFile" />, the rolling file). Default ON. Off
     ///     leaves the ambient logger a NullLogger, so emit sites cost a single predicted branch.
     /// </summary>
     public bool EnableInternalLogging { get; set; } = true;
 
     /// <summary>
     ///     Minimum severity captured by the internal pillar (hub + file). <b>Live-adjustable</b>
-    ///     like the CSVG level — lowering it starts surfacing more detail immediately. Default
+    ///     like the CSVG level: lowering it starts surfacing more detail immediately. Default
     ///     <see cref="LiveSyncLogLevel.Information" />; keep it at Information+ for the always-live
     ///     window (Debug/Trace is for the file / a focused investigation).
     /// </summary>
@@ -159,10 +162,10 @@ public sealed class DiagnosticsSettings
 }
 
 /// <summary>
-///     Settings for the global demo-processing queue — the single source
+///     Settings for the global demo-processing queue, the single source
 ///     all background demo parse/analyse work is pulled from.
 ///     <para>
-///         <b>Pause is NOT here</b> — it is a transient runtime toggle (a Pause/Resume button); the app
+///         <b>Pause is NOT here</b>: it is a transient runtime toggle (a Pause/Resume button); the app
 ///         always starts un-paused. Only the persisted values live here.
 ///     </para>
 /// </summary>
@@ -184,7 +187,7 @@ public sealed class ProcessingQueueSettings
     /// <summary>
     ///     Max concurrent HEAVY parses.
     ///     <b>
-    ///         DEFAULT 1 — this is a 16 GB OOM-safety invariant, not a
+    ///         DEFAULT 1: this is a 16 GB OOM-safety invariant, not a
     ///         preference.
     ///     </b>
     ///     Two concurrent multi-GB parses exhaust RAM; &gt; 1 is advanced/opt-in and
@@ -213,7 +216,7 @@ public sealed class HighlightsSettings
     /// <summary>Default clip lead-out seconds after the firing tick.</summary>
     public double ClipLeadOutSeconds { get; set; } = 5;
 
-    // v0.6.0: the per-type LeadInOverrides/LeadOutOverrides dictionaries were REMOVED — nothing ever
+    // v0.6.0: the per-type LeadInOverrides/LeadOutOverrides dictionaries were REMOVED: nothing ever
     // read them (the global defaults above are the real knobs, editable in Settings and the reel
     // pane), and a settings surface that silently does nothing is worse than none. A settings.json
     // still carrying the keys binds fine (unknown sections are ignored). Re-add alongside a real
@@ -237,7 +240,7 @@ public sealed class HighlightsSettings
     /// <summary>Reel CRF quality (used when <see cref="ReelBitrateKbps" /> is null; lower = better).</summary>
     public int ReelCrf { get; set; } = 20;
 
-    /// <summary>Reel bitrate in kbps — mutually exclusive with CRF (null = CRF mode).</summary>
+    /// <summary>Reel bitrate in kbps, mutually exclusive with CRF (null = CRF mode).</summary>
     public int? ReelBitrateKbps { get; set; }
 
     /// <summary>
@@ -254,7 +257,7 @@ public sealed class HighlightsSettings
 /// <summary>
 ///     Live CS2 sync (CSVG) settings. Whether the
 ///     feature is AVAILABLE is the <c>chrome.livesync</c> override in <see cref="FeatureFlags.Overrides" />
-///; whether a session is RUNNING is never persisted — the engine always starts Off.
+///     ; whether a session is RUNNING is never persisted: the engine always starts Off.
 /// </summary>
 public sealed class LiveSyncSettings
 {
@@ -266,7 +269,7 @@ public sealed class LiveSyncSettings
 
     /// <summary>
     ///     Tick-identity shim: added to DV frame-clock ticks when mapping to CS2 demo ticks
-    ///     (<c>cs2DemoTick = max(0, ServerTick) + TickOffset</c>). Default 0 — the identity
+    ///     (<c>cs2DemoTick = max(0, ServerTick) + TickOffset</c>). Default 0, the identity
     ///     hypothesis; override only if validation on a real Windows CS2 install finds a fixed skew.
     /// </summary>
     public int TickOffset { get; set; }
@@ -299,7 +302,7 @@ public sealed class LiveSyncSettings
     public LiveSyncLogLevel MinimumLogLevel { get; set; } = LiveSyncLogLevel.Information;
 
     /// <summary>
-    ///     Also surface framework (ASP.NET Core / gRPC / System) log categories — the per-request
+    ///     Also surface framework (ASP.NET Core / gRPC / System) log categories, the per-request
     ///     Hosting.Diagnostics + gRPC transport lines useful when debugging plugin dial-back /
     ///     transport issues. Off by default (noisy: a line per gRPC call). Still honors
     ///     <see cref="MinimumLogLevel" />; live-adjustable like it.
@@ -308,7 +311,7 @@ public sealed class LiveSyncSettings
 }
 
 /// <summary>
-///     Severity levels for the CSVG log surface — a UI-head-local mirror of
+///     Severity levels for the CSVG log surface, a UI-head-local mirror of
 ///     <c>Microsoft.Extensions.Logging.LogLevel</c> (same order/values, so the mapping in
 ///     <c>DemoViewer.NET.LiveSync</c> is a 1:1 cast). Kept here so the App/Browser head needs no
 ///     <c>Microsoft.Extensions.Logging</c> dependency and <c>settings.json</c> stays human-editable
@@ -316,7 +319,7 @@ public sealed class LiveSyncSettings
 /// </summary>
 public enum LiveSyncLogLevel
 {
-    /// <summary>Most verbose — every diagnostic line.</summary>
+    /// <summary>Most verbose, every diagnostic line.</summary>
     Trace,
 
     /// <summary>Diagnostic detail.</summary>
@@ -361,12 +364,292 @@ public sealed class FeatureFlags
 /// </summary>
 public enum UserCategory
 {
-    /// <summary>End user — only consumer-facing surfaces.</summary>
+    /// <summary>End user, only consumer-facing surfaces.</summary>
     Consumer,
 
-    /// <summary>Power user — the default tier; consumer surfaces plus advanced tooling.</summary>
+    /// <summary>Power user, the default tier; consumer surfaces plus advanced tooling.</summary>
     PowerUser,
 
-    /// <summary>Developer — everything, including parser/RE workbenches.</summary>
+    /// <summary>Developer, everything, including parser/RE workbenches.</summary>
     Developer
+}
+
+/// <summary>
+///     Configuration for the 2D Playback module. Binder-safe.
+///     <para>
+///         <b>One section for the whole module</b>: a new feature ADDS properties here rather than
+///         creating a sibling section. The canonical property list is
+///         <c>docs/playback2d-v2/plans/00-overview.md</c> §3.10. Every property must also be flattened
+///         into <c>SettingsService.WriteInMemory</c>, or writes vanish silently on WASM (design §5.4, §8):
+///         there is no file there, only the in-memory provider that method populates.
+///     </para>
+///     <para>
+///         <b><c>RenderBackend</c> is deliberately NOT here.</b> The registry pins the key and the whole
+///         stack behind it exists, but nothing in the app can consume it: <c>Scene2DHost</c> draws through
+///         Avalonia's own compositor and never asks for an <c>IRenderSurfaceProvider</c>, and
+///         <c>SceneExportSession</c> refuses any provider whose backend is not <c>CpuRaster</c> because its
+///         render loop crosses threads between frames while the GPU provider is thread-affine. The property
+///         would therefore behave identically for every value except <c>gpu</c>, which would fail export
+///         validation. Add it in the commit that gives it a consumer, design §0 <b>O2</b>, C2 Stage 1.
+///     </para>
+/// </summary>
+public sealed class Playback2DSettings
+{
+    /// <summary>
+    ///     Mounts the pre-v2 <c>Playback2DViewport</c> instead of the v2 compositor host.
+    ///     <para>
+    ///         An internal parity escape hatch for one release, then deleted together with the old
+    ///         control in B5. Deliberately NOT a <c>FeatureCatalog</c> id: catalog ids are permanent
+    ///         persisted keys and this is temporary by design (plan decision D-9). The
+    ///         <c>DV_PLAYBACK2D_RENDERER</c> environment variable overrides it, for CI and bisecting.
+    ///     </para>
+    /// </summary>
+    public bool LegacyViewport { get; set; }
+
+    // ── Annotations (B2). Property names are the registry's (§3.10); every one of them has a
+    //    SettingsService.WriteInMemory row, because annotations are WASM-reachable, in-session drawing
+    //    works in the browser, and an unflattened key there is a setting that silently forgets itself.
+
+    /// <summary>The pointer tool the surface opens with: a <c>ToolKind</c> name.</summary>
+    public string LastTool { get; set; } = "PanZoom";
+
+    /// <summary>Ink colour as packed ARGB (0xAARRGGBB), not a string: the scene speaks in ARGB.</summary>
+    public uint AnnotationColorArgb { get; set; } = 0xFFFFC107;
+
+    /// <summary>
+    ///     Ink width in WORLD units, so a stroke zooms with the map like a map pen.
+    ///     <para>
+    ///         <b>6, matching <c>AnnotationStyle.Default.WidthWorld</c>.</b> The two shipped 6 and 8 and
+    ///         disagreed about the default pen: Core's constant is what a session-only run, every test and
+    ///         the wet stroke's initial state use, and it is the one documented as "the app's default ink",
+    ///         so the settings key is the outlier, and it moved. An existing user has a persisted value
+    ///         and sees nothing change.
+    ///     </para>
+    /// </summary>
+    public double AnnotationWidth { get; set; } = 6;
+
+    /// <summary>Ink opacity multiplier, 0..1, applied on top of the time envelope.</summary>
+    public double AnnotationOpacity { get; set; } = 1.0;
+
+    /// <summary>
+    ///     Envelope authoring mode for new elements: an <c>EnvelopeMode</c> NAME: <c>Always</c>,
+    ///     <c>Fade</c>, <c>Custom</c> or <c>RealTime</c>. A string rather than the enum so a member a
+    ///     newer build knows about degrades to <c>Always</c> instead of failing the bind, which is what
+    ///     made D7's fourth mode additive: no migration, no new key.
+    /// </summary>
+    public string AnnotationDefaultVisibility { get; set; } = "Always";
+
+    // The three ramps below serve BOTH relative modes. A RealTime element runs this very trapezoid once
+    // per drawn section, shifted by the offset that section was authored at (plan D7 §3), so there is
+    // deliberately no second "real-time in/out/hold" trio: it would be the same three numbers under
+    // names that could drift apart, which is the unreachable-key defect D6 audited.
+
+    /// <summary>Lead-in length in DV frame-clock ticks for <c>Fade</c> and <c>RealTime</c> elements.</summary>
+    public int AnnotationFadeInTicks { get; set; } = 8;
+
+    /// <summary>Lead-out length in DV frame-clock ticks for <c>Fade</c> and <c>RealTime</c> elements.</summary>
+    public int AnnotationFadeOutTicks { get; set; } = 16;
+
+    /// <summary>
+    ///     Fully-opaque hold: for the whole element in <c>Fade</c>, for each drawn section in
+    ///     <c>RealTime</c>. 320 ≈ 5 s at 64 tick.
+    /// </summary>
+    public int AnnotationHoldTicks { get; set; } = 320;
+
+    /// <summary>Whether a stroke started near a player anchors to them by SteamId.</summary>
+    public bool AnnotationAnchorToEntities { get; set; }
+
+    /// <summary>Whether the document is written to its sidecar automatically.</summary>
+    public bool AnnotationAutoSave { get; set; } = true;
+
+    /// <summary>Recently used ink colours, newest first, as <c>#AARRGGBB</c>. Flattened as indexed keys.</summary>
+    public string[] AnnotationRecentColors { get; set; } = [];
+
+    // ── Keybindings (D1). Indexed keys like AnnotationRecentColors above, the one array shape
+    //    SettingsService.WriteInMemory already flattens.
+
+    /// <summary>
+    ///     Per-user 2D keymap overrides as <c>"Action=Gesture"</c> rows (<c>"NextRound=Shift+R"</c>),
+    ///     where the action is a <c>Playback2DAction</c> name and the gesture is anything
+    ///     <c>KeyGesture.Parse</c> accepts. Only the rows that differ from the shipped table are stored,
+    ///     so a later default change reaches everyone who never rebound that action.
+    ///     <para>
+    ///         Composed over the shipped table by <c>Playback2DKeymapProfile</c>, which DROPS and reports
+    ///         any row it cannot honour: a typo in this array can never take the 2D tab down.
+    ///     </para>
+    /// </summary>
+    public string[] KeybindOverrides { get; set; } = [];
+
+    // ── Per-button ink and the Custom envelope (D2). Same rules as the block above: persisted names,
+    //    one WriteInMemory row each.
+
+    /// <summary>
+    ///     SECONDARY (right-button) ink colour as packed ARGB. Width and opacity are shared with the
+    ///     primary, so two pens never drift into two widths.
+    /// </summary>
+    public uint AnnotationSecondaryColorArgb { get; set; } = 0xFF29B6F6;
+
+    /// <summary>
+    ///     What the RIGHT button does: a <c>ToolKind</c> name (<c>Erase</c> is the popular one), or
+    ///     <c>Same</c>, the default, for "the selected tool, in the secondary ink". A persisted string
+    ///     rather than the enum so an unknown value degrades to <c>Same</c> instead of failing the bind.
+    /// </summary>
+    public string AnnotationSecondaryTool { get; set; } = "Same";
+
+    /// <summary>
+    ///     First fully-opaque DV frame-clock tick for <c>Custom</c> elements. Never a CS2 server tick.
+    /// </summary>
+    public int AnnotationCustomFromTick { get; set; }
+
+    /// <summary>
+    ///     Last fully-opaque DV frame-clock tick for <c>Custom</c> elements. 320 ≈ 5 s at 64 tick, so the
+    ///     shipped Custom window is a real one: selecting the mode does something the moment it is
+    ///     picked, which is the whole difference between Custom and a second spelling of Always.
+    /// </summary>
+    public int AnnotationCustomUntilTick { get; set; } = 320;
+
+    // ── Levels (B3). Registry §3.10 names: LevelDisplayMode, AutoLevelFollow.
+
+    /// <summary>
+    ///     How the map's floors are laid out: <c>Stacked</c> (every floor as a band, the pre-v2 view) or
+    ///     <c>Single</c> (one floor filling the viewport). A string rather than the enum so an unknown
+    ///     value in a hand-edited settings file degrades to the default instead of failing the bind;
+    ///     <c>LevelLayouts.Parse</c> is the one place that reads it.
+    /// </summary>
+    public string LevelDisplayMode { get; set; } = "Stacked";
+
+    /// <summary>
+    ///     Whether the shown floor tracks the followed player. Gated by <c>playback2d.levels.auto</c>:
+    ///     with the gate off this is not consulted, and the AUTO chip is not offered.
+    /// </summary>
+    public bool AutoLevelFollow { get; set; } = true;
+
+    // ── Timeline track visibility (A1's footer check-boxes; persisted by B5) ────────────────────────
+    // Registry §3.10 lists these three keys. A1 shipped the toggles as SESSION state, so a user who
+    // turned kill markers off got them back on the next launch: the B5 settings audit is the phase
+    // that notices. They are per-TRACK and not per-feature: playback2d.timeline decides whether the
+    // control exists at all, these decide which bands and glyphs it draws. The annotation track has
+    // its own row because a coach who never draws still wants kills.
+
+    /// <summary>Whether the timeline draws the kill track's markers.</summary>
+    public bool TimelineShowKills { get; set; } = true;
+
+    /// <summary>Whether the timeline draws the bomb track's plant / defuse / explode markers.</summary>
+    public bool TimelineShowBomb { get; set; } = true;
+
+    /// <summary>Whether the timeline draws the annotation track's markers.</summary>
+    public bool TimelineShowAnnotations { get; set; } = true;
+
+    // ── Viewport chrome (D4) ────────────────────────────────────────────────────────────────────────
+    // The docked viewport toolbar's two collapse bits. Both are WASM-reachable (the 2D tab runs in the
+    // browser), so both carry a SettingsService.WriteInMemory row.
+
+    /// <summary>
+    ///     Whether the docked viewport toolbar is expanded. Collapsed, its whole <c>Auto</c> grid row goes
+    ///     away and a 22 px restore chevron is the only chrome left over the canvas.
+    ///     <para>
+    ///         <b>Restoring <c>false</c> can never strand the user</b>, the restore chevron is mounted by
+    ///         the collapsed state itself, not by the toolbar it restores, so unlike the shell's drawer and
+    ///         debugger rail (<c>MainViewModel.RestoreSession</c>) this needs no "don't restore it open"
+    ///         guard: there is no gate that can take the way back away.
+    ///     </para>
+    /// </summary>
+    public bool ViewportToolbarOpen { get; set; } = true;
+
+    /// <summary>
+    ///     Whether the six overlay check boxes are revealed under the toolbar's header.
+    ///     <para>
+    ///         <b>Closed by default</b>, which is the whole of D4 item 4.1: they are read rarely and changed
+    ///         rarely, and as six always-visible check boxes they were the widest thing in the viewport
+    ///         column. The <c>Overlays ▾</c> toggle that reveals them is always present.
+    ///     </para>
+    /// </summary>
+    public bool ViewportOverlayBarOpen { get; set; }
+
+    // ---------------- Video export (B4) ----------------
+    // Flat, not a nested Playback2DExportSettings: registry §3.10 / B5 D3 fixed ONE flat class for the
+    // whole module, and every key below is flattened into SettingsService.WriteInMemory alongside the
+    // rest. The keys are persisted names; renaming one silently forgets a user's default.
+
+    /// <summary>Default export container: <c>webm</c> (default), <c>mp4</c> or <c>gif</c>.</summary>
+    public string ExportFormatId { get; set; } = "webm";
+
+    /// <summary>Default export frame rate. Must be one of the format's supported values.</summary>
+    public int ExportFps { get; set; } = 60;
+
+    /// <summary>
+    ///     Default export width in pixels. Even, for the yuv420p formats.
+    ///     <para>
+    ///         <b>720p, not 1080p</b>: B4 risk R3's third lever, taken on measurement. On
+    ///         <c>assets/tour/sample-de_nuke.dem</c> with the shipped layer set and WebM/VP9, a CPU export
+    ///         runs at 109.8 fps at 1280×720 (1.83× realtime at 60 fps) and 58.4 fps at 1920×1080
+    ///         (0.97×). 1080p is still one click away and still perfectly usable; it is simply not a
+    ///         default that can promise "faster than watching it".
+    ///     </para>
+    /// </summary>
+    public int ExportWidth { get; set; } = 1280;
+
+    /// <summary>Default export height in pixels. Even, for the yuv420p formats. See <see cref="ExportWidth" />.</summary>
+    public int ExportHeight { get; set; } = 720;
+
+    /// <summary>Where exports are written. Empty means the user's Videos folder.</summary>
+    public string ExportOutputDirectory { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     The master switch for every HUD layer. Off means no HUD whatever the three below say.
+    ///     <para>
+    ///         D3b split the HUD into three layers and gave each its own key; this one keeps its original
+    ///         name and meaning so a saved "no HUD" survives the split. It used to be spelled "the clock and
+    ///         kill-feed layers", which is why the three are defaulted ON: a user whose file says
+    ///         <c>true</c> asked for the HUD, and the HUD now includes the roster.
+    ///     </para>
+    /// </summary>
+    public bool ExportIncludeHud { get; set; } = true;
+
+    /// <summary>Whether <c>hud.clock</c> is burned in, when <see cref="ExportIncludeHud" /> is on.</summary>
+    public bool ExportIncludeHudClock { get; set; } = true;
+
+    /// <summary>Whether <c>hud.killfeed</c> is burned in, when <see cref="ExportIncludeHud" /> is on.</summary>
+    public bool ExportIncludeHudKillFeed { get; set; } = true;
+
+    /// <summary>Whether <c>hud.roster</c> is burned in, when <see cref="ExportIncludeHud" /> is on.</summary>
+    public bool ExportIncludeHudRoster { get; set; } = true;
+
+    /// <summary>Whether B2's annotation layer is burned into the video.</summary>
+    public bool ExportIncludeAnnotations { get; set; } = true;
+
+    /// <summary>
+    ///     Whether <c>playback2d.vision</c>, the line-of-sight cones, is burned in.
+    ///     <para>
+    ///         <b>The one export toggle that defaults off</b>, and the last one to get a key: the solve is
+    ///         the frame's biggest per-frame cost and R3's first lever for holding the ≥ realtime budget.
+    ///         It shipped as the only box in the pane whose answer was forgotten the moment the dialog
+    ///         closed, so a user who wants cones re-ticked it for every single export.
+    ///     </para>
+    /// </summary>
+    public bool ExportIncludeVision { get; set; }
+
+    // ---------------- Encoder selection (P2) ----------------
+    // Registry §3.10's last two export rows. Both are flattened into SettingsService.WriteInMemory with
+    // the rest of the section; both are persisted keys.
+
+    /// <summary>
+    ///     Which encoder an export uses: <c>auto</c> (default), <c>software</c>, or an
+    ///     <c>EncoderLadder</c> rung's ffmpeg name.
+    ///     <para>
+    ///         <b><c>auto</c> is the only value that cannot fail for an environment reason.</b> It walks
+    ///         the format's ladder and takes the best rung this machine verifies, which on a box with no
+    ///         working hardware encoder is tuned software, a completely normal export. A named rung is
+    ///         taken literally and refused if it does not verify (plan P2 D4), so it is stored here only
+    ///         because a user who has one good card and knows it should not have to re-pick every time.
+    ///     </para>
+    /// </summary>
+    public string ExportEncoder { get; set; } = "auto";
+
+    /// <summary>
+    ///     How much an export spends per frame: <c>draft</c>, <c>standard</c> (default) or <c>best</c>.
+    ///     A string rather than the enum, for the same reason <see cref="LevelDisplayMode" /> is: an
+    ///     unknown value in a hand-edited file degrades to the default instead of failing the bind.
+    /// </summary>
+    public string ExportQuality { get; set; } = "standard";
 }

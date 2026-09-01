@@ -1,8 +1,8 @@
 #region
 
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Playback;
 
@@ -46,7 +46,7 @@ public class ModuleContextEventTimelineTests
         await Assert.That(sample.Fields["Weapon"] is string).IsTrue();
         await Assert.That(sample.Tick).IsGreaterThan(0);
 
-        // Cached per name — the second call returns the SAME instance (built once).
+        // Cached per name: the second call returns the SAME instance (built once).
         await Assert.That(ReferenceEquals(kills, context.GetEventTimeline("player_death"))).IsTrue();
 
         // A name the demo lacks (or that's never requested) yields an empty timeline, not a throw.

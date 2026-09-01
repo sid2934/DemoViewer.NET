@@ -10,13 +10,13 @@ namespace DemoViewer.NET.Theming;
 
 /// <summary>
 ///     Attached behavior that paints a <see cref="Border" />'s background with a stable per-map
-///     accent (deterministic name-hash → hue) — the v0.6.0 replacement for
+///     accent (deterministic name-hash → hue): the v0.6.0 replacement for
 ///     <c>MapAccentConverter</c>, which as an <c>IValueConverter</c> had no theme-variant access
 ///     and no invalidation channel (its S/V tuning was frozen for Dark).
 ///     <para>
 ///         The HUE still comes from the map-name hash (identity must stay stable per map), but
 ///         saturation/value are DECODED from the <c>MapAccentRef</c> token (hue-ignored by
-///         convention — see the token catalog) and the empty-key neutral is
+///         convention, see the token catalog) and the empty-key neutral is
 ///         <c>MapAccentNeutral</c>, so both re-tune per theme. Re-applies on the host's
 ///         <see cref="StyledElement.ActualThemeVariantChanged" />; the hook is per-border and
 ///         self-referencing, so recycled virtualized rows neither leak nor double-subscribe.
@@ -28,7 +28,7 @@ public static class MapAccent
     public static readonly AttachedProperty<string?> KeyProperty =
         AvaloniaProperty.RegisterAttached<Border, string?>("Key", typeof(MapAccent));
 
-    // Guards the one-time ActualThemeVariantChanged hookup per border (never unhooked — the
+    // Guards the one-time ActualThemeVariantChanged hookup per border (never unhooked: the
     // subscription is border→border, so it cannot outlive the control).
     private static readonly AttachedProperty<bool> _hookedProperty =
         AvaloniaProperty.RegisterAttached<Border, bool>("Hooked", typeof(MapAccent));

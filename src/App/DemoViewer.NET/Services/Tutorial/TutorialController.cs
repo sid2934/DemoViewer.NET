@@ -17,8 +17,12 @@ namespace DemoViewer.NET.Services.Tutorial;
 ///         the <see cref="TutorialSegment.FirstRun" /> steps (welcome, tabs, library, open-a-demo) play right
 ///         after setup with no demo; the <see cref="TutorialSegment.DemoLoaded" /> steps (stats, playback,
 ///         controls, outro) need an open demo. The hand-off is the <see cref="TutorialStep.WaitsForDemo" />
-///         gateway (the open-a-demo step): if no demo is open when the user reaches it, the tour <b>stays
-///         visible and waits</b> — spotlight on the Open-Demo affordance, advance disabled, a hint shown — and
+///         gateway (the open-a-demo step): if no demo is open when the user reaches it, the tour
+///         <b>
+///             stays
+///             visible and waits
+///         </b>
+///         (spotlight on the Open-Demo affordance, advance disabled, a hint shown) and
 ///         auto-advances into the demo run the instant a demo loads (<see cref="NotifyDemoLoaded" />). If a demo
 ///         is already open at the gateway (replay-from-Settings), it is a normal Next-able step. The step
 ///         indicator ("2 of 8") counts across the whole script so the two runs read as one tour.
@@ -36,16 +40,16 @@ public sealed class TutorialController
     private const string SampleWaitingHint =
         "Click “Try a sample match” to open the bundled demo — the tour will pick back up automatically.";
 
+    // Global indices (into _steps) of each run, so the indicator can show the whole-script position.
+    private readonly List<int> _demoRun = [];
+    private readonly List<int> _firstRun = [];
+
     private readonly Func<bool> _hasDemoAvailable;
     private readonly Func<bool> _hasSampleCta;
     private readonly Func<bool> _isDemoLoaded;
     private readonly Action _markSeen;
     private readonly Action<string?> _selectTab;
     private readonly IReadOnlyList<TutorialStep> _steps;
-
-    // Global indices (into _steps) of each run, so the indicator can show the whole-script position.
-    private readonly List<int> _demoRun = [];
-    private readonly List<int> _firstRun = [];
 
     private int _pos; // position within the current run
     private IReadOnlyList<int> _run = []; // global indices of the run currently playing
@@ -70,10 +74,10 @@ public sealed class TutorialController
     ///     <paramref name="hasSampleCta" />, then falls back to the Open-Demo button (file picker).
     /// </param>
     /// <param name="hasSampleCta">
-    ///     Predicate: is the Library hero's "Try a sample match" CTA on screen — a bundled sample demo
+    ///     Predicate: is the Library hero's "Try a sample match" CTA on screen: a bundled sample demo
     ///     resolved AND the hero (empty-library) state showing? The gateway's second preference: one click
     ///     opens the sample and the tour continues with real match data, no file dialog. Must be false when
-    ///     the hero is hidden (folders configured) — the CTA control is invisible then, so spotlighting it
+    ///     the hero is hidden (folders configured): the CTA control is invisible then, so spotlighting it
     ///     would frame nothing.
     /// </param>
     public TutorialController(
@@ -205,7 +209,7 @@ public sealed class TutorialController
             return;
         }
 
-        // Last step of the current run. On the first run this is the gateway step — Next is only enabled here
+        // Last step of the current run. On the first run this is the gateway step: Next is only enabled here
         // when a demo is already open (a waiting gateway disables Next and advances via NotifyDemoLoaded), so
         // reaching this branch means we can flow straight into the demo segment.
         if (ReferenceEquals(_run, _firstRun) && _demoRun.Count > 0)
@@ -248,6 +252,6 @@ public sealed class TutorialController
         TutorialTarget.StatsContent => "builtin.stats",
         TutorialTarget.PlaybackTab => "playback2d.viewport",
         TutorialTarget.PlaybackTransport => "playback2d.viewport",
-        _ => null // None (welcome / outro) — no switch; play over the current tab.
+        _ => null // None (welcome / outro): no switch; play over the current tab.
     };
 }

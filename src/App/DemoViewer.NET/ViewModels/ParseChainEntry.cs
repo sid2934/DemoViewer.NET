@@ -20,7 +20,7 @@ public sealed class ParseChainEntry
     /// <summary>Left padding derived from indent level.</summary>
     public Thickness Indent => new(IndentLevel * 14.0, 1, 4, 1);
 
-    /// <summary>Nesting depth — each level adds left margin.</summary>
+    /// <summary>Nesting depth, each level adds left margin.</summary>
     public int IndentLevel { get; init; }
 
     /// <summary>Is clickable.</summary>

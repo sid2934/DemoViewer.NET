@@ -15,14 +15,14 @@ namespace DemoViewer.NET.Features;
 public interface IFeatureGate
 {
     /// <summary>
-    ///     The effective user category driving defaults — <c>AppSettings.UserCategory</c>, escalated to
+    ///     The effective user category driving defaults: <c>AppSettings.UserCategory</c>, escalated to
     ///     <see cref="UserCategory.Developer" /> when <c>AppSettings.Features.DeveloperMode</c> is on.
     /// </summary>
     UserCategory Category { get; }
 
     /// <summary>
     ///     How many non-Required catalog features a <see cref="UserCategory.Developer" /> would see that the
-    ///     current user does not — drives the "N features hidden" affordance (0 for a developer).
+    ///     current user does not: drives the "N features hidden" affordance (0 for a developer).
     /// </summary>
     int HiddenCount { get; }
 

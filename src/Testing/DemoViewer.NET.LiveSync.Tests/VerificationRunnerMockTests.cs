@@ -1,8 +1,8 @@
 #region
 
+using CS2DemoKit.Parser;
 using Cs2VideoGenerator.Core;
 using DemoViewer.NET.Configuration;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.LiveSync;
 using TUnit.Core.Exceptions;
 using TimeoutException = System.TimeoutException;
@@ -17,7 +17,7 @@ namespace DemoViewer.NET.LiveSync.Tests;
 ///     status probe reads Seeking… for the whole range), plays the pre/post-roll range live
 ///     (real <c>PlayTickRangeAsync</c>, deterministic paused arrival), and on completion the
 ///     engine realigns back to Holding at the trigger. The failure branch runs the runner with
-///     no demo loaded: the range API never throws — the failure comes back as
+///     no demo loaded: the range API never throws. The failure comes back as
 ///     <c>Success=false</c> with the error copy.
 /// </summary>
 [Category("Integration")]
@@ -182,7 +182,7 @@ public class VerificationRunnerMockTests
             await session.StartWatchAsync(cancellationToken: cancellationToken);
             try
             {
-                // No demo loaded this session — the range playback cannot run. The runner's
+                // No demo loaded this session: the range playback cannot run. The runner's
                 // contract: every failure mode lands in the Outcome, never a throw.
                 VerificationRunner.Outcome outcome = await VerificationRunner.RunAsync(
                     session, IdentityMapper(10_000), 2000,

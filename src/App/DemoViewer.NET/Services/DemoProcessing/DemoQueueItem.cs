@@ -10,11 +10,11 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 ///     The UI-bindable mirror of one queue entry. Created once per entry id
 ///     and updated in place by the queue's reconcile (on the post/UI thread) so the bound list keeps
 ///     item identity and selection across state changes. The queue's AUTHORITATIVE, thread-safe state
-///     lives in its internal entry list under a lock — this is a projection for binding only.
+///     lives in its internal entry list under a lock. This is a projection for binding only.
 /// </summary>
 public partial class DemoQueueItem : ObservableObject
 {
-    /// <summary>Human label — file name when available, else the path.</summary>
+    /// <summary>Human label: file name when available, else the path.</summary>
     [ObservableProperty]
     private string? _displayName;
 

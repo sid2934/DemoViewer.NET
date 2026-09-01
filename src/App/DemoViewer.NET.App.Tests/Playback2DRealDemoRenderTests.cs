@@ -7,12 +7,13 @@ using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
-using DemoViewer.NET.Modules;
-using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Playback2D;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Modules;
+using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.Views.Playback2D;
@@ -48,10 +49,10 @@ public class Playback2DRealDemoRenderTests
         IReadOnlyList<DemoFrame> frames = demo.Frames;
         await Assert.That(frames.Count).IsGreaterThan(100);
 
-        // Find a frame shortly after a player_death so at least one player is reliably dead — exercises
+        // Find a frame shortly after a player_death so at least one player is reliably dead: exercises
         // the controller-anchored join (dead players keep a grayed row) and the orphaned-pawn guard (no
         // garbage "16383" marker). Deterministic across demos (a fixed fraction can land on a no-death
-        // round — that was the old flake).
+        // round, which was the old flake).
         int target = FindPostDeathFrame(frames);
         if (target < 0)
         {
@@ -99,23 +100,26 @@ public class Playback2DRealDemoRenderTests
                               $"HP {a.Health} {a.ActiveWeapon} ${a.Cash} K/D/A {a.Kda}");
         }
 
-        // Credible formation joined (alive + dead-but-mapped markers). Lower bound only — the exact count
+        // Credible formation joined (alive + dead-but-mapped markers). Lower bound only: the exact count
         // varies with how many are alive at the chosen post-death frame.
         await Assert.That(vm.Markers.Count).IsGreaterThanOrEqualTo(4);
         // Real-data weapon resolve: at least one live player holds a weapon.
         await Assert.That(vm.Attributes.Any(a => a.IsAlive && a.ActiveWeapon != "—")).IsTrue();
         // Regression: no marker carries the orphaned-pawn garbage slot (16382 → "16383" label).
         await Assert.That(vm.Markers.All(m => m.Slot is >= 0 and < 64)).IsTrue();
-        // Regression: dead players are NOT removed — they stay as grayed rows (RowOpacity < 1).
+        // Regression: dead players are NOT removed but stay as grayed rows (RowOpacity < 1).
         await Assert.That(deadRows).IsGreaterThan(0);
         await Assert.That(vm.Attributes.Where(a => a.InMatch && !a.IsAlive).All(a => a.RowOpacity < 1.0)).IsTrue();
-        // Coach / GOTV roster entries (non T/CT) are filtered out of the panel — clean 10-player list.
+        // Coach / GOTV roster entries (non T/CT) are filtered out of the panel: clean 10-player list.
         await Assert.That(shownRows).IsLessThanOrEqualTo(10);
 
         // ── Render the real VM (only the UI leg runs on the dispatcher). ──
         int nonBg = 0;
         await HeadlessSession.RunOnUi(async () =>
         {
+            // Carried-forward suite: pin the LEGACY surface (plan §6.3). B1 mounts the surface in
+            // code, so a view built without this would get the v2 host.
+            Playback2DRenderer.ResetForTest(Playback2DRendererKind.Legacy);
             Playback2DView view = new()
             {
                 DataContext = vm
@@ -150,7 +154,7 @@ public class Playback2DRealDemoRenderTests
 
     // First player_death (in the middle 50%) that is NOT immediately followed by a round_end, +8 frames:
     // the killed player is reliably dead and the round hasn't reset (so "some dead" holds). Deterministic
-    // regardless of which demo resolves — a fixed fraction could land on a no-death round (the old flake).
+    // regardless of which demo resolves: a fixed fraction could land on a no-death round (the old flake).
     private static int FindPostDeathFrame(IReadOnlyList<DemoFrame> frames)
     {
         int start = frames.Count / 4, end = frames.Count * 3 / 4;

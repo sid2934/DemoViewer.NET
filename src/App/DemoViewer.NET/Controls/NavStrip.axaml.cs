@@ -14,7 +14,7 @@ namespace DemoViewer.NET.Controls;
 ///     to the shell <see cref="MainViewModel" /> (its natural DataContext as shell chrome) for the
 ///     clock (<c>Playback.*</c>), the semantic <c>Nav*Command</c>s, the demo-derived event filter
 ///     (<c>EventFilterFlyout</c>), and the unchanged breakpoint commands. The only imperative wiring is
-///     the editable frame box commit on Enter / LostFocus — frame-index movement, the locked decision.
+///     the editable frame box commit on Enter / LostFocus: frame-index movement, the locked decision.
 /// </summary>
 public partial class NavStrip : UserControl
 {

@@ -10,7 +10,7 @@ namespace DemoViewer.NET.ViewModels;
 /// <summary>
 ///     Read-only display row for the frame timeline list (plus a single observable
 ///     <see cref="IsBreakpointSet" /> property the debugger toggles when the user clicks the
-///     gutter). All other fields are <c>init</c>-only — no change-notification needed for them.
+///     gutter). All other fields are <c>init</c>-only: no change-notification needed for them.
 /// </summary>
 public sealed partial class HarvestFrameRowViewModel : ObservableObject
 {

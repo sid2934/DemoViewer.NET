@@ -9,7 +9,7 @@ using DemoViewer.NET.ViewModels;
 namespace DemoViewer.NET.Controls;
 
 /// <summary>
-///     Reusable inspector card (F3.1) — the single, adopted message-card surface.
+///     Reusable inspector card (F3.1): the single, adopted message-card surface.
 ///     Renders an accent strip, category badge, click-to-select header, column
 ///     header row, and a collapsible payload <c>TreeView</c> with per-row select.
 ///     <para>

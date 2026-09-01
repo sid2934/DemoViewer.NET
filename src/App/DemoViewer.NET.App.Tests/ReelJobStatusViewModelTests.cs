@@ -11,7 +11,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Covers the <see cref="ReelJobStatusViewModel" /> status→chip + status→flyout mapping
-/// over a fake <see cref="IReelJobService" />. Pure VM. Asserts the
+///     over a fake <see cref="IReelJobService" />. Pure VM. Asserts the
 ///     dot vocabulary (working pulse / positive done / error), the neutral "Reel · …" labels, the
 ///     mutually-exclusive flyout sections, the per-clip status list (done/current/queued/failed), and the
 ///     retry / cancel / dismiss gating.
@@ -107,7 +107,7 @@ public class ReelJobStatusViewModelTests
 
     // (e2) A failed job exposes the copyable diagnostic block (Copy button gate + clipboard payload): it
     // carries the phase, the clip tally, the failed clip number (1-based), the active clip, and the verbatim
-    // engine error — a self-contained report, not a truncated sentence. A running/idle job has nothing to copy.
+    // engine error, a self-contained report, not a truncated sentence. A running/idle job has nothing to copy.
     [Test]
     public async Task Failed_ExposesCopyableDiagnostics_RunningDoesNot()
     {
@@ -116,8 +116,8 @@ public class ReelJobStatusViewModelTests
         job.Raise(Status(ReelJobPhase.Capturing, 1, 4));
         await Assert.That(vm.HasError).IsFalse().Because("a running job has no error to copy");
 
-        job.Raise(Status(ReelJobPhase.Failed, 2, 4, current: "s1mple · ace",
-            error: "Capture provider is configured but not available.", failed: [2]));
+        job.Raise(Status(ReelJobPhase.Failed, 2, 4, "s1mple · ace",
+            "Capture provider is configured but not available.", failed: [2]));
 
         await Assert.That(vm.HasError).IsTrue();
         string diag = vm.CopyDiagnosticsText;
@@ -143,7 +143,7 @@ public class ReelJobStatusViewModelTests
         await Assert.That(vm.IsCancelled).IsTrue();
     }
 
-    // (g) The flyout sections are mutually exclusive — at most one visible per phase.
+    // (g) The flyout sections are mutually exclusive: at most one visible per phase.
     [Test]
     public async Task FlyoutSections_AreMutuallyExclusive()
     {

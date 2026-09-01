@@ -14,11 +14,11 @@ namespace DemoViewer.NET.LiveSync;
 ///     methods instead of the full session. The engine picks per-capability between the v1.0 unacked
 ///     seek (echo-ledger confirmation) and the v1.1 arrival-verified acked seek.
 /// </summary>
-internal interface ISyncClient
+public interface ISyncClient
 {
     /// <param name="demoPath">Host path of the demo.</param>
     /// <param name="interactiveDemoUi">
-    ///     Request the in-game demo UI (honored only by "user-demo-ui" plugins — without it
+    ///     Request the in-game demo UI (honored only by "user-demo-ui" plugins. Without it
     ///     the CS2→DV direction cannot exist).
     /// </param>
     /// <param name="cancellationToken">Cancellation.</param>
@@ -36,15 +36,15 @@ internal interface ISyncClient
     /// <summary>
     ///     v1.1 acked seek ("seek-ack"): awaits the plugin's arrival-verified acknowledgement.
     ///     Returns true when the plugin confirmed arrival; false when it reported failure or the
-    ///     ack deadline passed (the client owns the deadline — no engine-side timer needed).
+    ///     ack deadline passed (the client owns the deadline: no engine-side timer needed).
     /// </summary>
     Task<bool> SetDemoTickAckedAsync(int tick, bool? pauseAfterSeek, CancellationToken cancellationToken);
 
-    /// <summary>v1.1 timescale ("timescale-set"): mirrors DV's playback speed. Send-only — no engine readback.</summary>
+    /// <summary>v1.1 timescale ("timescale-set"): mirrors DV's playback speed. Send-only: no engine readback.</summary>
     Task SetTimescaleAsync(float timescale, CancellationToken cancellationToken);
 
     /// <summary>
-    ///     Spectate a player by exact in-demo name (v1.0 command; send-only — no readback until
+    ///     Spectate a player by exact in-demo name (v1.0 command; send-only: no readback until
     ///     "spectator-report" ships). SteamID64 targeting is the deferred A-P9 validation.
     /// </summary>
     Task SetSpectatorAsync(string playerName, CancellationToken cancellationToken);
@@ -55,7 +55,7 @@ internal interface ISyncClient
 ///     notifies the capture backend); every other command lives on <see cref="CsvgVideoSession.Engine" />,
 ///     the per-run <see cref="ICs2EngineSession" />.
 /// </summary>
-internal sealed class CsvgSyncClientAdapter(CsvgVideoSession session) : ISyncClient
+public sealed class CsvgSyncClientAdapter(CsvgVideoSession session) : ISyncClient
 {
     public Task LoadDemoAsync(string demoPath, bool interactiveDemoUi, CancellationToken cancellationToken) =>
         session.LoadDemoAsync(demoPath, interactiveDemoUi, cancellationToken);

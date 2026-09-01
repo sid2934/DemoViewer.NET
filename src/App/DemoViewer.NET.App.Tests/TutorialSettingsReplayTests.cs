@@ -2,7 +2,6 @@
 
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
-using DemoViewer.NET.Services;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Settings;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,8 +22,8 @@ namespace DemoViewer.NET.AppTests;
 ///         <c>ThemeRegistry</c>, which is an Avalonia <c>ResourceDictionary</c> and therefore calls
 ///         <c>VerifyAccess()</c>. Run concurrently with a class that owns the single headless UI session,
 ///         that check sees a worker thread and throws "Call from invalid thread". The failure is
-///         batch-composition dependent — it surfaced only when adding unrelated test classes reshuffled the
-///         partition — so the class passes in isolation and looks like a flake. <c>SettingsViewModelTests</c>
+///         batch-composition dependent, it surfaced only when adding unrelated test classes reshuffled the
+///         partition, so the class passes in isolation and looks like a flake. <c>SettingsViewModelTests</c>
 ///         constructs the registry the same way and was already marked for the same reason.
 ///     </para>
 /// </summary>

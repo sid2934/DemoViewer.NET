@@ -23,7 +23,7 @@ public enum DetailSection
 ///     The player-details dashboard VM: every panel is a pure
 ///     projection of the tables the parent <see cref="StatsTabViewModel" /> already holds, filtered
 ///     to one <c>player_slot</c>. All visual geometry (sparkline points, bar heights/widths) is
-///     computed HERE and bound as data — the view draws, it never measures. Per-player
+///     computed HERE and bound as data: the view draws, it never measures. Per-player
 ///     data is tiny (≤~30 rounds, ≤~10 weapons), so a full rebuild on slot switch is free.
 /// </summary>
 public sealed partial class PlayerDetailsViewModel : ObservableObject
@@ -74,7 +74,7 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
         SetSlot(slot);
     }
 
-    /// <summary>The owning Stats tab — close command, visibility compute/busy, table access.</summary>
+    /// <summary>The owning Stats tab: close command, visibility compute/busy, table access.</summary>
     public StatsTabViewModel Parent { get; }
 
     /// <summary>The open player's slot (the join key into every table).</summary>
@@ -523,7 +523,7 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
     /// <summary>Synthetic Opn cell: ▲ opening kill (positive), ▼ opening death (negative).</summary>
     private static StatCell OpnCell(MetricRow row)
     {
-        // FK/FD are per-round BOOL columns (bool true when active) — numeric coercion reads 0.
+        // FK/FD are per-round BOOL columns (bool true when active): numeric coercion reads 0.
         bool fk = IsTruthy(row.Values.GetValueOrDefault("FK"));
         bool fd = IsTruthy(row.Values.GetValueOrDefault("FD"));
         string glyph = (fk, fd) switch
@@ -600,7 +600,7 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
 /// </summary>
 public sealed class FormTimelineViewModel
 {
-    /// <summary>Horizontal pixels per round — shared by all four strips so columns align.</summary>
+    /// <summary>Horizontal pixels per round: shared by all four strips so columns align.</summary>
     public const double SlotWidth = 14;
 
     private const double SparkHeight = 36;
@@ -704,7 +704,7 @@ public sealed class FormTimelineViewModel
 /// <summary>
 ///     P-4 weapon breakdown: horizontal share bars over the keyed per-weapon tables, with a
 ///     kills/damage metric toggle that persists across player switches. Tables are located by
-///     <see cref="MetricTable.Name" /> and the value column is read from <c>ValueColumns[0]</c> —
+///     <see cref="MetricTable.Name" /> and the value column is read from <c>ValueColumns[0]</c>:
 ///     never a hardcoded column name.
 /// </summary>
 public sealed partial class WeaponBreakdownViewModel : ObservableObject
@@ -806,7 +806,7 @@ public sealed partial class WeaponBreakdownViewModel : ObservableObject
 /// <summary>
 ///     P-11/P-12 vision panel: per-player summary bars plus the directed per-opponent matrix
 ///     ("I saw them" = rows where this player is the viewer; "exposed to them" = rows where this
-///     player is the target — both directions). Mirrors the parent's compute gate for
+///     player is the target, both directions). Mirrors the parent's compute gate for
 ///     its two empty states.
 /// </summary>
 public sealed class VisionViewModel : ObservableObject

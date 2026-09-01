@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Modules.RuleWorkbench;
 /// <summary>
 ///     One node of the data-browser vocabulary TREE: a dotted path segment. Intermediate
 ///     nodes (<c>match</c>, <c>player.entity</c>) expand; a node with a non-null <see cref="FullPath" />
-///     is an insertable leaf (double-click inserts it). A node can be both — e.g. <c>match</c> may be a
+///     is an insertable leaf (double-click inserts it). A node can be both: e.g. <c>match</c> may be a
 ///     complete path AND have children.
 /// </summary>
 public sealed class WorkbenchPathNode
@@ -21,12 +21,12 @@ public sealed class WorkbenchPathNode
 
     public ObservableCollection<WorkbenchPathNode> Children { get; } = [];
 
-    /// <summary>Category of the leaf (context / entity), or empty for intermediates — shown dimmed.</summary>
+    /// <summary>Category of the leaf (context / entity), or empty for intermediates, shown dimmed.</summary>
     public string Category { get; set; } = "";
 }
 
 /// <summary>
-///     A ruleset file selectable in the Authoring dropdown — a shipped (read-only unless
+///     A ruleset file selectable in the Authoring dropdown: a shipped (read-only unless
 ///     DeveloperMode) or user (editable) <c>*.rules.yaml</c>.
 /// </summary>
 /// <param name="FullPath">Absolute path.</param>
@@ -83,21 +83,21 @@ public static class WorkbenchPathTree
 }
 
 /// <summary>
-///     A draggable authoring-vocabulary path in the data-browser palette — a catalog
+///     A draggable authoring-vocabulary path in the data-browser palette: a catalog
 ///     context or entity-read path the author drags/double-clicks into the editor.
 /// </summary>
 /// <param name="Path">The path text inserted (e.g. <c>player.entity.pawn.health</c>, <c>round.number</c>).</param>
 /// <param name="Category">The kind of path (context / entity).</param>
 public sealed record WorkbenchPath(string Path, string Category);
 
-/// <summary>One live player row in the data browser — real values at the current frame.</summary>
+/// <summary>One live player row in the data browser: real values at the current frame.</summary>
 /// <param name="Name">Roster display name.</param>
 /// <param name="Team">Live team number.</param>
 /// <param name="Position">Reconstructed world position, or an em-dash when unavailable.</param>
 public sealed record LivePlayerRow(string Name, int Team, string Position);
 
 /// <summary>
-///     A rendered evaluation output as a real grid — the per-player scoreboard, or a declared
+///     A rendered evaluation output as a real grid: the per-player scoreboard, or a declared
 ///     <c>tables:</c> / keyed table. Rendered as a titled header row + aligned data rows.
 /// </summary>
 /// <param name="Title">The table name (e.g. "Player Game Stats", "kast_game_totals", "kills_by_weapon").</param>

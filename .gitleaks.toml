@@ -1,0 +1,20 @@
+# Secret scanning. Run over history with:
+#   gitleaks git . --no-banner --log-opts="--all"
+#
+# Extends the bundled ruleset rather than replacing it, so new default rules
+# arrive with a gitleaks upgrade instead of silently going missing.
+
+[extend]
+useDefault = true
+
+# Avalonia resource dictionaries key every brush with x:Key. The names are
+# identifiers, and a long enough one clears the generic-api-key entropy floor —
+# x:Key="Pb2dGlyphBlind" is what first tripped this. Narrowed with AND so the
+# rule still applies to the rest of a .axaml file.
+[[allowlists]]
+description = "XAML resource keys are identifiers, not credentials"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''\.axaml$''']
+regexTarget = "line"
+regexes = ['''\bx:Key\s*=''']

@@ -35,7 +35,9 @@ public class Cs2InstallLocatorTests
         string replays = Replays(SteamRoot);
         HashSet<string> dirs = new(StringComparer.Ordinal)
         {
-            SteamRoot, CommonInstall(SteamRoot), replays
+            SteamRoot,
+            CommonInstall(SteamRoot),
+            replays
         };
 
         await Assert.That(Find(dirs).DemosDirectory).IsEqualTo(replays);
@@ -51,7 +53,9 @@ public class Cs2InstallLocatorTests
         HashSet<string> dirs = new(StringComparer.Ordinal)
         {
             SteamRoot, // the root exists, but CS2 is NOT under it
-            secondLibrary, CommonInstall(secondLibrary), replays
+            secondLibrary,
+            CommonInstall(secondLibrary),
+            replays
         };
         Dictionary<string, string> files = new(StringComparer.Ordinal)
         {
@@ -65,7 +69,10 @@ public class Cs2InstallLocatorTests
     [Test]
     public async Task ReturnsNull_WhenNoCs2Install_ButReportsSearchedSteamLibrary()
     {
-        HashSet<string> dirs = new(StringComparer.Ordinal) { SteamRoot };
+        HashSet<string> dirs = new(StringComparer.Ordinal)
+        {
+            SteamRoot
+        };
 
         Cs2DemosLookup result = Find(dirs);
         await Assert.That(result.DemosDirectory).IsNull();
@@ -79,7 +86,8 @@ public class Cs2InstallLocatorTests
         // CS2 is installed but the user has never downloaded a demo, so replays/ does not exist yet.
         HashSet<string> dirs = new(StringComparer.Ordinal)
         {
-            SteamRoot, CommonInstall(SteamRoot)
+            SteamRoot,
+            CommonInstall(SteamRoot)
         };
 
         await Assert.That(Find(dirs).DemosDirectory).IsNull();

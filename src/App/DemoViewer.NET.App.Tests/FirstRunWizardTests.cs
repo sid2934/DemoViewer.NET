@@ -26,6 +26,7 @@ namespace DemoViewer.NET.AppTests;
 ///     shares the single headless UI session.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class FirstRunWizardTests
 {
     private static string NewTempDir()
@@ -80,7 +81,7 @@ public class FirstRunWizardTests
     }
 
     // (b) Skip also results in NeedsFirstRun false (settings.json exists) with the default PowerUser tier and
-    // no folders — the basis-preserving write on a genuine first run.
+    // no folders: the basis-preserving write on a genuine first run.
     [Test]
     public async Task Skip_CreatesSettings_WithDefaultPowerUser()
     {
@@ -248,7 +249,7 @@ public class FirstRunWizardTests
 
     // WASM plumbing: OpenFirstRunWizard on the browser service routes through the wired shell callback to
     // set MainViewModel.FirstRunOverlay; the wizard's Completed (Finish / Skip) then clears it back to null.
-    // Mirrors the Settings overlay test — this is the relaunch path on the browser host.
+    // Mirrors the Settings overlay test. This is the relaunch path on the browser host.
     [Test]
     public async Task BrowserOverlay_OpenThenComplete_SetsAndClearsOverlay()
     {
@@ -375,7 +376,7 @@ public class FirstRunWizardTests
         }
     }
 
-    // Render the FOLDERS step when auto-detection found nothing — the not-found notice listing searched libs.
+    // Render the FOLDERS step when auto-detection found nothing: the not-found notice listing searched libs.
     [Test]
     public async Task FirstRunWizardView_FoldersStep_NotFoundNotice_Renders()
     {

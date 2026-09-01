@@ -29,21 +29,48 @@ public class MatchOverviewSeedTests
             ModifiedTicks = 20,
             Map = "de_dust2",
             Server = "FACEIT",
-            Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 },
+            Parse = new TierStamp
+            {
+                Schema = DemoCacheRecord.ParseSchema,
+                ComputedAtTicks = 1
+            },
             DurationSeconds = 2298,
             TickRate = 64,
             Players =
             [
-                new CachedPlayerInfo { Slot = 1, Name = "s1mple", SteamId64 = "765", Team = 3 },
-                new CachedPlayerInfo { Slot = 2, Name = "ZywOo", SteamId64 = "766", Team = 2 }
+                new CachedPlayerInfo
+                {
+                    Slot = 1,
+                    Name = "s1mple",
+                    SteamId64 = "765",
+                    Team = 3
+                },
+                new CachedPlayerInfo
+                {
+                    Slot = 2,
+                    Name = "ZywOo",
+                    SteamId64 = "766",
+                    Team = 2
+                }
             ],
-            Rounds = [new CachedRound { Number = 1, StartTickFrameClock = 5000 }],
+            Rounds =
+            [
+                new CachedRound
+                {
+                    Number = 1,
+                    StartTickFrameClock = 5000
+                }
+            ],
             CtScore = 13,
             TScore = 9,
             CtClan = "NAVI",
             TClan = "FaZe",
             Analysis = withHighlights || withScoreboard
-                ? new TierStamp { Schema = DemoCacheRecord.AnalysisSchema, ComputedAtTicks = 1 }
+                ? new TierStamp
+                {
+                    Schema = DemoCacheRecord.AnalysisSchema,
+                    ComputedAtTicks = 1
+                }
                 : new TierStamp(),
             AnalysisState = withHighlights || withScoreboard
                 ? DemoAnalysisState.Indexed
@@ -53,8 +80,12 @@ public class MatchOverviewSeedTests
                 [
                     new CachedHighlightEvent
                     {
-                        RulesetId = "clutch", HighlightId = "ace", Tick = 54_000,
-                        PlayerSlot = 1, RoundNumber = 7, RenderedTitle = "s1mple — ace"
+                        RulesetId = "clutch",
+                        HighlightId = "ace",
+                        Tick = 54_000,
+                        PlayerSlot = 1,
+                        RoundNumber = 7,
+                        RenderedTitle = "s1mple — ace"
                     }
                 ]
                 : [],
@@ -63,8 +94,13 @@ public class MatchOverviewSeedTests
                 [
                     new CachedStatRow
                     {
-                        Slot = 1, Team = 3, Kills = 24, Deaths = 14,
-                        Assists = 5, Adr = 92.5, Rating = 1.34
+                        Slot = 1,
+                        Team = 3,
+                        Kills = 24,
+                        Deaths = 14,
+                        Assists = 5,
+                        Adr = 92.5,
+                        Rating = 1.34
                     }
                 ]
                 : []
@@ -94,8 +130,8 @@ public class MatchOverviewSeedTests
 
     /// <summary>
     ///     The seam that makes seeding safe: it fills VALUES without changing MODE. Routing it through
-    ///     <c>SetCachedRecord</c> would flip the page to Cached, and every keyed live fill — all of which
-    ///     require Live — would be dropped silently for the rest of the load.
+    ///     <c>SetCachedRecord</c> would flip the page to Cached, and every keyed live fill, all of which
+    ///     require Live, would be dropped silently for the rest of the load.
     /// </summary>
     [Test]
     public async Task Seeding_LeavesThePageLive_SoThePipelineCanStillFillIt()
@@ -138,14 +174,14 @@ public class MatchOverviewSeedTests
 
     /// <summary>
     ///     Tier 3's halves are independent, and the page must say so. A scanned-but-not-stats-computed demo
-    ///     used to render a FULL chip directly above "Analysis produced no per-player stats for this demo." —
-    ///     a page whose whole job is honesty about tiers, contradicting itself on one screen.
+    ///     used to render a FULL chip directly above "Analysis produced no per-player stats for this demo.",
+    ///     on a page whose whole job is reporting which tiers are actually complete, contradicting itself on one screen.
     /// </summary>
     [Test]
     public async Task HighlightsWithoutAScoreboard_RenderTheMoments_ButDoNotClaimFull()
     {
         MatchOverviewTabViewModel vm = new();
-        vm.SetCachedRecord(Indexed(withHighlights: true));
+        vm.SetCachedRecord(Indexed(true));
 
         using (Assert.Multiple())
         {
@@ -163,7 +199,7 @@ public class MatchOverviewSeedTests
     ///     <para>
     ///         This is the second half of the reported symptom, and the ordering is the whole problem: opening
     ///         a demo DOES harvest highlights (<c>OnOpenDemoEvaluated</c>), but off-thread, completing after
-    ///         <c>SetAnalysis</c> — the page's last fill point. Seeding cannot cover it either, because at
+    ///         <c>SetAnalysis</c>, the page's last fill point. Seeding cannot cover it either, because at
     ///         seed time the harvest has not started. So a demo you just opened and watched finish showed an
     ///         empty moments column until you navigated away and came back.
     ///     </para>
@@ -175,7 +211,7 @@ public class MatchOverviewSeedTests
 
         // Open a demo whose cache record has no highlights yet.
         vm.BeginOpening("seed.dem", null, null, Demo);
-        vm.SeedFromCache(Demo, Indexed(withHighlights: false));
+        vm.SeedFromCache(Demo, Indexed(false));
         await Assert.That(vm.HighlightGroups.Count).IsEqualTo(0);
 
         // The pipeline finishes. The harvest is still running.
@@ -208,7 +244,7 @@ public class MatchOverviewSeedTests
     ///         The two halves have different producers, and on an open the scoreboard write ALWAYS precedes
     ///         the harvest completing. When the scoreboard writer also set <c>AnalysisState = Indexed</c>, the
     ///         highlight section read that as "the scan is done" and asserted "No highlights fired for this
-    ///         demo" about a harvest still in flight — and would have overridden the failure copy if that
+    ///         demo" about a harvest still in flight, and would have overridden the failure copy if that
     ///         harvest then threw. Each half now reads its own evidence.
     ///     </para>
     /// </summary>
@@ -217,11 +253,11 @@ public class MatchOverviewSeedTests
     {
         MatchOverviewTabViewModel vm = new();
         vm.BeginOpening("seed.dem", null, null, Demo);
-        vm.SeedFromCache(Demo, Indexed(withHighlights: false));
+        vm.SeedFromCache(Demo, Indexed(false));
         vm.SetAnalysis(Demo, null, null, 24);
 
         // The scoreboard lands first: stamped analysis tier, real rows, but the scan has NOT run.
-        DemoCacheRecord scoreboardOnly = Indexed(withHighlights: false, withScoreboard: true);
+        DemoCacheRecord scoreboardOnly = Indexed(false, true);
         scoreboardOnly.AnalysisState = DemoAnalysisState.Pending;
         vm.RefreshHighlightsFromCache(Demo, scoreboardOnly);
 
@@ -247,7 +283,7 @@ public class MatchOverviewSeedTests
     [Test]
     public async Task AnOpenedButNeverScannedDemo_StillShowsItsScoreboard()
     {
-        DemoCacheRecord record = Indexed(withHighlights: false, withScoreboard: true);
+        DemoCacheRecord record = Indexed(false, true);
         record.AnalysisState = DemoAnalysisState.Pending;
 
         MatchOverviewTabViewModel vm = new();
@@ -278,7 +314,7 @@ public class MatchOverviewSeedTests
     public async Task BothHalvesPresent_EarnFull()
     {
         MatchOverviewTabViewModel vm = new();
-        vm.SetCachedRecord(Indexed(withHighlights: true, withScoreboard: true));
+        vm.SetCachedRecord(Indexed(true, true));
 
         using (Assert.Multiple())
         {

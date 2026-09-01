@@ -2,7 +2,6 @@
 
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -15,7 +14,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Nuke split (nav-Z valley ≈ −528; the map's radar split = −495) actually sit in a VALLEY of the
 ///     REAL observed player-Z, and do players occupy BOTH bands? Reconstructs player-Z exactly as the app
 ///     does (<see cref="PawnLookup.ForEachLivePawn" /> → <see cref="PositionUtil.CellToWorld" />) so any
-///     nav-surface-vs-player-feet datum offset shows up. Diagnostic — prints a histogram; skips if no Nuke
+///     nav-surface-vs-player-feet datum offset shows up. Diagnostic: prints a histogram; skips if no Nuke
 ///     demo is present.
 /// </summary>
 [NotInParallel]
@@ -117,7 +116,7 @@ public class ZFloorValidationProbe
         await Assert.That(lowerFraction).IsLessThan(0.60);
 
         // 2. The boundary sits in a real valley: the inter-floor band [−560,−496] density is a small fraction
-        //    of the dominant upper-floor peak — so few players straddle it (no cut through a continuous span).
+        //    of the dominant upper-floor peak, so few players straddle it (no cut through a continuous span).
         long interFloorMin = long.MaxValue;
         for (int b = (int)(-560 / BucketWidth); b <= (int)(-496 / BucketWidth); b++)
         {

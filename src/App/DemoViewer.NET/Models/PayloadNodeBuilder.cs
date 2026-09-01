@@ -19,17 +19,17 @@ public static class PayloadNodeBuilder
 {
     // ── player_info_t decoder ─────────────────────────────────────────────
     // Layout (Source engine, little-endian):
-    //   offset   8  (8): xuid   — uint64 SteamID64
-    //   offset  16 (128): name  — char[128] null-terminated UTF-8
-    //   offset 144  (4): userId — int32 (in-game userid)
-    //   offset 316  (1): fakePlayer — non-zero = bot
+    //   offset   8  (8): xuid   : uint64 SteamID64
+    //   offset  16 (128): name  : char[128] null-terminated UTF-8
+    //   offset 144  (4): userId : int32 (in-game userid)
+    //   offset 316  (1): fakePlayer : non-zero = bot
     private const int MinPlayerInfoBytes = 318;
     // ── Embedded-bytes dispatch ───────────────────────────────────────────
 
     // Lookup table for bytes fields that contain a single known proto type.
     // Use Direct(parser)         for fields whose bytes are a raw proto serialization.
     // Use VarIntPrefixed(parser) for fields whose bytes are [uvarint size][proto bytes]
-    //   (e.g. CDemoSendTables.data — see demofile-net DemoParser.Entities.cs).
+    //   (e.g. CDemoSendTables.data, see demofile-net DemoParser.Entities.cs).
     // Add one line here whenever a new embedded-proto field is identified.
     private static readonly Dictionary<(string Parent, string Field), Func<ByteString, IMessage?>> _knownEmbeds =
         new()
@@ -48,7 +48,7 @@ public static class PayloadNodeBuilder
     /// <summary>Build.</summary>
     public static IReadOnlyList<PayloadNode> Build(IMessage? message)
     {
-        // Undecoded payloads (svc_UserCmds) carry raw bytes, not a field graph — decode the real
+        // Undecoded payloads (svc_UserCmds) carry raw bytes, not a field graph: decode the real
         // message before reflecting over its fields. This is the inspector drill-in path; the field
         // accessors below operate on the concrete proto instance, not the wrapper.
         //
@@ -56,7 +56,7 @@ public static class PayloadNodeBuilder
         // ours to name and it CHANGES: the parser produced DeferredMessage through 0.9.1 and
         // produces BlockMessage from 0.9.2 (svc_UserCmds payloads moved into a shared arena), and
         // both are internal to the parser assembly. A type test would not compile against the new
-        // one and, worse, the old test kept compiling while silently never matching — an inspector
+        // one and, worse, the old test kept compiling while silently never matching, an inspector
         // that quietly renders the wrapper's own fields instead of the user command.
         //
         // A wrapper is exactly a message whose CLR type is not the type its own descriptor declares,
@@ -91,7 +91,7 @@ public static class PayloadNodeBuilder
 
     /// <summary>
     ///     Decodes raw proto-wire <paramref name="bytes" /> into a flat top-level
-    ///     <see cref="PayloadNode" /> list using the generic scanner — field number, wire type,
+    ///     <see cref="PayloadNode" /> list using the generic scanner: field number, wire type,
     ///     value, and recursive nested-message decode. Used to surface the structure of UNKNOWN
     ///     net-messages the parser could not decode, so they can be reverse-engineered. Each
     ///     top-level node is annotated with its byte range (relative to <paramref name="bytes" />[0])
@@ -156,7 +156,7 @@ public static class PayloadNodeBuilder
             });
         }
 
-        // Append temporal context — always present on every GameEvent.
+        // Append temporal context, always present on every GameEvent.
         nodes.Add(new PayloadNode
         {
             Name = "FrameNumber",
@@ -198,7 +198,7 @@ public static class PayloadNodeBuilder
             return;
         }
 
-        // Group by field number (order preserved — important for repeated fields)
+        // Group by field number (order preserved, important for repeated fields)
         Dictionary<int, List<DownstreamUtilities.FieldSpan>> byField = new();
         foreach (DownstreamUtilities.FieldSpan s in spans)
         {
@@ -259,7 +259,7 @@ public static class PayloadNodeBuilder
             }
             else
             {
-                // Single (possibly message) field — recurse into its named children.
+                // Single (possibly message) field: recurse into its named children.
                 DownstreamUtilities.FieldSpan span = fieldSpans[0];
                 if (span.WireType == 2 &&
                     DownstreamUtilities.TryGetPayloadRange(
@@ -642,7 +642,7 @@ public static class PayloadNodeBuilder
             }
         }
 
-        // CDemoStringTables.Types.items_t.data — binary string table entry.
+        // CDemoStringTables.Types.items_t.data: binary string table entry.
         // In CDemoStringTables snapshots the data blob is already decoded (no bitstream);
         // items from the userinfo table carry a player_info_t binary struct.
         if (parentType == "items_t" && fieldName == "data")
@@ -840,7 +840,7 @@ public static class PayloadNodeBuilder
             334 => () => CCSUsrMsg_MatchEndConditions.Parser.ParseFrom(bs),
             335 => () => CCSUsrMsg_DisconnectToLobby.Parser.ParseFrom(bs),
             336 => () => CCSUsrMsg_PlayerStatsUpdate.Parser.ParseFrom(bs),
-            // 338: CCSUsrMsg_WarmupHasEnded — not in canonical SteamDatabase protos
+            // 338: CCSUsrMsg_WarmupHasEnded, not in canonical SteamDatabase protos
             339 => () => CCSUsrMsg_ClientInfo.Parser.ParseFrom(bs),
             340 => () => CCSUsrMsg_XRankGet.Parser.ParseFrom(bs),
             341 => () => CCSUsrMsg_XRankUpd.Parser.ParseFrom(bs),
@@ -859,7 +859,7 @@ public static class PayloadNodeBuilder
             357 => () => CCSUsrMsg_MarkAchievement.Parser.ParseFrom(bs),
             358 => () => CCSUsrMsg_MatchStatsUpdate.Parser.ParseFrom(bs),
             359 => () => CCSUsrMsg_ItemDrop.Parser.ParseFrom(bs),
-            // 360: CCSUsrMsg_GlowPropTurnOff — not in canonical SteamDatabase protos
+            // 360: CCSUsrMsg_GlowPropTurnOff, not in canonical SteamDatabase protos
             361 => () => CCSUsrMsg_SendPlayerItemDrops.Parser.ParseFrom(bs),
             362 => () => CCSUsrMsg_RoundBackupFilenames.Parser.ParseFrom(bs),
             363 => () => CCSUsrMsg_SendPlayerItemFound.Parser.ParseFrom(bs),
@@ -901,7 +901,7 @@ public static class PayloadNodeBuilder
     }
 
     // CDemoSendTables.data (and potentially others) prefix the proto bytes with a
-    // UVarInt32 byte-count — skip it before handing the remaining bytes to the parser.
+    // UVarInt32 byte-count: skip it before handing the remaining bytes to the parser.
     private static Func<ByteString, IMessage?> VarIntPrefixed(MessageParser parser) => bs =>
     {
         ReadOnlySpan<byte> span = bs.Span;

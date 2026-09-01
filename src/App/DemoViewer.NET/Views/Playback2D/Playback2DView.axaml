@@ -3,8 +3,10 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:DemoViewer.NET.Modules.Playback2D"
-             xmlns:p2d="using:DemoViewer.NET.Modules.Playback2D"
              xmlns:controls="using:DemoViewer.NET.Controls"
+             xmlns:lv="using:DemoViewer.NET.Modules.Playback2D.Levels"
+             xmlns:tl="using:DemoViewer.NET.Views.Playback2D"
+             xmlns:scene="using:DemoViewer.NET.Playback2D.Core"
              controls:TutorialAnchor.Target="PlaybackTab"
              mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="650"
              x:Class="DemoViewer.NET.Views.Playback2D.Playback2DView"
@@ -23,6 +25,17 @@
         </Style>
         <Style Selector="Border.teamChip.teamCt">
             <Setter Property="Background" Value="{DynamicResource Pb2dTeamCt}" />
+        </Style>
+
+        <!-- The followed player's card. Outline only (no fill change) so the card's existing dead/alive
+             opacity treatment still reads. "requested" is the honest word: the spectate hook is
+             fire-and-forget and CS2 never reports back which player it actually locked onto. -->
+        <Style Selector="Border.playerCard">
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.playerCard.followed">
+            <Setter Property="BorderBrush" Value="{DynamicResource Pb2dPositive}" />
         </Style>
 
         <!-- CS2 live-sync HUD indicator dot. The walled-off Pb2d sibling of the
@@ -82,12 +95,145 @@
     </UserControl.Styles>
 
     <Grid ColumnDefinitions="*,4,320">
-        <!-- Left: custom-drawn viewport (grid + markers + floor sections). -->
-        <Grid Grid.Column="0">
-            <p2d:Playback2DViewport x:Name="Viewport" />
+        <!-- Left: the docked viewport toolbar, the custom-drawn viewport, and the docked timeline. -->
+        <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto">
+
+            <!-- ── The docked viewport toolbar (D4) ───────────────────────────────────────────────────
+                 Its own Auto row at the TOP edge, structurally the mirror of TimelineControl's at the
+                 bottom, and the answer to the reported "the toolbars are always displayed, taking up
+                 screen area / having them floating feels strange". The tool row and the overlay toggles
+                 used to be a plain sibling of the surface in the canvas cell; they now sit OUTSIDE it, so
+                 the canvas is chrome-free and the map is never under a widget.
+
+                 Chrome is deliberately the TIMELINE's, not the HUD's: Pb2dPanelBg with a Pb2dHudDivider
+                 hairline on the docked edge and 8,4 padding. Pb2dOverlayBg (the translucent HUD strip) is
+                 what floating furniture wears, and wearing it here would keep reading as floating.
+
+                 The row is Auto, so a collapsed toolbar — or an annotations gate that removes its only
+                 wide member — leaves no layout hole. Focusable=False: the keymap owns Space and the
+                 arrows, and a focusable container in the tunnel's path eats them. -->
+            <Border Grid.Row="0" x:Name="ViewportToolbar" Focusable="False"
+                    Background="{DynamicResource Pb2dPanelBg}"
+                    BorderBrush="{DynamicResource Pb2dHudDivider}" BorderThickness="0,0,0,1"
+                    Padding="8,4"
+                    IsVisible="{Binding IsViewportToolbarOpen}">
+                <!-- Top-down: ALWAYS-present, then optional, then gated. The order is the contract — a
+                     gate flip or an overlay-bar toggle may only ever move what is BELOW it, so the
+                     header's own controls cannot be shoved around by either. -->
+                <StackPanel Spacing="4">
+
+                    <!-- The header. LastChildFill=False and the right-hand cluster declared FIRST, which
+                         is D5's timeline-footer reservation trick: a DockPanel measures each child against
+                         what is still unclaimed, so declaring first makes the reservation structural and
+                         these three can never be arranged past the column's right edge (where the splitter
+                         and the roster panel, later siblings, would take both the paint and the clicks).
+                         Export video… lives here rather than floating bottom-right: it is a viewport-level
+                         command, and the corner it used to occupy is now canvas. -->
+                    <DockPanel x:Name="ChromeHeader" LastChildFill="False">
+                        <Button x:Name="ExportButton" DockPanel.Dock="Right" Focusable="False"
+                                Padding="10,2" FontSize="11" Content="Export video…" Margin="6,0,0,0"
+                                Command="{Binding OpenExportCommand}" IsVisible="{Binding CanExport}"
+                                ToolTip.Tip="Render this view to a video file. Runs in the background — you can keep watching." />
+
+                        <!-- What the button leaves behind when it is not there. CanExport has three
+                             inputs (gate, host, demo) and the button simply vanished for all of them, so
+                             a browser user could not tell "not available here" from "open a demo first" —
+                             and the browser is the head where the answer is permanent. Same slot, same
+                             dock edge, so the header does not reflow when one replaces the other. -->
+                        <TextBlock x:Name="ExportUnavailableLabel" DockPanel.Dock="Right"
+                                   VerticalAlignment="Center" Margin="6,0,0,0" FontSize="11"
+                                   Foreground="{DynamicResource Pb2dTextDim}"
+                                   Text="{Binding ExportUnavailableNote}"
+                                   IsVisible="{Binding HasExportUnavailableNote}"
+                                   ToolTip.Tip="Video export writes a file and drives an ffmpeg subprocess; the browser head has neither." />
+
+                        <!-- Six check boxes that are READ rarely and CHANGED rarely were the widest thing
+                             in the column (485 px of it) and were on screen permanently. One toggle is the
+                             overflow-▾ shape design-system D35 prescribes first; it is INLINE rather than a
+                             flyout so the toggles stay inside the viewport column, where the layout suite
+                             can still measure and hit-test them, and inside the keymap's tunnel, where
+                             Space still means play. -->
+                        <ToggleButton x:Name="OverlaysToggle" DockPanel.Dock="Right" Focusable="False"
+                                      Padding="8,2" FontSize="11" Content="Overlays ▾"
+                                      IsChecked="{Binding IsOverlayBarOpen, Mode=TwoWay}"
+                                      ToolTip.Tip="Show or hide the per-overlay visibility toggles" />
+
+                        <!-- Collapse. Leading edge, so it does not move when the toolbar folds: the
+                             restore chevron over the canvas lands in the same place. -->
+                        <Button x:Name="ChromeCollapseToggle" DockPanel.Dock="Left" Focusable="False"
+                                Padding="7,0" FontSize="11" Content="▴" MinWidth="0"
+                                Command="{Binding ToggleViewportToolbarCommand}"
+                                ToolTip.Tip="Collapse the viewport toolbar" />
+                    </DockPanel>
+
+                    <!-- Overlay-visibility toggles (A4): each viewport sub-overlay can be turned off
+                         independently. A WrapPanel, not a row: the six of them measure 424 px of the
+                         480 px this toolbar has inside its padding at the 820 px floor. That fits — by
+                         56 px, which is one longer label or one larger system font away from running
+                         under the roster panel, and nothing here clips.
+                         The "overlays" caption the strip used to carry is gone; the toggle above says it.
+                         These stay FOCUSABLE on purpose: the tunnelling KeyDown handler is what keeps
+                         Space meaning play over a focused check box, and Focusable=False here would
+                         retire the hazard instead of proving the handler still covers it. -->
+                    <WrapPanel x:Name="OverlayToggles" Orientation="Horizontal"
+                               ItemSpacing="9" LineSpacing="2"
+                               IsVisible="{Binding IsOverlayBarOpen}">
+                        <CheckBox Content="Radar" FontSize="11" IsChecked="{Binding ShowRadar}"
+                                  ToolTip.Tip="Baked map radar background (falls back to grid when unavailable)" />
+                        <CheckBox Content="Trails" FontSize="11" IsChecked="{Binding ShowTrails}"
+                                  ToolTip.Tip="Grenade flight trails" />
+                        <CheckBox Content="Smoke/Fire" FontSize="11" IsChecked="{Binding ShowAreaEffects}"
+                                  ToolTip.Tip="Smoke clouds + molotov/incendiary fire" />
+                        <CheckBox Content="Bomb" FontSize="11" IsChecked="{Binding ShowBombRing}"
+                                  ToolTip.Tip="Planted-C4 timer ring" />
+                        <CheckBox Content="Kills" FontSize="11" IsChecked="{Binding ShowKillFeed}"
+                                  ToolTip.Tip="Kill feed" />
+                        <CheckBox Content="Vision" FontSize="11" IsChecked="{Binding ShowVision}"
+                                  ToolTip.Tip="3D line-of-sight: draws a sightline from each player to every enemy they can currently see (recomputed from map collision)" />
+                    </WrapPanel>
+
+                    <!-- Annotation toolbar (B2), on its OWN line rather than sharing the header's fill
+                         slot. Its tool row measures ~970 px after D2 — one line at 1400, three at the
+                         820 px floor's 480 px. Sharing the header's fill slot would leave it ~250 px and
+                         roughly twice as many rows — so the separate header line costs one row at 1400
+                         and saves more than one at 820, which is the width that has none to spare.
+                         The gate's IsVisible is here as well as inside the control, because a
+                         control that collapses only its inner content still contributes this element's
+                         slot to the stack.
+
+                         AnnotationsPanelViewModel.IsEnabled is now the FEATURE and the mounted SURFACE'S
+                         CAPABILITY, not the feature alone (D6 finding 12). Bound to the gate by itself,
+                         this row rendered in full under DV_PLAYBACK2D_RENDERER=legacy over a viewport
+                         with no router — every button inert, and picking one of them took Space and
+                         Escape away from play/pause and clear-follow with no visible cause. -->
+                    <tl:AnnotationToolbar x:Name="AnnotationToolbarHost"
+                                          HorizontalAlignment="Stretch"
+                                          DataContext="{Binding Annotations}"
+                                          IsVisible="{Binding IsEnabled}" />
+                </StackPanel>
+            </Border>
+
+            <!-- The surface is mounted in code (Playback2DRenderer.Selected): Scene2DHost by default,
+                 the pre-v2 Playback2DViewport behind the DV_PLAYBACK2D_RENDERER escape hatch. Both
+                 satisfy IPlayback2DSurface, so everything below drives either one. -->
+            <ContentControl Grid.Row="1" x:Name="ViewportHost" />
+
+            <!-- The collapsed toolbar's only trace: a 26x17 chevron in the canvas's top-left corner,
+                 mounted BY the collapsed state rather than by the toolbar it restores — which is what
+                 makes a persisted "collapsed" impossible to get stuck in. (The shell's own rule for the
+                 mirror hazard is MainViewModel.RestoreSession: never restore an owned panel open when the
+                 chrome that closes it is gated away.) -->
+            <Button Grid.Row="1" x:Name="ChromeRestoreButton" Focusable="False"
+                    HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10"
+                    Padding="7,0" FontSize="11" Content="▾" MinWidth="0"
+                    Background="{DynamicResource Pb2dOverlayBg}"
+                    Command="{Binding ToggleViewportToolbarCommand}"
+                    IsVisible="{Binding !IsViewportToolbarOpen}"
+                    ToolTip.Tip="Show the viewport toolbar" />
 
             <!-- Transport / status overlay (bottom-left). -->
-            <Border HorizontalAlignment="Left" VerticalAlignment="Bottom"
+            <Border Grid.Row="1" x:Name="TransportBar"
+                    HorizontalAlignment="Left" VerticalAlignment="Bottom"
                     Margin="10" Padding="8,4"
                     Background="{DynamicResource Pb2dOverlayBg}" CornerRadius="4">
                 <StackPanel Orientation="Horizontal" Spacing="10">
@@ -121,10 +267,6 @@
                                IsVisible="False" Foreground="{DynamicResource Pb2dMapApprox}"
                                FontFamily="Consolas,Menlo,monospace" FontSize="10"
                                ToolTip.Tip="Map mode fits the all-demo observed player positions — there is no real radar X/Y metadata yet." />
-                    <TextBlock Text="{Binding Status}" VerticalAlignment="Center"
-                               Foreground="{DynamicResource Pb2dTextMid}"
-                               FontFamily="Consolas,Menlo,monospace" FontSize="11" />
-
                     <!-- Module forward-nav (Phase E): jump between kills on the shared clock. Shown only when
                          the demo carries player_death events (HasKillEvents). -->
                     <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1"
@@ -143,7 +285,8 @@
             <!-- Top-right HUD stack: the CS2 live-sync indicator sits above the kill feed (A4).
                  The whole stack is display-only (IsHitTestVisible=False) so it never eats viewport
                  pan/zoom gestures — the shell status chip is the live-sync control centre. -->
-            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10" Spacing="6"
+            <StackPanel Grid.Row="1" x:Name="HudStack"
+                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10" Spacing="6"
                         IsHitTestVisible="False">
 
                 <!-- Live Sync (CS2) in-context indicator. Display-only
@@ -170,7 +313,10 @@
                               HorizontalAlignment="Right"
                               IsVisible="{Binding ShowKillFeed}">
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:KillFeedEntry">
+                        <!-- Bound straight to the Core row record (B4 D5): the App's parallel KillFeedEntry
+                             is gone, so this feed and the exported hud.killfeed layer read the same rows
+                             produced by the same KillFeedTimeline.Window call. -->
+                        <DataTemplate x:DataType="scene:KillFeedRow">
                             <!-- Distinctly DARKER than the viewport background (Pb2dKillFeedBg, an opaque
                              near-black) so the strip reads as a HUD overlay over grid/markers, not
                              blended-in floating text. -->
@@ -178,7 +324,7 @@
                                     Margin="0,0,0,4"
                                     BorderBrush="{DynamicResource Pb2dKillFeedBorder}" BorderThickness="1">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
-                                    <TextBlock Text="{Binding KillerName}"
+                                    <TextBlock Text="{Binding Attacker}"
                                                Foreground="{DynamicResource Pb2dTextBrightest}"
                                                FontFamily="Consolas,Menlo,monospace" FontSize="11"
                                                VerticalAlignment="Center" />
@@ -187,29 +333,29 @@
                                                VerticalAlignment="Center" IsVisible="{Binding HasAssist}"
                                                ToolTip.Tip="assist">
                                         <Run Text="+" Foreground="{DynamicResource Pb2dTextDim}" />
-                                        <Run Text="{Binding AssisterName}" />
+                                        <Run Text="{Binding Assister}" />
                                     </TextBlock>
                                     <TextBlock Text="⚡" Foreground="{DynamicResource Pb2dFlashAssist}" FontSize="10"
                                                VerticalAlignment="Center"
-                                               IsVisible="{Binding IsFlashAssist}" ToolTip.Tip="flash assist" />
+                                               IsVisible="{Binding AssistedFlash}" ToolTip.Tip="flash assist" />
                                     <TextBlock Text="{Binding Weapon}" Foreground="{DynamicResource Pb2dPositive}"
                                                FontFamily="Consolas,Menlo,monospace" FontSize="11"
                                                VerticalAlignment="Center" />
                                     <TextBlock Text="HS" Foreground="{DynamicResource Pb2dHeadshot}" FontSize="10"
                                                FontWeight="Bold"
-                                               VerticalAlignment="Center" IsVisible="{Binding IsHeadshot}"
+                                               VerticalAlignment="Center" IsVisible="{Binding Headshot}"
                                                ToolTip.Tip="headshot" />
                                     <TextBlock Text="WB" Foreground="{DynamicResource Pb2dWallbang}" FontSize="10"
                                                FontWeight="Bold"
-                                               VerticalAlignment="Center" IsVisible="{Binding IsWallbang}"
+                                               VerticalAlignment="Center" IsVisible="{Binding Penetrated}"
                                                ToolTip.Tip="wallbang (penetration)" />
                                     <TextBlock Text="NS" Foreground="{DynamicResource Pb2dNoScope}" FontSize="10"
                                                FontWeight="Bold"
-                                               VerticalAlignment="Center" IsVisible="{Binding IsNoScope}"
+                                               VerticalAlignment="Center" IsVisible="{Binding NoScope}"
                                                ToolTip.Tip="no-scope" />
                                     <TextBlock Text="≈" Foreground="{DynamicResource Pb2dTextMid}" FontSize="12"
                                                VerticalAlignment="Center"
-                                               IsVisible="{Binding IsThroughSmoke}" ToolTip.Tip="through smoke" />
+                                               IsVisible="{Binding ThroughSmoke}" ToolTip.Tip="through smoke" />
                                     <TextBlock Text="✱" Foreground="{DynamicResource Pb2dGlyphBlind}" FontSize="11"
                                                VerticalAlignment="Center"
                                                IsVisible="{Binding AttackerBlind}" ToolTip.Tip="killer was blind" />
@@ -218,7 +364,7 @@
                                                IsVisible="{Binding AttackerInAir}" ToolTip.Tip="killer airborne" />
                                     <TextBlock Text="→" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11"
                                                VerticalAlignment="Center" />
-                                    <TextBlock Text="{Binding VictimName}"
+                                    <TextBlock Text="{Binding Victim}"
                                                Foreground="{DynamicResource Pb2dTextBright}"
                                                FontFamily="Consolas,Menlo,monospace" FontSize="11"
                                                VerticalAlignment="Center" />
@@ -229,28 +375,100 @@
                 </ItemsControl>
             </StackPanel>
 
-            <!-- Overlay-visibility toggles (A4): each viewport sub-overlay can be turned off independently.
-                 Top-left (the conventional layer-toggle corner), clear of the kill feed (top-right) and the
-                 transport/status bar (bottom-left). Interactive, so NOT IsHitTestVisible=False. -->
-            <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10" Padding="8,4"
-                    Background="{DynamicResource Pb2dOverlayBg}" CornerRadius="4">
-                <StackPanel Orientation="Horizontal" Spacing="9">
-                    <TextBlock Text="overlays" Foreground="{DynamicResource Pb2dTextDim}" VerticalAlignment="Center"
-                               FontFamily="Consolas,Menlo,monospace" FontSize="10" />
-                    <CheckBox Content="Radar" FontSize="11" IsChecked="{Binding ShowRadar}"
-                              ToolTip.Tip="Baked map radar background (falls back to grid when unavailable)" />
-                    <CheckBox Content="Trails" FontSize="11" IsChecked="{Binding ShowTrails}"
-                              ToolTip.Tip="Grenade flight trails" />
-                    <CheckBox Content="Smoke/Fire" FontSize="11" IsChecked="{Binding ShowAreaEffects}"
-                              ToolTip.Tip="Smoke clouds + molotov/incendiary fire" />
-                    <CheckBox Content="Bomb" FontSize="11" IsChecked="{Binding ShowBombRing}"
-                              ToolTip.Tip="Planted-C4 timer ring" />
-                    <CheckBox Content="Kills" FontSize="11" IsChecked="{Binding ShowKillFeed}"
-                              ToolTip.Tip="Kill feed" />
-                    <CheckBox Content="Vision" FontSize="11" IsChecked="{Binding ShowVision}"
-                              ToolTip.Tip="3D line-of-sight: draws a sightline from each player to every enemy they can currently see (recomputed from map collision)" />
+            <!-- Level strip (B3). Right-CENTRE gutter: the canvas's own corners are taken (the restore
+                 chevron top-left when the toolbar is folded, live-sync + kill feed top-right, transport
+                 bottom-left, timeline the whole bottom edge), and the vertical margins clear the kill
+                 feed's growth downward and the transport bar's growth upward without either needing to
+                 know about it. Chips are HIGHEST floor first, matching the stacked bands' own order.
+                 Interactive, so NOT IsHitTestVisible=False; it is a later sibling in the same Grid cell,
+                 so Avalonia's z-order keeps its clicks off the canvas. Collapsed entirely on a
+                 single-floor map. -->
+            <Border Grid.Row="1" x:Name="LevelStrip"
+                    HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,64,10,64"
+                    Padding="4" CornerRadius="4"
+                    DataContext="{Binding LevelStrip}"
+                    Background="{DynamicResource Pb2dOverlayBg}"
+                    IsVisible="{Binding HasMultipleLevels}">
+                <StackPanel Spacing="3">
+                    <Button Content="{Binding DisplayModeLabel}" Width="52" Height="22" Padding="0"
+                            FontFamily="Consolas,Menlo,monospace" FontSize="9"
+                            HorizontalContentAlignment="Center"
+                            Command="{Binding ToggleDisplayModeCommand}"
+                            ToolTip.Tip="{Binding DisplayModeTooltip}" />
+
+                    <Border Height="1" Background="{DynamicResource Pb2dHudDivider}" Margin="2,1" />
+
+                    <ItemsControl ItemsSource="{Binding Chips}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="lv:LevelChipViewModel">
+                                <Button Width="52" Height="26" Padding="0" Margin="0,0,0,3"
+                                        HorizontalContentAlignment="Center"
+                                        Command="{Binding $parent[ItemsControl].((lv:LevelStripViewModel)DataContext).SelectCommand}"
+                                        CommandParameter="{Binding}"
+                                        ToolTip.Tip="{Binding Tooltip}">
+                                    <StackPanel Orientation="Horizontal" Spacing="3"
+                                                HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding Label}"
+                                                   FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource Pb2dTextDim}"
+                                                   IsVisible="{Binding !IsActive}" />
+                                        <TextBlock Text="{Binding Label}"
+                                                   FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                   FontWeight="Bold" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource Pb2dPositive}"
+                                                   IsVisible="{Binding IsActive}" />
+                                        <!-- Visible no-radar state: the level has no baked picture and the
+                                             canvas falls back to the grid. Silence here is what makes a
+                                             missing asset look like a broken map. -->
+                                        <TextBlock Text="⌀" FontSize="10" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource Pb2dTextDim}"
+                                                   IsVisible="{Binding HasNoRadar}"
+                                                   ToolTip.Tip="no baked radar for this level" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Border Height="1" Background="{DynamicResource Pb2dHudDivider}" Margin="2,1"
+                            IsVisible="{Binding IsAutoAvailable}" />
+
+                    <!-- AUTO: show the followed player's floor. Hidden when playback2d.levels.auto is off. -->
+                    <ToggleButton Width="52" Height="22" Padding="0"
+                                  HorizontalContentAlignment="Center"
+                                  IsChecked="{Binding IsAutoEnabled}"
+                                  IsVisible="{Binding IsAutoAvailable}"
+                                  ToolTip.Tip="Auto: follow the followed player's floor (with hysteresis)">
+                        <TextBlock Text="AUTO" FontFamily="Consolas,Menlo,monospace" FontSize="9" />
+                    </ToggleButton>
                 </StackPanel>
             </Border>
+
+            <!-- The export pane. Not a modal: an export runs for minutes, so it hands off and closes,
+                 and progress lives on the status chip (the same shape the reel job uses). Its ENTRY
+                 point moved into the docked toolbar's header (D4); the button that used to float in this
+                 corner is gone. Hidden — not disabled — when the feature is off, when no demo is loaded,
+                 or on a build with no export host (browser, tests, designer). -->
+            <Border Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                    Width="360" Margin="0" BorderThickness="1,0,0,0"
+                    Background="{DynamicResource Pb2dPanelBg}"
+                    BorderBrush="{DynamicResource Pb2dGridSplitter}"
+                    IsVisible="{Binding ExportDialog, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Grid RowDefinitions="*,Auto">
+                    <ScrollViewer Grid.Row="0">
+                        <ContentControl Content="{Binding ExportDialog}" />
+                    </ScrollViewer>
+                    <Button Grid.Row="1" Content="Close" Margin="12,0,12,12" HorizontalAlignment="Right"
+                            Command="{Binding CloseExportCommand}" />
+                </Grid>
+            </Border>
+
+            <!-- The playback timeline (feature-gated). The VM folds the gate AND has-demo into IsVisible;
+                 the row is Auto-sized, so an off gate leaves no layout hole — the precedent the docked
+                 toolbar's own Auto row above rests on. -->
+            <tl:TimelineControl Grid.Row="2" DataContext="{Binding Timeline}"
+                                IsVisible="{Binding IsVisible}" />
         </Grid>
 
         <GridSplitter Grid.Column="1" Background="{DynamicResource Pb2dGridSplitter}" Width="4" />
@@ -302,11 +520,39 @@
 
             <!-- Attributes panel. -->
             <ScrollViewer Grid.Row="1" Padding="6">
-                <ItemsControl ItemsSource="{Binding Attributes}">
-                    <ItemsControl.ItemTemplate>
+                <!-- Selection surface: picking a card follows that player in the 2D camera AND relays the
+                     pick down the existing NotifySpectateTarget -> SyncStateObserver -> SetDesiredSpectator
+                     chain. The container chrome is stripped to nothing so the card Border below renders
+                     exactly as it did under the old ItemsControl. -->
+                <ListBox ItemsSource="{Binding Attributes}"
+                         SelectedItem="{Binding SelectedPlayer, Mode=TwoWay}"
+                         SelectionMode="Single"
+                         IsEnabled="{Binding IsFollowEnabled}"
+                         Background="Transparent" BorderThickness="0" Padding="0">
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem">
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Margin" Value="0" />
+                            <Setter Property="MinHeight" Value="0" />
+                            <Setter Property="Background" Value="Transparent" />
+                            <!-- The keymap owns Up/Down (speed); a focusable container would eat them. -->
+                            <Setter Property="Focusable" Value="False" />
+                        </Style>
+                        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+                            <Setter Property="Background" Value="Transparent" />
+                        </Style>
+                        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                            <Setter Property="Background" Value="Transparent" />
+                        </Style>
+                        <Style Selector="ListBoxItem:selected:focus /template/ ContentPresenter">
+                            <Setter Property="Background" Value="Transparent" />
+                        </Style>
+                    </ListBox.Styles>
+                    <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:PlayerAttributes">
                             <Border Margin="0,0,0,6" Padding="8,6" CornerRadius="4"
                                     Background="{DynamicResource Pb2dCardBg}"
+                                    Classes="playerCard" Classes.followed="{Binding IsFollowed}"
                                     IsVisible="{Binding InMatch}"
                                     Opacity="{Binding RowOpacity}">
                                 <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto">
@@ -321,6 +567,11 @@
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource Pb2dTextBrightest}"
                                                    VerticalAlignment="Center" />
+                                        <TextBlock Text="⦿ requested" FontSize="9"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource Pb2dPositive}"
+                                                   IsVisible="{Binding IsFollowed}"
+                                                   ToolTip.Tip="Following this player - requested, not confirmed (CS2 spectating has no readback)." />
                                     </StackPanel>
 
                                     <!-- HP / Armor row. -->
@@ -399,8 +650,8 @@
                                 </Grid>
                             </Border>
                         </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                    </ListBox.ItemTemplate>
+                </ListBox>
             </ScrollViewer>
         </Grid>
     </Grid>

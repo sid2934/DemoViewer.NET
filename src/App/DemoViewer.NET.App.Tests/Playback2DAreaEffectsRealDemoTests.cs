@@ -1,11 +1,12 @@
 #region
 
-using DemoViewer.NET.Modules;
-using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Playback2D;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Modules;
+using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Playback;
 using TUnit.Core.Exceptions;
@@ -17,7 +18,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Gates the A4 area-effects overlay end-to-end on a REAL demo: shortly after a real
 ///     <c>smokegrenade_detonate</c> the VM must emit a Smoke area effect, and shortly after a real
-///     <c>inferno_startburn</c> it must emit Fire cells — proving the CSmokeGrenadeProjectile /
+///     <c>inferno_startburn</c> it must emit Fire cells: proving the CSmokeGrenadeProjectile /
 ///     CInferno field paths (<c>m_vSmokeDetonationPos</c>, <c>m_firePositions[i]</c>, <c>m_fireCount</c>,
 ///     <c>m_bFireIsBurning[i]</c>) resolve through the live entity view, not just synthetic doubles.
 /// </summary>

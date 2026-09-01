@@ -11,9 +11,9 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The release-notes markdown renderer behind the update-notice and What's New windows
-///     (v0.6.0). Pins the block shapes the REAL release bodies use — headings, hard-wrapped
+///     (v0.6.0). Pins the block shapes the REAL release bodies use: headings, hard-wrapped
 ///     paragraphs, bullets, blockquotes, bold, and the <c>&lt;details&gt;</c> previous-version
-///     fold — and that unknown syntax degrades to text rather than throwing.
+///     fold, and that unknown syntax degrades to text rather than throwing.
 /// </summary>
 public class MarkdownBlockTests
 {
@@ -24,22 +24,22 @@ public class MarkdownBlockTests
         await HeadlessSession.RunOnUi(() =>
         {
             const string body = """
-                ## What's new in 0.6.0
+                                ## What's new in 0.6.0
 
-                **The notice is a window now.** Hard-wrapped lines
-                join into one paragraph.
+                                **The notice is a window now.** Hard-wrapped lines
+                                join into one paragraph.
 
-                - first bullet with **bold**
-                - second bullet
+                                - first bullet with **bold**
+                                - second bullet
 
-                > A quoted caveat.
+                                > A quoted caveat.
 
-                <details>
-                <summary>What was new in 0.5.4</summary>
+                                <details>
+                                <summary>What was new in 0.5.4</summary>
 
-                Old notes body.
-                </details>
-                """;
+                                Old notes body.
+                                </details>
+                                """;
 
             StackPanel panel = (StackPanel)MarkdownBlock.RenderBlocks(body);
 
@@ -80,13 +80,13 @@ public class MarkdownBlockTests
         });
     }
 
-    /// <summary>Junk in, text out — the renderer must never throw on syntax it doesn't model.</summary>
+    /// <summary>Junk in, text out: the renderer must never throw on syntax it doesn't model.</summary>
     [Test]
     public async Task UnknownSyntax_DegradesToText()
     {
         await HeadlessSession.RunOnUi(() =>
         {
-            // Unclosed details, stray brackets, an image, a table row — all must render as SOMETHING.
+            // Unclosed details, stray brackets, an image, a table row: all must render as SOMETHING.
             StackPanel panel = (StackPanel)MarkdownBlock.RenderBlocks(
                 "<details>\nnever closed\n\n| a | b |\n\n![alt text](x.png)\n[link](https://x)");
             if (panel.Children.Count == 0)

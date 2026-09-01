@@ -14,7 +14,7 @@ namespace DemoViewer.NET.ViewModels.Library;
 ///     Maps a demo's raw map name (e.g. <c>de_dust2</c>) to its baked radar thumbnail for use as the library
 ///     card background. Decoded ONCE per distinct map and cached (a small downscaled bitmap), so a large card
 ///     grid never re-decodes on scroll. Returns null when the map has no baked bundle (the dev
-///     <c>cs2-assets/baked</c> cache only covers a few maps) — the card then falls back to its accent
+///     <c>cs2-assets/baked</c> cache only covers a few maps): the card then falls back to its accent
 ///     background, so the radar is a progressive enhancement, never load-bearing.
 /// </summary>
 public sealed class MapRadarConverter : IValueConverter

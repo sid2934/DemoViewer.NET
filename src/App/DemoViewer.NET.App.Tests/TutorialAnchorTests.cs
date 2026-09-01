@@ -15,11 +15,12 @@ namespace DemoViewer.NET.AppTests;
 ///     Lifecycle coverage of the <see cref="TutorialAnchor" /> attached property: a tagged control registers
 ///     itself on <c>AttachedToVisualTree</c> and unregisters on detach, so
 ///     <see cref="TutorialAnchor.TryResolve" /> finds it only while it is live in the tree. This is the seam
-///     the overlay depends on to measure a step's spotlight — an inactive tab drops its content, and the
+///     the overlay depends on to measure a step's spotlight: an inactive tab drops its content, and the
 ///     registry must not keep pointing at a detached control. The static registry is shared, so this class is
 ///     <see cref="NotInParallelAttribute" /> and asserts against its OWN mounted control by reference.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class TutorialAnchorTests
 {
     private static void Pump()
@@ -60,7 +61,7 @@ public class TutorialAnchorTests
             await Assert.That(ReferenceEquals(resolved, anchor)).IsTrue()
                 .Because("TryResolve returns the live control that registered for this target");
 
-            // Detach it from the tree — the same thing a tab deactivation does to its content root.
+            // Detach it from the tree, the same thing a tab deactivation does to its content root.
             host.Children.Remove(anchor);
             Pump();
 

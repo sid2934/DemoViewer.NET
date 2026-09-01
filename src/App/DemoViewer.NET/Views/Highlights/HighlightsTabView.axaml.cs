@@ -3,7 +3,6 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using DemoViewer.NET.ViewModels.Highlights;
@@ -18,7 +17,7 @@ namespace DemoViewer.NET.Views.Highlights;
 ///     drag-to-reorder gesture. No data is pushed into controls from here.
 ///     <para>
 ///         <b>Why drag lives in code-behind at all.</b> Avalonia's drag/drop is an input-event protocol, not a
-///         bindable one — there is no `DragDrop` command surface to bind. The handler therefore does the
+///         bindable one. There is no `DragDrop` command surface to bind. The handler therefore does the
 ///         minimum possible: it reads the group key off the dragged/target container's <c>Tag</c> and calls one
 ///         view-model method (<see cref="IClipTrayHost.MoveGroupTo" />). All ordering logic stays in the VM,
 ///         and the same operation is reachable without a mouse through the ▲▼ buttons.
@@ -46,7 +45,7 @@ public partial class HighlightsTabView : UserControl
         }
     }
 
-    // Inline job-strip "Copy error" — clipboard needs the visual tree, so it lives here rather than on the
+    // Inline job-strip "Copy error": clipboard needs the visual tree, so it lives here rather than on the
     // VM. Copies the SAME full diagnostic block the flyout's Copy button does (JobStatus.CopyDiagnosticsText).
     private async void OnCopyReelErrorClick(object? sender, RoutedEventArgs e)
     {
@@ -93,8 +92,8 @@ public partial class HighlightsTabView : UserControl
 
     private async void OnGroupPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        // Only start a drag from the grip glyph itself, so pressing anywhere in a block does not begin one —
-        // the block contains buttons and selectable text.
+        // Only start a drag from the grip glyph itself, so pressing anywhere in a block does not begin one.
+        // The block contains buttons and selectable text.
         if (sender is not Control { Tag: string groupKey } grip
             || !e.GetCurrentPoint(grip).Properties.IsLeftButtonPressed)
         {

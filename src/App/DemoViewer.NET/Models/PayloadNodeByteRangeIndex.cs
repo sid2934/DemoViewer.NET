@@ -10,7 +10,7 @@ public readonly record struct ByteRangeEntry(int Start, int End, int Depth, Payl
 ///     Reverse byte → node mapping for the hex view.
 ///     <para>
 ///         The design doc placed these helpers in the parser's <c>DownstreamUtilities.cs</c>, but
-///         <see cref="PayloadNode" /> is an App-project type — the parser library cannot reference it
+///         <see cref="PayloadNode" /> is an App-project type: the parser library cannot reference it
 ///         without an inverted dependency. The algorithm is unchanged; only the home moves here, next
 ///         to <see cref="PayloadNode" /> / <see cref="PayloadNodeBuilder" />.
 ///     </para>
@@ -22,7 +22,7 @@ public static class PayloadNodeByteRangeIndex
     ///     <see cref="ByteRangeEntry.Start" /> (outer ranges first within an equal Start) for fast
     ///     hit-testing when the user clicks a byte. Byte ranges are taken from
     ///     <see cref="PayloadNode.ByteStart" /> / <see cref="PayloadNode.ByteLength" />. Cheaper than
-    ///     an interval tree for the sizes we see — most cards have &lt; 200 ranges.
+    ///     an interval tree for the sizes we see: most cards have &lt; 200 ranges.
     /// </summary>
     public static List<ByteRangeEntry> Build(IEnumerable<PayloadNode> roots)
     {

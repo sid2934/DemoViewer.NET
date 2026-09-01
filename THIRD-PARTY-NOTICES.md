@@ -59,3 +59,146 @@ unaffiliated with Valve. No game assets are redistributed in the packages.
 This project depends on the following NuGet packages, each under its own license, resolved
 via NuGet and not reproduced here: Google.Protobuf, Snappier, YamlDotNet,
 Microsoft.Extensions.Logging.Abstractions, CS2OpenDev.Sdk.
+
+Two of them carry terms worth stating outright because the 2D-playback video export depends on
+them:
+
+- **FFMpegCore** (MIT): a managed argument builder and process wrapper. It links no ffmpeg code;
+  it starts ffmpeg as a **separate program** and pipes raw frames to its standard input. See §g.
+- **SixLabors.ImageSharp** (Six Labors Split License 1.0): used only by `ManagedGifSink`, the
+  no-ffmpeg GIF floor. The split license grants Apache-2.0 terms to open-source projects, which
+  this repository is (MIT; see `LICENSE`). A closed-source redistribution of this code would need
+  a commercial Six Labors license; record that before any such change.
+
+## d. Inter font (SIL Open Font License 1.1)
+
+`src/Playback2D/DemoViewer.NET.Playback2D.Core/Assets/Inter-Regular.ttf` is the Inter Regular
+typeface by Rasmus Andersson (<https://rsms.me/inter/>), redistributed under the
+[SIL Open Font License, Version 1.1](https://openfontlicense.org/). It is embedded in the
+Playback2D core assembly and used by `TextBlobCache` to draw scene labels.
+
+An embedded face is a correctness requirement, not a preference: the golden-image lane must
+rasterise identically on a developer's Windows machine and on the Linux CI runner, and
+`SKTypeface.Default` / a family-name lookup resolve to different fonts on each. The bytes were
+extracted from the `Avalonia.Fonts.Inter` package this repository already depends on, so the
+scene renders in the same face as the rest of the application.
+
+The OFL requires that the font not be sold by itself, that this notice accompany it, and that any
+modified version be renamed. This project redistributes it unmodified.
+
+## e. ANGLE (BSD-3-Clause)
+
+The Windows build links ANGLE (`av_libglesv2.dll`) **in-process** to create windowless EGL /
+OpenGL ES contexts for GPU-accelerated offscreen rendering (2D playback video export and headless
+rendering; see `docs/playback2d-v2/design.md` §5.8). The binary is redistributed exactly as
+published in the `Avalonia.Angle.Windows.Natives` NuGet package, built from
+<https://github.com/AvaloniaUI/angle> (commit `cb8b4e1307a9d8f5ff56b8c5973bea4158ffead8`).
+Upstream project: <https://github.com/google/angle>.
+
+Because the linkage is in-process rather than a separate program, the obligation is to reproduce
+the copyright notice, the licence conditions and the disclaimer. This section does that. Nothing
+is bundled on Linux or macOS: there, EGL (when present at all) is a system library supplied by the
+driver stack, and its absence simply makes the probe fall back to the CPU provider.
+
+```
+Copyright 2018 The ANGLE Project Authors.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+    Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+
+    Redistributions in binary form must reproduce the above
+    copyright notice, this list of conditions and the following
+    disclaimer in the documentation and/or other materials provided
+    with the distribution.
+
+    Neither the name of TransGaming Inc., Google Inc., 3DLabs Inc.
+    Ltd., nor the names of their contributors may be used to endorse
+    or promote products derived from this software without specific
+    prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+```
+
+## f. perfect-freehand (MIT)
+
+Two files in the Playback2D core assembly ship code adapted from
+[perfect-freehand](https://github.com/steveruizok/perfect-freehand) v1.2.2, an MIT-licensed
+pressure-sensitive stroke outliner by Steve Ruiz. The adaptation is a direct C# port of
+`packages/perfect-freehand/src/getStrokePoints.ts` and
+`packages/perfect-freehand/src/getStrokeOutlinePoints.ts`:
+
+- `src/Playback2D/DemoViewer.NET.Playback2D.Core/Ink/FreehandOutline.cs`
+- `src/Playback2D/DemoViewer.NET.Playback2D.Core/Ink/FreehandOptions.cs`
+
+Both files carry a header comment pointing at this section. The port is pinned against reference
+vectors generated from the upstream package and committed under
+`tests/fixtures/playback2d/freehand/`.
+
+The upstream license text, reproduced in full:
+
+```text
+MIT License
+
+Copyright (c) 2021 Stephen Ruiz Ltd
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## g. ffmpeg (not redistributed)
+
+DemoViewer **ships no ffmpeg binary and links no ffmpeg code**. The 2D-playback video export
+(`docs/playback2d-v2/export.md`) invokes `ffmpeg` as a **separate program**, writing raw RGBA
+frames to its standard input over a pipe and reading nothing back but its exit status. Under the
+FSF's own reading, two programs communicating over a pipe are separate works, which is what keeps
+this repository's MIT licence unaffected by ffmpeg's GPL/LGPL terms whichever build a user has
+installed.
+
+ffmpeg is resolved in this order:
+
+1. an `ffmpeg` already on the user's `PATH` (whatever they installed, under whatever licence that
+   build carries);
+2. an optional, explicitly consented in-app download of a **pinned LGPL-2.1 build** produced by the
+   [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) project, verified against a pinned
+   SHA-256 and extracted under `<config>/tools/ffmpeg`. The consent sheet displays the `LICENSE.txt`
+   found inside that archive and links the build's source before anything is written to disk;
+3. no ffmpeg at all: export falls back to `ManagedGifSink`, which uses ImageSharp (§c) and
+   produces GIF only.
+
+Because the downloaded build is LGPL, it contains no H.264 encoder: MP4/H.264 export requires a
+GPL ffmpeg the user installed themselves, and the export dialog says so rather than failing at
+encode time. WebM/VP9 (the default format) is present in the LGPL build.
+
+ffmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg project. This project is
+unaffiliated with it.

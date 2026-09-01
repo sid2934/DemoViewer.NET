@@ -8,8 +8,8 @@ using DemoViewer.NET.ViewModels.Update;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The in-app updater's decision logic. The Velopack layer itself is not exercised here — that
-///     needs a real install — so these pin the behaviour the UI depends on: when the banner appears,
+///     The in-app updater's decision logic. The Velopack layer itself is not exercised here, that
+///     needs a real install, so these pin the behaviour the UI depends on: when the banner appears,
 ///     that <b>nothing downloads without consent</b>, and that every failure mode leaves the app
 ///     usable rather than stuck.
 /// </summary>
@@ -19,7 +19,10 @@ public class UpdateViewModelTests
     [Test]
     public async Task StartupCheck_WithUpdate_RaisesBanner()
     {
-        FakeUpdateService svc = new() { CheckResult = UpdateCheckResult.UpdateAvailable("0.5.2") };
+        FakeUpdateService svc = new()
+        {
+            CheckResult = UpdateCheckResult.UpdateAvailable("0.5.2")
+        };
         UpdateViewModel vm = new(svc);
 
         await vm.CheckOnStartupAsync();
@@ -34,7 +37,10 @@ public class UpdateViewModelTests
     [Test]
     public async Task StartupCheck_UpToDate_StaysSilent()
     {
-        FakeUpdateService svc = new() { CheckResult = UpdateCheckResult.UpToDate() };
+        FakeUpdateService svc = new()
+        {
+            CheckResult = UpdateCheckResult.UpToDate()
+        };
         UpdateViewModel vm = new(svc);
 
         await vm.CheckOnStartupAsync();
@@ -45,12 +51,15 @@ public class UpdateViewModelTests
 
     /// <summary>
     ///     Offline at launch must be invisible. A user who opens the app on a plane gets no banner and
-    ///     no error — the check simply found nothing it could report.
+    ///     no error: the check simply found nothing it could report.
     /// </summary>
     [Test]
     public async Task StartupCheck_Failure_IsSilent()
     {
-        FakeUpdateService svc = new() { CheckResult = UpdateCheckResult.Failed("no such host is known") };
+        FakeUpdateService svc = new()
+        {
+            CheckResult = UpdateCheckResult.Failed("no such host is known")
+        };
         UpdateViewModel vm = new(svc);
 
         await vm.CheckOnStartupAsync();
@@ -66,22 +75,34 @@ public class UpdateViewModelTests
     [Test]
     public async Task ManualCheck_ReportsEveryOutcome()
     {
-        UpdateViewModel upToDate = new(new FakeUpdateService { CheckResult = UpdateCheckResult.UpToDate() });
+        UpdateViewModel upToDate = new(new FakeUpdateService
+        {
+            CheckResult = UpdateCheckResult.UpToDate()
+        });
         await upToDate.CheckNowCommand.ExecuteAsync(null);
         await Assert.That(upToDate.StatusMessage).IsEqualTo("You're up to date.");
 
-        UpdateViewModel failed = new(new FakeUpdateService { CheckResult = UpdateCheckResult.Failed("rate limited") });
+        UpdateViewModel failed = new(new FakeUpdateService
+        {
+            CheckResult = UpdateCheckResult.Failed("rate limited")
+        });
         await failed.CheckNowCommand.ExecuteAsync(null);
         await Assert.That(failed.StatusMessage).Contains("rate limited");
 
-        UpdateViewModel unpackaged = new(new FakeUpdateService { CheckResult = UpdateCheckResult.NotSupported() });
+        UpdateViewModel unpackaged = new(new FakeUpdateService
+        {
+            CheckResult = UpdateCheckResult.NotSupported()
+        });
         await unpackaged.CheckNowCommand.ExecuteAsync(null);
         await Assert.That(unpackaged.StatusMessage).Contains("installed builds only");
 
-        UpdateViewModel avail = new(new FakeUpdateService { CheckResult = UpdateCheckResult.UpdateAvailable("0.6.0") });
+        UpdateViewModel avail = new(new FakeUpdateService
+        {
+            CheckResult = UpdateCheckResult.UpdateAvailable("0.6.0")
+        });
         await avail.CheckNowCommand.ExecuteAsync(null);
         await Assert.That(avail.StatusMessage).Contains("0.6.0");
-        // A Settings check must also raise the shell banner — they share one VM for exactly this.
+        // A Settings check must also raise the shell banner: they share one VM for exactly this.
         await Assert.That(avail.IsUpdateAvailable).IsTrue();
     }
 
@@ -131,14 +152,17 @@ public class UpdateViewModelTests
     [Test]
     public async Task Dismiss_HidesBannerOnly()
     {
-        FakeUpdateService svc = new() { CheckResult = UpdateCheckResult.UpdateAvailable("0.5.2") };
+        FakeUpdateService svc = new()
+        {
+            CheckResult = UpdateCheckResult.UpdateAvailable("0.5.2")
+        };
         UpdateViewModel vm = new(svc);
         await vm.CheckOnStartupAsync();
 
         vm.DismissCommand.Execute(null);
 
         await Assert.That(vm.IsUpdateAvailable).IsFalse();
-        // Still resolved — a later Settings check shouldn't have to re-discover it.
+        // Still resolved: a later Settings check shouldn't have to re-discover it.
         await Assert.That(vm.AvailableVersion).IsEqualTo("0.5.2");
         await Assert.That(svc.DownloadCalls).IsEqualTo(0);
     }

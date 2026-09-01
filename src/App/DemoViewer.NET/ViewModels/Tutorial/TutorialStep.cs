@@ -28,12 +28,12 @@ public enum CalloutPlacement
 ///     Names the coarse UI <b>region</b> a step points at. The follow-up tour-engine phase owns an anchor
 ///     registry that maps each value to a live control and measures its rectangle into
 ///     <see cref="TutorialViewModel.SpotlightRect" /> (in overlay coordinates). The presentation layer
-///     never resolves these itself — it only renders the rect it is handed. <see cref="None" /> = a
+///     never resolves these itself: it only renders the rect it is handed. <see cref="None" /> = a
 ///     no-spotlight step (welcome / outro).
 /// </summary>
 public enum TutorialTarget
 {
-    /// <summary>No anchored region — a centred welcome/outro card over the plain scrim.</summary>
+    /// <summary>No anchored region: a centred welcome/outro card over the plain scrim.</summary>
     None,
 
     /// <summary>The workspace tab strip (the row of tab headers you switch areas with).</summary>
@@ -42,17 +42,21 @@ public enum TutorialTarget
     /// <summary>The Library tab / landing region ("where your demos live").</summary>
     LibraryTab,
 
-    /// <summary>The "Open Demo…" affordance (toolbar button) — the gateway's picker fallback.</summary>
+    /// <summary>The "Open Demo…" affordance (toolbar button): the gateway's picker fallback.</summary>
     OpenDemo,
 
-    /// <summary>The first demo card in the Library grid — the gateway's preferred target (double-click loads it,
-    /// no file dialog). Falls back to <see cref="SampleDemo" /> / <see cref="OpenDemo" /> when the library is empty.</summary>
+    /// <summary>
+    ///     The first demo card in the Library grid: the gateway's preferred target (double-click loads it,
+    ///     no file dialog). Falls back to <see cref="SampleDemo" /> / <see cref="OpenDemo" /> when the library is empty.
+    /// </summary>
     FirstLibraryCard,
 
-    /// <summary>The Library hero's "Try a sample match" CTA (opens the bundled sample demo). The gateway's
-    /// second preference: an empty library with a resolvable sample spotlights this — one click continues the
-    /// tour with real match data, no files needed. Falls back to <see cref="OpenDemo" /> when no sample ships
-    /// (e.g. Browser/WASM).</summary>
+    /// <summary>
+    ///     The Library hero's "Try a sample match" CTA (opens the bundled sample demo). The gateway's
+    ///     second preference: an empty library with a resolvable sample spotlights this, and one click continues the
+    ///     tour with real match data, no files needed. Falls back to <see cref="OpenDemo" /> when no sample ships
+    ///     (e.g. Browser/WASM).
+    /// </summary>
     SampleDemo,
 
     /// <summary>The Stats tab content area (the match review).</summary>
@@ -66,8 +70,8 @@ public enum TutorialTarget
 }
 
 /// <summary>
-///     When a step is eligible to fire. The two segments run at different moments, so the engine — not a
-///     linear index walk — decides the boundary: <see cref="FirstRun" /> steps need no demo and play right
+///     When a step is eligible to fire. The two segments run at different moments, so the engine, not a
+///     linear index walk, decides the boundary: <see cref="FirstRun" /> steps need no demo and play right
 ///     after first-time setup; <see cref="DemoLoaded" /> steps play against an open demo.
 /// </summary>
 public enum TutorialSegment
@@ -80,7 +84,7 @@ public enum TutorialSegment
 }
 
 /// <summary>
-///     One authored step of the first-run Visual Walkthrough — pure content + anchoring metadata, no live
+///     One authored step of the first-run Visual Walkthrough: pure content + anchoring metadata, no live
 ///     state. The engine feeds these into a <see cref="TutorialViewModel" /> one at a time; the overlay
 ///     binds <see cref="Title" /> / <see cref="Body" /> and reads <see cref="HasSpotlight" /> /
 ///     <see cref="Placement" /> for its layout. The canonical set is <see cref="TutorialSteps.Default" />.
@@ -118,7 +122,7 @@ public sealed record TutorialStep
     ///     Marks the "gateway" step that hands the tour from the first-run segment into the demo segment: it
     ///     needs an open demo to continue. When the user reaches it with no demo loaded, the engine parks the
     ///     tour here in a <b>visible waiting state</b> (spotlight stays on the Open-Demo affordance, the advance
-    ///     button is disabled, <see cref="WaitingHint" /> shows) and auto-advances the instant a demo loads —
+    ///     button is disabled, <see cref="WaitingHint" /> shows) and auto-advances the instant a demo loads,
     ///     rather than hiding the overlay and stranding the user with no guidance. If a demo is already open
     ///     when the step is reached (e.g. replay-from-Settings), it behaves like a normal Next-able step.
     /// </summary>
@@ -132,7 +136,7 @@ public sealed record TutorialStep
 }
 
 /// <summary>
-///     The canonical first-run walkthrough script. This is the engine's <b>input</b> — the presentation
+///     The canonical first-run walkthrough script. This is the engine's <b>input</b>: the presentation
 ///     layer does not own it, so the engine can sequence, filter by <see cref="TutorialSegment" />, or A/B
 ///     the copy without touching the view. Consumer-level content for every audience.
 /// </summary>
@@ -141,7 +145,7 @@ public static class TutorialSteps
     /// <summary>The eight-step default tour (4 first-run + 4 demo-loaded, including the outro).</summary>
     public static IReadOnlyList<TutorialStep> Default { get; } =
     [
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.FirstRun,
             HasSpotlight = false,
@@ -153,7 +157,7 @@ public static class TutorialSteps
                 "Here's a quick tour of the essentials — it takes about a minute. You can skip it any time "
                 + "and reopen it later from Settings."
         },
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.FirstRun,
             HasSpotlight = true,
@@ -164,7 +168,7 @@ public static class TutorialSteps
                 "These tabs are how you get around — your Library, a match's Stats, and 2D Playback. Click a "
                 + "tab any time to switch; the tour will hop between them for you as we go."
         },
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.FirstRun,
             HasSpotlight = true,
@@ -175,7 +179,7 @@ public static class TutorialSteps
                 "The Library is home base. Every demo you add shows up here as a card with its map, players "
                 + "and final score."
         },
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.FirstRun,
             HasSpotlight = true,
@@ -188,7 +192,7 @@ public static class TutorialSteps
                 "This is where you load demos. Open one now — the tour then continues into the match stats and "
                 + "2D playback."
         },
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.DemoLoaded,
             HasSpotlight = true,
@@ -199,7 +203,7 @@ public static class TutorialSteps
                 "The Stats tab breaks down the whole match — the scoreboard, how each player performed, and "
                 + "a round-by-round timeline."
         },
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.DemoLoaded,
             HasSpotlight = true,
@@ -210,7 +214,7 @@ public static class TutorialSteps
                 "The 2D Playback tab replays the match on a top-down map, so you can follow every move, kill "
                 + "and piece of utility."
         },
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.DemoLoaded,
             HasSpotlight = true,
@@ -221,7 +225,7 @@ public static class TutorialSteps
                 "These controls run the replay — play or pause, change the speed, and jump between rounds and "
                 + "key moments."
         },
-        new TutorialStep
+        new()
         {
             Segment = TutorialSegment.DemoLoaded,
             HasSpotlight = false,

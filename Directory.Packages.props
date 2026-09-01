@@ -20,6 +20,52 @@
         <!-- Headless UI testing (TUnit + SkiaSharp frame capture). Keep in sync with Avalonia version. -->
         <PackageVersion Include="Avalonia.Headless" Version="11.3.12"/>
         <PackageVersion Include="Avalonia.Skia" Version="11.3.12"/>
+        <!-- SkiaSharp: the Playback2D v2 render core (docs/playback2d-v2/design.md §3).
+             PINNED to the version Avalonia.Skia 11.3.12 resolves. In B1 the on-screen path takes
+             Avalonia's ISkiaSharpApiLeaseFeature, which hands back Avalonia's OWN SKCanvas: a different
+             SkiaSharp major would make that a different type identity and break the lease outright.
+             This is a DERIVED pin, not an independent choice. Bump ONLY in lockstep with the Avalonia
+             version above, re-reading the resolved version from
+             artifacts/obj/DemoViewer.NET.App.Tests/project.assets.json. -->
+        <PackageVersion Include="SkiaSharp" Version="2.88.9"/>
+        <!-- Native Skia for Linux test/CI runners. The FULL package, not …NoDependencies: B1 draws
+             SKTextBlob text and C1's golden corpus contains text layers, and swapping the native later
+             would silently re-baseline every golden. The CI job installs its one system dependency:
+             `sudo apt-get install -y libfontconfig1`. -->
+        <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="2.88.9"/>
+        <!-- Native Skia for the dv2d CLI (tools/DemoViewer.NET.Playback2D.Cli), which has no Avalonia
+             to bring the natives along. Derived pins exactly like the two above: they move with
+             SkiaSharp, which moves with Avalonia. -->
+        <PackageVersion Include="SkiaSharp.NativeAssets.Win32" Version="2.88.9"/>
+        <PackageVersion Include="SkiaSharp.NativeAssets.macOS" Version="2.88.9"/>
+        <!-- ANGLE (EGL + GLES2 over D3D11) native binaries: the windowless GPU render-surface backend
+             (docs/playback2d-v2/design.md §5.8, plans/C2-gpu-provider.md §8.1).
+
+             This is ALREADY in the desktop graph: Avalonia.Win32 11.3.12 depends on exactly this
+             version, and the Desktop publish has been shipping av_libglesv2.dll all along. The explicit
+             entry exists so projects that do NOT reference Avalonia (the Playback2D test project, and
+             C1's dv2d CLI) get the same DLL.
+
+             PINNED, NOT FLOATED: the version must equal what the pinned Avalonia.Win32 depends on, or
+             the app would load two different ANGLE builds. Bump it only in the same commit as an
+             Avalonia bump, after re-reading avalonia.win32.nuspec. A lone dependabot bump of this
+             package is a defect, exactly like a lone SkiaSharp bump above.
+
+             License: BSD-3-Clause (The ANGLE Project Authors); see THIRD-PARTY-NOTICES.md §e. Unlike
+             ffmpeg this is LINKED IN-PROCESS, so the "separate programs" posture does not apply; the
+             obligation is reproducing the notice, which §d does. -->
+        <PackageVersion Include="Avalonia.Angle.Windows.Natives" Version="2.1.25547.20250602"/>
+        <!-- 2D-playback video export (docs/playback2d-v2/design.md §5.7). FFMpegCore is MIT and only
+             BUILDS ARGUMENTS and pipes rawvideo to an ffmpeg SUBPROCESS. No ffmpeg code is linked, which
+             is what keeps the GPL/LGPL posture clean (FSF "separate programs"). We never ship an ffmpeg
+             binary; see THIRD-PARTY-NOTICES.md §g. Xabe.FFmpeg is CC BY-NC-SA and must never be added.
+             5.4.0 is the newest stable 5.x, confirmed with `dotnet package search` at implementation. -->
+        <PackageVersion Include="FFMpegCore" Version="5.4.0"/>
+        <!-- The no-ffmpeg GIF floor (ManagedGifSink). Six Labors Split License 1.0: Apache-2.0 terms for
+             open-source projects, which this repository is (MIT, see LICENSE). A downstream closed-source
+             redistribution would need a commercial Six Labors license. Record that before any such change.
+             Deliberately held on the 3.1.x line: do NOT move to 4.x without re-reading the license terms. -->
+        <PackageVersion Include="SixLabors.ImageSharp" Version="3.1.12"/>
         <PackageVersion Include="Msagl" Version="1.2.1"/>
         <PackageVersion Include="YamlDotNet" Version="16.3.0"/>
         <!--
