@@ -633,7 +633,7 @@ namespace DemoViewer.NET.Playback2D.Core.Levels;
 
 // Correction 3: B3's shape, adopted up front. MapLevel is a CLASS (reference semantics; Radar is
 // rebound in place at MapSpace rebuild) and its identity is a distinct struct so a level id can
-// never be confused with a level index — the confusion design risk 5 is about.
+// never be confused with a level index, the confusion design risk 5 is about.
 public readonly record struct MapLevelId(int Key)
 {
     public static MapLevelId None => new(int.MinValue);
@@ -696,7 +696,7 @@ public sealed class LevelPane
     public LevelPaneSnapshot Snapshot();           // [fill-in]
 }
 
-// Correction 3 — B3's member names; SideBySide is reserved and no policy returns it.
+// Correction 3: B3's member names; SideBySide is reserved and no policy returns it.
 public enum LevelDisplayMode { Stacked, Single, SideBySide }
 
 public interface ILevelLayoutPolicy
@@ -707,7 +707,7 @@ public interface ILevelLayoutPolicy
 public sealed class StackedLayout : ILevelLayoutPolicy { /* today's bands */ }
 
 /// [fill-in] Owns pane lifetime + camera identity across relayout. Replaces EnsureCameras/
-/// ApplyFitToAllSlices — and is the ONLY such owner: B3's "LevelPaneStore" is additional behaviour
+/// ApplyFitToAllSlices, and is the ONLY such owner: B3's "LevelPaneStore" is additional behaviour
 /// on this type (retain state for levels not currently arranged), not a second class.
 public sealed class PaneSet
 {
@@ -812,7 +812,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, IDisposable
     public SceneCompositor Compositor { get; }
     public ILevelLayoutPolicy LayoutPolicy { get; set; }
 
-    // Test hooks — SAME NAMES as Playback2DViewport's, so ported tests read identically.
+    // Test hooks: SAME NAMES as Playback2DViewport's, so ported tests read identically.
     internal ViewportTransform PrimaryCameraTransform { get; }
     internal bool PrimaryCameraManual { get; }
     internal int SightlineCount { get; }
@@ -849,7 +849,7 @@ namespace DemoViewer.NET.Configuration;
 /// property list in plans/B5-polish-wasm.md §"Public API contracts"); nobody adds a sibling section.
 public sealed class Playback2DSettings
 {
-    /// Internal parity escape hatch — retained one release, then deleted with the old control (B5).
+    /// Internal parity escape hatch, retained one release, then deleted with the old control (B5).
     /// Named LegacyViewport (correction 5), which is the name B5's removal plan cites.
     public bool LegacyViewport { get; set; }
 }
@@ -875,7 +875,7 @@ public sealed record BenchmarkReport(
     public void WriteToBenchReports(string directory);   // bench-reports/dv2d-<Id>-<yyyyMMdd-HHmmss>.json
 }
 
-// Correction 8: these five names are canonical for the whole track — C1's `dv2d bench` is a thin
+// Correction 8: these five names are canonical for the whole track; C1's `dv2d bench` is a thin
 // wrapper over exactly this, and C1's SceneBenchHarness/SceneBenchRequest/SceneBenchResult names
 // are withdrawn. The measurement loop times Advance and Render from OUTSIDE Core (Core bans
 // Stopwatch, §5.1), rendering through C1's HeadlessSceneRenderer facade.
@@ -889,7 +889,7 @@ public sealed class ScenePipelineBenchmark
 public sealed record BudgetPolicy(double AdvanceP99Ms, double RenderP99Ms, long AllocatedBytesPerFrame)
 {
     public static readonly BudgetPolicy Baseline = new(2.0, 8.0, 0);   // design §6
-    /// Baseline scaled by env DV2D_BUDGET_SCALE (default 2.0) — CI runners are not the design's baseline laptop.
+    /// Baseline scaled by env DV2D_BUDGET_SCALE (default 2.0). CI runners are not the design's baseline laptop.
     public static BudgetPolicy Ci { get; }
     public IReadOnlyList<string> Violations(BenchmarkReport report);
 }
@@ -1009,7 +1009,7 @@ the toggle. They are the safety net that proves the toggle actually works.
 ### 6.5 Commands
 
 ```bash
-# Direct-execution suite (fast, no Avalonia) — the everyday loop
+# Direct-execution suite (fast, no Avalonia): the everyday loop
 dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
 
 # Budget lane only
@@ -1020,7 +1020,7 @@ dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release -
 dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release -- \
   --treenode-filter "/*/*/GoldenParityTests/*"
 
-# Headless-Avalonia host tests (batched — the App suite is OOM-prone in one process)
+# Headless-Avalonia host tests (batched; the App suite is OOM-prone in one process)
 bash scripts/test-app-suite.sh -c Release
 
 # Force the legacy control for a bisect
@@ -1039,7 +1039,7 @@ DV_PLAYBACK2D_RENDERER=legacy dotnet run --project src/App/DemoViewer.NET.Deskto
      op an SKCanvas from *Avalonia's* SkiaSharp: a Core built against SkiaSharp 3.x is a different type
      and will not bind. Bump this ONLY in lockstep with an Avalonia bump, and re-verify the resolved
      version afterwards. tools/DemoViewer.NET.AssetBaker deliberately opts out of CPM and stays on
-     SkiaSharp 3.x — that is not a conflict, it is a file boundary. -->
+     SkiaSharp 3.x. That is not a conflict, it is a file boundary. -->
 <PackageVersion Include="SkiaSharp" Version="2.88.9"/>
 <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="2.88.9"/>
 ```
@@ -1067,7 +1067,7 @@ both lines above in the same commit. Never let CPM float it.
     </PropertyGroup>
     <ItemGroup>
         <!-- SkiaSharp ONLY. No Avalonia, no CS2DemoKit, no Modules.Abstractions.
-             Enforced by CoreArchitectureTests — adding a reference here is a design violation. -->
+             Enforced by CoreArchitectureTests; adding a reference here is a design violation. -->
         <PackageReference Include="SkiaSharp"/>
     </ItemGroup>
     <ItemGroup>
@@ -1175,7 +1175,7 @@ direct-execution project with no Avalonia platform, so neither inherits the App 
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '10.0.x' }
-      # Direct-execution scene tests: no Avalonia platform, no window, no dispatcher — safe in CI
+      # Direct-execution scene tests: no Avalonia platform, no window, no dispatcher, safe in CI
       # in a way the App UI suite is not. Goldens are authored on the CPU provider, which is the
       # contract baseline (design §5.8), so this lane is authoritative for correctness.
       - name: Playback2D scene suite

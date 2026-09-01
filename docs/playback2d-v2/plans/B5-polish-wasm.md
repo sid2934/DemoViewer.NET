@@ -102,14 +102,14 @@ so inserting them cannot change `parserDeepDive`'s leader (`parser.hex`) or `gra
         // ---------------- 2D PLAYBACK v2 SUB-FEATURES ----------------
         // All five: ParentId "tab.playback2d" (cascade off with the tab), no GroupId (so the
         // parserDeepDive / graphDebug leader-lock ordering above is undisturbed), default-ON for every
-        // category. These are the headline consumer features of the 2D rework — gating them to
+        // category. These are the headline consumer features of the 2D rework, and gating them to
         // power-users would hide the payoff from the audience most excited by it (the same reasoning
         // recorded for tab.highlights). IDS ARE PERSISTED KEYS (settings write Features:Overrides:{id})
         // and must never be renamed. playback2d.export additionally ANDs !OperatingSystem.IsBrowser()
-        // — folded in ONE place, ShellModuleFeatureGate.DesktopOnlyIds, never re-derived per call site.
+        // folded in ONE place, ShellModuleFeatureGate.DesktopOnlyIds, never re-derived per call site.
         new(
             "playback2d.annotations", FeatureScope.SubFeature, "Annotations",
-            "Draw over the 2D playback — pen and eraser with undo/redo, plus time-anchored drawings "
+            "Draw over the 2D playback: pen and eraser with undo/redo, plus time-anchored drawings "
             + "that appear and disappear on the demo clock.",
             "tab.playback2d", null, false, Defaults(true, true, true)),
         new(
@@ -124,12 +124,12 @@ so inserting them cannot change `parserDeepDive`'s leader (`parser.hex`) or `gra
             "tab.playback2d", null, false, Defaults(true, true, true)),
         new(
             "playback2d.follow", FeatureScope.SubFeature, "Follow player",
-            "Selecting a player card follows them in the 2D view — and in-engine when Live Sync is "
+            "Selecting a player card follows them in the 2D view, and in-engine when Live Sync is "
             + "active.",
             "tab.playback2d", null, false, Defaults(true, true, true)),
         new(
             "playback2d.export", FeatureScope.SubFeature, "Video export",
-            "Render the 2D playback, annotations included, to webm / mp4 / gif. Desktop only — it "
+            "Render the 2D playback, annotations included, to webm / mp4 / gif. Desktop only: it "
             + "needs a filesystem and an ffmpeg binary.",
             "tab.playback2d", null, false, Defaults(true, true, true)),
 ```
@@ -368,7 +368,7 @@ public interface IModuleFeatureGate
 ```csharp
     /// <summary>
     ///     The live feature-gate projection, or <c>null</c> for a host / test double that does not gate.
-    ///     <b>Null fails OPEN</b> — a module with no gate shows everything, exactly as it did before gating
+    ///     <b>Null fails OPEN</b>. A module with no gate shows everything, exactly as it did before gating
     ///     existed. Default-implemented so every existing IModuleContext implementation keeps compiling.
     /// </summary>
     IModuleFeatureGate? Features => null;
@@ -418,13 +418,13 @@ public sealed class AppSettings
 {
     // … existing properties …
 
-    /// <summary>2D playback (v2) preferences — annotation tool defaults, level display, timeline, export.</summary>
+    /// <summary>2D playback (v2) preferences: annotation tool defaults, level display, timeline, export.</summary>
     public Playback2DSettings Playback2D { get; set; } = new();
 }
 
 /// <summary>
 ///     2D-playback v2 preferences. Binder-safe (every property a settable scalar with a non-null default).
-///     EVERY property here is flattened by <c>SettingsService.WriteInMemory</c> — a property added without
+///     EVERY property here is flattened by <c>SettingsService.WriteInMemory</c>; a property added without
 ///     a matching flatten row is silently discarded on the WASM head, which is what
 ///     <c>SettingsWasmRoundTripTests</c> exists to prevent.
 /// </summary>
@@ -440,7 +440,7 @@ public sealed class Playback2DSettings
     /// <summary>Default ink opacity, 0..1.</summary>
     public double AnnotationOpacity { get; set; } = 1;
 
-    /// <summary>Last active tool — "PanZoom" | "Draw" | "Erase". String, not an enum, so an unknown
+    /// <summary>Last active tool: "PanZoom" | "Draw" | "Erase". String, not an enum, so an unknown
     /// value from a newer build binds harmlessly instead of throwing.</summary>
     public string LastTool { get; set; } = "PanZoom";
 
@@ -450,12 +450,12 @@ public sealed class Playback2DSettings
     /// <summary>Default TimeEnvelope fade-out, in DV frame-clock ticks.</summary>
     public int AnnotationFadeOutTicks { get; set; } = 16;
 
-    /// <summary>Default visibility for a NEW element — "Always" | "Fade" | "Custom" (B2's
+    /// <summary>Default visibility for a NEW element: "Always" | "Fade" | "Custom" (B2's
     /// EnvelopeMode names; correction 4b).</summary>
     public string AnnotationDefaultVisibility { get; set; } = "Always";
 
     // ── Annotations (B2), completing the list (correction 4a) ──
-    /// <summary>Last active tool — "PanZoom" | "Draw" | "Erase". String so an unknown value from a
+    /// <summary>Last active tool: "PanZoom" | "Draw" | "Erase". String so an unknown value from a
     /// newer build binds harmlessly.</summary>
     public string LastTool { get; set; } = "PanZoom";
     /// <summary>Hold duration for a "pin to now" element, in DV frame-clock ticks (5 s at 64 tick).</summary>
@@ -468,7 +468,7 @@ public sealed class Playback2DSettings
     public string[] AnnotationRecentColors { get; set; } = [];
 
     // ── Levels (B3) ──
-    /// <summary>Level layout — "Stacked" (today's bands) | "Single".</summary>
+    /// <summary>Level layout: "Stacked" (today's bands) | "Single".</summary>
     public string LevelDisplayMode { get; set; } = "Stacked";
 
     /// <summary>Auto-switch the visible level to the followed player's. Also needs playback2d.levels.auto.</summary>
@@ -480,7 +480,7 @@ public sealed class Playback2DSettings
     public bool TimelineShowAnnotations { get; set; } = true;
 
     // ── Export (B4) ── mirrors HighlightsSettings' reel knobs
-    /// <summary>Container / codec preset id — "webm" | "mp4" | "gif".</summary>
+    /// <summary>Container / codec preset id: "webm" | "mp4" | "gif".</summary>
     public string ExportFormatId { get; set; } = "webm";
 
     public int ExportFps { get; set; } = 30;
@@ -498,7 +498,7 @@ public sealed class Playback2DSettings
     /// <summary>"auto" | "cpu" | "gpu". Mirrors dv2d --cpu/--gpu/--backend (design §5.8).</summary>
     public string RenderBackend { get; set; } = "auto";
 
-    // ── Migration (B1; DELETED next release — see docs/playback2d-v2/old-control-removal.md) ──
+    // ── Migration (B1; DELETED next release; see docs/playback2d-v2/old-control-removal.md) ──
     /// <summary>Mounts the pre-v2 Playback2DViewport instead of Scene2DHost. Temporary escape hatch.</summary>
     public bool LegacyViewport { get; set; }
 }
@@ -648,7 +648,7 @@ dotnet run --project src/App/DemoViewer.NET.App.Tests -c Release -- \
 dotnet run --project src/App/DemoViewer.NET.App.Tests -c Release -- --treenode-filter \
  "/*/*/(Playback2DFeatureCatalogTests|Playback2DFeatureWiringTests|ShellModuleFeatureGateTests|SettingsWasmRoundTripTests|Playback2DKeymapConflictTests|Playback2DLegacyToggleTests|Playback2DContractVersionTests)/*"
 
-# The whole App suite (batched — a single process OOMs; see the script header):
+# The whole App suite (batched; a single process OOMs; see the script header):
 scripts/test-app-suite.sh -c Release
 
 # The Core direct-execution budget test (fast, no Avalonia):
@@ -708,7 +708,7 @@ WASM verification pass is worthless if nothing ever compiles that head, so:
         with:
           dotnet-version: '10.0.x'
       # The Playback2D direct-execution suites are fast and NOT OOM-prone (no Avalonia
-      # platform, no ParsedDemo cache) — unlike the App UI suite, which still needs
+      # platform, no ParsedDemo cache), unlike the App UI suite, which still needs
       # scripts/test-app-suite.sh and stays out of CI.
       - name: Core + Pipeline tests
         run: |

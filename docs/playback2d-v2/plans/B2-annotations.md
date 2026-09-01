@@ -417,7 +417,7 @@ Binding for other phases. `SKPoint`/`SKRect`/`SKCanvas` are SkiaSharp; `LevelPan
 ```csharp
 public enum AnnotationKind { Freehand, Line, Arrow, Rect, Ellipse, Text }
 
-/// <summary>Envelope authoring mode — drives what the UI writes into <see cref="TimeEnvelope"/>.</summary>
+/// <summary>Envelope authoring mode. Drives what the UI writes into <see cref="TimeEnvelope"/>.</summary>
 public enum EnvelopeMode { Always, Fade, Custom }
 
 /// <summary>One raw input sample in WORLD units. Pressure is 0..1; 0.5 when the device reports none.</summary>
@@ -480,7 +480,7 @@ public sealed class AnnotationDocument
     /// <summary>D6: rewrites World(ZMin) anchors in live elements AND history. No undo entry.</summary>
     public void RemapWorldLevels(IReadOnlyDictionary<double, double> zMinMap);
 
-    /// <summary>Correction 9 (B3 consumes it): applies a delta as a MIGRATION — bumps Version and
+    /// <summary>Correction 9 (B3 consumes it): applies a delta as a MIGRATION: bumps Version and
     /// raises Changed, but pushes nothing onto the undo/redo stacks. For level-set rebases and
     /// schema migrations, where the user did not act and Ctrl+Z must not restore a stale state.</summary>
     public void ApplyMigration(DocDelta delta);
@@ -665,7 +665,7 @@ public sealed class AnnotationTrack : ITimelineTrack, IDisposable
 /// <summary>Which demo a sidecar belongs to. Sha256 is lowercase hex of the .dem bytes.</summary>
 public sealed record DemoIdentity(string Sha256, string FileName, long SizeBytes);
 
-/// <summary>Which parse the tick anchors were authored against — the DV frame clock, never CS2 ticks.</summary>
+/// <summary>Which parse the tick anchors were authored against: the DV frame clock, never CS2 ticks.</summary>
 public sealed record ClockIdentity(string Kind, int TickRate, int FrameCount, int FirstTick, int LastTick)
 {
     public const string DvFrameClock = "dv-frame-clock";
@@ -706,13 +706,13 @@ public sealed class AnnotationStore
 ```csharp
 namespace DemoViewer.NET.Configuration;
 
-/// <summary>2D playback preferences — ONE section for the whole module. B2 ADDS the properties
+/// <summary>2D playback preferences: ONE section for the whole module. B2 ADDS the properties
 /// below to the existing class (B5 owns its full shape); it declares the class only if it is the
 /// first lander. Binder-safe: parameterless ctor, every property defaulted. Every property must
 /// have a SettingsService.WriteInMemory row.</summary>
 public sealed class Playback2DSettings
 {
-    // ── Annotations (B2) — names per correction 8 ──
+    // ── Annotations (B2): names per correction 8 ──
     public string LastTool { get; set; } = "PanZoom";              // ToolKind name
     public uint AnnotationColorArgb { get; set; } = 0xFFFFC107;    // packed ARGB, not a string
     public double AnnotationWidth { get; set; } = 8;               // world units
@@ -827,7 +827,7 @@ point **count** exactly; a differing count means a structurally wrong port, neve
 ### Commands
 
 ```bash
-# Direct-execution suites — fast, no Avalonia, safe in CI
+# Direct-execution suites: fast, no Avalonia, safe in CI
 dotnet test src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
 dotnet test src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
 
@@ -835,7 +835,7 @@ dotnet test src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
 dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release -- \
   --treenode-filter "/*/*/FreehandOutlineTests/*"
 
-# App suite — OOM-prone single process; use the batch runner (see scripts/test-app-suite.sh:1-12)
+# App suite: OOM-prone single process; use the batch runner (see scripts/test-app-suite.sh:1-12)
 scripts/test-app-suite.sh -c Release -n 3
 
 # Visual check of one golden without launching the app (needs C1)

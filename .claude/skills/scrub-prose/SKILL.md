@@ -79,6 +79,9 @@ Three things are not prose and keep their character:
   documents `—` as a character.
 - A lone `—` in a table cell meaning "not applicable". Replace with `n/a` only if the column reads
   better for it.
+- **The em-dash as a value.** `"—"` is this app's placeholder for "no value": `GameInfo.BombState`,
+  `FollowablePlayer`, `DemoLibraryModels`. Where a doc lists it among a field's legal values
+  (`"Warmup" | "Freeze" | "Live" | "—"`), it is data, not punctuation.
 - **A doc quoting a user-facing string.** Product strings are neither comments nor documents and are
   out of scope, so `AnnotationSessionController` still returns `"session only — this browser tab
   forgets annotations when it reloads"`, and `wasm-matrix.md` quotes it verbatim. Editing the quote

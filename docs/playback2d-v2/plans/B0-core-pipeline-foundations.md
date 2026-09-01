@@ -473,7 +473,7 @@ All types are `public` unless marked. All XML docs omitted here for brevity; wri
 public readonly record struct SceneTime(
     int Tick, int FrameIndex, double DemoSeconds,   // DemoSeconds = ServerTick / tickRate − clockBase
     double DeltaSeconds,                            // injected: real dt interactive, 1/fps on export
-    bool IsDiscontinuity);                          // seek/jump — layers reset smoothing/trails
+    bool IsDiscontinuity);                          // seek/jump: layers reset smoothing/trails
 
 public enum RenderPurpose { Interactive, Export, Thumbnail }
 ```
@@ -481,8 +481,8 @@ public enum RenderPurpose { Interactive, Export, Thumbnail }
 #### Moved value types (verbatim from `Modules.Playback2D`)
 
 ```csharp
-public readonly struct ViewportTransform            // members unchanged — see T2
-public struct SliceCamera                           // members unchanged — see T2
+public readonly struct ViewportTransform            // members unchanged; see T2
+public struct SliceCamera                           // members unchanged; see T2
 public enum RingState { Team, Shooting, TakingDamage, Blinded, Dead }
 // SteamId is the ONE non-verbatim addition (correction 4): design §5.4 anchors annotations by
 // SteamId because slots recycle, and B4's CameraScript.FollowPlayer(steamId) needs the same join.
@@ -586,7 +586,7 @@ public sealed class SceneVision
     public static readonly SceneVision Off;
 }
 
-/// Valid until the next Build() on the producing SceneFrameBuilder — see decision D6.
+/// Valid until the next Build() on the producing SceneFrameBuilder; see decision D6.
 public sealed class Scene2DFrame
 {
     public SceneTime Time { get; init; }
@@ -731,7 +731,7 @@ public sealed class CpuSurfaceProvider : IRenderSurfaceProvider
 public sealed class SceneRenderer
 {
     public SceneRenderer(IRenderSurfaceProvider surfaces);
-    /// Single-pane render — B1 adds a pane-list overload rather than changing this (decision D9).
+    /// Single-pane render. B1 adds a pane-list overload rather than changing this (decision D9).
     public SKImage Render(SceneCompositor compositor, Scene2DFrame frame, in SceneTime time,
         in SceneRenderContext ctx, SKSizeI size);
     public static void WritePng(SKImage image, Stream destination);
@@ -765,7 +765,7 @@ public sealed class SceneFrameBuilder
     public SceneFrameBuilder(int ringDecayFrames = 8);
     /// Returns a frame valid until the next Build on this instance (decision D6).
     public Scene2DFrame Build(in SceneFrameInput input);
-    /// Clears trails, ring history and last-known positions — call on demo reset / backward seek.
+    /// Clears trails, ring history and last-known positions; call on demo reset / backward seek.
     public void Reset();
     /// Running observed world extent (Map-mode fallback). Only ever widened; cleared by Reset.
     public WorldBounds ObservedBounds { get; }
@@ -775,11 +775,11 @@ public sealed record SceneFixture
 {
     public string SchemaVersion { get; init; }     // "playback2d-scene/1"
     public required Scene2DFrame Frame { get; init; }
-    public SceneTime Time { get; init; }           // correction 7 — C1 renders at a stated time
+    public SceneTime Time { get; init; }           // correction 7: C1 renders at a stated time
     public ViewportTransform Camera { get; init; }
-    public SKSizeI Size { get; init; }             // correction 7 — default render/golden size
-    public string? MapName { get; init; }          // correction 7 — MapAssetPipeline lookup key
-    public string? MapVersion { get; init; }       // correction 7 — bundle.json mapVersion CRC
+    public SKSizeI Size { get; init; }             // correction 7: default render/golden size
+    public string? MapName { get; init; }          // correction 7: MapAssetPipeline lookup key
+    public string? MapVersion { get; init; }       // correction 7: bundle.json mapVersion CRC
     public JsonElement? Annotations { get; init; } // null until B2 (decision D7)
     public string? SourceDemoId { get; init; }
     public string? Notes { get; init; }
@@ -801,7 +801,7 @@ public static class SceneFixtureSerializer
 
 ```csharp
 // src/App/DemoViewer.NET/Modules/Playback2D/Playback2DTabViewModel.cs
-public Scene2DFrame CurrentFrame { get; }   // NEW — B1's Scene2DHost + B0's golden capture read it
+public Scene2DFrame CurrentFrame { get; }   // NEW: B1's Scene2DHost + B0's golden capture read it
 ```
 Everything else on the VM keeps its current shape (`Markers`, `AreaEffects`, `GrenadeTrails`, `Bomb`,
 `GameInfo`, `SectionHeights`, `MapBounds`, `AuthoritativeFloors`, `MapAsset`, `VisionEngine`,
@@ -900,10 +900,10 @@ than copying.
 
 **Run:**
 ```bash
-# fast, no demo, no Avalonia — this is the CI gate
+# fast, no demo, no Avalonia: this is the CI gate
 dotnet test src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
 
-# the App suite must be batched — it is single-process and OOM-prone
+# the App suite must be batched: it is single-process and OOM-prone
 ./scripts/test-app-suite.sh
 
 # just the 2D playback + golden members
@@ -921,14 +921,14 @@ PB2D_GOLDEN_UPDATE=1 dotnet run --project src/App/DemoViewer.NET.App.Tests -c Re
 ### `Directory.Packages.props` additions
 
 ```xml
-<!-- SkiaSharp — the Playback2D v2 render core (docs/playback2d-v2/design.md §3).
+<!-- SkiaSharp: the Playback2D v2 render core (docs/playback2d-v2/design.md §3).
      PINNED to the version Avalonia.Skia 11.3.12 resolves. In B1 the on-screen path takes
      Avalonia's ISkiaSharpApiLeaseFeature, which hands back Avalonia's OWN SKCanvas: a different
      SkiaSharp major would make that a different type identity and break the lease outright.
      Bump ONLY in lockstep with the Avalonia version above. -->
 <PackageVersion Include="SkiaSharp" Version="2.88.9"/>
 <!-- Native Skia for Linux test/CI runners. Correction 9: use the FULL package, not
-     …NoDependencies — B1 draws SKTextBlob text and C1's golden corpus contains text layers, and
+     …NoDependencies: B1 draws SKTextBlob text and C1's golden corpus contains text layers, and
      swapping the native later silently re-baselines every golden. The CI job installs its one
      system dependency: `sudo apt-get install -y libfontconfig1`. -->
 <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="2.88.9"/>
@@ -946,7 +946,7 @@ rather than surfacing at runtime.
 <Project Sdk="Microsoft.NET.Sdk">
     <!--
       The renderer-agnostic scene core (docs/playback2d-v2/design.md §4). References SkiaSharp and
-      NOTHING else — no Avalonia, no parser, no Modules.Abstractions. That constraint is the whole
+      NOTHING else: no Avalonia, no parser, no Modules.Abstractions. That constraint is the whole
       value of this assembly (it is what lets export, the CLI and CI render without a window) and it
       is enforced by ArchitectureTests, not by convention.
     -->
@@ -973,7 +973,7 @@ rather than surfacing at runtime.
     <!--
       Demo-domain adaptation for the scene core: frame building, map-asset decode, fixtures, and
       (from B4) the private tracker replay and encoder sinks. References Core + the CS2DemoKit parser
-      packages + the (now Avalonia-free) module abstractions. Still NO Avalonia — enforced by test.
+      packages + the (now Avalonia-free) module abstractions. Still NO Avalonia, enforced by test.
     -->
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
@@ -1034,8 +1034,8 @@ awkward in practice, reference the package unconditionally; it is a no-op on Win
     <!--
       The Avalonia-shaped half of the module contract: WorkspaceTabDescriptor (Func<Control>
       ViewFactory / Control? ActiveContent) and IWorkspaceModule, which returns descriptors. Split out
-      of DemoViewer.NET.Modules.Abstractions in B0 so that project — which owns IPlaybackSnapshot /
-      IPlayerState / IReadOnlyEntityView — can be referenced by the Avalonia-free Playback2D.Pipeline.
+      of DemoViewer.NET.Modules.Abstractions in B0 so that project, which owns IPlaybackSnapshot /
+      IPlayerState / IReadOnlyEntityView, can be referenced by the Avalonia-free Playback2D.Pipeline.
       The namespace is deliberately UNCHANGED (DemoViewer.NET.Modules.Abstractions) so no call site
       needed a using change.
     -->
