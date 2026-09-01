@@ -2323,5 +2323,3 @@ compiles, only the pre-existing NativeFileReference warning); target-view App.Te
 Gate results (P1.3): App + Browser(WASM) + App.Tests all build clean; render-adjacent tests green:
 NavStripTests 3/3, HarnessSmokeTest 1/1, StatsTabTests 5/5, PlayerDetailsTests 9/9, StatsVisibilityTests
 4/4, UnknownMessageCardTests 3/3.
-</content>
-</invoke>
