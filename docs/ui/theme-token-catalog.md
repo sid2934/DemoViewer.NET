@@ -1,9 +1,9 @@
-# Theme Token Catalogue — Authoring Reference
+# Theme Token Catalogue: Authoring Reference
 
 The contract for authoring a theme in the central theme system (see `the design notes in git history`).
 A theme is **pure data**: a base palette it inherits plus a set of token overrides. Every colour the app
-draws — markup panels via `{DynamicResource}`, the code-drawn 2D Skia canvas, the analysis graph, and the
-syntax highlighter — resolves from the **one token namespace** below, so a new theme needs **zero per-file
+draws (markup panels via `{DynamicResource}`, the code-drawn 2D Skia canvas, the analysis graph, and the
+syntax highlighter) resolves from the **one token namespace** below, so a new theme needs **zero per-file
 changes**: override the tokens you care about, and everything else (including every FluentTheme base-control
 colour) inherits your chosen base.
 
@@ -11,9 +11,9 @@ colour) inherits your chosen base.
 
 ```jsonc
 {
-  "id": "egirl",                    // stable id — persisted in settings.json, used as the variant key
+  "id": "egirl",                    // stable id: persisted in settings.json, used as the variant key
   "name": "E-Girl (Pink / Black)",  // display name shown in the Settings theme picker
-  "base": "dark",                   // "light" | "dark" — Fluent + any omitted token inherits this
+  "base": "dark",                   // "light" | "dark". Fluent + any omitted token inherits this
   "tokens": {
     "ShellBg":     "#0A0008",       // any subset of the token namespace below
     "AccentAmber": "#FF4FD8",       // ARGB or RGB hex: "#RRGGBB" or "#AARRGGBB"
@@ -23,7 +23,7 @@ colour) inherits your chosen base.
 }
 ```
 
-- **Safe**: parsed to `Color`/`SolidColorBrush` in code — no object instantiation, no code execution. Unlike
+- **Safe**: parsed to `Color`/`SolidColorBrush` in code: no object instantiation, no code execution. Unlike
   runtime AXAML, an untrusted drop-in can never run code.
 - **Degrades gracefully**: an unparseable file is skipped; a single malformed token hex is dropped while the
   rest of the file loads; a missing `base` defaults to `dark`; a missing `name` defaults to the `id`.
@@ -32,7 +32,7 @@ colour) inherits your chosen base.
 
 ## Adding a theme
 
-**User drop-in** — drop a `<id>.json` into the themes folder and click **Reload themes** in Settings (no
+**User drop-in.** Drop a `<id>.json` into the themes folder and click **Reload themes** in Settings (no
 restart):
 
 - macOS: `~/Library/Application Support/DemoViewer.NET/themes/`
@@ -42,14 +42,14 @@ restart):
 Then set `"Theme": "<id>"` in `settings.json` (or pick it in Settings). A user id that collides with a
 built-in id is ignored (the built-in is protected).
 
-**Built-in** — add a `NN-<id>.json` under `src/App/DemoViewer.NET/Themes/` (it is an `EmbeddedResource`); the
+**Built-in.** Add a `NN-<id>.json` under `src/App/DemoViewer.NET/Themes/` (it is an `EmbeddedResource`); the
 `ThemeRegistry` loads it at startup via the same parser. The `NN-` numeric prefix orders it in the picker
 (built-ins load sorted by filename); the `id`/`name` come from the JSON, not the filename.
 `01-high-contrast.json` and `02-egirl.json` are worked examples.
 
 ## What a theme can and cannot retint
 
-- **Can**: every token below — all app surfaces, the text ramp, borders, accents, and the code-drawn 2D
+- **Can**: every token below: all app surfaces, the text ramp, borders, accents, and the code-drawn 2D
   canvas / analysis graph / syntax highlighter.
 - **Cannot** (inherits the base Light/Dark): FluentTheme's own base-control brushes (e.g. `ListBoxItem`
   selection, `ScrollBar`, default `SystemAccentColor`). A custom theme's controls therefore look like its
@@ -74,7 +74,7 @@ Dark is the canonical base; the Dark/Light reference values below are what an om
 impact families for a new theme: **surfaces** (Shell/Panel/Card/Frame/Hex/Primary), the **Text ramp**,
 **Borders**, **Accents**, and the code surfaces **Syntax**, **Graph**, **Pb2d canvas**.
 
-### Shell — `Shell*` (1)
+### Shell: `Shell*` (1)
 
 App window / root background.
 
@@ -82,7 +82,7 @@ App window / root background.
 |---|---|---|
 | `ShellBg` | `#080816` | `#E7E8F2` |
 
-### Debugger — `Debugger*` (1)
+### Debugger: `Debugger*` (1)
 
 Parser debugger surface background.
 
@@ -90,7 +90,7 @@ Parser debugger surface background.
 |---|---|---|
 | `DebuggerBg` | `#0A0A18` | `#E3E4EF` |
 
-### Frame list — `Frame*` (4)
+### Frame list: `Frame*` (4)
 
 Parser frame-list row states + message badge.
 
@@ -101,7 +101,7 @@ Parser frame-list row states + message badge.
 | `FrameRowHoverBg` | `#12122A` | `#E6E7F3` |
 | `FrameMsgBadgeBg` | `#16162E` | `#E3E4F2` |
 
-### Panels — `Panel*` (4)
+### Panels: `Panel*` (4)
 
 Panel bodies + panel-header bars (+ hover states).
 
@@ -112,9 +112,9 @@ Panel bodies + panel-header bars (+ hover states).
 | `PanelHeaderHover` | `#0E0E24` | `#E1E2EE` |
 | `PanelHeaderHoverDeep` | `#14142E` | `#DADCEA` |
 
-### Hex view — `Hex*` (7)
+### Hex view: `Hex*` (7)
 
-RAW hex view banner/rows + the depth swatches (swatches are theme-independent — all four `HexSwatch*` tokens are held identical Dark/Light on purpose).
+RAW hex view banner/rows + the depth swatches (swatches are theme-independent: all four `HexSwatch*` tokens are held identical Dark/Light on purpose).
 
 | Token | Dark | Light |
 |---|---|---|
@@ -126,7 +126,7 @@ RAW hex view banner/rows + the depth swatches (swatches are theme-independent �
 | `HexSwatchAncestor` | `#55C07C28` | `#55C07C28` |
 | `HexSwatchAncestorDeep` | `#33907890` | `#33907890` |
 
-### Header actions — `Hdr*` (1)
+### Header actions: `Hdr*` (1)
 
 Header action button hover.
 
@@ -134,7 +134,7 @@ Header action button hover.
 |---|---|---|
 | `HdrActionHoverBg` | `#16163A` | `#D2D4E6` |
 
-### Cards — `Card*` (1)
+### Cards: `Card*` (1)
 
 Message-card body background.
 
@@ -142,7 +142,7 @@ Message-card body background.
 |---|---|---|
 | `CardBg` | `#171726` | `#FCFCFE` |
 
-### Primary button — `Primary*` (3)
+### Primary button: `Primary*` (3)
 
 Primary button fill/border/hover.
 
@@ -152,7 +152,7 @@ Primary button fill/border/hover.
 | `PrimaryButtonBorder` | `#2A2A54` | `#B0B2DE` |
 | `PrimaryButtonHover` | `#252548` | `#D0D0EE` |
 
-### Parse chain — `Chain*` (1)
+### Parse chain: `Chain*` (1)
 
 Parse-chain summary badge.
 
@@ -160,7 +160,7 @@ Parse-chain summary badge.
 |---|---|---|
 | `ChainSummaryBadgeBg` | `#1A1A3A` | `#DEDFF2` |
 
-### Borders — `Border*` (4)
+### Borders: `Border*` (4)
 
 The border ramp (subtle -> strong -> accent) + translucent hairline.
 
@@ -171,7 +171,7 @@ The border ramp (subtle -> strong -> accent) + translucent hairline.
 | `BorderAccent` | `#252545` | `#C9CADD` |
 | `BorderTranslucent` | `#33FFFFFF` | `#2A141430` |
 
-### Text ramp — `Text*` (25)
+### Text ramp: `Text*` (25)
 
 The full text value ramp, dim -> bright, plus role-specific text tokens. TextOnAccent = text drawn on an accent fill.
 
@@ -203,7 +203,7 @@ The full text value ramp, dim -> bright, plus role-specific text tokens. TextOnA
 | `TextCardHeader` | `#D0CCF8` | `#28284E` |
 | `TextOnAccent` | `#12121E` | `#12121E` |
 
-### Accents — `Accent*` (8)
+### Accents: `Accent*` (8)
 
 Interactive / highlight / amber / error / caution / info accents. `AccentInfo` is the log-severity Info accent (Diagnostics log).
 
@@ -218,12 +218,12 @@ Interactive / highlight / amber / error / caution / info accents. `AccentInfo` i
 | `AccentCaution` | `#E0A030` | `#9A6A0F` |
 | `AccentInfo` | `#26A69A` | `#00796B` |
 
-### Classifier accents — `Classifier*` (16)
+### Classifier accents: `Classifier*` (16)
 
 Accent-classifier roles promoted from code-held VM brushes (v0.6.0 code-color promotion). Two sub-families: 8 opaque bases and 8 `*Dim` variants.
 
 > **The `*Dim` family carries `0xC0` alpha as part of its token identity.** Alpha is not a fade a
-> consumer applies at draw time — `ClassifierRed` (`#F44336`) and `ClassifierRedDim` (`#C0F44336`)
+> consumer applies at draw time. `ClassifierRed` (`#F44336`) and `ClassifierRedDim` (`#C0F44336`)
 > are distinct tokens (see "Alpha is part of colour identity" above). A theme overriding a `*Dim`
 > token should supply its own 8-digit `#AARRGGBB` value; an opaque override changes the rendered
 > weight, not just the hue.
@@ -247,7 +247,7 @@ Accent-classifier roles promoted from code-held VM brushes (v0.6.0 code-color pr
 | `ClassifierSlateDim` | `#C0607080` | `#C0455A64` |
 | `ClassifierSlateBlueDim` | `#C06060A0` | `#C04A4A9E` |
 
-### Breakpoint — `Breakpoint*` (1)
+### Breakpoint: `Breakpoint*` (1)
 
 RuleWorkbench breakpoint gutter: the disabled-breakpoint dot fill.
 
@@ -255,12 +255,12 @@ RuleWorkbench breakpoint gutter: the disabled-breakpoint dot fill.
 |---|---|---|
 | `BreakpointDotDisabled` | `#303056` | `#9FA0C0` |
 
-### Map accents — `Map*` (2)
+### Map accents: `Map*` (2)
 
 Tuning tokens for the map-name-hash accent generator. `MapAccentNeutral` is the neutral/fallback map accent.
 
 > **`MapAccentRef` is HUE-IGNORED.** Consumers decode ONLY its saturation and value (S/V) to tune
-> the map-name-hash accent generator — the hue always comes from the map-name hash. Editing this
+> the map-name-hash accent generator: the hue always comes from the map-name hash. Editing this
 > token's hue does nothing; to change how vivid/bright generated map accents are, change its S/V.
 
 | Token | Dark | Light |
@@ -268,7 +268,7 @@ Tuning tokens for the map-name-hash accent generator. `MapAccentNeutral` is the 
 | `MapAccentNeutral` | `#404068` | `#B0B0C8` |
 | `MapAccentRef` | `#B85353` | `#853535` |
 
-### Stat — `Stat*` (1)
+### Stat: `Stat*` (1)
 
 Positive-delta stat colour.
 
@@ -276,7 +276,7 @@ Positive-delta stat colour.
 |---|---|---|
 | `StatPositive` | `#4CAF50` | `#2E7D32` |
 
-### Delta — `Delta*` (1)
+### Delta: `Delta*` (1)
 
 Delta-row highlight tint.
 
@@ -284,9 +284,9 @@ Delta-row highlight tint.
 |---|---|---|
 | `DeltaRowBg` | `#25FFC107` | `#25FFC107` |
 
-### Library cards — `Library*` (8)
+### Library cards: `Library*` (8)
 
-Library card overlay text/badges (painted over baked-dark thumbnails — usually left inheriting).
+Library card overlay text/badges (painted over baked-dark thumbnails, usually left inheriting).
 
 | Token | Dark | Light |
 |---|---|---|
@@ -299,7 +299,7 @@ Library card overlay text/badges (painted over baked-dark thumbnails — usually
 | `LibraryCardScoreCt` | `#5BA9F4` | `#5BA9F4` |
 | `LibraryCardScoreT` | `#F0B23C` | `#F0B23C` |
 
-### 2D Playback — `Pb2d*` (58)
+### 2D Playback: `Pb2d*` (58)
 
 The 2D playback HUD + the code-drawn Skia canvas (grid, sightlines, rings, trails, smoke/fire, markers). CanvasBg/grid/label/team + panel/text are the high-impact ones.
 
@@ -364,7 +364,7 @@ The 2D playback HUD + the code-drawn Skia canvas (grid, sightlines, rings, trail
 | `Pb2dCanvasMarkerRingCt` | `#357ABD` | `#285F9E` |
 | `Pb2dCanvasMarkerRingNeutral` | `#666666` | `#8A8F96` |
 
-### Message headers — `Msg*` (9)
+### Message headers: `Msg*` (9)
 
 Per-wire-family message-card header tints (net/svc/dem/cs/...).
 
@@ -380,7 +380,7 @@ Per-wire-family message-card header tints (net/svc/dem/cs/...).
 | `MsgHeaderUnknown` | `#2D1414` | `#F7E7E7` |
 | `MsgHeaderSelected` | `#24243E` | `#D4D6EF` |
 
-### Wire types — `Wt*` (14)
+### Wire types: `Wt*` (14)
 
 Wire-type chip bg/fg pairs (varint/fixed/bytes/string/bool/message/default).
 
@@ -401,7 +401,7 @@ Wire-type chip bg/fg pairs (varint/fixed/bytes/string/bool/message/default).
 | `WtDefaultBg` | `#1A1A1A` | `#E8E8EC` |
 | `WtDefaultFg` | `#707070` | `#565656` |
 
-### Property row — `Prop*` (1)
+### Property row: `Prop*` (1)
 
 Selected property-row background.
 
@@ -409,7 +409,7 @@ Selected property-row background.
 |---|---|---|
 | `PropRowSelectedBg` | `#28285A` | `#D0D2EC` |
 
-### Syntax highlighting — `Syntax*` (13)
+### Syntax highlighting: `Syntax*` (13)
 
 RuleWorkbench editor role colours (comment/section/kind/modifier/literal/event/facet/path/identifier/string/number/operator) plus `SyntaxPlain`, the 9th completion-badge role.
 
@@ -429,7 +429,7 @@ RuleWorkbench editor role colours (comment/section/kind/modifier/literal/event/f
 | `SyntaxOperator` | `#D4D4D4` | `#3B3B3B` |
 | `SyntaxPlain` | `#9A9A9A` | `#6A6A6A` |
 
-### Analysis graph — `Graph*` (30)
+### Analysis graph: `Graph*` (30)
 
 MSAGL analysis-graph canvas/nodes/edges/tables (active vs inactive vs root; edge kinds; per-player node border).
 
