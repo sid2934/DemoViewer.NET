@@ -12,6 +12,28 @@ mostly fine. Fix the shape.
 Every rule below was derived by measuring one large agent-written range against the pre-existing
 tree (`b658240`, 171k lines, 20 % comment). Rates are per 1,000 comment lines.
 
+This file governs inside this repo. Where it disagrees with `~/.claude/skills/repo-scrub/references/human-voice.md`,
+this file wins here and that one wins everywhere else. They currently disagree about the em-dash, on
+purpose; see §3.
+
+---
+
+## Rule zero
+
+**Every list below is a place to look, never a thing to run.** No rule here authorises `sed`, `perl
+-pi`, or any scripted find-and-replace. A replacement is decided by a reader with the surrounding
+sentence in view, one at a time.
+
+The words on these lists are ordinary English and ordinary code. A blind pass renames identifiers,
+corrupts string literals that tests assert on, breaks JSON keys and rewrites CLI help text. This
+repo has already proved it: `"—"` is the live placeholder `GameInfo`, `FollowablePlayer` and
+`DemoLibraryModels` return for "no value", and a global replace would have changed what the app
+displays and broken the test pinning it.
+
+Second half: **prose files get prose treatment, code files get comment treatment.** Nothing here
+authorises an edit to an expression, identifier, literal, attribute or import. A comment token is
+the only thing this skill may touch in a source file.
+
 ---
 
 ## 1. Leave these alone: they are the house voice
@@ -176,7 +198,75 @@ Subject lines and ALL-CAPS section headers are house style. Leave them.
 
 ---
 
-## 9. Method
+## 9. Rhythm
+
+The largest single lever, and the one this file missed for its first three revisions. Everything
+above targets what a block *says*; this targets how it *moves*.
+
+17. **Uniform sentence length.** Agent prose runs 15–25 words a sentence and almost never leaves that
+    band. Human technical writing swings from 4 words to 40. Measure a block: if every sentence lands
+    within ten words of the last, the block reads generated no matter how good the content is. Fix by
+    splitting one long sentence and letting the next run on. A four-word sentence carries weight
+    precisely because it is short.
+18. **Even attention.** Real comments are lopsided. The thing that fought back gets three sentences;
+    the thing that worked gets a clause. If every member in a file carries a similarly-sized block,
+    the file is describing itself rather than warning anyone.
+19. **Stacked hedging.** "may potentially", "could possibly", "it is generally the case that". State
+    it, or state what would settle it. `<remarks>` is for a real caveat, not for softening a claim
+    nobody disputed.
+
+---
+
+## 10. Structure
+
+Shape-level tells that survive every word-level pass. Three of these are invisible after §3 runs,
+because §3 changes their punctuation and leaves their shape intact.
+
+20. **Manufactured antithesis.** `It is not X, it is Y` and `not merely X but Y`. Rule 5 already cuts
+    "not merely"; this is the wider construction, and stripping the em-dash out of
+    `not X — it is Y` produces `not X, it is Y`, which is the same tell wearing a comma. Say what it
+    is. The contrast is almost never load-bearing.
+21. **The rule of three.** Three parallel clauses, three bullets, three examples, over and over. Real
+    content rarely divides into threes that neatly. Where a third item exists only to complete the
+    cadence, cut it; where a fourth was dropped to preserve it, put it back.
+22. **Uniform bullet runs.** A long list of `- **Term** — explanation`, every entry the same shape.
+    §3 turns these into `- **Term**: explanation`, which does not help: the uniformity was the tell,
+    not the dash. Convert some to prose, let some be three words and others two sentences, and drop
+    the bold lead where it is decorating rather than naming.
+23. **Two-column tables of term and description.** A table earns its place at three or more columns
+    of genuinely tabular data. Two columns of noun-and-sentence is prose that has been formatted.
+24. **Status glyphs as a system.** ✅ / ❌ / ⚠️ / 🚧 in tables and checklists. Replace with words, or
+    with nothing. A genuine checklist uses `- [x]`.
+25. **Typographic drift.** Curly quotes and the `…` character in a repo that is otherwise ASCII, and
+    Title Case On Headings where the rest of the file uses sentence case. Match the file, not the
+    convention you would pick.
+
+---
+
+## 11. Before you commit
+
+26. **Did the rewrite change what the text asserts?** Ask it literally, of every hunk: was a fact,
+    number, date, path, identifier, version, citation or claim added or lost? A scrub that improves
+    the reading and alters the meaning has failed, and it fails silently. This is the one check worth
+    doing twice.
+27. **Grep a heading before renaming it.** Markdown anchors derive from the heading text, and
+    punctuation is dropped rather than replaced, so swapping one mark for another moves the anchor.
+    `#### Encoder ladder — \`--encoder\` / \`--quality\`` in `dv2d.md` answers to
+    `#encoder-ladder---encoder---quality`: the em-dash contributes nothing but the space beside it
+    contributes a hyphen, so replacing it with a colon silently drops one and breaks the link on
+    line 252 of that same file. Resolve every `](#fragment)` against its target before and after.
+
+    Where a heading is a link target and likely to be reworded, do what `design-system.md` does and
+    give it an explicit `<a id="…"></a>`. Thirty-one of them, and none can be broken by an edit to
+    the heading text.
+28. **Commit in coherent pieces.** One commit touching every document in the repo is a
+    mechanical-sweep signature, and it outlives every other thing the scrub cleaned up. Batch by area
+    or by file group, say in the message what was deliberately left alone, and let the batches be
+    different sizes.
+
+---
+
+## 12. Method
 
 1. Get the diff range. Measure comment density per file; compare against an untouched neighbour in
    the same directory. **Target the house rate for that area (20–28 %), not zero.**
@@ -185,9 +275,16 @@ Subject lines and ALL-CAPS section headers are house style. Leave them.
    at the top of it are the opposite, so read every one and give the sentence real punctuation.
 4. Then §5 (relocate): moving history to commit messages usually removes the longest blocks.
 5. Then §4 (compress).
-6. Re-measure. Report before/after density per file.
-7. **Build and run the tests.** Doc comments carry `<see cref="…"/>`; a bad edit breaks the build,
-   and this repo treats warnings as errors.
+6. Then §10 (structure). Do it after the cuts, not before: half of what looks like a uniform bullet
+   run turns out to be two runs once the dead clauses are gone.
+7. Then §9 (rhythm), last of the editing passes, because it is the only one that reads the result as
+   a whole rather than hunting a pattern.
+8. Re-measure. Report before/after density per file.
+9. Run §11. The assertion check is not optional and is not the same as reading the diff again.
+10. **Build and run the tests.** Doc comments carry `<see cref="…"/>`; a bad edit breaks the build,
+    and this repo treats warnings as errors.
 
 Do not touch code behaviour in a scrub pass. If a comment is wrong, that is a separate fix; say so
 rather than quietly correcting it.
+
+A pass that changes what a comment claims has failed, however well it now reads.

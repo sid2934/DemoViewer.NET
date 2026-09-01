@@ -180,7 +180,7 @@ scaled** — 0 is 0 everywhere.
 
 Percentiles are nearest-rank on the sorted samples, so a reported p99 is always a real observed frame.
 
-`--perf` adds the per-layer / per-stage breakdown — see [Performance capture](#performance-capture-perf).
+`--perf` adds the per-layer / per-stage breakdown — see [Performance capture](#performance-capture---perf).
 
 ### `dv2d fixture capture | list | verify`
 
@@ -249,7 +249,7 @@ dv2d export --demo match.dem --from t12000 --to t20000 \
 | `--fps` | 60 (20 for gif) | Must be one the format supports — GIF is 10/20/25/50 |
 | `--speed` | `1` | Playback-rate multiplier; fixes the timestep at `speed / fps` |
 | `--size` | `1920x1080` | Even in both axes for `webm`/`mp4` |
-| `--encoder` | `auto` | `auto` · `software` · a ladder rung's ffmpeg name — see [Encoder ladder](#encoder-ladder---encoder---quality) |
+| `--encoder` | `auto` | `auto` · `software` · a ladder rung's ffmpeg name — see [Encoder ladder](#encoder-ladder) |
 | `--quality` | `standard` | `draft` · `standard` · `best` |
 | `--layers` | the scene layers **except vision** | Bare or prefixed ids; the HUD and the ink are opt-in, and vision is opt-in here too so the CLI and the dialog default to the same set |
 | `--hud` | off | Adds `hud.clock`, `hud.killfeed` and `hud.roster`. The clock and the cards are the exported frame's own round, score, countdown and player states; the kill feed draws no rows here — see limitations |
@@ -258,7 +258,7 @@ dv2d export --demo match.dem --from t12000 --to t20000 \
 | `--out` | `dv2d-export.<format>` | Output path |
 | `--no-encode` | off | Render and read back every frame, encode nothing |
 | `--ffmpeg-log` | off | Echo ffmpeg's stderr |
-| `--perf` | off | Per-stage / per-layer breakdown — see [Performance capture](#performance-capture-perf) |
+| `--perf` | off | Per-stage / per-layer breakdown — see [Performance capture](#performance-capture---perf) |
 
 `export` has no `--camera`: it frames the map. Each pane is fitted once, on the first frame that
 carries a world extent, to the map's networked bounds (falling back to the observed extent) — the
@@ -278,6 +278,8 @@ a whole-demo export is composed differently from the rest.
 
 `--no-encode` is the diagnostic that separates "the renderer is slow" from "libvpx is slow", and it
 is what a GPU backend should be compared against — a GPU cannot make an encoder quicker.
+
+<a id="encoder-ladder"></a>
 
 #### Encoder ladder — `--encoder` / `--quality`
 
