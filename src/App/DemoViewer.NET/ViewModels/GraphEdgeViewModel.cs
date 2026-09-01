@@ -32,7 +32,7 @@ public sealed class GraphEdgeViewModel(
     ///     Whether a graph breakpoint is armed on this edge. Satisfies <see cref="IGraphEdge.HasBreakpoint" />
     ///     (overriding its <c>false</c> default); the renderer draws the route-midpoint marker when true.
     ///     Set by <see cref="AnalysisViewModel" /> when breakpoints change, followed by a node-state repaint
-    ///     (which re-renders edges too) — a plain settable suffices since the repaint is push-triggered.
+    ///     (which re-renders edges too), a plain settable suffices since the repaint is push-triggered.
     /// </summary>
     public bool HasBreakpoint { get; set; }
 

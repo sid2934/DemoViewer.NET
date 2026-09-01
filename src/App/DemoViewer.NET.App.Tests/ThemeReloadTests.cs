@@ -15,7 +15,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Proves the theme drop-in machinery: the safe JSON parse, the
-///     <see cref="AppPaths.ThemesDirectory" /> scan, and — the load-bearing bit — that
+///     <see cref="AppPaths.ThemesDirectory" /> scan, and, the load-bearing bit, that
 ///     re-registering a custom variant's tokens + bouncing <c>RequestedThemeVariant</c> re-resolves a LIVE
 ///     <c>{DynamicResource}</c>. That bounce is the repaint mechanism an edit-and-reload relies on (a same-variant
 ///     override edit does not fire <c>ActualThemeVariantChanged</c> on its own).
@@ -109,7 +109,7 @@ public class ThemeReloadTests
     [Test]
     public async Task ReRegister_ThenBounce_ReResolvesLiveResource()
     {
-        // All UI mutations run synchronously on the dispatcher thread (no await between them — an awaited
+        // All UI mutations run synchronously on the dispatcher thread (no await between them: an awaited
         // assertion resumes off-thread and the next UI call would then be "from an invalid thread"); results are
         // captured into locals and asserted after. Dispatcher.RunJobs flushes any queued resource-change delivery.
         Color? initial = null;

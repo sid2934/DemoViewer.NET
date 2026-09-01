@@ -15,16 +15,16 @@ namespace DemoViewer.NET.Services.Idle;
 ///     <para>
 ///         <b>Activity detection is the whole performance story.</b> The view attaches ONE set of tunneling
 ///         input handlers on the window's <c>TopLevel</c> (see <c>MainView</c> code-behind) that call
-///         <see cref="NotifyActivity" /> — tunneling fires from the root before any control handles the
+///         <see cref="NotifyActivity" />, tunneling fires from the root before any control handles the
 ///         event, so it catches EVERY pointer / key / wheel interaction regardless of which control is the
 ///         target (clicking a message card, switching tabs, scrolling the hex view, typing in a filter) with
 ///         no per-control wiring (which would be fragile: every new control becomes a place to forget). The
-///         per-event handler does exactly one thing: stamp <see cref="DateTime.UtcNow" /> into a field — a
+///         per-event handler does exactly one thing: stamp <see cref="DateTime.UtcNow" /> into a field, a
 ///         single write, no allocation. The actual elapsed-time compare runs on a coarse poll timer, not per
 ///         input event.
 ///     </para>
 ///     <para>
-///         <b>Wall-clock, not ticks.</b> Idle is measured with <see cref="DateTime" /> — "tick" in this
+///         <b>Wall-clock, not ticks.</b> Idle is measured with <see cref="DateTime" />: "tick" in this
 ///         codebase means a CS2/demo discrete-time unit and is reserved for that. UTC is used so a DST shift
 ///         can't make an elapsed span jump or go negative.
 ///     </para>
@@ -51,7 +51,7 @@ public sealed class IdleController : IDisposable
     /// </summary>
     /// <param name="options">Live idle configuration (enable + timeout + background behaviour).</param>
     /// <param name="isBlocked">
-    ///     Returns true when idle must NOT engage — the single "playback is running" signal
+    ///     Returns true when idle must NOT engage: the single "playback is running" signal
     ///     (<c>PlaybackController.IsPlaying</c>). Paused / ended playback returns false, so both correctly
     ///     become idle-eligible.
     /// </param>
@@ -83,7 +83,7 @@ public sealed class IdleController : IDisposable
 
     /// <summary>
     ///     Begins watching: starts the poll timer (the view supplies interactions via
-    ///     <see cref="NotifyActivity" />). Idempotent. Called by the desktop composition root only — the
+    ///     <see cref="NotifyActivity" />). Idempotent. Called by the desktop composition root only. The
     ///     browser host never starts idle mode. Creates the <see cref="DispatcherTimer" /> here (not in the
     ///     ctor) so constructing the controller needs no dispatcher.
     /// </summary>
@@ -105,7 +105,7 @@ public sealed class IdleController : IDisposable
     }
 
     /// <summary>
-    ///     Records that the user just interacted — resets the idle countdown. Public so a code path that is
+    ///     Records that the user just interacted, resets the idle countdown. Public so a code path that is
     ///     not raw input (a programmatic action the app wants to count as activity) can also reset it; the
     ///     input hook already covers every real user interaction.
     /// </summary>
@@ -113,7 +113,7 @@ public sealed class IdleController : IDisposable
 
     /// <summary>
     ///     Leaves the idle state and restarts the countdown fresh. Called by the shell after the user chooses
-    ///     Resume — until then, ongoing input is recorded but does NOT auto-dismiss idle (resume is explicit).
+    ///     Resume, until then, ongoing input is recorded but does NOT auto-dismiss idle (resume is explicit).
     /// </summary>
     public void ClearIdle()
     {
@@ -132,12 +132,12 @@ public sealed class IdleController : IDisposable
     // Testable decision core. When the app should transition into idle at <paramref name="nowUtc" />, it
     // flips the idle flag and returns true (the caller then invokes the enter-idle callback). For the
     // not-eligible cases (already idle / disabled / blocked) it refreshes the activity clock so the countdown
-    // only ever measures a genuinely idle, enabled state — stamping while playback is running is what makes
+    // only ever measures a genuinely idle, enabled state. Stamping while playback is running is what makes
     // the countdown start fresh at the moment playback pauses or ends. Isolated from the timer + callback so a
     // test can drive it with an explicit clock.
     internal bool TryEnterIdle(DateTime nowUtc)
     {
-        // Already idle — wait for an explicit Resume. Input during idle is stamped but does not auto-resume.
+        // Already idle: wait for an explicit Resume. Input during idle is stamped but does not auto-resume.
         if (_isIdle)
         {
             return false;

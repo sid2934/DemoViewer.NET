@@ -44,11 +44,11 @@ public partial class StatusStrip : UserControl
     public static readonly StyledProperty<string> HiddenNoteProperty =
         AvaloniaProperty.Register<StatusStrip, string>(nameof(HiddenNote), "");
 
-    /// <summary>Hidden-note click command property (v0.6.0 — mirrors <see cref="StatusCommandProperty" />).</summary>
+    /// <summary>Hidden-note click command property (v0.6.0: mirrors <see cref="StatusCommandProperty" />).</summary>
     public static readonly StyledProperty<ICommand?> HiddenNoteCommandProperty =
         AvaloniaProperty.Register<StatusStrip, ICommand?>(nameof(HiddenNoteCommand));
 
-    /// <summary>Status-chip region source — a sequence of StatusChipViewModels.</summary>
+    /// <summary>Status-chip region source: a sequence of StatusChipViewModels.</summary>
     public static readonly StyledProperty<IEnumerable?> ChipsProperty =
         AvaloniaProperty.Register<StatusStrip, IEnumerable?>(nameof(Chips));
 
@@ -98,7 +98,7 @@ public partial class StatusStrip : UserControl
     /// <summary>
     ///     Informational "N features hidden" note. Empty string hides the affordance; a non-empty value
     ///     surfaces it at the right of the strip. Clicking invokes <see cref="HiddenNoteCommand" />
-    ///     (v0.6.0 — the shell opens Settings at the user-category section; the old "no-op for now"
+    ///     (v0.6.0: the shell opens Settings at the user-category section; the old "no-op for now"
     ///     dead end is gone).
     /// </summary>
     public string HiddenNote
@@ -115,7 +115,7 @@ public partial class StatusStrip : UserControl
     }
 
     /// <summary>
-    ///     The status-chip region source — a sequence of
+    ///     The status-chip region source: a sequence of
     ///     <see cref="ViewModels.StatusChipViewModel" />, rendered right-aligned between the perf ticker and
     ///     <see cref="RightText" />. Empty / null → no chips, so the strip reads
     ///     exactly as it did before the chip region existed.

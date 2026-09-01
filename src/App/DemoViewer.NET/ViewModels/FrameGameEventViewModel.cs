@@ -16,7 +16,7 @@ public sealed class FrameGameEventViewModel(GameEvent e, Func<int, string> playe
 
     private static readonly IBrush _brushConnect = new SolidColorBrush(Color.Parse("#C0009688")); // teal
 
-    // Pre-allocated brush singletons — one per event category, shared across all row instances.
+    // Pre-allocated brush singletons, one per event category, shared across all row instances.
     private static readonly IBrush _brushDeath = new SolidColorBrush(Color.Parse("#C0F44336")); // red
     private static readonly IBrush _brushDefault = new SolidColorBrush(Color.Parse("#C0888888")); // grey
     private static readonly IBrush _brushFire = new SolidColorBrush(Color.Parse("#C0FF5722")); // deep-orange

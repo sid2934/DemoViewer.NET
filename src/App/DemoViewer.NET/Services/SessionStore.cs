@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Services;
 ///     <para>
 ///         Persistence is delegated to <see cref="SettingsService" />: the session-restore snapshot is the
 ///         <c>Session</c> section of the single consolidated config file (formerly the standalone
-///         <c>session.json</c>). A <c>null</c> settings service (the WASM/browser sandbox — no filesystem —
+///         <c>session.json</c>). A <c>null</c> settings service (the WASM/browser sandbox, no filesystem,
 ///         or the designer / older-test path) makes every method a no-op: the session simply isn't persisted
 ///         (it survives in-memory for the life of the process). A runtime check is used rather than a
 ///         <c>#if BROWSER</c> define because the same <c>DemoViewer.NET</c> assembly is compiled once and

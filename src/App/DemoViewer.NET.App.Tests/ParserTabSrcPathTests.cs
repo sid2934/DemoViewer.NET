@@ -3,7 +3,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Regression pin for the <c>ParserTabViewModel.SrcPath(...)</c> call sites that back the
 ///     Parser tab's clickable parse-chain source links (opened via <c>code --goto file:line</c>).
-///     Each site was once found pointing at a nonexistent path, and a dead link fails silently —
+///     Each site was once found pointing at a nonexistent path, and a dead link fails silently:
 ///     the click just does nothing. This test resolves the repo root the same way
 ///     <c>MainViewModel.FindRepoRoot</c> does and asserts each composed target still exists, so a
 ///     file move turns the dead link into a red test.

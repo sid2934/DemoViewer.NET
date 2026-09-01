@@ -29,7 +29,7 @@ public sealed partial class GameInfo : ObservableObject
     [ObservableProperty]
     private int _ctScore;
 
-    /// <summary>True while a defuse is in progress (<c>m_bBeingDefused</c>) — drives second-timer visibility.</summary>
+    /// <summary>True while a defuse is in progress (<c>m_bBeingDefused</c>): drives second-timer visibility.</summary>
     [ObservableProperty]
     private bool _defuseInProgress;
 
@@ -61,8 +61,8 @@ public sealed partial class GameInfo : ObservableObject
     private string _roundNumber = "—";
 
     /// <summary>
-    ///     The main countdown's remaining seconds as a number (the round clock, or — once the bomb is
-    ///     planted — the C4 detonation countdown). Negative / NaN when no countdown is active. Backs the
+    ///     The main countdown's remaining seconds as a number (the round clock, or, once the bomb is
+    ///     planted, the C4 detonation countdown). Negative / NaN when no countdown is active. Backs the
     ///     <see cref="RoundTime" /> string and lets tests assert with tolerance rather than string-match.
     /// </summary>
     [ObservableProperty]

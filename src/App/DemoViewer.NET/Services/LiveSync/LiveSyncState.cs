@@ -2,7 +2,7 @@ namespace DemoViewer.NET.Services.LiveSync;
 
 /// <summary>
 ///     The live-sync engine's lifecycle position.
-///     Kinds map 1:1 onto the status-chip rows in the design notes in git history — the UI
+///     Kinds map 1:1 onto the status-chip rows in the design notes in git history. The UI
 ///     derives dot colour/shape and label from this plus <see cref="LiveSyncState.IsInferred" />.
 /// </summary>
 public enum LiveSyncStateKind
@@ -36,7 +36,7 @@ public enum LiveSyncStateKind
 
     /// <summary>
     ///     Sync is up but a fact is genuinely uncertain (unconfirmed seek, unknown CS2 demo state,
-    ///     demo without a local path). <see cref="LiveSyncState.Reason" /> carries the honest copy.
+    ///     demo without a local path). <see cref="LiveSyncState.Reason" /> carries the copy describing what's uncertain.
     /// </summary>
     Degraded,
 
@@ -65,14 +65,14 @@ public enum LiveSyncStateKind
 /// </param>
 /// <param name="IsInferred">
 ///     True when the state is believed-good but not engine-confirmed (v1.0 plugin without
-///     demo-state events — e.g. pause inferred from tick silence). The UI renders the hollow-ring
+///     demo-state events, e.g. pause inferred from tick silence). The UI renders the hollow-ring
 ///     dot + "(inferred)" suffix for exactly this flag; confirmed states never
 ///     set it.
 /// </param>
 /// <param name="RemoteDemoPath">
 ///     Set (with <see cref="LiveSyncStateKind.Degraded" />) when CS2 reports it is now playing a
 ///     DIFFERENT demo than DV (v1.1 demo-identity): the path CS2 reported. The flyout
-///     offers "Open in DV" for it — never a silent auto-load (decision D7). Null otherwise.
+///     offers "Open in DV" for it: never a silent auto-load (decision D7). Null otherwise.
 /// </param>
 public sealed record LiveSyncState(
     LiveSyncStateKind Kind,
@@ -96,8 +96,8 @@ public sealed record LiveSyncState(
 
     /// <summary>
     ///     True whenever a session (and thus a CS2/mock process and a patched install in real mode)
-    ///     may exist — everything except Disconnected and Faulted. NOTE: Faulted is session-inactive
-    ///     but NOT resource-free — the engine keeps the gRPC host (port 50051) alive across Faulted
+    ///     may exist: everything except Disconnected and Faulted. NOTE: Faulted is session-inactive
+    ///     but NOT resource-free: the engine keeps the gRPC host (port 50051) alive across Faulted
     ///     for fast retry; resource ownership is the engine's own probe, not a state-kind question.
     /// </summary>
     public bool IsSessionActive => Kind is not (LiveSyncStateKind.Disconnected or LiveSyncStateKind.Faulted);

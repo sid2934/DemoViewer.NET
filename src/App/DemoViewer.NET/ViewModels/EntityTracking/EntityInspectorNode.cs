@@ -19,7 +19,7 @@ public enum EntityInspectorNodeKind
     /// <summary>A plain networked value (leaf).</summary>
     Scalar,
 
-    /// <summary>A handle field resolving to another live entity — expands into that entity's fields.</summary>
+    /// <summary>A handle field resolving to another live entity: expands into that entity's fields.</summary>
     EntityRef,
 
     /// <summary>A handle that is null, points at an empty/garbage slot, or would form a cycle (not expandable).</summary>
@@ -30,14 +30,14 @@ public enum EntityInspectorNodeKind
 }
 
 /// <summary>
-///     One row in the entity relationship inspector — a debugger-style tree. The selected entity is
+///     One row in the entity relationship inspector: a debugger-style tree. The selected entity is
 ///     the <see cref="EntityInspectorNodeKind.Root" />; its fields are children; dotted/array fields
 ///     nest under <see cref="EntityInspectorNodeKind.Group" /> sections; and a handle field that
 ///     resolves to another entity becomes an <see cref="EntityInspectorNodeKind.EntityRef" /> that
 ///     <b>lazily</b> expands into that entity's own field tree.
 ///     <para>
 ///         Cross-entity children load on demand (on first expand) rather than eagerly, so following
-///         handles can't build an unbounded or cyclic tree up front — an unexpanded ref carries a
+///         handles can't build an unbounded or cyclic tree up front: an unexpanded ref carries a
 ///         single placeholder child so the tree's expander chevron appears.
 ///     </para>
 /// </summary>

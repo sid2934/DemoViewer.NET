@@ -11,19 +11,19 @@ using Avalonia.Rendering;
 namespace DemoViewer.NET.Controls;
 
 /// <summary>
-///     A full-surface dimming scrim with an optional rounded "spotlight" cut-out — the coach-mark backdrop
+///     A full-surface dimming scrim with an optional rounded "spotlight" cut-out, the coach-mark backdrop
 ///     for the first-run Visual Walkthrough (<see cref="Views.Tutorial.TutorialView" />). Code-drawn (one
 ///     even-odd geometry) rather than four dim panels, so the hole is a single crisp rounded rectangle with
 ///     a token-coloured frame.
 ///     <para>
 ///         <b>Theme contract:</b> every colour is a <see cref="StyledProperty{T}" /> set from markup via
-///         <c>{DynamicResource Token}</c> — assigning the token re-resolves the brush on a theme switch and
+///         <c>{DynamicResource Token}</c>: assigning the token re-resolves the brush on a theme switch and
 ///         <c>AffectsRender</c> repaints. There are no cached / code-held brushes, so unlike a
 ///         Skia surface it needs no manual <c>ActualThemeVariantChanged</c> subscription.
 ///     </para>
 ///     <para>
 ///         <b>Input:</b> the control fills the overlay and is hit-test visible across its whole bounds
-///         (including over the hole), so it fully blocks click-through to the app beneath — the tour is
+///         (including over the hole), so it fully blocks click-through to the app beneath: the tour is
 ///         Next-driven, the only interactive things are the callout's own buttons drawn above this.
 ///     </para>
 /// </summary>
@@ -66,7 +66,7 @@ public sealed class SpotlightScrim : Control, ICustomHitTest
     ///     dim trough, <c>1</c> = bright peak. Animated by the <c>.pulsing</c> style (see
     ///     <see cref="Views.Tutorial.TutorialView" />) so the spotlight breathes while a step is on screen; it
     ///     stays at a static value when unanimated (e.g. a forced phase in a headless capture).
-    ///     <b>Not a data / theme property</b> — the colour still comes from <see cref="HoleBorderBrush" />
+    ///     <b>Not a data / theme property</b>: the colour still comes from <see cref="HoleBorderBrush" />
     ///     (a <c>{DynamicResource}</c> token); this only scales its alpha. <c>AffectsRender</c> repaints each
     ///     tick.
     /// </summary>
@@ -163,14 +163,14 @@ public sealed class SpotlightScrim : Control, ICustomHitTest
     ///     Custom hit-testing (<see cref="ICustomHitTest" />). The scrim blocks input everywhere by default so
     ///     the Next-driven tour can't be clicked through. The exception: when <see cref="InteractiveHole" /> is
     ///     set, a point inside the (padded) spotlight hole reports "not hit", so Avalonia continues the hit-test
-    ///     past the scrim to the real control beneath — letting the user click the highlighted Open-Demo button.
+    ///     past the scrim to the real control beneath, letting the user click the highlighted Open-Demo button.
     /// </summary>
     public bool HitTest(Point point)
     {
         if (InteractiveHole && HasHole && Hole is { Width: > 0, Height: > 0 }
             && Inflate(Hole, HolePadding).Contains(point))
         {
-            return false; // pass through — the real highlighted control handles this click
+            return false; // pass through, the real highlighted control handles this click
         }
 
         return true; // block everywhere else
@@ -234,7 +234,7 @@ public sealed class SpotlightScrim : Control, ICustomHitTest
                 }
             }
 
-            // Crisp inner frame — its brightness breathes with the pulse but never drops out (0.72..1.0), so
+            // Crisp inner frame, its brightness breathes with the pulse but never drops out (0.72..1.0), so
             // the highlight is a soft breath, not a hard on/off flash.
             double frameOpacity = 0.72 + 0.28 * pulse;
             IBrush frame = SolidBorderAt(frameOpacity) ?? HoleBorderBrush;

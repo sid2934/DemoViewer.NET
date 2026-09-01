@@ -13,8 +13,8 @@ namespace DemoViewer.NET.AppTests;
 ///     <para>
 ///         <see cref="AppPaths.ConfigRoot" /> is pointed at a per-run temp directory via
 ///         <see cref="AppPaths.ConfigDirEnvVar" /> (<c>DEMOVIEWER_CONFIG_DIR</c>). Every AppPaths-routed
-///         store (the consolidated <c>settings.json</c> — which also holds the UI session-restore
-///         snapshot and recents, formerly the standalone <c>session.json</c> / <c>recent-files.json</c> — plus
+///         store (the consolidated <c>settings.json</c>, which also holds the UI session-restore
+///         snapshot and recents, formerly the standalone <c>session.json</c> / <c>recent-files.json</c>, plus
 ///         the still-separate bookmarks, graph breakpoints, and library cache) resolves under temp. Without
 ///         this a fresh <c>MainViewModel</c> would restore the DEVELOPER'S REAL app session and recents, so
 ///         test outcomes depended on what the developer last did in the app.
@@ -25,7 +25,7 @@ namespace DemoViewer.NET.AppTests;
 ///         eagerly constructs <c>BookmarkStore</c>/<c>GraphBreakpointStore</c>, which without this would fire
 ///         that migration against the developer's REAL <c>~/.config</c> files.
 ///     </para>
-///     A module initializer runs at assembly load — before any TUnit hook, before the headless session,
+///     A module initializer runs at assembly load: before any TUnit hook, before the headless session,
 ///     before any store's field initializer.
 /// </summary>
 internal static class SessionIsolation

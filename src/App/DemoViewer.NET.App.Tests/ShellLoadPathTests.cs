@@ -11,8 +11,8 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Confirms the shared demo-load core extracted from <c>OpenFileAsync</c>: loading via the new
-///     path-based entry point (<see cref="MainViewModel.LoadDemoFromPathAsync" />) — the demo-library
-///     browser's open path — fully populates the shell (frames, file flag, map). The picker's OpenFileAsync
+///     path-based entry point (<see cref="MainViewModel.LoadDemoFromPathAsync" />), the demo-library
+///     browser's open path, fully populates the shell (frames, file flag, map). The picker's OpenFileAsync
 ///     routes through the same core, so this also guards that refactor.
 /// </summary>
 [NotInParallel]

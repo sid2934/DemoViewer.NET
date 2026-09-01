@@ -7,21 +7,21 @@ using System.Text.Json.Serialization;
 namespace DemoViewer.NET.Services.DemoCache;
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  MIGRATION-ONLY DTOs — the on-disk shape of the RETIRED <ConfigRoot>/highlights.json.
+//  MIGRATION-ONLY DTOs: the on-disk shape of the RETIRED <ConfigRoot>/highlights.json.
 //
 //  Nothing writes these types and nothing reads them at runtime. They exist so
 //  LegacyCacheMigration can deserialize a file left behind by v0.5.2 and earlier, once, on a
 //  machine that has one. The live model is DemoCacheRecord.
 //
 //  They live here, next to the migration that is their only consumer, rather than under
-//  Modules/Highlights/ where the store that wrote them used to be — the store is gone, and
+//  Modules/Highlights/ where the store that wrote them used to be. The store is gone, and
 //  leaving its models in a feature folder invited exactly the mistake this file is named
 //  against: reading them as a live model. The `Legacy` prefix is not decoration; without it
 //  CachedRound and CachedPlayer collide with the real ones in this namespace.
 //
 //  Do not "modernize" these. Every property name, and the PascalCase convention itself, is
 //  the format some user's file is already written in. The retired store serialized with plain
-//  `new JsonSerializerOptions { WriteIndented = true }` — no naming policy — which is why the
+//  `new JsonSerializerOptions { WriteIndented = true }`, no naming policy, which is why the
 //  migration reads them with default (case-sensitive PascalCase) options. Fields the migration
 //  does not read are kept deliberately: this file is now the only surviving description of the
 //  format, so it documents the whole of it, not the part that happened to survive.
@@ -40,7 +40,7 @@ public sealed class LegacyHighlightsRow
 
     public long ModifiedTicks { get; set; }
 
-    /// <summary>SHA-256 of the demo bytes — the <c>MatchChecksum</c> handed to CSVG (any stable string).</summary>
+    /// <summary>SHA-256 of the demo bytes: the <c>MatchChecksum</c> handed to CSVG (any stable string).</summary>
     public string? DemoSha256 { get; set; }
 
     // ── Demo facts (clip assembly without re-parse) ───────────────────────────
@@ -50,7 +50,7 @@ public sealed class LegacyHighlightsRow
 
     public int TickCount { get; set; }
 
-    /// <summary>Diagnostic only — events are frame clock; nothing here ever subtracts it.</summary>
+    /// <summary>Diagnostic only: events are frame clock; nothing here ever subtracts it.</summary>
     public int ServerStartTick { get; set; }
 
     public string? ProfileName { get; set; }
@@ -77,7 +77,7 @@ public sealed class LegacyCachedPlayer
 {
     public int Slot { get; set; }
 
-    /// <summary>RAW name — never sanitized on the way in.</summary>
+    /// <summary>RAW name: never sanitized on the way in.</summary>
     public string Name { get; set; } = "";
 
     public string SteamId64 { get; set; } = "";
@@ -103,13 +103,13 @@ public sealed class LegacyCachedHighlight
 
     public int FrameIndex { get; set; }
 
-    /// <summary>Frame clock — identical semantics to <c>RuleChainEvent.Tick</c>; never converted.</summary>
+    /// <summary>Frame clock: identical semantics to <c>RuleChainEvent.Tick</c>; never converted.</summary>
     public int Tick { get; set; }
 
     public int PlayerSlot { get; set; }
 
     /// <summary>
-    ///     RAW in-demo name at emission. NOT migrated — the unified record identifies a player by
+    ///     RAW in-demo name at emission. NOT migrated: the unified record identifies a player by
     ///     <see cref="LegacyCachedHighlight.PlayerSlot" /> into its own roster instead of repeating the name on
     ///     every event. Kept here because it is in the file.
     /// </summary>
@@ -128,7 +128,7 @@ public sealed class LegacyCachedHighlight
 }
 
 /// <summary>
-///     The retired row scan lifecycle. Superseded by <see cref="DemoAnalysisState" /> — which carries the
+///     The retired row scan lifecycle. Superseded by <see cref="DemoAnalysisState" />, which carries the
 ///     same three cases, but whose <c>Pending</c> is no longer PERSISTED: the scan backlog is derived from
 ///     the rules fingerprint now (see <see cref="DemoCacheRecord.NeedsAnalysis" />).
 /// </summary>

@@ -33,7 +33,7 @@ public sealed partial class EntityNode : ObservableObject
     /// <summary>Check-mark for the dormant column (empty when in-PVS).</summary>
     public string DormantText => Dormant ? "✓" : "";
 
-    /// <summary>Backing live entity — funnelled into the tab VM's selection on row select.</summary>
+    /// <summary>Backing live entity: funnelled into the tab VM's selection on row select.</summary>
     public EntityState? Entity { get; init; }
 
     /// <summary>Index.</summary>

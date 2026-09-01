@@ -15,7 +15,7 @@ namespace DemoViewer.NET.ViewModels;
 ///     <see cref="FiltersChanged" /> so the owning <c>AnalysisViewModel</c> re-applies the
 ///     cheap dim / inert passes (no MSAGL relayout).
 ///     <para>
-///         Chain keys are the literal <c>_chain_{id}</c> form throughout — the same key the
+///         Chain keys are the literal <c>_chain_{id}</c> form throughout: the same key the
 ///         chain-summary chips and <c>BuildResult.NodeChains</c> use, so the joins line up.
 ///     </para>
 /// </summary>
@@ -96,7 +96,7 @@ public sealed partial class GraphFilterViewModel : ObservableObject
 
     /// <summary>
     ///     Clears all filter state (chips, players, scope map). Used on reset / new demo.
-    ///     Does not raise <see cref="FiltersChanged" /> — teardown shouldn't trigger an apply
+    ///     Does not raise <see cref="FiltersChanged" />: teardown shouldn't trigger an apply
     ///     against stale state; the owner re-applies the cleared baseline after repopulating.
     /// </summary>
     public void Clear()

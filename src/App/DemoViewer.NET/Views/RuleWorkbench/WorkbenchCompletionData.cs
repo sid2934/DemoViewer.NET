@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Views.RuleWorkbench;
 ///     Adapts a UI-free <see cref="WorkbenchCompletion" /> to AvaloniaEdit's
 ///     <see cref="ICompletionData" /> for the editor's completion window. The row shows the term
 ///     with a dim, colour-coded <em>type</em> badge on the right so the kind of each
-///     suggestion — event, facet, context, kind, … — reads at a glance, matching the editor's role colours.
+///     suggestion (event, facet, context, kind, …) reads at a glance, matching the editor's role colours.
 /// </summary>
 public sealed class WorkbenchCompletionData : ICompletionData
 {
@@ -70,10 +70,10 @@ public sealed class WorkbenchCompletionData : ICompletionData
     }
 
     /// <summary>
-    ///     The badge colour per category — resolved from the SAME <c>Syntax*</c> token namespace the
+    ///     The badge colour per category: resolved from the SAME <c>Syntax*</c> token namespace the
     ///     editor's highlighter uses (v0.6.0 code-color promotion; the old values were byte-copies of
-    ///     the tokens' Dark values, so a light editor got dark-tuned badges). Resolved per popup open
-    ///     — the popup is transient, so no live-switch hook is needed. Fallbacks = the VS "Dark+"
+    ///     the tokens' Dark values, so a light editor got dark-tuned badges). Resolved per popup open:
+    ///     the popup is transient, so no live-switch hook is needed. Fallbacks = the VS "Dark+"
     ///     design-time values, mirroring WorkbenchYamlHighlighting's role table.
     /// </summary>
     private static Color CategoryColour(string category)

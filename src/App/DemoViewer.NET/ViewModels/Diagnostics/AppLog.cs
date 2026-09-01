@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.ViewModels.Diagnostics;
 
 /// <summary>
-///     Source-generated, coarse app-orchestration log messages (unified diagnostics pillar) — the
+///     Source-generated, coarse app-orchestration log messages (unified diagnostics pillar): the
 ///     "App"-tagged counterpart of <c>Analysis.EvaluatorLog</c>. Only high-signal, low-rate, end-user-
 ///     meaningful lifecycle seams (a demo starts/finishes/fails to load) are logged, so the stream is
 ///     safe to surface live in the Diagnostics tab and useful for user-reported issue reports. Each
@@ -51,7 +51,7 @@ internal static partial class AppLog
         Message = "Could not write the analysis cache for '{path}'")]
     public static partial void CacheWriteFailed(ILogger logger, string path, Exception exception);
 
-    // v0.6.0 — the four user-relevant events that used to go to Console.WriteLine (invisible in a
+    // v0.6.0: the four user-relevant events that used to go to Console.WriteLine (invisible in a
     // windowed Release build) now land in the Diagnostics tab + rolling file like everything else.
 
     [LoggerMessage(EventId = 7, Level = LogLevel.Information,
@@ -72,14 +72,14 @@ internal static partial class AppLog
     public static partial void QueueOwnerHandlerFailed(ILogger logger, Exception exception);
 
     /// <summary>
-    ///     v0.6.0 generic operation-failure row — the logging half of <c>UserFacingError</c>: the UI
+    ///     v0.6.0 generic operation-failure row, the logging half of <c>UserFacingError</c>: the UI
     ///     shows clean text, THIS carries the full exception into the Diagnostics tab + file.
     /// </summary>
     [LoggerMessage(EventId = 11, Level = LogLevel.Error, Message = "{operation} failed")]
     public static partial void OperationFailed(ILogger logger, string operation, Exception exception);
 
     /// <summary>
-    ///     A ruleset was dropped whole by v2 composition (CS2DemoKit 0.9.2) — an unresolvable
+    ///     A ruleset was dropped whole by v2 composition (CS2DemoKit 0.9.2): an unresolvable
     ///     <c>show:</c> reference or an unsupported <c>per:</c> dimension is now rejected at
     ///     composition instead of failing later at build.
     ///     <para>

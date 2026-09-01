@@ -10,7 +10,7 @@ namespace DemoViewer.NET.ViewModels.DemoProcessing;
 
 /// <summary>
 ///     One row of the demo-processing-queue flyout. A thin, presentation-only
-///     wrapper over the service-owned <see cref="DemoQueueItem" /> — it holds no queue logic and adds nothing
+///     wrapper over the service-owned <see cref="DemoQueueItem" />: it holds no queue logic and adds nothing
 ///     to the DemoProcessing layer; it just projects the item's fields into display strings + the
 ///     class-driving flags the flyout binds, and forwards the per-row remove to the queue.
 ///     <para>
@@ -37,14 +37,14 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
         _item.PropertyChanged += OnItemChanged;
     }
 
-    /// <summary>The wrapped item's stable id — identity for the queue's reconcile + the remove key.</summary>
+    /// <summary>The wrapped item's stable id: identity for the queue's reconcile + the remove key.</summary>
     public Guid Id => _item.Id;
 
     /// <summary>File-name display (falls back to the path when the queue supplied no display name).</summary>
     public string DisplayText =>
         !string.IsNullOrEmpty(_item.DisplayName) ? _item.DisplayName! : SafeFileName(_item.Path);
 
-    /// <summary>The full path — the row tooltip, so a trimmed name is still identifiable.</summary>
+    /// <summary>The full path: the row tooltip, so a trimmed name is still identifiable.</summary>
     public string Path => _item.Path;
 
     /// <summary>Comma-joined owning module tags (e.g. "library, highlights"); empty ⇒ the chip hides.</summary>
@@ -61,10 +61,10 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
         _ => ""
     };
 
-    /// <summary>True for UserRequested/Foreground — routine Background work shows no priority chip (noise).</summary>
+    /// <summary>True for UserRequested/Foreground: routine Background work shows no priority chip (noise).</summary>
     public bool HasElevatedPriority => _item.Priority != DemoJobPriority.Background;
 
-    /// <summary>The lifecycle word — the accessible carrier of state (the dot is the redundant colour cue).</summary>
+    /// <summary>The lifecycle word: the accessible carrier of state (the dot is the redundant colour cue).</summary>
     public string StateLabel => _item.State switch
     {
         DemoQueueItemState.Queued => "Queued",
@@ -79,24 +79,24 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
     /// <summary>The failure message, surfaced as the state tooltip when <see cref="IsStateError" />.</summary>
     public string? Error => _item.Error;
 
-    // ── Shared Ellipse.dot.* state flags (Styles/Primitives.axaml) — bound to Classes.x, never a brush ──
+    // ── Shared Ellipse.dot.* state flags (Styles/Primitives.axaml): bound to Classes.x, never a brush ──
 
-    /// <summary>Cancelled — the dim/idle <c>TextDim</c> dot.</summary>
+    /// <summary>Cancelled: the dim/idle <c>TextDim</c> dot.</summary>
     public bool IsStateOff => _item.State is DemoQueueItemState.Cancelled;
 
-    /// <summary>Queued or Running — the <c>AccentInteractive</c> dot (steady = queued, pulsing = running).</summary>
+    /// <summary>Queued or Running: the <c>AccentInteractive</c> dot (steady = queued, pulsing = running).</summary>
     public bool IsStateWorking => _item.State is DemoQueueItemState.Queued or DemoQueueItemState.Running;
 
-    /// <summary>Completed — the <c>StatPositive</c> dot.</summary>
+    /// <summary>Completed: the <c>StatPositive</c> dot.</summary>
     public bool IsStateGood => _item.State is DemoQueueItemState.Completed;
 
-    /// <summary>Rejected (queue full) — the <c>AccentCaution</c> dot; the durable backlog re-feeds it later.</summary>
+    /// <summary>Rejected (queue full): the <c>AccentCaution</c> dot; the durable backlog re-feeds it later.</summary>
     public bool IsStateDegraded => _item.State is DemoQueueItemState.Rejected;
 
-    /// <summary>Failed — the <c>AccentError</c> dot.</summary>
+    /// <summary>Failed: the <c>AccentError</c> dot.</summary>
     public bool IsStateError => _item.State is DemoQueueItemState.Failed;
 
-    /// <summary>Running only — the dot runs the subtle opacity pulse (in-flight parse).</summary>
+    /// <summary>Running only: the dot runs the subtle opacity pulse (in-flight parse).</summary>
     public bool IsPulsing => _item.State is DemoQueueItemState.Running;
 
     /// <inheritdoc />
@@ -144,7 +144,7 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
         }
         catch (ArgumentException)
         {
-            // A path with invalid chars — show it verbatim rather than throw at the render boundary.
+            // A path with invalid chars: show it verbatim rather than throw at the render boundary.
             return path;
         }
     }

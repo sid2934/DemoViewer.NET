@@ -10,7 +10,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Cadence-invariant gate for the play loop: playback rate (frames/second) must be LINEAR in
 ///     <c>Speed</c>. A prior bug paced the <c>DispatcherTimer</c> at <c>TickRate×Speed</c> AND stepped
-///     ~Speed frames per fire, double-applying Speed (frames/sec = <c>TickRate×Speed²</c>) — so 0.5× played
+///     ~Speed frames per fire, double-applying Speed (frames/sec = <c>TickRate×Speed²</c>), so 0.5× played
 ///     at quarter-speed and 2× at quadruple, with only 1× correct. <c>EffectiveFramesPerSecond</c> mirrors
 ///     the loop's two real factors (timer rate × per-fire step); these assertions FAIL under the quadratic
 ///     bug and PASS once the timer is paced at a fixed rate.

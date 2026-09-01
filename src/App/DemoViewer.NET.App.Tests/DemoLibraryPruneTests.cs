@@ -10,7 +10,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Stale-metadata pruning. <c>Reconcile</c> has always dropped the UI entry for a vanished demo but never
-///     the persisted cache row behind it, so the cache only grew — on the reference library 354 of 719 rows
+///     the persisted cache row behind it, so the cache only grew: on the reference library 354 of 719 rows
 ///     described files that no longer existed, 332 of them under a folder the user had removed outright.
 ///     <para>
 ///         The load-bearing case here is the LAST test: a configured folder on a detached volume enumerates
@@ -76,7 +76,7 @@ public class DemoLibraryPruneTests
         }
     }
 
-    /// <summary>A demo deleted from a folder the scan actually read is gone for good — drop its row.</summary>
+    /// <summary>A demo deleted from a folder the scan actually read is gone for good: drop its row.</summary>
     [Test]
     public async Task Prunes_ARowWhoseFileWasDeletedFromAScannedFolder()
     {
@@ -112,7 +112,7 @@ public class DemoLibraryPruneTests
     }
 
     /// <summary>
-    ///     A row under no registered folder at all is out of scope — nothing can index it again without the
+    ///     A row under no registered folder at all is out of scope: nothing can index it again without the
     ///     user re-adding the folder, which re-indexes anyway. This is the 332-row case on the reference
     ///     library (an old <c>/Volumes/Demos</c> registration long since removed).
     /// </summary>
@@ -129,7 +129,7 @@ public class DemoLibraryPruneTests
             string live = Path.Combine(demos, "live.dem");
             File.WriteAllBytes(live, new byte[16]);
 
-            // The file still EXISTS, but its folder is no longer registered — out of scope either way.
+            // The file still EXISTS, but its folder is no longer registered, out of scope either way.
             string orphan = Path.Combine(retired, "orphan.dem");
             File.WriteAllBytes(orphan, new byte[16]);
 
@@ -155,8 +155,8 @@ public class DemoLibraryPruneTests
     }
 
     /// <summary>
-    ///     THE SAFETY CASE. A registered folder that is unreachable — an unplugged external drive, an
-    ///     unmounted network share — enumerates nothing. Its rows must survive, or the first launch without
+    ///     THE SAFETY CASE. A registered folder that is unreachable, an unplugged external drive, an
+    ///     unmounted network share, enumerates nothing. Its rows must survive, or the first launch without
     ///     the drive silently destroys the cache for that entire library and re-plugging costs a full
     ///     re-index of every demo on it.
     /// </summary>

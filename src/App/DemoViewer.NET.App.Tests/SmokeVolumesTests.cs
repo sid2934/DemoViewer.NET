@@ -8,7 +8,7 @@ using CS2DemoKit.Analysis.Visibility;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Pure unit checks for <see cref="SmokeVolumes.SegmentBlocked" /> — the segment-vs-sphere test behind
+///     Pure unit checks for <see cref="SmokeVolumes.SegmentBlocked" />: the segment-vs-sphere test behind
 ///     smoke vision occlusion. No assets: exercises the geometry directly (ray through a sphere, ray missing
 ///     it, endpoint inside, grazing, empty set, and the shared radius constant).
 /// </summary>
@@ -41,7 +41,7 @@ public class SmokeVolumesTests
     [Test]
     public async Task SegmentClearOfSphere_IsNotBlocked()
     {
-        // Same smoke, but the ray runs 200u to the side (radius only 100u) — misses.
+        // Same smoke, but the ray runs 200u to the side (radius only 100u), misses.
         Vector4[] smoke = new[]
         {
             new Vector4(500, 200, 0, 100)
@@ -53,7 +53,7 @@ public class SmokeVolumesTests
     [Test]
     public async Task EndpointInsideSphere_IsBlocked()
     {
-        // Viewer standing INSIDE the smoke can't see out — the a-endpoint is within the radius.
+        // Viewer standing INSIDE the smoke can't see out: the a-endpoint is within the radius.
         Vector4[] smoke = new[]
         {
             new Vector4(20, 0, 0, 100)
@@ -95,7 +95,7 @@ public class SmokeVolumesTests
     public async Task ThreeDimensional_ZOffset_Respected()
     {
         // The test is genuinely 3D: a smoke at the right XY but 300u below the horizontal sightline (radius
-        // 144) must not block — a 2D-only test would wrongly report blocked.
+        // 144) must not block: a 2D-only test would wrongly report blocked.
         ReadOnlySpan<Vector4> below = One(new Vector3(500, 0, -300), SmokeVolumes.DefaultRadius);
         bool blocked = SmokeVolumes.SegmentBlocked(Vector3.Zero, new Vector3(1000, 0, 0), below);
         await Assert.That(blocked).IsFalse();

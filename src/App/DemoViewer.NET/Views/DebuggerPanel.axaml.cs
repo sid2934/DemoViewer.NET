@@ -17,10 +17,10 @@ public partial class DebuggerPanel : UserControl
     public DebuggerPanel() => InitializeComponent();
 
     /// <summary>
-    ///     "Jump to" button — finds the MainViewModel via the visual tree and asks it to
-    ///     navigate the frame selection to <c>Debugger.LastHitFrameIndex</c>. We do this via
+    ///     "Jump to" button: finds the MainViewModel via the visual tree and asks it to
+    ///     navigate the frame selection to <c>Debugger.LastHitFrameIndex</c>. This runs via
     ///     code-behind rather than XAML ancestor binding because the panel's DataContext is
-    ///     the <see cref="DemoViewer.NET.ViewModels.DebuggerViewModel" />, not the MainViewModel — and the command lives
+    ///     the <see cref="DemoViewer.NET.ViewModels.DebuggerViewModel" />, not the MainViewModel, and the command lives
     ///     on MainViewModel so it can mutate <c>SelectedFrame</c> directly.
     /// </summary>
     private void OnJumpToHitFrameClick(object? sender, RoutedEventArgs e)

@@ -17,7 +17,7 @@ namespace DemoViewer.NET.Modules;
 ///     First-party module that contributes the four existing shell tabs as descriptors, so the
 ///     shell has exactly ONE code path for all tabs. The built-in
 ///     VMs stay constructed + wired in <c>MainViewModel</c>; this module's descriptors just REFERENCE
-///     the already-built instances — no callback re-plumbing.
+///     the already-built instances: no callback re-plumbing.
 ///     <para>
 ///         <b>DataContext model</b> (verified codebase constraint): three of the
 ///         four built-in views (Parser / Entity Tracking / Analysis) declare
@@ -34,11 +34,11 @@ public sealed class BuiltInTabsModule : IWorkspaceModule
     private readonly object _shell;
     private readonly object? _statsViewModel;
 
-    /// <param name="shell">The shell (MainViewModel) — DataContext for the three shell-routed views.</param>
-    /// <param name="diagnosticsViewModel">The Diagnostics VM — DataContext for the Diagnostics view.</param>
-    /// <param name="libraryViewModel">The Library VM — DataContext for the demo-browser landing tab.</param>
-    /// <param name="statsViewModel">The Stats VM — DataContext for the scoreboard tab; null omits the tab.</param>
-    /// <param name="matchOverviewViewModel">The Match Overview VM — DataContext for the landing tab; null omits it.</param>
+    /// <param name="shell">The shell (MainViewModel): DataContext for the three shell-routed views.</param>
+    /// <param name="diagnosticsViewModel">The Diagnostics VM: DataContext for the Diagnostics view.</param>
+    /// <param name="libraryViewModel">The Library VM: DataContext for the demo-browser landing tab.</param>
+    /// <param name="statsViewModel">The Stats VM: DataContext for the scoreboard tab; null omits the tab.</param>
+    /// <param name="matchOverviewViewModel">The Match Overview VM: DataContext for the landing tab; null omits it.</param>
     public BuiltInTabsModule(object shell, object diagnosticsViewModel, object libraryViewModel,
         object? statsViewModel = null, object? matchOverviewViewModel = null)
     {
@@ -55,7 +55,7 @@ public sealed class BuiltInTabsModule : IWorkspaceModule
 
     public IEnumerable<WorkspaceTabDescriptor> CreateTabs(IModuleHost host)
     {
-        // Library is the landing tab — Order -1 sorts it before Parser so it's selected on startup.
+        // Library is the landing tab: Order -1 sorts it before Parser so it's selected on startup.
         // Uses ViewModelFactory (not DataContext) so the VM receives OnActivated → its first folder scan.
         yield return new WorkspaceTabDescriptor
         {
@@ -66,7 +66,7 @@ public sealed class BuiltInTabsModule : IWorkspaceModule
             ViewFactory = () => new LibraryTabView()
         };
 
-        // Match Overview — the demo landing page. Order 0 + yielded before Parser (a stable ThenBy(Order) keeps
+        // Match Overview: the demo landing page. Order 0 + yielded before Parser (a stable ThenBy(Order) keeps
         // yield order for ties) so it sits right after Library and is the tab the shell switches to on open.
         if (_matchOverviewViewModel is not null)
         {
@@ -98,7 +98,7 @@ public sealed class BuiltInTabsModule : IWorkspaceModule
             ViewFactory = () => new EntityTrackingTabView()
         };
 
-        // Stats — the user-facing scoreboard (release plan P1-3.1). Sits before the developer-
+        // Stats: the user-facing scoreboard (release plan P1-3.1). Sits before the developer-
         // oriented Analysis Engine tab: the dual-audience split (D4) keeps the graph debugger
         // untouched and gives the player/analyst persona a surface of their own.
         if (_statsViewModel is not null)

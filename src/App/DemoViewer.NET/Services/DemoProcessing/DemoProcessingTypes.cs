@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 
 /// <summary>
 ///     How soon the user wants a demo's results. Higher = sooner.
-///     <see cref="Foreground" /> never enters the background pump — it is the
+///     <see cref="Foreground" /> never enters the background pump: it is the
 ///     <see cref="IDemoProcessingQueue.RequestForegroundAsync" /> fast-path (interactive gate slot);
 ///     the value exists so a coalesced item and the UI can report the highest tier that requested it.
 /// </summary>
@@ -21,11 +21,11 @@ public enum DemoJobPriority
 
     /// <summary>
     ///     A user's manual/forced request (e.g. a Highlights "rescan this demo" click). Outranks
-    ///     <see cref="Background" /> and bypasses the queue-size cap — a user action is never rejected.
+    ///     <see cref="Background" /> and bypasses the queue-size cap: a user action is never rejected.
     /// </summary>
     UserRequested = 1,
 
-    /// <summary>A user opening a demo — highest, awaitable, preempts background.</summary>
+    /// <summary>A user opening a demo, highest, awaitable, preempts background.</summary>
     Foreground = 2
 }
 
@@ -57,12 +57,12 @@ public enum DemoQueueItemState
 
 /// <summary>
 ///     A background work item. <see cref="OnParsed" /> runs INSIDE the gate
-///     slot while the <see cref="ParsedDemo" /> is still held — the memory-safety contract: heavy
+///     slot while the <see cref="ParsedDemo" /> is still held, the memory-safety contract: heavy
 ///     post-processing (entity-replay score extraction, bare analysis eval) must not run while another
 ///     parse could start. Coalesced owners' <see cref="OnParsed" /> handlers run sequentially on the one
 ///     parse.
 /// </summary>
-/// <param name="Path">The .dem path — the coalescing key AND the file the background worker reads.</param>
+/// <param name="Path">The .dem path, the coalescing key AND the file the background worker reads.</param>
 /// <param name="OwnerTag">Submitting module identity (per-owner removal + UI display).</param>
 /// <param name="Priority">
 ///     <see cref="DemoJobPriority.Background" /> (auto) or
@@ -95,7 +95,7 @@ public sealed record DemoQueueItemSnapshot(
     DemoQueueItemState State,
     string? Error);
 
-/// <summary>A handle to a submitted background item — read its state, await completion, or cancel it.</summary>
+/// <summary>A handle to a submitted background item: read its state, await completion, or cancel it.</summary>
 public interface IDemoQueueHandle
 {
     /// <summary>The item's id (also the <see cref="IDemoProcessingQueue.RemoveByUser" /> key).</summary>
@@ -107,13 +107,13 @@ public interface IDemoQueueHandle
     /// <summary>Completes when the item reaches a terminal state (Completed/Failed/Cancelled/Rejected).</summary>
     Task Completion { get; }
 
-    /// <summary>Cancels THIS owner's submission (per-owner removal — a coalesced co-owner survives).</summary>
+    /// <summary>Cancels THIS owner's submission (per-owner removal, a coalesced co-owner survives).</summary>
     void Cancel();
 }
 
 /// <summary>
 ///     The single global source all background demo parse/analyse work is pulled from
-///     (demo-processing-queue). Lives in the shared App project and must COMPILE for WASM — no
+///     (demo-processing-queue). Lives in the shared App project and must COMPILE for WASM: no
 ///     ASP.NET, no physical-file assumptions in the abstraction, no blocking waits.
 /// </summary>
 [SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",
@@ -131,7 +131,7 @@ public interface IDemoProcessingQueue
     // ── Controls / settings ───────────────────────────────────────────────────
 
     /// <summary>
-    ///     Max concurrent heavy parses (forwards to <see cref="HeavyJobGate" />). DEFAULT 1 — the
+    ///     Max concurrent heavy parses (forwards to <see cref="HeavyJobGate" />). DEFAULT 1: the
     ///     safe one-at-a-time invariant; &gt; 1 can exhaust RAM.
     /// </summary>
     int MaxConcurrency { get; set; }
@@ -158,7 +158,7 @@ public interface IDemoProcessingQueue
     // ── Foreground (awaitable, highest priority) ──────────────────────────────
 
     /// <summary>
-    ///     A user opening a demo — highest priority, AWAITABLE (returns that demo's
+    ///     A user opening a demo, highest priority, AWAITABLE (returns that demo's
     ///     <see cref="ParsedDemo" />), and bypasses pause/disable/size-cap BY CONSTRUCTION. Parses the
     ///     caller's in-hand <paramref name="bytes" /> under the interactive gate slot (preempts
     ///     background between demos; throws <see cref="ReelInProgressException" /> during a reel).
@@ -182,11 +182,11 @@ public interface IDemoProcessingQueue
     /// <summary>A thread-safe immutable snapshot of every item (state reads off the UI thread).</summary>
     IReadOnlyList<DemoQueueItemSnapshot> Snapshot();
 
-    /// <summary>Raised (posted) on any queue state change — for a status line / toolbar refresh.</summary>
+    /// <summary>Raised (posted) on any queue state change, for a status line / toolbar refresh.</summary>
     event Action? Changed;
 
     /// <summary>
-    ///     Raised (posted) when the background tier drops below <see cref="MaxQueueSize" /> — feeders
+    ///     Raised (posted) when the background tier drops below <see cref="MaxQueueSize" />: feeders
     ///     re-submit their pending backlog (idempotent via coalescing).
     /// </summary>
     event Action? CapacityAvailable;

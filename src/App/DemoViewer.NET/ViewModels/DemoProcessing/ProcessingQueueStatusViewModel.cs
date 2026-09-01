@@ -13,15 +13,15 @@ namespace DemoViewer.NET.ViewModels.DemoProcessing;
 
 /// <summary>
 ///     Maps the global <see cref="IDemoProcessingQueue" /> onto a status-strip <see cref="StatusChipViewModel" />
-///     and its flyout — the THIRD consumer of the shared <c>StatusChip</c>
+///     and its flyout: the THIRD consumer of the shared <c>StatusChip</c>
 ///     idiom (alongside Live Sync and the Reel job): a persistent, stateful, background-activity indicator that
 ///     opens a <c>card-flyout</c> for detail + actions. Its <c>FlyoutContent</c> is this VM, so the app
 ///     <c>ViewLocator</c> resolves <c>Views/DemoProcessing/ProcessingQueueStatusView</c> for the body.
 ///     <para>
-///         The VM owns no queue logic — it binds the queue's live <see cref="IDemoProcessingQueue.Items" />
+///         The VM owns no queue logic: it binds the queue's live <see cref="IDemoProcessingQueue.Items" />
 ///         (projected into presentation-only <see cref="DemoQueueRowViewModel" />s), reads its counts /
 ///         pause / background-enabled state, and forwards Pause/Resume + per-item remove. It refreshes on the
-///         queue's posted <see cref="IDemoProcessingQueue.Changed" /> event — no timer, no polling.
+///         queue's posted <see cref="IDemoProcessingQueue.Changed" /> event: no timer, no polling.
 ///     </para>
 ///     <para>
 ///         <b>Theme mandate.</b> Holds no brushes: the chip dot re-themes via the shared state→token classes,
@@ -211,7 +211,7 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
         }
         else
         {
-            // Idle — the shell hides the chip in this state, but keep the mapping coherent.
+            // Idle: the shell hides the chip in this state, but keep the mapping coherent.
             SetChip(StatusChipDotState.Off, false, "Queue idle");
         }
 

@@ -42,7 +42,7 @@ public class DiagnosticsTelemetryHubTests
     public async Task Cap_IsReadLive()
     {
         int cap = 10;
-        // ReSharper disable once AccessToModifiedClosure — deliberate: cap is read live per append.
+        // ReSharper disable once AccessToModifiedClosure, deliberate: cap is read live per append.
         DiagnosticsTelemetryHub hub = new(() => cap, a => a());
         for (int i = 0; i < 20; i++)
         {

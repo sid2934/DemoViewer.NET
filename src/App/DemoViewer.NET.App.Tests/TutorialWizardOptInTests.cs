@@ -9,8 +9,8 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Covers the first-run wizard's opt-in hand-off to the Visual Walkthrough:
-///     <see cref="FirstRunWizardViewModel.ShouldStartWalkthrough" /> — the flag the composition root reads on
-///     <c>Completed</c> to decide whether to launch the tour — is true only when the user reaches the Done
+///     <see cref="FirstRunWizardViewModel.ShouldStartWalkthrough" />, the flag the composition root reads on
+///     <c>Completed</c> to decide whether to launch the tour, is true only when the user reaches the Done
 ///     page via <see cref="FirstRunWizardViewModel.FinishCommand" /> with the opt-in on. Finishing with it off,
 ///     or Skipping regardless, leaves it false. Pure VM over a temp-dir <see cref="SettingsService" />, so it
 ///     runs in parallel.

@@ -14,7 +14,7 @@ namespace DemoViewer.NET.AppTests;
 ///     leader stability + <see cref="FeatureGate" /> resolution order (Required → override → category
 ///     default → group-leader → parent-tab cascade), <see cref="FeatureGate.HiddenCount" />, and live
 ///     re-resolution on a settings write. Each case drives a real <see cref="SettingsService" /> over a
-///     temp dir bound through an <c>IOptionsMonitor&lt;AppSettings&gt;</c> — the exact wiring the app uses —
+///     temp dir bound through an <c>IOptionsMonitor&lt;AppSettings&gt;</c>, the exact wiring the app uses,
 ///     and constructs the gate via its INTERNAL test ctor with UI-thread marshaling disabled so
 ///     <see cref="FeatureGate.Changed" /> is observable inline without an Avalonia dispatcher (the App.Tests
 ///     process is shared, so a sibling headless test can otherwise leave a dispatcher installed process-wide).
@@ -66,7 +66,7 @@ public class FeatureGateTests
         }
     }
 
-    // The group leaders are fixed by catalog order and the whole group semantics ride on them — lock them so
+    // The group leaders are fixed by catalog order and the whole group semantics ride on them. Lock them so
     // an All-reorder that silently swaps a leader fails loudly here.
     [Test]
     public async Task GroupLeaders_AreStable()
@@ -162,7 +162,7 @@ public class FeatureGateTests
         });
     }
 
-    // (e) CASCADE: a sub-feature is off when its parent tab is off — even a default-ON sub-feature, and even
+    // (e) CASCADE: a sub-feature is off when its parent tab is off, even a default-ON sub-feature, and even
     // one with an explicit override=true (cascade beats the override). Re-enabling the parent lets it through.
     [Test]
     public async Task Cascade_ParentTabOff_ForcesSubFeatureOff()

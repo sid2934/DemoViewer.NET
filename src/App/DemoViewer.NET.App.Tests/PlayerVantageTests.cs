@@ -9,7 +9,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Exact-value unit tests for the pure vantage geometry (<see cref="PlayerVantage" />, <see cref="ViewFrustum" />)
-///     — the angle/duck/anchor math where a convention slip (pitch↔yaw, deg↔rad, wrong lateral axis) hides.
+///     : the angle/duck/anchor math where a convention slip (pitch↔yaw, deg↔rad, wrong lateral axis) hides.
 ///     No demo needed; these pin the conventions the kill-tick oracle later confirms on real data.
 /// </summary>
 public class PlayerVantageTests

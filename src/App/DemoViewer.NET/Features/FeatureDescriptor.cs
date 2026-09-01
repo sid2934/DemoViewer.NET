@@ -23,20 +23,20 @@ public enum FeatureScope
 
 /// <summary>
 ///     One code-defined, stable gate entry: a feature/surface the feature-gating layer can show or hide
-///     per user category. Immutable data — the live on/off decision is computed by <see cref="IFeatureGate" />
+///     per user category. Immutable data: the live on/off decision is computed by <see cref="IFeatureGate" />
 ///     from these fields plus the user's category and explicit overrides. The single source of truth for the
 ///     set of descriptors is <see cref="FeatureCatalog" />.
 /// </summary>
 /// <param name="Id">
 ///     Stable identifier used everywhere the feature is referenced (settings overrides, gate queries, UI
-///     bindings) — e.g. <c>"tab.parser"</c>, <c>"parser.hex"</c>, <c>"chrome.debugger"</c>. Never renamed
+///     bindings), e.g. <c>"tab.parser"</c>, <c>"parser.hex"</c>, <c>"chrome.debugger"</c>. Never renamed
 ///     once shipped: it is the persisted override key.
 /// </param>
-/// <param name="Scope">Tab / SubFeature / Chrome — drives cascade and settings-UI grouping.</param>
+/// <param name="Scope">Tab / SubFeature / Chrome: drives cascade and settings-UI grouping.</param>
 /// <param name="Label">Short human name for the settings UI and the "N features hidden" messaging.</param>
 /// <param name="Description">One-line explanation of the feature for the settings UI.</param>
 /// <param name="ParentId">
-///     For a <see cref="FeatureScope.SubFeature" />, the id of the owning tab — the cascade edge: when the
+///     For a <see cref="FeatureScope.SubFeature" />, the id of the owning tab, the cascade edge: when the
 ///     parent tab resolves disabled, this sub-feature is implicitly off. <c>null</c> for tabs and chrome
 ///     (chrome is global, not tab-owned).
 /// </param>

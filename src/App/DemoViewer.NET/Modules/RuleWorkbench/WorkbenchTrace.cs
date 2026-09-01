@@ -11,7 +11,7 @@ using CS2DemoKit.Parser;
 namespace DemoViewer.NET.Modules.RuleWorkbench;
 
 /// <summary>
-///     One applied fire of a traced stat or highlight (the applied-fire slice) — the demo
+///     One applied fire of a traced stat or highlight (the applied-fire slice): the demo
 ///     time and player at which the selected node had a rising edge (highlights / flag conjunctions) or
 ///     its trigger edge applied (value-node stats like <c>count:</c>/<c>sum:</c>).
 /// </summary>
@@ -37,7 +37,7 @@ public sealed record WorkbenchTraceFire(
 }
 
 /// <summary>
-///     A pickable trace target — a declared stat or highlight and how many times it fired in
+///     A pickable trace target: a declared stat or highlight and how many times it fired in
 ///     the last evaluation. <see cref="Id" /> is the report lookup key; <see cref="Label" /> is the bare
 ///     rule id the author sees.
 /// </summary>
@@ -55,7 +55,7 @@ public sealed record WorkbenchTraceTarget(string Id, string Kind, string Label, 
 /// <summary>
 ///     The result of tracing one evaluation: every declared stat/highlight as a
 ///     <see cref="WorkbenchTraceTarget" />, plus the applied fires for each. UI-free and unit-testable
-///     (like <see cref="WorkbenchCompletionSource" />) — built from the M5 <see cref="EvaluationResult" />.
+///     (like <see cref="WorkbenchCompletionSource" />): built from the M5 <see cref="EvaluationResult" />.
 /// </summary>
 public sealed class WorkbenchTraceReport
 {
@@ -86,12 +86,12 @@ public sealed class WorkbenchTraceReport
 ///     Two ground-truth sources feed it, both already recorded by the M5 evaluation:
 ///     <list type="bullet">
 ///         <item>
-///             <b>Highlights + flag conjunctions</b> — the <see cref="RuleChainTimeline" />, which records
+///             <b>Highlights + flag conjunctions</b>: the <see cref="RuleChainTimeline" />, which records
 ///             every rising edge of a <c>_chain_&lt;id&gt;</c> (highlight) or <c>&lt;statId&gt;</c>
 ///             (<c>flag: when:</c>) logic node with full player attribution.
 ///         </item>
 ///         <item>
-///             <b>Value-node stats</b> (<c>count:</c>/<c>sum:</c>/<c>capture:</c>…) — the
+///             <b>Value-node stats</b> (<c>count:</c>/<c>sum:</c>/<c>capture:</c>…): the
 ///             <see cref="EvaluationResult.AppliedMessagesByEdge" /> map: the trigger edge whose
 ///             <see cref="StateEdge.WrittenNode" /> is the stat's node applied at those message indices.
 ///             Player attribution comes from the materialized-player node map.
@@ -245,7 +245,7 @@ public static class WorkbenchTraceModel
     /// <summary>
     ///     Best-effort frame-index → live round-number map, mirroring
     ///     <c>ConfiguredOutputProjector.BuildRoundByFrame</c> (that helper is Analysis-internal). Empty
-    ///     when the run tracked no <c>round_number</c> node or carried no messages — callers then report a
+    ///     when the run tracked no <c>round_number</c> node or carried no messages: callers then report a
     ///     null round.
     /// </summary>
     private static Dictionary<int, int> BuildRoundByFrame(EvaluationResult result, ParsedDemo? demo)

@@ -68,7 +68,7 @@ public class LibraryShellTests
         });
     }
 
-    // P3.2a — a real open through the shell's single funnel (LoadDemoFromBytesAsync) records exactly one
+    // P3.2a: a real open through the shell's single funnel (LoadDemoFromBytesAsync) records exactly one
     // recent with the demo's path + parsed map. This exercises the actual RecordOpen call in the shared load
     // core (the VM/store unit tests stub the load core, so this is the only end-to-end coverage of it).
     [Test]

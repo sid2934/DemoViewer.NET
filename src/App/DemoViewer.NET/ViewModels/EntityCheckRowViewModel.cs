@@ -9,7 +9,7 @@ using CS2DemoKit.Analysis.Building;
 namespace DemoViewer.NET.ViewModels;
 
 /// <summary>
-///     One row of the scope-aware breakpoint editor — a subject's per-player provider value compared to a
+///     One row of the scope-aware breakpoint editor: a subject's per-player provider value compared to a
 ///     literal (<c>victim · health · &lt; · 20</c>). The subject and provider are chosen from dropdowns
 ///     (canonical token behind a friendly label), so the user never types the entity grammar; the host
 ///     composes the rows into the canonical condition string via <see cref="StructuredCondition.Compose" />.
@@ -56,7 +56,7 @@ public sealed partial class EntityCheckRowViewModel : ObservableObject
         _value = value;
     }
 
-    /// <summary>The subjects in scope — the trigger event's <c>*Slot</c> players plus the selected player.</summary>
+    /// <summary>The subjects in scope: the trigger event's <c>*Slot</c> players plus the selected player.</summary>
     public IReadOnlyList<Choice> AvailableSubjects { get; }
 
     /// <summary>The per-player providers (health / armor / equipment value / active weapon).</summary>
@@ -70,7 +70,7 @@ public sealed partial class EntityCheckRowViewModel : ObservableObject
     public bool HasWarning => !string.IsNullOrEmpty(Warning);
 
     /// <summary>
-    ///     The structured value of this row, or <c>null</c> when it isn't fully filled in yet — including a
+    ///     The structured value of this row, or <c>null</c> when it isn't fully filled in yet: including a
     ///     blank value, so a freshly-added row contributes nothing (no dangling <c>… &lt;</c>) until typed.
     /// </summary>
     public EntityCheckRow? ToRow() =>

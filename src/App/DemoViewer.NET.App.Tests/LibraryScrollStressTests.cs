@@ -16,7 +16,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Regression stress for the virtualized library browsers: rapid scrolling over a large library
 ///     must not throw (reported crash: "if I scroll on the library too quickly it crashes").
-///     Drives the card grid's and list's ScrollViewer through large offset jumps — the recycling
+///     Drives the card grid's and list's ScrollViewer through large offset jumps: the recycling
 ///     path VirtualizingStackPanel exercises on a fast wheel/trackpad fling.
 /// </summary>
 [NotInParallel]
@@ -103,7 +103,7 @@ public class LibraryScrollStressTests
     }
 
     // Jump the visible ListBox's scroll offset across its whole extent in large, alternating
-    // strides (down, up, random-ish jumps), pumping layout+render between steps — the same
+    // strides (down, up, random-ish jumps), pumping layout+render between steps: the same
     // realize/recycle churn a fast trackpad fling produces.
     private static int StressScroll(LibraryTabView view)
     {
@@ -151,7 +151,7 @@ public class LibraryScrollStressTests
 
     /// <summary>
     ///     The real crash scenario: scrolling WHILE the background indexer mutates the
-    ///     library — per-entry state/field updates on realized cards, new entries arriving
+    ///     library: per-entry state/field updates on realized cards, new entries arriving
     ///     (extent changes under a deep scroll offset), and the filter projection rebuilding
     ///     (FilteredEntries/CardRows Clear+Add while scrolled far down).
     /// </summary>
@@ -205,7 +205,7 @@ public class LibraryScrollStressTests
                 for (int step = 0; step < 120 && scroll is not null; step++)
                 {
                     // REAL input pipeline: wheel events (gesture → smooth scroll → anchoring), the
-                    // path a fast trackpad fling takes — plus periodic hard offset jumps.
+                    // path a fast trackpad fling takes, plus periodic hard offset jumps.
                     window.MouseWheel(new Point(450, 400),
                         new Vector(0, step % 2 == 0 ? -12 : -3));
                     if (step % 9 == 0)

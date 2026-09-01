@@ -14,26 +14,26 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Modules.Highlights;
 
 /// <summary>
-///     What the highlight scanner needs from the rules/analysis stack — abstracted so the
+///     What the highlight scanner needs from the rules/analysis stack: abstracted so the
 ///     scanner's queue/staleness logic is testable without demos or rule files.
 /// </summary>
 public interface IHighlightHarvester
 {
     /// <summary>
     ///     The A2 fingerprint for the CURRENT rule config at a demo's tick rate (fingerprints are
-    ///     tickRate/profile-dependent — no global value). Cheap: YAML load + compose + hash, no
+    ///     tickRate/profile-dependent: no global value). Cheap: YAML load + compose + hash, no
     ///     parse, no graph.
     /// </summary>
     (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate);
 
     /// <summary>
-    ///     Build + bare evaluate (no snapshots — the only affordable scan mode). Returns the run
+    ///     Build + bare evaluate (no snapshots: the only affordable scan mode). Returns the run
     ///     whose <c>Highlights</c> carry the A1 emission.
     /// </summary>
     AnalysisRun RunBareAnalysis(ParsedDemo demo);
 
     /// <summary>
-    ///     Build + evaluate WITH snapshots — everything <see cref="RunBareAnalysis" /> produces, plus the
+    ///     Build + evaluate WITH snapshots: everything <see cref="RunBareAnalysis" /> produces, plus the
     ///     per-message state vectors the per-player stat projectors read.
     ///     <para>
     ///         Reserved for demos the user explicitly asked about (<c>Compute full stats</c>), never the
@@ -42,7 +42,7 @@ public interface IHighlightHarvester
     ///         user just asked for.
     ///     </para>
     ///     <para>
-    ///         Defaulted to the bare run so existing implementations — and every test fake — stay valid. A
+    ///         Defaulted to the bare run so existing implementations, and every test fake, stay valid. A
     ///         harvester that does not override it simply yields no scoreboard, which the caller handles as
     ///         "this run produced no stats" rather than as an error.
     ///     </para>
@@ -60,7 +60,7 @@ public interface IHighlightHarvester
 public sealed class RulesHighlightHarvester : IHighlightHarvester
 {
     /// <summary>
-    ///     The composition profile id — the builder's GOTV profile (GOTV is the only supported
+    ///     The composition profile id: the builder's GOTV profile (GOTV is the only supported
     ///     demo source; multi-source support is deferred). Must match
     ///     <c>RuleChainBuilder.Profile.GetType().Name</c> or fingerprints diverge from builds.
     /// </summary>

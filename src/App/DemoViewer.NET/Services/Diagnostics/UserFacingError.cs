@@ -2,7 +2,7 @@ namespace DemoViewer.NET.Services.Diagnostics;
 
 /// <summary>
 ///     Turns a caught exception into a user-facing sentence (v0.6.0, backlog item 9). Before this,
-///     ~a dozen surfaces interpolated raw <see cref="Exception.Message" /> into status lines — so a
+///     ~a dozen surfaces interpolated raw <see cref="Exception.Message" /> into status lines: so a
 ///     corrupt demo read as "Error: Index was outside the bounds of the array." The contract now:
 ///     the UI shows THIS text, and the caller logs the full exception through
 ///     <c>AppLog.OperationFailed</c> so the detail lands in the Diagnostics tab + rolling file.

@@ -11,7 +11,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The bundled tour-sample pipeline below the shell: <see cref="TourDemoLocator" /> resolution (env
 ///     override semantics + the walk-up that finds the committed <c>assets/tour</c> asset from the test
-///     bin — the "the sample actually ships in this repo" gate) and the Library VM's "Try a sample match"
+///     bin: the "the sample actually ships in this repo" gate) and the Library VM's "Try a sample match"
 ///     CTA routing through the shared open funnel. The over-the-real-shell gateway targeting is covered in
 ///     <see cref="TutorialWalkthroughTests" />.
 ///     <para>
@@ -35,7 +35,7 @@ public class TourSampleDemoTests
             Environment.SetEnvironmentVariable(TourDemoLocator.EnvVar, tempDemo);
             await Assert.That(TourDemoLocator.FindSampleDemo()).IsEqualTo(tempDemo);
 
-            // …and a set-but-unresolvable value means "no sample", NOT a walk-up fallback — that is what
+            // …and a set-but-unresolvable value means "no sample", NOT a walk-up fallback: that is what
             // makes the variable a disable switch (and keeps CI/dev runs pinnable).
             Environment.SetEnvironmentVariable(
                 TourDemoLocator.EnvVar, Path.Combine(Path.GetTempPath(), "dvtour_does_not_exist.dem"));
@@ -50,7 +50,7 @@ public class TourSampleDemoTests
     }
 
     // The release-shaped assertion: from the test binary's own BaseDirectory, the walk-up must land on the
-    // repo's committed assets/tour sample — the same resolution an installed build performs next to its exe
+    // repo's committed assets/tour sample, the same resolution an installed build performs next to its exe
     // (publish.sh copies assets/ wholesale). If this fails, the sample was deleted/renamed without updating
     // the tour pipeline.
     [Test]
@@ -76,7 +76,7 @@ public class TourSampleDemoTests
 
     // Content gate on the committed asset: it must parse, and both teams must be seated. Trimmed GOTV
     // demos structurally lack the initial player_team seating (GOTV only emits it at the halftime swap),
-    // so the trimmer synthesizes those events into the output — a re-bake that loses the synthesis would
+    // so the trimmer synthesizes those events into the output. A re-bake that loses the synthesis would
     // ship a sample where every player renders on one team, which is exactly what this pins. Cheap: the
     // trim is ~11 MiB (a sub-second parse, no entity replay).
     [Test]

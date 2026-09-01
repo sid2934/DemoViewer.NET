@@ -14,7 +14,7 @@ namespace DemoViewer.NET.ViewModels.EntityTracking;
 ///     Builds the debugger-style relationship tree for the selected entity: a root node whose
 ///     children are the entity's full property list (dotted/array fields grouped into collapsible
 ///     sections), where every handle field that resolves to another live entity becomes an
-///     expandable node that lazily reveals <i>that</i> entity's properties — recursively, from the
+///     expandable node that lazily reveals <i>that</i> entity's properties, recursively, from the
 ///     root parent down to all of its referenced children.
 ///     <para>
 ///         CS2 entities are flat field bags whose only inter-entity links are <c>CHandle&lt;T&gt;</c>
@@ -97,7 +97,7 @@ public sealed partial class EntityInspectorViewModel : ObservableObject
 
     /// <summary>
     ///     Builds one entity's complete field tree: dotted/array paths grouped into nested sections,
-    ///     scalars as leaves, and handle fields as (lazy) entity references. Finite — never recurses
+    ///     scalars as leaves, and handle fields as (lazy) entity references. Finite: never recurses
     ///     into another entity (that happens on expand via the lazy factory).
     /// </summary>
     private static List<EntityInspectorNode> BuildEntityFields(
@@ -187,12 +187,12 @@ public sealed partial class EntityInspectorViewModel : ObservableObject
     private static RuntimeField? MetaFor(EntityTracker tracker, string className, string key)
         => tracker.GetFieldMeta(className, key) ?? tracker.GetFieldMeta(className, StripArrayIndex(key));
 
-    // ENTITY handles only — CHandle<T> and untyped CEntityHandle, the 32-bit group whose packed
+    // ENTITY handles only: CHandle<T> and untyped CEntityHandle, the 32-bit group whose packed
     // index+serial this inspector resolves through CurrentEntities. The four RESOURCE names
     // (CStrongHandle<T>, CStrongHandleCopyable<T>, CStrongHandleVoid, CWeakHandle<T>) are 64-bit
     // resource IDs with unrelated sentinels; masking one with the entity index mask renders a
     // phantom "→ Class #idx" reference to an arbitrary live entity. StartsWith("CStrongHandle")
-    // is the exact prefix trap the SDK's docs/HANDLES.md spec calls out — it also catches
+    // is the exact prefix trap the SDK's docs/HANDLES.md spec calls out, and it also catches
     // Copyable and Void. Resource handles fall through to the scalar leaf, which is the correct
     // rendering: an opaque number.
     private static bool IsHandleType(string typeName)

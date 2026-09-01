@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Views.Setup;
 
 // The first-run wizard body, hosted by BOTH the desktop FirstRunWizardWindow and the WASM in-app overlay
 // (the same view renders in both). The only code-behind is the storage-provider handoff for the folder
-// picker, which needs the visual tree (TopLevel) and so cannot live in the view-model — mirrors SettingsView.
+// picker, which needs the visual tree (TopLevel) and so cannot live in the view-model: mirrors SettingsView.
 /// <summary>First-run wizard view.</summary>
 public partial class FirstRunWizardView : UserControl
 {

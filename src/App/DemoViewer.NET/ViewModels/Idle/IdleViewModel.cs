@@ -65,7 +65,7 @@ public sealed partial class IdleViewModel : ViewModelBase
             + "Application entered idle mode to conserve system resources.",
             FormatDuration(timeout));
 
-    // Human-readable duration ("15 minutes", "1 hour 30 minutes", "45 seconds") — avoids the raw "00:15:00".
+    // Human-readable duration ("15 minutes", "1 hour 30 minutes", "45 seconds"): avoids the raw "00:15:00".
     private static string FormatDuration(TimeSpan t)
     {
         if (t <= TimeSpan.Zero)

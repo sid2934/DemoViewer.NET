@@ -10,7 +10,7 @@ using Avalonia.Styling;
 namespace DemoViewer.NET.Theming;
 
 /// <summary>
-///     A parsed theme definition — the neutral shape a <see cref="ThemeRegistry" /> registers as a custom
+///     A parsed theme definition, the neutral shape a <see cref="ThemeRegistry" /> registers as a custom
 ///     variant. Produced by <see cref="ThemeJson" /> from either a user drop-in
 ///     file under <c>&lt;config&gt;/themes/</c> or an embedded built-in JSON (High-Contrast / E-Girl).
 /// </summary>
@@ -25,11 +25,11 @@ public sealed record ThemeDefinition(
     IReadOnlyDictionary<string, Color> Tokens);
 
 /// <summary>
-///     Safe JSON reader for theme definitions (T3). A theme file is pure DATA —
-///     <c>{ id, name, base, tokens{ key: "#RRGGBB" } }</c> — parsed into a <see cref="ThemeDefinition" /> with no
+///     Safe JSON reader for theme definitions (T3). A theme file is pure DATA:
+///     <c>{ id, name, base, tokens{ key: "#RRGGBB" } }</c>, parsed into a <see cref="ThemeDefinition" /> with no
 ///     object instantiation or code execution, so loading an untrusted drop-in is never code-exec (unlike runtime
 ///     AXAML). Malformed input degrades gracefully: an unparseable file yields <c>null</c>; individual bad token
-///     entries are skipped while the rest of the file loads (partial files are valid — omitted tokens inherit the
+///     entries are skipped while the rest of the file loads (partial files are valid, omitted tokens inherit the
 ///     base palette).
 /// </summary>
 public static class ThemeJson
@@ -44,7 +44,7 @@ public static class ThemeJson
     /// <summary>
     ///     Parses <paramref name="json" /> into a <see cref="ThemeDefinition" />, or returns <c>null</c> if it is
     ///     not a usable theme (unparseable, or missing a non-empty <c>id</c>). <paramref name="sourceLabel" /> is
-    ///     used only in a diagnostic — a file path for a drop-in, the built-in name otherwise.
+    ///     used only in a diagnostic: a file path for a drop-in, the built-in name otherwise.
     /// </summary>
     public static ThemeDefinition? TryParse(string json, string sourceLabel)
     {
@@ -60,7 +60,7 @@ public static class ThemeJson
         }
         catch (JsonException)
         {
-            return null; // not valid JSON — degrade to "theme unavailable"
+            return null; // not valid JSON, degrade to "theme unavailable"
         }
 
         if (dto is null || string.IsNullOrWhiteSpace(dto.Id))
@@ -116,7 +116,7 @@ public static class ThemeJson
     }
 
     // The on-disk shape. Nullable everywhere so a partial file deserializes without throwing; validation
-    // happens in TryParse. Token values are strings (hex) parsed to Color in code — never objects.
+    // happens in TryParse. Token values are strings (hex) parsed to Color in code, never objects.
     private sealed class ThemeFileDto
     {
         [JsonPropertyName("id")]

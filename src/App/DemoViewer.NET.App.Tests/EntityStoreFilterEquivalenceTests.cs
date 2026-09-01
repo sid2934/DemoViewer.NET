@@ -58,7 +58,7 @@ public class EntityStoreFilterEquivalenceTests
             (int? fCt, int? fT, string? fCtClan, string? fTClan) = ReadTeams(full);
             (int? gCt, int? gT, string? gCtClan, string? gTClan) = ReadTeams(filtered);
 
-            // Byte-identical scoreboard including clans — the whole premise of the optimization.
+            // Byte-identical scoreboard including clans, the whole premise of the optimization.
             await Assert.That(gCt).IsEqualTo(fCt);
             await Assert.That(gT).IsEqualTo(fT);
             await Assert.That(gCtClan).IsEqualTo(fCtClan);

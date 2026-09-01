@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Views.Stats;
 
 /// <summary>
 ///     Player-details dashboard view. Hosted as an inline
-///     overlay inside <see cref="StatsTabView" /> — never a separate Window (WASM parity).
+///     overlay inside <see cref="StatsTabView" />, never a separate Window (WASM parity).
 ///     Code-behind exists only for the form-card round deep-link (design P-3 interaction):
 ///     tapping a damage bar jumps to the Rounds sub-section with that round highlighted.
 /// </summary>
@@ -26,7 +26,7 @@ public partial class PlayerDetailsView : UserControl
     /// <summary>
     ///     Null-object for the kills sparkline's Points binding: when <c>Form</c> is null
     ///     mid-transition the binding pushes null, and Avalonia's PolylineGeometry constructor
-    ///     throws on a null point list DURING RENDER — crashing whatever compositor commit
+    ///     throws on a null point list DURING RENDER, crashing whatever compositor commit
     ///     happens to run (observed as an unrelated headless test failing on this view's
     ///     teardown state). Bound via <c>TargetNullValue</c> in the AXAML.
     /// </summary>

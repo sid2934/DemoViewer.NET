@@ -3,7 +3,7 @@ namespace DemoViewer.NET.Services.LiveSync;
 /// <summary>
 ///     The connected CSVG plugin's advertised capability set, projected onto the engine features
 ///     each token unlocks (the degradation matrix). A v1.0-era
-///     plugin advertises nothing — every flag false — and the engine runs the fully-degraded
+///     plugin advertises nothing (every flag false) and the engine runs the fully-degraded
 ///     baseline (echo ledger, inference fallback, hidden demo UI, speed lock). CSVG token names
 ///     stay engine-side; this record is deliberately CSVG-type-free for the App/UI layer.
 /// </summary>
@@ -27,12 +27,12 @@ public sealed record LiveSyncCapabilities(
     bool SpectateBySteamId,
     bool UserDemoUi)
 {
-    /// <summary>The v1.0 baseline — nothing advertised, everything degraded.</summary>
+    /// <summary>The v1.0 baseline: nothing advertised, everything degraded.</summary>
     public static LiveSyncCapabilities None { get; } = new(
         false, false, false, false, false, false, false, false, false);
 
     /// <summary>
-    ///     True when the plugin advertised nothing (v1.0-era build) — drives the flyout's
+    ///     True when the plugin advertised nothing (v1.0-era build), driving the flyout's
     ///     "plugin 1.0 — update CSVG for exact pause sync" note.
     /// </summary>
     public bool IsV10Baseline => this == None;

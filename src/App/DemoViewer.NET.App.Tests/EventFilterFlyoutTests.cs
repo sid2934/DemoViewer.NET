@@ -12,7 +12,7 @@ namespace DemoViewer.NET.AppTests;
 ///     VM-level coverage for the navigation-review Phase B filter convergence: the strip-ready
 ///     <see cref="EventFilterFlyoutViewModel" /> wraps the demo-derived <see cref="GameEventFilterItem" />
 ///     collection (the shell's <c>GameEventFilters</c>) without owning it, so toggling here is exactly
-///     what the special-seek reads. No demo / dispatcher needed — pure observable VM behavior.
+///     what the special-seek reads. No demo / dispatcher needed, pure observable VM behavior.
 /// </summary>
 public class EventFilterFlyoutTests
 {
@@ -97,7 +97,7 @@ public class EventFilterFlyoutTests
 
         flyout.PresetRoundCommand.Execute(null);
 
-        // Exactly the round_* union is enabled — reproduces the removed NavPrev/NextRound target set.
+        // Exactly the round_* union is enabled. Reproduces the removed NavPrev/NextRound target set.
         await Assert.That(filters.Where(f => f.IsEnabled).Select(f => f.EventName).OrderBy(n => n))
             .IsEquivalentTo(_expectedRoundSet);
         // And the chip reads the preset name, not "2 events".

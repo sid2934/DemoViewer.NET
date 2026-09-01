@@ -12,13 +12,13 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Real-demo proof for the <see cref="SemanticNavigator" /> precompute
 ///     and the game-event fix. Built on the SYNCHRONOUS parse path (parse + build the
-///     navigator from the parsed frame list), so no headless dispatcher pumping is involved — the
+///     navigator from the parsed frame list), so no headless dispatcher pumping is involved: the
 ///     navigator is a pure VM driven by a <see cref="PlaybackController" /> over a real frame list.
 ///     <para>
 ///         Verifies (1) Next/Prev round / event / tick land exactly on the precomputed boundary frames,
 ///         (2) the boundary indices the navigator reports actually contain the boundary they claim, and
 ///         (3) the demo contains a game event that the OLD hardcoded 7-event list omitted and the
-///         navigator can now jump to it — the concrete proof the game-event fix works on real data.
+///         navigator can now jump to it, the concrete proof the game-event fix works on real data.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -152,7 +152,7 @@ public class SemanticNavigatorRealDemoTests
 
         // Real CS2 demos always carry events outside the 7-event list (e.g. player_spawn,
         // begin_new_match, cs_round_start, item_pickup, …). If this demo somehow didn't, the fix is
-        // vacuously satisfied — but assert non-null so a regression in the precompute surfaces.
+        // vacuously satisfied, but assert non-null so a regression in the precompute surfaces.
         await Assert.That(omitted).IsNotNull();
 
         controller.SeekToFrame(0);

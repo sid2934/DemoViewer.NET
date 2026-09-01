@@ -20,8 +20,8 @@ namespace DemoViewer.NET.Theming;
 ///     dictionary and merged into the app once, so the variant → base → Default fallback chain resolves each
 ///     token: a custom variant's own token wins, everything else inherits its base Light/Dark palette.
 ///     <para>
-///         User drop-ins (T3) are loaded from <see cref="AppPaths.ThemesDirectory" /> by <see cref="Reload" />
-///         — NOT at construction, so a fresh registry (tests, the designer) is hermetic. <see cref="Reloaded" />
+///         User drop-ins (T3) are loaded from <see cref="AppPaths.ThemesDirectory" /> by <see cref="Reload" />,
+///         not at construction, so a fresh registry (tests, the designer) is hermetic. <see cref="Reloaded" />
 ///         fires after a reload so the app can repaint code-held surfaces that don't observe a same-variant
 ///         override edit on their own.
 ///     </para>
@@ -65,7 +65,7 @@ public sealed class ThemeRegistry
     public IReadOnlyList<Theme> Themes => _ordered.ToList();
 
     // Load the embedded built-in custom themes (High-Contrast, E-Girl) from assembly resources (Themes/*.json)
-    // via the SAME parser as user drop-ins — the proof that a built-in is pure data too. Hermetic (reflection
+    // via the SAME parser as user drop-ins: the proof that a built-in is pure data too. Hermetic (reflection
     // over embedded resources, no Avalonia asset system), so a fresh registry in a unit test loads them without
     // a running app. Loaded in filename order (the files carry an NN- prefix, so the picker lists them
     // deterministically). A missing/broken built-in is skipped, never fatal.
@@ -94,7 +94,7 @@ public sealed class ThemeRegistry
             }
             catch (IOException)
             {
-                // A shipped built-in that fails to read is simply not offered — never crash the app.
+                // A shipped built-in that fails to read is simply not offered: never crash the app.
             }
         }
     }
@@ -142,7 +142,7 @@ public sealed class ThemeRegistry
         return theme;
     }
 
-    /// <summary>Registers a <see cref="ThemeDefinition" /> (parsed JSON — a built-in or a user drop-in).</summary>
+    /// <summary>Registers a <see cref="ThemeDefinition" /> (parsed JSON, a built-in or a user drop-in).</summary>
     public Theme Register(ThemeDefinition def, ThemeSource source) =>
         RegisterCustom(def.Id, def.DisplayName, def.BaseVariant, def.Tokens, source);
 
@@ -150,7 +150,7 @@ public sealed class ThemeRegistry
     ///     Re-scans <see cref="AppPaths.ThemesDirectory" /> for <c>*.json</c> drop-ins (T3): drops the previously
     ///     loaded user themes, loads the current ones (malformed files skipped, a user id colliding with a
     ///     built-in skipped to protect it), then raises <see cref="Reloaded" />. No-op on WASM (no filesystem).
-    ///     Not called at construction — the app calls it once at startup (before <see cref="Install" />) and again
+    ///     Not called at construction: the app calls it once at startup (before <see cref="Install" />) and again
     ///     from the Settings "Reload themes" affordance.
     /// </summary>
     public void Reload()
@@ -177,7 +177,7 @@ public sealed class ThemeRegistry
         string? dir = AppPaths.ThemesDirectory;
         if (dir is null || !Directory.Exists(dir))
         {
-            return; // WASM, or the directory could not be created — no drop-ins
+            return; // WASM, or the directory could not be created: no drop-ins
         }
 
         string[] files;
@@ -214,7 +214,7 @@ public sealed class ThemeRegistry
             ThemeDefinition? def = ThemeJson.TryParse(json, file);
             if (def is null)
             {
-                continue; // malformed — skip, keep the rest
+                continue; // malformed: skip, keep the rest
             }
 
             // A user file must not shadow a built-in id (that would turn a native theme into a custom variant
@@ -231,7 +231,7 @@ public sealed class ThemeRegistry
 
     /// <summary>
     ///     Merges the custom-theme override dictionaries into the app so their variants resolve. Added AFTER the
-    ///     base palette so — merged dictionaries being searched last-first — a custom variant's own token wins,
+    ///     base palette: merged dictionaries are searched last-first, so a custom variant's own token wins,
     ///     and anything it omits falls through to the base palette via the variant's InheritVariant. Call once.
     /// </summary>
     public void Install(Application app)

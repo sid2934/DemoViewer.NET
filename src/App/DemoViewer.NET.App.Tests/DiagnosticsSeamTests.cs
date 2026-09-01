@@ -27,7 +27,7 @@ public class DiagnosticsSeamTests
     private static (DiagnosticsTelemetryHub hub, ILoggerFactory factory) WireLikeApp(
         Func<LogLevel> minLevel, Func<bool> enabled)
     {
-        DiagnosticsTelemetryHub hub = new(() => 5000, a => a()); // sync drain — no dispatcher in tests
+        DiagnosticsTelemetryHub hub = new(() => 5000, a => a()); // sync drain: no dispatcher in tests
         ILoggerFactory factory = LoggerFactory.Create(b =>
         {
             b.SetMinimumLevel(LogLevel.Trace);

@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Views.Analysis;
 public partial class AnalysisTabView : UserControl
 {
     // Set true around a programmatic edit of the condition text (an accepted suggestion splice) so
-    // the resulting TextChanged doesn't immediately re-open the suggestion list we just dismissed.
+    // the resulting TextChanged doesn't immediately re-open the just-dismissed suggestion list.
     private bool _suppressSuggestionRefresh;
     private int _tokenEnd;
 
@@ -28,7 +28,7 @@ public partial class AnalysisTabView : UserControl
     public AnalysisTabView()
     {
         InitializeComponent();
-        // Node and edge right-clicks share one handler — it builds a ConditionTarget from whichever
+        // Node and edge right-clicks share one handler: it builds a ConditionTarget from whichever
         // element was hit and the menu is uniform.
         GraphCanvas.NodeContextRequested += OnGraphElementContextRequested;
         GraphCanvas.EdgeContextRequested += OnGraphElementContextRequested;
@@ -40,7 +40,7 @@ public partial class AnalysisTabView : UserControl
     private AnalysisViewModel? Vm => GraphCanvas.DataContext as AnalysisViewModel;
 
     // Right-clicking a node OR an edge raises this; wrap the hit element in a ConditionTarget and build
-    // one uniform add/condition/remove menu. View-only wiring — the state lives on AnalysisViewModel
+    // one uniform add/condition/remove menu. View-only wiring: the state lives on AnalysisViewModel
     // (the GraphView's inherited DataContext). The two capability gates (breakpointable, condition-
     // supported) are the only node-vs-edge difference; nodes pass both unconditionally.
     private void OnGraphElementContextRequested(object? sender, GraphElementContextEventArgs e)
@@ -63,7 +63,7 @@ public partial class AnalysisTabView : UserControl
             Placement = PlacementMode.Pointer
         };
 
-        // Un-backed edges (logic / conjunction) can't carry a breakpoint — show a disabled note rather
+        // Un-backed edges (logic / conjunction) can't carry a breakpoint: show a disabled note rather
         // than arming one that could never fire. Nodes are always breakpointable.
         if (!vm.IsBreakpointable(target))
         {
@@ -91,7 +91,7 @@ public partial class AnalysisTabView : UserControl
         }
 
         // Conditional item only when the target supports a condition (nodes always; edges only when
-        // their event exposes typed fields — entity-change edges are default-only).
+        // their event exposes typed fields: entity-change edges are default-only).
         if (vm.SupportsCondition(target))
         {
             MenuItem condition = new()
@@ -113,12 +113,12 @@ public partial class AnalysisTabView : UserControl
             menu.Items.Add(remove);
         }
 
-        // "Verify in CS2" — the same pointer-release context-menu
+        // "Verify in CS2": the same pointer-release context-menu
         // idiom as the breakpoint items above, on the rule-trigger surface (nodes + trigger-backed edges;
         // un-backed logic edges returned early above, so this only reaches real triggers). Two-level gate:
-        //   • PRESENT only when the Live Sync chip is (chrome.livesync + desktop) — else no item at all.
+        //   • PRESENT only when the Live Sync chip is (chrome.livesync + desktop), else no item at all.
         //   • ENABLED only while a Synced session exists; otherwise a disabled item whose header/tooltip
-        //     point the user at the Live Sync chip. We never auto-launch CS2 from here.
+        //     point the user at the Live Sync chip. CS2 is never auto-launched from here.
         AddVerifyInCs2Item(menu, vm, target);
 
         if (menu.Items.Count > 0)
@@ -130,7 +130,7 @@ public partial class AnalysisTabView : UserControl
     // Appends the "Verify in CS2" item per its two-level gate. Presence is level-1 (chrome.livesync +
     // desktop); enabled-vs-disabled+prompt is level-2 (a live Synced session). The right-clicked element
     // is passed as the command parameter so the VM resolves THAT trigger's firing tick. All the tick/name
-    // resolution and busy/failure handling lives on the VM command — this only shapes the menu item.
+    // resolution and busy/failure handling lives on the VM command: this only shapes the menu item.
     private static void AddVerifyInCs2Item(ContextMenu menu, AnalysisViewModel vm, ConditionTarget target)
     {
         if (!(vm.IsVerifyInCs2Present?.Invoke() ?? false))
@@ -155,7 +155,7 @@ public partial class AnalysisTabView : UserControl
         }
 
         // Disabled. A disabled MenuItem gets no pointer-over in Avalonia, so a ToolTip on it never
-        // surfaces — the enable-first prompt must live in the always-visible header. Only the "no live session"
+        // surfaces: the enable-first prompt must live in the always-visible header. Only the "no live session"
         // case gets the prompt; a transient in-flight/no-position disable leaves the plain label so the
         // header is never actively wrong.
         bool notSynced = !(vm.CanVerifyMoment?.Invoke() ?? false);
@@ -175,7 +175,7 @@ public partial class AnalysisTabView : UserControl
     // Pick gesture: a node clicked while pick-mode is armed is appended to the condition being edited.
     private void OnGraphNodePicked(object? sender, IGraphNode node) => Vm?.InsertPickedNode(node);
 
-    // Recompute autocomplete suggestions for the identifier token under the caret (a view concern —
+    // Recompute autocomplete suggestions for the identifier token under the caret (a view concern:
     // caret position lives on the control, not the VM). The VM does the actual filtering.
     private void OnConditionTextChanged(object? sender, TextChangedEventArgs e)
     {
@@ -218,10 +218,10 @@ public partial class AnalysisTabView : UserControl
         ConditionTextBox.Focus();
     }
 
-    // The identifier token (letters / digits / underscore / dot — a dotted entity key like
+    // The identifier token (letters / digits / underscore / dot: a dotted entity key like
     // `entity.game.freeze_period` counts as ONE token, matching the expression compiler's
     // reassembly) that the caret sits inside or just after. Returns its [start,end) span and the
-    // prefix up to the caret (what we filter suggestions by).
+    // prefix up to the caret (used to filter suggestions).
     private static (int Start, int End, string Prefix) TokenAtCaret(string text, int caret)
     {
         caret = Math.Clamp(caret, 0, text.Length);

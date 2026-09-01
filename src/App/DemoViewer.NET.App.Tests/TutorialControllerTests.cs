@@ -87,7 +87,7 @@ public class TutorialControllerTests
             .Because("the Open-Demo gateway still uses the Library as its backdrop tab");
 
         // At the gateway with no demo open, the tour stays VISIBLE and waits (it does not hide/defer), disables
-        // manual advance, and shows the authored waiting hint — the auto-advance is driven by NotifyDemoLoaded.
+        // manual advance, and shows the authored waiting hint. The auto-advance is driven by NotifyDemoLoaded.
         using (Assert.Multiple())
         {
             await Assert.That(controller.IsActive).IsTrue()
@@ -205,7 +205,7 @@ public class TutorialControllerTests
         controller.Start(); // welcome (1/8)
         vm.NextCommand.Execute(null); // tab-nav (2/8)
         vm.NextCommand.Execute(null); // library (3/8)
-        vm.NextCommand.Execute(null); // gateway (4/8) — demo already open
+        vm.NextCommand.Execute(null); // gateway (4/8), demo already open
 
         await Assert.That(vm.CurrentStep!.Target).IsEqualTo(TutorialTarget.OpenDemo);
         await Assert.That(vm.IsWaiting).IsFalse().Because("a demo is already open, so the gateway does not wait");
@@ -233,7 +233,7 @@ public class TutorialControllerTests
         controller.NotifyDemoLoaded();
         await Assert.That(controller.IsActive).IsFalse();
 
-        controller.Start(); // welcome — first-run segment, not a waiting gateway
+        controller.Start(); // welcome, first-run segment, not a waiting gateway
         controller.NotifyDemoLoaded();
         await Assert.That(controller.ViewModel.CurrentStep!.Target).IsEqualTo(TutorialTarget.None)
             .Because("a demo load on a non-waiting step does not jump to the demo segment");

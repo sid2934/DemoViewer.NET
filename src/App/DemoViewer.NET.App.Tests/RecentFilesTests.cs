@@ -13,7 +13,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Recent-files store + Library VM recents wiring. Covers the store's most-recent-first
 ///     ordering, cap enforcement, path de-dup, disk round-trip, and stale-entry pruning; plus the
 ///     <see cref="LibraryTabViewModel" />'s OpenRecent routing (opens an existing recent through the shared
-///     load core, prunes a missing one) and the OpenDemo picker CTA. Pure store / view-model behaviour — no
+///     load core, prunes a missing one) and the OpenDemo picker CTA. Pure store / view-model behaviour: no
 ///     UI thread, no real demo parse (the load core is stubbed with a capturing delegate).
 ///     <para>
 ///         Since the settings consolidation the recents persist to the <c>Recents</c> section of the single config
@@ -151,7 +151,7 @@ public class RecentFilesTests
     public async Task Vm_RecentFiles_ProjectExistence_AndLiveUpdate()
     {
         string dir = NewConfigDir();
-        string realDemo = TempFilePath(); // any real file — OpenRecent only File.Exists-checks it
+        string realDemo = TempFilePath(); // any real file: OpenRecent only File.Exists-checks it
         File.WriteAllText(realDemo, "x");
         try
         {
@@ -205,7 +205,7 @@ public class RecentFilesTests
             await vm.OpenRecentCommand.ExecuteAsync(vm.RecentFiles[0]);
 
             // Routed to the shared load core with the path; the funnel owns the landing tab
-            // (Match Overview — the Library no longer pre-switches tabs itself).
+            // (Match Overview: the Library no longer pre-switches tabs itself).
             await Assert.That(openedPath).IsEqualTo(realDemo);
         }
         finally

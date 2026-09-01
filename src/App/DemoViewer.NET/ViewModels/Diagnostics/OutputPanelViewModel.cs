@@ -16,7 +16,7 @@ namespace DemoViewer.NET.ViewModels.Diagnostics;
 /// </summary>
 public sealed partial class OutputPanelViewModel : ObservableObject
 {
-    // Kept for lazily-added channels (GetOrAddChannel) — the fixed four capture it at ctor time.
+    // Kept for lazily-added channels (GetOrAddChannel): the fixed four capture it at ctor time.
     private readonly FrameNavigationViewModel _navigation;
 
     [ObservableProperty]
@@ -30,7 +30,7 @@ public sealed partial class OutputPanelViewModel : ObservableObject
     public OutputPanelViewModel(FrameNavigationViewModel navigation)
     {
         _navigation = navigation;
-        // Severity KINDS, not brushes (v0.6.0 code-color promotion) — the view maps them onto
+        // Severity KINDS, not brushes (v0.6.0 code-color promotion): the view maps them onto
         // AccentAmber / AccentError / AccentInteractive / AccentInfo theme tokens via sev-* classes.
         Channels =
         [
@@ -92,7 +92,7 @@ public sealed partial class OutputPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    ///     Returns the channel with <paramref name="title" />, creating and wiring it if absent —
+    ///     Returns the channel with <paramref name="title" />, creating and wiring it if absent,
     ///     for feature-owned channels added lazily on first use (e.g. the live-sync CSVG log
     ///     bridge) rather than eagerly for every user. UI thread only (mutates
     ///     <see cref="Channels" />).
@@ -124,7 +124,7 @@ public sealed partial class OutputPanelViewModel : ObservableObject
     }
 }
 
-/// <summary>Channel accent kind — mapped to theme tokens by the view's sev-* class styles.</summary>
+/// <summary>Channel accent kind: mapped to theme tokens by the view's sev-* class styles.</summary>
 public enum OutputSeverity
 {
     /// <summary>Informational (AccentInteractive underline).</summary>
@@ -136,7 +136,7 @@ public enum OutputSeverity
     /// <summary>Error-flavored channel (AccentError).</summary>
     Error,
 
-    /// <summary>Live-feed channel — the CSVG log bridge's teal (AccentInfo).</summary>
+    /// <summary>Live-feed channel: the CSVG log bridge's teal (AccentInfo).</summary>
     Live
 }
 
@@ -152,7 +152,7 @@ public sealed partial class OutputChannelViewModel(string title, FrameNavigation
     [NotifyPropertyChangedFor(nameof(HasCount))]
     private int _count;
 
-    /// <summary>Active-tab flag — flips the view's .active class (underline + title tint).</summary>
+    /// <summary>Active-tab flag: flips the view's .active class (underline + title tint).</summary>
     [ObservableProperty]
     private bool _isActive;
 
@@ -168,7 +168,7 @@ public sealed partial class OutputChannelViewModel(string title, FrameNavigation
     /// <summary>Title.</summary>
     public string Title { get; } = title;
 
-    // Severity-class selectors (v0.6.0) — exactly one true; the view maps them to theme tokens,
+    // Severity-class selectors (v0.6.0): exactly one true; the view maps them to theme tokens,
     // replacing the code-held Accent/TabBrush/TitleBrush trio that stayed dark-tuned under Light.
 
     /// <summary>Error accent channel.</summary>
@@ -228,7 +228,7 @@ public sealed class OutputRow(int seekFrameIndex, string tickLabel, string level
     /// <summary>Level.</summary>
     public string Level { get; } = level;
 
-    // Level-class selectors (v0.6.0) — the view maps lvl-err/lvl-warn (default = info) onto theme
+    // Level-class selectors (v0.6.0): the view maps lvl-err/lvl-warn (default = info) onto theme
     // tokens; also kills the brush-per-property-get allocation the old LevelBrush paid.
 
     /// <summary>ERR row.</summary>

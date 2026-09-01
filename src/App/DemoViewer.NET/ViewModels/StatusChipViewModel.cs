@@ -8,7 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace DemoViewer.NET.ViewModels;
 
 /// <summary>
-///     The dot's semantic state — maps 1:1 onto a DarkPalette token via a bound state→class selector in
+///     The dot's semantic state: maps 1:1 onto a DarkPalette token via a bound state→class selector in
 ///     <c>Controls/StatusChip.axaml</c> (the <c>Border.teamChip</c> pattern), NOT a code-held brush, so the
 ///     dot re-themes live. Off and Suspended share
 ///     <see cref="Off" /> (both render <c>TextDim</c>); the <em>word</em> in <see cref="StatusChipViewModel.Label" />
@@ -16,24 +16,24 @@ namespace DemoViewer.NET.ViewModels;
 /// </summary>
 public enum StatusChipDotState
 {
-    /// <summary>Idle / suspended — <c>TextDim</c> solid dot.</summary>
+    /// <summary>Idle / suspended: <c>TextDim</c> solid dot.</summary>
     Off,
 
-    /// <summary>Bringing a session up — <c>AccentInteractive</c>, pulsing.</summary>
+    /// <summary>Bringing a session up: <c>AccentInteractive</c>, pulsing.</summary>
     Working,
 
-    /// <summary>Believed-good — <c>StatPositive</c>; the only state that pairs with a hollow ring (inferred).</summary>
+    /// <summary>Believed-good: <c>StatPositive</c>; the only state that pairs with a hollow ring (inferred).</summary>
     Good,
 
-    /// <summary>Genuinely uncertain — <c>AccentCaution</c> solid.</summary>
+    /// <summary>Genuinely uncertain: <c>AccentCaution</c> solid.</summary>
     Degraded,
 
-    /// <summary>Session lost / failed — <c>AccentError</c> solid.</summary>
+    /// <summary>Session lost / failed: <c>AccentError</c> solid.</summary>
     Error
 }
 
 /// <summary>
-///     The reusable view-model behind a <c>Controls/StatusChip</c> — a persistent, stateful
+///     The reusable view-model behind a <c>Controls/StatusChip</c>: a persistent, stateful
 ///     background-activity indicator (a dot + neutral label) that opens a <c>card-flyout</c> for detail and
 ///     actions (docs/ui/design-system.md "StatusChip"). Two consumers justify the shared control: Live Sync
 ///     (F1, this WI) and the future Reel job (F3b).
@@ -56,7 +56,7 @@ public sealed partial class StatusChipViewModel : ViewModelBase
     private object? _flyoutContent;
 
     /// <summary>
-    ///     True to render the dot as a hollow ring (stroke, transparent fill) — the single "believed-good but
+    ///     True to render the dot as a hollow ring (stroke, transparent fill): the single "believed-good but
     ///     inferred, not engine-confirmed" treatment. Sync is outbound-only today so this is always false
     ///     today, but the rendering path is implemented against the contract's <c>IsInferred</c> flag.
     /// </summary>
@@ -67,7 +67,7 @@ public sealed partial class StatusChipViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isPulsing;
 
-    /// <summary>The chip text — always the accessible carrier of state (e.g. "CS2 · Following").</summary>
+    /// <summary>The chip text: always the accessible carrier of state (e.g. "CS2 · Following").</summary>
     [ObservableProperty]
     private string _label = "";
 

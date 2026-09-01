@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <see cref="HubLoggerProvider" /> coverage — the bridge from the internal ILogger pillar to the
+///     <see cref="HubLoggerProvider" /> coverage: the bridge from the internal ILogger pillar to the
 ///     unified hub. Facts under test: records append to the hub with the right source tag (derived from
 ///     category) and level; the master switch and the min-level floor gate live. A synchronous-UI-post
 ///     hub makes <see cref="DiagnosticsTelemetryHub.Enqueue" /> drain inline, so no dispatcher is needed.
@@ -52,7 +52,7 @@ public class HubLoggerProviderTests
         log.LogError("boom");
         await Assert.That(hub.Logs.Count).IsEqualTo(0); // master switch off
 
-        enabled = true; // flipped live — no new logger needed
+        enabled = true; // flipped live: no new logger needed
         log.LogError("boom2");
         await Assert.That(hub.Logs.Count).IsEqualTo(1);
     }

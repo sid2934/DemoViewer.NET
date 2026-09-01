@@ -11,9 +11,9 @@ using DemoViewer.NET.ViewModels.Stats;
 namespace DemoViewer.NET.Views.Stats;
 
 /// <summary>
-///     Stats tab view. Code-behind exists only for the export folder pickers — the storage dialog
-///     needs the visual-tree <see cref="TopLevel" />, which a ViewModel deliberately has no access
-///     to — and for the player-details open gestures (double-tap is a routed event, not a bindable
+///     Stats tab view. Code-behind exists only for the export folder pickers, which need the
+///     visual-tree <see cref="TopLevel" /> that a ViewModel deliberately has no access to, and for
+///     the player-details open gestures (double-tap is a routed event, not a bindable
 ///     command; the context-menu item goes through the same guarded command). All table/sort logic
 ///     lives in <see cref="StatsTabViewModel" />.
 /// </summary>

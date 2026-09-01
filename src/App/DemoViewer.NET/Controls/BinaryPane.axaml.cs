@@ -16,7 +16,7 @@ using DemoViewer.NET.ViewModels;
 namespace DemoViewer.NET.Controls;
 
 /// <summary>
-///     Reusable hex viewer (F3.2) — the single, adopted hex surface. Implements the
+///     Reusable hex viewer (F3.2): the single, adopted hex surface. Implements the
 ///     windowed-virtualization paging that lets very large buffers render without
 ///     overloading Avalonia's layout engine, and tunnels byte-cell clicks to the VM
 ///     to drive the reverse byte → node loop (F5.2).
@@ -37,11 +37,11 @@ public partial class BinaryPane : UserControl
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
         HexList.AddHandler(ScrollViewer.ScrollChangedEvent, OnScrollChanged);
-        // F5.2 — tunnel byte-cell clicks to the VM. Tunneling so it fires before the
+        // F5.2: tunnel byte-cell clicks to the VM. Tunneling so it fires before the
         // ListBox consumes the press for selection.
         HexList.AddHandler(PointerPressedEvent, OnHexPointerPressed, RoutingStrategies.Tunnel);
         // v0.6.0 code-color promotion: the depth ramp resolves HexSwatch* tokens ONCE per theme
-        // (attach + live switch) — never per cell, which is the hot path.
+        // (attach + live switch): never per cell, which is the hot path.
         AttachedToVisualTree += (_, _) => ApplyHexPalette();
         ActualThemeVariantChanged += (_, _) => ApplyHexPalette();
     }

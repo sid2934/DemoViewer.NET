@@ -11,7 +11,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Covers the first-run wizard's CS2-demos-folder detection (the injected lookup), over a temp-dir
 ///     <see cref="SettingsService" />: the suggestion surfaces only when a folder is detected, one click adds
-///     it, the added/addable state tracks the folder list, Finish persists it, and — when nothing is found —
+///     it, the added/addable state tracks the folder list, Finish persists it, and, when nothing is found,
 ///     the not-found notice surfaces the searched Steam libraries (or the no-Steam message). Pure-VM (no
 ///     headless session) so it runs in parallel.
 /// </summary>

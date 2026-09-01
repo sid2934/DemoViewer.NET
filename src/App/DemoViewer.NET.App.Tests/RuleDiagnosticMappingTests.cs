@@ -10,10 +10,10 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Work item 0.3 (rule-authoring plan): the loader has always captured line/col for
 ///     YAML-syntax and unknown-key errors, but the App-side mapping into
-///     <see cref="RuleDiagnostic" /> dropped both fields — diagnostics rows showed the file
+///     <see cref="RuleDiagnostic" /> dropped both fields. Diagnostics rows showed the file
 ///     with no position, and click-to-open landed at line 1. These pin the restored thread:
 ///     <c>RuleConfigError → RuleDiagnostic.FromError → Location</c> rendering. Pure unit
-///     tests — no Avalonia session, no demo file.
+///     tests: no Avalonia session, no demo file.
 /// </summary>
 [Category("Unit")]
 public class RuleDiagnosticMappingTests
@@ -47,7 +47,7 @@ public class RuleDiagnosticMappingTests
 
     /// <summary>
     ///     Positionless rows (semantic warnings, the info/warning lints) render exactly the
-    ///     legacy form — no "(0,0)" noise.
+    ///     legacy form: no "(0,0)" noise.
     /// </summary>
     [Test]
     public async Task Location_OmitsPosition_WhenLineNull()
@@ -74,7 +74,7 @@ public class RuleDiagnosticMappingTests
     [Test]
     public async Task MalformedFixture_PositionSurfacesInDiagnosticRow()
     {
-        // A v2 ruleset with a typo'd stat key — the mapper attributes the unknown key to its
+        // A v2 ruleset with a typo'd stat key: the mapper attributes the unknown key to its
         // YAML node, so the diagnostic carries a position.
         const string BadYaml = """
                                ruleset: c1

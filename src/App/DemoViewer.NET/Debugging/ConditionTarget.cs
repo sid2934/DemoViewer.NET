@@ -7,7 +7,7 @@ using DemoViewer.NET.Visualization;
 namespace DemoViewer.NET.Debugging;
 
 /// <summary>
-///     The graph element a (conditional) breakpoint is being authored on — a node or an edge. Owns
+///     The graph element a (conditional) breakpoint is being authored on: a node or an edge. Owns
 ///     the element plus its breakpoint <b>identity</b> (node name, or the edge
 ///     <c>(Source, Dest, Label, ConditionLabel)</c> 4-tuple) and the editor-seam metadata that doesn't
 ///     depend on a substrate (display name, whether the node-picker applies, find / add).
@@ -31,13 +31,13 @@ public sealed class ConditionTarget
     /// <summary>Whether this targets a node or an edge.</summary>
     public GraphBreakpointTarget Kind { get; }
 
-    /// <summary>The node — non-null iff <see cref="Kind" /> is <see cref="GraphBreakpointTarget.Node" />.</summary>
+    /// <summary>The node: non-null iff <see cref="Kind" /> is <see cref="GraphBreakpointTarget.Node" />.</summary>
     public IGraphNode? Node { get; }
 
-    /// <summary>The edge — non-null iff <see cref="Kind" /> is <see cref="GraphBreakpointTarget.Edge" />.</summary>
+    /// <summary>The edge: non-null iff <see cref="Kind" /> is <see cref="GraphBreakpointTarget.Edge" />.</summary>
     public IGraphEdge? Edge { get; }
 
-    /// <summary>Whether the node-picker affordance applies (nodes only — picking a node makes no sense for an edge).</summary>
+    /// <summary>Whether the node-picker affordance applies (nodes only, picking a node makes no sense for an edge).</summary>
     public bool SupportsPicker => Kind == GraphBreakpointTarget.Node;
 
     /// <summary>Display label for the editor header (<c>NodeName</c>, or <c>A→B [event]</c>).</summary>

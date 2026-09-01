@@ -12,7 +12,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Impl-time probe confirming the EXACT field paths the game-info panel binds:
 ///     the m_pGameRules.*-prefixed keys on CCSGameRulesProxy (round phase / freeze / bomb / round number /
 ///     round start time) and the CCSTeam score field. Dumps the live fields and asserts the bound paths
-///     resolve, so the panel is wired against verified strings — not guesses.
+///     resolve, so the panel is wired against verified strings, not guesses.
 /// </summary>
 [NotInParallel]
 [Category("Integration")]
@@ -29,7 +29,7 @@ public class GameInfoFieldProbeTests
         EntityTracker tracker = new();
         tracker.ReplayToIndex(frames.Count / 2, frames);
 
-        // ── CCSGameRulesProxy (the LIVE class — the rules object is the m_pGameRules sub-object) ──
+        // ── CCSGameRulesProxy (the LIVE class: the rules object is the m_pGameRules sub-object) ──
         EntityState? proxy = tracker.CurrentEntities.OfClass("CCSGameRulesProxy").FirstOrDefault();
         await Assert.That(proxy).IsNotNull();
 
@@ -49,7 +49,7 @@ public class GameInfoFieldProbeTests
         object? startTime = proxy["m_pGameRules.m_fRoundStartTime"];
         Console.WriteLine($"  totalRoundsPlayed={rounds}  roundStartTime={startTime}");
 
-        // ── CCSTeam (team score — class + field are the impl-time confirmation) ──
+        // ── CCSTeam (team score: class + field are the impl-time confirmation) ──
         List<EntityState> teams = tracker.CurrentEntities.OfClass("CCSTeam").ToList();
         Console.WriteLine($"== CCSTeam entities: {teams.Count} ==");
         foreach (EntityState team in teams)

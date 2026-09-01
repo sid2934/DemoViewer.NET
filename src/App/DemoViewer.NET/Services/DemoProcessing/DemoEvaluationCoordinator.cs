@@ -19,7 +19,7 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 ///         evaluators are submitted TOGETHER, so they always coalesce onto one entry (closing the
 ///         finalizing-race window between independently-timed feeders); one backlog + one
 ///         <see cref="IDemoProcessingQueue.CapacityAvailable" /> re-feed instead of N; and a future
-///         feature plugs in by registering an evaluator — no new parse path.
+///         feature plugs in by registering an evaluator: no new parse path.
 ///     </para>
 ///     <para>
 ///         Thread-safety: the outstanding/backlog sets are lock-guarded; <see cref="Consider" /> may be
@@ -28,14 +28,14 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 /// </summary>
 public sealed class DemoEvaluationCoordinator : IDisposable
 {
-    // (evaluatorId, path) rejected because the tier was full — re-submitted on the next CapacityAvailable.
+    // (evaluatorId, path) rejected because the tier was full, re-submitted on the next CapacityAvailable.
     private readonly HashSet<(string Eval, string Path)> _backlog = [];
     private readonly Func<IEnumerable<string>> _candidatePaths;
     private readonly IReadOnlyList<IDemoEvaluator> _evaluators;
 
     private readonly object _lock = new();
 
-    // (evaluatorId, path) currently submitted and not yet terminal — never re-submitted while present.
+    // (evaluatorId, path) currently submitted and not yet terminal, never re-submitted while present.
     private readonly HashSet<(string Eval, string Path)> _outstanding = [];
     private readonly IDemoProcessingQueue _queue;
 
@@ -44,7 +44,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     /// <param name="evaluators">The registered background features (order = fan-out order within a slot).</param>
     /// <param name="queue">The shared processing queue that owns the workers + gate + coalescing.</param>
     /// <param name="candidatePaths">
-    ///     Yields the current universe of demo paths to (re-)poll — typically the
+    ///     Yields the current universe of demo paths to (re-)poll: typically the
     ///     library's known demos. Re-polled on <see cref="IDemoProcessingQueue.CapacityAvailable" />.
     /// </param>
     public DemoEvaluationCoordinator(
@@ -109,7 +109,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
 
     /// <summary>
     ///     True while the named evaluator has at least one demo in flight (submitted, not yet
-    ///     terminal) — backs a feature's "is scanning" indicator.
+    ///     terminal): backs a feature's "is scanning" indicator.
     /// </summary>
     public bool HasOutstanding(string evaluatorId)
     {
@@ -138,21 +138,21 @@ public sealed class DemoEvaluationCoordinator : IDisposable
 
     /// <summary>
     ///     Fans an ALREADY-parsed demo out to every registered evaluator's
-    ///     <see cref="IDemoEvaluator.OnParsedOpportunistically" /> (except any in <paramref name="skip" />)
-    ///     — the "one processing event" generalization. Two callers: the
+    ///     <see cref="IDemoEvaluator.OnParsedOpportunistically" /> (except any in <paramref name="skip" />),
+    ///     the "one processing event" generalization. Two callers: the
     ///     Library tier-2 slot hands its held parse to the OTHER evaluators (skip=<c>{library}</c>,
     ///     replacing the old <c>Tier2DemoParsed</c> piggyback), and an interactive open hands its parse in
     ///     so an un-indexed library demo fills its card from THAT parse instead of a second background one.
     ///     Because the hand-off is NOT gated on <see cref="IDemoEvaluator.Wants" />, it is order-independent
     ///     (a target whose backlog row doesn't exist yet still refreshes). Runs synchronously on the
-    ///     caller's thread (offload the UI thread — an evaluator's replay/analysis can be multi-second);
+    ///     caller's thread (offload the UI thread: an evaluator's replay/analysis can be multi-second);
     ///     each evaluator is isolated so one failure never blocks the others or the trigger.
     /// </summary>
     /// <param name="path">The .dem path of the already-parsed demo.</param>
-    /// <param name="parsed">The held parse to hand to each evaluator (immutable — safe to read concurrently).</param>
+    /// <param name="parsed">The held parse to hand to each evaluator (immutable: safe to read concurrently).</param>
     /// <param name="skip">
     ///     Evaluator <see cref="IDemoEvaluator.Id" />s already satisfied by this trigger and
-    ///     therefore not re-fed — the parse's producer, or an evaluator with a richer channel for it (e.g.
+    ///     therefore not re-fed: the parse's producer, or an evaluator with a richer channel for it (e.g.
     ///     Highlights on open, fed via the completed analysis run). Null → fan to all.
     /// </param>
     public void FanOutParsed(string path, ParsedDemo parsed, IReadOnlySet<string>? skip = null)
@@ -188,7 +188,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
 
         if (handle.State == DemoQueueItemState.Rejected)
         {
-            // Tier full — hold for the next CapacityAvailable so it isn't dropped.
+            // Tier full: hold for the next CapacityAvailable so it isn't dropped.
             lock (_lock)
             {
                 _outstanding.Remove(key);

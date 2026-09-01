@@ -41,7 +41,7 @@ public class Playback2DAdrTests
         await Assert.That(row.Damage).IsEqualTo("500");
         await Assert.That(row.Adr).IsEqualTo("125");
 
-        // Frame 2: in-place recompute — 5 rounds done, 700 damage → round(700/5) = 140 (NOT a stale 125).
+        // Frame 2: in-place recompute, 5 rounds done, 700 damage → round(700/5) = 140 (NOT a stale 125).
         ctx.Push(Snap(2, 5, Player(0, 2, 700)));
         await Assert.That(row.Damage).IsEqualTo("700");
         await Assert.That(row.Adr).IsEqualTo("140");

@@ -26,7 +26,7 @@ public enum GraphBreakpointTarget
 ///         <b>Identity</b> mirrors the visualization hit-test keys: a node breakpoint is keyed by
 ///         <see cref="NodeName" />; an edge breakpoint by (<see cref="EdgeSource" />,
 ///         <see cref="EdgeDest" />, <see cref="EdgeLabel" />). These are the persisted fields. The
-///         hit indices (<see cref="HitIndices" />) are transient — recomputed from the evaluation,
+///         hit indices (<see cref="HitIndices" />) are transient: recomputed from the evaluation,
 ///         never serialized.
 ///     </para>
 /// </summary>
@@ -37,13 +37,13 @@ public sealed partial class GraphBreakpoint : ObservableObject
     /// <summary>
     ///     True while an entity-read edge condition's hits are being computed off-thread (the lazy entity
     ///     replay). The breakpoint list shows "computing…" rather than a misleading "0 hits" until the
-    ///     async build hands back. Transient — never persisted.
+    ///     async build hands back. Transient: never persisted.
     /// </summary>
     [ObservableProperty]
     private bool _computing;
 
     /// <summary>
-    ///     The rule-expression condition. <c>null</c> means "use the default" — a node breaks on
+    ///     The rule-expression condition. <c>null</c> means "use the default": a node breaks on
     ///     becoming active; an edge breaks every time it fires.
     /// </summary>
     [ObservableProperty]
@@ -65,20 +65,20 @@ public sealed partial class GraphBreakpoint : ObservableObject
     /// <summary>Whether this breakpoint targets a node or an edge.</summary>
     public required GraphBreakpointTarget TargetKind { get; init; }
 
-    /// <summary>Node name — set for <see cref="GraphBreakpointTarget.Node" />, else <c>null</c>.</summary>
+    /// <summary>Node name: set for <see cref="GraphBreakpointTarget.Node" />, else <c>null</c>.</summary>
     public string? NodeName { get; init; }
 
-    /// <summary>Edge source-node name — set for <see cref="GraphBreakpointTarget.Edge" />.</summary>
+    /// <summary>Edge source-node name: set for <see cref="GraphBreakpointTarget.Edge" />.</summary>
     public string? EdgeSource { get; init; }
 
-    /// <summary>Edge destination-node name — set for <see cref="GraphBreakpointTarget.Edge" />.</summary>
+    /// <summary>Edge destination-node name: set for <see cref="GraphBreakpointTarget.Edge" />.</summary>
     public string? EdgeDest { get; init; }
 
-    /// <summary>Edge label — set for <see cref="GraphBreakpointTarget.Edge" /> (the event name).</summary>
+    /// <summary>Edge label: set for <see cref="GraphBreakpointTarget.Edge" /> (the event name).</summary>
     public string? EdgeLabel { get; init; }
 
     /// <summary>
-    ///     Edge condition label — set for <see cref="GraphBreakpointTarget.Edge" />. Part of the edge
+    ///     Edge condition label: set for <see cref="GraphBreakpointTarget.Edge" />. Part of the edge
     ///     identity: one rule can wire two triggers on the same event between the same node pair,
     ///     differing only by condition (e.g. foe vs friend), which render as parallel edges with the
     ///     same <see cref="EdgeLabel" />. Without this they'd collapse to one breakpoint tracking the
@@ -88,7 +88,7 @@ public sealed partial class GraphBreakpoint : ObservableObject
 
     /// <summary>
     ///     Sorted global message indices at which this breakpoint's condition holds, recomputed from
-    ///     the evaluation snapshots after every load and on every edit. Transient — never persisted.
+    ///     the evaluation snapshots after every load and on every edit. Transient: never persisted.
     ///     Assigning raises <see cref="MatchCount" /> so a bound breakpoint list updates live.
     /// </summary>
     public IReadOnlyList<int> HitIndices
@@ -103,7 +103,7 @@ public sealed partial class GraphBreakpoint : ObservableObject
 
     /// <summary>
     ///     How many messages this breakpoint's condition matches in the current demo (the count of
-    ///     <see cref="HitIndices" />) — the always-visible "stops N×" figure in the breakpoint list.
+    ///     <see cref="HitIndices" />): the always-visible "stops N×" figure in the breakpoint list.
     ///     Distinct from <see cref="HitCount" />, which counts session halts.
     /// </summary>
     public int MatchCount => _hitIndices.Count;
