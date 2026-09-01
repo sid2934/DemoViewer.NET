@@ -14,15 +14,14 @@ tree (`b658240`, 171k lines, 20 % comment). Rates are per 1,000 comment lines.
 
 ---
 
-## 1. Leave these alone — they are the house voice
+## 1. Leave these alone: they are the house voice
 
 Measured at **1.0–1.1× the baseline rate**. Stripping them makes the code less like itself, not more.
 
 | thing | baseline | verdict |
 |---|---|---|
-| em-dash, one per sentence | 121 /1k | keep |
 | ALL-CAPS emphasis (`ONE`, `NOT`, `BEFORE`) | 105 /1k | keep, in comments and commit headers |
-| "deliberately" / "deliberate" | 6.2 /1k | keep — it is this repo's word for "we considered the alternative" |
+| "deliberately" / "deliberate" | 6.2 /1k | keep: it is this repo's word for "we considered the alternative" |
 | narrative commit subjects (`fix(X): the thing that was wrong, and what it exposed`) | 30+ commits | keep |
 | `<b>` on an invariant that opens a `<para>` | structural | keep |
 
@@ -48,7 +47,7 @@ If unsure whether a fact is load-bearing, keep it and shorten it.
 
 ```csharp
 /// <b>The gesture stays bound to the pane it began on.</b> A drag that starts on the upper band and
-/// wanders into the lower one keeps panning the upper band — otherwise a fast drag across a band
+/// wanders into the lower one keeps panning the upper band. Otherwise a fast drag across a band
 /// boundary yanks two floors at once.
 ```
 
@@ -59,7 +58,26 @@ Limits observed in untouched files: **≤2 `<para>`** (typical 1), **longest blo
 
 ## 3. Delete
 
-Search, then remove the clause. Each is ≥3× the house rate.
+**The em-dash is banned outright.** It was on the keep list until 2026-08-31, on the measurement:
+121 /1k, dead level with the pre-existing tree, so it was the house voice by the numbers. The owner
+overrode that. The rate is still true and is no longer the deciding fact, so do not re-derive the old
+verdict from it.
+
+Removing one is a rewrite, never a substitution. Read what the dash was doing and give the sentence
+the punctuation it actually needs:
+
+- introducing an explanation or a list, use a colon
+- setting off an aside, use commas, or lift the aside into its own sentence
+- joining two clauses that can stand alone, use a full stop
+
+`- ` is not the answer. It reads as a dash that lost its nerve, and it leaves the interrupter
+stacking of rule 8 exactly where it was.
+
+Two things are not prose and keep their character: an em-dash inside a code span or a `<c>` tag
+(`design-system.md` documents `—` as a glyph), and a lone `—` in a table cell meaning "not
+applicable". Replace the latter with `n/a` only if the column reads better for it.
+
+Then the clause-level cuts. Search, then remove the clause. Each is ≥3× the house rate.
 
 1. **Closing aphorism.** `/, which is how [a-z][^.]*\.$/` and `/\bis how (a|an|the|it|nobody) [a-z][^.]*\.$/`
    at end of sentence. Delete from the comma. These are morals, not facts.
@@ -72,16 +90,17 @@ Search, then remove the clause. Each is ≥3× the house rate.
 5. **`not merely` / `not simply`** → plain "not", or delete the negated half.
 6. **`which is precisely`** → delete "precisely", usually the clause.
 7. **Identical flourishes across sibling files.** Grep any distinctive phrase before writing it. One
-   range had `<b>Empty, and that is the point.</b>` verbatim in three files — no human writes the
+   range had `<b>Empty, and that is the point.</b>` verbatim in three files. No human writes the
    same eight-word flourish three times.
 
 ---
 
 ## 4. Compress
 
-8. **Two or more em-dashes in one sentence** → one becomes a comma or a full stop. The dash is house
-   style; the *interrupter stacking* is not (1.9× baseline).
-9. **Trailing `, which is (the|what|why|how) …`** — at most one per `<summary>`; the rest become a
+8. **Stacked interrupters**, whatever punctuation carries them. §3 removes the dashes; this is the
+   habit underneath, and a sentence that reaches its point through two asides still does after they
+   turn into commas (1.9× baseline). Cut one, or split the sentence.
+9. **Trailing `, which is (the|what|why|how) …`**: at most one per `<summary>`; the rest become a
    full stop and a plain sentence. (4.0× baseline, 100 hits in one range.)
 10. **`<para>` count > 2** → cut to 2.
 11. **A `///` block ≥10 lines above a single-line member** (`=> …;`, `{ get; set; }`) → summary ≤2
@@ -103,7 +122,7 @@ True and useful, wrong place.
     - **Keep** for a live migration or compatibility obligation (a renamed settings key, a v1 schema).
     - **Move to the commit message** when it narrates a fix.
 15. **Plan-doc citations in source** (`D6 finding 3`, `round 3A`, `the audit`). Measured at **419×**
-    baseline — the pre-existing tree has essentially none. Replace with the *invariant* the code
+    baseline; the pre-existing tree has essentially none. Replace with the *invariant* the code
     enforces. Cite a plan once per class, never per member.
 16. **Derivation tables and measurements inside a `<summary>`** → the plan doc. Leave the resulting
     constant and one line saying where it came from.
@@ -117,8 +136,8 @@ True and useful, wrong place.
 | `honest` / `honestly` / `the honest state` | 6.8× | the fact: "the key is absent" |
 | `nobody saw / nobody runs / nobody notices` | 14.7× | the mechanism: "no CI lane selected this category" |
 | `worth having / worth naming / worth pinning` | 2.4× | delete the judgement, keep the fact |
-| `stops being a gate / earns its place` | 5.2× | usually the tail of rule 1 — delete |
-| first person (`my`, `I`, "out of my file list") | — | always a fossil of the authoring agent; delete |
+| `stops being a gate / earns its place` | 5.2× | usually the tail of rule 1; delete |
+| first person (`my`, `I`, "out of my file list") | n/a | always a fossil of the authoring agent; delete |
 
 ---
 
@@ -151,12 +170,13 @@ Subject lines and ALL-CAPS section headers are house style. Leave them.
 1. Get the diff range. Measure comment density per file; compare against an untouched neighbour in
    the same directory. **Target the house rate for that area (20–28 %), not zero.**
 2. Rank files by `comment% × lines changed`.
-3. Apply §3 (delete) first — it is mechanical and needs no judgement.
-4. Then §5 (relocate) — moving history to commit messages usually removes the longest blocks.
+3. Apply §3 first. The clause-level cuts are mechanical and need no judgement; the em-dash rewrites
+   at the top of it are the opposite, so read every one and give the sentence real punctuation.
+4. Then §5 (relocate): moving history to commit messages usually removes the longest blocks.
 5. Then §4 (compress).
 6. Re-measure. Report before/after density per file.
 7. **Build and run the tests.** Doc comments carry `<see cref="…"/>`; a bad edit breaks the build,
    and this repo treats warnings as errors.
 
-Do not touch code behaviour in a scrub pass. If a comment is wrong, that is a separate fix — say so
+Do not touch code behaviour in a scrub pass. If a comment is wrong, that is a separate fix; say so
 rather than quietly correcting it.
