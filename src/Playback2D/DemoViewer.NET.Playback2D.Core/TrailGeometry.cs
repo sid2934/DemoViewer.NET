@@ -20,7 +20,7 @@ public static class TrailGeometry
 {
     /// <summary>
     ///     Fills <paramref name="into" /> with the runs belonging to this pane. <b>Allocation-free</b>
-    ///     once the list has grown — the pre-v2 version allocated a <c>List</c> per trail per pane per
+    ///     once the list has grown: the pre-v2 version allocated a <c>List</c> per trail per pane per
     ///     frame plus a closure for the floor lookup (plan §4 T15 items 4 and 5).
     /// </summary>
     /// <param name="points">The flight path, oldest first.</param>

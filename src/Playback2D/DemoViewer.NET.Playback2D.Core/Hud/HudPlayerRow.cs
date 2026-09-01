@@ -8,13 +8,13 @@ namespace DemoViewer.NET.Playback2D.Core.Hud;
 ///     </para>
 ///     <para>
 ///         <b>None of this reaches the scene through <c>PlayerMarker</c>.</b> A marker carries only what
-///         the canvas needs to place a disc — slot, team, position, yaw, alive, label. Health, armour,
+///         the canvas needs to place a disc: slot, team, position, yaw, alive, label. Health, armour,
 ///         weapon, money and K/D/A exist only app-side in <c>PlayerAttributes</c>, which an export cannot
 ///         see; <c>SceneFrameBuilder</c> reads them once so the app, the export and <c>dv2d</c> share the
 ///         same source.
 ///     </para>
 /// </summary>
-/// <param name="Slot">Roster slot — the stable join key, and the marker's.</param>
+/// <param name="Slot">Roster slot: the stable join key, and the marker's.</param>
 /// <param name="Team">CS2 team number: 2 = T, 3 = CT, anything else = neither playing side.</param>
 /// <param name="Name">
 ///     Display tag. The <b>same</b> string <c>SceneFrameInput.LabelForSlot</c> gives the marker, so a card

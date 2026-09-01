@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Playback2DTests.Rendering;
 
 /// <summary>
 ///     The override grammar and its precedence chain (plans/C2-gpu-provider.md §2.5, §7.1). Pure
-///     string-to-enum work, so these run everywhere and in parallel — no probe, no environment, no
+///     string-to-enum work, so these run everywhere and in parallel: no probe, no environment, no
 ///     graphics.
 ///     <para>
 ///         The precedence rule is the point: an operator at a terminal beats a stored preference, and CI
@@ -106,8 +106,8 @@ public class RenderBackendResolutionTests
     }
 
     /// <summary>
-    ///     A typo in one source must not swallow a valid value in a lower one. The alternative — treating
-    ///     "present but unparseable" as a decision — would let a stale settings file veto a working
+    ///     A typo in one source must not swallow a valid value in a lower one. The alternative, treating
+    ///     "present but unparseable" as a decision, would let a stale settings file veto a working
     ///     <c>--cpu</c>, which is the opposite of what the precedence chain is for.
     /// </summary>
     [Test]

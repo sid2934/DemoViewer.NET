@@ -26,7 +26,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Headless;
 ///     <para>
 ///         The convenience members <c>dv2d</c> was written against (<see cref="Camera" />,
 ///         <see cref="RenderPng" />, <see cref="RenderInto" />, the <see cref="Backend" /> passthrough)
-///         are thin wrappers over the pane pipeline, not a second, level-blind render path — the CLI's
+///         are thin wrappers over the pane pipeline, not a second, level-blind render path. The CLI's
 ///         own single-pane facade of the same name was folded into this class.
 ///     </para>
 /// </summary>
@@ -41,7 +41,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     private SKSurface? _surface;
 
     /// <summary>Creates a renderer over a layer stack and a surface provider.</summary>
-    /// <param name="compositor">The layer stack. Not owned — the caller disposes it.</param>
+    /// <param name="compositor">The layer stack. Not owned: the caller disposes it.</param>
     /// <param name="surfaces">Where surfaces come from. Not owned.</param>
     /// <param name="layout">Pane layout policy.</param>
     /// <param name="palette">Resolved colours.</param>
@@ -99,7 +99,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
 
     /// <summary>
     ///     A policy that owns every pane's camera, applied inside <see cref="Advance" /> after
-    ///     reconciliation and before the submission snapshot — the general form of <see cref="Camera" />,
+    ///     reconciliation and before the submission snapshot: the general form of <see cref="Camera" />,
     ///     for export camera scripts (per-level transforms, a follow target that steps).
     ///     <para>
     ///         Null by default, so existing construction sites and <c>dv2d</c> are unchanged. When both
@@ -113,14 +113,14 @@ public sealed class HeadlessSceneRenderer : IDisposable
     ///     Whether the first <see cref="Advance" /> that carries real map extent re-fits every pane to it.
     ///     <para>
     ///         Off by default, because a golden and a single-frame <c>dv2d render</c> supply their camera
-    ///         as data and a fit would overwrite it. On for an export — the offscreen twin of the host's
+    ///         as data and a fit would overwrite it. On for an export: the offscreen twin of the host's
     ///         one-shot fit (<c>Scene2DHost</c>: "one-shot auto-fit once real positions exist").
     ///     </para>
     ///     <para>
     ///         Without it an export is framed by <c>WorldBounds.Default</c>, the ±3000 placeholder every
     ///         pane is born fitted to before any frame has been read: the camera script is empty in both
     ///         front ends unless the user pinned one, <c>AdvanceCameras</c> is off so no rig runs, and the
-    ///         map lands wherever ±3000 put it — a corner of the frame on de_inferno. It runs BEFORE
+    ///         map lands wherever ±3000 put it, a corner of the frame on de_inferno. It runs BEFORE
     ///         <see cref="Camera" /> and <see cref="CameraPolicy" />, so an explicit camera still has the
     ///         last word: a mirrored live view is not overruled by a fit.
     ///     </para>
@@ -131,7 +131,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     public PaneSet Panes { get; }
 
     /// <summary>
-    ///     Resolved colours. Swapping it invalidates the compositor's picture caches — on the next
+    ///     Resolved colours. Swapping it invalidates the compositor's picture caches: on the next
     ///     render, inside <c>SceneCompositor</c>, which compares the palette it is handed against the one
     ///     the live pictures were recorded under.
     ///     <para>
@@ -149,7 +149,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     public RenderPurpose Purpose { get; set; } = RenderPurpose.Export;
 
     /// <summary>
-    ///     Whether cameras follow their rigs. Off — the default — leaves them exactly where
+    ///     Whether cameras follow their rigs. Off, the default, leaves them exactly where
     ///     <see cref="SetAllCameras" /> or the initial fit put them, which is what a golden needs: a
     ///     camera that lerps is a picture that depends on how many frames you rendered.
     /// </summary>
@@ -256,7 +256,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
         }
 
         // After reconciliation, so a pinned camera survives the pane set being (re)built by this very
-        // call. Idempotent — SetAllCameras only writes Current/ManualOverride/epoch.
+        // call. Idempotent: SetAllCameras only writes Current/ManualOverride/epoch.
         if (Camera is { } pinned)
         {
             SetAllCameras(pinned);
@@ -341,7 +341,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     ///     <para>
     ///         The injected clock is the whole determinism contract (design §5.1): motion is a function of
     ///         <see cref="SceneTime" />, never of a wall clock, and on the demo path the frame's own
-    ///         <c>Time</c> and the source's <c>TimeAt</c> are not the same value —
+    ///         <c>Time</c> and the source's <c>TimeAt</c> are not the same value.
     ///         <c>TrackerFrameSource.TimeAt</c> derives <c>DeltaSeconds</c> from fps/speed and authors
     ///         <c>IsDiscontinuity</c>. A render stamped from the frame would silently discard what the
     ///         caller injected.

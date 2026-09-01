@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///         Separate from <c>AnnotationFakes</c> on purpose. That type's <c>Stroke</c> is a THREE-sample
 ///         stub, which is the right shape for "is this on the correct floor" and exactly the wrong shape
 ///         for a replay: a stroke with three points has no prefix to reveal, no tail to fade and no
-///         outline cost to measure. Everything here is a real one — hundreds of samples, laid out
+///         outline cost to measure. Everything here is a real one, hundreds of samples, laid out
 ///         left to right so that "how far has the head got" is a pixel column.
 ///     </para>
 /// </summary>
@@ -29,7 +29,7 @@ internal static class RealTimeFakes
 
     /// <summary>
     ///     A run table from explicit <c>(sample, tickOffset)</c> boundaries, the last of which is also the
-    ///     duration. This is what <c>DrawTool</c> commits; building it by hand here is deliberate —
+    ///     duration. This is what <c>DrawTool</c> commits; building it by hand here is deliberate:
     ///     these suites must be able to author a cadence that no clock could be persuaded to produce.
     /// </summary>
     /// <param name="runs">Boundaries, ordered by sample index, offsets non-decreasing.</param>
@@ -46,7 +46,7 @@ internal static class RealTimeFakes
         return new StrokeTiming(table, runs[^1].Tick);
     }
 
-    /// <summary>One continuous motion at a constant speed — the two-entry table §2 describes.</summary>
+    /// <summary>One continuous motion at a constant speed, as the two-entry table §2 describes.</summary>
     /// <param name="sampleCount">Samples in the stroke.</param>
     /// <param name="durationTicks">Ticks from the first sample to the last.</param>
     public static StrokeTiming Steady(int sampleCount, int durationTicks) =>
@@ -95,7 +95,7 @@ internal static class RealTimeFakes
     /// <summary>
     ///     A real-time element: a <see cref="Line" /> with a cadence, over a trapezoid that opens at
     ///     <paramref name="from" />, holds and then fades out. <see cref="TimeEnvelope.FadeInTicks" /> is
-    ///     0 throughout — a lead-in is a different animation and would blur every reveal assertion here.
+    ///     0 throughout: a lead-in is a different animation and would blur every reveal assertion here.
     /// </summary>
     /// <param name="timing">The authoring cadence.</param>
     /// <param name="from">The tick the stroke starts drawing itself.</param>

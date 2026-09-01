@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline;
 /// <summary>
 ///     The event-driven ring-colour state machine for player markers. Pure and
 ///     deterministic: given the same per-slot inputs at the same frame index it always returns the
-///     same ring state. No Avalonia / no entity dependency — fully unit-testable.
+///     same ring state. No Avalonia / no entity dependency: fully unit-testable.
 ///     <para>
 ///         Keeps a tiny per-slot history of <c>(health, shotsFired)</c> and the frame index of the last
 ///         shoot / take-damage event, so a single-tick event remains visible across a short decay window
@@ -55,7 +55,7 @@ public sealed class RingStateTracker
             h = SlotHistory.Fresh(health, shotsFired);
         }
 
-        // Cross-tick deltas vs the prior sample (only when we HAVE a prior sample — the first observation
+        // Cross-tick deltas vs the prior sample (only when we HAVE a prior sample: the first observation
         // of a slot seeds the baseline and never flashes, mirroring the "previous decoded tick" rule).
         if (h.HasPrior)
         {

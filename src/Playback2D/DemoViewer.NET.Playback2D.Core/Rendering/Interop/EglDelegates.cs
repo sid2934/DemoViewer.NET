@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Playback2D.Core.Rendering.Interop;
 ///     <para>
 ///         <see cref="CallingConvention.Winapi" /> throughout: it resolves to <c>__stdcall</c> on Windows
 ///         and <c>cdecl</c> everywhere else, which is precisely what <c>KHRONOS_APIENTRY</c> expands to.
-///         Hard-coding <c>Cdecl</c> would happen to work on x64 — where there is only one convention —
+///         Hard-coding <c>Cdecl</c> would happen to work on x64, where there is only one convention,
 ///         and break on win-x86, a RID this repo's ANGLE package ships a binary for.
 ///     </para>
 ///     <para>

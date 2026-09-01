@@ -15,14 +15,14 @@ namespace DemoViewer.NET.Playback2DTests;
 ///         The defect this pins: a layer wired into three shipped commands, registered by name, drawing
 ///         nothing. <c>VisionLayer</c> read an
 ///         <see cref="IVisionSolver" /> and only that, while <c>SceneVision</c>'s own doc said the layer
-///         "only draws the result" of a solve done upstream — so a fixture carrying two solved cones
+///         "only draws the result" of a solve done upstream, so a fixture carrying two solved cones
 ///         rendered an empty frame, and <c>dv2d golden verify</c> compared that empty frame against a
 ///         committed picture of the same empty frame, indefinitely.
 ///     </para>
 ///     <para>
 ///         These are <b>Advance</b> assertions rather than pixel ones on purpose. Three goldens now
 ///         contain cones and would move if this broke, but a golden says "something changed"; these say
-///         which source won and what it carried. The allocation half needs no case here — the projection
+///         which source won and what it carried. The allocation half needs no case here: the projection
 ///         runs on <c>duel-mirage-b</c>, which is exactly the fixture <c>BenchAllocationTests</c> gates
 ///         at 0 B/frame.
 ///     </para>
@@ -69,7 +69,7 @@ public class VisionLayerSourceTests
         await Assert.That(layer.Solution.Cones.Count).IsEqualTo(1);
         await Assert.That(layer.SightlineCount).IsEqualTo(1);
 
-        // The fan is copied verbatim into the flat ray buffer the renderer walks — x,y per point, in
+        // The fan is copied verbatim into the flat ray buffer the renderer walks: x,y per point, in
         // order, because the polygon is filled in fan order and a transposition would draw a bow tie.
         ConePolygon cone = layer.Solution.Cones[0];
         float[] rays = cone.RayEndsXY.ToArray();
@@ -86,7 +86,7 @@ public class VisionLayerSourceTests
     public async Task ItIsAlsoEnabledByDefault_LikeEveryOtherLayerInTheStack()
     {
         // The other half of "registered and dark". VisionLayer was the one layer defaulting to disabled,
-        // so even a fed one drew nothing until Scene2DHost — the sole caller of SetEnabled for it —
+        // so even a fed one drew nothing until Scene2DHost, the sole caller of SetEnabled for it,
         // pushed the user's toggle. Nothing in dv2d ever did.
         using VisionLayer layer = new(null);
         await Assert.That(layer.IsEnabled).IsTrue();
@@ -97,7 +97,7 @@ public class VisionLayerSourceTests
     {
         // SceneVision.Sightline has no target slot at all: whoever solved it resolved both ends. The
         // segment must therefore say "use these coordinates" rather than name a slot the renderer would
-        // fail to resolve and silently skip — which is what a -1 with no endpoints would do.
+        // fail to resolve and silently skip, which is what a -1 with no endpoints would do.
         using VisionLayer layer = new(null);
         layer.Advance(in _time, PreSolvedFrame());
 
@@ -123,8 +123,8 @@ public class VisionLayerSourceTests
     [Test]
     public async Task ASolverThatSolved_WinsOverTheFramesPreSolvedVision()
     {
-        // Both sources present is a state nothing produces today — the app's frames carry SceneVision.Off
-        // — but "draw both" would double every cone the day something does, so the rule is stated and
+        // Both sources present is a state nothing produces today, the app's frames carry SceneVision.Off,
+        // but "draw both" would double every cone the day something does, so the rule is stated and
         // pinned rather than left to whichever branch happens to run last.
         using VisionLayer layer = new(new StubSolver(3));
         layer.Advance(in _time, PreSolvedFrame());
@@ -137,7 +137,7 @@ public class VisionLayerSourceTests
     public async Task ASolverWithNoEngine_FallsBackToTheFrame_RatherThanDrawingNothing()
     {
         // VisibilityEngineSolver.Solve clears and returns with IsAvailable false when no engine is loaded
-        // for the map — indistinguishable from having no solver at all, which is why the fallback tests
+        // for the map, indistinguishable from having no solver at all, which is why the fallback tests
         // the RESULT and not `_solver is null`.
         using VisionLayer layer = new(new StubSolver(0));
         layer.Advance(in _time, PreSolvedFrame());

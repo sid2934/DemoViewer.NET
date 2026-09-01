@@ -23,7 +23,7 @@ namespace DemoViewer.NET.Playback2D.Core;
 /// <param name="AttackerInAir">The attacker was airborne.</param>
 /// <param name="AssistedFlash">The assist was a flash assist rather than damage.</param>
 /// <param name="AttackerTeam">
-///     The killer's side at the kill's own tick — 2 = T, 3 = CT, <b>0 = the demo could not say</b>. The
+///     The killer's side at the kill's own tick: 2 = T, 3 = CT, <b>0 = the demo could not say</b>. The
 ///     encoding is <c>TimelineEventKeys.Team</c>'s, so a kill marker on the timeline and a kill row in the
 ///     feed cannot disagree about which side gets the colour.
 ///     <para>
@@ -50,6 +50,6 @@ public readonly record struct KillFeedRow(
     int AttackerTeam = 0,
     int VictimTeam = 0)
 {
-    /// <summary>True when the kill had an assister — drives the "+name" chip's visibility in the XAML feed.</summary>
+    /// <summary>True when the kill had an assister: drives the "+name" chip's visibility in the XAML feed.</summary>
     public bool HasAssist => !string.IsNullOrEmpty(Assister);
 }

@@ -78,7 +78,7 @@ public class MapSpaceTests
 
     /// <summary>
     ///     <b>The parity oracle.</b> 200 Z values spanning both bands, the gap between them, and well
-    ///     outside the observed range on each side — the two implementations must agree on every one.
+    ///     outside the observed range on each side: the two implementations must agree on every one.
     ///     The out-of-range values are the point: a naive band test would return "no level" there and
     ///     make a grenade arcing over the map disappear.
     /// </summary>

@@ -6,7 +6,7 @@ namespace DemoViewer.NET.Playback2D.Core.Timeline;
 ///         <b>Domain warning (integrator correction 6).</b> A1's timeline lays out on the
 ///         <i>frame-index</i> axis (design §5.6) and exposes
 ///         <c>Playback2DTimelineViewModel.XForFrame</c>/<c>FrameIndexAt</c>. This type must therefore
-///         <b>never</b> be used to position anything in <c>TimelineControl</c> — a tick-keyed x on a
+///         <b>never</b> be used to position anything in <c>TimelineControl</c>. A tick-keyed x on a
 ///         frame-index axis is a silent mis-placement, not an error anyone would see. The App builds one
 ///         of these per drag from A1's pixel mapping plus <c>ITimelineData.FrameIndexAtTick</c>, and
 ///         converts back at the seam. Annotation envelopes are authored in ticks, which is why the

@@ -17,7 +17,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 ///     <para>
 ///         It exists so "export" is never a dead end. A machine with no ffmpeg on <c>PATH</c>, on a
 ///         platform with no pinned download, whose user declined the download anyway, can still produce a
-///         shareable file — and the dialog can say so honestly instead of greying everything out.
+///         shareable file, and the dialog can say so honestly instead of greying everything out.
 ///     </para>
 ///     <para>
 ///         <b>It buffers every frame in memory</b>, which is why the caps exist (plan D7): a GIF is a

@@ -17,7 +17,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Headless;
 ///     render can contain has to be enumerable from Pipeline alone.
 ///     <para>
 ///         <b>One table, one entry point.</b> <see cref="SceneStackIds" /> is the only table of layer
-///         ids, and <see cref="CreateSceneStack" /> is the only place that builds a stack from it — a
+///         ids, and <see cref="CreateSceneStack" /> is the only place that builds a stack from it. A
 ///         second table would let a golden and a real render draw different stacks without anyone
 ///         asking for that. <c>playback2d.debuggrid</c> is not one of the registered ids: it stays a
 ///         smoke layer that Core's own test suites construct directly.
@@ -30,7 +30,7 @@ public static class SceneLayerCatalog
     public const string IdPrefix = "playback2d.";
 
     /// <summary>
-    ///     Every layer id this build can register — an alias for
+    ///     Every layer id this build can register: an alias for
     ///     <see cref="SceneStackIds" /> and not a second table. The name survives the fold because it is
     ///     what <c>--layers</c>'s refusal text and <c>dv2d.md</c> call the set, and because
     ///     <see cref="UnknownIds" /> tests membership against "known" ids, not "the scene stack".
@@ -45,7 +45,7 @@ public static class SceneLayerCatalog
     ///     <para>
     ///         <b>Registration order is not draw order.</b> The compositor sorts every layer on
     ///         <c>(Slot, Order, Id)</c>, so <c>playback2d.annotations</c> (Overlay/100) draws before
-    ///         <c>playback2d.floorlabel</c> (Hud/60) even though it is registered after it below — ink is
+    ///         <c>playback2d.floorlabel</c> (Hud/60) even though it is registered after it below. Ink is
     ///         world content the floor caption must stay legible over.
     ///     </para>
     /// </summary>
@@ -103,7 +103,7 @@ public static class SceneLayerCatalog
     }
 
     /// <summary>
-    ///     Builds the <b>full v2 scene stack</b> — what the window draws, plus the export HUD.
+    ///     Builds the <b>full v2 scene stack</b>: what the window draws, plus the export HUD.
     ///     <para>
     ///         <b>The only entry point.</b> <c>dv2d render</c>, <c>golden</c>, <c>bench</c> and
     ///         <c>export</c> all arrive here, so a pixel gate and a video are always drawn by the same
@@ -123,7 +123,7 @@ public static class SceneLayerCatalog
     /// <param name="hud">The tick → HUD state function; null leaves the HUD layers unregistered.</param>
     /// <param name="annotations">
     ///     The ink to burn in; null leaves the annotation layer unregistered. <b>Never the live document</b>
-    ///     when the caller is an export — the layer re-records its cached pictures whenever the document's
+    ///     when the caller is an export: the layer re-records its cached pictures whenever the document's
     ///     Version moves, so a session the user is still drawing into would put strokes made DURING the
     ///     render into frames it had already passed.
     /// </param>
@@ -158,7 +158,7 @@ public static class SceneLayerCatalog
         // ONE blob cache for every text layer, exactly as Scene2DHost and the test stage wire it. Left to
         // their defaults each layer builds its own, which means five copies of the embedded Inter face and
         // five LRUs holding the same handful of strings. Built eagerly rather than on
-        // first text layer because the compositor is what owns it — see SceneCompositor.AddOwned.
+        // first text layer because the compositor is what owns it: see SceneCompositor.AddOwned.
         TextBlobCache text = new();
         compositor.AddOwned(text);
 
@@ -180,7 +180,7 @@ public static class SceneLayerCatalog
 
                 if (optIn && Starved(id, hud, annotations))
                 {
-                    continue; // asked for, but nothing to feed it — draw nothing rather than an empty box.
+                    continue; // asked for, but nothing to feed it. Draw nothing rather than an empty box.
                 }
 
                 compositor.Add(BuildLayer(id, vision, hud, annotations, shared, text));
@@ -196,7 +196,7 @@ public static class SceneLayerCatalog
     }
 
     // Which source an opt-in id starves without. Everything opt-in EXCEPT the ink feeds from the HUD
-    // source, so hud.roster needs no line here — only a genuinely new kind of source would. The check
+    // source, so hud.roster needs no line here. Only a genuinely new kind of source would. The check
     // is what lets BuildLayer keep its `hud!` / `annotations!`: an unfed layer never reaches it.
     private static bool Starved(string id, IHudDataSource? hud, AnnotationSession? annotations) =>
         string.Equals(id, SceneLayerIds.Annotations, StringComparison.Ordinal)

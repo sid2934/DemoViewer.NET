@@ -3,8 +3,8 @@ using System.Security;
 namespace DemoViewer.NET.Playback2D.Core.Rendering;
 
 /// <summary>
-///     Turns the strings the outside world speaks — a CLI flag, an environment variable, a persisted
-///     settings value — into a <see cref="RenderBackendPreference" />, and applies the precedence chain
+///     Turns the strings the outside world speaks, a CLI flag, an environment variable, a persisted
+///     settings value, into a <see cref="RenderBackendPreference" />, and applies the precedence chain
 ///     between them (plans/C2-gpu-provider.md §2.5, §6.2).
 ///     <para>
 ///         <b>Nothing here throws.</b> An unrecognised value is a warning-worthy typo, not a reason to
@@ -15,7 +15,7 @@ namespace DemoViewer.NET.Playback2D.Core.Rendering;
 public static class RenderBackendPreferenceParser
 {
     /// <summary>
-    ///     The environment variable CI lanes and support instructions use. A <b>public contract</b> —
+    ///     The environment variable CI lanes and support instructions use. A <b>public contract</b>:
     ///     its spelling is depended on outside this repo, so it is a constant rather than a literal.
     /// </summary>
     public const string EnvironmentVariable = "DV2D_RENDER_BACKEND";
@@ -24,7 +24,7 @@ public static class RenderBackendPreferenceParser
     ///     Parses <c>auto | cpu | gpu | angle | gl | force-gpu</c>, case- and whitespace-insensitive.
     ///     <para>
     ///         <c>angle</c> and <c>gl</c> are accepted as aliases for <c>gpu</c>: the grammar reserves
-    ///         them (§2.6) but v1 exposes no per-API forcing — which specific GL stack gets used is the
+    ///         them (§2.6) but v1 exposes no per-API forcing: which specific GL stack gets used is the
     ///         probe's decision, reported in <see cref="RenderSurfaceProbe.Reason" />. Accepting and
     ///         mapping them beats rejecting a spelling the documented grammar promises.
     ///     </para>
@@ -91,7 +91,7 @@ public static class RenderBackendPreferenceParser
     ///     Applies the §2.5 precedence chain: explicit API argument → command-line flag → environment
     ///     variable → persisted setting → <see cref="RenderBackendPreference.Auto" />. Any argument may
     ///     be null or absent, and an unparseable string is skipped rather than short-circuiting the
-    ///     chain — a typo in a settings file must not mask a valid <c>--cpu</c> on the command line.
+    ///     chain: a typo in a settings file must not mask a valid <c>--cpu</c> on the command line.
     /// </summary>
     /// <param name="explicitArgument">What a caller asked for in code. Wins outright when present.</param>
     /// <param name="commandLineValue">The raw <c>--backend</c> value, if one was given.</param>

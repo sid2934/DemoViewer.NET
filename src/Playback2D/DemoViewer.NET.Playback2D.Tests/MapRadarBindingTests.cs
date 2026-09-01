@@ -65,7 +65,7 @@ public class MapRadarBindingTests
     /// <summary>
     ///     <b>The direct replacement for the count-match rule.</b> Three floors, two radar layers: the
     ///     pre-v2 code gave every band the upper picture, putting the top floor's radar under the
-    ///     basement. Overlap answers correctly, and the shape is ordinary — Nuke ships two layers and
+    ///     basement. Overlap answers correctly, and the shape is ordinary: Nuke ships two layers and
     ///     the histogram can find three bands.
     /// </summary>
     [Test]
@@ -87,7 +87,7 @@ public class MapRadarBindingTests
     [Test]
     public async Task NoOverlap_LeavesHasRadarFalse()
     {
-        // A single layer high above every band: nothing overlaps, so nothing binds — and the level says
+        // A single layer high above every band: nothing overlaps, so nothing binds, and the level says
         // so rather than silently showing a picture of the wrong storey.
         MapRadarBinder binder = new(Asset(
             [new RadarLayerDto(4000, 5000, "sky.png")], ["sky.png"]));

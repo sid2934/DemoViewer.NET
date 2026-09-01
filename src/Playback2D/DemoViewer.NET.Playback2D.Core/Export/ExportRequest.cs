@@ -7,7 +7,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Core.Export;
 
 /// <summary>
-///     Everything an export renders — design §5.7, verbatim.
+///     Everything an export renders: design §5.7, verbatim.
 ///     <para>
 ///         Frame indices are <b>source-relative</b>: they index the <see cref="ISceneFrameSource" />, not
 ///         the demo. <c>TrackerFrameSource.DemoFrameIndexOf</c> maps one back when a caller needs the
@@ -22,7 +22,7 @@ namespace DemoViewer.NET.Playback2D.Core.Export;
 /// <param name="FormatId">One of <see cref="ExportFormats" />. A persisted key.</param>
 /// <param name="LayerIds">
 ///     Which layers to draw. <b>Empty means "every enabled layer"</b>, minus
-///     <see cref="Layers.SceneLayerIds.OptIn" /> — those render only when named explicitly, so an export
+///     <see cref="Layers.SceneLayerIds.OptIn" />: those render only when named explicitly, so an export
 ///     never silently burns in a scoreboard or someone else's telestration. That set is the one place the
 ///     opt-in ids are listed.
 /// </param>
@@ -45,7 +45,7 @@ public sealed record ExportRequest(
 }
 
 /// <summary>
-///     Well-known <see cref="ExportRequest.FormatId" /> values. <b>Persisted keys</b> — they appear in
+///     Well-known <see cref="ExportRequest.FormatId" /> values. <b>Persisted keys</b>: they appear in
 ///     saved defaults and in CLI arguments, so they are never renamed.
 /// </summary>
 public static class ExportFormats

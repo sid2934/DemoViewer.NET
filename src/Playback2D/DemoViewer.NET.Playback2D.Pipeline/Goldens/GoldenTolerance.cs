@@ -21,7 +21,7 @@ public enum GoldenMode
 ///     <para>
 ///         CPU goldens are authoritative and compared byte-exact. The perceptual mode exists because
 ///         GPU rasterisation legitimately differs from software raster in anti-aliasing and rounding, and
-///         because headless text metrics vary across operating systems — differences that must be
+///         because headless text metrics vary across operating systems: differences that must be
 ///         reviewed, not auto-failed. B0 ships the byte-exact path plus the channel/fraction budgets;
 ///         C2 implements the SSIM fields against these same tolerances.
 ///     </para>
@@ -53,7 +53,7 @@ public enum GoldenMode
 /// </param>
 /// <param name="GlyphOutlierChannelDelta">
 ///     The <b>glyph tier</b>: a second, higher ceiling that a small, budgeted number of pixels may reach.
-///     Zero — the default — disables the tier entirely, which leaves
+///     Zero, the default, disables the tier entirely, which leaves
 ///     <paramref name="OutlierChannelDelta" /> as the one hard ceiling and reproduces the pre-tier
 ///     behaviour exactly. It exists for one measured reason, stated in full on
 ///     <see cref="ForLabelledFrame" />: Skia's glyph rasteriser is not the same code on every
@@ -61,7 +61,7 @@ public enum GoldenMode
 ///     anti-aliasing rounding.
 /// </param>
 /// <param name="MaxGlyphOutlierFraction">
-///     How much of the frame may sit in the glyph tier — above <paramref name="OutlierChannelDelta" />
+///     How much of the frame may sit in the glyph tier, above <paramref name="OutlierChannelDelta" />
 ///     and at or below <paramref name="GlyphOutlierChannelDelta" />. Zero, the default, means "none",
 ///     i.e. any pixel over the hard ceiling fails. Sized to a few glyph stems, far below the area of any
 ///     element a regression could move.
@@ -91,7 +91,7 @@ public readonly record struct GoldenTolerance(
     public static readonly GoldenTolerance DefaultPerceptual =
         new(GoldenMode.Perceptual, 8, 0.005, 0.995);
 
-    /// <summary>Alias for <see cref="DefaultPerceptual" /> — the name C2's parity lane uses.</summary>
+    /// <summary>Alias for <see cref="DefaultPerceptual" />, the name C2's parity lane uses.</summary>
     public static GoldenTolerance CrossBackend => DefaultPerceptual;
 
     /// <summary>
@@ -113,7 +113,7 @@ public readonly record struct GoldenTolerance(
     ///         <b>Skia's glyph rasteriser is not the same code on every OS</b>, and an embedded typeface
     ///         does not change that: the same <c>SKTextBlob</c> at the same origin lays down 65 ink pixels
     ///         under the Windows text stack and 70 under FreeType. Geometry has no such problem, so exactly
-    ///         three limits move — the 96 ceiling, the per-label budget, and a 0.88 worst-window floor.
+    ///         three limits move: the 96 ceiling, the per-label budget, and a 0.88 worst-window floor.
     ///         <c>MaxChannelDelta</c>, the 0.5 % coverage budget, the alpha ceiling and the mean SSIM floor
     ///         are untouched.
     ///     </para>
@@ -130,7 +130,7 @@ public readonly record struct GoldenTolerance(
     /// <param name="width">Frame width in pixels.</param>
     /// <param name="height">Frame height in pixels.</param>
     /// <param name="labels">
-    ///     How many text labels the frame draws — read off the scene, never tuned. Zero closes the tier.
+    ///     How many text labels the frame draws, read off the scene, never tuned. Zero closes the tier.
     /// </param>
     public static GoldenTolerance ForLabelledFrame(int width, int height, int labels)
     {
@@ -158,15 +158,15 @@ public readonly record struct GoldenTolerance(
 /// <param name="Height">Compared height.</param>
 /// <param name="FailureReason">A one-line diagnosis when <paramref name="Match" /> is false.</param>
 /// <param name="OutlierFraction">
-///     Fraction of pixels whose per-channel difference exceeded <c>GoldenTolerance.MaxChannelDelta</c> —
+///     Fraction of pixels whose per-channel difference exceeded <c>GoldenTolerance.MaxChannelDelta</c>,
 ///     the quantity the 0.5% budget is actually spent on. Distinct from
 ///     <paramref name="MismatchedFraction" />, which counts a 1/255 wobble the same as a wrong colour.
 /// </param>
 /// <param name="MaxAlphaDelta">The largest alpha difference observed.</param>
 /// <param name="MinWindowSsim">The worst single 11×11 SSIM window.</param>
 /// <param name="AboveCeilingFraction">
-///     Fraction of pixels whose per-channel difference exceeded <c>GoldenTolerance.OutlierChannelDelta</c>
-///     — the pixels that spend the glyph tier's budget when one is open, and the pixels that fail the
+///     Fraction of pixels whose per-channel difference exceeded <c>GoldenTolerance.OutlierChannelDelta</c>,
+///     the pixels that spend the glyph tier's budget when one is open, and the pixels that fail the
 ///     comparison outright when one is not.
 /// </param>
 public readonly record struct GoldenComparison(
@@ -205,7 +205,7 @@ public readonly record struct GoldenComparison(
 /// <param name="MaxChannelDelta">The largest per-channel difference anywhere in the frame.</param>
 /// <param name="MaxAlphaDelta">The largest alpha difference anywhere in the frame.</param>
 /// <param name="MaxDeltaX">X of a pixel achieving <paramref name="MaxChannelDelta" />.</param>
-/// <param name="MaxDeltaY">Y of that pixel — so a reviewer can go and look at it.</param>
+/// <param name="MaxDeltaY">Y of that pixel, so a reviewer can go and look at it.</param>
 /// <param name="CumulativeAtOrBelow">
 ///     256 entries; entry <c>d</c> is how many pixels differ by at most <c>d</c>.
 /// </param>
@@ -245,7 +245,7 @@ public readonly record struct GoldenDeltaProfile(
 }
 
 /// <summary>
-///     The gate for the <c>nuke-multilevel</c> golden — the pre-v2 control's own capture — stated over the
+///     The gate for the <c>nuke-multilevel</c> golden, the pre-v2 control's own capture, stated over the
 ///     delta <b>distribution</b> instead of over a maximum.
 ///     <para>
 ///         Both of its readers reach it across a rasteriser boundary, and a maximum describes neither
@@ -253,7 +253,7 @@ public readonly record struct GoldenDeltaProfile(
 ///         Avalonia's <c>DrawingContext</c>, so one anti-aliased edge pixel rounding the other way is
 ///         already a full-amplitude difference. The pre-v2 capture reaches it through the same drawing
 ///         code but a different OS text stack, and this golden is LIGHT-palette with a live marker's
-///         initials drawn in black on a bright disc — so one coverage flip at a glyph stem is worth the
+///         initials drawn in black on a bright disc, so one coverage flip at a glyph stem is worth the
 ///         whole ~200 of text-to-disc contrast, roughly four times what the same flip costs on the dark
 ///         synthetic corpus. <see cref="GoldenTolerance.DefaultPerceptual" /> cannot express that and
 ///         <see cref="GoldenTolerance.ForLabelledFrame" /> cannot either: its 96 ceiling and its 6 px
@@ -275,7 +275,7 @@ public readonly record struct GoldenDistribution(double MinWithin8, double MinWi
     public static readonly GoldenDistribution PreV2Capture = new(0.99, 0.995);
 
     /// <summary>
-    ///     Judges one profile, returning null when it passes and a one-line diagnosis when it does not —
+    ///     Judges one profile, returning null when it passes and a one-line diagnosis when it does not,
     ///     the same shape as <see cref="GoldenComparison.FailureReason" />, so a caller can assert on
     ///     either without a second code path.
     /// </summary>

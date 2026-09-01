@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline;
 /// <summary>
 ///     A serialized scene: one <see cref="Scene2DFrame" /> plus the camera, size and time to render it
 ///     at. Fixtures are the design-iteration loop (<c>dv2d render --fixture …</c> re-renders in well
-///     under a second, with no app launch and no demo parse) and the golden-test corpus at once — the
+///     under a second, with no app launch and no demo parse) and the golden-test corpus at once: the
 ///     same artifact, which is why iteration and regression coverage cannot drift apart.
 /// </summary>
 public sealed record SceneFixture
@@ -49,7 +49,7 @@ public sealed record SceneFixture
     /// <summary>Which demo this was captured from, for regeneration.</summary>
     public string? SourceDemoId { get; init; }
 
-    /// <summary>Free-text note — what this fixture is for, and anything a reviewer should know.</summary>
+    /// <summary>Free-text note: what this fixture is for, and anything a reviewer should know.</summary>
     public string? Notes { get; init; }
 
     // Top-level members this build does not understand, carried through a read/write round trip so a

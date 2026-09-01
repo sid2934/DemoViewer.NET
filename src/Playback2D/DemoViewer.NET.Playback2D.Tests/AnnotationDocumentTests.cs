@@ -32,7 +32,7 @@ public class AnnotationDocumentTests
     /// <summary>
     ///     Ctrl+Z is reachable from the keyboard while the pointer is captured mid-stroke. Undoing there
     ///     used to pop the PREVIOUS entry, and then the stroke's own <see cref="AnnotationDocument.Apply" />
-    ///     cleared the redo stack — so the earlier stroke was gone with no way back. The open gesture is
+    ///     cleared the redo stack, so the earlier stroke was gone with no way back. The open gesture is
     ///     the user's current intent; history editing waits for it to finish.
     /// </summary>
     [Test]
@@ -83,7 +83,7 @@ public class AnnotationDocumentTests
     }
 
     /// <summary>
-    ///     Closing a gesture is the moment its deltas become an undo entry — until then they sit in the
+    ///     Closing a gesture is the moment its deltas become an undo entry: until then they sit in the
     ///     open batch and <c>UndoDepth</c> still reads zero. Without a notification there, every consumer
     ///     tracking undo depth (the toolbar's undo button first among them) stays stale until some
     ///     unrelated mutation happens to wake it. Found by the headless exit-criterion suite.
@@ -254,7 +254,7 @@ public class AnnotationDocumentTests
 
     /// <summary>
     ///     Plan decision D6. A level rebuild is a SYSTEM event: it rewrites live anchors and every anchor
-    ///     captured in the history, without consuming an undo slot — otherwise a later Ctrl+Z would
+    ///     captured in the history, without consuming an undo slot. Otherwise a later Ctrl+Z would
     ///     restore an anchor pointing at a level that no longer exists.
     /// </summary>
     [Test]

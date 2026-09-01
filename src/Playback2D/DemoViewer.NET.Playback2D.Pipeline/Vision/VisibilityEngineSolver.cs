@@ -20,7 +20,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Vision;
 ///     </para>
 ///     <para>
 ///         <b>Could-see uses the same <c>VisibilityAnalyzer.EvaluatePair</c> the statistic uses</b>, so
-///         the overlay and the number can never disagree about who saw whom — that is the whole reason
+///         the overlay and the number can never disagree about who saw whom: that is the whole reason
 ///         the pre-v2 code called into the analyzer rather than writing its own frustum test, and it is
 ///         preserved here.
 ///     </para>

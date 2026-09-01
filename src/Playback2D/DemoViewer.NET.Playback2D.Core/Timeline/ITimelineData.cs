@@ -31,11 +31,11 @@ public static class TimelineEventKeys
     /// <summary>
     ///     The CREDITING side of an event that names an attacker, in <see cref="Winner" />'s encoding:
     ///     "2" = T, "3" = CT. ABSENT when the demo cannot say which side the attacker was on at that
-    ///     tick — a consumer must fall back to its neutral rendering rather than guess, because
+    ///     tick. A consumer must fall back to its neutral rendering rather than guess, because
     ///     guessing paints a kill onto the wrong team's ledger.
     ///     <para>
-    ///         Team is per-tick state, not identity — it is deliberately absent from the roster
-    ///         (see <c>PlayerRosterEntry</c>) because it swaps at half — so an adapter has to resolve
+    ///         Team is per-tick state, not identity: it is deliberately absent from the roster
+    ///         (see <c>PlayerRosterEntry</c>) because it swaps at half, so an adapter has to resolve
     ///         it AT the event's tick, not at the playhead's.
     ///     </para>
     /// </summary>
@@ -61,7 +61,7 @@ public readonly record struct TimelineEventRecord(
     IReadOnlyDictionary<string, string> Fields);
 
 /// <summary>
-///     The demo-shaped facts a track needs, in primitives only — no parser, host or UI types, so the
+///     The demo-shaped facts a track needs, in primitives only: no parser, host or UI types, so the
 ///     contract moves to Core unchanged. Implementations cache; a track may call any member freely.
 /// </summary>
 public interface ITimelineData

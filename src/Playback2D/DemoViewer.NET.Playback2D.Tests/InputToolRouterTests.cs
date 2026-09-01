@@ -197,7 +197,7 @@ public class InputToolRouterTests
         await Assert.That(services.Session.ActiveTool).IsEqualTo(ToolKind.Draw);
         await Assert.That(router.IsDrawingToolActive).IsTrue();
 
-        // A re-select must not cancel the gesture the user has in flight — CancelActive() runs only on
+        // A re-select must not cancel the gesture the user has in flight. CancelActive() runs only on
         // an ACTUAL change, and that early-out is what this second call proves is still there.
         SKPoint start = new(200, 100);
         LevelPane pane = services.PaneAt(start)!;
@@ -296,7 +296,7 @@ public class InputToolRouterTests
     /// <summary>
     ///     <b>The other end of the chord.</b> <c>OnPressed</c> refused
     ///     the middle press; <c>OnReleased</c> closed on whatever came up, so letting the middle button go
-    ///     committed the stroke at the chord point and dropped capture — the rest of the drag drew
+    ///     committed the stroke at the chord point and dropped capture. The rest of the drag drew
     ///     nothing and the real left release was a no-op.
     ///     <para>
     ///         The element's LAST sample is the assertion, because "an element exists" passes on the
@@ -343,7 +343,7 @@ public class InputToolRouterTests
     }
 
     /// <summary>
-    ///     A plain release reports which buttons are STILL down — none — so the host cannot always name
+    ///     A plain release reports which buttons are STILL down, none, so the host cannot always name
     ///     the one that came up. <see cref="ToolPointerButton.None" /> therefore has to mean "the
     ///     gesture's own button", or the fix above would strand every gesture open instead.
     /// </summary>
@@ -414,7 +414,7 @@ public class InputToolRouterTests
         await Assert.That(services.Session.Wet.IsActive).IsTrue();
     }
 
-    /// <summary>Null — the shipped default — means "the same tool", so a right-drag still draws.</summary>
+    /// <summary>Null, the shipped default, means "the same tool", so a right-drag still draws.</summary>
     [Test]
     public async Task RightPress_WithNoSecondaryTool_StaysOnTheActiveTool()
     {

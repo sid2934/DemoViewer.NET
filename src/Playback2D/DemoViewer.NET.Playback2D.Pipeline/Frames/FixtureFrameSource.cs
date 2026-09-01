@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Frames;
 ///     Replays one or more committed <see cref="SceneFixture" />s as a frame source.
 ///     <para>
 ///         The point is that a benchmark and a golden can be driven from the <b>same JSON</b> as the
-///         thing they are supposed to measure, with no demo, no parser and no tracker — which is what
+///         thing they are supposed to measure, with no demo, no parser and no tracker, which is what
 ///         makes the budget lane runnable on a CI container. <c>TrackerFrameSource</c> (C1) is the
 ///         real-demo counterpart and shares this interface.
 ///     </para>
@@ -38,7 +38,7 @@ public sealed class FixtureFrameSource : ISceneFrameSource
         _fixtures = fixtures;
     }
 
-    /// <summary>The camera the first fixture was captured with — what a golden re-render must use.</summary>
+    /// <summary>The camera the first fixture was captured with: what a golden re-render must use.</summary>
     public ViewportTransform Camera => _fixtures[0].Camera;
 
     /// <summary>The map name the first fixture carries, or null.</summary>

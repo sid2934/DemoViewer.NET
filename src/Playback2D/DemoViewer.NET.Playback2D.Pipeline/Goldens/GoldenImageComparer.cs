@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Goldens;
 
 /// <summary>
 ///     The one image comparator in the repo. The capture test, the parity gate, <c>dv2d golden</c> and
-///     the cross-backend lane all call this — a second implementation would mean two different
+///     the cross-backend lane all call this: a second implementation would mean two different
 ///     definitions of "the goldens are green".
 /// </summary>
 public static class GoldenImageComparer
@@ -105,7 +105,7 @@ public static class GoldenImageComparer
 
         // The §7.3 rule, in the order that makes a failure message most informative: a wrong colour
         // first, then wrong coverage, then too much AA disagreement, then structure. Note that
-        // MaxChannelDelta is a BUDGET THRESHOLD, not a hard ceiling — the ceiling is
+        // MaxChannelDelta is a BUDGET THRESHOLD, not a hard ceiling: the ceiling is
         // OutlierChannelDelta. One edge pixel landing on the far side of a coverage rounding must not
         // fail a frame; half a percent of them must.
         //
@@ -149,7 +149,7 @@ public static class GoldenImageComparer
 
     /// <summary>
     ///     A diff image: the expected frame desaturated, with every differing pixel tinted red. Returns
-    ///     null when the images match or either cannot be decoded — so a non-null result always means
+    ///     null when the images match or either cannot be decoded, so a non-null result always means
     ///     "here is what changed".
     /// </summary>
     /// <param name="expectedPng">The committed golden.</param>
@@ -203,7 +203,7 @@ public static class GoldenImageComparer
     ///     <para>
     ///         <see cref="GoldenComparison.MaxChannelDelta" /> is the worst single pixel in the frame, and
     ///         a single anti-aliased edge pixel whose sub-pixel coverage rounds the other way produces a
-    ///         full-amplitude difference — so on two different rasterisers the maximum is always large and
+    ///         full-amplitude difference, so on two different rasterisers the maximum is always large and
     ///         says nothing. <see cref="GoldenComparison.MismatchedFraction" /> counts any difference at
     ///         all, including ±1, so it is always large too. What actually distinguishes "the same picture"
     ///         from "a regression" is the shape of the curve: how much of the frame is within a delta a

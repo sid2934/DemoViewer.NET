@@ -14,7 +14,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     The ink layer's wet/dry split, its level filtering and its allocation budget. Rendering is done
-///     onto a small CPU surface and counted in pixels — "the stroke is on the right floor" is not a claim
+///     onto a small CPU surface and counted in pixels: "the stroke is on the right floor" is not a claim
 ///     a whole-scene diff can make.
 /// </summary>
 public class AnnotationLayerTests
@@ -85,7 +85,7 @@ public class AnnotationLayerTests
     /// <summary>
     ///     <b>The one seam that actually loses the ink.</b> A floor lost and
     ///     re-found across rebuilds is minted a NEW key, because <c>MapSpace.Mint</c> walks past every key
-    ///     it has ever issued — after which <c>level.Id != MapSpace.IdForZMin(level.ZMin)</c>. This layer
+    ///     it has ever issued, after which <c>level.Id != MapSpace.IdForZMin(level.ZMin)</c>. This layer
     ///     derived the id from the anchor's Z, so the stroke matched no pane at all and simply vanished;
     ///     a neighbour holding the old key would have drawn it on the wrong storey instead.
     ///     <para>
@@ -283,7 +283,7 @@ public class AnnotationLayerTests
     }
 
     /// <summary>
-    ///     §6's budget. 512 Advance+Render frames with no active stroke must allocate nothing — measured
+    ///     §6's budget. 512 Advance+Render frames with no active stroke must allocate nothing, measured
     ///     on the SECOND of two identical windows, so JIT warmup on the first cannot register as a leak.
     ///     <para>
     ///         The mix carries a mid-replay real-time stroke as well as the cached, entity-anchored and

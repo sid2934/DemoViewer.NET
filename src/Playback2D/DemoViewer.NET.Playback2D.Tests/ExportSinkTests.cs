@@ -67,7 +67,7 @@ public class FfmpegArgumentTests
 
         await Assert.That(arguments).Contains("-c:v libx264");
 
-        // P2: `-preset medium -crf 30` was beaten on BOTH axes by this — faster and a higher SSIM. CRF 30
+        // P2: `-preset medium -crf 30` was beaten on BOTH axes by this: faster and a higher SSIM. CRF 30
         // on x264 throws the quality away before the preset can spend any effort on it.
         await Assert.That(arguments).Contains("-preset veryfast");
         await Assert.That(arguments).Contains("-crf 21");
@@ -229,7 +229,7 @@ public class ChannelVideoFrameSourceTests
         using ChannelVideoFrameSource bridge = new();
         bridge.GetEnumerator();
 
-        // A second pass would silently produce an empty stream — a video file with no frames and no
+        // A second pass would silently produce an empty stream, a video file with no frames and no
         // error, which is a much worse failure than saying so.
         await Assert.That(SceneExportSessionLoopTests.Throws<InvalidOperationException>(() => bridge.GetEnumerator())).IsNotNull();
     }
@@ -246,13 +246,13 @@ public class ManagedGifSinkTests
     ///     <para>
     ///         This is CI's own invocation: the workflow exports to
     ///         <c>artifacts/playback2d-export/ci-smoke.gif</c>, a directory that does not exist on a
-    ///         clean checkout. Neither rung of the ladder creates it — ffmpeg answers
+    ///         clean checkout. Neither rung of the ladder creates it: ffmpeg answers
     ///         <c>
     ///             Error opening
     ///             output …: No such file or directory
     ///         </c>
     ///         and ImageSharp throws
-    ///         <see cref="DirectoryNotFoundException" /> — and both refusals land only after the whole
+    ///         <see cref="DirectoryNotFoundException" />, and both refusals land only after the whole
     ///         range has been replayed and drawn. Found at the B4 merge, by running the CI step.
     ///     </para>
     /// </summary>

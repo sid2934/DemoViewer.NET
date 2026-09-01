@@ -140,7 +140,7 @@ public class PaneLayoutTests
     }
 
     /// <summary>
-    ///     The steady-state frame — level set unchanged, same host size — must not reach the layout
+    ///     The steady-state frame, level set unchanged, same host size, must not reach the layout
     ///     policy at all, or the §6 zero-allocation budget is unreachable before a single layer is
     ///     written.
     /// </summary>

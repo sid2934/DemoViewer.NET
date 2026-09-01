@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     The port of the App's <c>Playback2DInterpolationTests</c> onto <see cref="MarkerSmoother" />,
-///     case for case — plus the discontinuity snap this suite adds.
+///     case for case, plus the discontinuity snap this suite adds.
 ///     <para>
 ///         The four original cases are the behaviour a viewer notices immediately when it breaks: a dot
 ///         that flies in from the origin on its first frame, a dot that steps instead of gliding, a dot
@@ -88,7 +88,7 @@ public class MarkerSmoothingTests
 
     /// <summary>
     ///     The distance rule already catches a big seek, but a SHORT one moves a player
-    ///     less than the teleport threshold — and gliding across that gap draws motion that never
+    ///     less than the teleport threshold, and gliding across that gap draws motion that never
     ///     happened. The distance rule stays: it is what the ported cases above pin.
     /// </summary>
     [Test]
@@ -107,7 +107,7 @@ public class MarkerSmoothingTests
 
     /// <summary>
     ///     <b>One owner, and it is the marker layer.</b> Two advances in one frame step every dot twice
-    ///     and it glides at double speed — which is what an earlier draft did, by de-duplicating on
+    ///     and it glides at double speed, which is what an earlier draft did, by de-duplicating on
     ///     <c>(frame, time)</c> so either the marker layer or the vision layer could drive it. A constant
     ///     frame delta (exactly what a headless render timer produces) then made every call after the
     ///     first a no-op that handed back a stale "still moving", and the self-terminating render loop
@@ -166,7 +166,7 @@ public class MarkerSmoothingTests
     ///     <para>
     ///         <b>Tagged Budget because it is an allocation figure</b>, and <c>ci.yml</c> says those
     ///         belong in the budget lane. Untagged it ran in <c>playback2d-tests</c>, both
-    ///         <c>render-backends</c> passes and the GPU lane — four blocking lanes for one exact-zero
+    ///         <c>render-backends</c> passes and the GPU lane: four blocking lanes for one exact-zero
     ///         assertion that went red once and green on the re-run.
     ///     </para>
     /// </summary>

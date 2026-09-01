@@ -47,7 +47,7 @@ public sealed class CameraScriptResolver : IPaneCameraPolicy
     public int ResolvedSlot => _rig?.Slot ?? -1;
 
     /// <summary>
-    ///     Whether the last <see cref="Apply" /> moved any camera. False means every pane held — which is
+    ///     Whether the last <see cref="Apply" /> moved any camera. False means every pane held, which is
     ///     the correct answer for a fixed script, and for a follow whose target is unresolvable.
     /// </summary>
     public bool MovedAnyCamera { get; private set; }
@@ -128,7 +128,7 @@ public sealed class CameraScriptResolver : IPaneCameraPolicy
         rig.Slot = SlotForSteamId(frame, steamId);
 
         // The same exponential-decay step the interactive path uses, driven by the FIXED timestep rather
-        // than a real frame delta — so an export looks like the live view and two runs agree exactly.
+        // than a real frame delta, so an export looks like the live view and two runs agree exactly.
         double t = 1 - Math.Exp(-CameraAdvancer.LerpResponse * time.DeltaSeconds);
 
         IReadOnlyList<LevelPane> list = panes.Panes;

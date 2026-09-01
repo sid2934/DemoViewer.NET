@@ -11,14 +11,14 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 
 /// <summary>
 ///     The export HUD's kill feed: up to six rows in the top-right corner, carrying the same modifiers the
-///     XAML feed shows — headshot, wallbang, no-scope, through-smoke, blind, airborne, flash assist.
+///     XAML feed shows: headshot, wallbang, no-scope, through-smoke, blind, airborne, flash assist.
 ///     <para>
 ///         <b>One source, and its glyphs are not always the XAML feed's.</b> Rows come from the same
 ///         <c>KillFeedTimeline.Window</c> the view-model calls, through an <see cref="IHudDataSource" />,
-///         so the feed and the export can't disagree about which kills to show — this layer only decides
+///         so the feed and the export can't disagree about which kills to show. This layer only decides
 ///         how a row looks. It draws through the embedded Latin-only Inter (<see cref="TextBlobCache" />)
 ///         rather than the platform UI font; two of the panel's symbols have no glyph in Inter, so where
-///         they differ the export uses a token that exists — the modifier is the contract, the character
+///         they differ the export uses a token that exists: the modifier is the contract, the character
 ///         is not.
 ///     </para>
 ///     <para>
@@ -26,8 +26,8 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///         the weapon and modifiers between them in the secondary text colour, so a wall of white reads as
 ///         "our side is trading". Each run is memoised through <see cref="TextBlobCache" />, so three runs
 ///         cost no more than one. A row whose side the demo could not resolve
-///         (<c>KillFeedRow.AttackerTeam == 0</c>) keeps the neutral colour —
-///         <b>no kill loses its row over a missing team.</b> Like <see cref="ClockLayer" />, it is opt-in
+///         (<c>KillFeedRow.AttackerTeam == 0</c>) keeps the neutral colour.
+///         <b>No kill loses its row over a missing team.</b> Like <see cref="ClockLayer" />, it is opt-in
 ///         and draws in the topmost band only.
 ///     </para>
 /// </summary>
@@ -113,7 +113,7 @@ public sealed class KillFeedLayer : ISceneLayer
         float y = _style.MarginPx;
         float lineHeight = _style.FontSizePx * LineHeightFactor;
 
-        // Oldest first, top to bottom — the same order the XAML feed stacks them in.
+        // Oldest first, top to bottom, the same order the XAML feed stacks them in.
         int first = rows.Count - count;
         for (int i = first; i < rows.Count; i++)
         {
@@ -186,7 +186,7 @@ public sealed class KillFeedLayer : ISceneLayer
     }
 
     /// <summary>
-    ///     The one-line form of a kill row — the three drawn runs, concatenated. Public so the snapshot
+    ///     The one-line form of a kill row: the three drawn runs, concatenated. Public so the snapshot
     ///     test can assert the export's text against the same row the XAML feed binds, rather than against
     ///     a picture; the split into runs is a colour concern and must not change what a row says.
     /// </summary>
@@ -244,7 +244,7 @@ public sealed class KillFeedLayer : ISceneLayer
             if (row.AssistedFlash)
             {
                 // '*', not the XAML feed's '⚡'. The embedded face is Inter Regular and nothing else
-                // (TextBlobCache), so U+26A1 rasterised as a .notdef box in every exported frame — a
+                // (TextBlobCache), so U+26A1 rasterised as a .notdef box in every exported frame: a
                 // glyph that says "missing font", not "flash assist". Same reason ✱ became " BL" below.
                 builder.Append('*');
             }
@@ -258,9 +258,9 @@ public sealed class KillFeedLayer : ISceneLayer
         Append(builder, row.Headshot, " HS");
         Append(builder, row.Penetrated, " WB");
         Append(builder, row.NoScope, " NS");
-        Append(builder, row.ThroughSmoke, " ≈"); // ≈ through smoke — U+2248, present in Inter
+        Append(builder, row.ThroughSmoke, " ≈"); // ≈ through smoke: U+2248, present in Inter
         Append(builder, row.AttackerBlind, " BL"); // a word, because U+2731 is not in the embedded face
-        Append(builder, row.AttackerInAir, " ↑"); // ↑ killer airborne — U+2191, present in Inter
+        Append(builder, row.AttackerInAir, " ↑"); // ↑ killer airborne: U+2191, present in Inter
 
         builder.Append("  →  "); // →
         return new RowText(attacker, builder.ToString(), row.Victim);

@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     The Kinovea-style visibility trapezoid. The shape is plan decision D5: the ramps sit OUTSIDE the
-///     window, which is the only arrangement in which <c>default</c> is a constant 1.0 — and design §5.4
+///     window, which is the only arrangement in which <c>default</c> is a constant 1.0, and design §5.4
 ///     requires <c>TimeEnvelope.Static == default</c>.
 /// </summary>
 public class TimeEnvelopeTests
@@ -114,7 +114,7 @@ public class TimeEnvelopeTests
     /// <summary>
     ///     A negative tick difference must not wrap. The demo clock is an <c>int</c> and an envelope
     ///     anchored near <c>int.MaxValue</c> with a tick near <c>int.MinValue</c> would overflow a naive
-    ///     subtraction into a positive number — and a fully-opaque stroke at the wrong end of the demo.
+    ///     subtraction into a positive number, and a fully-opaque stroke at the wrong end of the demo.
     /// </summary>
     [Test]
     public async Task ExtremeTicks_DoNotOverflowIntoVisibility()

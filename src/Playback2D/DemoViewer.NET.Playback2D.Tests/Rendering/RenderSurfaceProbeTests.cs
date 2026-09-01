@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Playback2DTests.Rendering;
 
 /// <summary>
 ///     The probe's behavioural contract (plans/C2-gpu-provider.md §7.1): once per process, thread-safe,
-///     one log line, and <b>never an exception</b> — "no GPU here" is an answer, not a failure.
+///     one log line, and <b>never an exception</b>: "no GPU here" is an answer, not a failure.
 ///     <para>
 ///         Shares the <see cref="ProbeSerialization.Key" /> constraint with every other suite that
 ///         touches the process-wide probe cache or the render-backend environment variables. The cache
@@ -36,7 +36,7 @@ public class RenderSurfaceProbeTests
 
     /// <summary>
     ///     The escape hatch pointed at nothing. An explicit <c>DV2D_ANGLE_LIBRARY</c> is the <i>only</i>
-    ///     candidate when it is set — falling through to the shipped ANGLE would make "test against this
+    ///     candidate when it is set. Falling through to the shipped ANGLE would make "test against this
     ///     other build" silently test the default one, which is worse than failing.
     /// </summary>
     [Test]
@@ -93,7 +93,7 @@ public class RenderSurfaceProbeTests
 
     /// <summary>
     ///     <c>DV2D_RENDER_BACKEND=cpu</c> must reach every construction site without each one threading a
-    ///     flag through — that is what makes the CI "forced CPU" lane a real second pass over the suite
+    ///     flag through. That is what makes the CI "forced CPU" lane a real second pass over the suite
     ///     rather than a branch that merely compiles.
     /// </summary>
     [Test]
@@ -112,7 +112,7 @@ public class RenderSurfaceProbeTests
     /// <summary>
     ///     An explicit argument outranks the environment (§2.5). Asserted through the failure message,
     ///     because on a machine that <i>does</i> have a GPU the successful path proves nothing about
-    ///     precedence — the throw does.
+    ///     precedence: the throw does.
     /// </summary>
     [Test]
     public async Task Create_ExplicitPreference_OutranksTheEnvironment()
@@ -128,8 +128,8 @@ public class RenderSurfaceProbeTests
     /// <summary>
     ///     §2.5's precedence, at the place it is actually load-bearing: an explicit API argument outranks
     ///     <c>DV2D_RENDER_BACKEND</c>. The cached probe short-circuits to <c>forced-cpu</c> when the
-    ///     ambient variable says <c>cpu</c>, and that is a <i>policy</i> answer, not a capability one —
-    ///     letting it veto a caller that outranks the environment would make
+    ///     ambient variable says <c>cpu</c>, and that is a <i>policy</i> answer, not a capability one.
+    ///     Letting it veto a caller that outranks the environment would make
     ///     <c>Create(ForceGpu)</c> throw on a machine whose GPU is working perfectly, in direct
     ///     contradiction of §6.2 ("throws only ... when no GPU backend is available").
     ///     <para>
@@ -153,7 +153,7 @@ public class RenderSurfaceProbeTests
 
     /// <summary>
     ///     The other half of the same rule, on hardware: <c>PreferGpu</c> passed explicitly must reach the
-    ///     GPU even while <c>DV2D_RENDER_BACKEND=cpu</c> is set — otherwise a stale shell variable
+    ///     GPU even while <c>DV2D_RENDER_BACKEND=cpu</c> is set. Otherwise a stale shell variable
     ///     silently overrides the CLI flag or the export dialog's advanced option, which is precisely the
     ///     inversion §2.5 exists to prevent.
     /// </summary>
@@ -176,7 +176,7 @@ public class RenderSurfaceProbeTests
     /// <summary>
     ///     WASM surfaces belong to Avalonia's compositor and there is no EGL to bind to, so the browser
     ///     branch must never reach the GPU attempt. Asserted through the injected platform rather than by
-    ///     running the suite on WASM — the branch is what needs proving, not the runtime.
+    ///     running the suite on WASM. The branch is what needs proving, not the runtime.
     /// </summary>
     [Test]
     public async Task ProbeCore_OnBrowser_ShortCircuits() =>

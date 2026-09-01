@@ -8,7 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The hysteresis formula and its dwell, driven entirely by injected <c>dt</c> — no demo, no clock,
+///     The hysteresis formula and its dwell, driven entirely by injected <c>dt</c>: no demo, no clock,
 ///     no window. Every constant here is justified against CS2 physics or <c>FloorSplitter</c>'s own
 ///     arithmetic in the B3 plan's "Hysteresis sizing" section; these are the assertions that stop a
 ///     retune from silently reintroducing stair dither.
@@ -146,7 +146,7 @@ public class LevelHysteresisTests
     }
 
     /// <summary>
-    ///     The sticky overload is the spatial half on its own — no dwell, because a marker must never lag
+    ///     The sticky overload is the spatial half on its own: no dwell, because a marker must never lag
     ///     its own level. Here it holds the previous answer inside the band and yields outside it.
     /// </summary>
     [Test]
@@ -163,7 +163,7 @@ public class LevelHysteresisTests
     /// <summary>
     ///     Plan risk R4's mitigation is "all four constants live in <c>LevelHysteresisOptions</c>, so
     ///     retuning is a one-line change with no API break". <c>Default</c> is a get-only static, so the
-    ///     only way to retune is to <i>pass</i> an options instance — which therefore has to reach the
+    ///     only way to retune is to <i>pass</i> an options instance, which therefore has to reach the
     ///     spatial band, not just the dwell.
     /// </summary>
     [Test]

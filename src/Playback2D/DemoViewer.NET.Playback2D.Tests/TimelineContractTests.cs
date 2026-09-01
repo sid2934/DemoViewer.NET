@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Playback2DTests;
 /// <summary>
 ///     The successor to A1's <c>TimelineCoreCleanTests</c>. A1 shipped the timeline contract Core-clean
 ///     under an architecture test precisely so B1's move (integrator correction 10) would be a namespace
-///     rewrite; that test's job is done, so it is deleted and this one takes over — asserting that the
+///     rewrite; that test's job is done, so it is deleted and this one takes over, asserting that the
 ///     seven declared members now live in Core with their signatures unchanged.
 ///     <para>
 ///         R9 (the "land it in Pipeline instead" fallback) did <b>not</b> fire: <c>ITimelineData</c>

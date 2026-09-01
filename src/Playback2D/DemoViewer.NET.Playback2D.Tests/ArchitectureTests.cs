@@ -50,7 +50,7 @@ public class ArchitectureTests
     /// <summary>
     ///     Decision D1's guard. Pipeline consumes <c>IPlaybackSnapshot</c> / <c>IPlayerState</c> /
     ///     <c>IReadOnlyEntityView</c> from this assembly, so an Avalonia reference creeping back into it
-    ///     would drag Avalonia into every headless consumer — export, the CLI, and CI.
+    ///     would drag Avalonia into every headless consumer: export, the CLI, and CI.
     /// </summary>
     [Test]
     public async Task ModulesAbstractions_TransitiveClosure_ContainsNoAvalonia() =>

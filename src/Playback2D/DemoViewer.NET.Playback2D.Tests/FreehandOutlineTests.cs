@@ -68,7 +68,7 @@ public class FreehandOutlineTests
 
     /// <summary>
     ///     What <c>DrawTool</c> commits for a tap: two coincident samples. Upstream's streamline pass
-    ///     collapses them to one stroke point, which is what selects its dot branch — so this, not a
+    ///     collapses them to one stroke point, which is what selects its dot branch, so this, not a
     ///     lone sample, is the path that produces an exact circle.
     /// </summary>
     [Test]

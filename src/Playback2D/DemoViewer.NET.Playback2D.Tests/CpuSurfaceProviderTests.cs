@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     The contract baseline (design §5.8): every golden is authored on this provider, so its surface
-///     format is load-bearing — an RGBA8888 premultiplied surface of exactly the requested size.
+///     format is load-bearing: an RGBA8888 premultiplied surface of exactly the requested size.
 /// </summary>
 public class CpuSurfaceProviderTests
 {
@@ -71,7 +71,7 @@ public class CpuSurfaceProviderTests
         provider.Dispose();
         provider.Dispose();
 
-        // Disposal owns nothing, so the provider stays usable — the point is that neither call throws.
+        // Disposal owns nothing, so the provider stays usable. The point is that neither call throws.
         using SKSurface surface = provider.CreateSurface(new SKSizeI(2, 2));
         await Assert.That(surface).IsNotNull();
     }

@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Playback2D.Core;
 ///         The <see cref="Current" /> transform is what renders this frame. A smooth mode computes a TARGET
 ///         transform (a fit of the live/observed bounds, or a centre on the followed player) and the driver
 ///         calls <see cref="StepToward" /> once per RENDER frame with an interpolation factor derived from
-///         the real frame dt — never a hard snap per tick. A manual pan/zoom flips <see cref="ManualOverride" />,
+///         the real frame dt, never a hard snap per tick. A manual pan/zoom flips <see cref="ManualOverride" />,
 ///         which the viewport reads to pause the auto-mode for THIS slice (so the user isn't fighting the lerp);
 ///         re-selecting a mode clears it.
 ///     </para>
@@ -21,7 +21,7 @@ public struct SliceCamera
     public ViewportTransform Current { get; set; }
 
     /// <summary>
-    ///     True once the user has manually panned/zoomed this slice — the auto-mode (Alive / Follow / Map)
+    ///     True once the user has manually panned/zoomed this slice. The auto-mode (Alive / Follow / Map)
     ///     is paused for this slice until a mode is re-selected, so the manual gesture isn't fought by the lerp.
     /// </summary>
     public bool ManualOverride { get; set; }
@@ -37,7 +37,7 @@ public struct SliceCamera
     ///     ∈ [0,1] (an exponential-decay step computed by the driver from the real frame dt). The centre, the
     ///     base scale, the zoom, and the pan are each lerped, so a Fit-shaped target (zoom 1, pan 0) is
     ///     approached without snapping. <paramref name="t" /> = 1 lands exactly on the target;
-    ///     <paramref name="t" /> = 0 is a no-op. Returns the stepped camera (value type — no mutation of the
+    ///     <paramref name="t" /> = 0 is a no-op. Returns the stepped camera (value type: no mutation of the
     ///     caller's copy unless reassigned).
     /// </summary>
     public readonly SliceCamera StepToward(ViewportTransform target, double t)
@@ -62,7 +62,7 @@ public struct SliceCamera
 
     /// <summary>
     ///     True when <see cref="Current" /> renders within <paramref name="epsilonPixels" /> of
-    ///     <paramref name="target" /> — the driver stops re-arming the render loop once every slice is settled,
+    ///     <paramref name="target" />: the driver stops re-arming the render loop once every slice is settled,
     ///     so the viewport doesn't spin forever after convergence. Measured in SCREEN pixels (the user-visible
     ///     metric): the centre and pan deltas are compared after mapping through the effective scale, and the
     ///     scale itself is compared as a relative ratio. This keeps the threshold meaningful whether the camera
@@ -83,7 +83,7 @@ public struct SliceCamera
     }
 
     // `a + (b - a) * t` is NaN for every t when a is NaN, so a camera that has already been poisoned
-    // can never lerp its way back to a finite target — it stays unsettled, and CameraAdvancer keeps the
+    // can never lerp its way back to a finite target. It stays unsettled, and CameraAdvancer keeps the
     // render loop armed forever. ViewportTransform.Fit and SceneFrameBuilder.Observe stop the two known
     // producers; this is what lets a camera that was corrupted anyway RECOVER, on the first frame with a
     // finite target, by landing on it instead of interpolating from nothing.

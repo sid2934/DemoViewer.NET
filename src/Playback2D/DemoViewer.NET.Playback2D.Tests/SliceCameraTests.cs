@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     Pure-math gates for the per-slice camera: the render-frame lerp toward a target, settle
-///     detection, and the manual-override carry. No Avalonia / no render — the smooth-mode motion is
+///     detection, and the manual-override carry. No Avalonia / no render. The smooth-mode motion is
 ///     verified here so the headless render tests only need to confirm a mode renders (not that it converges
 ///     through the render loop). The step factor is an explicit interpolation value (never wall-clock), so
 ///     "halfway moves between" and "N steps converge" are deterministic assertions.

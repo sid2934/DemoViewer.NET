@@ -4,7 +4,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 ///     One pinned, hash-verified ffmpeg build the app may offer to download, and where it would land.
 ///     <para>
 ///         Everything a consent sheet needs is here except the licence text itself, which is read out of
-///         the downloaded archive rather than vendored into this repository — a copy of a licence that
+///         the downloaded archive rather than vendored into this repository: a copy of a licence that
 ///         drifts from the binary it covers is worse than no copy.
 ///     </para>
 /// </summary>
@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 /// <param name="ArchiveSha256">Lower-case hex SHA-256 of the archive, verified before extraction.</param>
 /// <param name="ReleaseTag">The dated BtbN release tag the asset belongs to.</param>
 /// <param name="SourceUrl">Where the build's source and build scripts live.</param>
-/// <param name="LicenseName">The licence the build carries — always <c>LGPL-2.1</c> here (plan D9).</param>
+/// <param name="LicenseName">The licence the build carries: always <c>LGPL-2.1</c> here (plan D9).</param>
 /// <param name="ApproxBytes">Archive size, for the progress UI and the "this is a big download" warning.</param>
 /// <param name="TargetDirectory">Where <c>ffmpeg</c> and <c>ffprobe</c> will be written.</param>
 public sealed record FfmpegDownloadOffer(
@@ -25,7 +25,7 @@ public sealed record FfmpegDownloadOffer(
     string TargetDirectory);
 
 /// <summary>
-///     A managed ffmpeg download failed in a way the user should be told about — a 404 on the pinned
+///     A managed ffmpeg download failed in a way the user should be told about: a 404 on the pinned
 ///     asset, a SHA-256 mismatch, or an archive missing the binaries it should contain. Every one of
 ///     these degrades to the GIF floor rather than crashing, so the message is user-facing copy.
 /// </summary>

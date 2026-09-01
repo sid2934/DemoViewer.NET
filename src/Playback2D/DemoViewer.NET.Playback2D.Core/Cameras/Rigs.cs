@@ -7,8 +7,8 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 namespace DemoViewer.NET.Playback2D.Core.Cameras;
 
 /// <summary>
-///     Holds whatever the camera already shows. Used for <c>CameraMode.Fit</c> — a one-shot fit applied
-///     by <c>PaneSet.FitAll</c>, static thereafter — and as the starting rig of a freshly created pane.
+///     Holds whatever the camera already shows. Used for <c>CameraMode.Fit</c>, a one-shot fit applied
+///     by <c>PaneSet.FitAll</c>, static thereafter, and as the starting rig of a freshly created pane.
 ///     <para>
 ///         The naming reads backwards against the mode vocabulary (plan decision D-3): <c>Fit</c> maps
 ///         to <see cref="ManualRig" /> because it fits <i>once</i>, while <c>Map</c> maps to
@@ -29,7 +29,7 @@ public sealed class ManualRig : ICameraRig
 
 /// <summary>
 ///     Frames the map. The <b>real networked</b> playable bounds (<c>m_vMinimapMins</c>/<c>Maxs</c>)
-///     when the map publishes them, else the all-demo observed extent — the approximation the mode
+///     when the map publishes them, else the all-demo observed extent, the approximation the mode
 ///     selector labels "Map (approx.)". Port of <c>TryComputeTarget</c>'s <c>Map</c> arm (lines 716-728).
 /// </summary>
 public sealed class FitMapRig : ICameraRig
@@ -113,7 +113,7 @@ public sealed class FitAliveRig : ICameraRig
 
         if (count == 0)
         {
-            return null; // hold — this level has nobody alive this frame.
+            return null; // hold: this level has nobody alive this frame.
         }
 
         double padX = Math.Max((maxX - minX) * _padding, _minHalfWorld);
@@ -124,7 +124,7 @@ public sealed class FitAliveRig : ICameraRig
 }
 
 /// <summary>
-///     Centres on one player's marker. Port of <c>TryFollow</c> (lines 789-818) — the followed player
+///     Centres on one player's marker. Port of <c>TryFollow</c> (lines 789-818): the followed player
 ///     keeps a gray marker at their last-known position when dead, so following survives a death; only
 ///     a slot with no marker at all makes the camera hold.
 ///     <para>
@@ -182,7 +182,7 @@ public sealed class FollowPlayerRig : ICameraRig
             }
 
             // Only the level the followed player is on tracks them; the others hold. Note this RETURNS
-            // rather than continuing — the pre-v2 code does the same, and a roster with a duplicate slot
+            // rather than continuing: the pre-v2 code does the same, and a roster with a duplicate slot
             // must not make a second marker win.
             if (pane.PaneCount > 1 && pane.Space is { } space &&
                 space.LevelIndexFor(m.WorldZ) != pane.LevelIndex)
@@ -217,7 +217,7 @@ public sealed class FollowPlayerRig : ICameraRig
 
     /// <summary>
     ///     Forgets the committed centre so the next frame recentres. Called on
-    ///     <c>SceneTime.IsDiscontinuity</c> — after a seek the deadzone must not hold the camera at
+    ///     <c>SceneTime.IsDiscontinuity</c>: after a seek the deadzone must not hold the camera at
     ///     where the player used to be.
     /// </summary>
     public void ResetDeadzone() => _committed = false;

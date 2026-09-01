@@ -8,7 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 namespace DemoViewer.NET.Playback2D.Core.Export;
 
 /// <summary>
-///     How the camera behaves for the whole export — design §5.7's
+///     How the camera behaves for the whole export: design §5.7's
 ///     <c>Fixed(transform) | FollowPlayer(steamId) | MirrorLiveView</c>.
 ///     <para>
 ///         Every case is a pure function of the request plus the frame, so two runs of the same request
@@ -35,8 +35,8 @@ public abstract record CameraScript
     public sealed record Fixed(IReadOnlyDictionary<MapLevelId, ViewportTransform> PaneTransforms) : CameraScript;
 
     /// <summary>
-    ///     Follow one player by SteamId. Holds the last framing while the target is unresolvable — a
-    ///     player who has not spawned, or a SteamId that is not in this demo — and keeps following the
+    ///     Follow one player by SteamId. Holds the last framing while the target is unresolvable, a
+    ///     player who has not spawned, or a SteamId that is not in this demo, and keeps following the
     ///     gray last-known marker after a death, exactly as the interactive rig does.
     /// </summary>
     /// <param name="SteamId">The SteamID64 to follow.</param>

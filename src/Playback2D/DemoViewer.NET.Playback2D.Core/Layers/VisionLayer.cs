@@ -14,7 +14,7 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///     / <c>DrawSightlines</c> (viewport lines 987-1057).
 ///     <para>
 ///         <b>The raycasts moved from Render to Advance.</b> The pre-v2 code ran 26 raycasts per player
-///         inside <c>Control.Render</c> — once per pane, so a two-floor Nuke paid for them twice — and
+///         inside <c>Control.Render</c>, once per pane, so a two-floor Nuke paid for them twice, and
 ///         called into the visibility engine from the render thread. Solving once in Advance is
 ///         pixel-identical (same rays, same eye, same range), strictly cheaper, and the only way the
 ///         Advance/Render purity split can hold. The solve itself lives in Pipeline:
@@ -23,7 +23,7 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///     <para>
 ///         <b>Two sources, and it draws whichever one has data.</b> An <see cref="IVisionSolver" /> is the
 ///         live path the app takes, and it wins whenever it produces a solution. A
-///         <see cref="Scene2DFrame" /> can also arrive with <see cref="SceneVision" /> already solved —
+///         <see cref="Scene2DFrame" /> can also arrive with <see cref="SceneVision" /> already solved:
 ///         the shape a serialized fixture carries. It is a fallback rather than a merge because two
 ///         sources drawn at once would double every cone on the one frame that carried both.
 ///     </para>
@@ -38,13 +38,13 @@ public sealed class VisionLayer : ISceneLayer
 
     /// <summary>Creates the layer.</summary>
     /// <param name="solver">
-    ///     The solve seam. Null is not "draw nothing" — the layer then draws whatever the frame carries
+    ///     The solve seam. Null is not "draw nothing". The layer then draws whatever the frame carries
     ///     pre-solved in <see cref="Scene2DFrame.Vision" />. A headless fixture render supplies its cones
     ///     this way.
     /// </param>
     /// <param name="smoother">
     ///     The shared marker smoothing, so cone apexes and sightline endpoints sit on the drawn dots
-    ///     rather than the raw samples. <b>Read, never advanced</b> — <c>MarkerLayer</c> owns that, and
+    ///     rather than the raw samples. <b>Read, never advanced</b>: <c>MarkerLayer</c> owns that, and
     ///     the compositor advances it second (draw order 40 against this layer's 30), so a cone apex
     ///     trails its dot by one frame while a glide is in progress. Sightline endpoints are resolved at
     ///     Render and are always current. Null falls back to raw positions.
@@ -68,7 +68,7 @@ public sealed class VisionLayer : ISceneLayer
     /// <summary>The last solved geometry. Test hook, and what the HUD reads for a "seen by" count.</summary>
     public VisionSolution Solution { get; } = new();
 
-    /// <summary>Could-see segments solved for the last advance — the pre-v2 <c>SightlineCount</c> hook.</summary>
+    /// <summary>Could-see segments solved for the last advance: the pre-v2 <c>SightlineCount</c> hook.</summary>
     public int SightlineCount => Solution.Sightlines.Count;
 
     /// <inheritdoc />
@@ -110,7 +110,7 @@ public sealed class VisionLayer : ISceneLayer
             Project(frame.Vision, Solution);
         }
 
-        return false; // vision is frame-driven, not animated — it never keeps the loop armed on its own
+        return false; // vision is frame-driven, not animated. It never keeps the loop armed on its own
     }
 
     /// <inheritdoc />
@@ -143,7 +143,7 @@ public sealed class VisionLayer : ISceneLayer
     ///     <para>
     ///         <b>Allocation-free after the first frame.</b> <c>AddCone</c> hands back a pooled
     ///         <see cref="ConePolygon" /> whose ray buffer only ever grows, and the sightline list keeps
-    ///         its capacity across <c>Clear</c> — which it must, because <c>duel-mirage-b</c> is the
+    ///         its capacity across <c>Clear</c>, which it must, because <c>duel-mirage-b</c> is the
     ///         fixture CI's 0 B/frame allocation gate benches and it is one of the three that carry
     ///         vision.
     ///     </para>
@@ -226,7 +226,7 @@ public sealed class VisionLayer : ISceneLayer
     }
 
     // A sightline draws on a band if EITHER endpoint is on it, mirroring the trail rule (parity
-    // invariant 5), and connects the SMOOTHED dots so the line meets the players it describes — unless
+    // invariant 5), and connects the SMOOTHED dots so the line meets the players it describes, unless
     // the segment arrived with both ends already resolved, in which case re-deriving them would throw
     // away the answer its author computed.
     private void DrawSightlines(SKCanvas canvas, in SceneRenderContext ctx)

@@ -200,7 +200,7 @@ public sealed class FfmpegEncoderProbe : IEncoderProbe
     private static (bool Ok, string Detail) TestEncode(string encoderName, string? binaryFolder,
         CancellationToken ct)
     {
-        // yuv420p: one luma plane plus two half-resolution chroma planes. All zeros — the encoder does
+        // yuv420p: one luma plane plus two half-resolution chroma planes. All zeros: the encoder does
         // not care what the picture is, only that it is handed one of the size it was told about.
         byte[] frame = new byte[ProbeSize * ProbeSize * 3 / 2];
         byte[] payload = new byte[frame.Length * ProbeFrames];

@@ -184,7 +184,7 @@ public sealed class ClockLayer : ISceneLayer
             // The race, decided rather than reported: a defuse that completes before the blow is drawn in
             // the defuse colour, one that does not in the detonation colour. Two numbers a viewer would
             // otherwise have to subtract in their head, in the frame they have to do it.
-            // No countdown to race means no race — NaN loses every comparison, and painting a defuse red
+            // No countdown to race means no race: NaN loses every comparison, and painting a defuse red
             // because nothing is ticking would say the exact opposite of what is happening.
             bool wins = double.IsNaN(_snapshot.CountdownSeconds)
                         || _snapshot.DefuseSeconds <= _snapshot.CountdownSeconds;
@@ -228,7 +228,7 @@ public sealed class ClockLayer : ISceneLayer
     /// <param name="ctx">The pane being drawn.</param>
     internal static bool IsTopBand(SceneRenderContext ctx) => ctx.Pane.ViewportRect.Top <= 0.5f;
 
-    // A score is a small non-negative integer, so the whole domain is an array — no dictionary, no
+    // A score is a small non-negative integer, so the whole domain is an array: no dictionary, no
     // formatting past the first time a number is reached. Anything outside overtime's plausible range
     // formats every frame, which is the correct trade for an input that cannot happen in a real demo.
     private string Score(int score) => score is >= 0 && score < 128
@@ -254,7 +254,7 @@ public sealed class ClockLayer : ISceneLayer
         return text;
     }
 
-    // The defuse half of the race, at tenth-second resolution — a 5-second kit defuse rendered in whole
+    // The defuse half of the race, at tenth-second resolution: a 5-second kit defuse rendered in whole
     // seconds spends a fifth of its life on each number, which is not a countdown a viewer can read.
     private ShapedText? DefuseLine(float sizePx)
     {

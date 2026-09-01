@@ -15,7 +15,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Frames;
 ///     <see cref="IReadOnlyList{T}" /> of <see cref="IPlayerState" /> and an
 ///     <see cref="IReadOnlyEntityView" />.
 ///     <para>
-///         This is the headless twin of the App's <c>ModuleContext</c> player join — the same
+///         This is the headless twin of the App's <c>ModuleContext</c> player join: the same
 ///         <see cref="PawnLookup.ForEachLivePawn" /> sweep, the same controller-anchored emission (a dead
 ///         player keeps a row so the marker layer can hold a gray last-known position), the same
 ///         <see cref="PositionUtil.CellToWorld" /> reconstruction. It exists so the CLI and the export
@@ -23,7 +23,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Frames;
 ///     </para>
 ///     <para>
 ///         <b>Pooled and re-aimed</b>, like the App's: one instance per source, refilled per frame. The
-///         emitted <see cref="IPlayerState" />s are transient — copy scalars out, never retain them.
+///         emitted <see cref="IPlayerState" />s are transient: copy scalars out, never retain them.
 ///     </para>
 /// </summary>
 public sealed class TrackerSceneSnapshot
@@ -33,7 +33,7 @@ public sealed class TrackerSceneSnapshot
 
     // Held, not written inline at the call site. A lambda that captures `this` is NOT cached by Roslyn
     // (only a fully non-capturing one is), so `ForEachLivePawn(tracker, (slot, pawn) => …)` allocates a
-    // fresh delegate on every single frame — in the one adapter that runs once per exported frame.
+    // fresh delegate on every single frame, in the one adapter that runs once per exported frame.
     private readonly Action<int, EntityState> _collectPawn;
     private readonly EntityView _entities = new();
     private readonly Dictionary<int, string> _labelBySlot = [];
@@ -46,7 +46,7 @@ public sealed class TrackerSceneSnapshot
     /// <summary>Creates a snapshot with its pools and its per-frame callback allocated once.</summary>
     public TrackerSceneSnapshot() => _collectPawn = (slot, pawn) => _pawnBySlot[slot] = pawn;
 
-    /// <summary>The players as of the last <see cref="Refresh" />. Transient — do not retain.</summary>
+    /// <summary>The players as of the last <see cref="Refresh" />. Transient: do not retain.</summary>
     public IReadOnlyList<IPlayerState> Players => _players;
 
     /// <summary>The entity read surface as of the last <see cref="Refresh" />. Transient.</summary>
@@ -326,7 +326,7 @@ public sealed class TrackerSceneSnapshot
 
         public IReadOnlyEntity? ResolveHandle(ulong handle)
         {
-            // Both invalid encodings are folded to null — the full-width 0xFFFFFFFF and the narrower
+            // Both invalid encodings are folded to null: the full-width 0xFFFFFFFF and the narrower
             // 24-bit 0x00FFFFFF, which is what a dead entity's handle looks like on the wire and which
             // would otherwise mask to a perfectly plausible index (16383).
             if (handle is 0 or 0xFFFF_FFFF or 0x00FF_FFFF)

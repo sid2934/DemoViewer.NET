@@ -14,8 +14,8 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     A sink that records what it was handed and nothing else. Every export-loop assertion — frame
-///     count, buffer size, dispose-exactly-once — reads off this.
+///     A sink that records what it was handed and nothing else. Every export-loop assertion, frame
+///     count, buffer size, dispose-exactly-once, reads off this.
 /// </summary>
 internal sealed class RecordingFrameSink : IFrameSink
 {
@@ -125,7 +125,7 @@ internal sealed class StubHudDataSource : IHudDataSource
 
 /// <summary>
 ///     A CPU provider wearing another backend's badge, so the session's backend refusal can be
-///     exercised on a machine with no GPU — which is every CI runner, and the point: the refusal must be
+///     exercised on a machine with no GPU, which is every CI runner, and the point: the refusal must be
 ///     testable without the hardware it refuses.
 /// </summary>
 internal sealed class MislabelledBackendProvider : IRenderSurfaceProvider
@@ -189,7 +189,7 @@ internal static class ExportFixtures
     /// <summary>A HUD snapshot with a bomb ticking and <paramref name="rows" /> kills.</summary>
     /// <param name="rows">How many kill rows to synthesise.</param>
     /// <param name="bombTicking">Whether the C4 owns the countdown.</param>
-    /// <param name="roster">Player cards, or null for none — <c>hud.roster</c>'s "draws nothing" case.</param>
+    /// <param name="roster">Player cards, or null for none: <c>hud.roster</c>'s "draws nothing" case.</param>
     /// <param name="defusing">Whether a defuse is racing the detonation.</param>
     public static HudSnapshot Hud(int rows, bool bombTicking = false,
         IReadOnlyList<HudPlayerRow>? roster = null, bool defusing = false)

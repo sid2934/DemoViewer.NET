@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Core.Export;
 
 /// <summary>
-///     A finite sequence of frames to render — design §5.7, verbatim.
+///     A finite sequence of frames to render: design §5.7, verbatim.
 ///     <para>
 ///         B4 owns the export pipeline and every other type in §5.7; this interface lands early because
 ///         B1's benchmark harness consumes it and the harness is the CI budget gate. Declared once here
@@ -28,12 +28,12 @@ public interface ISceneFrameSource
 }
 
 /// <summary>
-///     An <see cref="ISceneFrameSource" /> with a one-time, expensive warm-up — a demo-backed source
+///     An <see cref="ISceneFrameSource" /> with a one-time, expensive warm-up: a demo-backed source
 ///     replaying a tracker from frame zero to reach the export's first frame (B4 D2).
 ///     <para>
 ///         Optional by design: a fixture source has nothing to prepare, and <c>SceneExportSession</c>
 ///         reports an <c>ExportPhase.Seeking</c> only for sources that say they need one. Implementations
-///         must be <b>idempotent</b> — the export job may prepare the source before handing it over, and
+///         must be <b>idempotent</b>: the export job may prepare the source before handing it over, and
 ///         the session prepares again rather than trusting the caller.
 ///     </para>
 /// </summary>

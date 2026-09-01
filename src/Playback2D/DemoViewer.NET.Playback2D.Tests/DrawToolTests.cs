@@ -127,8 +127,8 @@ public class DrawToolTests
     }
 
     /// <summary>
-    ///     Plan correction 10: a world anchor stamps the QUANTIZED level ZMin, never the raw band edge —
-    ///     otherwise an anchor written before a floor-split rebuild can miss its own level.
+    ///     Plan correction 10: a world anchor stamps the QUANTIZED level ZMin, never the raw band edge.
+    ///     Otherwise an anchor written before a floor-split rebuild can miss its own level.
     /// </summary>
     [Test]
     public async Task WorldAnchor_StampsTheQuantizedLevelZMin()
@@ -169,7 +169,7 @@ public class DrawToolTests
 
     /// <summary>
     ///     A cadence is what <see cref="EnvelopeMode.RealTime" /> means and nothing else has one.
-    ///     Null here is load-bearing — the DTO writes <c>WhenWritingNull</c>, so an element without one
+    ///     Null here is load-bearing: the DTO writes <c>WhenWritingNull</c>, so an element without one
     ///     emits no field and the pinned v1 schema sample does not move.
     /// </summary>
     [Test]
@@ -290,7 +290,7 @@ public class DrawToolTests
 
     /// <summary>
     ///     The wet stroke carries the pen it started with. A toolbar click mid-drag must not repaint the
-    ///     half of the stroke that is already down — and, on release, the whole of it.
+    ///     half of the stroke that is already down and, on release, the whole of it.
     /// </summary>
     [Test]
     public async Task InkChosenAtPress_SurvivesAStyleChangeMidGesture()

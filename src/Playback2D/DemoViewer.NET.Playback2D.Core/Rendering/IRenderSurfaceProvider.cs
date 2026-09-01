@@ -8,8 +8,8 @@ namespace DemoViewer.NET.Playback2D.Core.Rendering;
 
 /// <summary>
 ///     The seam that makes Core a runtime rather than a library (design §5.8). Every offscreen
-///     consumer — export, the CLI, tests, thumbnails — obtains its surfaces here, so swapping CPU for
-///     GPU changes one construction site and no layer code.
+///     consumer (export, the CLI, tests, thumbnails) obtains its surfaces here, so swapping CPU
+///     for GPU changes one construction site and no layer code.
 ///     <para>
 ///         On screen, the interactive path keeps taking Avalonia's Skia lease instead: providers are for
 ///         surfaces <i>we</i> own. Both paths run the same layer code, so a bug shows in both or neither.

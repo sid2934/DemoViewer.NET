@@ -27,7 +27,7 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 /// <param name="Panes">One snapshot per arranged pane, lowest level first.</param>
 /// <param name="Palette">Resolved theme colours and stroke widths.</param>
 /// <param name="Purpose">
-///     Why this scene is being rendered. <b>Reserved</b> — the compositor copies it into every
+///     Why this scene is being rendered. <b>Reserved</b>: the compositor copies it into every
 ///     <c>SceneRenderContext</c> and no layer branches on it, so Export and Interactive produce the same
 ///     pixels. See <see cref="RenderPurpose" />.
 /// </param>

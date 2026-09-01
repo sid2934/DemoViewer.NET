@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Playback2D.Core;
 /// </summary>
 public sealed class MapRadarImage
 {
-    /// <summary>The bundle's image file name — the stable key, and what a fixture round-trips.</summary>
+    /// <summary>The bundle's image file name, the stable key, and what a fixture round-trips.</summary>
     public required string Name { get; init; }
 
     /// <summary>The decoded image, or null when undecoded or unavailable (fixtures never carry pixels).</summary>

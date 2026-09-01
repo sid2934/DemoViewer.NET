@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     The v1 sidecar format, pinned by a committed sample. This is what a third party reads when they
-///     want to consume DemoViewer annotations, so a field rename here is a compatibility break — and one
+///     want to consume DemoViewer annotations, so a field rename here is a compatibility break, and one
 ///     that would otherwise be invisible, because the store's own round-trip tests would happily agree
 ///     with themselves about a new spelling.
 ///     <para>

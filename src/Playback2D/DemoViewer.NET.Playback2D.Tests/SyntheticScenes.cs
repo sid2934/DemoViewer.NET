@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     Hand-authored scenes, for the cases no captured demo covers.
 ///     <para>
 ///         <c>full-scene-budget</c> is the benchmark and allocation standard: every layer carrying real
-///         work at once — ten players, four grenade trails, twelve area effects, solved vision, a
+///         work at once: ten players, four grenade trails, twelve area effects, solved vision, a
 ///         planted bomb, over two levels. It is deliberately synthetic. A budget fixture's job is to
 ///         make every layer do its worst, not to look like any particular round, and a captured frame
 ///         that happens to be quiet would let a real regression through.
@@ -38,12 +38,12 @@ internal static class SyntheticScenes
     ///     <c>sin</c> and <c>cos</c> for a fixture that gets <b>committed as text</b> and then compared
     ///     character by character against a regeneration on another machine.
     ///     <para>
-    ///         .NET does not promise bit-identical transcendental results across platforms — it forwards
+    ///         .NET does not promise bit-identical transcendental results across platforms. It forwards
     ///         to the host's libm, and glibc's <c>sinf</c> and the Windows CRT's disagree in the last
     ///         bit. Through <c>MathF</c> that lands directly in the emitted float:
     ///         <c>"y": -1991.9182</c> on Windows against <c>-1991.9183</c> on Linux, which is one float
     ///         ulp at this magnitude and enough to fail an exact comparison. Rounding the result to a
-    ///         decimal grid does not fix it — it only moves the coin flip to the grid boundary.
+    ///         decimal grid does not fix it. It only moves the coin flip to the grid boundary.
     ///     </para>
     ///     <para>
     ///         Computing in <b>double</b> and narrowing once does. The two platforms' doubles differ by

@@ -13,7 +13,7 @@ public enum AreaEffectKind
 /// <summary>
 ///     Draw-state for one grenade area effect (A4 overlay): an active smoke (<c>CSmokeGrenadeProjectile</c>,
 ///     centred on <c>m_vSmokeDetonationPos</c>) or one burning inferno cell (<c>CInferno.m_firePositions[i]</c>
-///     where <c>m_bFireIsBurning[i]</c>). World position is networked directly — no cell reconstruction.
+///     where <c>m_bFireIsBurning[i]</c>). World position is networked directly: no cell reconstruction.
 ///     Drawn under the player markers, on the floor slice it sits on.
 /// </summary>
 public readonly record struct AreaEffect(

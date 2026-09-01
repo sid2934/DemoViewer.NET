@@ -90,7 +90,7 @@ public class LevelSelectionTests
         await Assert.That(selection.Hysteresis.PendingSeconds).IsEqualTo(0);
         await Assert.That(selection.Mode).IsEqualTo(LevelSelectionMode.AutoFollow);
 
-        // Re-armed, the very next frame on the other floor adopts it — the user just asked for this and
+        // Re-armed, the very next frame on the other floor adopts it. The user just asked for this and
         // making them wait 0.35 s for it reads as a dead control.
         selection.Update(in time, FrameWith(3, 400));
         await Assert.That(selection.ActiveLevelId).IsEqualTo(space.Levels[1].Id);

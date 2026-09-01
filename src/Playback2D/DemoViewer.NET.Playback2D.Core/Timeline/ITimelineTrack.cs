@@ -2,7 +2,7 @@ namespace DemoViewer.NET.Playback2D.Core.Timeline;
 
 /// <summary>
 ///     What a <see cref="TimelineMarker" /> represents. The host maps a kind to a theme token, so a track
-///     never names a colour — it may hand back ARGB 0 and let the kind decide.
+///     never names a colour: it may hand back ARGB 0 and let the kind decide.
 /// </summary>
 public enum TimelineMarkerKind
 {
@@ -17,7 +17,7 @@ public enum TimelineMarkerKind
 
 /// <summary>
 ///     One contributor of timeline content. Registration order is display order within its row.
-///     Implementations are stateless w.r.t. the demo — everything comes from <see cref="ITimelineData" />.
+///     Implementations are stateless w.r.t. the demo: everything comes from <see cref="ITimelineData" />.
 /// </summary>
 public interface ITimelineTrack
 {

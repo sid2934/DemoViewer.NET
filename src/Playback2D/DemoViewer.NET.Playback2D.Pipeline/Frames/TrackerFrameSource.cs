@@ -116,7 +116,7 @@ public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSour
     ///         <b>Reading it from a clock delegate is ordered correctly by construction.</b>
     ///         <c>SceneExportSession.RunAsync</c> is strictly <c>TimeAt</c> → <c>FrameAt</c> →
     ///         <c>Advance</c> → <c>Render</c> for each output frame, and <c>ClockLayer</c> asks its data
-    ///         source during <c>Advance</c> — so the last frame built here is always the frame being
+    ///         source during <c>Advance</c>, so the last frame built here is always the frame being
     ///         drawn. A caller that renders out of that order gets the previous frame's scoreboard, which
     ///         is why this is a property on the source rather than a hidden global.
     ///     </para>
@@ -125,7 +125,7 @@ public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSour
 
     /// <summary>
     ///     The player cards of the frame <see cref="FrameAt" /> built most recently, or empty before the
-    ///     first one — <c>hud.roster</c>'s half of what <see cref="LastGameInfo" /> is to <c>hud.clock</c>.
+    ///     first one: <c>hud.roster</c>'s half of what <see cref="LastGameInfo" /> is to <c>hud.clock</c>.
     ///     <para>
     ///         Ordered correctly for the same reason as <see cref="LastGameInfo" />: a HUD layer is a
     ///         function of tick and asks its data source during <c>Advance</c>. Wire it as the roster
@@ -137,7 +137,7 @@ public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSour
     ///         .
     ///     </para>
     ///     <para>
-    ///         <b>Borrowed, not copied</b> — it is the builder's pooled list, valid until the next
+    ///         <b>Borrowed, not copied</b>: it is the builder's pooled list, valid until the next
     ///         <see cref="FrameAt" /> on this source, exactly like the <c>Scene2DFrame</c> beside it.
     ///     </para>
     /// </summary>
@@ -267,7 +267,7 @@ public sealed class TrackerFrameSource : ISceneFrameSource, IPreparableFrameSour
     }
 
     /// <summary>
-    ///     How many output frames a demo range produces at a given rate — the same arithmetic the
+    ///     How many output frames a demo range produces at a given rate: the same arithmetic the
     ///     constructor uses, exposed so a caller can size an <c>ExportRequest</c> without building a
     ///     source first. A dialog that computed its own frame count would eventually disagree with the
     ///     source, and the disagreement would show up as a GIF cap that refuses one length and encodes

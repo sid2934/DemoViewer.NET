@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Goldens;
 ///     <para>
 ///         <b>The mask is exact, not approximate.</b> It is the difference between the full render and
 ///         the same render with the text layers silenced, so it is the set of pixels the text layers
-///         painted — produced by the render path under test rather than by a lookalike. Two assertions
+///         painted, produced by the render path under test rather than by a lookalike. Two assertions
 ///         ride on it: outside the ink no pixel may exceed even the ±8 band, and the golden's own pixels
 ///         substituted under the ink must pass <see cref="GoldenTolerance.DefaultPerceptual" /> with
 ///         nothing relaxed. A displaced marker, a dropped smoke, a recoloured trail or a re-baked radar
@@ -23,7 +23,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Goldens;
 ///         Three suites discharge this obligation, once per reader of the corpus:
 ///         <c>SceneGoldenTests</c> for the synthetics, <c>LevelGoldenTests</c> for the nuke goldens, and
 ///         <c>GoldenAttributionTests</c> for every entry <c>dv2d golden</c> judges. Each must guard on
-///         <see cref="InkPixels" /> — an empty mask makes every assertion under it vacuous.
+///         <see cref="InkPixels" />: an empty mask makes every assertion under it vacuous.
 ///     </para>
 /// </summary>
 /// <param name="InkPixels">
@@ -32,13 +32,13 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Goldens;
 ///         Zero with labels on the frame means the mask silenced
 ///         nothing
 ///     </b>
-///     , and every assertion below it is then vacuous — the caller must guard on this.
+///     , and every assertion below it is then vacuous. The caller must guard on this.
 /// </param>
 /// <param name="OverCeilingOutsideInk">
 ///     Pixels outside the mask over <see cref="GoldenTolerance.OutlierChannelDelta" />. The glyph tier
 ///     forgives none of these, so this is the number that must be zero.
 /// </param>
-/// <param name="OverCeilingUnderInk">Pixels under the mask over that same ceiling — what the tier buys.</param>
+/// <param name="OverCeilingUnderInk">Pixels under the mask over that same ceiling, what the tier buys.</param>
 /// <param name="WorstOutsideInk">The largest per-channel difference outside the mask.</param>
 /// <param name="WorstUnderInk">The largest per-channel difference under it.</param>
 /// <param name="WorstX">X of a pixel achieving <paramref name="WorstOutsideInk" />, so it can be looked at.</param>
@@ -75,7 +75,7 @@ public readonly record struct GlyphAttribution(
         SKColor[] noText = Pixels(silencedPng, out _, out _);
         SKColor[] patched = new SKColor[golden.Length];
 
-        // A golden is named for its size and the render is pinned to it, so this cannot drift — but an
+        // A golden is named for its size and the render is pinned to it, so this cannot drift, but an
         // IndexOutOfRange three lines down would be a terrible way to learn that it had.
         if (actual.Length != golden.Length || noText.Length != golden.Length)
         {

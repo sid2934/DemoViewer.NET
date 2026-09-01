@@ -27,7 +27,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     </para>
 ///     <para>
 ///         The measured curve, the identified outliers and the sign-off are in
-///         <c>docs/playback2d-v2/plans/B1-text-metrics-review.md</c> — the "reviewed, not auto-failed"
+///         <c>docs/playback2d-v2/plans/B1-text-metrics-review.md</c>: the "reviewed, not auto-failed"
 ///         treatment design risk 1 and plan decision D-17 ask for, applied to the whole image rather
 ///         than to text alone.
 ///     </para>
@@ -42,7 +42,7 @@ namespace DemoViewer.NET.Playback2DTests;
 public class GoldenParityTests
 {
     // Measured on the nuke-multilevel corpus entry and written up in the review. Set just below the
-    // observed values, so a genuine regression — a mis-placed layer, a wrong colour, a dropped pass —
+    // observed values, so a genuine regression, a mis-placed layer, a wrong colour, a dropped pass,
     // moves the curve far enough to fail while resampling noise does not. Held in the pipeline rather
     // than here because Playback2DGoldenCaptureTests judges the SAME golden against the SAME curve, and
     // a second copy of these two numbers is a second thing to keep in step. Judge through Evaluate for
@@ -117,7 +117,7 @@ public class GoldenParityTests
         await Assert.That(geometry.FractionWithin(8)).IsGreaterThanOrEqualTo(full.FractionWithin(8));
         await Assert.That(geometry.FractionWithin(32)).IsGreaterThanOrEqualTo(full.FractionWithin(32));
 
-        // The MAXIMUM is a different claim, and a weaker one — this file's own header says why a single
+        // The MAXIMUM is a different claim, and a weaker one. This file's own header says why a single
         // worst pixel across two rasterisers says nothing. It has exactly one legitimate way to move the
         // wrong way: the worst pixel in the frame can be one a GLYPH was sitting on, and taking the
         // glyph away uncovers it. (Observed on Linux: the worst pixel, (63,276), sits inside a marker
@@ -134,7 +134,7 @@ public class GoldenParityTests
         }
     }
 
-    /// <summary>Whether the two renders disagree at one pixel — i.e. the text layers drew there.</summary>
+    /// <summary>Whether the two renders disagree at one pixel, i.e. the text layers drew there.</summary>
     /// <param name="withTextPng">The render with every layer on.</param>
     /// <param name="noTextPng">The same render with the text layers silenced.</param>
     /// <param name="x">Pixel X.</param>

@@ -68,7 +68,7 @@ public class ExportHudRosterTests
         StubHudDataSource data = new(ExportFixtures.Hud(0, roster: ExportFixtures.Roster()));
         using SKBitmap bitmap = Render(Roster(data), default);
 
-        // The side stripe is a solid fill, so the team token appears in the frame EXACTLY — no tolerance,
+        // The side stripe is a solid fill, so the team token appears in the frame EXACTLY: no tolerance,
         // no hashing a picture and hoping the difference was the colour.
         (int leftT, int rightT) = Halves(bitmap, ScenePalette.Dark.TeamT);
         (int leftCt, int rightCt) = Halves(bitmap, ScenePalette.Dark.TeamCt);
@@ -98,7 +98,7 @@ public class ExportHudRosterTests
         ];
 
         // A card that vanished on death would take the round's most important fact off the screen, so the
-        // difference has to be a *treatment* — a faded stripe, an empty bar, a rule through the tag.
+        // difference has to be a *treatment*: a faded stripe, an empty bar, a rule through the tag.
         await Assert.That(Hash(living)).IsNotEqualTo(Hash(fallen));
         await Assert.That(Ink(Roster(new StubHudDataSource(ExportFixtures.Hud(0, roster: fallen))), default))
             .IsGreaterThan(0);
@@ -157,7 +157,7 @@ public class ExportHudRosterTests
         using SKBitmap bitmap = Render(layer, default);
 
         // "T 7 : 5 CT" in one grey was arithmetic the viewer had to do. Each score now sits on its own
-        // side's token — the SAME token the markers use, so there is one colour vocabulary in the frame.
+        // side's token, the SAME token the markers use, so there is one colour vocabulary in the frame.
         await Assert.That(Count(bitmap, ScenePalette.Dark.TeamT)).IsGreaterThan(0);
         await Assert.That(Count(bitmap, ScenePalette.Dark.TeamCt)).IsGreaterThan(0);
     }
@@ -172,7 +172,7 @@ public class ExportHudRosterTests
             CountdownSeconds = 1.0
         };
 
-        // DefuseInProgress and DefuseSeconds were in the snapshot and had never been drawn — the two
+        // DefuseInProgress and DefuseSeconds were in the snapshot and had never been drawn, the two
         // fields that decide the round. Drawn, and drawn in the colour of whoever wins the race, so the
         // subtraction happens on screen rather than in the viewer's head.
         await Assert.That(Hash(idle)).IsNotEqualTo(Hash(winning));
@@ -197,7 +197,7 @@ public class ExportHudRosterTests
     [Test]
     public async Task SwappingTheSides_SwapsTheColours()
     {
-        // Same names, same weapon, same modifiers — only the sides differ. Anything that passed by
+        // Same names, same weapon, same modifiers: only the sides differ. Anything that passed by
         // accident (a hash of the text, a count of the ink) fails here.
         await Assert.That(Hash(Kill(2, 3)))
             .IsNotEqualTo(Hash(Kill(3, 2)));
@@ -225,7 +225,7 @@ public class ExportHudRosterTests
             2, 3);
 
         // Colour is a rendering concern. Splitting the line into three runs must not change one character
-        // of what a row SAYS — Playback2DKillFeedTests compares this text against the XAML feed's.
+        // of what a row SAYS. Playback2DKillFeedTests compares this text against the XAML feed's.
         string text = KillFeedLayer.Format(row);
         Console.WriteLine($"[killfeed] {text}");
 
@@ -237,7 +237,7 @@ public class ExportHudRosterTests
         await Assert.That(text).Contains("→");
 
         // Every character in a row must have a glyph in the ONE embedded face. Inter Regular has no
-        // U+26A1 and no U+2731, and both were being drawn — a .notdef box in the corner of every exported
+        // U+26A1 and no U+2731, and both were being drawn: a .notdef box in the corner of every exported
         // frame that carried a flash assist or a blind kill.
         await Assert.That(text).DoesNotContain("⚡");
         await Assert.That(text).DoesNotContain("✱");

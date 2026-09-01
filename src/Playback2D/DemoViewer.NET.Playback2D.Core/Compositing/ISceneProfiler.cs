@@ -3,10 +3,10 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 /// <summary>Which half of a layer's frame is being measured.</summary>
 public enum LayerPhase
 {
-    /// <summary>The mutating pre-render step — <see cref="ISceneLayer.Advance" />.</summary>
+    /// <summary>The mutating pre-render step: <see cref="ISceneLayer.Advance" />.</summary>
     Advance = 0,
 
-    /// <summary>The pure draw — <see cref="ISceneLayer.Render" />, once per pane.</summary>
+    /// <summary>The pure draw: <see cref="ISceneLayer.Render" />, once per pane.</summary>
     Render = 1
 }
 
@@ -15,7 +15,7 @@ public enum PictureCacheOutcome
 {
     /// <summary>
     ///     The layer drew straight to the canvas: <see cref="LayerCacheHint.Dynamic" />, or caching
-    ///     switched off wholesale. Neither a hit nor a miss — there was no cache in the path.
+    ///     switched off wholesale. Neither a hit nor a miss: there was no cache in the path.
     /// </summary>
     Uncached = 0,
 
@@ -32,11 +32,11 @@ public enum PictureCacheOutcome
 ///     one field read and one predicted branch per layer per phase.
 ///     <para>
 ///         <b>There is no clock in this interface, and that is the point.</b>
-///         <see cref="System.Diagnostics.Stopwatch" /> is banned outright in Core — the entire type, not
-///         just its timestamp — because a render that can observe wall time is a render that cannot be
+///         <see cref="System.Diagnostics.Stopwatch" /> is banned outright in Core, the entire type, not
+///         just its timestamp, because a render that can observe wall time is a render that cannot be
 ///         reproduced (design §5.1), and <c>BannedApiTests</c> enforces it against compiled IL. So the
 ///         compositor reports <i>events</i>: began, ended, cache did this. Whoever implements this
-///         interface does the timestamping, from a namespace allowed to own a stopwatch —
+///         interface does the timestamping, from a namespace allowed to own a stopwatch:
 ///         <c>Pipeline.Benchmarking</c>, exactly where the benchmark harness already lives for exactly
 ///         the same reason.
 ///     </para>

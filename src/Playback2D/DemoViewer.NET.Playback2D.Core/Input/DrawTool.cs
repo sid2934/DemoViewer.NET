@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 
 /// <summary>
 ///     Freehand ink. Press opens an undo mark, moves accumulate raw samples into the session's wet
-///     stroke, and release commits ONE element — so a 400-sample stroke costs exactly one Ctrl+Z.
+///     stroke, and release commits ONE element, so a 400-sample stroke costs exactly one Ctrl+Z.
 ///     <para>
 ///         <b>The anchor is chosen at press time and never revisited.</b> A stroke started on a player
 ///         (with entity anchoring on) follows them by SteamId for the rest of the demo; otherwise it is
@@ -22,7 +22,7 @@ public sealed class DrawTool : IPointerTool
     private TimeEnvelope _envelope = TimeEnvelope.Static;
     private IDisposable? _gesture;
 
-    // The previous event's reading of the authoring clock — the START of the span this event's coalesced
+    // The previous event's reading of the authoring clock, the START of the span this event's coalesced
     // batch is spread across. It lives on the tool rather than on the wet stroke because it tracks
     // EVENTS, and the wet stroke only ever sees the samples the spacing filter kept.
     private long _lastEventMs;
@@ -78,7 +78,7 @@ public sealed class DrawTool : IPointerTool
         // them after it would fold the stroke back on itself on every fast drag.
         //
         // They are spread EVENLY across the interval since the previous event, because a batch carries
-        // no times of its own: Avalonia (11.3.12) stamps the EVENT and never the sample —
+        // no times of its own: Avalonia (11.3.12) stamps the EVENT and never the sample:
         // PointerEventArgs.Timestamp is a ulong of milliseconds, PointerPoint exposes only
         // Pointer/Position/Properties, and even RawPointerPoint carries no time. That costs nothing:
         // a 60 Hz event arrives 16.7 ms after the last and one DV tick is 15.625 ms, so the whole

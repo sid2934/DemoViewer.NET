@@ -14,14 +14,14 @@ namespace DemoViewer.NET.Playback2DTests;
 /// <summary>
 ///     Determinism, enforced by test rather than by convention (design §5.1). A wall clock, a stopwatch
 ///     or an RNG anywhere in the render path means an export cannot be reproduced and a golden image is
-///     not a gate — so the ban is checked against compiled IL, where a call cannot hide behind a helper
+///     not a gate, so the ban is checked against compiled IL, where a call cannot hide behind a helper
 ///     method or a lambda.
 ///     <para>
 ///         <b>Offenders are attributed to the type that makes the call</b>, by walking each method's IL
 ///         rather than just listing the assembly's member references. That costs a little more code and
 ///         buys the one thing a reference list cannot give: an exemption that is scoped to a namespace
 ///         instead of switching the whole assembly off. B1's benchmark harness has to read a stopwatch
-///         and stamp a report — that is its entire job — while <c>SceneFrameBuilder</c>, three
+///         and stamp a report, that is its entire job, while <c>SceneFrameBuilder</c>, three
 ///         namespaces away in the same assembly, must never touch either.
 ///     </para>
 /// </summary>
@@ -40,7 +40,7 @@ public class BannedApiTests
 
     /// <summary>
     ///     The measurement harness. It exists to time the pipeline from OUTSIDE it, so a stopwatch and a
-    ///     timestamp are the deliverable, not a leak — which is exactly why plan T16 puts it in Pipeline
+    ///     timestamp are the deliverable, not a leak, which is exactly why plan T16 puts it in Pipeline
     ///     rather than Core in the first place.
     /// </summary>
     private static readonly string[] _exemptNamespacePrefixes =
@@ -48,8 +48,8 @@ public class BannedApiTests
         "DemoViewer.NET.Playback2D.Pipeline.Benchmarking.",
 
         // B4: SceneExportSession's progress report carries elapsed time, throughput and an ETA. Those are
-        // wall-clock quantities by definition — a progress bar measuring scene time would be useless —
-        // and none of them reaches a layer: frames advance on the injected SceneTime, which is what
+        // wall-clock quantities by definition, a progress bar measuring scene time would be useless, and
+        // none of them reaches a layer: frames advance on the injected SceneTime, which is what
         // ExportDeterminismTests pins.
         "DemoViewer.NET.Playback2D.Pipeline.Export."
     ];
@@ -115,7 +115,7 @@ public class BannedApiTests
         using PEReader pe = new(stream);
         MetadataReader reader = pe.GetMetadataReader();
 
-        // Pass 1 — precise. Every reference this assembly makes into another one is a MemberRef row, so
+        // Pass 1: precise. Every reference this assembly makes into another one is a MemberRef row, so
         // this finds the banned calls exactly, with no guessing about instruction boundaries.
         Dictionary<int, string> bannedTokens = [];
         foreach (MemberReferenceHandle handle in reader.MemberReferences)
@@ -144,7 +144,7 @@ public class BannedApiTests
             return [];
         }
 
-        // Pass 2 — attribution. Look for those exact token values in each method body, preceded by a
+        // Pass 2: attribution. Look for those exact token values in each method body, preceded by a
         // token-carrying opcode. Searching for KNOWN tokens rather than decoding every instruction is
         // what keeps this honest: an unattributed reference is still reported below, so the worst case
         // is a slightly over-broad name, never a missed call.
@@ -172,7 +172,7 @@ public class BannedApiTests
 
                 for (int i = 1; i + 4 < il.Length; i++)
                 {
-                    // call / callvirt / newobj / ldfld / ldsfld — the five ways a banned member is reached.
+                    // call / callvirt / newobj / ldfld / ldsfld: the five ways a banned member is reached.
                     if (il[i - 1] is not (0x28 or 0x6F or 0x73 or 0x7B or 0x7E))
                     {
                         continue;

@@ -11,8 +11,8 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 ///         deadlock-free by construction rather than by review.
 ///     </para>
 ///     <para>
-///         It lives in Core, not the App, because the assertion it exists to support —
-///         <c>Debug.Assert(gate.IsHeld)</c> on every cache mutation — is inside
+///         It lives in Core, not the App, because the assertion it exists to support,
+///         <c>Debug.Assert(gate.IsHeld)</c> on every cache mutation, is inside
 ///         <see cref="SceneCompositor" />. Headless consumers (export, the CLI, tests) leave
 ///         <see cref="SceneCompositor.Gate" /> null: single-threaded callers have nothing to serialize.
 ///     </para>
@@ -26,7 +26,7 @@ public sealed class SceneRenderGate
 
     /// <summary>
     ///     Enters the gate, blocking until it is free. Dispose the returned scope to leave. No
-    ///     re-entrancy is expected — the two call sites are disjoint — but the underlying monitor is
+    ///     re-entrancy is expected, the two call sites are disjoint, but the underlying monitor is
     ///     re-entrant, so a nested enter is a no-op rather than a deadlock.
     /// </summary>
     public IDisposable Enter()

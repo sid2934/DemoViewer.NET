@@ -64,7 +64,7 @@ internal sealed class RecordingLayer : ISceneLayer
 ///     Records the camera every pane was drawn with, frame by frame.
 ///     <para>
 ///         The only way to see what an export actually framed: <c>SceneExportSession</c> builds its
-///         <c>HeadlessSceneRenderer</c> internally, so the pane cameras are unreachable from outside — but
+///         <c>HeadlessSceneRenderer</c> internally, so the pane cameras are unreachable from outside, but
 ///         every one of them arrives here as <c>SceneRenderContext.Transform</c>, which is the exact value
 ///         the pixels were produced from.
 ///     </para>

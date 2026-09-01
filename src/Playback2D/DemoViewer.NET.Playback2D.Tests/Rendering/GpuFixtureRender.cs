@@ -24,7 +24,7 @@ namespace DemoViewer.NET.Playback2DTests.Rendering;
 ///     <para>
 ///         It draws the production stack rather than a bare <c>DebugGridLayer</c>, so the corpus is
 ///         alpha-blended smoke, resampled radar art and glyph ink, not just a clear colour plus
-///         anti-aliased grid lines — the cross-backend cases §7.2 wants an answer for.
+///         anti-aliased grid lines, the cross-backend cases §7.2 wants an answer for.
 ///     </para>
 /// </summary>
 internal static class GpuFixtureRender

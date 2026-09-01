@@ -2,14 +2,14 @@ namespace DemoViewer.NET.Playback2D.Core;
 
 /// <summary>
 ///     Constants the pre-v2 <c>Playback2DViewport</c> held as private consts and that more than one
-///     layer now needs. Values are unchanged — every one of them is visible in a golden image.
+///     layer now needs. Values are unchanged: every one of them is visible in a golden image.
 /// </summary>
 public static class SceneDefaults
 {
     /// <summary>Half-extent of the fixed rectangle drawn before any position is observed.</summary>
     public const double WorldExtent = 3000;
 
-    /// <summary>Grid spacing in world units — one CS2 cell width, matching <c>PositionUtil.CellWidth</c>.</summary>
+    /// <summary>Grid spacing in world units, one CS2 cell width, matching <c>PositionUtil.CellWidth</c>.</summary>
     public const double GridStepWorld = 512;
 
     /// <summary>The baked radar is drawn slightly muted so bright markers pop.</summary>

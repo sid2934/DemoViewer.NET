@@ -52,7 +52,7 @@ public class SceneFixtureTests
 
         // The reflection walk: every public instance property of Scene2DFrame must differ from the empty
         // frame in the sample AND match after the round trip. The first half is what makes the second
-        // half meaningful — a field the sample never populates would round-trip trivially.
+        // half meaningful: a field the sample never populates would round-trip trivially.
         List<string> notExercised = [];
         List<string> notPreserved = [];
         foreach (PropertyInfo property in typeof(Scene2DFrame)
@@ -172,7 +172,7 @@ public class SceneFixtureTests
         return SceneFixtureSerializer.Read(stream);
     }
 
-    // A frame in which EVERY member differs from Scene2DFrame.Empty — see the reflection walk above.
+    // A frame in which EVERY member differs from Scene2DFrame.Empty. See the reflection walk above.
     private static Scene2DFrame SampleFrame() => new()
     {
         Time = new SceneTime(1234, 56, 19.28, 0.015625, true),
@@ -248,7 +248,7 @@ public class SceneFixtureTests
     /// <summary>
     ///     The corpus is committed text and <c>.gitattributes</c> pins it to LF, so the writer must emit
     ///     LF on every platform. <c>JsonWriterOptions.NewLine</c> defaults to <c>Environment.NewLine</c>,
-    ///     which made every Windows App-suite run rewrite <c>nuke-multilevel.scene.json</c> with CRLF —
+    ///     which made every Windows App-suite run rewrite <c>nuke-multilevel.scene.json</c> with CRLF:
     ///     invisible in <c>git status</c> (staging normalises it back), permanent in the working tree.
     /// </summary>
     [Test]
@@ -268,7 +268,7 @@ public class SceneFixtureTests
     }
 
     // A structural description, because the frame's collections are reference types and the value types
-    // inside them are records — comparing the rendered shape is both readable in a failure message and
+    // inside them are records: comparing the rendered shape is both readable in a failure message and
     // insensitive to which concrete list implementation the serializer chose.
     private static string Describe(object? value) => value switch
     {

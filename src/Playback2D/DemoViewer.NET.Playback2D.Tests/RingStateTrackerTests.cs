@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     Gates for the event-driven ring-colour state machine + per-slot delta cache. Pure /
-///     deterministic — no Avalonia, no demo. The reset-on-backward-seek case is the load-bearing
+///     deterministic: no Avalonia, no demo. The reset-on-backward-seek case is the load-bearing
 ///     correctness gate: a backward jump must not manufacture a false flash off a stale prior sample.
 /// </summary>
 public class RingStateTrackerTests
@@ -18,7 +18,7 @@ public class RingStateTrackerTests
     public async Task FirstObservation_SeedsBaseline_NoFlash()
     {
         RingStateTracker t = new();
-        // Health 100, shots 0 — the very first sample of a slot never flashes (no prior sample yet).
+        // Health 100, shots 0: the very first sample of a slot never flashes (no prior sample yet).
         (RingState state, _) = t.Evaluate(0, 0, true, 0,
             100, 0);
         await Assert.That(state).IsEqualTo(RingState.Team);
@@ -83,7 +83,7 @@ public class RingStateTrackerTests
         t.Evaluate(0, 50, true, 0, 30, 20);
 
         // Backward seek to frame 10 where the player had FULL hp / 0 shots. WITHOUT a reset the tracker
-        // would see health 30→100 (no flash, fine) but shots 20→0 (decrease, also no flash) — the real
+        // would see health 30→100 (no flash, fine) but shots 20→0 (decrease, also no flash). The real
         // hazard is the OPPOSITE direction: seeking back to a LOWER-shots / HIGHER-hp state then forward
         // again. So the contract is: after Reset(), the next sample is a fresh baseline and never flashes.
         t.Reset();
@@ -100,7 +100,7 @@ public class RingStateTrackerTests
     {
         RingStateTracker t = new(4);
 
-        // Player at frame 50 has 100 hp. Seek back to frame 10 where they had only 40 hp — WITHOUT a
+        // Player at frame 50 has 100 hp. Seek back to frame 10 where they had only 40 hp: WITHOUT a
         // reset the tracker sees 100→40 as a decrease and spuriously flashes damage. Exactly the
         // false flash a backward seek must never produce; the VM guards it by calling Reset() on a
         // backward FrameIndex.

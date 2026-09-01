@@ -17,7 +17,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     Level-anchored ink against the REAL two-floor Nuke frame, over the full seven-layer stack.
 ///     <para>
 ///         The synthetic cases in <c>AnnotationLayerTests</c> prove the filtering RULE; these prove it
-///         holds against the level set an actual demo produces — bands derived from the map's networked
+///         holds against the level set an actual demo produces: bands derived from the map's networked
 ///         section heights and the baked bundle, where getting the id wrong would put a callout on the
 ///         wrong floor of the map it was drawn on.
 ///     </para>

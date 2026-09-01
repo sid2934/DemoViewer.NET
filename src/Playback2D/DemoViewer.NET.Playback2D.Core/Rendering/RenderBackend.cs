@@ -12,7 +12,7 @@ public enum RenderBackend
     /// <summary>A windowless desktop GL context.</summary>
     OpenGl,
 
-    /// <summary>ANGLE over D3D11 via an EGL pbuffer — the Windows GPU path.</summary>
+    /// <summary>ANGLE over D3D11 via an EGL pbuffer, the Windows GPU path.</summary>
     Angle,
 
     /// <summary>Declared, unreachable in v1.</summary>

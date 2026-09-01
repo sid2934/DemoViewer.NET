@@ -10,14 +10,14 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Core.Rendering;
 
 /// <summary>
-///     Windowless GPU-backed surfaces over an EGL context — ANGLE/D3D11 on Windows, EGL surfaceless on
+///     Windowless GPU-backed surfaces over an EGL context: ANGLE/D3D11 on Windows, EGL surfaceless on
 ///     Linux (plans/C2-gpu-provider.md §6.2).
 ///     <para>
 ///         <b>THREAD-AFFINE.</b> An EGL context is current on exactly one thread, so
 ///         <see cref="CreateSurface" /> and <see cref="Flush" /> must be called on the thread that
 ///         created the instance; anything else throws <see cref="InvalidOperationException" />
 ///         immediately. That trade is deliberate: it converts a class of undebuggable driver crashes
-///         into one attributable exception, and it costs nothing — an export session already runs on a
+///         into one attributable exception, and it costs nothing: an export session already runs on a
 ///         single background thread. <see cref="Dispose" /> is the one documented exception, and is safe
 ///         from anywhere; see its remarks for why that asymmetry is right rather than lax.
 ///     </para>
@@ -69,7 +69,7 @@ public sealed class GpuSurfaceProvider : IRenderSurfaceProvider
         int height = Math.Max(1, size.Height);
         SKImageInfo info = new(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
 
-        // budgeted: false — an export holds one surface for a whole run, so Skia's resource budget has
+        // budgeted: false. An export holds one surface for a whole run, so Skia's resource budget has
         // nothing useful to say about it. sampleCount 0 keeps this matching the CPU provider: the layers
         // anti-alias their own geometry, and MSAA would be a second, different rasterisation to explain
         // away in the parity diff. TopLeft origin so Snapshot/ReadPixels need no flip.
@@ -93,7 +93,7 @@ public sealed class GpuSurfaceProvider : IRenderSurfaceProvider
 
         // Order matters and is the thing a wrong readback blames: record the surface's work, hand it to
         // the driver, then block until the driver has actually done it. Confirmed against hardware in
-        // C2.11 — until then this is the conservative sequence, not the fast one.
+        // C2.11. Until then this is the conservative sequence, not the fast one.
         surface.Flush(true);
         _gr.Flush(true);
         _gr.Submit(true);
@@ -115,8 +115,8 @@ public sealed class GpuSurfaceProvider : IRenderSurfaceProvider
     ///     </para>
     ///     <para>
     ///         It is <i>correct</i> off-thread, not merely quiet: <c>AbandonContext</c> drops Skia's GL
-    ///         objects without issuing a single GL call — the only safe thing to do from a thread with no
-    ///         current context — and the EGL teardown below destroys the context those objects lived in,
+    ///         objects without issuing a single GL call, the only safe thing to do from a thread with no
+    ///         current context, and the EGL teardown below destroys the context those objects lived in,
     ///         so nothing leaks. Compare <see cref="CreateSurface" /> and <see cref="Flush" />, where a
     ///         wrong-thread call is a driver crash in waiting and throwing is the right answer.
     ///     </para>
@@ -147,7 +147,7 @@ public sealed class GpuSurfaceProvider : IRenderSurfaceProvider
     /// <param name="provider">The live provider on success. The caller disposes it.</param>
     /// <param name="reason">
     ///     The probe reason on success (<c>angle-d3d11</c>, <c>egl-surfaceless</c>, …), or the failure
-    ///     detail — <c>no-egl-library: …</c> or <c>all-backends-failed: …</c>.
+    ///     detail: <c>no-egl-library: …</c> or <c>all-backends-failed: …</c>.
     /// </param>
     public static bool TryCreate([NotNullWhen(true)] out GpuSurfaceProvider? provider, out string reason)
     {

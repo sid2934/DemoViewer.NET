@@ -1,12 +1,12 @@
 namespace DemoViewer.NET.Playback2D.Core.Export;
 
 /// <summary>
-///     A request the session refuses <b>before rendering anything</b> — odd dimensions on a
+///     A request the session refuses <b>before rendering anything</b>: odd dimensions on a
 ///     <c>yuv420p</c> format, a GIF over its frame cap, an fps the format cannot express exactly, an
 ///     empty range.
 ///     <para>
 ///         The message is user-facing copy: the dialog shows it verbatim and the CLI prints it. Refusing
-///         up front is the whole point — a user must never render two thousand frames into a failure the
+///         up front is the whole point. A user must never render two thousand frames into a failure the
 ///         request already contained.
 ///     </para>
 /// </summary>

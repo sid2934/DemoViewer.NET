@@ -53,7 +53,7 @@ public enum ToolModifiers
     /// <summary>Alt.</summary>
     Alt = 4,
 
-    /// <summary>Space — the hold-to-pan modifier.</summary>
+    /// <summary>Space, the hold-to-pan modifier.</summary>
     Space = 8
 }
 
@@ -71,7 +71,7 @@ public readonly ref struct ToolPointerEvent
     /// <summary>Host-relative position.</summary>
     public SKPoint Screen { get; init; }
 
-    /// <summary>Position relative to <see cref="Pane" />'s rectangle — the zoom anchor.</summary>
+    /// <summary>Position relative to <see cref="Pane" />'s rectangle, the zoom anchor.</summary>
     public SKPoint PaneLocal { get; init; }
 
     /// <summary>World-space position within <see cref="Pane" />.</summary>
@@ -108,7 +108,7 @@ public readonly record struct ToolWheelEvent(
     ToolModifiers Modifiers);
 
 /// <summary>
-///     A pointer tool — design §5.5 verbatim: four methods and <b>no wheel member</b>. Wheel is
+///     A pointer tool, design §5.5 verbatim: four methods and <b>no wheel member</b>. Wheel is
 ///     router-level because zoom-to-cursor is universal drawing-app behaviour that no tool should be able
 ///     to take away.
 /// </summary>
@@ -189,7 +189,7 @@ public interface IToolServices
     ///     Finds the nearest player marker within <paramref name="worldRadius" /> of a world point and
     ///     reports the offset from it, for entity-anchored telestration.
     /// </summary>
-    /// <param name="pane">The pane the point is in — used to filter markers to this level.</param>
+    /// <param name="pane">The pane the point is in, used to filter markers to this level.</param>
     /// <param name="world">The world point.</param>
     /// <param name="worldRadius">Capture radius in world units.</param>
     /// <param name="steamId">The anchored player's SteamId.</param>
@@ -200,12 +200,12 @@ public interface IToolServices
 
     /// <summary>
     ///     Where an existing element's stored samples are actually DRAWN in this pane, as a world-space
-    ///     offset — the same resolution <c>AnnotationLayer</c> performs every frame.
+    ///     offset, the same resolution <c>AnnotationLayer</c> performs every frame.
     ///     <para>
     ///         Returns false when the element does not render in this pane at all: a
     ///         <see cref="SpaceRef.World" /> anchored to another floor, or a
     ///         <see cref="SpaceRef.Entity" /> whose player is absent or dead. That is what stops the
-    ///         eraser from deleting a callout the user cannot see — on a stacked map both floors are on
+    ///         eraser from deleting a callout the user cannot see: on a stacked map both floors are on
     ///         screen at once, and the same world XY exists in both.
     ///     </para>
     /// </summary>

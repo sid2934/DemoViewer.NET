@@ -108,7 +108,7 @@ public class TextBlobCacheTests
         Console.WriteLine($"[text] \"WW\" ink={wide.Bounds} advance={wide.Advance:F3} " +
                           $"blob={wide.Blob.Bounds}");
 
-        // The blob's own box is the same for both strings on the left and top edges — that is the
+        // The blob's own box is the same for both strings on the left and top edges: that is the
         // tell that it never looked at the glyphs. The tight ink is not.
         await Assert.That(narrow.Blob.Bounds.Left).IsEqualTo(wide.Blob.Bounds.Left).Within(0.001f);
         await Assert.That(narrow.Bounds.Left).IsGreaterThan(narrow.Blob.Bounds.Left);
@@ -170,7 +170,7 @@ public class TextBlobCacheTests
     }
 
     /// <summary>
-    ///     <c>OriginForTopLeft</c> places the text's <b>line box</b> top-left, not its ink top-left —
+    ///     <c>OriginForTopLeft</c> places the text's <b>line box</b> top-left, not its ink top-left,
     ///     the same thing the pre-v2 <c>DrawingContext.DrawText(text, point)</c> placed. Its three HUD
     ///     callers are laying out rows and panels, and a row whose inset moved with whichever glyph
     ///     happened to start it would not be a layout.
@@ -186,7 +186,7 @@ public class TextBlobCacheTests
         await Assert.That(x).IsEqualTo(8f).Within(0.001f);
         await Assert.That(y + shaped.Ascent).IsEqualTo(6f).Within(0.001f);
 
-        // The ink lands inside that box rather than on its corner — a left side bearing is real.
+        // The ink lands inside that box rather than on its corner: a left side bearing is real.
         await Assert.That(x + shaped.Bounds.Left).IsGreaterThanOrEqualTo(8f);
         await Assert.That(y + shaped.Bounds.Top).IsGreaterThanOrEqualTo(6f);
 
@@ -198,7 +198,7 @@ public class TextBlobCacheTests
 
     /// <summary>
     ///     <c>OriginForCentre</c> centres the <b>advance</b> horizontally and the <b>font's line box</b>
-    ///     vertically — exactly what the pre-v2 control's
+    ///     vertically, exactly what the pre-v2 control's
     ///     <c>Point(cx - text.Width / 2, cy - text.Height / 2)</c> did, since Avalonia's
     ///     <c>FormattedText.Width</c> is an advance and its <c>Height</c> is a line height.
     /// </summary>

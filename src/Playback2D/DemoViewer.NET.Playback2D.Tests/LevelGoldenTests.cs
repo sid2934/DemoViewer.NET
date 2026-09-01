@@ -20,7 +20,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///         assertion that matters most for a phase that touched the shared pane machinery: the
 ///         <b>stacked</b> picture is byte-identical after a Stacked → Single → Stacked round trip. That
 ///         is the acceptance line "StackedLayout's output is byte-identical to B1's golden", proved
-///         against the renderer rather than by committing the same PNG twice — B1's own
+///         against the renderer rather than by committing the same PNG twice. B1's own
 ///         <c>GoldenParityTests</c> already pins the stacked path against the pre-v2 control.
 ///     </para>
 /// </summary>
@@ -49,7 +49,7 @@ public class LevelGoldenTests
 
     /// <summary>
     ///     The two floors must not render the same picture. On this capture every marker is on the upper
-    ///     floor, so the lower pane is the map with no players on it — which is exactly the difference a
+    ///     floor, so the lower pane is the map with no players on it, which is exactly the difference a
     ///     level filter is supposed to make, and would be invisible if the single pane still passed the
     ///     "no Z filtering" sentinel.
     /// </summary>
@@ -122,7 +122,7 @@ public class LevelGoldenTests
     ///         The proof obligation behind <see cref="GoldenTolerance.ForLabelledFrame" />, for the nuke
     ///         corpus
     ///     </b>
-    ///     — see <see cref="GlyphAttribution" />. It runs everywhere, not just off Windows: on
+    ///     : see <see cref="GlyphAttribution" />. It runs everywhere, not just off Windows: on
     ///     the authoring platform it passes with zeroes, and that assertion goes red first if the
     ///     rasteriser difference stops being confined to text.
     /// </summary>
@@ -168,7 +168,7 @@ public class LevelGoldenTests
 
     // The glyph budget's denominator: how many marker labels the frame draws. The twin of
     // SceneGoldenTests.LabelCount and GoldenCommand.LabelCount, which denominate the same budget for
-    // their own readers of the corpus — one definition, three assemblies that must not share code.
+    // their own readers of the corpus: one definition, three assemblies that must not share code.
     private static int LabelCount(SceneFixture fixture) =>
         fixture.Frame.Markers.Count(static m => !string.IsNullOrEmpty(m.Label));
 
@@ -197,7 +197,7 @@ public class LevelGoldenTests
     private static byte[] RenderSingle(SceneStage stage, SceneFixture fixture,
         Func<MapSpace, int> pick, SingleLayout? policy = null)
     {
-        // One stacked advance first, so the level set exists to pick from — the same two-advance shape
+        // One stacked advance first, so the level set exists to pick from, the same two-advance shape
         // SceneStage.RenderFixturePng uses, and for the same reason.
         SceneTime time = fixture.Time;
         stage.Renderer.Advance(fixture.Frame, in time);

@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 ///     The middle rung of the ffmpeg ladder: an <b>optional, explicitly consented</b> download of a
 ///     pinned LGPL build, verified by SHA-256 before a byte of it is extracted.
 ///     <para>
-///         <b>Why LGPL (plan D9).</b> WebM/VP9 — the export default — is present in an LGPL build; H.264
+///         <b>Why LGPL (plan D9).</b> WebM/VP9, the export default, is present in an LGPL build; H.264
 ///         is not. Downloading the LGPL variant keeps the redistribution story trivial: the app ships no
 ///         ffmpeg, fetches a build whose licence it shows the user first, and links that build's source.
 ///         A user who wants MP4/H.264 installs a GPL ffmpeg themselves and the <c>PATH</c> rung finds it.
@@ -27,7 +27,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 /// </summary>
 public static class FfmpegAcquisition
 {
-    /// <summary>The BtbN build project — source, build scripts and the release the pin points at.</summary>
+    /// <summary>The BtbN build project: source, build scripts and the release the pin points at.</summary>
     public const string SourceUrl = "https://github.com/BtbN/FFmpeg-Builds";
 
     /// <summary>The licence every offered build carries.</summary>
@@ -47,7 +47,7 @@ public static class FfmpegAcquisition
     // WINDOWS ONLY, deliberately. BtbN publishes its Linux builds as .tar.xz, and neither .NET nor this
     // repository has an xz decoder; taking a compression dependency to unpack a binary that every Linux
     // distribution already packages (`apt install ffmpeg`) is the wrong trade. Linux and macOS get
-    // install instructions and the GIF floor — see plan deviation 3. The table is data: a Linux row goes
+    // install instructions and the GIF floor: see plan deviation 3. The table is data: a Linux row goes
     // in the day an xz decoder earns its place.
     private const string WindowsAsset =
         "ffmpeg-n9.0.1-6-g9d4ca21220-win64-lgpl-9.0.zip";
@@ -59,7 +59,7 @@ public static class FfmpegAcquisition
 
     /// <summary>
     ///     The offer for this machine, or null when there is nothing pinned for it (macOS, Linux,
-    ///     browser, any non-x64 architecture). A null offer is not an error — it means the ladder skips
+    ///     browser, any non-x64 architecture). A null offer is not an error. It means the ladder skips
     ///     straight from <see cref="FfmpegLocator" /> to the GIF floor, and the UI shows install
     ///     instructions instead of a Download button.
     /// </summary>
@@ -152,7 +152,7 @@ public static class FfmpegAcquisition
         }
 
         // The MANAGED location, not a fresh Locate(): the caller asked for a download and got one, and
-        // Locate would hand back whatever is on PATH — which is a different binary, possibly a different
+        // Locate would hand back whatever is on PATH, which is a different binary, possibly a different
         // licence, and not the thing whose checksum was just verified.
         return File.Exists(Path.Combine(offer.TargetDirectory, FfmpegLocator.ExecutableName))
             ? new FfmpegLocation(true, offer.TargetDirectory, FfmpegOrigin.Managed)
@@ -260,7 +260,7 @@ public static class FfmpegAcquisition
         }
         catch (IOException)
         {
-            // A leftover *.part is inert — Locate() looks for ffmpeg[.exe], never for this.
+            // A leftover *.part is inert. Locate() looks for ffmpeg[.exe], never for this.
         }
         catch (UnauthorizedAccessException)
         {

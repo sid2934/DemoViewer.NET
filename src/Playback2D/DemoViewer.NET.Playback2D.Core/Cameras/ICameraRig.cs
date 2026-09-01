@@ -9,12 +9,12 @@ namespace DemoViewer.NET.Playback2D.Core.Cameras;
 /// <summary>
 ///     One camera behaviour: given a pane and the frame, where should that pane's camera be heading?
 ///     <para>
-///         A rig is <b>pure</b> — it computes a target and never touches the camera. <c>CameraAdvancer</c>
+///         A rig is <b>pure</b>: it computes a target and never touches the camera. <c>CameraAdvancer</c>
 ///         owns the lerp, the settle test and the "manual override wins" rule, so a new rig cannot
 ///         accidentally reintroduce the pre-v2 habit of mutating camera state inside a draw pass.
 ///     </para>
 ///     <para>
-///         Returning <c>null</c> means "no target this frame — hold" (no alive players on this level, a
+///         Returning <c>null</c> means "no target this frame: hold" (no alive players on this level, a
 ///         followed slot with no marker, or a mode that is static by design). That is the pre-v2
 ///         <c>TryComputeTarget</c> returning false, and it is not an error.
 ///     </para>

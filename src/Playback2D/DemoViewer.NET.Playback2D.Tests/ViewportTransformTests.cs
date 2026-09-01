@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     Pure-math gates for the 2D viewport transform: world↔screen round-trip, auto-fit framing,
-///     aspect preservation, and zoom-about-cursor invariance. No Avalonia / no demo — deterministic.
+///     aspect preservation, and zoom-about-cursor invariance. No Avalonia / no demo: deterministic.
 /// </summary>
 public class ViewportTransformTests
 {
@@ -130,7 +130,7 @@ public class ViewportTransformTests
     public async Task Fit_NonFiniteExtent_StillProducesAFiniteTransform()
     {
         // The degenerate-extent guard above is `w <= double.Epsilon`, and EVERY comparison against a NaN
-        // is false — so a NaN corner skipped it and flowed into BaseScale and the centre. From there it
+        // is false, so a NaN corner skipped it and flowed into BaseScale and the centre. From there it
         // is permanent: IsSettledAt loses every comparison, the camera never settles, and the render loop
         // spins forever drawing nothing.
         (string Name, double MinX, double MinY, double MaxX, double MaxY)[] poisoned =

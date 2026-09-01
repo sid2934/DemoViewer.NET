@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Hud;
 
 /// <summary>
 ///     An <see cref="IHudDataSource" /> over a pre-built kill timeline plus a caller-supplied clock
-///     function — the production implementation of "HUD state is a pure function of tick".
+///     function: the production implementation of "HUD state is a pure function of tick".
 ///     <para>
 ///         The clock half is a delegate rather than a second timeline because its source differs by
 ///         caller: the app already has <c>SceneGameInfo</c> per frame, while <c>dv2d</c> derives it from
@@ -80,15 +80,15 @@ public sealed class TimelineHudDataSource : IHudDataSource
     public HudSnapshot At(int tick)
     {
         // The WINDOWING is cached by tick, and only the windowing. It is the expensive half and it is
-        // genuinely a pure function of tick; the clock and the roster are not — they are readers over
+        // genuinely a pure function of tick; the clock and the roster are not: they are readers over
         // whatever frame the source built most recently, and CS2 emits SEVERAL demo frames per tick, so
         // two consecutive output frames can share one tick while the state behind those readers has
         // moved on. Caching the whole snapshot by tick alone meant the second of those frames drew the
-        // first one's cards and the first one's scoreboard — invisible in the app, where the roster is
+        // first one's cards and the first one's scoreboard, invisible in the app, where the roster is
         // the builder's pooled list, but not in an export: SceneFrameBuilder double-buffers, so the
         // stale snapshot holds the OTHER slot's list, still carrying the previous frame.
         //
-        // Re-asking costs two delegate calls and nothing else — both readers hand back state the frame
+        // Re-asking costs two delegate calls and nothing else: both readers hand back state the frame
         // source already computed, and ClockReading.From memoises the one string it formats.
         if (!_hasCached || _cached.Tick != tick)
         {
@@ -130,7 +130,7 @@ public readonly record struct ClockReading(
     double DefuseSeconds)
 {
     // Round numbers as strings, filled on demand. int.ToString allocates, and this runs once per HUD
-    // layer per frame — three times a frame on a full export stack, since TimelineHudDataSource.At
+    // layer per frame, three times a frame on a full export stack, since TimelineHudDataSource.At
     // re-asks its readers every time (see its own comment). A match has a few dozen rounds; the array
     // covers every one of them and overtime besides. A benign race on a slot costs two identical
     // strings, never a wrong one.
@@ -139,7 +139,7 @@ public readonly record struct ClockReading(
     /// <summary>The reading for a tick with no game-rules state. Renders placeholders.</summary>
     public static ClockReading Unknown { get; } = new("—", 0, 0, double.NaN, false, false, double.NaN);
 
-    /// <summary>Projects a scene's own game info onto this shape — what the app and the CLI both do.</summary>
+    /// <summary>Projects a scene's own game info onto this shape, what the app and the CLI both do.</summary>
     /// <param name="info">The frame's game info.</param>
     public static ClockReading From(SceneGameInfo info) => new(
         RoundText(info.RoundNumber),

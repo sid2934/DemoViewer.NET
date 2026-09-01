@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///     <c>AdvanceMarkers</c> lives in the shared <see cref="MarkerSmoother" />.
 ///     <para>
 ///         <b>Draw position is smoothed; level assignment is raw</b> (parity invariant 3). A dot glides
-///         between pushes, but the band it is drawn on is decided by the sampled Z — otherwise a player
+///         between pushes, but the band it is drawn on is decided by the sampled Z. Otherwise a player
 ///         crossing floors would visibly slide off one band before appearing on the other.
 ///     </para>
 /// </summary>
@@ -62,7 +62,7 @@ public sealed class MarkerLayer : ISceneLayer
     public MarkerSmoother Smoother { get; }
 
     /// <summary>
-    ///     Whether to draw the initials labels. Off is what the byte-exact golden tier renders with —
+    ///     Whether to draw the initials labels. Off is what the byte-exact golden tier renders with:
     ///     text metrics are a review gate, not an assert (plan decision D-17), so Tier A takes text out
     ///     of the comparison entirely rather than loosening the tolerance for everything else.
     /// </summary>
@@ -89,7 +89,7 @@ public sealed class MarkerLayer : ISceneLayer
     /// <inheritdoc />
     /// <remarks>
     ///     <b>The sole owner of the shared smoothing.</b> The vision layer reads the same positions but
-    ///     never advances them — see <see cref="MarkerSmoother.Advance" /> for why that ownership is
+    ///     never advances them. See <see cref="MarkerSmoother.Advance" /> for why that ownership is
     ///     single rather than shared.
     /// </remarks>
     public bool Advance(in SceneTime time, Scene2DFrame frame)
@@ -129,7 +129,7 @@ public sealed class MarkerLayer : ISceneLayer
         }
     }
 
-    /// <summary>The smoothed draw position for a slot — the pre-v2 test hook, same name and shape.</summary>
+    /// <summary>The smoothed draw position for a slot: the pre-v2 test hook, same name and shape.</summary>
     /// <param name="slot">Roster slot.</param>
     public (float X, float Y)? SmoothedMarkerPosition(int slot) => Smoother.Position(slot);
 
@@ -153,7 +153,7 @@ public sealed class MarkerLayer : ISceneLayer
             canvas.DrawLine(cx, cy, tipX, tipY, _heading);
         }
 
-        // Disc fill — hollow when dead (the pre-v2 code filled with Brushes.Transparent, which draws
+        // Disc fill: hollow when dead (the pre-v2 code filled with Brushes.Transparent, which draws
         // nothing; skipping the call is the same pixels and one less blend).
         if (marker.IsAlive)
         {

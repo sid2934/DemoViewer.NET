@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Playback2D.Core;
 ///     control expressed them as pen widths rather than colours.
 ///     <para>
 ///         The parameter defaults apply to <c>new SceneStrokeWidths()</c>, not to
-///         <c>default(SceneStrokeWidths)</c> — the latter zeroes every field and makes strokes vanish.
+///         <c>default(SceneStrokeWidths)</c>: the latter zeroes every field and makes strokes vanish.
 ///         Use <see cref="Default" /> rather than relying on struct zero-init.
 ///     </para>
 /// </summary>
@@ -34,7 +34,7 @@ public readonly record struct SceneStrokeWidths(
     /// <summary>
     ///     The widths the pre-move control used. Prefer this over <c>default</c>. Spelled out rather
     ///     than written <c>new()</c> because that form reads as "the default value" to both a human and
-    ///     CA1805, while it actually means "the parameter defaults" — the exact confusion this field exists
+    ///     CA1805, while it actually means "the parameter defaults", the exact confusion this field exists
     ///     to remove.
     /// </summary>
     public static readonly SceneStrokeWidths Default = new(1f);

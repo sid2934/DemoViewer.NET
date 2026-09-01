@@ -7,7 +7,7 @@ namespace DemoViewer.NET.Playback2D.Core.Ink;
 /// <summary>
 ///     Stroke-shaping options, matching perfect-freehand's <c>StrokeOptions</c> for the subset this port
 ///     exposes. Doubles throughout, because upstream's numbers are IEEE doubles and the reference vectors
-///     are generated from it — a float here would show up as a mismatch that looks like a porting bug.
+///     are generated from it: a float here would show up as a mismatch that looks like a porting bug.
 /// </summary>
 /// <param name="Size">Base stroke diameter in the same units as the input points (world units here).</param>
 /// <param name="Thinning">

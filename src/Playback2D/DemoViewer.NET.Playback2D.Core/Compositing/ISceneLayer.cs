@@ -17,7 +17,7 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 /// </summary>
 public interface ISceneLayer : IDisposable
 {
-    /// <summary>Stable key — feature gates, settings and the layer panel all persist it. Never renamed.</summary>
+    /// <summary>Stable key: feature gates, settings and the layer panel all persist it. Never renamed.</summary>
     string Id { get; }
 
     /// <summary>The coarse z-band this layer draws in.</summary>
@@ -45,7 +45,7 @@ public interface ISceneLayer : IDisposable
     /// </summary>
     /// <param name="time">The frame's injected clock.</param>
     /// <param name="frame">
-    ///     The frame being advanced to. Valid only for this call — see <see cref="Scene2DFrame" />.
+    ///     The frame being advanced to. Valid only for this call: see <see cref="Scene2DFrame" />.
     /// </param>
     bool Advance(in SceneTime time, Scene2DFrame frame);
 

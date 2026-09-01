@@ -47,7 +47,7 @@ public class CameraScriptResolverTests
         {
             ViewportTransform applied = pane.Camera.Current;
 
-            // …and re-viewported onto the export's band. Same world centre and the same scale — the world
+            // …and re-viewported onto the export's band. Same world centre and the same scale: the world
             // rectangle on screen is what a user framed, not the pixel size they framed it in.
             await Assert.That(applied.ViewWidth).IsEqualTo(pane.ViewportRect.Width).Within(0.01);
             await Assert.That(applied.ViewHeight).IsEqualTo(pane.ViewportRect.Height).Within(0.01);
@@ -193,8 +193,8 @@ public class ExportDeterminismTests
     ///     and prove nothing at all.
     ///     <para>
     ///         It moves a <b>marker</b> rather than the timestep. A different <c>DeltaSeconds</c> over a
-    ///         repeated static frame really does produce identical pixels — the marker smoother settles
-    ///         after the first frame and then has nothing left to interpolate — so asserting otherwise
+    ///         repeated static frame really does produce identical pixels, the marker smoother settles
+    ///         after the first frame and then has nothing left to interpolate, so asserting otherwise
     ///         would be asserting a bug.
     ///     </para>
     /// </summary>
@@ -285,7 +285,7 @@ public class ExportAllocationTests
         using CpuSurfaceProvider surfaces = new();
         SceneExportSession session = new(compositor)
         {
-            // What the production export always sets when a map bundle exists — which is every export of
+            // What the production export always sets when a map bundle exists, which is every export of
             // a real demo with assets on disk. Without it the level set is re-derived from the Z
             // histogram on every push, and FloorSplitter.Slices allocates a fresh List each time
             // (measured below, and reported as a carry-forward rather than swallowed).
@@ -305,8 +305,8 @@ public class ExportAllocationTests
         }, surfaces);
 
         // TWO runs of different lengths, differenced. A single run cannot separate the loop's per-frame
-        // cost from a run's own fixed setup — one compositor scope, one camera resolver, one renderer,
-        // one async state machine — and §6's budget is about the former.
+        // cost from a run's own fixed setup, one compositor scope, one camera resolver, one renderer,
+        // one async state machine, and §6's budget is about the former.
         long shortRun = await Measure(session, source, request with
         {
             EndFrame = 511
@@ -323,7 +323,7 @@ public class ExportAllocationTests
 
         // The ceiling is 64 BYTES for the extra 512 frames, not 64 per frame. B1 characterised this
         // exactly (its deviation 14): a single 48-byte allocation appears once, at a varying iteration
-        // past ~150, with no gen-0 collection in the window and never a second time — the runtime tiering
+        // past ~150, with no gen-0 collection in the window and never a second time: the runtime tiering
         // the loop body, not the scene allocating. Charging it to the budget would either make the gate
         // flaky or force the budget above zero, and zero-per-frame is the assertion worth having.
         await Assert.That(extra).IsLessThanOrEqualTo(64L);

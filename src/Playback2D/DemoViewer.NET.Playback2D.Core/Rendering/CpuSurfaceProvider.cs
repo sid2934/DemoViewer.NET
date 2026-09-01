@@ -8,11 +8,11 @@ namespace DemoViewer.NET.Playback2D.Core.Rendering;
 
 /// <summary>
 ///     Software-raster surfaces. Always available, no native dependency beyond SkiaSharp itself, and it
-///     runs anywhere the runtime does — CI containers and WASM included (verified in B0's WASM spike,
+///     runs anywhere the runtime does, CI containers and WASM included (verified in B0's WASM spike,
 ///     decision D11).
 ///     <para>
 ///         It is the <b>contract baseline</b>: golden images are authored on it, and every feature must
-///         be correct — not necessarily fastest — here before any GPU backend is considered.
+///         be correct, not necessarily fastest, here before any GPU backend is considered.
 ///     </para>
 /// </summary>
 public sealed class CpuSurfaceProvider : IRenderSurfaceProvider

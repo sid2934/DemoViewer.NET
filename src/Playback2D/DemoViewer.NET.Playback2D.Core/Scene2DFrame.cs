@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Playback2D.Core;
 ///     <para>
 ///         Every property is <c>init</c>-only to callers, so a fixture or a test builds one with an
 ///         object initializer and nothing outside can mutate a published frame. The builder writes the
-///         <c>internal</c> backing fields directly instead — that is what lets it refill in place rather
+///         <c>internal</c> backing fields directly instead: that is what lets it refill in place rather
 ///         than allocating a frame per push.
 ///     </para>
 ///     <para>

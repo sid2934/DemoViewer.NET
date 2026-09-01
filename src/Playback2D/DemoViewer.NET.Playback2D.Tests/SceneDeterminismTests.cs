@@ -14,7 +14,7 @@ namespace DemoViewer.NET.Playback2DTests;
 /// <summary>
 ///     <b>The byte-exact half of the port's exit criterion.</b> The parity gate proves the port landed
 ///     where the pre-v2 control was; this proves it stays there. Same fixture, same <c>dt</c>, same
-///     pixels — every time, on this machine, in this process.
+///     pixels, every time, on this machine, in this process.
 ///     <para>
 ///         It is also what makes export trustworthy: a frame rendered twice must be the same frame, or
 ///         an encoder's inter-frame compression is being fed noise and "deterministic export" is an
@@ -50,7 +50,7 @@ public class SceneDeterminismTests
 
     /// <summary>
     ///     Draw order is <c>(Slot, Order, Id)</c>, so the sequence is a pure function of the registered
-    ///     set. Registering the same layers in a different order must therefore produce the same image —
+    ///     set. Registering the same layers in a different order must therefore produce the same image:
     ///     otherwise a golden silently depends on construction order, and adding a layer would
     ///     re-baseline the corpus for no visible reason.
     /// </summary>
@@ -68,7 +68,7 @@ public class SceneDeterminismTests
 
     /// <summary>
     ///     Picture caching is an optimisation and must be invisible. A layer whose cached replay differs
-    ///     from its direct draw is a rendering bug that only shows up on the second frame — the hardest
+    ///     from its direct draw is a rendering bug that only shows up on the second frame, the hardest
     ///     kind to notice, and the reason <c>SceneCompositorOptions.EnablePictureCaching</c> exists as a
     ///     bisecting switch.
     /// </summary>
@@ -89,7 +89,7 @@ public class SceneDeterminismTests
     ///     reports. Fed the same <c>dt</c>, they must agree: the drawing is a function of the frame and
     ///     the injected clock, never of why somebody asked for it.
     ///     <para>
-    ///         <c>RenderPurpose</c> is <b>reserved</b> — no layer branches on it at all,
+    ///         <c>RenderPurpose</c> is <b>reserved</b>: no layer branches on it at all,
     ///         which <see cref="RenderPurposeTests" /> owns end to end including <c>Thumbnail</c>. This
     ///         case stays because it asks a different question: determinism across the two purposes
     ///         production actually submits.
@@ -158,7 +158,7 @@ public class SceneDeterminismTests
         stage.Renderer.Advance(fixture.Frame, in time);
         stage.Renderer.SetAllCameras(fixture.Camera);
 
-        // Twice, so the cached run actually REPLAYS a picture rather than recording one — comparing two
+        // Twice, so the cached run actually REPLAYS a picture rather than recording one: comparing two
         // first frames would compare two recordings and prove nothing.
         stage.Renderer.Advance(fixture.Frame, in time);
         stage.Renderer.Render();

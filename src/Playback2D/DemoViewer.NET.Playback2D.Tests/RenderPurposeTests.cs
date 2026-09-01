@@ -16,7 +16,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///         The value travels <c>SceneSubmission.Purpose</c> → <c>SceneCompositor</c> →
 ///         <c>SceneRenderContext.Purpose</c>, which every <c>ISceneLayer.Draw</c> receives, and the
 ///         compositor's copy is the only production read of it anywhere. <c>Export</c> and
-///         <c>Interactive</c> render identically, and <c>Thumbnail</c> is never submitted at all — design
+///         <c>Interactive</c> render identically, and <c>Thumbnail</c> is never submitted at all. Design
 ///         §5.1's "layers may trade quality for latency on it" describes an intention, not the shipped
 ///         contract the enum's own doc claims.
 ///     </para>
@@ -59,7 +59,7 @@ public class RenderPurposeTests
     }
 
     /// <summary>
-    ///     The mechanical half. All three purposes, one fixture, one <c>dt</c> — identical bytes. This is
+    ///     The mechanical half. All three purposes, one fixture, one <c>dt</c>: identical bytes. This is
     ///     the assertion the implementing commit has to come back and change.
     /// </summary>
     [Test]
@@ -126,16 +126,16 @@ public class RenderPurposeTests
 
     private static string RepoRoot()
     {
-        // The corpus root is <repo>/tests/fixtures/playback2d, resolved by walking up to the .slnx —
-        // reusing it keeps one answer to "where is the repo" in this assembly.
+        // The corpus root is <repo>/tests/fixtures/playback2d, resolved by walking up to the .slnx.
+        // Reusing it keeps one answer to "where is the repo" in this assembly.
         DirectoryInfo dir = new(FixtureCorpus.Root);
         return dir.Parent?.Parent?.Parent?.FullName ?? AppContext.BaseDirectory;
     }
 }
 
 /// <summary>
-///     Records the <see cref="RenderPurpose" /> every context it is drawn with carried. Draws nothing —
-///     an extra layer that painted would change the pixels the case above compares.
+///     Records the <see cref="RenderPurpose" /> every context it is drawn with carried. Draws nothing.
+///     An extra layer that painted would change the pixels the case above compares.
 /// </summary>
 internal sealed class PurposeProbeLayer : ISceneLayer
 {
@@ -147,7 +147,7 @@ internal sealed class PurposeProbeLayer : ISceneLayer
 
     public LayerSlot Slot => LayerSlot.Overlay;
 
-    // Dynamic, so the compositor never replays a cached picture instead of calling Render — a probe that
+    // Dynamic, so the compositor never replays a cached picture instead of calling Render. A probe that
     // stops being asked would report an empty list and read as "the purpose no longer arrives".
     public LayerCacheHint Cache => LayerCacheHint.Dynamic;
 

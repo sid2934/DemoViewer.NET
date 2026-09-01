@@ -46,7 +46,7 @@ public static class CameraAdvancer
 
             if (pane.Rig.ComputeTarget(pane, frame) is not { } target)
             {
-                continue; // no target this frame — hold.
+                continue; // no target this frame: hold.
             }
 
             if (pane.Camera.IsSettledAt(target))

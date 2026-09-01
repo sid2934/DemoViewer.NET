@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Playback2DTests;
 /// <summary>
 ///     The <see cref="LayerCacheHint" /> mechanism. Each hint's re-record trigger is asserted directly,
 ///     because a cache that never re-records is a frozen frame and a cache that always re-records is no
-///     cache at all — and both look fine in a screenshot.
+///     cache at all, and both look fine in a screenshot.
 ///     <para>
 ///         <c>Static</c> has no B1 consumer (plan decision D-5): the radar's single <c>DrawImage</c>
 ///         shares the grid's <c>PerCamera</c> picture. It is built and tested here against a synthetic
@@ -68,7 +68,7 @@ public class LayerCachePictureTests
     public async Task Static_ReplaysUnderTheCameraMatrix_SoAPanMovesItWithoutReRecording()
     {
         // The synthetic Static layer draws a world-space square. If the replay ignored the camera
-        // matrix the square would sit at the same pixels after a pan — which is exactly the bug the
+        // matrix the square would sit at the same pixels after a pan, which is exactly the bug the
         // hint exists to avoid, so this asserts on PIXELS rather than on call counts alone.
         WorldSquareLayer layer = new();
         using SceneCompositor compositor = new();
@@ -265,7 +265,7 @@ public class LayerCachePictureTests
         }
     }
 
-    /// <summary>A Static layer draws in WORLD space — the replay applies the camera matrix.</summary>
+    /// <summary>A Static layer draws in WORLD space. The replay applies the camera matrix.</summary>
     private sealed class WorldSquareLayer : ISceneLayer
     {
         public int RenderCalls { get; private set; }

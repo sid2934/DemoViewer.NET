@@ -14,7 +14,7 @@ namespace DemoViewer.NET.Playback2DTests.Rendering;
 ///     byte-identical frames. Without it a golden is a coin flip and an export cannot be reproduced from
 ///     its request.
 ///     <para>
-///         Byte-identical <i>within</i> a backend, perceptually equal <i>across</i> backends — those are
+///         Byte-identical <i>within</i> a backend, perceptually equal <i>across</i> backends: those are
 ///         two different promises, and conflating them is how a suite ends up either flaky or blind.
 ///         <c>SceneRendererTests.Render_Twice_ProducesByteIdenticalPixels</c> holds the CPU half of this;
 ///         here is the GPU half, plus the same-provider-twice case a fresh context could otherwise hide.

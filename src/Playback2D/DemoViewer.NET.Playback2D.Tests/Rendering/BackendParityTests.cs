@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Playback2DTests.Rendering;
 
 /// <summary>
 ///     The phase's headline validation: GPU output must match CPU output within the §7.3 perceptual
-///     tolerance — <b>never</b> byte equality, since a GPU legitimately rounds anti-aliased coverage
+///     tolerance, <b>never</b> byte equality, since a GPU legitimately rounds anti-aliased coverage
 ///     differently from a software rasteriser.
 ///     <para>
 ///         <b>CPU is authoritative.</b> Each fixture is checked twice: against a live CPU render (does

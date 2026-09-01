@@ -64,7 +64,7 @@ public class AnnotationSessionTests
     /// <summary>
     ///     RealTime's ELEMENT-level window is Fade's, deliberately. Each section is then rendered
     ///     through this same trapezoid shifted by the offset it was drawn at, which is what lets
-    ///     <c>HoldTicks</c> keep its meaning per section — hold longer than the draw and the whole stroke
+    ///     <c>HoldTicks</c> keep its meaning per section: hold longer than the draw and the whole stroke
     ///     stands before dissolving from the start; shorter, and it chases its own tail.
     /// </summary>
     [Test]
@@ -105,7 +105,7 @@ public class AnnotationSessionTests
     }
 
     /// <summary>
-    ///     Round takes the resolver's window verbatim and keeps the session's own ramps — the two
+    ///     Round takes the resolver's window verbatim and keeps the session's own ramps, the two
     ///     controls the mode still offers.
     /// </summary>
     [Test]
@@ -130,7 +130,7 @@ public class AnnotationSessionTests
     }
 
     /// <summary>
-    ///     The LAST round has no following freeze-end, so its window is open at the far end — which is
+    ///     The LAST round has no following freeze-end, so its window is open at the far end, which is
     ///     already what a null <see cref="TimeEnvelope.UntilTick" /> means, and costs no last-tick source.
     /// </summary>
     [Test]
@@ -149,8 +149,8 @@ public class AnnotationSessionTests
     }
 
     /// <summary>
-    ///     A demo with no rounds — a warmup clip, a partial parse, a source that carries no
-    ///     <c>round_freeze_end</c> — degrades to Fade's pinned trapezoid. A mode that produced an empty or
+    ///     A demo with no rounds, a warmup clip, a partial parse, a source that carries no
+    ///     <c>round_freeze_end</c>, degrades to Fade's pinned trapezoid. A mode that produced an empty or
     ///     inverted window there would draw nothing, which is worse than drawing the wrong thing.
     /// </summary>
     [Test]

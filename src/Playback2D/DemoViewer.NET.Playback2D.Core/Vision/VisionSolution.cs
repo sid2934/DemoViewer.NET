@@ -46,7 +46,7 @@ public sealed class ConePolygon
     /// <summary>The viewing player's team (2 = T, 3 = CT).</summary>
     public int Team { get; internal set; }
 
-    /// <summary>Apex world X — the smoothed marker position, so the cone stays glued to the dot.</summary>
+    /// <summary>Apex world X: the smoothed marker position, so the cone stays glued to the dot.</summary>
     public float ApexX { get; internal set; }
 
     /// <summary>Apex world Y.</summary>
@@ -87,8 +87,8 @@ public sealed class ConePolygon
 ///         <b>The four endpoint fields exist for geometry that was solved somewhere else.</b>
 ///         <c>SceneVision.Sightline</c>, the shape a serialized <see cref="Scene2DFrame" /> carries,
 ///         holds world endpoints and no target slot at all, because whoever solved it had already
-///         resolved both ends. Left <see cref="float.NaN" /> — which is what the five-argument form
-///         gives — the layer resolves slots exactly as it always did, so the solver path is unchanged.
+///         resolved both ends. Left <see cref="float.NaN" />, which is what the five-argument form
+///         gives, the layer resolves slots exactly as it always did, so the solver path is unchanged.
 ///     </para>
 /// </summary>
 /// <param name="ViewerSlot">The seeing player's roster slot.</param>
@@ -151,7 +151,7 @@ public sealed class VisionSolution
     }
 
     /// <summary>
-    ///     Appends a cone and returns it for the caller to fill. The returned instance is pooled — write
+    ///     Appends a cone and returns it for the caller to fill. The returned instance is pooled: write
     ///     its rays through <see cref="ConePolygon.RayEndsWritable" /> and do not retain it.
     /// </summary>
     /// <param name="slot">Viewer slot.</param>
@@ -214,13 +214,13 @@ public sealed class VisionSolution
 ///     <para>
 ///         This is also the escape hatch for §6's budget risk: if the solve is too slow on baseline
 ///         hardware, a <c>DeferredVisionSolver</c> wraps this interface to compute into the next frame's
-///         solution off the UI thread. Nothing implements that today, deliberately — the seam is the
+///         solution off the UI thread. Nothing implements that today, deliberately: the seam is the
 ///         deliverable.
 ///     </para>
 /// </summary>
 public interface IVisionSolver
 {
-    /// <summary>False when no engine is loaded for this map — "no data", not "nothing seen".</summary>
+    /// <summary>False when no engine is loaded for this map: "no data", not "nothing seen".</summary>
     bool IsReady { get; }
 
     /// <summary>Solves one frame into a reusable solution.</summary>

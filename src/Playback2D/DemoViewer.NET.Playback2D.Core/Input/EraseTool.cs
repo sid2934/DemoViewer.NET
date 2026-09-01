@@ -127,7 +127,7 @@ public sealed class EraseTool : IPointerTool
         for (int i = 0; i < _hits.Count; i++)
         {
             // Dedupe within the gesture: a slow drag hit-tests the same stroke on every sample, and a
-            // second Remove for an id already gone is a no-op the document would not record anyway —
+            // second Remove for an id already gone is a no-op the document would not record anyway,
             // but skipping it here keeps the gesture's step list proportional to what was erased.
             if (!_erased.Add(_hits[i]))
             {

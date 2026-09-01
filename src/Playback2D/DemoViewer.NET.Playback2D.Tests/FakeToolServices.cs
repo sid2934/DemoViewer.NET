@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     A direct-execution stand-in for the host's tool services: real panes and real cameras, no
-///     Avalonia. This is the whole point of the <see cref="IToolServices" /> seam — the draw and erase
+///     Avalonia. This is the whole point of the <see cref="IToolServices" /> seam: the draw and erase
 ///     tools are exercised with no window, no dispatcher and no platform (design §11).
 /// </summary>
 internal sealed class FakeToolServices : IToolServices
@@ -44,7 +44,7 @@ internal sealed class FakeToolServices : IToolServices
 
     /// <summary>
     ///     The monotonic authoring clock, in milliseconds. Settable, and deliberately INDEPENDENT of
-    ///     <see cref="CurrentTick" />, so a test can drive one while the other stays frozen — exactly what
+    ///     <see cref="CurrentTick" />, so a test can drive one while the other stays frozen, exactly what
     ///     happens when drawing on a paused demo.
     /// </summary>
     public long NowMilliseconds { get; set; }
@@ -123,7 +123,7 @@ internal sealed class FakeToolServices : IToolServices
             case SpaceRef.World world:
             {
                 // Mirrors SceneHostToolServices exactly, including its routing through the SPACE rather
-                // than through the minting rule — a fake that resolves anchors differently from the host
+                // than through the minting rule: a fake that resolves anchors differently from the host
                 // would prove the eraser works in a way production does not.
                 MapSpace? space = pane.Space;
                 return space is not { Levels.Count: > 1 }

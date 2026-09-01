@@ -8,15 +8,15 @@ using DemoViewer.NET.Playback2D.Core.Export;
 namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 
 /// <summary>
-///     The ordered encoder candidates per output format — plan <c>P2-export-throughput</c> D2.
+///     The ordered encoder candidates per output format: plan <c>P2-export-throughput</c> D2.
 ///     <para>
 ///         Best rung first. <see cref="EncoderSelector" /> walks the list and takes the first rung that a
 ///         probe verifies; the last rung of every ladder is software, and is therefore the answer on a
-///         machine with no working hardware encoder — which includes every CI runner.
+///         machine with no working hardware encoder, which includes every CI runner.
 ///     </para>
 ///     <para>
 ///         <b>AV1 is the WebM rung, and the container does not change.</b> The WebM project added AV1 to
-///         the container in 2018, so an <c>av1_nvenc</c> export is still a <c>.webm</c> — the format id,
+///         the container in 2018, so an <c>av1_nvenc</c> export is still a <c>.webm</c>: the format id,
 ///         the extension, the dialog and every persisted default stay exactly as they were. It is also
 ///         the reason the hardware rung is AV1 rather than HEVC: HEVC cannot go in a WebM at all.
 ///     </para>
@@ -36,7 +36,7 @@ public static class EncoderLadder
     public const string Auto = "auto";
 
     /// <summary>
-    ///     <c>--encoder software</c>: skip every hardware rung. The machine-independent answer — what a
+    ///     <c>--encoder software</c>: skip every hardware rung. The machine-independent answer: what a
     ///     bisect, a bitrate comparison or a "why does this file look different on my laptop" wants.
     /// </summary>
     public const string Software = "software";
@@ -45,7 +45,7 @@ public static class EncoderLadder
     ///     AV1 on NVENC. Ada's AV1 block; on Turing and older the probe fails and the ladder moves on.
     ///     <para>
     ///         B-frames and a look-ahead are on from <see cref="ExportQuality.Standard" /> up because they
-    ///         are close to free here — plan D3 measured 0.99785 → 0.99862 SSIM for 135 → 156 kbps at the
+    ///         are close to free here. Plan D3 measured 0.99785 → 0.99862 SSIM for 135 → 156 kbps at the
     ///         same throughput. <c>-rc vbr</c> with <c>-b:v 0</c> is NVENC's constant-quality mode; without
     ///         the zero bitrate, <c>-cq</c> is ignored.
     ///     </para>
@@ -56,7 +56,7 @@ public static class EncoderLadder
         "-preset p4 -rc vbr -cq 34 -b:v 0 -bf 3 -rc-lookahead 8",
         "-preset p6 -rc vbr -cq 28 -b:v 0 -bf 3 -rc-lookahead 20");
 
-    /// <summary>AV1 on Intel Quick Sync. Shipped unprobed on the development hardware — see the plan's D2.</summary>
+    /// <summary>AV1 on Intel Quick Sync. Shipped unprobed on the development hardware: see the plan's D2.</summary>
     public static VideoEncoder Av1Qsv { get; } = new(
         "av1_qsv", "av1", EncoderAcceleration.QuickSync,
         "-preset veryfast -global_quality 40",
@@ -65,7 +65,7 @@ public static class EncoderLadder
 
     /// <summary>
     ///     AV1 on AMD AMF. Listed by ffmpeg on any AMF-capable machine, including ones whose GPU has no
-    ///     AV1 encode block at all — which is precisely the case the probe caught on the development box.
+    ///     AV1 encode block at all, which is precisely the case the probe caught on the development box.
     /// </summary>
     public static VideoEncoder Av1Amf { get; } = new(
         "av1_amf", "av1", EncoderAcceleration.Amf,
@@ -130,8 +130,8 @@ public static class EncoderLadder
         "-preset medium -crf 18");
 
     /// <summary>
-    ///     The GIF pseudo-rung. There is no <c>-c:v</c> for it — plan D6's palettegen/paletteuse filter
-    ///     chain is the encoder — but a ladder entry means a GIF export reports through the same
+    ///     The GIF pseudo-rung. There is no <c>-c:v</c> for it, plan D6's palettegen/paletteuse filter
+    ///     chain is the encoder, but a ladder entry means a GIF export reports through the same
     ///     <see cref="EncoderSelection" /> shape as every other export instead of a special case in three
     ///     callers.
     /// </summary>
@@ -158,7 +158,7 @@ public static class EncoderLadder
     }
     
     /// <summary>
-    ///     The software rung of a format's ladder — always its last entry. What
+    ///     The software rung of a format's ladder, always its last entry. What
     ///     <c>--encoder software</c> resolves to, and the sink's default when no selection was made.
     /// </summary>
     /// <param name="formatId">One of <see cref="ExportFormats" />.</param>

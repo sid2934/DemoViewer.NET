@@ -6,7 +6,7 @@ using System.Globalization;
 
 namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 
-/// <summary>What does the encoding — plan <c>P2-export-throughput</c> D2.</summary>
+/// <summary>What does the encoding: plan <c>P2-export-throughput</c> D2.</summary>
 public enum EncoderAcceleration
 {
     /// <summary>A CPU codec library: <c>libvpx-vp9</c>, <c>libx264</c>, or the GIF palette chain.</summary>
@@ -62,7 +62,7 @@ public sealed record VideoEncoder(
     ///     <para>
     ///         That distinction, not the speed, is the reason the ladder exists: P1 §7 measured the same
     ///         frames rastering 49 % slower with libvpx running beside them. It is also the quantity a
-    ///         future export node has to ration — see the plan's §7, NVENC session limits.
+    ///         future export node has to ration: see the plan's §7, NVENC session limits.
     ///     </para>
     /// </summary>
     public bool IsHardware => Acceleration != EncoderAcceleration.Software;

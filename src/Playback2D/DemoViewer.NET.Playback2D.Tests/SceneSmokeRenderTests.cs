@@ -14,7 +14,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     <b>B0's exit-criterion test.</b> A committed fixture is loaded from JSON, composited through the
-///     CPU surface provider and written to a PNG — and the process is asserted to have loaded no
+///     CPU surface provider and written to a PNG, and the process is asserted to have loaded no
 ///     Avalonia assembly at all. "Frames render to PNG with zero Avalonia dependencies" is a claim about
 ///     the running process, not about a csproj, so this checks the running process.
 /// </summary>

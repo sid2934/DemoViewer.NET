@@ -18,8 +18,9 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     <para>
 ///         These are the cases the review found unpinned: every existing failure test uses a sink that
 ///         throws <i>synchronously from <c>WriteAsync</c></i>, which is the one shape a real encoder
-///         never has. A real one fails <b>out of band</b> — its process exits while the render loop is
-///         still handing it frames — and it fails <b>on disposal</b>, when the container is finalised.
+///         never has. A real one fails <b>out of band</b> (its process exits while the render loop
+///         is still handing it frames) and it fails <b>on disposal</b>, when the container is
+///         finalised.
 ///     </para>
 /// </summary>
 public class ExportFailureTests
@@ -29,7 +30,7 @@ public class ExportFailureTests
     ///     <para>
     ///         Risk R2's exact failure mode. ffmpeg exits within milliseconds of a bad output path; the
     ///         bounded channel then fills, and nothing will ever drain it again. Before the fix the
-    ///         write loop blocked forever — <c>dv2d export</c> to a non-existent directory never
+    ///         write loop blocked forever: <c>dv2d export</c> to a non-existent directory never
     ///         returned, and the 30 s disposal timeout never got a chance to run because disposal was
     ///         never reached.
     ///     </para>
@@ -47,7 +48,7 @@ public class ExportFailureTests
         // An output directory that is gone by the time ffmpeg opens the file, so it fails at
         // output-open and exits immediately.
         //
-        // The sink's constructor creates the directory (ExportOutputPath — a missing parent is the one
+        // The sink's constructor creates the directory (ExportOutputPath, a missing parent is the one
         // export failure worth pre-empting, since ffmpeg's refusal would otherwise arrive only after the
         // whole range had been rendered). That is a courtesy at CONSTRUCTION, not a guarantee at WRITE,
         // and R2's deadlock is a property of the write loop: whatever kills ffmpeg early, a full channel
@@ -75,8 +76,8 @@ public class ExportFailureTests
 
         if (endedOnItsOwn)
         {
-            // Disposal re-raises the encoder's failure — that is what turns this into a Failed export
-            // rather than a silent one — so it is expected to throw here too.
+            // Disposal re-raises the encoder's failure, which is what turns this into a Failed export
+            // rather than a silent one, so it is expected to throw here too.
             try
             {
                 await sink.DisposeAsync();
@@ -92,7 +93,7 @@ public class ExportFailureTests
         await Assert.That(File.Exists(path)).IsFalse();
 
         // And the failure must say what ffmpeg said. The pipe breaks before FFMpegCore observes the
-        // process exit, so the raw fault is "Pipe is broken" — true, and no help to anybody.
+        // process exit, so the raw fault is "Pipe is broken". That is true, and no help to anybody.
         Exception surfaced = loop.Exception!.GetBaseException();
         await Assert.That(surfaced).IsTypeOf<FfmpegEncodeException>();
         await Assert.That(surfaced.Message).Contains("Error opening output");
@@ -103,7 +104,7 @@ public class ExportFailureTests
     ///     <para>
     ///         This is the partial-file lie: every frame rendered, so the loop succeeded, but the
     ///         container was never finalised. Muxing happens on disposal, so "all frames written" is not
-    ///         "a file exists that plays" — reporting <see cref="ExportPhase.Completed" /> here would
+    ///         "a file exists that plays": reporting <see cref="ExportPhase.Completed" /> here would
     ///         point a user at a file that does not decode.
     ///     </para>
     /// </summary>
@@ -142,7 +143,7 @@ public class ExportFailureTests
     ///         A caller that drives a progress bar off <see cref="ExportProgress.Phase" /> has nothing
     ///         else to go on. Before the fix a throwing disposal escaped the session's <c>finally</c>
     ///         before the terminal report was made, so the last thing such a caller ever saw was
-    ///         <see cref="ExportPhase.Rendering" /> — a bar frozen at 100 % on an export that failed.
+    ///         <see cref="ExportPhase.Rendering" />, a bar frozen at 100 % on an export that failed.
     ///     </para>
     /// </summary>
     [Test]
@@ -199,7 +200,7 @@ public class ExportFailureTests
         public void Report(ExportProgress value) => report(value);
     }
 
-    /// <summary>Accepts every frame and then fails on close — a container that will not mux.</summary>
+    /// <summary>Accepts every frame and then fails on close, a container that will not mux.</summary>
     private sealed class FailOnCloseFrameSink : IFrameSink
     {
         public int DisposeCount { get; private set; }
@@ -220,7 +221,7 @@ public class ExportFailureTests
 
 /// <summary>
 ///     The bridge must never leave a writer parked on a queue that has stopped being drained. Its
-///     <c>Fault</c> path existed from the start and had no caller — these pin the caller.
+///     <c>Fault</c> path existed from the start and had no caller. These pin the caller.
 /// </summary>
 public class ChannelVideoFrameSourceFaultTests
 {

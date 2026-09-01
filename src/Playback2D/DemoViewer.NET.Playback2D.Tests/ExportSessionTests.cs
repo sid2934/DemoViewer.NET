@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Playback2DTests;
 /// <summary>
 ///     What <see cref="SceneExportSession.Validate" /> refuses, and why each refusal is worth its own
 ///     rule. Every one of these is a request a user could build in the dialog or type on the command
-///     line, and each would otherwise fail somewhere far less legible — inside ffmpeg, or in an
+///     line, and each would otherwise fail somewhere far less legible: inside ffmpeg, or in an
 ///     out-of-memory during a GIF quantise.
 /// </summary>
 public class ExportRequestValidationTests
@@ -168,7 +168,7 @@ public class SceneExportSessionLoopTests
         using CpuSurfaceProvider surfaces = new();
         RecordingFrameSink sink = new();
 
-        // Empty LayerIds = "every enabled layer" — but the two HUD layers are opt-in by name.
+        // Empty LayerIds = "every enabled layer", but the two HUD layers are opt-in by name.
         await new SceneExportSession(compositor).RunAsync(ExportFixtures.Request(2),
             ExportFixtures.Source(2), sink, surfaces, null, CancellationToken.None);
 
@@ -305,7 +305,7 @@ public class SceneExportSessionCancellationTests
         // Thread-safe, and NOT a plain List: with no synchronization context under the test runner,
         // Progress<T> posts every callback to the thread pool, so a report still in flight lands
         // while the assertions below read the collection. A List here is a ~30 % flaky
-        // "Collection was modified" — found by re-running this suite repeatedly.
+        // "Collection was modified", found by re-running this suite repeatedly.
         ConcurrentQueue<ExportProgress> reports = [];
 
         await Assert.That(await Caught(() => new SceneExportSession(compositor).RunAsync(
@@ -428,8 +428,8 @@ public class SceneExportSessionProgressTests
 /// <summary>
 ///     <b>Which layers an export has to be asked for by name</b>, and the single list that decides.
 ///     <para>
-///         There were three of those lists — <c>CreateSceneStack</c>'s <c>isHud</c> pair, the session's
-///         <c>OptInLayerIds</c>, and <c>ExportRequest.LayerIds</c>' prose — and a layer that reached two of
+///         There were three of those lists, <c>CreateSceneStack</c>'s <c>isHud</c> pair, the session's
+///         <c>OptInLayerIds</c>, and <c>ExportRequest.LayerIds</c>' prose, and a layer that reached two of
 ///         them was force-enabled on every export by the third. These cases drive off
 ///         <see cref="SceneLayerIds.OptIn" /> itself rather than naming ids, so a future opt-in layer like
 ///         <c>hud.roster</c> is
@@ -475,7 +475,7 @@ public class ExportOptInLayerTests
     public async Task AnOptInLayerAskedForWithNoSource_IsSkipped_NotBuilt()
     {
         // Every source withheld: each opt-in layer is named and starved, and the answer is an absent
-        // layer rather than an empty scoreboard box — or, before the source was threaded through at all,
+        // layer rather than an empty scoreboard box, or, before the source was threaded through at all,
         // a NullReferenceException out of the layer's own constructor.
         using SceneCompositor compositor =
             SceneLayerCatalog.CreateSceneStack([.. SceneLayerCatalog.SceneStackIds]);

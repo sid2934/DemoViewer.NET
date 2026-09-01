@@ -22,7 +22,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline;
 public static class SceneFixtureSerializer
 {
     // Indented output with an EXPLICIT LF. JsonWriterOptions.NewLine defaults to Environment.NewLine, so
-    // the same fixture written on Windows and on Linux differed in every line ending — and the corpus is
+    // the same fixture written on Windows and on Linux differed in every line ending, and the corpus is
     // committed text that .gitattributes pins to LF (eol=lf). The visible symptom was
     // tests/fixtures/playback2d/scenes/nuke-multilevel.scene.json turning up CRLF in the working tree
     // after every Windows App-suite run: staging normalised it back, so nothing ever reached a commit and

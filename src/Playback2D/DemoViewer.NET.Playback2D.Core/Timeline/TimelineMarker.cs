@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Core.Timeline;
 
 /// <summary>
-///     A point event on the timeline. ARGB 0 = "use the track/kind default" (the host themes it) — a track
+///     A point event on the timeline. ARGB 0 = "use the track/kind default" (the host themes it): a track
 ///     never reaches for a brush, which is what keeps this contract renderer-independent.
 ///     <para>
 ///         <see cref="FrameIndex" /> is the layout axis; <see cref="Tick" /> is carried alongside so a

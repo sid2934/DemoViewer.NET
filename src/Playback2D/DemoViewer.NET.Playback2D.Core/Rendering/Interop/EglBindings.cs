@@ -14,7 +14,7 @@ namespace DemoViewer.NET.Playback2D.Core.Rendering.Interop;
 ///         Bound through <c>NativeLibrary.TryGetExport</c> rather than <c>DllImport</c> so a missing
 ///         symbol is a boolean, not a first-call exception; and marshalled with
 ///         <see cref="CallingConvention.Winapi" />, which is <c>__stdcall</c> on Windows and
-///         <c>cdecl</c> elsewhere — exactly what <c>KHRONOS_APIENTRY</c> expands to.
+///         <c>cdecl</c> elsewhere: exactly what <c>KHRONOS_APIENTRY</c> expands to.
 ///     </para>
 /// </summary>
 internal sealed class EglBindings
@@ -27,7 +27,7 @@ internal sealed class EglBindings
         LibraryPath = libraryPath;
     }
 
-    /// <summary>The library the EGL entry points came from — the first thing to check in a bug report.</summary>
+    /// <summary>The library the EGL entry points came from, the first thing to check in a bug report.</summary>
     public string LibraryPath { get; }
 
     /// <summary><c>eglGetProcAddress</c>, the address source Skia's GL interface is assembled from.</summary>

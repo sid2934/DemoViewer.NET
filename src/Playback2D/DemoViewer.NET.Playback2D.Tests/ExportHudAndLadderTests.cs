@@ -90,7 +90,7 @@ public class KillFeedTimelineTests
     }
 
     /// <summary>
-    ///     Two identical windows, and the SECOND is the one asserted on — the form
+    ///     Two identical windows, and the SECOND is the one asserted on: the form
     ///     <see cref="BudgetTests.FullScene_SteadyState_AllocatesNothing" /> uses and documents.
     ///     <para>
     ///         This case used to measure ONE window after a warmup loop, and it failed once and passed
@@ -164,13 +164,13 @@ public class TimelineHudDataSourceTests
         source.At(1001);
 
         // Three HUD layers ask for the same frame. Doing the window three times for one answer is three
-        // times the work and, on a three-level map, three times again — so the WINDOW is cached by tick,
+        // times the work and, on a three-level map, three times again, so the WINDOW is cached by tick,
         // which it can be, because it is a pure function of tick.
         await Assert.That(source.WindowingsForTest).IsEqualTo(2);
 
         // The readers are not, and this assertion is the correction: they answer for whatever FRAME the
         // source built most recently, not for the tick. CS2 emits several demo frames per tick, so two
-        // consecutive output frames can share one — and a snapshot cached by tick alone handed the second
+        // consecutive output frames can share one, and a snapshot cached by tick alone handed the second
         // of them the first one's scoreboard and the first one's roster. Re-asking costs two delegate
         // calls over state the frame source has already computed.
         await Assert.That(clockCalls).IsEqualTo(4);
@@ -248,7 +248,7 @@ public class HudLayerTests
 
         // The compositor renders every layer once per band. A scoreboard repeated on each floor of a
         // two-level Nuke export would be wrong, so the layer draws in the one band whose top edge is the
-        // host's — which is also the single-pane case, whose snapshot rectangle is zero.
+        // host's, which is also the single-pane case, whose snapshot rectangle is zero.
         await Assert.That(ClockLayer.IsTopBand(top)).IsTrue();
         await Assert.That(ClockLayer.IsTopBand(lower)).IsFalse();
         await Assert.That(ClockLayer.IsTopBand(Context(default))).IsTrue();
@@ -355,7 +355,7 @@ public class HudLayerTests
 /// <summary>
 ///     The ffmpeg download rung. Every case here is a way the download can go wrong, and the contract is
 ///     the same each time: nothing is installed, nothing is left on disk, and the caller falls through to
-///     the GIF floor instead of crashing. No network — an injected handler serves a fixture archive.
+///     the GIF floor instead of crashing. No network. An injected handler serves a fixture archive.
 /// </summary>
 public class FfmpegAcquisitionTests
 {
@@ -427,7 +427,7 @@ public class FfmpegAcquisitionTests
         await Assert.That(located.Found).IsFalse();
         await Assert.That(Directory.GetFiles(directory.Path)).IsEmpty();
 
-        // The licence the user reads comes out of the bytes that were just verified — not a copy
+        // The licence the user reads comes out of the bytes that were just verified, not a copy
         // vendored in this repository that could drift from the binary it covers.
         await Assert.That(shownLicence).IsNotNull();
         await Assert.That(shownLicence!).Contains("GNU LESSER GENERAL PUBLIC LICENSE");
@@ -453,7 +453,7 @@ public class FfmpegAcquisitionTests
         await Assert.That(File.Exists(Path.Combine(directory.Path, FfmpegLocator.ProbeExecutableName)))
             .IsTrue();
 
-        // Nothing partial survives — a leftover *.part that Locate() then reported as an install would
+        // Nothing partial survives: a leftover *.part that Locate() then reported as an install would
         // be worse than no install at all.
         await Assert.That(Directory.GetFiles(directory.Path, "*.part")).IsEmpty();
     }

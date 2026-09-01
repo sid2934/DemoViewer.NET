@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     The layer stack's ordering and lifecycle rules. Draw order is a pure function of the registered
-///     set — <c>(Slot, Order, Id)</c>, never insertion order — so a golden image cannot come to depend
+///     set, <c>(Slot, Order, Id)</c>, never insertion order, so a golden image cannot come to depend
 ///     on when a layer happened to be registered.
 /// </summary>
 public class SceneCompositorTests
@@ -63,7 +63,7 @@ public class SceneCompositorTests
         SceneTime time = new(1, 1, 0, 0, false);
         await Assert.That(compositor.Advance(in time, Scene2DFrame.Empty)).IsTrue();
 
-        // Every layer is advanced even once one has claimed the loop — Advance is where layers mutate.
+        // Every layer is advanced even once one has claimed the loop: Advance is where layers mutate.
         await Assert.That(quiet.AdvanceCount).IsEqualTo(1);
         await Assert.That(busy.AdvanceCount).IsEqualTo(1);
 

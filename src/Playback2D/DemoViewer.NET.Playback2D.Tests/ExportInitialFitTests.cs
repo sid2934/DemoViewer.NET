@@ -14,9 +14,9 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     <b>What an export is framed by.</b> Every pane is BORN fitted to <c>WorldBounds.Default</c> — the
+///     <b>What an export is framed by.</b> Every pane is BORN fitted to <c>WorldBounds.Default</c>, the
 ///     ±3000 placeholder <c>PaneSet.Reconcile</c> has to use, because it runs before any frame has been
-///     read — and until this landed, nothing in the export path ever re-framed it: the camera script is
+///     read, and until this landed, nothing in the export path ever re-framed it: the camera script is
 ///     empty in both front ends unless the user pinned one, <c>AdvanceCameras</c> is off so no rig steps,
 ///     and <c>FitAll</c> was never called. Every exported video was composed by a placeholder; de_nuke
 ///     only looked plausible because halving the fit scale for two stacked bands happened to land near
@@ -108,7 +108,7 @@ public class ExportInitialFitTests
     }
 
     /// <summary>
-    ///     Every level, not just the first. A pane born mid-export — a player taking the lift on Nuke —
+    ///     Every level, not just the first. A pane born mid-export, a player taking the lift on Nuke,
     ///     used to be fitted to whatever <c>ObservedBounds</c> had accumulated, which on frame one is the
     ///     placeholder. Both bands must show the same world rectangle, or a two-floor export is two
     ///     different maps stacked.
@@ -176,7 +176,7 @@ public class ExportInitialFitTests
     /// <summary>
     ///     The other half of the fix: a pane that is BORN after the map is known is born fitted to the
     ///     map's own rectangle rather than to whatever the players have wandered over so far. That is the
-    ///     mid-export level birth — a player takes the lift on Nuke — which the one-shot fit has already
+    ///     mid-export level birth, a player takes the lift on Nuke, which the one-shot fit has already
     ///     spent by the time it happens.
     /// </summary>
     [Test]

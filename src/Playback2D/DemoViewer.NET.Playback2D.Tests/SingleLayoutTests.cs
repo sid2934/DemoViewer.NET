@@ -155,7 +155,7 @@ public class PaneSetLevelRetentionTests
     }
 
     /// <summary>
-    ///     A layout policy whose own state changed must be asked again — <c>PaneSet</c> early-outs on the
+    ///     A layout policy whose own state changed must be asked again: <c>PaneSet</c> early-outs on the
     ///     level-set version, the mode and the host size, none of which move when the strip picks another
     ///     floor.
     /// </summary>
@@ -256,7 +256,7 @@ public class PaneSetLevelRetentionTests
 
         // Enum.TryParse accepts any NUMBER inside the underlying type's range, so a hand-edited
         // settings file saying "7" would otherwise yield an undefined LevelDisplayMode that
-        // LevelLayouts.For throws on — the exact "a typo must not stop the tab opening" case this
+        // LevelLayouts.For throws on, the exact "a typo must not stop the tab opening" case this
         // method exists for.
         await Assert.That(LevelLayouts.Parse("7")).IsEqualTo(LevelDisplayMode.Stacked);
         await Assert.That(LevelLayouts.Parse("-1")).IsEqualTo(LevelDisplayMode.Stacked);

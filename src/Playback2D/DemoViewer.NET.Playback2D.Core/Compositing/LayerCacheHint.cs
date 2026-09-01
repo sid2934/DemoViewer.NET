@@ -6,7 +6,7 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 /// </summary>
 public enum LayerCacheHint
 {
-    /// <summary>Output changes only when <c>ContentVersion</c> does — recordable into one SKPicture.</summary>
+    /// <summary>Output changes only when <c>ContentVersion</c> does, recordable into one SKPicture.</summary>
     Static,
 
     /// <summary>Output changes with the camera as well as the content.</summary>

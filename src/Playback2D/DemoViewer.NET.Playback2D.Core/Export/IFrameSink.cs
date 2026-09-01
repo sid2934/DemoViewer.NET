@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Core.Export;
 
 /// <summary>
-///     Where rendered frames go — design §5.7, verbatim.
+///     Where rendered frames go: design §5.7, verbatim.
 ///     <para>
 ///         One implementation pipes raw RGBA to an ffmpeg subprocess (<c>FfmpegFrameSink</c>), one
 ///         accumulates an animated GIF with no ffmpeg at all (<c>ManagedGifSink</c>), and one hashes and
@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Playback2D.Core.Export;
 ///         <b>The buffer is borrowed.</b> <see cref="WriteAsync" />'s span is pooled and reused by the
 ///         session on the very next frame: a sink that needs the bytes past the returned task must copy
 ///         them. <see cref="IAsyncDisposable.DisposeAsync" /> is where a sink finalises its output, so it
-///         must be awaited — and it is called exactly once, including on cancellation.
+///         must be awaited, and it is called exactly once, including on cancellation.
 ///     </para>
 /// </summary>
 public interface IFrameSink : IAsyncDisposable

@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Playback2D.Core.Rendering.Interop;
 /// <summary>
 ///     A hand-bound EGL, ~15 entry points wide (plans/C2-gpu-provider.md §2.3, C2.2).
 ///     <para>
-///         <b>Why by hand.</b> Core references SkiaSharp and nothing else — that constraint is what lets
+///         <b>Why by hand.</b> Core references SkiaSharp and nothing else: that constraint is what lets
 ///         export, the CLI and CI render without a window, and it is enforced by
 ///         <c>ArchitectureTests</c>. Silk.NET or OpenTK would break it, and would then have to be fought
 ///         anyway over the non-standard library name: on Windows the EGL we link is Avalonia's merged
@@ -342,15 +342,15 @@ internal static class Egl
 /// <summary>Which EGL display platform a context attempt asks for.</summary>
 internal enum EglBackendKind
 {
-    /// <summary>ANGLE over D3D11 — the Windows path, and the one whose binary already ships.</summary>
+    /// <summary>ANGLE over D3D11, the Windows path, and the one whose binary already ships.</summary>
     AngleD3D11,
 
     /// <summary>
-    ///     <c>EGL_PLATFORM_SURFACELESS_MESA</c> — no X, no DRM node, which is what makes the Linux
+    ///     <c>EGL_PLATFORM_SURFACELESS_MESA</c>, no X, no DRM node, which is what makes the Linux
     ///     container story work at all.
     /// </summary>
     SurfacelessMesa,
 
-    /// <summary><c>eglGetDisplay(EGL_DEFAULT_DISPLAY)</c> — whatever the driver considers default.</summary>
+    /// <summary><c>eglGetDisplay(EGL_DEFAULT_DISPLAY)</c>, whatever the driver considers default.</summary>
     DefaultDisplay
 }

@@ -23,7 +23,7 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 /// <param name="LevelMinZ">Lower world Z of this pane's level band.</param>
 /// <param name="LevelMaxZ">Upper world Z of this pane's level band.</param>
 /// <param name="Purpose">
-///     Why this scene is being rendered. <b>Reserved</b> — no layer branches on it and all three values
+///     Why this scene is being rendered. <b>Reserved</b>: no layer branches on it and all three values
 ///     render identically; see <see cref="RenderPurpose" /> for why it is carried anyway.
 /// </param>
 /// <param name="Palette">Resolved theme colours and stroke widths.</param>
@@ -54,7 +54,7 @@ public readonly record struct SceneRenderContext(
     ///     Which entities changed level on this frame, when the frame owner keeps a tracker. Null on a
     ///     context built without one.
     ///     <para>
-    ///         For layers holding per-entity temporal state — marker smoothing (which reads it through
+    ///         For layers holding per-entity temporal state: marker smoothing (which reads it through
     ///         <c>MarkerSmoother.LevelCrossings</c> rather than here, because it mutates in
     ///         <c>Advance</c> where there is no context) and entity-anchored annotations. A layer whose
     ///         content is a pure function of the frame does not need it: grenade trails carry their own
@@ -68,7 +68,7 @@ public readonly record struct SceneRenderContext(
 
     /// <summary>
     ///     The level index a world Z belongs on. On a single-level pane this is the
-    ///     <see cref="LevelIndex" /> sentinel itself, so the caller's equality test passes for every Z —
+    ///     <see cref="LevelIndex" /> sentinel itself, so the caller's equality test passes for every Z,
     ///     the pre-v2 <c>sliceIndex &lt; 0</c> rule, encoded once (parity invariant 1).
     /// </summary>
     /// <param name="worldZ">The content's world Z.</param>
@@ -80,7 +80,7 @@ public readonly record struct SceneRenderContext(
     ///     <para>
     ///         <b>This is an assignment test, not a band test.</b> The pre-v2 filter is
     ///         <c>_floors.SliceIndexFor(z) == sliceIndex</c>, and <c>SliceIndexFor</c> snaps a Z that
-    ///         falls in a gap — or above the highest band — to the nearest band. A plain
+    ///         falls in a gap, or above the highest band, to the nearest band. A plain
     ///         <c>z ∈ [min, max)</c> test would make a player on a ramp, or a grenade arcing above the
     ///         map, belong to no pane at all and simply vanish. Parity invariant 1.
     ///     </para>

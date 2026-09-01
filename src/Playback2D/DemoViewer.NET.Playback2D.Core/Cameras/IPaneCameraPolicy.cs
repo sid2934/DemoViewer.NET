@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Playback2D.Core.Cameras;
 ///     <para>
 ///         The generalisation of <c>HeadlessSceneRenderer.Camera</c> (which pins one transform to every
 ///         pane): B4's export camera scripts need a different transform per level, and a follow script
-///         needs to step them, and both must land inside the same <c>Advance</c> call — a camera written
+///         needs to step them, and both must land inside the same <c>Advance</c> call. A camera written
 ///         after the snapshot is one frame late, and a camera written before reconciliation is discarded
 ///         by it.
 ///     </para>

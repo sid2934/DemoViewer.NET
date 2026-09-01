@@ -8,7 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Export;
 namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 
 /// <summary>
-///     Which encoder one export will use, at what quality, and why — plan <c>P2-export-throughput</c> D5.
+///     Which encoder one export will use, at what quality, and why: plan <c>P2-export-throughput</c> D5.
 ///     <para>
 ///         <b>A per-session value.</b> It is resolved by the caller, handed to
 ///         <c>FfmpegSinkOptions</c>, and lives exactly as long as that sink. Two exports in one process
@@ -19,7 +19,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 /// </summary>
 /// <param name="Encoder">The rung that will encode.</param>
 /// <param name="Quality">The requested quality; <see cref="VideoEncoder.ArgumentsFor" /> maps it.</param>
-/// <param name="Reason">Why this rung — the sentence the CLI and the JSON both print.</param>
+/// <param name="Reason">Why this rung: the sentence the CLI and the JSON both print.</param>
 /// <param name="Attempts">Every rung that was probed, in ladder order, including the one that won.</param>
 public sealed record EncoderSelection(
     VideoEncoder Encoder,
@@ -51,7 +51,7 @@ public sealed record EncoderSelection(
 
 /// <summary>
 ///     An explicitly requested encoder does not exist on this machine. Distinct from a validation error
-///     because nothing about the <c>ExportRequest</c> is wrong — the environment is.
+///     because nothing about the <c>ExportRequest</c> is wrong: the environment is.
 /// </summary>
 public sealed class EncoderUnavailableException : InvalidOperationException
 {
@@ -76,7 +76,7 @@ public sealed class EncoderUnavailableException : InvalidOperationException
 }
 
 /// <summary>
-///     Walks an <see cref="EncoderLadder" /> and returns the first rung this machine can actually run —
+///     Walks an <see cref="EncoderLadder" /> and returns the first rung this machine can actually run,
 ///     plan <c>P2-export-throughput</c> D1 and D4.
 ///     <para>
 ///         <b>Stateless.</b> The only thing it holds is the probe, which is where the caching lives. Two
@@ -85,7 +85,7 @@ public sealed class EncoderUnavailableException : InvalidOperationException
 /// </summary>
 /// <param name="probe">
 ///     How rungs are verified. Defaults to <see cref="EncoderProbeCache.Shared" />, which is a process
-///     memo of machine facts — see that type for why sharing it is safe when sharing a selection is not.
+///     memo of machine facts. See that type for why sharing it is safe when sharing a selection is not.
 /// </param>
 public sealed class EncoderSelector(IEncoderProbe? probe = null)
 {
@@ -97,7 +97,7 @@ public sealed class EncoderSelector(IEncoderProbe? probe = null)
     /// <param name="formatId">One of <see cref="ExportFormats" />. GIF short-circuits to its pseudo-rung.</param>
     /// <param name="request">
     ///     <c>auto</c> (or null/empty), <c>software</c>, or a rung's ffmpeg name. Anything else is a
-    ///     <see cref="ExportValidationException" /> naming the valid choices — a typo in a persisted
+    ///     <see cref="ExportValidationException" /> naming the valid choices. A typo in a persisted
     ///     setting or a CI invocation must fail loudly, not silently encode with something else.
     /// </param>
     /// <param name="quality">The requested quality.</param>
@@ -170,7 +170,7 @@ public sealed class EncoderSelector(IEncoderProbe? probe = null)
             return new EncoderSelection(rung, quality, reason, attempts);
         }
 
-        // Nothing verified — including the software floor, which means the ffmpeg on this machine cannot
+        // Nothing verified, including the software floor, which means the ffmpeg on this machine cannot
         // encode this format at all. Selecting the floor anyway is deliberate: the export then fails with
         // ffmpeg's own message about the real problem instead of ours about the probe.
         VideoEncoder floor = EncoderLadder.SoftwareFor(formatId);
@@ -181,7 +181,7 @@ public sealed class EncoderSelector(IEncoderProbe? probe = null)
     }
 
     /// <summary>
-    ///     Pure argument validation — no ffmpeg lookup, no probes. A request that names nothing on the
+    ///     Pure argument validation: no ffmpeg lookup, no probes. A request that names nothing on the
     ///     format's ladder throws the same refusal <see cref="Select" /> would, which lets a front end
     ///     refuse a bad <c>--encoder</c> BEFORE its ffmpeg-presence gate: a wrong name must be answered
     ///     with the ladder's choices even on a machine with no ffmpeg at all. <c>auto</c>, <c>software</c>,

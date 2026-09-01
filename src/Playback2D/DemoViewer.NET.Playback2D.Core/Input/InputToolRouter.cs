@@ -7,11 +7,11 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 ///         keeps every move and the release, so switching tools or releasing Space mid-drag can never
 ///         hand half a stroke to the eraser. The button owns the whole gesture, press to release: a
 ///         press from another button is refused (<see cref="OnPressed" />) and so is that button's
-///         RELEASE (<see cref="OnReleased" />) — chording is not a gesture at either end.
+///         RELEASE (<see cref="OnReleased" />). Chording is not a gesture at either end.
 ///     </para>
 ///     <para>
 ///         <b>Routing is decided once, at press time.</b> Hold-Space diverts the NEXT press to
-///         <see cref="PanZoomTool" /> without hijacking a gesture already in flight — a half-committed
+///         <see cref="PanZoomTool" /> without hijacking a gesture already in flight. A half-committed
 ///         stroke is worse than a missed pan. Middle and Ctrl+drag reach <see cref="PanZoomTool" /> under
 ///         every tool, and the right button reaches <see cref="SecondaryTool" />; all three are read from
 ///         the same press-time expression as hold-Space, so none of them can re-route a gesture already
@@ -52,7 +52,7 @@ public sealed class InputToolRouter
     public bool IsSpaceHeld { get; set; }
 
     /// <summary>
-    ///     The tool the RIGHT button routes to. <c>null</c> — the default — means "whatever
+    ///     The tool the RIGHT button routes to. <c>null</c>, the default, means "whatever
     ///     <see cref="Active" /> is", so a right-drag with the pen still draws; it is then the ink that
     ///     differs, through <c>AnnotationSession.StyleFor</c>. An unregistered kind falls back to
     ///     <see cref="Active" /> rather than to pan: a right-drag that silently panned would be the same
@@ -69,7 +69,7 @@ public sealed class InputToolRouter
 
     /// <summary>
     ///     Whether Ctrl+drag always pans. On by default, for the same reason as
-    ///     <see cref="PanOnMiddleButton" /> — and because a trackpad has no middle button.
+    ///     <see cref="PanOnMiddleButton" />, and because a trackpad has no middle button.
     /// </summary>
     public bool PanOnControlDrag { get; set; } = true;
 
@@ -80,7 +80,7 @@ public sealed class InputToolRouter
     public IPointerTool? GestureTool { get; private set; }
 
     /// <summary>
-    ///     True while a DRAWING tool is selected — what the app's keymap passes as its <c>toolActive</c>
+    ///     True while a DRAWING tool is selected: what the app's keymap passes as its <c>toolActive</c>
     ///     flag, so the tool-scoped Space / Esc bindings shadow the transport ones only when they should.
     /// </summary>
     public bool IsDrawingToolActive => ActiveKind is ToolKind.Draw or ToolKind.Erase;
@@ -99,7 +99,7 @@ public sealed class InputToolRouter
     }
 
     /// <summary>
-    ///     Selects a tool, cancelling any gesture in flight first — a half-drawn stroke must not be
+    ///     Selects a tool, cancelling any gesture in flight first: a half-drawn stroke must not be
     ///     completed by whichever tool the user just switched to.
     /// </summary>
     /// <param name="kind">The tool to select. An unregistered kind falls back to pan/zoom.</param>
@@ -129,7 +129,7 @@ public sealed class InputToolRouter
             // CHORDING IS NOT A GESTURE. A press from a DIFFERENT button while one is in flight is the
             // accidental middle-click halfway through a stroke; cancelling there would trade the ink for
             // an unintended pan. The SAME button pressing again can only mean its release went missing (a
-            // lost capture, a synthetic sequence), and that has to stay recoverable — so it still closes
+            // lost capture, a synthetic sequence), and that has to stay recoverable, so it still closes
             // the stale gesture rather than interleaving two.
             if (e.Button != _gestureButton)
             {
@@ -163,7 +163,7 @@ public sealed class InputToolRouter
     public void OnMoved(in ToolPointerEvent e) => GestureTool?.OnMoved(in e, _services);
 
     /// <summary>
-    ///     Routes a release. Returns true when it actually closed the gesture — the host drops pointer
+    ///     Routes a release. Returns true when it actually closed the gesture: the host drops pointer
     ///     capture on that answer and on nothing else.
     ///     <para>
     ///         <b>The mirror of <see cref="OnPressed" />'s chord refusal</b>, and the half D2 forgot.
@@ -174,7 +174,7 @@ public sealed class InputToolRouter
     ///     <para>
     ///         <see cref="ToolPointerButton.None" /> is read as "the gesture's own button". A release
     ///         reports which buttons are STILL down, so the host cannot always name the one that came up,
-    ///         and a synthetic sequence often carries none at all — refusing those would strand every
+    ///         and a synthetic sequence often carries none at all: refusing those would strand every
     ///         gesture open instead.
     ///     </para>
     /// </summary>

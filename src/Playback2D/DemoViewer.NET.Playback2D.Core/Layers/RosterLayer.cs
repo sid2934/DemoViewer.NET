@@ -158,7 +158,7 @@ public sealed class RosterLayer : ISceneLayer
         // BOTH columns move, not only CT's: only the right column can actually collide, but two strips at
         // different heights is not a layout, and the roster's whole shape is a matched pair framing the
         // map. The reservation is taken whether or not the feed is mounted, because a layer cannot see
-        // its siblings — and the cost of taking it when it is absent is a shorter card on a small pane,
+        // its siblings, and the cost of taking it when it is absent is a shorter card on a small pane,
         // against a corner of the video that is unreadable when it is present.
         float feedTop = ctx.PaneBounds.Top + KillFeedLayer.ReservedBandHeight(_style);
         if (top < feedTop)
@@ -167,8 +167,8 @@ public sealed class RosterLayer : ISceneLayer
             float shrunk = Math.Min(rowH, (band - (tallest - 1) * gap) / tallest);
 
             // …and the reservation YIELDS when honouring it would cost the roster its existence. On a
-            // pane so short that a legible column does not fit under the feed at all — an 800×420
-            // two-level export leaves 39 px — there is no non-overlapping layout to find, and
+            // pane so short that a legible column does not fit under the feed at all, an 800×420
+            // two-level export leaves 39 px, there is no non-overlapping layout to find, and
             // withdrawing would silently drop the cards on every small pane whether or not a feed is
             // even mounted. Overlap on a pane that has no answer is a degradation; a roster that
             // vanishes because of a layer that is not there is a second defect.
@@ -261,7 +261,7 @@ public sealed class RosterLayer : ISceneLayer
         canvas.DrawRoundRect(new SKRect(x, y, x + w, y + h), 3f, 3f, _paint);
 
         // The side stripe sits on the OUTER edge of each column, so the two strips frame the map instead
-        // of pointing into it — and a dead player's stripe fades rather than disappearing, because a card
+        // of pointing into it, and a dead player's stripe fades rather than disappearing, because a card
         // with no colour at all reads as "not on a team".
         _paint.Color = row.IsAlive ? teamColor : teamColor.WithAlpha(0x55);
         canvas.DrawRect(accentLeft ? x : x + w - accentW, y, accentW, h, _paint);

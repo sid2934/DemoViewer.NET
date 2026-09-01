@@ -17,8 +17,8 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     Plan <c>P1-perf-instrumentation</c> §5: capture must be free when off and allocation-free when
 ///     on.
 ///     <para>
-///         The zero-byte assertions are the load-bearing ones and they are <b>not</b> scaled by anything
-///         — zero is zero on every machine, exactly as in <see cref="BudgetTests" />. The timing
+///         The zero-byte assertions are the load-bearing ones and they are <b>not</b> scaled by anything:
+///         zero is zero on every machine, exactly as in <see cref="BudgetTests" />. The timing
 ///         comparison is deliberately loose: it exists to catch a recorder that costs a multiple of the
 ///         frame, not to referee the runner.
 ///     </para>
@@ -30,7 +30,7 @@ public class ScenePerfRecorderTests
 
     /// <summary>
     ///     The default path. With no recorder attached, 512 full-scene frames must still allocate exactly
-    ///     nothing — the same window <see cref="BudgetTests.FullScene_SteadyState_AllocatesNothing" />
+    ///     nothing, the same window <see cref="BudgetTests.FullScene_SteadyState_AllocatesNothing" />
     ///     asserts, re-run here so a regression is attributed to the instrumentation rather than to the
     ///     scene.
     /// </summary>
@@ -52,7 +52,7 @@ public class ScenePerfRecorderTests
 
         await Assert.That(steady).IsEqualTo(0L);
 
-        // A recorder that was never attached saw nothing — the seam is genuinely inert, not merely quiet.
+        // A recorder that was never attached saw nothing. The seam is genuinely inert, not merely quiet.
         await Assert.That(recorder.Frames).IsEqualTo(0);
         await Assert.That(recorder.Snapshot().Stages).IsEmpty();
     }
@@ -121,7 +121,7 @@ public class ScenePerfRecorderTests
         await Assert.That(report.Frames).IsEqualTo(128); // Window runs the 64-frame loop twice
 
         // Every layer row must be a real sample set, and its cost must sit inside the frame that contains
-        // it — a row claiming more time than the frame would mean the accumulators are double-counting.
+        // it: a row claiming more time than the frame would mean the accumulators are double-counting.
         // With no pipeline stages driven here, the layers ARE the frame, so the shares sum to 100 %.
         double shareSum = 0;
         foreach (PerfRow row in report.Layers)
@@ -167,7 +167,7 @@ public class ScenePerfRecorderTests
     ///     The ring wraps, and the live window is the <b>newest</b> capacity frames rather than the
     ///     oldest. Nothing else exercises this: every other capture in the suite and both CLI commands
     ///     size the ring to the run, so the <c>start = head</c> arm of the window arithmetic is only ever
-    ///     reached by a capture that outlives its own history — which is exactly what a long
+    ///     reached by a capture that outlives its own history, which is exactly what a long
     ///     <c>export --perf</c> is once a run exceeds the ring.
     /// </summary>
     [Test]
@@ -176,7 +176,7 @@ public class ScenePerfRecorderTests
         ScenePerfRecorder recorder = new(4);
 
         // Four slow frames, then eight fast ones. After twelve pushes into a ring of four, the live
-        // window is frames 9-12 — every slow sample must have been evicted.
+        // window is frames 9-12. Every slow sample must have been evicted.
         for (int i = 0; i < 12; i++)
         {
             recorder.BeginStage(PerfStage.Render);
@@ -242,7 +242,7 @@ public class ScenePerfRecorderTests
             recorder.BeginStage(PerfStage.Render);
 
             // A stage with LITERALLY nothing in it can measure zero ticks on a fast machine, and the
-            // share assertion below is then 0/0 — which the recorder correctly reports as 0 % and which
+            // share assertion below is then 0/0, which the recorder correctly reports as 0 % and which
             // fails a test whose subject is not the clock's resolution. Burning one tick makes the
             // arithmetic non-degenerate without making the test slow: this is ~100 ns, against the
             // Thread.Sleep(12) the wraparound case above needs.
@@ -324,7 +324,7 @@ public class ScenePerfRecorderTests
         GC.Collect();
     }
 
-    // Two identical windows, and the SECOND is the one returned — the same allowance BudgetTests makes,
+    // Two identical windows, and the SECOND is the one returned, the same allowance BudgetTests makes,
     // for the same reason: the first window reliably shows one 48-byte tiering allocation that never
     // recurs, and charging it to the budget would either make the gate flaky or force the budget above
     // zero.

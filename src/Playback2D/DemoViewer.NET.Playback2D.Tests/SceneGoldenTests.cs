@@ -28,8 +28,8 @@ namespace DemoViewer.NET.Playback2DTests;
 ///         Compared perceptually rather than byte-exact, since anti-aliased edges can differ by a
 ///         least-significant bit between SIMD paths (same-machine byte-exactness is gated separately by
 ///         <c>SceneRendererTests.Render_Twice_ProducesByteIdenticalPixels</c>). Specifically
-///         <see cref="GoldenTolerance.ForLabelledFrame" />, not <see cref="GoldenTolerance.DefaultPerceptual" />
-///         — see that method for why the budget is per label; the proof is
+///         <see cref="GoldenTolerance.ForLabelledFrame" />, not <see cref="GoldenTolerance.DefaultPerceptual" />:
+///         see that method for why the budget is per label; the proof is
 ///         <see cref="EveryPixelOverTheStrictCeiling_LiesUnderGlyphInk" /> below.
 ///     </para>
 /// </summary>
@@ -104,8 +104,8 @@ public class SceneGoldenTests
     ///     <b>
     ///         The proof obligation behind <see cref="GoldenTolerance.ForLabelledFrame" />, for the
     ///         synthetic corpus
-    ///     </b>
-    ///     — see <see cref="GlyphAttribution" />. <c>synthetic-empty</c> has no ink
+    ///     </b>:
+    ///     see <see cref="GlyphAttribution" />. <c>synthetic-empty</c> has no ink
     ///     and is therefore held to the unrelaxed gate outright, which is also what
     ///     <see cref="GoldenTolerance.ForLabelledFrame" /> gives it.
     /// </summary>
@@ -153,7 +153,7 @@ public class SceneGoldenTests
     }
 
     /// <summary>
-    ///     How many labels the frame draws — what the glyph budget is denominated in. Read off the scene
+    ///     How many labels the frame draws: what the glyph budget is denominated in. Read off the scene
     ///     rather than declared per fixture, since a hand-written count could be raised to buy slack; this
     ///     one cannot be raised without adding a player to the capture.
     ///     <para>
@@ -171,18 +171,18 @@ public class SceneGoldenTests
     ///     The <c>dv2d golden</c> render, re-stated. Every line has a counterpart in
     ///     <c>SceneRenderPlan.Build</c> / <c>GoldenCommand.Run</c>: the production layer stack, the dark
     ///     palette, <c>RenderPurpose.Export</c>, and the camera as a <b>pin</b> rather than a
-    ///     <c>SetAllCameras</c> call — the pin is re-applied inside <c>Advance</c> after the panes are
+    ///     <c>SetAllCameras</c> call. The pin is re-applied inside <c>Advance</c> after the panes are
     ///     reconciled, which is what lets a one-shot render supply its camera as data.
     ///     <para>
     ///         No map bundle is bound, and none of the three synthetic entries names a map, so they render
-    ///         on <c>RadarLayer</c>'s synthetic grid fallback — the same one a user with no baked asset
+    ///         on <c>RadarLayer</c>'s synthetic grid fallback, the same one a user with no baked asset
     ///         sees.
     ///     </para>
     /// </summary>
     /// <param name="fixture">The scene to draw.</param>
     /// <param name="size">The output size, which is also the size in the golden's file name.</param>
     /// <param name="drawText">
-    ///     False silences every text layer — marker initials and the floor caption — leaving a frame that
+    ///     False silences every text layer, marker initials and the floor caption, leaving a frame that
     ///     differs from the full render in exactly the glyph ink and nowhere else. That difference is the
     ///     mask <see cref="EveryPixelOverTheStrictCeiling_LiesUnderGlyphInk" /> attributes with, so it is
     ///     produced by the render path under test rather than by a second one built to resemble it.

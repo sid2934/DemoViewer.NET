@@ -42,7 +42,7 @@ internal sealed class EglContext : IDisposable
     /// <summary>Which display platform produced this context.</summary>
     public EglBackendKind Kind { get; }
 
-    /// <summary><c>GL_RENDERER</c> — the string that tells a real GPU from WARP or llvmpipe.</summary>
+    /// <summary><c>GL_RENDERER</c>: the string that tells a real GPU from WARP or llvmpipe.</summary>
     public string? Renderer { get; }
 
     /// <summary><c>GL_VENDOR</c>.</summary>
@@ -57,7 +57,7 @@ internal sealed class EglContext : IDisposable
     ///     <para>
     ///         Safe from any thread. <c>eglDestroyContext</c>, <c>eglDestroySurface</c> and
     ///         <c>eglTerminate</c> are display-scoped rather than thread-scoped, and the spec defines
-    ///         destruction of a still-current object as deferred rather than undefined — so the only
+    ///         destruction of a still-current object as deferred rather than undefined, so the only
     ///         thread-sensitive call here, <c>eglMakeCurrent</c>, is the one that is skipped off-thread.
     ///     </para>
     /// </summary>
@@ -70,7 +70,7 @@ internal sealed class EglContext : IDisposable
 
         // Un-current first: destroying a current context is legal but defers the teardown, and a
         // deferred teardown is exactly what the 20-cycle reliability gate is trying to catch. Off the
-        // owning thread there is nothing current to release — and doing it anyway would clear whatever
+        // owning thread there is nothing current to release, and doing it anyway would clear whatever
         // context THAT thread happens to own.
         if (Environment.CurrentManagedThreadId == _ownerThreadId)
         {

@@ -27,7 +27,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///         <c>docs/playback2d-v2/wasm-matrix.md</c>.
 ///     </para>
 ///     <para>
-///         Relaxed timings — advance p99 ≤ 4 ms, render p99 ≤ 24 ms, combined ≤ 32 ms — but the
+///         Relaxed timings, advance p99 ≤ 4 ms, render p99 ≤ 24 ms, combined ≤ 32 ms, but the
 ///         <b>allocation gate stays at zero</b>: WASM is single-threaded, so a gen-0 pause is worse there,
 ///         not more forgivable.
 ///     </para>
@@ -46,7 +46,7 @@ public class Playback2DWasmBudgetTests
     private static readonly BudgetPolicy _wasmBudget = new(4.0, 24.0, 0);
 
     /// <summary>
-    ///     The full scene — ten players, trails, area effects, vision, two levels, plus B2's ink layer —
+    ///     The full scene, ten players, trails, area effects, vision, two levels, plus B2's ink layer,
     ///     at a browser viewport through the CPU provider.
     /// </summary>
     [Test]

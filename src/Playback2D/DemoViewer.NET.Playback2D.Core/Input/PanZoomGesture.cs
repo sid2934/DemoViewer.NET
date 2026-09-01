@@ -12,13 +12,13 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 ///     handlers (viewport lines 406-460), with the Avalonia event types replaced by plain coordinates.
 ///     <para>
 ///         <b>The gesture stays bound to the pane it began on.</b> A drag that starts on the upper band
-///         and wanders into the lower one keeps panning the upper band — otherwise a fast drag across a
+///         and wanders into the lower one keeps panning the upper band. Otherwise a fast drag across a
 ///         band boundary yanks two floors at once.
 ///     </para>
 ///     <para>
 ///         It lives in <c>…Core.Input</c> rather than the App because B2's <c>PanZoomTool</c> wraps it
 ///         and that tool is Core's; putting the gesture App-side would invert the dependency.
-///         <c>IPointerTool</c> and the router are B2's — B1 deliberately ships no competing tool
+///         <c>IPointerTool</c> and the router are B2's: B1 deliberately ships no competing tool
 ///         abstraction (plan decision D-10).
 ///     </para>
 /// </summary>
@@ -84,7 +84,7 @@ public sealed class PanZoomGesture
     public void Release() => DragPane = null;
 
     /// <summary>
-    ///     Zooms the pane under the cursor about the <b>pane-local</b> cursor position — the band's
+    ///     Zooms the pane under the cursor about the <b>pane-local</b> cursor position: the band's
     ///     transform has the band's height as its viewport, so using host coordinates would zoom about
     ///     the wrong point on every band but the top one (viewport line 451).
     /// </summary>
@@ -106,7 +106,7 @@ public sealed class PanZoomGesture
 
     /// <summary>
     ///     Zooms a pane the caller has already hit-tested, about the host-space cursor position. The
-    ///     overload B2's router calls (wheel is router-level, never a tool member — plan decision D2).
+    ///     overload B2's router calls (wheel is router-level, never a tool member, plan decision D2).
     /// </summary>
     /// <param name="pane">The pane under the cursor, or null.</param>
     /// <param name="x">Host X.</param>

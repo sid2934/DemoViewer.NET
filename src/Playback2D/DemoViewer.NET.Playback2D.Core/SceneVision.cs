@@ -60,7 +60,7 @@ public sealed class SceneVision
     /// <summary>The frame state when the overlay is off or no engine is loaded for this map.</summary>
     public static readonly SceneVision Off = new();
 
-    /// <summary>Whether a visibility engine was loaded for this map — false means "no data", not "nothing seen".</summary>
+    /// <summary>Whether a visibility engine was loaded for this map: false means "no data", not "nothing seen".</summary>
     public bool IsAvailable { get; init; }
 
     /// <summary>Per-player FOV footprints.</summary>

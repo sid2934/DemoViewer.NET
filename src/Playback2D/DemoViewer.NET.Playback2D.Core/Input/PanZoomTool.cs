@@ -2,7 +2,7 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 
 /// <summary>
 ///     Drag-to-pan / wheel-to-zoom as an <see cref="IPointerTool" />. A thin wrapper over B1's
-///     <see cref="PanZoomGesture" />, which is the single implementation of the camera math — this type
+///     <see cref="PanZoomGesture" />, which is the single implementation of the camera math. This type
 ///     adds the tool protocol and nothing else, so pan behaviour cannot drift between the router path and
 ///     the host's own.
 ///     <para>

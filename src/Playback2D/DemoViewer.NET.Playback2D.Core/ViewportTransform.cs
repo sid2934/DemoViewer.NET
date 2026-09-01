@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Playback2D.Core;
 ///         screenY = (centerY - worldY) * scale * zoom + viewH/2 + panY
 ///         </code>
 ///         where <c>scale</c> is the auto-fit base (recomputed only on fit), and <c>zoom</c>/<c>pan</c>
-///         are the user gestures. Recompute only on fit / pan / zoom — never per tick.
+///         are the user gestures. Recompute only on fit / pan / zoom, never per tick.
 ///     </para>
 /// </summary>
 public readonly struct ViewportTransform
@@ -93,8 +93,8 @@ public readonly struct ViewportTransform
     ///         <c>SliceCamera.IsSettledAt</c> loses every comparison against a <c>NaN</c> delta and the
     ///         self-terminating render loop re-arms at display refresh rate forever while nothing draws.
     ///         <c>SceneFrameBuilder.Observe</c> also rejects non-finite samples rather than folding them
-    ///         into the observed extent, but this is the gate every rig funnels through —
-    ///         <c>FitAliveRig</c> derives its rectangle from the markers directly — so a new producer
+    ///         into the observed extent, but this is the gate every rig funnels through,
+    ///         <c>FitAliveRig</c> derives its rectangle from the markers directly, so a new producer
     ///         that skips that filter is still caught here.
     ///     </para>
     /// </summary>
@@ -126,7 +126,7 @@ public readonly struct ViewportTransform
         double baseScale;
         if (w <= double.Epsilon || h <= double.Epsilon)
         {
-            baseScale = 1.0; // degenerate extent — keep the grid visible at unit scale
+            baseScale = 1.0; // degenerate extent: keep the grid visible at unit scale
         }
         else
         {

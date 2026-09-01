@@ -13,8 +13,8 @@ namespace DemoViewer.NET.Playback2D.Core.Timeline;
 ///     <para>
 ///         <b>Markers live on the FRAME-INDEX axis</b> (A1 decision D5, design §5.6: "frame index is the
 ///         movement contract"). An element's <c>FromTick</c> is converted exactly once through
-///         <see cref="ITimelineData.FrameIndexAtTick" />, and an element whose tick resolves to -1 — a
-///         stroke anchored past the end of this parse — is DROPPED rather than silently drawn at frame 0.
+///         <see cref="ITimelineData.FrameIndexAtTick" />, and an element whose tick resolves to -1, a
+///         stroke anchored past the end of this parse, is DROPPED rather than silently drawn at frame 0.
 ///     </para>
 ///     <para>
 ///         B2 ships the markers; B3 adds drag-to-edit on top of them using the
@@ -24,7 +24,7 @@ namespace DemoViewer.NET.Playback2D.Core.Timeline;
 public sealed class AnnotationTrack : ITimelineTrack, IDisposable
 {
     /// <summary>
-    ///     The track's stable id. A bare word like A1's <c>round</c>/<c>kill</c>/<c>bomb</c> — the string
+    ///     The track's stable id. A bare word like A1's <c>round</c>/<c>kill</c>/<c>bomb</c>: the string
     ///     <c>playback2d.annotations</c> is the LAYER id and the FEATURE id, and reusing it here would
     ///     make three different registries share one key.
     /// </summary>
@@ -101,7 +101,7 @@ public sealed class AnnotationTrack : ITimelineTrack, IDisposable
             int frameIndex = data.FrameIndexAtTick(tick);
             if (frameIndex < 0)
             {
-                continue; // anchored past this parse — a marker at frame 0 would be a lie
+                continue; // anchored past this parse: a marker at frame 0 would be a lie
             }
 
             _markers.Add(new TimelineMarker(TrackId, frameIndex, tick, TimelineMarkerKind.Annotation,

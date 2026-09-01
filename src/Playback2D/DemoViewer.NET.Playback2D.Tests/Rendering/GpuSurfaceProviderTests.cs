@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Playback2DTests.Rendering;
 
 /// <summary>
 ///     The GPU provider's own contract (plans/C2-gpu-provider.md §7.2). Every case skips with the probe's
-///     reason on a machine without a backend, and the suite being green in that state is not a gap — it
+///     reason on a machine without a backend, and the suite being green in that state is not a gap: it
 ///     is the design's rule that GPU is opportunistic and never required (§10 risk 7).
 ///     <para>
 ///         Serialised on <see cref="ProbeSerialization.Key" />: an EGL context is current on one thread,
@@ -38,7 +38,7 @@ public class GpuSurfaceProviderTests
     /// <summary>
     ///     The test that catches a wrong flush/submit order. A GPU surface read back before the driver
     ///     has done the work returns whatever was in the texture, which is usually plausible-looking
-    ///     black — so this asserts a specific colour, not "not empty".
+    ///     black, so this asserts a specific colour, not "not empty".
     /// </summary>
     [Test]
     public async Task ReadPixels_RoundTripsAKnownFill()
@@ -143,7 +143,7 @@ public class GpuSurfaceProviderTests
     /// <summary>
     ///     The documented asymmetry: <c>Dispose</c> is the one member that must work from anywhere. A
     ///     <c>using</c> scope containing an <c>await</c> disposes on whichever thread the continuation
-    ///     resumed on — which is what an export session writing frames to a sink does — so a guard here
+    ///     resumed on, which is what an export session writing frames to a sink does, so a guard here
     ///     would make the provider unusable from the code it exists to serve.
     /// </summary>
     [Test]

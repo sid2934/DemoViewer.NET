@@ -47,7 +47,7 @@ public sealed class RadarLayer : ISceneLayer
             // The pre-v2 draw was PushOpacity(0.9) + DrawImage. In Skia that is a white paint at the
             // same alpha, because DrawImage multiplies the image by the paint's colour.
             Color = new SKColor(255, 255, 255, (byte)(SceneDefaults.RadarOpacity * 255)),
-            // SkiaSharp 2.88.9 predates SKSamplingOptions — sampling is a paint property here. High is
+            // SkiaSharp 2.88.9 predates SKSamplingOptions. Sampling is a paint property here. High is
             // not a default-by-habit: measured against the pre-v2 golden, it is the closest match of the
             // four (93.1% of pixels within ±1, versus 78.9% for Medium/Low and 76.5% for None), matching
             // how Avalonia's DrawImage resamples. Changing it re-baselines every radar golden.
@@ -56,7 +56,7 @@ public sealed class RadarLayer : ISceneLayer
         };
 
         // The resample into the cached image. Opaque white and full alpha, because the opacity in _image
-        // must be applied ONCE, at the final draw — baking it in here and multiplying again there would
+        // must be applied ONCE, at the final draw. Baking it in here and multiplying again there would
         // render the radar at 0.81 opacity instead of 0.9.
         _resample = new SKPaint
         {
@@ -77,7 +77,7 @@ public sealed class RadarLayer : ISceneLayer
     }
 
     /// <summary>
-    ///     Whether to draw the baked radar image. False falls back to the grid — the pre-v2
+    ///     Whether to draw the baked radar image. False falls back to the grid, the pre-v2
     ///     <c>ShowRadar</c> toggle, which was never "hide the underlay" but always "picture or grid",
     ///     which is why it is a property here rather than <see cref="IsEnabled" />.
     /// </summary>
@@ -108,7 +108,7 @@ public sealed class RadarLayer : ISceneLayer
     /// </summary>
     /// <remarks>
     ///     The cached path resamples into a whole-pixel intermediate and then blits, where the direct path
-    ///     resamples once into a fractional rectangle — mathematically close but not identical, so an
+    ///     resamples once into a fractional rectangle, mathematically close but not identical, so an
     ///     interactive frame (which has budget to spare and must not move a golden) leaves it off, while an
     ///     export (which renders thousands of frames back to back) turns it on.
     ///     <para>
@@ -171,14 +171,14 @@ public sealed class RadarLayer : ISceneLayer
 
     /// <summary>
     ///     Test seam: how <see cref="ScaledFor" /> obtains its resample intermediate. Returning null (or
-    ///     throwing) exercises its fault path — see that method's own doc.
+    ///     throwing) exercises its fault path: see that method's own doc.
     /// </summary>
     /// <param name="factory">The replacement factory. Null restores <c>SKSurface.Create</c>.</param>
     internal void SetSurfaceFactoryForTest(Func<SKImageInfo, SKSurface?>? factory) =>
         _surfaceFactory = factory ?? (static info => SKSurface.Create(info));
 
     // Placed via the bundle's world bounds through the shared transform. The overview txt's rotate and
-    // zoom are in-game minimap-widget hints and are deliberately NOT applied — verified that dust2
+    // zoom are in-game minimap-widget hints and are deliberately NOT applied: verified that dust2
     // (rotate=1, zoom=1.1) aligns correctly with pos/scale alone (parity invariant 9).
     private bool TryDrawRadar(SKCanvas canvas, in SceneRenderContext ctx)
     {
@@ -192,7 +192,7 @@ public sealed class RadarLayer : ISceneLayer
             return false;
         }
 
-        // Top-left pixel is world (MinX, MaxY); bottom-right is (MaxX, MinY) — Y is inverted by the
+        // Top-left pixel is world (MinX, MaxY); bottom-right is (MaxX, MinY). Y is inverted by the
         // transform. Computed in SCREEN space, exactly as line 1081, so the image is never sampled
         // under a world matrix.
         (double x0, double y0) = ctx.Transform.WorldToScreen(bounds.MinX, bounds.MaxY);
@@ -233,7 +233,7 @@ public sealed class RadarLayer : ISceneLayer
     ///         <b>The cache is forgotten before the replacement is attempted, not after it succeeds.</b>
     ///         Disposing <c>_scaled</c> while <c>_scaledFrom</c>/<c>_scaledWidth</c>/<c>_scaledHeight</c>
     ///         still described it would leave the hit branch above trusting a dead handle if anything
-    ///         between dispose and reassignment failed — a null from <c>SKSurface.Create</c> or a throw
+    ///         between dispose and reassignment failed: a null from <c>SKSurface.Create</c> or a throw
     ///         out of the resample. Handing a disposed <see cref="SKImage" /> to <c>DrawImage</c> is an
     ///         access violation inside Skia, not an exception the frame loop can catch. Falling back to
     ///         <paramref name="source" /> draws the right pixels by the un-cached route; there is no
@@ -264,7 +264,7 @@ public sealed class RadarLayer : ISceneLayer
             new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
         if (surface is null)
         {
-            return source; // no intermediate this frame — the direct resample is correct, only slower.
+            return source; // no intermediate this frame: the direct resample is correct, only slower.
         }
 
         surface.Canvas.Clear(SKColors.Transparent);

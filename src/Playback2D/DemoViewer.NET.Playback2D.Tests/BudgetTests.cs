@@ -65,7 +65,7 @@ public class BudgetTests
         GC.Collect();
 
         // TWO identical windows, and the SECOND is the one asserted on. The first reliably shows a
-        // single 48-byte allocation at a varying iteration somewhere past ~150 — it appears whatever
+        // single 48-byte allocation at a varying iteration somewhere past ~150: it appears whatever
         // the layer stack draws, vanishes entirely when nothing draws, happens with no gen-0 collection
         // in sight, and never recurs. That is the runtime tiering the loop body, not the scene
         // allocating: charging it to the budget would either make the gate flaky or force the budget
@@ -90,7 +90,7 @@ public class BudgetTests
     }
 
     /// <summary>
-    ///     The same 512 frames over the same fixture, with <b>no baked floor bands</b> — the branch every
+    ///     The same 512 frames over the same fixture, with <b>no baked floor bands</b>, the branch every
     ///     user without a map asset is on, and the one this gate has never measured.
     ///     <para>
     ///         <see cref="FullScene_SteadyState_AllocatesNothing" /> calls
@@ -146,7 +146,7 @@ public class BudgetTests
         for (int i = 0; i < 512; i++)
         {
             // The animation-frame timestamp jitters in reality, so a varying dt matches the real steady
-            // state — and it also stops MarkerSmoother.AdvanceOnce from de-duplicating the loop away.
+            // state, and it also stops MarkerSmoother.AdvanceOnce from de-duplicating the loop away.
             SceneTime frameTime = time with
             {
                 DeltaSeconds = 1.0 / 64 + i % 7 * 1e-6
@@ -212,7 +212,7 @@ public class BudgetTests
     ///     <b>The 8 ms render budget had never seen ink.</b>
     ///     <para>
     ///         Every other case here builds <see cref="SceneStage" /> with no <c>extra</c> layers, and the
-    ///         stage's fixed seven cannot include the annotation layer because it takes a session — so it
+    ///         stage's fixed seven cannot include the annotation layer because it takes a session, so it
     ///         only ever arrives through <c>extra</c>, and no timing gate passed it one.
     ///         <c>AnnotationLayerTests.SteadyState_ZeroAllocations</c> measures allocation only, and did
     ///         it on THREE-sample strokes. The result was that the whole ink subsystem sat outside the
@@ -221,7 +221,7 @@ public class BudgetTests
     ///     <para>
     ///         The document below is the shape a real telestration session produces: hundreds of samples
     ///         per stroke, cached ink on both floors, a fade and a tracked callout, and two
-    ///         <b>mid-replay real-time strokes</b> — the worst content this layer has, because a real-time
+    ///         <b>mid-replay real-time strokes</b>, the worst content this layer has, because a real-time
     ///         stroke is re-sectioned and re-outlined on every frame and is cached by nothing. The run is
     ///         reported twice, ink off and ink on, because "we are inside budget" is much less useful
     ///         than "the ink costs this much of it".
@@ -253,7 +253,7 @@ public class BudgetTests
         ink.IsEnabled = true;
         BenchmarkReport with = benchmark.Run(source, request);
 
-        // A fixture whose ink was culled — wrong floor anchor, closed envelope, dead player — would
+        // A fixture whose ink was culled, wrong floor anchor, closed envelope, dead player, would
         // report a delta of zero and pass for entirely the wrong reason.
         await Assert.That(ink.DryPictureCount).IsEqualTo(2)
             .Because("cached ink on both floors, or the dry half of the layer is not being measured");
@@ -323,7 +323,7 @@ public class BudgetTests
                 document.Elements.Count));
         }
 
-        // One tracked callout on a live player — slot 3's SteamId, on the upper band.
+        // One tracked callout on a live player: slot 3's SteamId, on the upper band.
         document.Apply(new DocDelta.Add(
             new AnnotationElement(Guid.NewGuid(), AnnotationKind.Freehand, InkStyle(8f),
                 new SpaceRef.Entity(76561190000000003, 40f, 40f), TimeEnvelope.Static,

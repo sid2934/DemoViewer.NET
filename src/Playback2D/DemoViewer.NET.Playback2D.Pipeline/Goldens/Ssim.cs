@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Pipeline.Goldens;
 
 /// <summary>
-///     Structural similarity over a luma plane — the metric that makes the cross-backend policy mean
+///     Structural similarity over a luma plane, the metric that makes the cross-backend policy mean
 ///     something (plans/C2-gpu-provider.md §7.3).
 ///     <para>
 ///         <b>Why it is here at all.</b> A per-channel tolerance passes an image translated by one pixel:

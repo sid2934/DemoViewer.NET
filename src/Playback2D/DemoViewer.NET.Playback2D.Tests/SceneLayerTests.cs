@@ -63,7 +63,7 @@ public class SceneLayerTests
     }
 
     /// <summary>
-    ///     The pre-v2 <c>ShowRadar</c> toggle was never "hide the underlay" — it was always "picture or
+    ///     The pre-v2 <c>ShowRadar</c> toggle was never "hide the underlay". It was always "picture or
     ///     grid" (viewport line 868). Turning it off must still leave a background, or the map vanishes.
     /// </summary>
     [Test]
@@ -187,7 +187,7 @@ public class SceneLayerTests
     ///     </para>
     ///     <para>
     ///         Six labels of very different widths, because a fix that centred the ink box per string
-    ///         would also pass on one of them — and the disc is drawn <b>off</b> the pane's midpoint, so
+    ///         would also pass on one of them, and the disc is drawn <b>off</b> the pane's midpoint, so
     ///         an error that happens to cancel at the centre still shows. <c>MM</c> and <c>il</c> are the
     ///         worst side-bearing cases in the set.
     ///     </para>
@@ -203,7 +203,7 @@ public class SceneLayerTests
     ///         ~0.16 px of headroom and would flip on any Skia build that rounds a glyph's edge row
     ///         differently. The bug this guards against was <b>4.2-6.2 px</b>, so the wider gate still
     ///         catches it with more than double the margin. The quantisation-free statement of the same
-    ///         property — that the advance box lands exactly on the point — is
+    ///         property, that the advance box lands exactly on the point, is
     ///         <c>TextBlobCacheTests.OriginForCentre_PutsTheInkOnThePoint</c>; this test's job is that
     ///         the real layer wires that up.
     ///     </para>
@@ -404,7 +404,7 @@ public class SceneLayerTests
     }
 
     /// <summary>
-    ///     The bounding box of the pixels where two renders of the same scene disagree — an exact mask
+    ///     The bounding box of the pixels where two renders of the same scene disagree, an exact mask
     ///     of whatever the second render left out.
     /// </summary>
     /// <param name="a">One render.</param>

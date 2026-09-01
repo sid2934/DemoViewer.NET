@@ -1,4 +1,4 @@
-// Adapted from perfect-freehand v1.2.2 (MIT, © 2021 Stephen Ruiz Ltd) — specifically
+// Adapted from perfect-freehand v1.2.2 (MIT, © 2021 Stephen Ruiz Ltd): specifically
 // packages/perfect-freehand/src/getStrokePoints.ts and getStrokeOutlinePoints.ts.
 // See THIRD-PARTY-NOTICES.md § "perfect-freehand (MIT)" for the full licence text and the list of
 // adapted files. Upstream: https://github.com/steveruizok/perfect-freehand
@@ -22,7 +22,7 @@ namespace DemoViewer.NET.Playback2D.Core.Ink;
 ///     </para>
 ///     <para>
 ///         <b>Allocation discipline.</b> Every entry point writes into caller-supplied lists, and the
-///         internal left/right/cap buffers are <c>[ThreadStatic]</c> and reused — the §6 budget is zero
+///         internal left/right/cap buffers are <c>[ThreadStatic]</c> and reused: the §6 budget is zero
 ///         bytes per frame, and a stroke is redrawn on every frame it is wet.
 ///     </para>
 /// </summary>
@@ -93,7 +93,7 @@ public static class FreehandOutline
             runningLength += distance;
 
             // Until the stroke is at least `size` long, samples are folded into the running length but
-            // not emitted — that is what keeps a tap from becoming a wobbly worm.
+            // not emitted: that is what keeps a tap from becoming a wobbly worm.
             if (i < max && !reachedMinimumLength)
             {
                 if (runningLength < o.Size)
@@ -275,7 +275,7 @@ public static class FreehandOutline
                 continue;
             }
 
-            // Offset perpendicular to the direction the stroke is actually heading — the average of the
+            // Offset perpendicular to the direction the stroke is actually heading: the average of the
             // incoming and outgoing vectors, weighted by how sharply they disagree.
             double lx = nextVecX + (vecX - nextVecX) * nextDpr;
             double ly = nextVecY + (vecY - nextVecY) * nextDpr;

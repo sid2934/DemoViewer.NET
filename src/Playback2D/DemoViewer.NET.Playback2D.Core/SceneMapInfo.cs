@@ -4,7 +4,7 @@ namespace DemoViewer.NET.Playback2D.Core;
 ///     The per-map, per-demo static facts a scene needs: identity, the networked and observed world
 ///     extents, the networked floor boundaries, and the decoded radar layers.
 ///     <para>
-///         Floor <b>inputs</b> only — <see cref="SectionHeights" /> plus the marker Zs on the frame.
+///         Floor <b>inputs</b> only: <see cref="SectionHeights" /> plus the marker Zs on the frame.
 ///         Resolved levels are derived by B1's <c>MapSpaceFactory</c> and are deliberately absent from
 ///         the frame (decision D3).
 ///     </para>
@@ -18,13 +18,13 @@ public sealed class SceneMapInfo
     public string MapName { get; init; } = "";
 
     /// <summary>
-    ///     The map's REAL networked world-space X/Y bounds — <c>m_vMinimapMins</c> / <c>m_vMinimapMaxs</c>
+    ///     The map's REAL networked world-space X/Y bounds, <c>m_vMinimapMins</c> / <c>m_vMinimapMaxs</c>
     ///     off the game-rules entity. Null until read; the camera rigs frame these exactly when present.
     /// </summary>
     public WorldBounds? NetworkedBounds { get; init; }
 
     /// <summary>
-    ///     The running extent of every position observed so far — the Map-mode fallback used when
+    ///     The running extent of every position observed so far, the Map-mode fallback used when
     ///     <see cref="NetworkedBounds" /> is absent. Only ever widened.
     /// </summary>
     public WorldBounds ObservedBounds { get; init; } = WorldBounds.Default;

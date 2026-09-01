@@ -176,7 +176,7 @@ internal sealed class SceneMapInfoDto
     public List<MapRadarImageDto>? Radars { get; set; }
 }
 
-// The SKImage itself is never serialized — a fixture describes a scene, not a decoded bitmap.
+// The SKImage itself is never serialized: a fixture describes a scene, not a decoded bitmap.
 // MapAssetPipeline re-attaches the image by Name at load (B1); until then it stays null.
 internal sealed class MapRadarImageDto
 {

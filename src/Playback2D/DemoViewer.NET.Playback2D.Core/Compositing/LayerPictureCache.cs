@@ -15,7 +15,7 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 ///         <c>LayerId</c> because two layers do; <c>ContentVersion</c> because the layer says when its
 ///         content changed; and <c>CameraEpoch</c> because a <c>PerCamera</c> recording is in pane-local
 ///         screen space and is wrong the moment the camera moves. A <c>Static</c> recording is in world
-///         space and replays under the camera matrix, so its key pins <c>CameraEpoch</c> to 0 — that
+///         space and replays under the camera matrix, so its key pins <c>CameraEpoch</c> to 0: that
 ///         difference is the entire reason both hints exist (plan decision D-6).
 ///     </para>
 ///     <para>
@@ -101,7 +101,7 @@ internal sealed class LayerPictureCache : IDisposable
     }
 
     /// <summary>
-    ///     Drops every picture recorded for one pane. Called when a level vanishes from the space —
+    ///     Drops every picture recorded for one pane. Called when a level vanishes from the space:
     ///     otherwise its pictures would outlive the pane and hold an <see cref="SKImage" /> alive.
     /// </summary>
     public void InvalidatePane(MapLevelId levelId)

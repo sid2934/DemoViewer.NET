@@ -40,7 +40,7 @@ public readonly record struct GoldenBudget(double RenderP99Ms, double AdvanceP99
 /// <param name="Pending">
 ///     True when this entry's inputs have not all landed yet (a B2 annotation document, a B3 level
 ///     pick). A pending entry is <b>skipped</b> by <c>golden verify</c> and <c>fixture verify</c>, never
-///     failed — which is what lets a later phase register its fixture before it can render it.
+///     failed, which is what lets a later phase register its fixture before it can render it.
 /// </param>
 public sealed record GoldenCorpusEntry(
     string Name,
@@ -75,7 +75,7 @@ public sealed record GoldenCorpusEntry(
 /// <summary>
 ///     The <c>tests/fixtures/playback2d</c> corpus: <c>manifest.json</c> plus the scene and golden paths
 ///     it names. One index, read by <c>dv2d golden</c>, <c>dv2d bench</c>, <c>dv2d fixture</c> and by the
-///     direct-execution test suites — so "which fixtures exist" has exactly one answer.
+///     direct-execution test suites, so "which fixtures exist" has exactly one answer.
 /// </summary>
 public sealed class GoldenCorpus
 {
@@ -101,7 +101,7 @@ public sealed class GoldenCorpus
         Entries = entries;
     }
 
-    /// <summary>The corpus root — the directory holding <c>manifest.json</c>, <c>scenes/</c>, <c>goldens/</c>.</summary>
+    /// <summary>The corpus root: the directory holding <c>manifest.json</c>, <c>scenes/</c>, <c>goldens/</c>.</summary>
     public string Directory { get; }
 
     /// <summary>The manifest's declared schema version.</summary>

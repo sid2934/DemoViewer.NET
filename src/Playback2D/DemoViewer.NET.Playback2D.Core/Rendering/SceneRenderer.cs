@@ -9,14 +9,14 @@ namespace DemoViewer.NET.Playback2D.Core.Rendering;
 
 /// <summary>
 ///     Drives one offscreen render: obtain a surface, advance the compositor, draw it, flush, snapshot.
-///     C1's <c>HeadlessSceneRenderer</c> is a Pipeline facade over this — never a second render path.
+///     C1's <c>HeadlessSceneRenderer</c> is a Pipeline facade over this, never a second render path.
 /// </summary>
 public sealed class SceneRenderer
 {
     private readonly IRenderSurfaceProvider _surfaces;
 
     /// <summary>Creates a renderer over a surface provider.</summary>
-    /// <param name="surfaces">Where surfaces come from. Not owned — the caller disposes it.</param>
+    /// <param name="surfaces">Where surfaces come from. Not owned: the caller disposes it.</param>
     public SceneRenderer(IRenderSurfaceProvider surfaces)
     {
         ArgumentNullException.ThrowIfNull(surfaces);
@@ -32,7 +32,7 @@ public sealed class SceneRenderer
     /// </summary>
     /// <param name="compositor">The layer stack to advance and draw.</param>
     /// <param name="frame">The frame to render.</param>
-    /// <param name="time">The frame's injected clock — passed to <c>Advance</c>.</param>
+    /// <param name="time">The frame's injected clock, passed to <c>Advance</c>.</param>
     /// <param name="ctx">The pane's render context. Its <c>Frame</c>/<c>Time</c> should match the arguments.</param>
     /// <param name="size">Pixel size of the output.</param>
     public SKImage Render(SceneCompositor compositor, Scene2DFrame frame, in SceneTime time,

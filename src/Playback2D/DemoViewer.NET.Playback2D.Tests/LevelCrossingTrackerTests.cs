@@ -8,7 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The crossing detector and the marker snap it drives — design §5.3's "trail and smoothing buffers
+///     The crossing detector and the marker snap it drives: design §5.3's "trail and smoothing buffers
 ///     reset when an entity crosses levels", i.e. the streak-across-the-map artefact.
 /// </summary>
 public class LevelCrossingTrackerTests
@@ -109,7 +109,7 @@ public class LevelCrossingTrackerTests
         smoother.Advance(onLower, 1.0 / 64);
         tracker.EndFrame();
 
-        // 200 units away in plan — under the 250u teleport threshold, so the distance rule would glide.
+        // 200 units away in plan, under the 250u teleport threshold, so the distance rule would glide.
         PlayerMarker[] onUpper = [Marker(0, 200, 0, 400)];
         tracker.Update(0, 400, space);
         smoother.Advance(onUpper, 1.0 / 64);

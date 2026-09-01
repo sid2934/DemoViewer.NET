@@ -19,7 +19,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 
 /// <summary>
-///     The export loop — design §5.7. A fixed timestep through the same layer stack the window draws,
+///     The export loop: design §5.7. A fixed timestep through the same layer stack the window draws,
 ///     into an <see cref="IRenderSurfaceProvider" />'s surface, out through an <see cref="IFrameSink" />.
 ///     <para>
 ///         <b>It draws through <c>HeadlessSceneRenderer</c>, never a private loop</b>: a two-floor Nuke
@@ -28,7 +28,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 ///     </para>
 ///     <para>
 ///         <b>Zero steady-state allocation</b> (design §6): one surface, one pooled RGBA staging buffer,
-///         one pinned handle per frame, and a progress struct — no per-frame bitmap, no per-frame array,
+///         one pinned handle per frame, and a progress struct: no per-frame bitmap, no per-frame array,
 ///         no LINQ. <b>The session disposes the sink</b>, exactly once, in a <c>finally</c>, on success,
 ///         cancellation and failure alike: that is what kills an ffmpeg subprocess on cancel, so a caller
 ///         must not wrap the sink in its own <c>await using</c>.
@@ -81,7 +81,7 @@ public sealed class SceneExportSession
     /// <summary>
     ///     Whether the radar image is resampled once and blitted thereafter, rather than re-resampled per
     ///     frame. On for an export, and the single biggest thing between this loop and its ≥ realtime
-    ///     budget — see <c>RadarLayer.CacheScaledImage</c> for the measurement and for what it costs
+    ///     budget: see <c>RadarLayer.CacheScaledImage</c> for the measurement and for what it costs
     ///     (a sub-pixel difference against the pre-v2 parity reference, which is why the flag is off
     ///     everywhere else). Turn it off to render an export through exactly the window's draw path.
     /// </summary>
@@ -94,7 +94,7 @@ public sealed class SceneExportSession
     ///     <para>
     ///         With it set the loop is decomposed into <see cref="PerfStage.Source" /> (the tracker decode
     ///         and scene build), <see cref="PerfStage.Advance" />, <see cref="PerfStage.Render" />,
-    ///         <see cref="PerfStage.Readback" /> and <see cref="PerfStage.Encode" /> — the last of which
+    ///         <see cref="PerfStage.Readback" /> and <see cref="PerfStage.Encode" />, the last of which
     ///         is the time the render loop sits blocked on the sink's bounded channel, i.e. how far the
     ///         encoder is behind. That decomposition is what turns one <c>realtime_ratio</c> into an
     ///         answer.
@@ -143,7 +143,7 @@ public sealed class SceneExportSession
         // whatever pool thread the continuation lands on, while GpuSurfaceProvider is thread-affine and
         // throws the moment its EGL context is touched from a second thread. An unguarded run with a GPU
         // surface dies mid-export with "GpuSurfaceProvider is thread-affine: it was created on thread 2
-        // and was used from thread 33" — true, but it arrives after the replay and tells the user nothing
+        // and was used from thread 33". That's true, but it arrives after the replay and tells the user nothing
         // they can act on.
         //
         // Supporting it needs the loop pinned to one thread, which is a redesign of this method. Until
@@ -230,7 +230,7 @@ public sealed class SceneExportSession
             {
                 ct.ThrowIfCancellationRequested();
 
-                // FrameAt is the tracker's decode plus SceneFrameBuilder — on a busy demo the single
+                // FrameAt is the tracker's decode plus SceneFrameBuilder, on a busy demo the single
                 // largest thing in this loop, and invisible in the aggregate fps this method reports.
                 perf?.BeginStage(PerfStage.Source);
                 SceneTime time = src.TimeAt(i);
@@ -282,7 +282,7 @@ public sealed class SceneExportSession
 
         // Closing the sink is its own step rather than part of the finally above, for two reasons.
         //
-        // It is where ffmpeg is drained (or killed) and where a GIF is written — so a failure HERE is an
+        // It is where ffmpeg is drained (or killed) and where a GIF is written, so a failure HERE is an
         // export failure even when every frame rendered. Muxing happens on close: "all frames written"
         // is not "a file exists that plays", and reporting Completed would point a user at a file that
         // does not decode.
@@ -317,8 +317,8 @@ public sealed class SceneExportSession
 
     /// <summary>
     ///     Throws <see cref="ExportValidationException" /> when the request cannot produce a file. Called
-    ///     by <see cref="RunAsync" />, by the export dialog's <c>CanStart</c>, and by <c>dv2d export</c>
-    ///     — one rule set, three callers, so the CLI cannot drift from the UI.
+    ///     by <see cref="RunAsync" />, by the export dialog's <c>CanStart</c>, and by <c>dv2d export</c>:
+    ///     one rule set, three callers, so the CLI cannot drift from the UI.
     /// </summary>
     /// <param name="req">The request to check.</param>
     public static void Validate(ExportRequest req)
@@ -476,7 +476,7 @@ public sealed class SceneExportSession
 
             // Measured on assets/tour/sample-de_nuke.dem at 1920x1080: 21.4 -> 58.3 exported frames per
             // second. The radar is ONE DrawImage, but at SKFilterQuality.High of a ~2000 px bundle layer,
-            // and LayerCacheHint.PerCamera caches the picture rather than its pixels — so the bicubic
+            // and LayerCacheHint.PerCamera caches the picture rather than its pixels, so the bicubic
             // resample was re-run for every frame of the video. Restored on dispose because the flag
             // costs pre-v2 parity (see RadarLayer.CacheScaledImage) and the caller's compositor may be
             // the window's.

@@ -15,10 +15,10 @@ public readonly record struct GrenadeTrailPoint(float X, float Y, float Z);
 
 /// <summary>
 ///     A grenade's flight trail (A4 overlay): the path a thrown projectile traced, accumulated LIVE per push
-///     (forward-play artifact — a trail seeked-into shows the arc from the seek point forward, which is
+///     (forward-play artifact: a trail seeked-into shows the arc from the seek point forward, which is
 ///     incomplete, not wrong). Keyed by the projectile's network Serial (the entity index gets
 ///     reused on detonation). Drawn as a fading comet line; <see cref="Alpha" /> is 1 while the projectile is
-///     MOVING and decays once it stops (lands / detonates / despawns) — so a smoke or decoy projectile, which
+///     MOVING and decays once it stops (lands / detonates / despawns), so a smoke or decoy projectile, which
 ///     lingers as a live entity long after it lands, still fades its flight line instead of holding it at full
 ///     opacity for the cloud's whole life. Cleared wholesale on a discontinuous frame jump so a segment never
 ///     streaks across the map.
@@ -31,7 +31,7 @@ public sealed class GrenadeTrail
     public List<GrenadeTrailPoint> Points { get; } = new(64);
 
     /// <summary>
-    ///     Server (game) tick the projectile last MOVED (a point was appended) — drives the fade + prune
+    ///     Server (game) tick the projectile last MOVED (a point was appended): drives the fade + prune
     ///     once it stops moving, independent of how long the entity itself lingers.
     /// </summary>
     public int LastTick { get; set; }

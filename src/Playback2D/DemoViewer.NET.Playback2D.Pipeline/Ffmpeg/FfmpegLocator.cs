@@ -6,7 +6,7 @@ public enum FfmpegOrigin
     /// <summary>No install found.</summary>
     None,
 
-    /// <summary>Resolved from the system <c>PATH</c> — an install the user chose.</summary>
+    /// <summary>Resolved from the system <c>PATH</c>: an install the user chose.</summary>
     SystemPath,
 
     /// <summary>The app-managed drop-in / downloaded install.</summary>
