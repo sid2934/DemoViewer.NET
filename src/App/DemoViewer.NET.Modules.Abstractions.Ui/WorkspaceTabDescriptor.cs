@@ -22,7 +22,7 @@ public enum TabPlacement
 ///     constraint that the three shell-routed built-in views bind against the shell, not a per-tab VM).
 ///     <para>
 ///         <b>DataContext model.</b> The realized View's DataContext is the descriptor's
-///         <see cref="DataContext" /> object — for the shell-routed built-ins this is the shell
+///         <see cref="DataContext" /> object: for the shell-routed built-ins this is the shell
 ///         (so <c>{Binding EntityTab.X}</c> resolves exactly as before); for Diagnostics it is the
 ///         Diagnostics VM; for a future third-party module it is that module's per-tab VM. The
 ///         descriptor's own header binds in the ItemTemplate (kept separate).
@@ -97,7 +97,7 @@ public sealed class WorkspaceTabDescriptor : INotifyPropertyChanged
     /// <summary>
     ///     Session state restored from disk, waiting for this tab's VM to exist.
     ///     <para>
-    ///         Module tab VMs are built LAZILY, on first activation — that is the point of
+    ///         Module tab VMs are built LAZILY, on first activation. That is the point of
     ///         <see cref="ViewModelFactory" />. So a restore at startup has nothing to hand the state to, and
     ///         forcing every module VM into existence just to restore it would defeat the laziness and pay
     ///         every module's construction cost on every launch. The shell parks the state here instead and
@@ -145,7 +145,7 @@ public sealed class WorkspaceTabDescriptor : INotifyPropertyChanged
                 // not a source of truth, and the blob is attacker-free but not shape-free: it was written by
                 // a previous BUILD, so a renamed field or a changed record shape lands here as a
                 // JsonException. The contract asks modules to tolerate that themselves; this is the backstop
-                // for the ones that do not, because the alternative is a tab that cannot be opened — or, if
+                // for the ones that do not, because the alternative is a tab that cannot be opened, or, if
                 // the tab is the restored active one, a launch that fails.
             }
         }
@@ -173,7 +173,7 @@ public sealed class WorkspaceTabDescriptor : INotifyPropertyChanged
         TabViewModel?.OnDeactivated();
 
         // Only null the View's own DataContext when it owns a per-tab VM. For shell-routed built-ins
-        // the DataContext is the shared shell — nulling it would churn a reference still alive
+        // the DataContext is the shared shell: nulling it would churn a reference still alive
         // elsewhere; just drop the View and let the presenter collect it.
         if (ActiveContent is { } view && DataContext is null)
         {

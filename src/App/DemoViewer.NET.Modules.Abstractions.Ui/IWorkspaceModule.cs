@@ -2,7 +2,7 @@ namespace DemoViewer.NET.Modules.Abstractions;
 
 /// <summary>
 ///     The contribution contract. A module returns one or more
-///     <see cref="WorkspaceTabDescriptor" />s — the descriptor, not the module, is the unit of
+///     <see cref="WorkspaceTabDescriptor" />s. The descriptor, not the module, is the unit of
 ///     placement. Implemented by the first-party <c>BuiltInTabsModule</c> (the four existing tabs) and,
 ///     later, by third-party runtime-loaded modules (the 2D pilot).
 /// </summary>

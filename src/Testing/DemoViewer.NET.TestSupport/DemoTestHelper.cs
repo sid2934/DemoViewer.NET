@@ -10,7 +10,7 @@ namespace DemoViewer.NET.TestSupport;
 /// <summary>
 ///     Resolves CS2 <c>.dem</c> files for integration tests, and provides a
 ///     <see cref="RequireDemo()" /> helper that throws <see cref="SkipTestException" /> when no
-///     demo is available — so TUnit reports the test under <c>skipped:</c> rather than the
+///     demo is available, so TUnit reports the test under <c>skipped:</c> rather than the
 ///     misleading <c>succeeded:</c> count that an early <c>return</c> produces.
 ///     <para>
 ///         <b>Discovery order</b> (first match wins):
@@ -47,10 +47,10 @@ public static class DemoTestHelper
     /// <summary>
     ///     Maximum number of <see cref="ParsedDemo" /> instances the process-wide cache retains.
     ///     The bound is load-bearing, not a tuning knob: the full App suite touches ~6 distinct
-    ///     large demos, and an unbounded cache accumulates all of them for process lifetime —
+    ///     large demos, and an unbounded cache accumulates all of them for process lifetime,
     ///     enough to get the test process killed by the OS mid-suite on a memory-pressured
     ///     16 GB dev machine (measured: the suite process peaks ~4.7 GB with the machine's
-    ///     compressor already holding ~8 GB). Capacity 1 caches only the current demo — the
+    ///     compressor already holding ~8 GB). Capacity 1 caches only the current demo: the
     ///     reference demo shared by most classes stays hot across long class runs, and the
     ///     handful of pro-demo classes pay one re-parse each. Override with the
     ///     <c>DEMOVIEWER_TEST_PARSE_CACHE</c> env var on machines with more headroom.
@@ -74,11 +74,11 @@ public static class DemoTestHelper
     /// <summary>
     ///     Returns the shared, cached <see cref="ParsedDemo" /> for <paramref name="path" />,
     ///     parsing it on first use. The result is shared across test classes and MUST be treated
-    ///     as read-only — <see cref="ParsedDemo" /> exposes only immutable/read-only surface, and
+    ///     as read-only: <see cref="ParsedDemo" /> exposes only immutable/read-only surface, and
     ///     stateful consumers (e.g. <c>EntityTracker</c>) build their own state from
     ///     <see cref="ParsedDemo.Frames" />. Tests that need to mutate parser output (or hold the
     ///     raw demo bytes alongside) should keep a private <c>DemoParser.Parse</c> call instead.
-    ///     The cache is a small LRU (see <see cref="_parseCacheCapacity" />) — an evicted demo is
+    ///     The cache is a small LRU (see <see cref="_parseCacheCapacity" />). An evicted demo is
     ///     re-parsed on next use, and callers still holding an evicted instance keep it alive
     ///     until they finish (eviction only drops the cache's reference, so sharing stays safe).
     /// </summary>
@@ -117,7 +117,7 @@ public static class DemoTestHelper
         {
             // Decommit the evicted demo BEFORE parsing the next one: without this the old
             // multi-GB ParsedDemo is garbage-but-resident exactly while the new parse
-            // allocates its own — the peak that gets the process OS-killed on a
+            // allocates its own, the peak that gets the process OS-killed on a
             // memory-pressured machine.
             GC.Collect(2, GCCollectionMode.Aggressive, true, true);
             GC.WaitForPendingFinalizers();
@@ -132,7 +132,7 @@ public static class DemoTestHelper
     /// <summary>Find demo path.</summary>
     public static string? FindDemoPath()
     {
-        // 1. Explicit env var (developer override — always wins).
+        // 1. Explicit env var (developer override, always wins).
         string? env = Environment.GetEnvironmentVariable("DEMO_PATH");
         if (!string.IsNullOrWhiteSpace(env) && File.Exists(env))
         {

@@ -14,11 +14,11 @@ namespace DemoViewer.NET.LiveSync;
 
 /// <summary>
 ///     The DV-intent observer: translates shell playback events
-///     into <see cref="SyncEngine" /> desired-state calls. UI-thread resident — construct and
+///     into <see cref="SyncEngine" /> desired-state calls. UI-thread resident: construct and
 ///     dispose on the UI thread while a session is up.
 ///     <para>
 ///         Sources: <c>FrameNavigationViewModel.SelectedFrameChanged</c> (discrete seeks and
-///         steps — the play loop never raises it), <c>PlaybackController.PropertyChanged</c>
+///         steps, the play loop never raises it), <c>PlaybackController.PropertyChanged</c>
 ///         (IsPlaying and Speed; the end-of-demo auto-pause is legitimate DV intent and flows through
 ///         unchanged, and Speed's clamp re-entry duplicates dedup in the
 ///         reconciler), and <c>IModuleContext.DemoReset</c> (load-complete → demo/path/mapper
@@ -150,7 +150,7 @@ internal sealed class SyncStateObserver : IDisposable
         }
 
         _engine.SetDesiredTick(Mapper.Cs2DemoTick(frameIndex));
-        // A seek-while-playing lands paused (SeekToFrame stops the play loop first) — mirror
+        // A seek-while-playing lands paused (SeekToFrame stops the play loop first). Mirror
         // DV's actual post-seek state, not the pre-seek one.
         _engine.SetDesiredPlaying(_shell.Playback.IsPlaying);
     }
@@ -164,7 +164,7 @@ internal sealed class SyncStateObserver : IDisposable
 
         if (e.PropertyName == nameof(PlaybackController.Speed))
         {
-            // User speed changes mirror to CS2's demo timescale — the engine no-ops
+            // User speed changes mirror to CS2's demo timescale. The engine no-ops
             // without the "timescale-set" capability, and the clamp's duplicate re-entry
             // notification dedups in the reconciler (same value → no resend).
             _engine.SetDesiredTimescale(_shell.Playback.Speed);
@@ -179,7 +179,7 @@ internal sealed class SyncStateObserver : IDisposable
         bool playing = _shell.Playback.IsPlaying;
         if (!playing && Mapper is not null)
         {
-            // Pausing fixes DV's playhead wherever the play loop stopped — that position never
+            // Pausing fixes DV's playhead wherever the play loop stopped. That position never
             // came through SelectedFrameChanged, so push it as the new discrete intent.
             int frame = _shell.Playback.CurrentFrameIndex;
             if (frame >= 0)
@@ -199,7 +199,7 @@ internal sealed class SyncStateObserver : IDisposable
         }
 
         int frame = _shell.Playback.CurrentFrameIndex;
-        // No frame selected = the demo start — via the mapper, so the D2 TickOffset applies
+        // No frame selected = the demo start, via the mapper, so the D2 TickOffset applies
         // exactly once here like at every other emission site (a literal 0 would skip it).
         return frame >= 0 ? Mapper.Cs2DemoTick(frame) : Mapper.Cs2TickFromDvTick(0);
     }

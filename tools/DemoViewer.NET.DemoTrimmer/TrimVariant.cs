@@ -8,7 +8,7 @@ namespace DemoViewer.NET.DemoTrimmer;
 
 /// <summary>
 ///     One rung of the trim ladder. The rungs exist so the boundary between "still plays in the real
-///     CS2 client" and "broken" can be found empirically — each successive variant removes exactly one
+///     CS2 client" and "broken" can be found empirically: each successive variant removes exactly one
 ///     more class of data, so a failure isolates to the thing that rung added.
 /// </summary>
 /// <param name="Id">Short id used in the emitted filename, e.g. <c>v1-verbatim</c>.</param>
@@ -31,7 +31,7 @@ internal sealed record TrimVariant(
 
     /// <summary>
     ///     Animation frames: pure client-side animation replay data. DemoViewer.NET reads none of it,
-    ///     and it is ~12% of an AnimGraph2 pro demo. Header and data are dropped together — the header
+    ///     and it is ~12% of an AnimGraph2 pro demo. Header and data are dropped together. The header
     ///     only exists to interpret the data.
     /// </summary>
     private static readonly FrozenSet<string> AnimationFrames =
@@ -46,7 +46,7 @@ internal sealed record TrimVariant(
     }.ToFrozenSet();
 
     /// <summary>
-    ///     V0 — no mid-stream entry. Everything from frame 0 through the end of round N, verbatim.
+    ///     V0: no mid-stream entry. Everything from frame 0 through the end of round N, verbatim.
     ///     Isolates "truncating the tail" from "entering at a checkpoint"; the single most likely
     ///     candidate to survive CS2 playback, at the cost of carrying the warmup.
     /// </summary>
@@ -55,30 +55,30 @@ internal sealed record TrimVariant(
         "frame 0 → end of round N, verbatim (no mid-stream entry)",
         false, NoFrames, NoInner);
 
-    /// <summary>V1 — setup frames + entry at the <c>DEM_FullPacket</c> before round 1, then verbatim.</summary>
+    /// <summary>V1: setup frames + entry at the <c>DEM_FullPacket</c> before round 1, then verbatim.</summary>
     public static readonly TrimVariant V1 = new(
         "v1-verbatim",
         "setup + DEM_FullPacket entry → end of round N, verbatim",
         true, NoFrames, NoInner);
 
-    /// <summary>V2 — V1 minus whole animation frames. Still no payload rewriting.</summary>
+    /// <summary>V2: V1 minus whole animation frames. Still no payload rewriting.</summary>
     public static readonly TrimVariant V2 = new(
         "v2-no-anim",
         "V1 minus DEM_AnimationData / DEM_AnimationHeader frames",
         true, AnimationFrames, NoInner);
 
-    /// <summary>V3 — V2 plus <c>svc_UserCmds</c> stripped from inside every packet. Expected to break CS2.</summary>
+    /// <summary>V3: V2 plus <c>svc_UserCmds</c> stripped from inside every packet. Expected to break CS2.</summary>
     public static readonly TrimVariant V3 = new(
         "v3-no-usercmds",
         "V2 plus svc_UserCmds stripped from inside every DEM_Packet / DEM_FullPacket",
         true, AnimationFrames, UserCmds);
 
     /// <summary>
-    ///     V2C — V2's message removal without the mid-stream entry.
+    ///     V2C: V2's message removal without the mid-stream entry.
     ///     <para>
     ///         Measured: checkpoint entry saves ~0.03 MiB on both reference demos (their first
     ///         <c>DEM_FullPacket</c> is at tick 1, so "the checkpoint before round 1" IS the demo start),
-    ///         while it makes the file undecodable by any sequential reader — including DemoViewer.NET's
+    ///         while it makes the file undecodable by any sequential reader, including DemoViewer.NET's
     ///         own load path, which skips a <c>DEM_FullPacket</c>'s entities as redundant. Separating the
     ///         two axes gives a candidate with V2's savings and V0's readability.
     ///     </para>
@@ -88,7 +88,7 @@ internal sealed record TrimVariant(
         "V2's frame drops, but contiguous from frame 0 (no mid-stream entry)",
         false, AnimationFrames, NoInner);
 
-    /// <summary>V3C — V3's <c>svc_UserCmds</c> strip without the mid-stream entry. The smallest readable candidate.</summary>
+    /// <summary>V3C: V3's <c>svc_UserCmds</c> strip without the mid-stream entry. The smallest readable candidate.</summary>
     public static readonly TrimVariant V3C = new(
         "v3c-no-usercmds-contiguous",
         "V3's svc_UserCmds strip, but contiguous from frame 0 (no mid-stream entry)",

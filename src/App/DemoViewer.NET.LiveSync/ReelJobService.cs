@@ -16,7 +16,7 @@ namespace DemoViewer.NET.LiveSync;
 
 /// <summary>
 ///     The reel-generation background job. One job at a time:
-///     suspends an active live-sync session (the single-CS2 interlock — a reel needs
+///     suspends an active live-sync session (the single-CS2 interlock: a reel needs
 ///     <c>initializeCapture:true</c>, sync sessions run capture-free), holds the
 ///     <see cref="HeavyJobGate" /> reel session for the whole duration (background scans pause;
 ///     interactive demo loads are refused with the clear message), runs the capture compilation
@@ -135,15 +135,15 @@ public sealed class ReelJobService(
         CsvgWebHost? host = null;
         int completed = 0;
         List<int> failed = [];
-        // The TERMINAL status publishes only after teardown below — IsRunning stays true until
+        // The TERMINAL status publishes only after teardown below. IsRunning stays true until
         // the machine is actually free (gate released, session stopped), so the interlocks and
-        // the chip read honestly during wind-down.
+        // the chip don't report free until wind-down actually finishes.
         ReelJobStatus? terminal = null;
         try
         {
             SetStatus(new ReelJobStatus(ReelJobPhase.StartingSession, 0, request.Clips.Count, null, null, null, []));
 
-            // Raises the reel flag AND waits out any background parse already mid-demo —
+            // Raises the reel flag AND waits out any background parse already mid-demo.
             // CS2+OBS on 16 GB must never overlap a multi-GB parse.
             if (gate is not null)
             {
@@ -163,7 +163,7 @@ public sealed class ReelJobService(
             if (!request.DryRun && !OperatingSystem.IsWindows())
             {
                 // The reel path captures through InEngineHooked (below), whose frame source is a
-                // Windows DXGI swapchain present hook — Windows-only by construction.
+                // Windows DXGI swapchain present hook, Windows-only by construction.
                 terminal = Status with
                 {
                     Phase = ReelJobPhase.Failed,
@@ -311,7 +311,7 @@ public sealed class ReelJobService(
             });
         }
 
-        // CSVG's clip events may run concurrently — ONE lock covers the count, the failed list,
+        // CSVG's clip events may run concurrently: ONE lock covers the count, the failed list,
         // its snapshot, and the _status read-modify-write (piecemeal hedging left the composite
         // racy: a snapshot during an Add throws, and RMWs could lose updates).
         Task OnClipStarted(int index, Cs2CompilationClip clip)
@@ -354,9 +354,9 @@ public sealed class ReelJobService(
     }
 
     /// <summary>
-    ///     The dry-run: walks the plan against the mock — load (grouped per demo) → spectate
+    ///     The dry-run walks the plan against the mock: load (grouped per demo) → spectate
     ///     → play range (playback-only via PlayTickRangeAsync, timeout derived from the clip's REAL
-    ///     tick rate) — validating command plumbing and tick math without capture. The range API
+    ///     tick rate). This validates command plumbing and tick math without capture. The range API
     ///     converts failures into a failed result rather than throwing; failures accumulate per clip.
     /// </summary>
     private async Task<(int Completed, List<int> Failed)> DryRunAsync(
@@ -422,7 +422,7 @@ public sealed class ReelJobService(
     /// <summary>
     ///     THE emission boundary: a <see cref="ReelClip" /> window is FRAME CLOCK (the packaged clip
     ///     planner leaves it there), and the D2 <c>TickOffset</c> shim converts it into CS2 demo-tick
-    ///     space here — exactly once, on every path that reaches CS2 (the real compilation and the
+    ///     space here, exactly once, on every path that reaches CS2 (the real compilation and the
     ///     dry-run walk both come through this method, so the two can never disagree).
     /// </summary>
     public static (int StartTick, int EndTick) Cs2Range(ReelClip clip, int tickOffset)

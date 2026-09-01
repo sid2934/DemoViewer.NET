@@ -10,7 +10,7 @@ namespace DemoViewer.NET.LiveSync;
 /// <summary>
 ///     The UI-free core of F2 verify-in-CS2: computes the pre/post-roll
 ///     range around a frame-clock trigger tick, optionally spectates the attributed player, and
-///     plays the range live in CS2 — deterministic paused arrival via the range's auto-pause.
+///     plays the range live in CS2, with deterministic paused arrival via the range's auto-pause.
 ///     The caller (the service) owns step 2/5: engine <c>BeginVerification</c> before, DV
 ///     playhead remote-apply + <c>EndVerification</c> after. Headlessly testable against the
 ///     real mock.
@@ -25,9 +25,9 @@ public static class VerificationRunner
 
     /// <summary>
     ///     Runs one verification playback. <paramref name="frameClockTick" /> is a FRAME-CLOCK
-    ///     tick (<c>RuleChainEvent.Tick</c> / <c>GameEvent.GameTick</c> — already frame clock,
+    ///     tick (<c>RuleChainEvent.Tick</c> / <c>GameEvent.GameTick</c>, already frame clock,
     ///     no <c>ServerStartTick</c> conversion). Precondition: a demo was loaded
-    ///     through this session this run — always true in Synced.
+    ///     through this session this run, always true in Synced.
     /// </summary>
     public static async Task<Outcome> RunAsync(
         CsvgVideoSession session,
@@ -39,7 +39,7 @@ public static class VerificationRunner
         CancellationToken cancellationToken)
     {
         // The ClipWindows precedent: establish ALL clamps in the frame clock,
-        // then apply the D2 TickOffset exactly once per emitted value — clamping in CS2-tick
+        // then apply the D2 TickOffset exactly once per emitted value. Clamping in CS2-tick
         // space with a literal-0 floor skews the range whenever TickOffset ≠ 0.
         long startFrameClock = Math.Max(0, (long)frameClockTick - preRollTicks);
         long maxFrameClock = mapper.DvTick(mapper.MaxCs2DemoTick);
@@ -52,7 +52,7 @@ public static class VerificationRunner
 
         if (!string.IsNullOrWhiteSpace(spectateName))
         {
-            // Exact in-demo name from the roster. Spectate is best-effort — a
+            // Exact in-demo name from the roster. Spectate is best-effort. A
             // rename mid-match breaks name targeting (known v1 limitation) but must not kill
             // the verification itself.
             try
@@ -71,7 +71,7 @@ public static class VerificationRunner
         }
 
         // CsvgVideoSession.PlayTickRangeAsync (not the Engine one) converts every playback problem
-        // into a failed result rather than throwing — the 1.x PlayDemoTickRangeAsync(record:false)
+        // into a failed result rather than throwing: it's the 1.x PlayDemoTickRangeAsync(record:false)
         // replacement. record:false is now implicit: recording goes through CaptureClipAsync.
         DemoPlaybackResult result = await session
             .PlayTickRangeAsync(checked((int)start), checked((int)end), null, cancellationToken)
@@ -87,10 +87,10 @@ public static class VerificationRunner
     /// <summary>One verification's result.</summary>
     /// <param name="Success">
     ///     Whether the range played to its end (the client NEVER throws for
-    ///     playback failures — every failure mode lands here as false).
+    ///     playback failures. Every failure mode lands here as false).
     /// </param>
     /// <param name="Error">The failure copy when <paramref name="Success" /> is false.</param>
     /// <param name="TargetCs2Tick">The trigger's CS2 demo tick (range midpoint-of-interest).</param>
-    /// <param name="TargetFrameIndex">The trigger's DV frame — the caller's playhead remote-apply.</param>
+    /// <param name="TargetFrameIndex">The trigger's DV frame: the caller's playhead remote-apply.</param>
     public sealed record Outcome(bool Success, string? Error, long TargetCs2Tick, int TargetFrameIndex);
 }

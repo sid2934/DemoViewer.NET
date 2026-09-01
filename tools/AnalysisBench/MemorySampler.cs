@@ -10,7 +10,7 @@ namespace AnalysisBench;
 ///     Background poller that tracks the high-water marks of managed-heap size and process RSS for the
 ///     duration of a bench run. Used to prove where the demo buffer lives: a managed <c>byte[]</c> shows
 ///     up in <see cref="PeakManagedHeapBytes" />, a memory-mapped view does not (it is file-backed OS
-///     pages, visible only in RSS — and evictable, unlike heap).
+///     pages, visible only in RSS, and evictable, unlike heap).
 ///     <para>
 ///         Sampling is polling-based, so the reported peaks are lower bounds: a spike shorter than the
 ///         sample interval can be missed. Compare runs at the same interval.
@@ -42,7 +42,7 @@ internal sealed class MemorySampler : IDisposable
         Sample();
     });
 
-    /// <summary>Highest observed managed heap size (GC heap only — excludes mapped file pages).</summary>
+    /// <summary>Highest observed managed heap size (GC heap only, excludes mapped file pages).</summary>
     public long PeakManagedHeapBytes => Interlocked.Read(ref _peakHeap);
 
     /// <summary>Highest observed process working set (RSS). Includes mapped file pages currently resident.</summary>
@@ -83,7 +83,7 @@ internal sealed class MemorySampler : IDisposable
         }
         catch (InvalidOperationException)
         {
-            // Process metrics unavailable on this platform/state — RSS stays at whatever we saw.
+            // Process metrics unavailable on this platform/state: RSS stays at whatever we saw.
         }
     }
 

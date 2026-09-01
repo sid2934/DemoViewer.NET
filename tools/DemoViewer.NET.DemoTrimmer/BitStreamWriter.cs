@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.DemoTrimmer;
 
 /// <summary>
-///     LSB-first bit writer — the exact inverse of the parser's <c>BitBuffer</c> reader.
+///     LSB-first bit writer, the exact inverse of the parser's <c>BitBuffer</c> reader.
 ///     <para>
 ///         Only the three primitives the CDemoPacket inner-message framing uses are implemented:
 ///         <c>UBitVar</c> (type id), <c>UVarInt32</c> (payload byte count) and a raw byte run.
@@ -27,7 +27,7 @@ internal sealed class BitStreamWriter
 
     /// <summary>
     ///     Writes <paramref name="numBits" /> low bits of <paramref name="value" />, least-significant
-    ///     bit first — matching <c>BitBuffer.ReadUBits</c>.
+    ///     bit first, matching <c>BitBuffer.ReadUBits</c>.
     /// </summary>
     public void WriteUBits(uint value, int numBits)
     {
@@ -127,8 +127,8 @@ internal sealed class BitStreamWriter
     }
 
     /// <summary>
-    ///     Returns the written bits as bytes. A trailing partial byte is zero-padded in its high bits —
-    ///     the reader stops there because a zero type id decodes to a zero size, which its
+    ///     Returns the written bits as bytes. A trailing partial byte is zero-padded in its high bits.
+    ///     The reader stops there because a zero type id decodes to a zero size, which its
     ///     <c>size &lt;= 0</c> guard treats as end-of-stream (same as the original recorder's padding).
     /// </summary>
     public byte[] ToArray()

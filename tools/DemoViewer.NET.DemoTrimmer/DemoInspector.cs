@@ -83,7 +83,7 @@ internal static class DemoInspector
         Console.WriteLine();
     }
 
-    /// <summary>Inner net-message byte breakdown over a retained window — the "what is actually inside" table.</summary>
+    /// <summary>Inner net-message byte breakdown over a retained window: the "what is actually inside" table.</summary>
     public static void InspectWindowMessages(ParsedDemo demo, TrimWindow window)
     {
         Dictionary<string, (int Count, long Bytes)> byType = new(StringComparer.Ordinal);

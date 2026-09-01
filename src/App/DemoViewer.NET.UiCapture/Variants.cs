@@ -70,16 +70,16 @@ namespace DemoViewer.NET.UiCapture;
 public static class Variants
 {
     // ═══════════════════════════════════════════════════════════════════════════════════════════
-    //  NavStrip visual redesign — dependency-free inline vector icons.
+    //  NavStrip visual redesign: dependency-free inline vector icons.
     //
     //  These variants replace the letter-labels ('ev'/'rnd'/'tk') and ASCII glyphs (▶▶/▶|/▶||) that
     //  were flagged as "looks and feels bad" with proper iconography. Icons are Avalonia
-    //  PathIcon + Geometry path-data — NO new NuGet dependency (dep policy: a handful of glyphs does
+    //  PathIcon + Geometry path-data: NO new NuGet dependency (dep policy: a handful of glyphs does
     //  not justify a package). The path-data lives as constants so the eventual production NavStrip
     //  can lift them verbatim into a Styles/Icons.axaml Geometry dictionary once an option is picked.
     //
     //  All three options SHARE the clock + breakpoint iconography (so the comparison isolates the
-    //  named complaint — the semantic-JUMP treatment) and keep the responsive DockPanel shape
+    //  named complaint, the semantic-JUMP treatment) and keep the responsive DockPanel shape
     //  (CLOCK docked left, TO-BREAKPOINT docked right so it never clips, JUMP fills a ScrollViewer).
     // ═══════════════════════════════════════════════════════════════════════════════════════════
 
@@ -101,8 +101,8 @@ public static class Variants
     private const string GeoRing =
         "F0 M 12 3 A 9 9 0 1 1 12 21 A 9 9 0 1 1 12 3 Z M 12 7.5 A 4.5 4.5 0 1 1 12 16.5 A 4.5 4.5 0 1 1 12 7.5 Z";
 
-    // A mini timeline ruler: a top baseline with an emphasized centre tick flanked by two short ticks
-    // — reads as "a fine time step" (an inverted-T notch read as ⊥, not "tick").
+    // A mini timeline ruler: a top baseline with an emphasized centre tick flanked by two short ticks,
+    // which reads as "a fine time step" (an inverted-T notch read as ⊥, not "tick").
     private const string GeoTick =
         "M 4 5 L 20 5 L 20 7.5 L 4 7.5 Z M 11 7.5 L 13 7.5 L 13 17.5 L 11 17.5 Z "
         + "M 6.2 7.5 L 8 7.5 L 8 13 L 6.2 13 Z M 16 7.5 L 17.8 7.5 L 17.8 13 L 16 13 Z";
@@ -132,7 +132,7 @@ public static class Variants
             ["breakpoints-map"] = () => BreakpointsMap(),
             ["settings"] = () => Settings(),
             // Concurrency seeded to 2 so the BACKGROUND PROCESSING section shows the RAM-risk warning (the
-            // safety-critical element per demo-processing-queue.md) — the default state (1, no warning) is
+            // safety-critical element per demo-processing-queue.md). The default state (1, no warning) is
             // captured by "settings".
             ["settings-queue-warn"] = () => Settings(2),
             ["wizard"] = Wizard,
@@ -141,7 +141,7 @@ public static class Variants
             ["library-dropover"] = () => Library(LibraryState.DragOver),
             ["workbench"] = Workbench,
             ["framelist"] = FrameList,
-            // v0.6.0 fit-and-finish surfaces — the code-color-promotion consumers (severity ramps,
+            // v0.6.0 fit-and-finish surfaces: the code-color-promotion consumers (severity ramps,
             // Classifier* accents, hex swatch tiers) plus the two render-only gaps
             // (analysis eval progress, 2D vision overlay). Render each under BOTH themes.
             ["output-panel"] = OutputPanelDrawer,
@@ -162,9 +162,9 @@ public static class Variants
             ["highlights-moved"] = () => Highlights(true, false, false),
             ["highlights-job"] = () => Highlights(true, false, withJob: true),
             ["highlights-empty-library"] = () => Highlights(false, false, libraryIndexed: false),
-            // The Add-clips picker, IN SITU (overlay over the dashboard) — the state that matters most,
+            // The Add-clips picker, IN SITU (overlay over the dashboard): the state that matters most,
             // because the scrim, the card bounds and the tray behind it only exist together.
-            // populated:false on purpose — a picker opened over a FULL tray shows every row already
+            // populated:false on purpose. A picker opened over a FULL tray shows every row already
             // staged, which hides the [ + ] resting state the whole surface is built around.
             ["addclips-populated"] = () => Highlights(false, false, picker: PickerMock.Open),
             ["addclips-staged"] = () => Highlights(false, false, picker: PickerMock.SomeStaged),
@@ -172,8 +172,8 @@ public static class Variants
             ["addclips-nothing-indexed"] = () => Highlights(false, false, libraryIndexed: false,
                 picker: PickerMock.Open),
             ["addclips-narrow"] = () => Highlights(false, true, picker: PickerMock.Open),
-            // The density case. Four mock rows prove nothing about the one claim the design entry makes —
-            // that a flat row list virtualizes trivially — so this seeds ~240 rows over 8 demos: the
+            // The density case. Four mock rows prove nothing about the one claim the design entry makes:
+            // that a flat row list virtualizes trivially. So this seeds ~240 rows over 8 demos: the
             // VirtualizingStackPanel, the scrollbar (which must not shift the columns) and the pinned footer.
             ["addclips-dense"] = () => Highlights(false, false, picker: PickerMock.Open, denseLibrary: true),
             // The highlight-scan StatusChip (the fourth consumer): the chip itself in the strip, and its flyout body.
@@ -198,7 +198,7 @@ public static class Variants
             // observable). AnimatePulse is disabled and Pulse pinned.
             ["tutorial-tabnav-bright"] = () => Tutorial(TutorialMock.TabNav, 1.0),
             ["tutorial-tabnav-dim"] = () => Tutorial(TutorialMock.TabNav, 0.0),
-            // Match Overview landing page — the demo-opening landing.
+            // Match Overview landing page: the demo-opening landing.
             ["match-overview-opening"] = () => MatchOverview(MatchOverviewMock.Opening),
             ["match-overview-parsed"] = () => MatchOverview(MatchOverviewMock.Parsed),
             ["match-overview-ready"] = () => MatchOverview(MatchOverviewMock.Ready),
@@ -311,12 +311,12 @@ public static class Variants
             store, scanner,
             reelJob: null,
             isLiveSyncSessionActive: () => false,
-            // macOS is the capture host, but the dry-run caption is a platform fact, not a capture one — pin
+            // macOS is the capture host, but the dry-run caption is a platform fact, not a capture one. Pin
             // it FALSE so the footer renders the real "Generate reel" primary the majority of users see.
             dryRunOnly: false,
             // Injected so the "demo moved" pre-flight is reachable without touching the filesystem.
             fileExists: _ => demosExist);
-        // The reel defaults are unseeded in a headless host, so pin an output folder — otherwise every
+        // The reel defaults are unseeded in a headless host, so pin an output folder. Otherwise every
         // capture shows the "choose an output folder" banner instead of the state under test.
         vm.ReelConfig.OutputFolder = "/Users/you/Movies/Reels";
 
@@ -418,7 +418,7 @@ public static class Variants
     }
 
     /// <summary>
-    ///     The highlight-scan chip's flyout body — the fourth <c>StatusChip</c> consumer, rendered
+    ///     The highlight-scan chip's flyout body: the fourth <c>StatusChip</c> consumer, rendered
     ///     standalone in a <c>card-flyout</c> exactly as the strip hosts it (the <c>queue-flyout</c> pattern).
     /// </summary>
     private static Border ScanChipFlyout()
@@ -654,7 +654,7 @@ public static class Variants
     ///     <see cref="HarvestFrameRowViewModel" /> rows over a <see cref="MainViewModel" /> DataContext
     ///     (for the breakpoint-toggle command binding). Varied frame types exercise the per-type accent
     ///     pills; one row has a breakpoint set (red-dim gutter dot) and one is selected (exercises the
-    ///     selected-row fill token). P3.4 de-inline target — a plain ListBox, headless-capturable.
+    ///     selected-row fill token). P3.4 de-inline target: a plain ListBox, headless-capturable.
     /// </summary>
     private static HarvestFrameListControl FrameList()
     {
@@ -726,14 +726,14 @@ public static class Variants
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════════════════
-    //  v0.6.0 fit-and-finish — code-color-promotion consumers + render-only surfaces.
+    //  v0.6.0 fit-and-finish: code-color-promotion consumers + render-only surfaces.
     // ═══════════════════════════════════════════════════════════════════════════════════════════
 
     /// <summary>
     ///     The real <see cref="OutputPanel" /> drawer over an <see cref="OutputPanelViewModel" /> seeded
     ///     with rows in every fixed channel plus the lazily-created "Live Sync" channel
     ///     (<see cref="OutputSeverity.Live" /> → the AccentInfo teal). A NON-first channel is made active
-    ///     via its SelectCommand so the active×severity underline + title tint (sev-err here) render —
+    ///     via its SelectCommand so the active×severity underline + title tint (sev-err here) render:
     ///     the v0.6.0 severity-kind → theme-token mapping this panel replaced its code-held brushes with.
     /// </summary>
     private static Border OutputPanelDrawer()
@@ -767,11 +767,11 @@ public static class Variants
     /// <summary>
     ///     The Diagnostics tab's telemetry log rows, one per <see cref="LogLevel" /> tier, over a real
     ///     <see cref="DiagnosticsTelemetryHub" /> (synchronous uiPost, so Enqueue/Append land inline).
-    ///     The full <c>DiagnosticsTabView</c>/<c>DiagnosticsTabViewModel</c> is NOT constructed — its ctor
-    ///     needs a live <c>AnalysisTabViewModel</c> + demo accessors — so this rebuilds the SAME row
+    ///     The full <c>DiagnosticsTabView</c>/<c>DiagnosticsTabViewModel</c> is NOT constructed. Its ctor
+    ///     needs a live <c>AnalysisTabViewModel</c> + demo accessors, so this rebuilds the SAME row
     ///     template shape (Time · level chip · Source · Category · Message) with the SAME class-based
     ///     styles the tab declares: <c>tlvl</c> / <c>tlvl-err</c> / <c>tlvl-warn</c> / <c>tlvl-debug</c>
-    ///     → AccentInfo / AccentError / AccentAmber / TextMid (v0.6.0 — was the third code-held copy of
+    ///     → AccentInfo / AccentError / AccentAmber / TextMid (v0.6.0: the third code-held copy of
     ///     the severity ramp).
     /// </summary>
     private static Border DiagnosticsLog()
@@ -890,7 +890,7 @@ public static class Variants
     }
 
     /// <summary>
-    ///     The command-palette results list — one row per result kind, each glyph tinted through the
+    ///     The command-palette results list: one row per result kind, each glyph tinted through the
     ///     v0.6.0 <c>ck-*</c> → Classifier* token styles. The real <see cref="CommandPalette" /> control
     ///     hosts a <c>Popup</c> (headless-hostile: popups render in an overlay layer the frame capture
     ///     misses), so this renders the INNER card content with real <see cref="CommandPaletteItem" />
@@ -1037,8 +1037,8 @@ public static class Variants
     }
 
     /// <summary>
-    ///     One <see cref="InspectorCard" /> per <see cref="HarvestCardViewModel" /> category — the
-    ///     net/svc/DEM/cs/CLC/GameEvent/default families plus an unknown card — exercising the v0.6.0
+    ///     One <see cref="InspectorCard" /> per <see cref="HarvestCardViewModel" /> category: the
+    ///     net/svc/DEM/cs/CLC/GameEvent/default families plus an unknown card, exercising the v0.6.0
     ///     accent strip + cat badge + header wash, all driven by the IsKind* class flags through
     ///     Classifier*/MsgHeader* theme tokens (the old code-held AccentBrush trio is gone).
     /// </summary>
@@ -1077,7 +1077,7 @@ public static class Variants
     ///     <see cref="AnalysisTabView" /> over a real <see cref="MainViewModel" /> (its parameterless
     ///     ctor builds the whole Analysis sub-VM) with <c>IsRunning</c> pinned on and
     ///     <c>EvaluationProgress</c> at 42%, so the status-bar ProgressBar + "Evaluating… 42 %" caption
-    ///     render. The embedded MSAGL <c>GraphView</c> stays empty (no run) — per CaptureHost's scope
+    ///     render. The embedded MSAGL <c>GraphView</c> stays empty (no run), per CaptureHost's scope
     ///     note it never settles a real graph headlessly, which is fine here: the surface under review
     ///     is the progress strip.
     /// </summary>
@@ -1097,12 +1097,12 @@ public static class Variants
 
     /// <summary>
     ///     The 2D viewport with the Vision overlay ON over the real committed de_dust2 baked bundle
-    ///     (<c>assets/de_dust2</c> — radar + collision.tris). A fake module
+    ///     (<c>assets/de_dust2</c>, radar + collision.tris). A fake module
     ///     context seeds a 2v2 roster around mid; the BVH is built synchronously through the
-    ///     <c>LoadVisionEngineSyncForTest</c> seam (InternalsVisibleTo — the production off-thread load
+    ///     <c>LoadVisionEngineSyncForTest</c> seam (InternalsVisibleTo: the production off-thread load
     ///     can't be pumped headlessly, same as ZVisionOverlayRenderTests), each player is then
     ///     ground-snapped via <see cref="VisibilityEngine.RayDownDistance" /> and one Advanced push
-    ///     rebuilds the markers — so the FOV cones + could-see sightlines come from REAL map geometry.
+    ///     rebuilds the markers, so the FOV cones + could-see sightlines come from REAL map geometry.
     /// </summary>
     private static Border Pb2DVision()
     {
@@ -1180,7 +1180,7 @@ public static class Variants
 
     /// <summary>
     ///     The real <see cref="FirstRunWizardView" /> bound to a real <see cref="FirstRunWizardViewModel" />
-    ///     over a throwaway temp-dir <see cref="SettingsService" /> — parked on the Category step (index 1),
+    ///     over a throwaway temp-dir <see cref="SettingsService" />, parked on the Category step (index 1),
     ///     the richest content, which also shows the default PowerUser selection. Rendered inside the
     ///     headless UI thread by <c>CaptureHost</c>.
     /// </summary>
@@ -1203,8 +1203,8 @@ public static class Variants
     }
 
     /// <summary>
-    ///     The real <see cref="SettingsView" /> bound to a real <see cref="SettingsViewModel" /> — over a
-    ///     throwaway temp-dir <see cref="SettingsService" /> and a real <see cref="FeatureGate" /> — so the
+    ///     The real <see cref="SettingsView" /> bound to a real <see cref="SettingsViewModel" />, over a
+    ///     throwaway temp-dir <see cref="SettingsService" /> and a real <see cref="FeatureGate" />, so the
     ///     P2a-ii per-feature toggle list renders exactly as shipped. Two seeded overrides exercise both the
     ///     "overridden" indicator and the clear affordance (one default-off dev sub-feature turned ON, one
     ///     core tab turned OFF). Rendered inside the headless UI thread by <c>CaptureHost</c>.
@@ -1239,7 +1239,7 @@ public static class Variants
     }
 
     // Renders the Playback2D HUD DOMAIN accents (health/armor/headshot/…) as text + glyphs on the real
-    // Pb2dInfoBg / Pb2dCardBg surfaces — the coherence + text-on-card contrast check for the Light domain-accent
+    // Pb2dInfoBg / Pb2dCardBg surfaces: the coherence + text-on-card contrast check for the Light domain-accent
     // values (each designed to clear WCAG AA on the #FBFBFD card). A static mock of the info strip + a player
     // card, not a live VM. Render under both --theme light and dark.
     private static Border Pb2DHudAccents()
@@ -1296,9 +1296,9 @@ public static class Variants
             return sp;
         }
 
-        // Exercise the REAL production mechanism: no direct Background — the chip gets the `teamChip` class plus
+        // Exercise the REAL production mechanism: no direct Background. The chip gets the `teamChip` class plus
         // `teamT`/`teamCt` (or neither = neutral), and the class STYLES (attached to the root below) resolve the
-        // token. If the class selector silently fails, T/CT render neutral gray like the else-case — that's the
+        // token. If the class selector silently fails, T/CT render neutral gray like the else-case. That's the
         // regression this catches (mirrors Playback2DView's Border.teamChip{,.teamT,.teamCt}).
         static Border Chip(string label, string teamClass)
         {
@@ -1372,7 +1372,7 @@ public static class Variants
             Child = col
         };
 
-        // The team-chip class styles — same selectors as Playback2DView, so this render proves the class path.
+        // The team-chip class styles, same selectors as Playback2DView, so this render proves the class path.
         static Style ChipStyle(string extraClass, string tok)
         {
             Selector Sel(Selector? s)
@@ -1570,7 +1570,7 @@ public static class Variants
     ///     The global toolbar row. CURRENT crams Open Demo + Parse Chain + Debugger + Output + Bookmark
     ///     + Bookmarks (dev chrome on every tab). PROPOSED keeps a compact Open + Bookmark(s) and folds
     ///     the dev toggles (Debugger / Output / Parse Chain) into a right-aligned <c>View ▾</c> overflow
-    ///     (in-window flyout — WASM-safe, not a native menu), with an "N features hidden" hint.
+    ///     (in-window flyout, WASM-safe, not a native menu), with an "N features hidden" hint.
     /// </summary>
     private static Border Toolbar(bool proposed)
     {
@@ -1711,7 +1711,7 @@ public static class Variants
     /// <summary>
     ///     The no-demo landing state. CURRENT is the bare Parser prompt ("Open a .dem file to begin").
     ///     PROPOSED is a consumer-first welcome card: a large primary Open Demo, recent files, and a
-    ///     drop hint — the single primary entry (the compact toolbar entry is the persistent secondary).
+    ///     drop hint: the single primary entry (the compact toolbar entry is the persistent secondary).
     /// </summary>
     private static Border Welcome(bool proposed)
     {
@@ -1888,7 +1888,7 @@ public static class Variants
     ///     The REAL <see cref="NavStrip" /> control bound to a mock <see cref="MainViewModel" />
     ///     (HasFile=true so the strip renders; all three ctor params are optional). Proves real
     ///     App controls capture headlessly. Render narrow (~880px) to expose the crowding/overflow
-    ///     that motivates the responsive redesign — at 1600px the strip has room and the problem hides.
+    ///     that motivates the responsive redesign. At 1600px the strip has room and the problem hides.
     /// </summary>
     private static NavStrip NavStripReal()
     {
@@ -2183,7 +2183,7 @@ public static class Variants
         groupRow.Children.Add(Classed("▶▶", "nav-btn", "bp-btn"));
         body.Children.Add(groupRow);
 
-        // Border.card — a raised content tile, with a Border.badge count pill in its header row.
+        // Border.card: a raised content tile, with a Border.badge count pill in its header row.
         Border card = new()
         {
             Classes =
@@ -2240,7 +2240,7 @@ public static class Variants
         };
         body.Children.Add(card);
 
-        // Border.card-flyout — a popup surface holding .ctx-action rows.
+        // Border.card-flyout: a popup surface holding .ctx-action rows.
         Border flyout = new()
         {
             Classes =
@@ -2281,7 +2281,7 @@ public static class Variants
 
         col.Children.Add(body);
         // Render on PanelBg (not ShellBg) so the sectionHeader band reads with the same context it has
-        // in-app — its PanelHeaderBg fill + bottom BorderStrong rule sit over panel content, not the void.
+        // in-app. Its PanelHeaderBg fill + bottom BorderStrong rule sit over panel content, not the void.
         return new Border
         {
             Width = 520,
@@ -2292,7 +2292,7 @@ public static class Variants
     }
 
     /// <summary>
-    ///     List/table primitives (Styles/Tables.axaml — .data-list + .col-label) plus a regression check
+    ///     List/table primitives (Styles/Tables.axaml, .data-list + .col-label) plus a regression check
     ///     that the new global styles don't disturb the real <see cref="InspectorCard" /> shell and
     ///     <see cref="KeyValueTable" />.
     /// </summary>
@@ -2411,7 +2411,7 @@ public static class Variants
         return WrapInShell(col, 540, 560);
     }
 
-    /// <summary>The DarkPalette semantic tokens as labeled swatches — reference for the design system.</summary>
+    /// <summary>The DarkPalette semantic tokens as labeled swatches: reference for the design system.</summary>
     private static Border Swatches()
     {
         string[] keys =
@@ -2551,7 +2551,7 @@ public static class Variants
             });
         }
 
-        // Right-docked "Open Demo" toolbar affordance — the target the open-demo gateway (Waiting) step
+        // Right-docked "Open Demo" toolbar affordance: the target the open-demo gateway (Waiting) step
         // spotlights (_openDemoRect). Present in every mock for a realistic toolbar.
         Button openDemo = new()
         {
@@ -2919,7 +2919,7 @@ public static class Variants
 
         if (v == JumpVariant.IconOnly)
         {
-            // A — palindrome order (◀event ◀round ◀tick | tick▶ round▶ event▶), icon-only. A centre
+            // A: palindrome order (◀event ◀round ◀tick | tick▶ round▶ event▶), icon-only. A centre
             // divider separates the "rewind" cluster from the "forward" cluster so the middle two
             // tick buttons don't read as icon-soup.
             foreach ((string geo, string _, string prevTip, string _) in _jumpTargets)
@@ -2945,7 +2945,7 @@ public static class Variants
             return g;
         }
 
-        // B / C — grouped by target (Event · Round · Tick), each a prev/next cluster around a labeled marker.
+        // B / C: grouped by target (Event · Round · Tick), each a prev/next cluster around a labeled marker.
         bool pill = v == JumpVariant.SegmentedPill;
         for (int i = 0; i < _jumpTargets.Length; i++)
         {
@@ -3006,7 +3006,7 @@ public static class Variants
         };
     }
 
-    /// <summary>The full redesigned strip for a treatment — shares the responsive DockPanel shape.</summary>
+    /// <summary>The full redesigned strip for a treatment: shares the responsive DockPanel shape.</summary>
     private static Border NavStripRedesign(JumpVariant v)
     {
         StackPanel bp = BreakpointGroupRedesign();
@@ -3052,7 +3052,7 @@ public static class Variants
         };
     }
 
-    /// <summary>Large detail render of just the JUMP group — for judging glyph crispness at iteration time.</summary>
+    /// <summary>Large detail render of just the JUMP group: for judging glyph crispness at iteration time.</summary>
     private static Border JumpDetail(JumpVariant v)
     {
         StackPanel col = new()
@@ -3131,9 +3131,9 @@ public static class Variants
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════════════════
-    //  Live Sync (CS2) — StatusChip states + flyout bodies.
+    //  Live Sync (CS2): StatusChip states + flyout bodies.
     //  `livesync-chips`  renders the dot vocabulary as real StatusStrips (correct PanelHeaderBg
-    //                    surface) — one per engine state, incl. the SYNTHETIC hollow "Paused (inferred)"
+    //                    surface), one per engine state, incl. the SYNTHETIC hollow "Paused (inferred)"
     //                    so the ring path is verified even though nothing sets IsInferred yet.
     //  `livesync-flyouts` renders the real LiveSyncStatusView per state over a fake engine + demo context.
     // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -3268,7 +3268,7 @@ public static class Variants
 
     /// <summary>
     ///     The 2D-tab in-context CS2 indicator in the Pb2d HUD palette, rendered over a real
-    ///     Playback2DViewport (the authentic dark HUD island) in each state — so the Pb2dPositive-on-dark
+    ///     Playback2DViewport (the authentic dark HUD island) in each state, so the Pb2dPositive-on-dark
     ///     legibility + the hollow-vs-solid shape can be read back (render-only design-system items).
     ///     The dot fill/stroke are set to the SAME Pb2d tokens the view's <c>Ellipse.pb2dDot.*</c> styles
     ///     resolve (good=Pb2dPositive, working=Pb2dTextBright, degraded=Pb2dTeamT); the class path itself is
@@ -3425,7 +3425,7 @@ public static class Variants
             TickRate = 64,
             TickCount = 200_000,
             Sha256 = "sha-" + name,
-            // Slot is the join now — the record holds the roster once and the event points at it.
+            // Slot is the join now. The record holds the roster once and the event points at it.
             Players =
             [
                 new CachedPlayerInfo
@@ -3458,7 +3458,7 @@ public static class Variants
 
     /// <summary>
     ///     The real <see cref="ReelJobStatusView" /> flyout body per phase (working / completed / failed),
-    ///     each in a real <c>card-flyout</c> over a real <see cref="ReelJobStatusViewModel" /> — the same
+    ///     each in a real <c>card-flyout</c> over a real <see cref="ReelJobStatusViewModel" />: the same
     ///     status→dot+label+per-clip mapping the shell chip drives.
     /// </summary>
     private static Border ReelChips()
@@ -3518,7 +3518,7 @@ public static class Variants
     // ── Demo-processing queue (demo-processing-queue.md) ───────────────────────
 
     /// <summary>
-    ///     The queue flyout body over a fake queue — the live queue-management surface (item list with
+    ///     The queue flyout body over a fake queue: the live queue-management surface (item list with
     ///     state dot + owner/priority chips + per-item ✕, status line, Pause/Resume).
     /// </summary>
     private static Border QueueFlyout(bool populated)
@@ -3559,7 +3559,7 @@ public static class Variants
         };
     }
 
-    /// <summary>The queue status chip in each state — the strip-level indicator that opens the flyout.</summary>
+    /// <summary>The queue status chip in each state: the strip-level indicator that opens the flyout.</summary>
     private static Border QueueChips()
     {
         (string State, StatusChipDotState Dot, bool Pulse, string Label)[] rows =
@@ -3603,10 +3603,10 @@ public static class Variants
 
     private static Panel MatchOverview(MatchOverviewMock mock, int spectators = 0)
     {
-        // Real (no-op) CTA actions so the captures show the buttons in their true enabled/disabled state —
-        // both gates also require an action to be wired, so a bare `new()` would render them permanently
+        // Real (no-op) CTA actions so the captures show the buttons in their true enabled/disabled state.
+        // Both gates also require an action to be wired, so a bare `new()` would render them permanently
         // greyed and hide a regression in the gating.
-        // Real (no-op) actions so the captures show every affordance in its true state — each gate also
+        // Real (no-op) actions so the captures show every affordance in its true state. Each gate also
         // requires a wired delegate, so a bare `new()` renders them permanently absent and hides a gating
         // regression. computeFullStats in particular drives the highlight card's "index them" action.
         MatchOverviewTabViewModel vm = new(() => { }, () => { }, _ => { }, _ => { });
@@ -3648,7 +3648,7 @@ public static class Variants
         }
 
         vm.HasSummary = true;
-        // A live parse always yields the team split, so the roster gate lands with the summary — without it
+        // A live parse always yields the team split, so the roster gate lands with the summary. Without it
         // the header badges hold the placeholder, which is correct for a migrated cache row and wrong here.
         vm.HasRoster = true;
         vm.ParseStage.IsActive = false;
@@ -3669,7 +3669,7 @@ public static class Variants
             [0] = 13,
             [1] = 9
         }, 22);
-        // The score is authoritative (CCSTeam.m_iScore), fed separately from the analysis run — mirror that
+        // The score is authoritative (CCSTeam.m_iScore), fed separately from the analysis run. Mirror that
         // here, with clan names so the capture shows the pro-demo labelling rather than "ENDED CT".
         vm.SetTeamScores(vm.SubjectKey, 13, 9);
         vm.SetTeamNames(vm.SubjectKey, "Team Vitality", "FaZe Clan");
@@ -3677,7 +3677,7 @@ public static class Variants
     }
 
     /// <summary>
-    ///     The CACHED render — the real <see cref="MatchOverviewTabView" /> over a real view-model fed a
+    ///     The CACHED render: the real <see cref="MatchOverviewTabView" /> over a real view-model fed a
     ///     synthesized <see cref="DemoCacheRecord" />. No store, no filesystem, no parse: exactly what the
     ///     production path does, which is the point of the mode.
     /// </summary>
@@ -3686,7 +3686,7 @@ public static class Variants
         DemoAnalysisState analysisState = DemoAnalysisState.Pending,
         bool teamSplit = true)
     {
-        // Real (no-op) actions so the captures show the buttons in their true enabled state — the gates all
+        // Real (no-op) actions so the captures show the buttons in their true enabled state. The gates all
         // require a wired action, so a bare `new()` would render them permanently absent and hide a
         // regression in the gating.
         MatchOverviewTabViewModel vm = new(
@@ -3815,7 +3815,7 @@ public static class Variants
         }
 
         vm.SetCachedRecord(r);
-        // A different demo is open behind the preview — shows the "◀ Back" affordance in its true state.
+        // A different demo is open behind the preview: shows the "◀ Back" affordance in its true state.
         vm.LiveDemoName = "esl_2025-06-02_nuke.dem";
         return OverviewPanel(vm);
     }
@@ -3857,7 +3857,7 @@ public static class Variants
                         ["HLTV"] = r.Rating,
                         // Per-team round wins by side. The CT-ending team took 6 as CT + 7 as T = 13; the
                         // T-ending team 6 + 3 = 9. So the SIDE split (CT 12 / T 10) differs from the TEAM
-                        // totals (13 / 9) — exactly the half-swap case the page must not conflate.
+                        // totals (13 / 9), exactly the half-swap case the page must not conflate.
                         ["CTW"] = r.Team == 3 ? 6 : 6,
                         ["TW"] = r.Team == 3 ? 7 : 3
                     }))
@@ -3886,8 +3886,8 @@ public static class Variants
     /// </summary>
     /// <summary>
     ///     The Reels dashboard: the ordered clip tray plus
-    ///     the promoted reel config pane. Variants exercise the three states that actually differ — a populated
-    ///     cross-demo tray, the empty tray, and the narrow (single-column) collapse — plus a "moved demo"
+    ///     the promoted reel config pane. Variants exercise the three states that actually differ: a populated
+    ///     cross-demo tray, the empty tray, and the narrow (single-column) collapse, plus a "moved demo"
     ///     variant, because the staging-time pre-flight is the one thing that reads only from disk state.
     /// </summary>
     /// <summary>Which Add-clips picker state a Highlights capture opens with (null = closed).</summary>
@@ -3896,7 +3896,7 @@ public static class Variants
         /// <summary>Open, unfiltered, nothing staged from it yet.</summary>
         Open,
 
-        /// <summary>Open with part of the list already in the tray — the [ + ] vs [ ✓ ] contrast.</summary>
+        /// <summary>Open with part of the list already in the tray: the [ + ] vs [ ✓ ] contrast.</summary>
         SomeStaged,
 
         /// <summary>Open with a search needle that excludes every row.</summary>
@@ -3904,18 +3904,18 @@ public static class Variants
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════════════════
-    //  First-run Visual Walkthrough (coach-mark tour) — the real TutorialView overlaid on a COARSE
+    //  First-run Visual Walkthrough (coach-mark tour): the real TutorialView overlaid on a COARSE
     //  app-like backdrop (recognizable regions, not a full app mock) so the spotlight hole frames
     //  something. Render at 1280x800; the seeded SpotlightRects are authored for that size (the bottom
-    //  transport strip is Dock=Bottom, so its rect tracks window height — keep size + rects in sync).
+    //  transport strip is Dock=Bottom, so its rect tracks window height, keep size + rects in sync).
     // ═══════════════════════════════════════════════════════════════════════════════════════════
     private enum TutorialMock
     {
-        Welcome, // Default[0] — centred welcome card (no spotlight)
-        TabNav, // Default[1] — the workspace tab strip
-        Library, // Default[2] — the Library landing tab
-        Waiting, // Default[3] — the open-demo gateway, parked in its IsWaiting state
-        Transport // Default[6] — the NavStrip transport cluster
+        Welcome, // Default[0]: centred welcome card (no spotlight)
+        TabNav, // Default[1]: the workspace tab strip
+        Library, // Default[2]: the Library landing tab
+        Waiting, // Default[3]: the open-demo gateway, parked in its IsWaiting state
+        Transport // Default[6]: the NavStrip transport cluster
     }
 
     // ── Highlights tab ─────────────────────────────────────────────────────────
@@ -3943,9 +3943,9 @@ public static class Variants
     /// <summary>The three semantic-JUMP treatments the redesign options differ by.</summary>
     private enum JumpVariant
     {
-        IconOnly, // A — compact icon-only buttons (marker + direction chevron), tooltip-driven
-        IconCaption, // B — icon + caption word per target (self-documenting, text-forward)
-        SegmentedPill // C — a bordered segmented pill per target (chevron | icon+word | chevron)
+        IconOnly, // A: compact icon-only buttons (marker + direction chevron), tooltip-driven
+        IconCaption, // B: icon + caption word per target (self-documenting, text-forward)
+        SegmentedPill // C: a bordered segmented pill per target (chevron | icon+word | chevron)
     }
 
     // Minimal IDemoProcessingQueue double for the queue-flyout capture. Only the members the flyout reads are
@@ -4025,7 +4025,7 @@ public static class Variants
         }
     }
 
-    // Minimal IReelJobService double — a fixed status set before the VM is constructed (the VM's ctor maps
+    // Minimal IReelJobService double: a fixed status set before the VM is constructed (the VM's ctor maps
     // from Status). Empty-accessor event so it needs no raise (avoids CS0067); the VM's subscribe is a no-op.
     private sealed class CaptureReelJob : IReelJobService
     {
@@ -4048,7 +4048,7 @@ public static class Variants
         }
     }
 
-    // Minimal ILiveSyncService double — a fixed state set before the VM is constructed (the VM's ctor maps
+    // Minimal ILiveSyncService double: a fixed state set before the VM is constructed (the VM's ctor maps
     // from State). Empty-accessor event so it needs no raise (avoids CS0067); the VM's subscribe is a no-op.
     private sealed class FakeLiveSync : ILiveSyncService
     {
@@ -4079,7 +4079,7 @@ public static class Variants
 
     // ── pb2d-vision fakes ──────────────────────────────────────────────────────
     // Minimal Playback2D module-context double: a fixed 2v2 roster with world positions + eye yaw,
-    // an empty entity view (no rules proxy / grenades — the vision overlay needs only markers), and a
+    // an empty entity view (no rules proxy / grenades, the vision overlay needs only markers), and a
     // RaiseAdvanced() knob so the capture can rebuild markers after the ground snap. IModuleContext's
     // default members (DemoReset, event nav, GetEventTimeline) intentionally stay defaulted.
 
@@ -4213,7 +4213,7 @@ public static class Variants
         }
     }
 
-    // Minimal IModuleContext double — the LiveSyncStatusViewModel only reads DemoPath + MapName and (no-op)
+    // Minimal IModuleContext double: the LiveSyncStatusViewModel only reads DemoPath + MapName and (no-op)
     // subscribes to the default DemoReset. The rest are stubbed; none are exercised by the flyout capture.
     private sealed class FakeModuleContext(string? demoPath, string? mapName) : IModuleContext
     {
@@ -4254,9 +4254,9 @@ public static class Variants
         public IReadOnlyList<IPlayerState> CurrentPlayers => [];
     }
 
-    // Match Overview landing page — the demo-opening landing. The three load points exist as SEPARATE
+    // Match Overview landing page: the demo-opening landing. The three load points exist as SEPARATE
     // variants on purpose: the page's contract is that every section is present from the first frame and only
-    // its values change, so the way to check it is to render Opening / Parsed / Ready and compare — the
+    // its values change, so the way to check it is to render Opening / Parsed / Ready and compare. The
     // sections and the total height must match across all three. A section that appears between two of these
     // captures is the layout jump this page was built to remove.
     internal enum MatchOverviewMock

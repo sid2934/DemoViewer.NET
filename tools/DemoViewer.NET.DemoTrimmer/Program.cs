@@ -11,7 +11,7 @@ namespace DemoViewer.NET.DemoTrimmer;
 ///     CLI for the demo-trimmer proof of concept: produces a small <c>.dem</c> containing only the first
 ///     few rounds of a large one, for use as a bundled first-run-tour demo.
 ///     <para>
-///         Deliberately single-demo-at-a-time — a 170-450 MB demo plus its <see cref="ParsedDemo" /> plus
+///         Deliberately single-demo-at-a-time: a 170-450 MB demo plus its <see cref="ParsedDemo" /> plus
 ///         an <c>EntityTracker</c> replay is already most of a 16 GB machine's headroom. Never run two
 ///         instances concurrently.
 ///     </para>
@@ -66,8 +66,8 @@ internal static class Program
         (byte[] raw, ParsedDemo demo) = Load(path);
         DemoInspector.Inspect(demo, raw, path, boundaries);
 
-        // Also show the "what is inside the packets" split for a 3-round checkpoint window — the
-        // same table the original feasibility measurement reported.
+        // Also show the "what is inside the packets" split for a 3-round checkpoint window. It is
+        // the same table the original feasibility measurement reported.
         try
         {
             TrimWindow window = WindowSelector.Select(demo, 3, true);
@@ -103,7 +103,7 @@ internal static class Program
             $"source: {Path.GetFileName(path)}  {DemoInspector.Mib(raw.LongLength)}  " +
             $"map={demo.MapName} frames={demo.Frames.Count} ticks={demo.TickCount}"));
 
-        // player_team synthesis inputs — sampled ONCE per source (every window shares round 1's
+        // player_team synthesis inputs: sampled ONCE per source (every window shares round 1's
         // seating). A missing descriptor or an empty sample set skips synthesis with a warning
         // rather than emitting a file that will render every player on one team.
         IReadOnlyList<TeamSample> teamSamples = TeamEventSynthesizer.Sample(demo);

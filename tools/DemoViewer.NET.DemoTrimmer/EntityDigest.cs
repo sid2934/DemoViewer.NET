@@ -13,7 +13,7 @@ namespace DemoViewer.NET.DemoTrimmer;
 /// <param name="Hash">FNV-1a 64 over every live entity's index, class, serial, PVS flag and sorted fields.</param>
 /// <param name="EntityCount">Live entities.</param>
 /// <param name="FieldCount">Total received fields across all live entities.</param>
-/// <param name="DeltaUnknownCount">Tracker's running unknown-delta counter — spikes on desync.</param>
+/// <param name="DeltaUnknownCount">Tracker's running unknown-delta counter, which spikes on desync.</param>
 /// <param name="PacketCount">Packets the tracker consumed.</param>
 /// <param name="LastError">Tracker's last decode error, if any.</param>
 internal readonly record struct EntityDigest(
@@ -34,7 +34,7 @@ internal readonly record struct EntityDigest(
 internal enum ReplayPolicy
 {
     /// <summary>
-    ///     Plain <c>AdvanceOneFrame</c> for every frame — exactly what DemoViewer.NET's own demo load
+    ///     Plain <c>AdvanceOneFrame</c> for every frame: exactly what DemoViewer.NET's own demo load
     ///     does. Note that <c>EntityTracker.ProcessFrame</c> deliberately <b>skips</b> a
     ///     <c>DEM_FullPacket</c>'s <c>svc_PacketEntities</c> here, because in an untrimmed demo that
     ///     snapshot is redundant with the delta stream that already built the state.
@@ -45,7 +45,7 @@ internal enum ReplayPolicy
     ///     Treat the first <c>DEM_FullPacket</c> as a real state restore
     ///     (<c>ResetEntitiesKeepSchema</c> + <c>LoadInstanceBaselineSnapshot</c> +
     ///     <c>ProcessFullPacketCheckpoint</c>), then continue sequentially. This is what a consumer
-    ///     entering the stream mid-match must do — and what <see cref="ReplayPolicy.Sequential" />
+    ///     entering the stream mid-match must do. It is also what <see cref="ReplayPolicy.Sequential" />
     ///     cannot do, which is why a checkpoint-entry trim is not decodable by a naive reader.
     /// </summary>
     CheckpointEntry
@@ -78,7 +78,7 @@ internal static class EntityDigestBuilder
     /// <summary>
     ///     Replays <paramref name="frames" /> in order, taking a digest as soon as the replay passes each
     ///     tick in <paramref name="sampleTicks" /> (and once more at the end for any that were never
-    ///     passed). Sampling by tick — not by frame index — is what makes a source-frame replay and a
+    ///     passed). Sampling by tick, not by frame index, is what makes a source-frame replay and a
     ///     trimmed-file replay comparable, since the two have different frame numbering.
     /// </summary>
     public static ReplayOutcome Replay(
@@ -169,6 +169,6 @@ internal static class EntityDigestBuilder
             hash = (hash ^ (byte)(c >> 8)) * FnvPrime;
         }
 
-        hash = (hash ^ 0xFFu) * FnvPrime; // field separator — keeps "ab"+"c" distinct from "a"+"bc"
+        hash = (hash ^ 0xFFu) * FnvPrime; // field separator: keeps "ab"+"c" distinct from "a"+"bc"
     }
 }

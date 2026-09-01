@@ -25,7 +25,7 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 ///     <para>
 ///         <c>SceneFrameBuilder</c> has always read the round off <c>CCSGameRulesProxy</c> and the two
 ///         scores off <c>CCSTeam.m_iScore</c>, and <c>ClockLayer</c> has always drawn whatever its data
-///         source said — but the CLI's data source was <c>static _ =&gt; ClockReading.Unknown</c>, a
+///         source said, but the CLI's data source was <c>static _ =&gt; ClockReading.Unknown</c>, a
 ///         constant. Every frame of every CLI export, at any point in any match, read
 ///         <c>Round —  T 0 : 0 CT</c>.
 ///     </para>
@@ -42,7 +42,7 @@ public class ExportHudClockTests
 {
     /// <summary>
     ///     The regression. At a mid-match frame the exported clock must carry the round and the scores the
-    ///     frame builder read for THAT frame — not the placeholder.
+    ///     frame builder read for THAT frame, not the placeholder.
     /// </summary>
     [Test]
     public async Task TheExportedClock_CarriesTheRoundAndScore_OfTheFrameBeingDrawn()
@@ -62,7 +62,7 @@ public class ExportHudClockTests
             CultureInfo.InvariantCulture, out int round)).IsTrue();
         await Assert.That(round).IsGreaterThanOrEqualTo(1);
 
-        // And it is the SOURCE's reading, field for field — the frame the export is about to draw.
+        // And it is the SOURCE's reading, field for field: the frame the export is about to draw.
         SceneGameInfo info = replay.Source.LastGameInfo;
         await Assert.That(drawn.RoundNumber).IsEqualTo(ClockReading.From(info).Round);
         await Assert.That(drawn.TScore).IsEqualTo(info.TScore);
@@ -72,7 +72,7 @@ public class ExportHudClockTests
 
     /// <summary>
     ///     Not a capture. The clock is a function of the frame being drawn, so it has to keep moving as the
-    ///     export walks the range — which is the half of this bug the App shipped: a value captured when
+    ///     export walks the range, which is the half of this bug the App shipped: a value captured when
     ///     Start was pressed, burnt into every frame of the video.
     /// </summary>
     [Test]
@@ -89,7 +89,7 @@ public class ExportHudClockTests
             Scene2DFrame frame = replay.Source.FrameAt(i);
             HudSnapshot drawn = replay.Hud.At(frame.Time.Tick);
 
-            // Read AFTER the frame it describes was built, on every single sample — the ordering
+            // Read AFTER the frame it describes was built, on every single sample: the ordering
             // SceneExportSession guarantees (TimeAt → FrameAt → Advance → Render).
             await Assert.That(drawn.RoundNumber).IsEqualTo(ClockReading.From(replay.Source.LastGameInfo).Round);
             await Assert.That(drawn.Tick).IsEqualTo(frame.Time.Tick);
@@ -119,7 +119,7 @@ public class ExportHudClockTests
 
     /// <summary>
     ///     The pixels, not just the value. <c>ClockLayer</c> fed the real source draws something different
-    ///     from <c>ClockLayer</c> fed <c>ClockReading.Unknown</c> — which is the difference a viewer sees
+    ///     from <c>ClockLayer</c> fed <c>ClockReading.Unknown</c>, which is the difference a viewer sees
     ///     between "Round 8  T 4 : 3 CT" and "Round —  T 0 : 0 CT".
     /// </summary>
     [Test]
@@ -141,7 +141,7 @@ public class ExportHudClockTests
 
     /// <summary>
     ///     End to end, through <c>Main</c>: a real range of a real demo exports with the HUD on and the
-    ///     clock layer in the stack. <c>--no-encode</c> keeps it off ffmpeg — this is the wiring assertion
+    ///     clock layer in the stack. <c>--no-encode</c> keeps it off ffmpeg. This is the wiring assertion
     ///     (the HUD is now built after the frame source), not an encoder test.
     /// </summary>
     [Test]

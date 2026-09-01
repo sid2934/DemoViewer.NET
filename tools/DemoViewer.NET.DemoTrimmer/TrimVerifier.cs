@@ -43,18 +43,18 @@ internal sealed class VerificationReport
 ///         <em>correct</em> trim (the trim legitimately never saw the pre-entry packets):
 ///         <list type="bullet">
 ///             <item>
-///                 <b>D0</b> — source replayed from frame 0. Informational only.
+///                 <b>D0</b>: source replayed from frame 0. Informational only.
 ///             </item>
 ///             <item>
-///                 <b>D1</b> — source frames replayed in exactly the retained order (setup + window).
+///                 <b>D1</b>: source frames replayed in exactly the retained order (setup + window).
 ///                 This is the reference the trim must reproduce.
 ///             </item>
 ///             <item>
-///                 <b>D2</b> — the emitted file re-parsed and replayed from its own frame 0.
+///                 <b>D2</b>: the emitted file re-parsed and replayed from its own frame 0.
 ///             </item>
 ///         </list>
 ///         <c>D2 == D1</c> is the trim-fidelity assertion. <c>D1 == D0</c> is a separate claim about how
-///         completely a <c>DEM_FullPacket</c> checkpoint restores state — if it fails that is a property
+///         completely a <c>DEM_FullPacket</c> checkpoint restores state. If it fails, that is a property
 ///         of checkpoint entry, not a trimmer defect, so it is reported as a note.
 ///     </para>
 /// </summary>
@@ -86,7 +86,7 @@ internal static class TrimVerifier
     ///     <c>PlayerInfo.Team</c> post-pass is fed exclusively by <c>player_team</c> events, so this is
     ///     the check that the trim does not render every player on one team. When the window itself
     ///     contains genuine <c>player_team</c> events (a trim crossing halftime), the parser's
-    ///     last-event-wins rule may legitimately override a synthesized seating — the per-slot equality
+    ///     last-event-wins rule may legitimately override a synthesized seating. The per-slot equality
     ///     check is scoped to the synthesized-only case.
     /// </summary>
     private static void VerifyTeams(TrimResult result, ParsedDemo trimmed, VerificationReport report)
@@ -135,8 +135,8 @@ internal static class TrimVerifier
     ///     never reads: the 16-byte file header's two frame offsets, and the three frames that live
     ///     past <c>DEM_Stop</c>.
     ///     <para>
-    ///         Nothing else in this class can see them — the parse loop starts at byte 16 and stops at
-    ///         <c>DEM_Stop</c> — so without this check a file with dangling offsets and no tail would pass
+    ///         Nothing else in this class can see them: the parse loop starts at byte 16 and stops at
+    ///         <c>DEM_Stop</c>, so without this check a file with dangling offsets and no tail would pass
     ///         every other assertion while being exactly the shape most likely to be rejected outright by
     ///         the real CS2 client.
     ///     </para>
@@ -236,7 +236,7 @@ internal static class TrimVerifier
             .Where(e => retained.Contains(e.FrameNumber))
             .Select(Signature).ToList();
         // The synthesized player_team seatings are additive by design and have no source-frame
-        // counterpart — exclude them here so this check keeps pinning the RETAINED stream
+        // counterpart. Exclude them here so this check keeps pinning the RETAINED stream
         // one-to-one (VerifyTeams owns the synthesized events).
         List<string> actual = trimmed.AllGameEvents
             .Where(e => !(result.SynthesizedTeams.Count > 0
@@ -299,12 +299,12 @@ internal static class TrimVerifier
         report.Notes.Add(string.Create(CultureInfo.InvariantCulture,
             $"entity sample ticks: {string.Join(", ", sampleTicks)}; replay policy: {policy}"));
 
-        // D1 — source frames in exactly the retained order. Enumerated lazily so only one tracker's worth
+        // D1: source frames in exactly the retained order. Enumerated lazily so only one tracker's worth
         // of entity state is live at a time (16 GB machine; the source ParsedDemo is already resident).
         ReplayOutcome d1 = EntityDigestBuilder.Replay(
             result.EmittedSourceFrames.Select(i => source.Frames[i]), sampleTicks, policy);
 
-        // D2 — the emitted file, re-parsed, replayed from its own frame 0 under the same policy.
+        // D2: the emitted file, re-parsed, replayed from its own frame 0 under the same policy.
         ReplayOutcome d2 = EntityDigestBuilder.Replay(trimmed.Frames, sampleTicks, policy);
 
         CompareDigests(report, "entity state: trimmed file == retained source frames (D2 == D1)",
@@ -323,7 +323,7 @@ internal static class TrimVerifier
         if (policy == ReplayPolicy.CheckpointEntry && !d2.InstanceBaselinesSeeded)
         {
             // Not a failure while the retained setup prefix (DEM_StringTables + the signon run) still
-            // supplies the baselines — which it does whenever the entry checkpoint is early. It becomes
+            // supplies the baselines, which it does whenever the entry checkpoint is early. It becomes
             // load-bearing for a genuinely mid-match entry: the full-packet string-table dump is
             // incremental, so a later checkpoint may omit instancebaseline entirely.
             report.Notes.Add(
@@ -348,7 +348,7 @@ internal static class TrimVerifier
 
     /// <summary>
     ///     Can DemoViewer.NET's own load path read this file as-is? That path is a plain sequential
-    ///     replay, so a checkpoint-entry trim fails it — the tour's actual requirement, and the reason
+    ///     replay, so a checkpoint-entry trim fails it. That is the tour's actual requirement, and the reason
     ///     the contiguous variant matters.
     /// </summary>
     private static void VerifyNaiveSequentialReadability(

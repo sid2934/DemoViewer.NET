@@ -1,6 +1,6 @@
 namespace DemoViewer.NET.Modules.Abstractions;
 
-/// <summary>Severity for <see cref="IModuleHost.Log" /> — routed to the shell's Output panel channel.</summary>
+/// <summary>Severity for <see cref="IModuleHost.Log" />: routed to the shell's Output panel channel.</summary>
 public enum ModuleLogLevel
 {
     /// <summary>Diagnostic detail.</summary>

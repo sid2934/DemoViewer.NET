@@ -53,7 +53,7 @@ internal sealed class VelopackUpdateService : IUpdateService
         if (mgr is null || !mgr.IsInstalled)
         {
             // A dev `dotnet run`, the headless capture host, or a portable copy without Velopack
-            // metadata. Nothing is wrong — there is simply no install to update.
+            // metadata. Nothing is wrong. There is simply no install to update.
             return UpdateCheckResult.NotSupported();
         }
 
@@ -72,7 +72,7 @@ internal sealed class VelopackUpdateService : IUpdateService
         catch (Exception ex)
         {
             // Offline, DNS failure, GitHub rate limit (60/hr unauthenticated), malformed feed. None
-            // of these should ever be more than a message — the app is fully usable without updates.
+            // of these should ever be more than a message. The app is fully usable without updates.
             return UpdateCheckResult.Failed(ex.Message);
         }
     }
@@ -91,7 +91,7 @@ internal sealed class VelopackUpdateService : IUpdateService
             await Task.Run(() => mgr.DownloadUpdatesAsync(_pending, progress is null ? null : progress.Report, ct), ct)
                 .ConfigureAwait(false);
 
-            // Replaces the process. Nothing after this line runs on the success path — which is why
+            // Replaces the process. Nothing after this line runs on the success path, which is why
             // the caller must have already persisted anything it cares about.
             mgr.ApplyUpdatesAndRestart(_pending);
             return true;
@@ -102,7 +102,7 @@ internal sealed class VelopackUpdateService : IUpdateService
         }
         catch (Exception)
         {
-            // A failed download leaves the install untouched — Velopack stages into a packages dir
+            // A failed download leaves the install untouched. Velopack stages into a packages dir
             // and only swaps on apply. Reporting false keeps the user on a working version.
             return false;
         }
@@ -110,7 +110,7 @@ internal sealed class VelopackUpdateService : IUpdateService
 
     /// <summary>
     ///     Builds the manager lazily and never throws: constructing it touches the filesystem to
-    ///     locate install metadata, which fails in unpackaged runs. `prerelease: true` is REQUIRED —
+    ///     locate install metadata, which fails in unpackaged runs. `prerelease: true` is REQUIRED:
     ///     `release.yml` uploads with `--pre true`, so every release is a GitHub prerelease and a
     ///     stable-only source would report "up to date" forever.
     /// </summary>

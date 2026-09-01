@@ -43,7 +43,7 @@ internal enum IdentityOutcome
 /// </summary>
 internal static class PacketRewriter
 {
-    /// <summary><c>svc_UserCmds</c> — the per-tick recorded player-input stream (netmessages.proto).</summary>
+    /// <summary><c>svc_UserCmds</c>: the per-tick recorded player-input stream (netmessages.proto).</summary>
     public const int SvcUserCmdsTypeId = 76;
 
     private static readonly HashSet<int> EmptyDropSet = [];
@@ -75,7 +75,7 @@ internal static class PacketRewriter
             uint size = reader.ReadUVarInt32();
 
             // Same guard as DemoParser.ParseInnerMessages: zero/oversized size means we have run into
-            // the recorder's trailing bit padding (or a malformed tail) — stop, don't re-emit it.
+            // the recorder's trailing bit padding (or a malformed tail). Stop, don't re-emit it.
             if (size == 0 || size > (uint)reader.RemainingBytes)
             {
                 break;
@@ -103,7 +103,7 @@ internal static class PacketRewriter
     /// <summary>
     ///     Runs the encoder with an empty drop set and compares the result against the original bytes.
     ///     This is the gate that separates "the bit writer is wrong" from "dropping messages broke
-    ///     playback" — without it a V3 failure is uninterpretable.
+    ///     playback." Without it, a V3 failure is uninterpretable.
     ///     <para>
     ///         The comparison is <b>bit</b>-exact over the bits we produced, not byte-exact over the whole
     ///         buffer: the recorder's <c>CDemoPacket.data</c> length is byte-rounded, so the tail past the

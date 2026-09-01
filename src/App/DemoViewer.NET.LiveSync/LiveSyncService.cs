@@ -19,7 +19,7 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.LiveSync;
 
 /// <summary>
-///     The desktop live CS2 sync engine — the
+///     The desktop live CS2 sync engine: the
 ///     <see cref="ILiveSyncService" /> the Desktop host injects through
 ///     <c>AppHostHooks.LiveSyncFactory</c>. This class owns the session lifecycle: the private
 ///     CSVG gRPC host (<see cref="CsvgWebHost" />), CS2/mock launch, state surface, and teardown.
@@ -29,7 +29,7 @@ namespace DemoViewer.NET.LiveSync;
 ///         Threading: public members are UI-thread-first (commands/flyout call them);
 ///         <see cref="State" /> transitions are marshaled to the UI thread. CSVG's synchronous
 ///         <c>TickUpdated</c> hot path only writes a latest-value slot (inbound threading
-///         rule — exception-free, no per-subscriber isolation upstream); its async events are
+///         rule: exception-free, no per-subscriber isolation upstream); its async events are
 ///         posted to the UI thread and never awaited inline on the gRPC read loop.
 ///     </para>
 /// </summary>
@@ -38,7 +38,7 @@ public sealed class LiveSyncService : ILiveSyncService
     private const long NoTick = long.MinValue;
     private readonly object _disposeStart = new();
 
-    // Serializes Enable/Disable/Dispose — the flyout can only issue one at a time, but the
+    // Serializes Enable/Disable/Dispose: the flyout can only issue one at a time, but the
     // shutdown path may race a user action.
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly IOptionsMonitor<AppSettings>? _settings;
@@ -49,21 +49,21 @@ public sealed class LiveSyncService : ILiveSyncService
     private Task? _disposeTask;
     private bool _disposed;
 
-    // The in-flight EnableAsync's cancellation — a CS2 launch holds the lifecycle gate for up
+    // The in-flight EnableAsync's cancellation: a CS2 launch holds the lifecycle gate for up
     // to ~2 min, so Disable/Dispose/reel-suspend cancel it rather than queueing behind it.
     private CancellationTokenSource? _enableCts;
 
-    // Outbound pipeline — alive only while a session is up.
+    // Outbound pipeline: alive only while a session is up.
     private SyncEngine? _engine;
 
     private CsvgWebHost? _host;
 
-    // Inbound pipeline — the 30 Hz Cs2EventPump + servo + mirroring.
+    // Inbound pipeline: the 30 Hz Cs2EventPump + servo + mirroring.
     private InboundSync? _inbound;
     private long _lastTickSlot = NoTick;
 
     // Live-read log gate: the CSVG host's bridge reads these on every record (hot under a gRPC
-    // stream), so they are cached fields updated once per settings change via OnChange — NOT a
+    // stream), so they are cached fields updated once per settings change via OnChange, not a
     // per-record IOptionsMonitor.CurrentValue lookup. The OnChange subscription is disposed on
     // teardown; it outlives per-reconnect bridges (a fresh host+bridge is built each Enable).
     private volatile LogLevel _logMinLevel = LogLevel.Information;
@@ -95,10 +95,10 @@ public sealed class LiveSyncService : ILiveSyncService
     private bool ApplyingRemote { get; set; }
 
     /// <summary>
-    ///     True while this service still owns session resources — most importantly the gRPC host
+    ///     True while this service still owns session resources, most importantly the gRPC host
     ///     and its exclusive port 50051. Broader than <see cref="LiveSyncState.IsSessionActive" />:
     ///     the host is deliberately kept alive across <see cref="LiveSyncStateKind.Faulted" /> for
-    ///     fast retry, so a reel job must suspend on THIS, not on the state kind — otherwise its
+    ///     fast retry, so a reel job must suspend on THIS, not on the state kind. Otherwise its
     ///     own host start hits the port and fails blaming "another program".
     /// </summary>
     internal bool OwnsSessionResources => _host is not null;
@@ -146,7 +146,7 @@ public sealed class LiveSyncService : ILiveSyncService
         {
             if (_disposed)
             {
-                // Disposed while queued behind the gate — the teardown already ran; starting a
+                // Disposed while queued behind the gate: the teardown already ran; starting a
                 // session now would leak a host nothing ever disposes.
                 return;
             }
@@ -186,7 +186,7 @@ public sealed class LiveSyncService : ILiveSyncService
 
             // CSVG recovery contract: from Faulted, StopAsync first (stops any leftover CS2 process,
             // restores backups, returns the session to Disconnected). This runs exactly when CSVG is
-            // cleaning up a dead CS2 — failures land in Faulted per the ILiveSyncService contract,
+            // cleaning up a dead CS2. Failures land in Faulted per the ILiveSyncService contract,
             // never escape into the flyout command.
             if (session.State == CsvgSessionState.Faulted)
             {
@@ -294,7 +294,7 @@ public sealed class LiveSyncService : ILiveSyncService
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_engine is not { } engine || _subscribedSession is not { } session || !State.IsSynced)
         {
-            // Not synced for the current demo — the UI owns the enable/sync prompt.
+            // Not synced for the current demo: the UI owns the enable/sync prompt.
             return false;
         }
 
@@ -372,7 +372,7 @@ public sealed class LiveSyncService : ILiveSyncService
     public ValueTask DisposeAsync()
     {
         // Join, never skip: a second disposer (e.g. a repeated ShutdownRequested) must WAIT for
-        // the in-flight teardown — returning early would let the process exit while the CS2 kill
+        // the in-flight teardown: returning early would let the process exit while the CS2 kill
         // / install restore is still mid-flight.
         lock (_disposeStart)
         {
@@ -474,15 +474,15 @@ public sealed class LiveSyncService : ILiveSyncService
         finally
         {
             // The gate is deliberately NOT disposed: waiters queued behind this teardown (a late
-            // flyout click racing shutdown) still wake, hit the _disposed re-check, and release —
-            // disposing it would turn their finally-Release into an ObjectDisposedException
+            // flyout click racing shutdown) still wake, hit the _disposed re-check, and release.
+            // Disposing it would turn their finally-Release into an ObjectDisposedException
             // inside an async-void command. SemaphoreSlim holds no unmanaged state.
             _lifecycleGate.Release();
         }
     }
 
     /// <summary>
-    ///     Single-CS2 interlock: a reel needs a capture session — the sync
+    ///     Single-CS2 interlock: a reel needs a capture session. The sync
     ///     session cannot coexist. Stops session + host and parks the chip at
     ///     "Paused for reel render"; sync actions stay excluded until
     ///     <see cref="EndReelSuspension" />.
@@ -506,7 +506,7 @@ public sealed class LiveSyncService : ILiveSyncService
             await StopSessionCoreAsync();
             // COMMIT the state on the UI thread before returning: the reel job's fast-fail
             // paths call EndReelSuspension right after this returns, and a merely-POSTED
-            // SuspendedForReel would land after that check — parking the chip at "Paused for
+            // SuspendedForReel would land after that check, parking the chip at "Paused for
             // reel render" forever with Enable refused.
             await Dispatcher.UIThread.InvokeAsync(() =>
                 SetState(new LiveSyncState(LiveSyncStateKind.SuspendedForReel)));
@@ -518,8 +518,8 @@ public sealed class LiveSyncService : ILiveSyncService
     }
 
     /// <summary>
-    ///     Ends the reel suspension: back to Disconnected — the Off flyout's informed Enable IS
-    ///     the reconnect prompt (never an auto-relaunch). Any thread — the check+set is
+    ///     Ends the reel suspension: back to Disconnected. The Off flyout's informed Enable IS
+    ///     the reconnect prompt (never an auto-relaunch). Any thread: the check+set is
     ///     marshaled so it reads the committed state, not a stale cross-thread snapshot.
     /// </summary>
     internal void EndReelSuspension()
@@ -544,8 +544,8 @@ public sealed class LiveSyncService : ILiveSyncService
 
     /// <summary>
     ///     Stops the CSVG session (kills CS2/mock, restores the install) and tears down the gRPC
-    ///     host. Never throws — teardown must always complete. Callers hold the lifecycle gate.
-    ///     <paramref name="clearOutput" /> drops the app-lifetime "Live Sync" log channel too — set
+    ///     host. Never throws. Teardown must always complete. Callers hold the lifecycle gate.
+    ///     <paramref name="clearOutput" /> drops the app-lifetime "Live Sync" log channel too, set
     ///     only on Disable, so reel-suspend and enable-cancel keep the accumulated diagnostics.
     /// </summary>
     private async Task StopSessionCoreAsync(bool clearOutput = false)
@@ -554,7 +554,7 @@ public sealed class LiveSyncService : ILiveSyncService
         try
         {
             // Both UI-coupled pipeline halves dispose on the UI thread (their documented
-            // residency — they unsubscribe shell events); the reel-suspend path runs this on a
+            // residency: they unsubscribe shell events); the reel-suspend path runs this on a
             // threadpool thread.
             if (_observer is { } observer)
             {
@@ -584,7 +584,7 @@ public sealed class LiveSyncService : ILiveSyncService
                 _inbound = null;
             }
 
-            // Fields are cleared BEFORE the awaits and every dispose is best-effort — the doc
+            // Fields are cleared BEFORE the awaits and every dispose is best-effort: the doc
             // contract is "never throws; teardown must always complete", and a throwing dispose
             // must not leave a half-disposed host behind for the next EnableAsync's `??=` to reuse.
             if (_engine is { } engine)
@@ -610,7 +610,7 @@ public sealed class LiveSyncService : ILiveSyncService
                 }
                 catch
                 {
-                    // Best-effort — CSVG's StopAsync is itself the recovery path; a failure
+                    // Best-effort: CSVG's StopAsync is itself the recovery path; a failure
                     // here leaves `csvg restore` / doctor as the manual fallback (the crash-recovery offer surfaces it).
                 }
 
@@ -621,7 +621,7 @@ public sealed class LiveSyncService : ILiveSyncService
                 }
                 catch
                 {
-                    // Best-effort — a failed container dispose must not wedge the service.
+                    // Best-effort: a failed container dispose must not wedge the service.
                 }
             }
 
@@ -629,7 +629,7 @@ public sealed class LiveSyncService : ILiveSyncService
             {
                 // Drop the session's accumulated CSVG log rows so they don't survive Disable (the
                 // channel is app-lifetime; only file-load otherwise clears it). Marshaled like the
-                // pipeline disposes above — this path runs on the UI thread on Disable and on a
+                // pipeline disposes above: this path runs on the UI thread on Disable and on a
                 // threadpool thread on the reel-suspend path (which passes clearOutput:false).
                 if (Dispatcher.UIThread.CheckAccess())
                 {
@@ -666,7 +666,7 @@ public sealed class LiveSyncService : ILiveSyncService
         Unsubscribe();
 
         // Inbound threading: the synchronous tick hot path writes a slot and feeds the
-        // engine's believed state (one lock, no UI) — it MUST be exception-free (no
+        // engine's believed state (one lock, no UI). It MUST be exception-free (no
         // per-subscriber isolation on CSVG's sync event path).
         _onTickUpdated = (_, tick) =>
         {
@@ -685,7 +685,7 @@ public sealed class LiveSyncService : ILiveSyncService
             }
         };
 
-        // Async events are awaited serially on the gRPC read loop — post-and-return, never
+        // Async events are awaited serially on the gRPC read loop: post-and-return, never
         // await UI work inline.
         _onClientStateChanged = (_, next) =>
         {
@@ -705,14 +705,14 @@ public sealed class LiveSyncService : ILiveSyncService
         };
         _onPlaybackStatusChanged = (_, change) =>
         {
-            // Ledger echo path (v1.0 confirmation) — lock-cheap, no UI work; run inline rather
+            // Ledger echo path (v1.0 confirmation): lock-cheap, no UI work; run inline rather
             // than bouncing through the dispatcher so confirmations aren't delayed behind renders.
             _engine?.NotifyPlaybackStatus(change.NewStatus);
             return Task.CompletedTask;
         };
         _onDemoStateChanged = (_, demoState) =>
         {
-            // v1.1 mirroring — post-and-return (async events are awaited serially on the
+            // v1.1 mirroring: post-and-return (async events are awaited serially on the
             // gRPC read loop; UI work must never run inline there).
             Dispatcher.UIThread.Post(() => _inbound?.OnDemoState(demoState));
             return Task.CompletedTask;
@@ -795,9 +795,9 @@ public sealed class LiveSyncService : ILiveSyncService
                 string label = LevelLabel(level);
 
                 // Feed the unified diagnostics hub, tagged "CSVG" (telemetry P2). Only plain rows cross the
-                // seam — no ASP.NET/gRPC types reach the App head. We're already on the UI thread (this sink
+                // seam. No ASP.NET/gRPC types reach the App head. We're already on the UI thread (this sink
                 // is invoked inside Dispatcher.Post), so append directly; the MEL LogLevel passes straight
-                // through — the hub row keys on LogLevel now.
+                // through: the hub row keys on LogLevel now.
                 _shell.Telemetry.AppendOnUiThread(new TelemetryLogRow(
                     "CSVG", level, label, category, message,
                     DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture)));

@@ -15,11 +15,11 @@ namespace DemoViewer.NET.DemoTrimmer;
 ///         <b>File header (16 bytes), verified by probing both reference demos:</b>
 ///         <list type="bullet">
 ///             <item>bytes 0-7: ASCII magic <c>PBDEMS2\0</c></item>
-///             <item>bytes 8-11: int32LE — absolute file offset of the <c>DEM_FileInfo</c> frame</item>
-///             <item>bytes 12-15: int32LE — absolute file offset of the <c>DEM_SpawnGroups</c> frame</item>
+///             <item>bytes 8-11: int32LE, absolute file offset of the <c>DEM_FileInfo</c> frame</item>
+///             <item>bytes 12-15: int32LE, absolute file offset of the <c>DEM_SpawnGroups</c> frame</item>
 ///         </list>
 ///         Both demos put <c>DEM_SpawnGroups</c> then <c>DEM_FileInfo</c> as the last two frames and
-///         end the file there — neither contains a <c>DEM_Stop</c> frame at all.
+///         end the file there. Neither contains a <c>DEM_Stop</c> frame at all.
 ///     </para>
 /// </summary>
 internal static class DemoFormat
@@ -27,7 +27,7 @@ internal static class DemoFormat
     /// <summary>Bytes before the first frame.</summary>
     public const int FileHeaderLength = 16;
 
-    /// <summary><c>DEM_IsCompressed</c> — bit 6 of the frame's command varint.</summary>
+    /// <summary><c>DEM_IsCompressed</c>: bit 6 of the frame's command varint.</summary>
     public const uint CompressedFlag = 64u;
 
     /// <summary>Frame command name → <c>EDemoCommands</c> integer value (reverse of the parser's cache).</summary>
@@ -47,7 +47,7 @@ internal static class DemoFormat
         "DEM_Packet", "DEM_FullPacket", "DEM_AnimationData", "DEM_AnimationHeader", "DEM_UserCmd", "DEM_Recovery"
     }.ToFrozenSet(StringComparer.Ordinal);
 
-    /// <summary>Writes an unsigned LEB128 varint — the frame-header encoding for cmd / tick / size.</summary>
+    /// <summary>Writes an unsigned LEB128 varint: the frame-header encoding for cmd / tick / size.</summary>
     public static int WriteVarint(Stream stream, uint value)
     {
         int written = 0;
