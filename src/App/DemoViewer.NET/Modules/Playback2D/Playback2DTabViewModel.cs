@@ -836,11 +836,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             () => FfmpegLocationFor(FfmpegDependency.Locate()),
             host.IsLiveSyncBusy,
             host.PersistSettings,
-            null,
-            SnapshotInkForExport,
-            Playback2DExportDialogViewModel.ProductionAcquisition(
+
+            // Named, not positional, and not omitted. File.Exists is the right probe in the app, so this
+            // seam exists for the tests alone, and a bare null here says none of that. Playback2DCompositionTests
+            // quotes this very argument as its worked example of a decision a reader can see.
+            fileExists: null,
+            captureInk: SnapshotInkForExport,
+            acquireFfmpeg: Playback2DExportDialogViewModel.ProductionAcquisition(
                 FfmpegDependency.ManagedDirectory),
-            CaptureExportPalette);
+            capturePalette: CaptureExportPalette);
 
         ExportDialog.StartRequested += CloseExport;
     }
