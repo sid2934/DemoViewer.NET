@@ -282,11 +282,11 @@ not a scratch project.
 |---|---|---|---|---|---|
 | **W1** | win-x64 | **ANGLE over D3D11**, `av_libglesv2.dll` | `eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE, EGL_DEFAULT_DISPLAY, {EGL_PLATFORM_ANGLE_TYPE_ANGLE: D3D11})` → `eglInitialize` → `eglChooseConfig(PBUFFER\|ES2, RGBA8888)` → `eglCreatePbufferSurface(1×1)` → `eglCreateContext(ES3→ES2)` → `eglMakeCurrent` | `GRGlInterface.CreateAngle(eglGetProcAddress)` → `GRContext.CreateGl(iface)` | **Favored**: binary already ships (§3.4), Avalonia's own Windows default, works over RDP/service sessions, and falls back to **WARP** when no GPU (which is what makes a hosted-runner CI lane possible) |
 | **W2** | win-x64 | **Hidden-context WGL** | register a class → 1×1 `WS_POPUP` invisible HWND (a message-only `HWND_MESSAGE` window cannot own a GL context) → `ChoosePixelFormat`/`SetPixelFormat` → `wglCreateContext` → `wglMakeCurrent` → optionally `wglCreateContextAttribsARB` for a core profile | `GRGlInterface.CreateOpenGl(name => wglGetProcAddress(name) ?? GetProcAddress(opengl32, name))` | **Fallback only**: needs a window handle and a message pump-less HWND, is at the mercy of the vendor ICD, and degrades to the Microsoft 1.1 software rasterizer in session-0/RDP contexts (silent, catastrophic perf) |
-| ~~W3~~ | win-x64 | ~~SkiaSharp Vulkan~~ | — | — | **Eliminated pre-spike** (§3.2). Recorded, not attempted. |
+| ~~W3~~ | win-x64 | ~~SkiaSharp Vulkan~~ | n/a | n/a | **Eliminated pre-spike** (§3.2). Recorded, not attempted. |
 | **L1** | linux-x64 | **EGL surfaceless** (`libEGL.so.1`) | `eglGetPlatformDisplayEXT(EGL_PLATFORM_SURFACELESS_MESA=0x31DD, EGL_DEFAULT_DISPLAY, null)` → `eglInitialize` → `eglBindAPI(EGL_OPENGL_ES_API)` → `eglCreateContext(config=EGL_NO_CONFIG_KHR or a pbuffer config)` → `eglMakeCurrent(EGL_NO_SURFACE, EGL_NO_SURFACE, ctx)` | `GRGlInterface.CreateGles(eglGetProcAddress)` | **Favored for containers**: no X, no DRM node needed under llvmpipe; the future "cloud highlight service on a Linux box" (§5.8) is this path |
 | **L2** | linux-x64 | **EGL over GBM** | open `/dev/dri/renderD128` → `gbm_create_device` → `eglGetPlatformDisplayEXT(EGL_PLATFORM_GBM_KHR=0x31D7, gbmDevice, null)` | `CreateGles` | Fallback if L1 is unsupported by the installed driver; adds a `libgbm` dependency |
-| ~~L3~~ | linux-x64 | ~~GLX hidden pbuffer~~ | needs an X display | — | **Last resort, not attempted**: an X dependency destroys the container story that motivates the Linux path at all |
-| **M1** | macOS | CGL / Metal | — | — | **Deferred by design** (§5.8 point 3). Probe returns `CpuRaster` with reason `"macos-deferred"`. |
+| ~~L3~~ | linux-x64 | ~~GLX hidden pbuffer~~ | needs an X display | n/a | **Last resort, not attempted**: an X dependency destroys the container story that motivates the Linux path at all |
+| **M1** | macOS | CGL / Metal | n/a | n/a | **Deferred by design** (§5.8 point 3). Probe returns `CpuRaster` with reason `"macos-deferred"`. |
 
 ### 4.2 Evaluation criteria
 
@@ -337,7 +337,7 @@ Create `docs/playback2d-v2/c2-backend-decision.md` from this skeleton. It closes
 question 2, so link it from that line.
 
 ```markdown
-# C2 backend decision — windowless GPU surfaces
+# C2 backend decision: windowless GPU surfaces
 
 **Date:** YYYY-MM-DD · **Decider:** <name> · **Time-box:** 3 days (day 1 YYYY-MM-DD → day 3 YYYY-MM-DD)
 **Closes:** design.md §12 open question 2 · **Supersedes:** nothing
@@ -354,7 +354,7 @@ question 2, so link it from that line.
 |---|---|---|---|---|---|---|---|
 | W1 ANGLE/D3D11 | | | | 0 | | | |
 | W2 WGL | | | | | | | |
-| W3 Vulkan | not attempted | — | — | — | — | — | eliminated pre-spike (no native backend in SkiaSharp 2.88.9: see plan §3.2) |
+| W3 Vulkan | not attempted | n/a | n/a | n/a | n/a | n/a | eliminated pre-spike (no native backend in SkiaSharp 2.88.9: see plan §3.2) |
 | L1 EGL surfaceless | | | | | | | |
 | L2 EGL/GBM | | | | | | | |
 | M1 macOS | deferred by design §5.8 | | | | | | |
@@ -418,7 +418,7 @@ C2.0 ─→ C2.1 ─→ C2.2 ─→ C2.3 ─┬─→ C2.5 ─→ C2.6 ─→ C2
 C2.4 ────────────────────────────→ C2.5
 C2.1 ─→ C2.7   (blocked on C1 landing the CLI)
 C2.8 blocked on B2 (Playback2DSettings) + B4 (export dialog)
-C2.9 independent — do it early, it is the only task with an external (legal) obligation
+C2.9 independent: do it early, it is the only task with an external (legal) obligation
 ```
 
 ---
@@ -640,7 +640,7 @@ phase needs headless-Avalonia; the only headless-Avalonia surface in Playback2D 
 | `Flush_IsNoOp` | no throw, pixels unchanged |
 | `ReadPixels_RoundTripsAKnownFill` | draw `SKColors.Red` → read back `FF0000FF` |
 | `Dispose_TwiceIsSafe` | no throw |
-| `Backend_IsCpuRaster` | — |
+| `Backend_IsCpuRaster` | n/a |
 
 **`ImageComparisonTests`**: the harness must be trustworthy before it judges anything.
 
@@ -654,7 +654,7 @@ phase needs headless-Avalonia; the only headless-Avalonia surface in Playback2D 
 | `OnePixelShift_FailsOnSsim` | image translated 1 px | `!Passed`, `MeanSsim` well below 0.995 (this is the case per-channel tolerance alone would miss, and the reason SSIM is in the policy) |
 | `AlphaDrift_Fails` | alpha +5 | `!Passed` |
 | `SizeMismatch_Fails` | different dimensions | `!Passed`, no exception |
-| `WriteDiffImage_ProducesFile` | — | file exists, non-zero, correct dimensions |
+| `WriteDiffImage_ProducesFile` | n/a | file exists, non-zero, correct dimensions |
 
 ### 7.2 GPU suites (`[Category("Gpu")]`, skip cleanly without hardware)
 
@@ -704,7 +704,7 @@ byte-identical frame hashes (per backend)".
 through `SceneExportSession` with a null sink, asserts ≥ 128 fps (the ≥ 2× realtime exit criterion).
 Only meaningful on the self-hosted lane; skips when `probe.Renderer` matches the known software
 renderers (`llvmpipe`, `Microsoft Basic Render Driver`, `SwiftShader`, WARP) with reason
-`"software renderer — throughput not meaningful"`.
+`"software renderer: throughput not meaningful"`.
 
 ### 7.3 The perceptual-diff definition (the numbers, and how to change them)
 
@@ -968,7 +968,7 @@ The binary is redistributed as published in the `Avalonia.Angle.Windows.Natives`
 built from https://github.com/AvaloniaUI/angle. Upstream project: https://github.com/google/angle.
 
 <full LICENSE text from
- ~/.nuget/packages/avalonia.angle.windows.natives/2.1.25547.20250602/LICENSE — begins
+ ~/.nuget/packages/avalonia.angle.windows.natives/2.1.25547.20250602/LICENSE, which begins
  "Copyright 2018 The ANGLE Project Authors. All rights reserved.">
 ```
 
@@ -988,7 +988,7 @@ built from https://github.com/AvaloniaUI/angle. Upstream project: https://github
 | **B4** | the export dialog VM | C2.8's advanced option | C2.8 waits; nothing else blocks |
 | **B2** | `Playback2DSettings` on `AppSettings` | C2.8's `RenderBackend` key | C2.8 waits |
 | **C1** | `dv2d` CLI + its option parsing | C2.7's flags and `probe` subcommand | C2.7 waits; the factory API is usable without it |
-| **CS2DemoKit (packages)** | nothing | — | C2 touches no parser API |
+| **CS2DemoKit (packages)** | nothing | n/a | C2 touches no parser API |
 
 ### 9.2 Exported by C2 (who consumes them)
 
@@ -1016,8 +1016,8 @@ built from https://github.com/AvaloniaUI/angle. Upstream project: https://github
 | R5 | **Thread-affinity violation from a future caller** (an export session that hops threads, a test that parallelizes) | M | H | The §2.7 guard turns it into an immediate exception; `[NotInParallel]` on GPU test classes; XML docs state it on every member | built into C2.3 |
 | R6 | **Perceptual thresholds are wrong**: too tight (flaky CI) or too loose (misses real regressions) | M | M | Calibrate on real hardware in C2.12 against a *deliberate* defect (delete one layer, shift one marker 1 px) and confirm the suite fails; thresholds move only with the §7.3 procedure | 2 h in C2.12 |
 | R7 | **B0's provider seam differs from §6.1** (C2 is planned in parallel with B0's implementation) | M | M | C2.0 is exactly this check, and it is task #1. The design's §5.8 sketch is the shared source of truth for both phases | 0.5 h |
-| R8 | **CI GPU lane never runs** because no self-hosted runner exists, so the ≥ 2× number is never re-verified after the spike | H | L | Accepted. The hosted lanes still gate correctness and parity; the throughput number is recorded in the decision doc + `bench-reports/` as a point-in-time measurement, exactly like the repo's existing perf-sweep practice | — |
-| R9 | **ANGLE version drifts from Avalonia's** via an independent bump | L | H | The pinning comment in §8.1 plus a one-line check in the Avalonia-bump checklist | — |
+| R8 | **CI GPU lane never runs** because no self-hosted runner exists, so the ≥ 2× number is never re-verified after the spike | H | L | Accepted. The hosted lanes still gate correctness and parity; the throughput number is recorded in the decision doc + `bench-reports/` as a point-in-time measurement, exactly like the repo's existing perf-sweep practice | n/a |
+| R9 | **ANGLE version drifts from Avalonia's** via an independent bump | L | H | The pinning comment in §8.1 plus a one-line check in the Avalonia-bump checklist | n/a |
 
 ---
 
@@ -1056,7 +1056,7 @@ Maps 1:1 to the design's exit criterion plus this plan's additions.
 - [ ] `THIRD-PARTY-NOTICES.md` §d carries the full ANGLE BSD-3-Clause text; `av_libglesv2.dll` is confirmed present in a `win-x64` self-contained publish of both the Desktop head and `dv2d`.
 - [ ] `Directory.Packages.props` pins `Avalonia.Angle.Windows.Natives` to Avalonia's exact version, with the coherence comment.
 - [ ] The `render-backends` CI job is green on both `ubuntu-latest` and `windows-latest`, and the GPU lane is **not** in the required-checks set.
-- [ ] `docs/playback2d-v2/c2-backend-decision.md` exists, is filled in (including the `W3 Vulkan — eliminated pre-spike` row), and design §12 open question 2 links to it.
+- [ ] `docs/playback2d-v2/c2-backend-decision.md` exists, is filled in (including the `W3 Vulkan` / `eliminated pre-spike` row), and design §12 open question 2 links to it.
 
 ---
 
