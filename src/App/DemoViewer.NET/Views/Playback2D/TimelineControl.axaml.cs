@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Views.Playback2D;
 /// <summary>
 ///     The scrub / rounds / markers chrome docked under the 2D viewport. Pure plumbing: the code-behind owns
 ///     only pointer capture and the width handshake, and every seek goes out as a view-model request that
-///     the tab forwards to the shared clock — the control never moves playback itself.
+///     the tab forwards to the shared clock. The control never moves playback itself.
 /// </summary>
 public partial class TimelineControl : UserControl
 {

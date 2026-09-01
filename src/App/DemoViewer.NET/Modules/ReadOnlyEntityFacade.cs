@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Modules;
 /// <summary>
 ///     Transient read-only facade over one live <see cref="EntityState" />. Its backing
 ///     pointer is RE-AIMED across reads (pooled), so the framework allocates nothing per entity per
-///     push. The indexer maps to the allocation-free <c>EntityState["path"]</c> accessor — never
+///     push. The indexer maps to the allocation-free <c>EntityState["path"]</c> accessor, never
 ///     <c>EntityState.Fields</c>. Valid only inside the callback; never retain it.
 /// </summary>
 internal sealed class ReadOnlyEntityFacade : IReadOnlyEntity
@@ -56,6 +56,6 @@ internal sealed class ReadOnlyEntityFacade : IReadOnlyEntity
         return false;
     }
 
-    /// <summary>Re-aims this facade at another live entity (pooling — no allocation).</summary>
+    /// <summary>Re-aims this facade at another live entity (pooling, no allocation).</summary>
     public void Aim(EntityState entity) => _entity = entity;
 }

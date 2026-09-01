@@ -14,13 +14,13 @@ namespace DemoViewer.NET.Features;
 ///         The default matrix below encodes the category-visibility matrix from
 ///         docs/ui/design-system.md: the consumer surface is the viewing tabs (Library + Stats +
 ///         2D Playback), and the skip-wizard fallback category is Power-User. Every gated feature
-///         stays user-toggleable via <c>AppSettings.Features.Overrides</c> regardless of category —
+///         stays user-toggleable via <c>AppSettings.Features.Overrides</c> regardless of category:
 ///         this matrix only sets DEFAULTS.
 ///     </para>
 /// </summary>
 public static class FeatureCatalog
 {
-    // --- Stable feature ids (never renamed once shipped — they are persisted override keys) ---
+    // --- Stable feature ids (never renamed once shipped: they are persisted override keys) ---
 
     /// <summary>Group whose members toggle atomically: parser hex pane + parse-chain surfaces.</summary>
     public const string GroupParserDeepDive = "parserDeepDive";
@@ -52,12 +52,12 @@ public static class FeatureCatalog
             "Player-facing scoreboard and per-round stats. Core viewing surface.",
             null, null, false, Defaults(true, true, true)),
         // The Reels dashboard. Was a library-wide highlights
-        // BROWSER; it is an authoring surface now — per-game exploration moved to Match Overview. Still
+        // BROWSER; it is an authoring surface now. Per-game exploration moved to Match Overview. Still
         // default-visible to every category: gating reel generation to power-users would hide the feature's
         // headline payoff from the audience most excited by it.
         //
         // Warning: the id "tab.highlights" is a PERSISTED KEY (settings write Features:Overrides:{id}) and must not
-        // change with the rename — doing so would silently reset every user's override for this tab. The label
+        // change with the rename. Doing so would silently reset every user's override for this tab. The label
         // and description are display-only and are free to be reworded.
         new(
             "tab.highlights", FeatureScope.Tab, "Reels",
@@ -115,11 +115,11 @@ public static class FeatureCatalog
             "tab.entity", null, false, Defaults(false, false, true)),
         // The Reels config pane's ENCODING section. CRF, bitrate,
         // FPS and container are OBS-encoder knobs a consumer cannot reason about and would never intentionally
-        // touch — the textbook "hidden but enableable" tier, so consumer:false / power:true / dev:true. It is
+        // touch: the textbook "hidden but enableable" tier, so consumer:false / power:true / dev:true. It is
         // hidden, NOT removed: every category can switch it on in Settings, and the consumer-facing path to a
         // finished reel (tray → Default/No-HUD → folder + name → Generate) never routes through it.
         //
-        // Careful: consumed via ReelConfig.IsEncodingVisible, re-resolved on IFeatureGate.Changed — NOT a one-shot
+        // Careful: consumed via ReelConfig.IsEncodingVisible, re-resolved on IFeatureGate.Changed, NOT a one-shot
         // read, or toggling it in Settings would leave the section wrong until the tab was rebuilt. No GroupId:
         // it must not disturb the parserDeepDive / graphDebug leader-lock ordering.
         new(
@@ -141,7 +141,7 @@ public static class FeatureCatalog
         // ---------------- 2D PLAYBACK v2 SUB-FEATURES ----------------
         // One contiguous block so the rows read as one group in Settings. Every entry keeps GroupId = null,
         // so the parserDeepDive / graphDebug leader-lock ordering above is untouched. Later v2 phases insert
-        // their own rows HERE (final order: annotations · timeline · levels.auto · follow · export) — the ids
+        // their own rows HERE (final order: annotations · timeline · levels.auto · follow · export): the ids
         // are persisted override keys and must never be renamed.
         new(
             "playback2d.annotations", FeatureScope.SubFeature, "Annotations",
@@ -161,7 +161,7 @@ public static class FeatureCatalog
             "Select a player card to follow them in the 2D camera (and in CS2 while Live Sync is active).",
             "tab.playback2d", null, false, Defaults(true, true, true)),
         // Desktop only: an export writes a file and drives an ffmpeg subprocess, and the WASM head has
-        // neither. That AND lives in exactly ONE place — ShellModuleFeatureGate.DesktopOnlyIds — which is
+        // neither. That AND lives in exactly ONE place, ShellModuleFeatureGate.DesktopOnlyIds, which is
         // the same treatment chrome.livesync gets. Only the ID is a persisted key.
         new(
             "playback2d.export", FeatureScope.SubFeature, "Video export",
@@ -198,10 +198,10 @@ public static class FeatureCatalog
         // chrome.processingQueue governs the status-strip demo-processing chip + flyout
         //: the live surface for the global background parse/analyse queue (pause/resume, per-item remove,
         // status). EVERY category sees it (consumer:true / power:true / dev:true) so all users stay aware of
-        // background work happening on their behalf — the chip only appears WHEN the queue is active, so an idle
+        // background work happening on their behalf: the chip only appears WHEN the queue is active, so an idle
         // queue still adds no clutter for anyone. No GroupId → appended last so it does not disturb the
         // parserDeepDive / graphDebug leader-lock ordering. The shell shim also ANDs !OperatingSystem.IsBrowser()
-        // (background work needs a filesystem — none on the WASM head). Only the ID is a persisted key; the
+        // (background work needs a filesystem: none on the WASM head). Only the ID is a persisted key; the
         // description is display-only help text.
         new(
             "chrome.processingQueue", FeatureScope.Chrome, "Processing queue",
@@ -232,8 +232,8 @@ public static class FeatureCatalog
         _catalog.Where(d => d.GroupId == groupId);
 
     /// <summary>
-    ///     The deterministic leader of <paramref name="groupId" /> — its FIRST member in <see cref="All" />
-    ///     order — whose resolved own-state every member of the group adopts. <c>null</c> for an unknown group.
+    ///     The deterministic leader of <paramref name="groupId" />, its FIRST member in <see cref="All" />
+    ///     order, whose resolved own-state every member of the group adopts. <c>null</c> for an unknown group.
     /// </summary>
     public static FeatureDescriptor? GroupLeader(string groupId) =>
         _catalog.FirstOrDefault(d => d.GroupId == groupId);

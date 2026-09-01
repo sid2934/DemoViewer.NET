@@ -10,7 +10,7 @@ using System.Text.RegularExpressions;
 namespace DemoViewer.NET.Services.Update;
 
 /// <summary>
-///     <see cref="IReleaseNotesService" /> over the GitHub Releases API — the same repository
+///     <see cref="IReleaseNotesService" /> over the GitHub Releases API, the same repository
 ///     <c>VelopackUpdateService</c> updates from, so the notes shown always describe the exact
 ///     packages the updater installs. Unauthenticated on purpose (the repo is public), one small
 ///     JSON request per version, cached for the process lifetime.
@@ -48,14 +48,14 @@ public sealed partial class GitHubReleaseNotesService : IReleaseNotesService
 
         ReleaseNotes? fetched = await FetchAsync(normalized, ct).ConfigureAwait(false);
         // Cache failures too: a launch-time fetch that failed offline should not retry on every
-        // re-open of the same window this run — the next launch gets a fresh chance.
+        // re-open of the same window this run, the next launch gets a fresh chance.
         _cache[normalized] = fetched;
         return fetched;
     }
 
     /// <summary>
-    ///     Reduces any version string the app encounters — Velopack's "0.6.0", NBGV's
-    ///     "0.6.0-alpha+g1a2b3c4", a "v0.6.0" tag — to the bare x.y.z the release tags use.
+    ///     Reduces any version string the app encounters: Velopack's "0.6.0", NBGV's
+    ///     "0.6.0-alpha+g1a2b3c4", a "v0.6.0" tag, to the bare x.y.z the release tags use.
     ///     Null when no x.y.z can be found (e.g. "(unknown)").
     /// </summary>
     public static string? NormalizeVersion(string? version)
@@ -78,7 +78,7 @@ public sealed partial class GitHubReleaseNotesService : IReleaseNotesService
                 .ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
-                return null; // 404 (tag has no release), rate-limited, etc. — all degrade the same
+                return null; // 404 (tag has no release), rate-limited, etc., all degrade the same
             }
 
             await using Stream stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
@@ -90,7 +90,7 @@ public sealed partial class GitHubReleaseNotesService : IReleaseNotesService
                 : string.Empty;
             if (string.IsNullOrWhiteSpace(body))
             {
-                return null; // a bodyless release renders as an empty pane — treat as unavailable
+                return null; // a bodyless release renders as an empty pane, treat as unavailable
             }
 
             string title = root.TryGetProperty("name", out JsonElement nameEl)
@@ -108,7 +108,7 @@ public sealed partial class GitHubReleaseNotesService : IReleaseNotesService
         }
         catch
         {
-            // Offline, DNS, TLS, malformed JSON — notes are cosmetic, so every failure is "no notes".
+            // Offline, DNS, TLS, malformed JSON: notes are cosmetic, so every failure is "no notes".
             return null;
         }
     }

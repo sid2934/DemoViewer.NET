@@ -11,14 +11,14 @@ namespace DemoViewer.NET.ViewModels.Highlights;
 /// <summary>
 ///     Stable identity of one harvested highlight across detail-pane rebuilds and tab switches
 ///     . A <see cref="CachedHighlightEvent" /> carries no primary key, so
-///     the clip tray is keyed by this composite — surviving a re-projection of the plan and a switch to
+///     the clip tray is keyed by this composite, surviving a re-projection of the plan and a switch to
 ///     another demo (the tray spans demos by construction).
 /// </summary>
 /// <param name="FilePath">Owning demo path (the cross-demo half of the identity).</param>
 /// <param name="RulesetId">Ruleset that emitted the highlight.</param>
 /// <param name="HighlightId">Highlight id inside that ruleset.</param>
 /// <param name="Tick">Firing tick, FRAME CLOCK (never server tick).</param>
-/// <param name="PlayerSlot">Attributed player slot — two players can fire the same rule on the same tick.</param>
+/// <param name="PlayerSlot">Attributed player slot: two players can fire the same rule on the same tick.</param>
 public readonly record struct HighlightKey(
     string FilePath,
     string RulesetId,
@@ -30,13 +30,13 @@ public readonly record struct HighlightKey(
 ///     One staged highlight, with the owning cache record bundled so the reel config pane has EVERYTHING clip
 ///     assembly needs without re-touching the store: the record carries tickRate / tickCount / rounds / demo
 ///     path / roster; the highlight carries tick / round / rendered title. This is the shape
-///     <see cref="HighlightsTabViewModel.StagedSelections" /> exposes — the config pane builds
+///     <see cref="HighlightsTabViewModel.StagedSelections" /> exposes: the config pane builds
 ///     <c>ClipWindows.Candidate</c> from each.
 ///     <para>
 ///         Carries the UNIFIED <see cref="DemoCacheRecord" /> (step 4's absorption). The one shape change
 ///         that matters: the unified record stores each player ONCE and references them by slot, rather than
 ///         repeating a name and steamId on every highlight row. So name and steamId are resolved here, in one
-///         place, instead of being read off the event by four different consumers — which is also what makes
+///         place, instead of being read off the event by four different consumers, which is also what makes
 ///         a rename coherent rather than frozen into every event ever harvested.
 ///     </para>
 /// </summary>
@@ -53,7 +53,7 @@ public sealed record HighlightSelection(DemoCacheRecord Record, CachedHighlightE
         Record.Players.FirstOrDefault(p => p.Slot == Highlight.PlayerSlot);
 
     /// <summary>
-    ///     The player's RAW in-demo name — CSVG's <c>spec_player</c> currency, never sanitized. Empty when the
+    ///     The player's RAW in-demo name: CSVG's <c>spec_player</c> currency, never sanitized. Empty when the
     ///     roster does not carry the slot (a highlight is still worth showing unattributed).
     /// </summary>
     public string RawPlayerName => Player?.Name ?? "";
@@ -69,7 +69,7 @@ public sealed record HighlightSelection(DemoCacheRecord Record, CachedHighlightE
 ///         <c>ClipGroups</c> collection on every lead-in/lead-out keystroke, so the ▲▼✕ buttons live on
 ///         objects that are thrown away constantly. The canonical order therefore lives in the TAB view-model
 ///         (a plain ordered key list) and the buttons call into it; a rebuild mid-interaction then re-derives
-///         the tray instead of corrupting it. The alternative — order held on the rebuilt group VMs — loses
+///         the tray instead of corrupting it. The alternative, order held on the rebuilt group VMs, loses
 ///         the user's arrangement the moment they touch a padding field.
 ///     </para>
 /// </summary>
@@ -105,7 +105,7 @@ public static class ClipTrayKeys
     /// <param name="demoPath">Demo file path.</param>
     /// <param name="steamId64">Attributed player's steamId64 (may be empty).</param>
     public static string Group(string demoPath, string? steamId64) =>
-        // U+001F (unit separator) rather than '|' or ':' — both are legal in a POSIX path, so a demo named
+        // U+001F (unit separator) rather than '|' or ':', both are legal in a POSIX path, so a demo named
         // "a|b.dem" would otherwise collide with a different (path, steamId) pair.
         (demoPath ?? "").ToUpperInvariant() + '\u001f' + (steamId64 ?? "");
 }
@@ -141,7 +141,7 @@ public partial class HighlightTypeFilterItem(string typeKey, string display, int
 }
 
 /// <summary>
-///     A multi-select highlight-KIND filter chip (editorial track — skill / funny / lowlight), so a user can
+///     A multi-select highlight-KIND filter chip (editorial track: skill / funny / lowlight), so a user can
 ///     pull the comedic and lowlight firings out of the main skill reel. None selected = all kinds. Mirrors
 ///     <see cref="HighlightTypeFilterItem" />, keyed by the <see cref="HighlightKind" /> enum rather than a
 ///     string.
@@ -169,7 +169,7 @@ public partial class HighlightKindFilterItem(HighlightKind kind, string display,
 
 /// <summary>
 ///     A multi-select player filter item, keyed by steamId64, with a sanitized display
-///     name and a highlight count. None selected = all players. Parked for the Add-clips picker — see
+///     name and a highlight count. None selected = all players. Parked for the Add-clips picker: see
 ///     <see cref="HighlightTypeFilterItem" />.
 /// </summary>
 /// <param name="steamId64">steamId64 (the stable aggregation key; falls back to the raw name when empty).</param>
@@ -221,9 +221,9 @@ public sealed class StagedClipState
 ///     splitter ratios. Plain, binder-safe fields so it round-trips through the session store.
 ///     <para>
 ///         <b>Inert until the shell persists it.</b> <c>IWorkspaceTabViewModel.SnapshotState()</c> has a
-///         default returning null and NO call site outside tests — module tab state is not written to disk
+///         default returning null and NO call site outside tests: module tab state is not written to disk
 ///         today. The tray therefore survives tab switches (it lives in the retained VM) but NOT an app
-///         restart until the shell calls this — a shell obligation.
+///         restart until the shell calls this: a shell obligation.
 ///     </para>
 /// </summary>
 public sealed class HighlightsSessionState

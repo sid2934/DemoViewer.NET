@@ -30,15 +30,15 @@ public partial class Playback2DView : UserControl
 
     // The ink half of the mounted surface, or null under the legacy escape hatch. Every "can this thing
     // draw?" question below asks THIS rather than `_surface is Scene2DHost`, so the tool entry points and
-    // the toolbar that offers them cannot disagree — a concrete-type check on one side and a feature-gate
+    // the toolbar that offers them cannot disagree. A concrete-type check on one side and a feature-gate
     // check on the other ships a complete, inert tool row over a surface with no router.
     private readonly IAnnotationSurface? _toolSurface;
 
     private Playback2DTabViewModel? _boundViewModel;
 
     // The key that actually STARTED the hold, latched at key-down. Nothing else ever clears the router's
-    // pan flag, so anything that can make the release stop matching — a rebind, an external settings.json
-    // edit, a profile swap — would strand the surface panning forever.
+    // pan flag, so anything that can make the release stop matching (a rebind, an external settings.json
+    // edit, a profile swap) would strand the surface panning forever.
     private Key? _holdPanKey;
 
     public Playback2DView()
@@ -87,7 +87,7 @@ public partial class Playback2DView : UserControl
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
 
         // Space is HELD to pan while a drawing tool is active (plan decision D3), so its release has to
-        // be observed too — the keymap only ever resolves a press.
+        // be observed too. The keymap only ever resolves a press.
         AddHandler(KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel);
 
         // Clicking the map focuses the surface, so the keymap starts working without a Tab press.
@@ -120,7 +120,7 @@ public partial class Playback2DView : UserControl
         {
             // FIRST, before anything reads IsAnnotationsEnabled. The View is the only side that knows
             // which surface got mounted, and under the legacy hatch the answer is "nothing here can host
-            // ink" — which has to be true before the toolbar binds its visibility to it, and before the
+            // ink", which has to be true before the toolbar binds its visibility to it, and before the
             // keymap can compute toolActive off a tool the user selected in a toolbar that should not
             // have been there.
             _boundViewModel.SetSurfaceCapabilities(_toolSurface is not null);
@@ -146,7 +146,7 @@ public partial class Playback2DView : UserControl
 
             // The View is DESTROYED on deactivation and rebuilt from the descriptor's ViewFactory on every
             // activation, while the tab VM is cached (WorkspaceTabDescriptor.Activate / .Deactivate). The
-            // follow target therefore survives in the VM — card highlight, "requested" chip, FollowStatus —
+            // follow target therefore survives in the VM (card highlight, "requested" chip, FollowStatus)
             // over a fresh viewport that defaults to Fit. Re-projecting it here is what makes the VM the
             // single source of truth rather than half of one.
             if (_boundViewModel.FollowedSlot >= 0)
@@ -218,7 +218,7 @@ public partial class Playback2DView : UserControl
         }
 
         // A drawing tool being active is what makes the keymap's tool-scoped rows shadow the always-scoped
-        // ones — the mechanism by which Space and Esc change meaning without a second table.
+        // ones: the mechanism by which Space and Esc change meaning without a second table.
         bool toolActive = vm.IsAnnotationsEnabled && vm.Annotations.IsDrawingToolActive;
 
         // The VM's RESOLVED profile, not the shipped static table: the table is the default this composes
@@ -231,7 +231,7 @@ public partial class Playback2DView : UserControl
         // Two actions belong to the SURFACE, not the view-model: they act on the router's in-flight
         // gesture, which is host state the VM deliberately does not own.
         //
-        // Both are TOOL-SCOPED, so they can only resolve while toolActive — which is now false whenever
+        // Both are TOOL-SCOPED, so they can only resolve while toolActive, which is now false whenever
         // the mounted surface cannot host ink. The `_toolSurface is null` arms below are therefore
         // unreachable in a shipped build; they stay because leaving the key UNHANDLED is the right
         // answer if a future surface ever reports capable and then isn't, and because the previous
@@ -244,7 +244,7 @@ public partial class Playback2DView : UserControl
                 {
                     // LATCH the key, do not re-resolve it on the way up. Rebinding hold-to-pan (or an
                     // external settings.json edit landing) while the key is down changed what the
-                    // profile answered, so the release matched nothing — and nothing else clears the
+                    // profile answered, so the release matched nothing, and nothing else clears the
                     // flag, so the surface panned forever from that moment on.
                     _holdPanKey = e.Key;
                     holdHost.SetSpacePanHeld(true);

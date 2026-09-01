@@ -7,8 +7,8 @@ using DemoViewer.NET.Modules.Abstractions;
 namespace DemoViewer.NET.Features;
 
 /// <summary>
-///     The shell's <see cref="IModuleFeatureGate" /> projection over the singleton <see cref="IFeatureGate" />
-///     — the ONE place module-facing feature ids are resolved, and the ONE
+///     The shell's <see cref="IModuleFeatureGate" /> projection over the singleton <see cref="IFeatureGate" />:
+///     the ONE place module-facing feature ids are resolved, and the ONE
 ///     <c>!OperatingSystem.IsBrowser()</c> AND site for them (<see cref="DesktopOnlyIds" />). A module reads
 ///     <c>IModuleContext.Features</c> and never re-derives platform conditions, exactly as the shell's own
 ///     <c>chrome.livesync</c> / <c>chrome.processingQueue</c> surfaces do.
@@ -35,7 +35,7 @@ public sealed class ShellModuleFeatureGate : IModuleFeatureGate, IDisposable
     ///         .IsBrowser()
     ///     </c>
     ///     is an intrinsic the JIT folds to a constant, so there is no faking it from
-    ///     outside — and a desktop-only gate that is never proved to close is a gate nobody has tested.
+    ///     outside, and a desktop-only gate that is never proved to close is a gate no CI lane exercises.
     /// </summary>
     /// <param name="gate">The shell gate to project. Null fails open.</param>
     /// <param name="isBrowser">Whether the host is the WASM head.</param>
@@ -51,7 +51,7 @@ public sealed class ShellModuleFeatureGate : IModuleFeatureGate, IDisposable
     }
 
     /// <summary>
-    ///     Module feature ids that additionally require a desktop head — the ONE
+    ///     Module feature ids that additionally require a desktop head: the ONE
     ///     <c>!OperatingSystem.IsBrowser()</c> AND site for module-facing ids (B5 D4). A phase that needs a
     ///     desktop-only gate adds its id here and nowhere else; a second shim would be a second answer to
     ///     the same question.

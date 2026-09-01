@@ -10,7 +10,7 @@ using DemoViewer.NET.Services.Update;
 namespace DemoViewer.NET.ViewModels.Update;
 
 /// <summary>
-///     Backs the update-notice pop-up window — the richer replacement for the old banner-only
+///     Backs the update-notice pop-up window: the richer replacement for the old banner-only
 ///     offer. Wraps the shared <see cref="UpdateViewModel" /> (which owns check/download/apply
 ///     state) and adds the release notes for the offered version, fetched lazily when the window
 ///     opens so the pop-up never waits on the network to appear.
@@ -54,13 +54,13 @@ public sealed partial class UpdateNoticeViewModel : ViewModelBase
     }
 
     /// <summary>
-    ///     The shared updater VM — the window binds its Update &amp; Restart command, download
+    ///     The shared updater VM: the window binds its Update &amp; Restart command, download
     ///     progress, and status text straight through, so the pop-up and the banner can never
     ///     disagree about update state.
     /// </summary>
     public UpdateViewModel Update { get; }
 
-    /// <summary>Window headline — offered version comes from the shared updater VM.</summary>
+    /// <summary>Window headline: offered version comes from the shared updater VM.</summary>
     public string HeadlineText => $"DemoViewer.NET {Update.AvailableVersion} is available";
 
     /// <summary>Secondary line: what the user is running now.</summary>
@@ -109,7 +109,7 @@ public sealed partial class UpdateNoticeViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Closes the pop-up without dismissing the banner — the offer stays visible.</summary>
+    /// <summary>Closes the pop-up without dismissing the banner: the offer stays visible.</summary>
     [RelayCommand]
     private void Later() => CloseRequested?.Invoke(this, EventArgs.Empty);
 

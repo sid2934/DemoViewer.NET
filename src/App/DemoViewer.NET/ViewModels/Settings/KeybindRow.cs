@@ -12,7 +12,7 @@ namespace DemoViewer.NET.ViewModels.Settings;
 ///     One row in Settings' "2D playback controls" list: an action, the gesture currently resolving
 ///     to it, and the affordances to rebind or reset it.
 ///     <para>
-///         The row is <b>display state only</b> — every write goes back through the owning
+///         The row is <b>display state only</b>: every write goes back through the owning
 ///         <see cref="SettingsViewModel" />, which validates the candidate against
 ///         <c>Playback2DKeymapProfile</c> BEFORE persisting. That is why a refused rebind can show
 ///         <see cref="Conflict" /> here instead of silently doing nothing: the row is told why.
@@ -55,13 +55,13 @@ public sealed partial class KeybindRow : ObservableObject
         _gesture = Playback2DKeymapProfile.Default.GestureText(binding.Action);
     }
 
-    /// <summary>The action this row binds. The persisted override key — never renamed.</summary>
+    /// <summary>The action this row binds. The persisted override key: never renamed.</summary>
     public Playback2DAction Action { get; }
 
     /// <summary>Human description, straight from the keymap table so the two can never drift.</summary>
     public string Label { get; }
 
-    /// <summary>"always" or "while drawing" — the scope chip, and the reason two rows can share a key.</summary>
+    /// <summary>"always" or "while drawing": the scope chip, and the reason two rows can share a key.</summary>
     public string ScopeLabel { get; }
 
     /// <summary>Declared but unroutable: listed so the gesture does not look free, but not rebindable.</summary>
@@ -81,7 +81,7 @@ public sealed partial class KeybindRow : ObservableObject
     public bool HasConflict => Conflict.Length > 0;
 
     // Push the resolved profile's answer into the bound state. No echo guard is needed (unlike
-    // FeatureToggleRow): nothing here persists on change — the rebind and reset paths are explicit
+    // FeatureToggleRow): nothing here persists on change: the rebind and reset paths are explicit
     // commands, so a refresh cannot write anything back.
     internal void Refresh(Playback2DKeymapProfile profile)
     {
@@ -96,7 +96,7 @@ public sealed partial class KeybindRow : ObservableObject
     partial void OnConflictChanged(string value) => OnPropertyChanged(nameof(HasConflict));
 
     // Arms the capture: the NEXT keypress anywhere in the Settings view becomes this row's gesture. The
-    // view's tunnelling handler is what routes it here — see SettingsView.axaml.cs.
+    // view's tunnelling handler is what routes it here: see SettingsView.axaml.cs.
     [RelayCommand]
     private void BeginCapture() => _owner.BeginKeybindCapture(this);
 

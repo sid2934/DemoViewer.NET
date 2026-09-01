@@ -20,7 +20,7 @@ namespace DemoViewer.NET.Configuration;
 ///     <c>IOptionsMonitor&lt;AppSettings&gt;</c> bound to <see cref="Configuration" />.
 ///     <para>
 ///         <b>OnChange threading.</b> A <see cref="Write" /> reloads synchronously on the calling thread,
-///         so self-writes raise <c>IOptionsMonitor.OnChange</c> deterministically inline — no marshaling on
+///         so self-writes raise <c>IOptionsMonitor.OnChange</c> deterministically inline: no marshaling on
 ///         that path. The <c>reloadOnChange</c> file watcher additionally fires for <em>external</em> edits
 ///         on a threadpool thread; consumers that touch UI state from OnChange MUST marshal to
 ///         <c>Dispatcher.UIThread</c> themselves.
@@ -35,7 +35,7 @@ public sealed class SettingsService
     private const string SettingsFileName = "settings.json";
     private const string EnvPrefix = "DEMOVIEWER_";
 
-    // Reused per CA1869 — constructing JsonSerializerOptions per call is expensive.
+    // Reused per CA1869: constructing JsonSerializerOptions per call is expensive.
     private static readonly JsonSerializerOptions _serializerOptions = new()
     {
         WriteIndented = true,
@@ -46,7 +46,7 @@ public sealed class SettingsService
     };
 
     // In-memory provider backing the WASM / no-filesystem path; null on desktop. A resettable variant
-    // (see the nested type) so a write can atomically REPLACE the whole key set — the built-in
+    // (see the nested type) so a write can atomically REPLACE the whole key set. The built-in
     // MemoryConfigurationProvider has no clear, which would leak stale keys on a shrinking collection.
     private readonly ResettableMemoryConfigurationProvider? _mem;
 
@@ -61,7 +61,7 @@ public sealed class SettingsService
     }
 
     /// <summary>
-    ///     Constructs over an explicit config directory. This is the test seam — pass a temp dir to keep a
+    ///     Constructs over an explicit config directory. This is the test seam: pass a temp dir to keep a
     ///     test run out of the real user config folder. A <c>null</c> directory (WASM) selects the
     ///     in-memory, file-less path.
     /// </summary>
@@ -77,7 +77,7 @@ public sealed class SettingsService
             // programmatic writes because the provider's Load() is a no-op (its Data survives Reload), so a
             // mutate-then-Reload fires the change token just like the file source. The resettable variant
             // is added directly (it is its own IConfigurationSource) so a write can atomically replace all
-            // keys — see WriteInMemory.
+            // keys: see WriteInMemory.
             _mem = new ResettableMemoryConfigurationProvider();
             builder.Add(_mem);
         }
@@ -86,7 +86,7 @@ public sealed class SettingsService
             Directory.CreateDirectory(configDir!); // ensure the base path exists before the watcher attaches
             builder.SetBasePath(configDir!)
                 .AddJsonFile(SettingsFileName, true, true);
-            // Swallow a corrupt/partial file — keep defaults, flag first-run — instead of throwing at Build.
+            // Swallow a corrupt/partial file: keep defaults, flag first-run, instead of throwing at Build.
             builder.SetFileLoadExceptionHandler(ctx =>
             {
                 _loadFailed = true;
@@ -114,16 +114,16 @@ public sealed class SettingsService
     public AppSettings Current => Configuration.Get<AppSettings>() ?? new AppSettings();
 
     /// <summary>
-    ///     <c>true</c> when no usable settings file has been persisted yet — the file is absent, or present
+    ///     <c>true</c> when no usable settings file has been persisted yet: the file is absent, or present
     ///     but failed to parse. Drives the first-run experience.
     /// </summary>
     // Based on the AppSettings.FirstRunCompleted flag (set only by the wizard's Finish/Skip), NOT on whether
-    // settings.json exists — the demo-library folder migration can create the file as a side effect during
+    // settings.json exists. The demo-library folder migration can create the file as a side effect during
     // BuildServices, which must NOT count as "setup done" (an upgrading user has still never picked a
     // category). A missing/corrupt file binds to defaults (FirstRunCompleted == false), so this is naturally
     // true for a fresh or unparseable config.
-    // WASM: no persisted file, so FirstRunCompleted resets to false each page load and this is ALWAYS true —
-    // the wizard is therefore auto-shown on the DESKTOP host only (App.axaml.cs guards to the classic-desktop
+    // WASM: no persisted file, so FirstRunCompleted resets to false each page load and this is ALWAYS true.
+    // The wizard is therefore auto-shown on the DESKTOP host only (App.axaml.cs guards to the classic-desktop
     // lifetime); on WASM it is reachable solely via Settings' "Re-run first-time setup", never auto-shown, so
     // it cannot loop every page load. WASM users get the PowerUser defaults out of the box.
     public bool NeedsFirstRun => _loadFailed || !Current.FirstRunCompleted;
@@ -145,7 +145,7 @@ public sealed class SettingsService
         // The write BASIS is the persisted (file / in-memory) state, NOT the env-layered Current: a
         // transient DEMOVIEWER_-prefixed override is the highest-precedence layer in Current, so using it
         // as the basis would bake that override into settings.json on an unrelated write and permanently
-        // overwrite the user's real file value. Env overrides stay effective for READS (Current) — they
+        // overwrite the user's real file value. Env overrides stay effective for READS (Current), they
         // are simply never persisted by a write.
         AppSettings settings = ReadPersistedBasis();
         mutate(settings);
@@ -157,7 +157,7 @@ public sealed class SettingsService
         else
         {
             // Merge the mutated PREFERENCE keys into the existing file object, leaving the consolidated
-            // Session / Recents sections (which AppSettings does not model) untouched — a preference write
+            // Session / Recents sections (which AppSettings does not model) untouched: a preference write
             // must never clobber them.
             JsonObject file = ReadFileObject();
             JsonObject prefs = JsonSerializer.SerializeToNode(settings, _serializerOptions)!.AsObject();
@@ -167,12 +167,12 @@ public sealed class SettingsService
             }
 
             WriteObject(file);
-            _loadFailed = false; // we just wrote valid JSON — any prior parse failure is cleared
+            _loadFailed = false; // valid JSON was just written, so any prior parse failure is cleared
         }
 
         // Reload immediately: fires the reload token synchronously on this thread, so self-write OnChange is
         // deterministic. The file watcher (desktop) will additionally re-fire for the same change on a
-        // threadpool thread — with identical values, so it is a harmless no-op refresh.
+        // threadpool thread, with identical values, so it is a harmless no-op refresh.
         ((IConfigurationRoot)Configuration).Reload();
     }
 
@@ -199,7 +199,7 @@ public sealed class SettingsService
     /// <summary>
     ///     Persists the UI session-restore snapshot into the single config file's <c>Session</c> section,
     ///     preserving every other section (single-serializer, no clobber). Deliberately does NOT
-    ///     <c>Reload()</c> — session state is not read through <c>IOptionsMonitor</c>, so a self-write raises
+    ///     <c>Reload()</c>: session state is not read through <c>IOptionsMonitor</c>, so a self-write raises
     ///     no synchronous <c>OnChange</c> and never thrashes the feature gate (churn control). No-op on
     ///     WASM/fileless.
     /// </summary>
@@ -219,7 +219,7 @@ public sealed class SettingsService
         {
             // Best-effort, like the pre-consolidation SessionStore: a disk-full / locked-file / permission
             // failure must never crash the app (this runs from the shutdown handler). The reactive preference
-            // Write path keeps rethrowing — only these non-preference sections swallow.
+            // Write path keeps rethrowing. Only these non-preference sections swallow.
         }
     }
 
@@ -267,10 +267,10 @@ public sealed class SettingsService
     // Reads <configDir>/<legacyFileName>; if present and parseable, hands it to <persist> (which writes it
     // into the merged file) and renames the source to <name>.bak so the user can restore. Idempotent: once
     // the section is persisted the caller's absent-section guard never re-enters; the .bak rename also
-    // removes the source. Best-effort — any I/O or parse failure returns default and leaves the source in
+    // removes the source. Best-effort: any I/O or parse failure returns default and leaves the source in
     // place. NOTE: reads <configDir>-relative (not AppPaths) so the test config-dir override is honored; a
     // macOS install whose legacy file still sits in the pre-unification ~/.config is not found (accepted
-    // minor loss — session/recents are ephemeral).
+    // minor loss: session/recents are ephemeral).
     private T? MigrateLegacySection<T>(string legacyFileName, Action<T> persist) where T : class
     {
         string legacyPath = Path.Combine(Path.GetDirectoryName(_settingsPath!)!, legacyFileName);
@@ -333,7 +333,7 @@ public sealed class SettingsService
             }
             catch
             {
-                return null; // a corrupt section is best-effort — treat as absent
+                return null; // a corrupt section is best-effort: treat as absent
             }
         }
 
@@ -341,7 +341,7 @@ public sealed class SettingsService
     }
 
     // Sets one non-preference section on the file object and writes it back, PRESERVING every other section
-    // (preferences + the sibling Session/Recents). Deliberately does NOT Reload() — see SaveSession/SaveRecents.
+    // (preferences + the sibling Session/Recents). Deliberately does NOT Reload(): see SaveSession/SaveRecents.
     private void WriteSection<T>(string sectionName, T value)
     {
         JsonObject file = ReadFileObject();
@@ -350,7 +350,7 @@ public sealed class SettingsService
     }
 
     // The whole config file as a mutable JSON object (or an empty one when absent / unparseable). This is the
-    // basis every write merges into so no section clobbers another — AppSettings does not model Session /
+    // basis every write merges into so no section clobbers another: AppSettings does not model Session /
     // Recents, so a whole-AppSettings serialize would drop them; a node merge keeps them.
     private JsonObject ReadFileObject()
     {
@@ -405,11 +405,11 @@ public sealed class SettingsService
     // WASM / no-filesystem persistence: flatten the fixed AppSettings shape into the in-memory provider so
     // Current, Reload, and OnChange stay consistent. The whole key set is rebuilt from scratch (clear + set)
     // so a shrinking Library.Folders array or a removed Features.Overrides key leaves NO stale
-    // higher-index / removed key that a subsequent bind would re-materialize — the bound AppSettings then
+    // higher-index / removed key that a subsequent bind would re-materialize. The bound AppSettings then
     // exactly matches the written state.
     //
     // DELIBERATELY PARTIAL: only the WASM-reachable subset is flattened. The LiveSync and
-    // Highlights sections are EXCLUDED — live sync/reel are AppHostHooks-absent on the browser
+    // Highlights sections are EXCLUDED: live sync/reel are AppHostHooks-absent on the browser
     // and the Highlights scan opt-in is CanScan-gated off it, so no browser code path writes
     // them today. If either section ever becomes WASM-reachable, its keys MUST be flattened
     // here too or those writes are silently discarded on reload.
@@ -533,8 +533,8 @@ public sealed class SettingsService
         _mem!.ReplaceAll(data);
     }
 
-    // The persisted state used as a write's mutation basis — the user's FILE values on desktop, the
-    // in-memory state on WASM — with the env layer deliberately EXCLUDED (see Write). Robust to a
+    // The persisted state used as a write's mutation basis: the user's FILE values on desktop, the
+    // in-memory state on WASM, with the env layer deliberately EXCLUDED (see Write). Robust to a
     // missing/corrupt file: defaults are returned and the write then repairs the file, mirroring the
     // NeedsFirstRun contract.
     private AppSettings ReadPersistedBasis()
@@ -560,7 +560,7 @@ public sealed class SettingsService
         }
     }
 
-    // Binds AppSettings from ONLY the in-memory provider's current data (WASM) — a scratch root over a
+    // Binds AppSettings from ONLY the in-memory provider's current data (WASM), a scratch root over a
     // snapshot, so the env-variable provider layered onto the live Configuration is excluded from a
     // write's basis.
     private AppSettings BindMemoryOnly()
@@ -590,7 +590,7 @@ public sealed class SettingsService
             }
         }
 
-        // A copy of the current data — the basis for a memory-only (env-excluding) AppSettings bind.
+        // A copy of the current data: the basis for a memory-only (env-excluding) AppSettings bind.
         public KeyValuePair<string, string?>[] Snapshot() => Data.ToArray();
     }
 }

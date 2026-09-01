@@ -18,7 +18,7 @@ namespace DemoViewer.NET.ViewModels;
 /// <summary>
 ///     Self-contained ViewModel for <c>BinaryPane</c>.
 ///     Manages a byte buffer, a virtualized row window, and a hierarchy of <see cref="HexSpan" />
-///     highlight ranges.  Each instance is fully independent — create one per hex view.
+///     highlight ranges.  Each instance is fully independent: create one per hex view.
 /// </summary>
 public sealed partial class HarvestHexViewModel : ObservableObject
 {
@@ -34,13 +34,13 @@ public sealed partial class HarvestHexViewModel : ObservableObject
 
     // ── Level-to-brush palette ────────────────────────────────────────────────
     // Four built-in tiers, fading from fully saturated (selected) to barely-there (ancestor).
-    // Callers never manage brushes — they only specify Level values.
+    // Callers never manage brushes. They only specify Level values.
     //
     // v0.6.0 code-color promotion: the values are now the HexSwatchSelected/Parent/Ancestor/
     // AncestorDeep THEME TOKENS, resolved by BinaryPane (which owns the visual-tree access) via
     // SetPalette on attach and on live theme switch. The array stays static because the theme is
     // process-wide; the defaults below are the Dark values, kept as no-Application fallbacks
-    // (unit tests, designer). Deliberately resolved ONCE per theme — the per-cell hot path
+    // (unit tests, designer). Deliberately resolved ONCE per theme: the per-cell hot path
     // (thousands of cells, LazyRowList materialization) still reads a plain array slot.
 
     private static IBrush[] _levelBrushes =
@@ -187,7 +187,7 @@ public sealed partial class HarvestHexViewModel : ObservableObject
     ///     <para>
     ///         Pass Level 0 for the innermost / currently-selected range, Level 1 for its
     ///         direct parent, Level 2 for the grandparent, etc.  Overlapping spans are
-    ///         resolved by <b>(Level ASC, Length ASC)</b> — lower Level always wins; among
+    ///         resolved by <b>(Level ASC, Length ASC)</b>: lower Level always wins; among
     ///         equal-Level spans the shorter one wins.
     ///     </para>
     ///     The component automatically navigates to the first Level-0 span.

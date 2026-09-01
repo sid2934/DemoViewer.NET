@@ -19,18 +19,18 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.ViewModels.Stats;
 
 /// <summary>
-///     ViewModel for the Stats tab — the user-facing scoreboard surface (release plan P1-3.1).
+///     ViewModel for the Stats tab: the user-facing scoreboard surface (release plan P1-3.1).
 ///     Projects each completed evaluation through the built-in <see cref="IOutputProjector" />s into
 ///     two tables: the end-of-match scoreboard (<see cref="PlayerGameStatsProjector" />) and the
 ///     per-round browser (<see cref="PlayerRoundStatsProjector" />). Columns follow whatever rules
-///     are loaded — a user-authored chain's <c>columns:</c> appear here (and in the export) with no
+///     are loaded. A user-authored chain's <c>columns:</c> appear here (and in the export) with no
 ///     app changes. The exported files are these same <see cref="MetricTable" />s, byte-identical to
 ///     <c>AnalysisBench --export</c> (one data path, two consumers).
 /// </summary>
 public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
 {
     // ══ 3D visibility ══════════════════════════════════════════════════════════
-    // On-demand compute: NOT part of the evaluation — a Stats-tab action, visible
+    // On-demand compute: NOT part of the evaluation, a Stats-tab action, visible
     // only when the loaded demo's map has a resolvable collision bake. Everything for it lives in this
     // delimited section (plus one-line hooks in the view-toggle members above) so parallel work on
     // the Highlights/table regions doesn't collide with it.
@@ -45,13 +45,13 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
 
     private string? _collisionTrisPath;
 
-    // Diagnostics-pillar logger (v0.6.0 — failure surfaces show clean text, this carries the real
+    // Diagnostics-pillar logger (v0.6.0: failure surfaces show clean text, this carries the real
     // exception). Lazy: the ambient factory is wired after construction.
     private ILogger? _diagLog;
 
     // ── Extra tables: configured outputs (F2) + keyed breakdowns (F3) ─────────
 
-    // Engine keys in catalogue display order — one list per table (their column sets differ:
+    // Engine keys in catalogue display order, one list per table (their column sets differ:
     // the match table excludes round-scoped columns). The *visible* lists are the category-filtered
     // projections (Core anchor ∪ selected group) the headers/rows/totals are built from.
     private List<string> _gameColumnOrder = [];
@@ -77,7 +77,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     private bool _isHighlightsView;
 
     // ── Player-details overlay ─────────────
-    // Inline overlay over this tab (WASM-safe — no OS Window), built from the tables this VM
+    // Inline overlay over this tab (WASM-safe, no OS Window), built from the tables this VM
     // already holds. Opened from a scoreboard/round row (double-tap or context menu), closed by
     // Esc / Back, and force-closed by Update (lifecycle coupling).
 
@@ -115,7 +115,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     private bool _sortDescending;
 
     // Sort state for the match scoreboard: the sorted column's ENGINE KEY (null = player name).
-    // Key-based, not index-based — visible column indices re-base on every category-chip switch,
+    // Key-based, not index-based. Visible column indices re-base on every category-chip switch,
     // so a stored index would silently point at a different column.
     private string? _sortKey;
 
@@ -124,12 +124,12 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     private string _statusMessage = "Load a demo to see match stats.";
 
     // Per-team derived round-win score, precomputed in Update from the FULL table (CTW/TW are
-    // RoundWins-group columns — reading them from visible cells would lose the score under every
+    // RoundWins-group columns. Reading them from visible cells would lose the score under every
     // other category chip). Key = TeamSort (0 = CT, 1 = T).
     private Dictionary<int, int?> _teamScoreBySort = [];
 
-    // House superseded-run pattern (AnalysisViewModel.RunAsync): a new compute — or a new
-    // evaluation — cancels the in-flight one; the stale run's result is discarded on arrival.
+    // House superseded-run pattern (AnalysisViewModel.RunAsync): a new compute, or a new
+    // evaluation, cancels the in-flight one; the stale run's result is discarded on arrival.
     // VisibilityAnalyzer.Analyze observes the token per replayed frame, so a superseded replay now
     // unwinds instead of running to completion off-thread with its result thrown away.
     private CancellationTokenSource? _visibilityCts;
@@ -173,7 +173,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     /// <summary>Match-scoreboard column headers, in catalogue display order.</summary>
     public IReadOnlyList<StatColumn> Columns { get; private set; } = [];
 
-    /// <summary>Round-browser column headers (a different set — includes round-scoped columns).</summary>
+    /// <summary>Round-browser column headers (a different set: includes round-scoped columns).</summary>
     public IReadOnlyList<StatColumn> RoundColumns { get; private set; } = [];
 
     /// <summary>The active view's column headers.</summary>
@@ -216,7 +216,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     public IReadOnlyList<StatsRow> CurrentRows => IsRoundView ? RoundRows : GameRows;
 
     /// <summary>
-    ///     The tables backing this tab — what the export writes. The two visibility tables join
+    ///     The tables backing this tab: what the export writes. The two visibility tables join
     ///     only after an on-demand compute; extra tables
     ///     (configured outputs, keyed breakdowns) are per-evaluation.
     /// </summary>
@@ -229,7 +229,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
             .Concat(ExtraTables)
             .ToList();
 
-    /// <summary>The table picker's items — every non-built-in table this evaluation produced.</summary>
+    /// <summary>The table picker's items: every non-built-in table this evaluation produced.</summary>
     public IReadOnlyList<MetricTable> ExtraTables { get; private set; } = [];
 
     /// <summary>True when the evaluation produced any extra table (shows the picker).</summary>
@@ -273,7 +273,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     /// <summary>Players for the details header switcher (CT then T, then name).</summary>
     public IReadOnlyList<PlayerRef> DetailPlayers { get; private set; } = [];
 
-    // Read-only table access for the details VM — same instances the export writes; never copies.
+    // Read-only table access for the details VM, same instances the export writes; never copies.
     internal MetricTable? GameTable { get; private set; }
 
     internal MetricTable? RoundTable { get; private set; }
@@ -287,7 +287,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     /// <summary>
     ///     Derived per-team round wins keyed by team-sort (0 = CT, 1 = T); a null value means the wins
     ///     disagreed across that team's rows and no score could be trusted. Exposed so the Match Overview
-    ///     landing page can show the final score without re-deriving it — a second derivation is a second
+    ///     landing page can show the final score without re-deriving it. A second derivation is a second
     ///     thing to drift, and two different scores for one match is worse than none.
     /// </summary>
     internal IReadOnlyDictionary<int, int?> TeamScoresBySort => _teamScoreBySort;
@@ -354,7 +354,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    ///     Event-path update: the built-in tables plus every additional table the run carries —
+    ///     Event-path update: the built-in tables plus every additional table the run carries,
     ///     configured <c>outputs:</c> declarations (F2) and keyed-counter breakdowns like
     ///     per-weapon stats (F3). Tests without a full <see cref="AnalysisRun" /> call
     ///     <see cref="Update(EvaluationResult, ParsedDemo, IReadOnlyList{MetricTable}?)" /> directly.
@@ -579,7 +579,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(DetailPlayers));
 
         // Per-team derived score from the FULL table (CTW/TW live in the RoundWins group and are
-        // not visible under most category chips — the section header must not lose its score).
+        // not visible under most category chips. The section header must not lose its score).
         _teamScoreBySort = ComputeTeamScores(GameTable);
 
         // Fresh evaluation → Overview chip + the scoreboard default sort. (Setting the property
@@ -656,7 +656,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
 
     /// <summary>
     ///     Catalogue display order: the Core anchor first REGARDLESS of raw catalogue position
-    ///     (shared labels like Shots carry their game-section order into the round table — without
+    ///     (shared labels like Shots carry their game-section order into the round table. Without
     ///     the group-rank key they'd sort ahead of the round Core columns), then groups in
     ///     catalogue order, unknown columns last.
     /// </summary>
@@ -671,7 +671,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
 
     /// <summary>
     ///     Builds the header list for one visible column set, stamping the sort indicator on the
-    ///     column whose engine key is the active sort key. (Group-band labels are suppressed — the
+    ///     column whose engine key is the active sort key. (Group-band labels are suppressed. The
     ///     category chip already names the group.)
     /// </summary>
     private static List<StatColumn> BuildStatColumns(List<string> order, string? sortKey, bool descending)
@@ -742,7 +742,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     /// <summary>
     ///     Groups sorted rows into CT/T sections with a totals/average row each and the
     ///     precomputed round-win score (derived from CTW+TW over the FULL table so it survives
-    ///     every category chip; shown only when every team member agreed — a missing score beats a
+    ///     every category chip; shown only when every team member agreed. A missing score beats a
     ///     wrong one).
     /// </summary>
     private static List<TeamSection> BuildTeamSections(
@@ -831,7 +831,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
 
     /// <summary>
     ///     Writes every backing table to <paramref name="directoryPath" /> in the given format
-    ///     (file per table, named by table id — the same output <c>AnalysisBench --export</c>
+    ///     (file per table, named by table id: the same output <c>AnalysisBench --export</c>
     ///     produces). Returns a user-facing result message.
     /// </summary>
     public string ExportTo(string directoryPath, string formatId)
@@ -867,7 +867,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     /// <summary>
     ///     Mixed-type-safe cell comparison: a column can legitimately hold boxed ints AND doubles
     ///     (the value coercion parses "0" as int and "88.5" as double), and <c>int.CompareTo(object)</c>
-    ///     throws across types — so numerics compare as doubles, same-type comparables directly, and
+    ///     throws across types: numerics compare as doubles, same-type comparables directly, and
     ///     everything else by string. Nulls sort below every value.
     /// </summary>
     private static int CompareCellValues(object? a, object? b)
@@ -906,7 +906,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         _visibleRoundColumnOrder = VisibleColumns(_roundColumnOrder);
         RoundColumns = BuildStatColumns(_visibleRoundColumnOrder, null, false);
         OnPropertyChanged(nameof(RoundColumns));
-        // The header binds CurrentColumns (a computed switch) — it must re-notify whenever either
+        // The header binds CurrentColumns (a computed switch). It must re-notify whenever either
         // side rebuilds, or the Rounds header renders the PREVIOUS category's columns while the
         // rows are fresh (the header/cell misalignment bug).
         OnPropertyChanged(nameof(CurrentColumns));
@@ -946,7 +946,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    ///     The <c>player_slot</c> dimension — the join key every stats table shares
+    ///     The <c>player_slot</c> dimension: the join key every stats table shares
     ///     (names collide, slots don't). <c>-1</c> when absent (totals/synthetic rows).
     /// </summary>
     internal static int RowSlot(MetricRow row) =>
@@ -1056,8 +1056,8 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
                 VisibilityEngine engine = VisibilityEngine.Load(trisPath);
                 token.ThrowIfCancellationRequested();
                 // Bundles are selected by map NAME, so a report says nothing about WHICH bake it
-                // raycast unless we attach the manifest sitting next to the blob we just loaded
-                // (VIS-4). Absent for a flat <dir>/<map>.tris override — hence optional.
+                // raycast unless the manifest sitting next to the just-loaded blob is attached
+                // (VIS-4). Absent for a flat <dir>/<map>.tris override, hence optional.
                 VisibilityAnalyzer.Options options = (_visibilityOptions ?? new VisibilityAnalyzer.Options())
                     with
                     {
@@ -1075,7 +1075,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
 
             if (token.IsCancellationRequested)
             {
-                return; // superseded — the newer run owns the UI state
+                return; // superseded: the newer run owns the UI state
             }
 
             VisibilityPlayersTable = tables[0];
@@ -1091,7 +1091,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         }
         catch (OperationCanceledException)
         {
-            // superseded run unwinding — the replacement owns the UI state
+            // superseded run unwinding: the replacement owns the UI state
         }
 #pragma warning disable CA1031 // engine load/replay failure degrades to a status line, never a crash
         catch (Exception ex)
@@ -1146,7 +1146,7 @@ public sealed record StatColumn(string Label, int Index, ColumnMeta Meta, bool I
     /// <summary>Friendly header text.</summary>
     public string Display => Meta.Display;
 
-    /// <summary>Header sort glyph — empty when this column isn't the sort key.</summary>
+    /// <summary>Header sort glyph: empty when this column isn't the sort key.</summary>
     public string SortGlyph => !IsSorted ? "" : SortDescending ? " ▼" : " ▲";
 
     /// <summary>Header cell width (tiered per column, not uniform).</summary>
@@ -1190,7 +1190,7 @@ public sealed record CategoryChip(StatGroup Group, string Label, bool IsSelected
 public sealed record StatsRow(string PlayerName, int Team, IReadOnlyList<StatCell> Cells)
 {
     /// <summary>
-    ///     The player's <c>player_slot</c> — the join key into every other stats table (player-details
+    ///     The player's <c>player_slot</c>: the join key into every other stats table (player-details
     ///     design P0-1, the linchpin). <c>-1</c> sentinel on totals rows (guarded from opening details).
     /// </summary>
     public int PlayerSlot { get; init; } = -1;
@@ -1220,7 +1220,7 @@ public sealed record StatsRow(string PlayerName, int Team, IReadOnlyList<StatCel
     /// <summary>Side-color hook for the row bullet (CT blue / T amber).</summary>
     public bool IsCt => Team == 3;
 
-    /// <summary>Row bullet — hidden on totals rows.</summary>
+    /// <summary>Row bullet, hidden on totals rows.</summary>
     public string Bullet => IsTotals ? "" : "●";
 }
 
@@ -1330,9 +1330,9 @@ public sealed record StatCell(object? Raw, ColumnMeta? Meta = null)
     public TextAlignment Alignment =>
         Meta is { Numeric: true } ? TextAlignment.Right : TextAlignment.Left;
 
-    /// <summary>Flat accent for intrinsically good columns (clutches, aces) — style class hook.</summary>
+    /// <summary>Flat accent for intrinsically good columns (clutches, aces), style class hook.</summary>
     public bool IsPositive => Meta?.Emphasis == Emphasis.Positive && Raw is not (null or 0 or 0.0);
 
-    /// <summary>Flat accent for intrinsically bad columns (team/self damage) — style class hook.</summary>
+    /// <summary>Flat accent for intrinsically bad columns (team/self damage), style class hook.</summary>
     public bool IsNegative => Meta?.Emphasis == Emphasis.Negative && Raw is not (null or 0 or 0.0);
 }

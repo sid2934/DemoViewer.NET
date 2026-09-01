@@ -33,7 +33,7 @@ namespace DemoViewer.NET.ViewModels.Diagnostics;
 ///     the user attaches the live capture toggle.
 ///     <para>
 ///         The VM only <i>reads</i> the demo / analysis state it is handed; it owns no demo, parser,
-///         or scanner. It refreshes lazily on tab activation and after an evaluation completes — no
+///         or scanner. It refreshes lazily on tab activation and after an evaluation completes: no
 ///         timer, no polling. The one resource it owns is the optional runtime listener, disposed
 ///         when the view detaches.
 ///     </para>
@@ -49,7 +49,7 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
 
     // ── CSVG traces + metrics capture (telemetry P3) ──────────────────────────
     // The gRPC + ASP.NET stack (and CSVG itself) emit via System.Diagnostics
-    // Activity/Meter — BCL types keyed by STRING source/meter names, so these listeners live
+    // Activity/Meter: BCL types keyed by STRING source/meter names, so these listeners live
     // App-side with NO ASP.NET/gRPC type crossing the seam (and stay dormant on WASM, where no
     // in-process host emits). The names below were verified with a one-shot mock-session probe.
     // Callbacks fire on arbitrary threads → lock-protected buffers, snapshotted on refresh (the
@@ -85,7 +85,7 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
     private readonly Dictionary<string, long> _runtimeCounters = new(StringComparer.Ordinal);
     private readonly List<double> _runtimeFrameDurations = [];
 
-    // Runtime listeners — null until the user toggles capture on; disposed on view unload.
+    // Runtime listeners: null until the user toggles capture on; disposed on view unload.
     private readonly object _runtimeGate = new();
     private readonly List<(string Name, double Ms, int Depth)> _runtimeSpans = [];
     private readonly DiagnosticsTelemetryHub _telemetry;
@@ -146,7 +146,7 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
     [ObservableProperty]
     private bool _hasLogs;
 
-    /// <summary>True while a captured re-run is in flight — disables the re-run button.</summary>
+    /// <summary>True while a captured re-run is in flight, disables the re-run button.</summary>
     [ObservableProperty]
     private bool _isReRunning;
 
@@ -158,7 +158,7 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
 
     // ── Unified diagnostics log surface (internal ILogger pillar + CSVG host logs) ─
 
-    /// <summary>Minimum severity shown in the log list — a floor: rows at/above it are kept.</summary>
+    /// <summary>Minimum severity shown in the log list, a floor: rows at/above it are kept.</summary>
     [ObservableProperty]
     private LogLevel _logFilter = LogLevel.Trace;
 
@@ -178,27 +178,27 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
     [ObservableProperty]
     private bool _parseProfilingVisible;
 
-    /// <summary>Session rows — demo path/size, rules dir, counts, map, source.</summary>
+    /// <summary>Session rows: demo path/size, rules dir, counts, map, source.</summary>
     [ObservableProperty]
     private IReadOnlyList<KvpRow> _sessionRows = [];
 
-    /// <summary>True after a clipboard write failed (e.g. WASM permission) — reveals the manual-copy TextBox.</summary>
+    /// <summary>True after a clipboard write failed (e.g. WASM permission), reveals the manual-copy TextBox.</summary>
     [ObservableProperty]
     private bool _showCopyFallback;
 
-    /// <summary>Provenance filter — "All" or one source tag ("Analysis" / "App" / "CSVG").</summary>
+    /// <summary>Provenance filter: "All" or one source tag ("Analysis" / "App" / "CSVG").</summary>
     [ObservableProperty]
     private string _sourceFilter = "All";
 
     // ── A. Always-on info ─────────────────────────────────────────────────────
 
-    /// <summary>System / session rows — app + parser version, runtime, OS, GC.</summary>
+    /// <summary>System / session rows: app + parser version, runtime, OS, GC.</summary>
     [ObservableProperty]
     private IReadOnlyList<KvpRow> _systemRows = [];
 
     /// <summary>Initializes a new <see cref="DiagnosticsTabViewModel" /> instance.</summary>
     /// <param name="analysisTab">
-    ///     The analysis tab VM — read-only source of the evaluated demo, the
+    ///     The analysis tab VM: read-only source of the evaluated demo, the
     ///     retained entity scanner, and the rules directory.
     /// </param>
     /// <param name="loadedDemoPath">Returns the loaded demo's full path, or <c>null</c>.</param>
@@ -234,10 +234,10 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
         Refresh();
     }
 
-    /// <summary>True on desktop hosts — gates the <c>dotnet-trace</c>/<c>dotnet-counters</c> hint.</summary>
+    /// <summary>True on desktop hosts, gates the <c>dotnet-trace</c>/<c>dotnet-counters</c> hint.</summary>
     public static bool IsDesktopHost => !OperatingSystem.IsBrowser();
 
-    /// <summary>Severity floors offered by the filter (excludes <c>None</c> — that would hide all).</summary>
+    /// <summary>Severity floors offered by the filter (excludes <c>None</c>: that would hide all).</summary>
     public IReadOnlyList<LogLevel> LogFilterOptions { get; } =
     [
         LogLevel.Trace, LogLevel.Debug,
@@ -271,8 +271,8 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
         RefreshEntityProfiling();
         RebuildEvaluatorRows();
         RebuildCsvgTelemetryRows();
-        // Avalonia caches CanExecute and only re-queries on CanExecuteChanged — so the re-run button
-        // would stay disabled forever after a demo loads unless we poke it here. Refresh() fires on
+        // Avalonia caches CanExecute and only re-queries on CanExecuteChanged, so the re-run button
+        // would stay disabled forever after a demo loads without a poke here. Refresh() fires on
         // tab activation and on each "evaluation completed" signal, both of which can flip LastEvaluatedDemo.
         ReRunCapturedCommand.NotifyCanExecuteChanged();
     }
@@ -283,7 +283,7 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
         string? path = _loadedDemoPath();
         rows.Add(Row("demo path", path ?? "(no demo loaded)"));
 
-        // Demo file size — desktop only (no filesystem path on the browser host).
+        // Demo file size: desktop only (no filesystem path on the browser host).
         if (path is not null && !OperatingSystem.IsBrowser() && File.Exists(path))
         {
             long bytes = new FileInfo(path).Length;
@@ -303,7 +303,7 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
         if (demo is not null)
         {
             rows.Add(Row("events", demo.AllGameEvents.Count.ToString("N0", CultureInfo.InvariantCulture)));
-            // Q-4: map + source kind are cheap header fields on ParsedDemo — include them.
+            // Q-4: map + source kind are cheap header fields on ParsedDemo. Include them.
             if (!string.IsNullOrEmpty(demo.MapName))
             {
                 rows.Add(Row("map", demo.MapName));
@@ -319,8 +319,8 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
     {
         ParseProfilingSnapshot snap = ParseProfilingSnapshot.Read();
         // The panel is always visible now (it ships in every build); when the last parse was unprofiled it
-        // shows a hint. Parse data can ONLY come from a load done with profiling already on — the tab's
-        // Re-run reuses the retained ParsedDemo and does NOT re-parse — so the hint says "reload", not
+        // shows a hint. Parse data can ONLY come from a load done with profiling already on: the tab's
+        // Re-run reuses the retained ParsedDemo and does NOT re-parse, so the hint says "reload", not
         // "re-run" (re-run only repopulates the entity panel, which is driven during evaluation).
         ParseProfilingVisible = true;
         if (!snap.Enabled)
@@ -360,8 +360,8 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
         // Both snapshots' Enabled now reflect whether a profiled run captured their data (runtime, via
         // Profiling.Enabled). The panel is always visible; when nothing was captured it shows a re-run hint.
         // Note: under the Track-4 parallel precompute path the scanner's OWN tracker is never driven (the
-        // throwaway worker trackers do the decode), so t.Enabled may be false even when s.Enabled is true —
-        // the tracker sub-tree then simply doesn't render; the scanner panel (precompute/seek) still does.
+        // throwaway worker trackers do the decode), so t.Enabled may be false even when s.Enabled is true.
+        // The tracker sub-tree then simply doesn't render; the scanner panel (precompute/seek) still does.
         EntityProfilingVisible = true;
         if (!s.Enabled && !t.Enabled)
         {
@@ -514,7 +514,7 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
     private void OnTelemetryRowsAppended(IReadOnlyList<TelemetryLogRow> batch)
     {
         // Fired on the UI thread (hub drains / appends there), so touching the bound collection is safe.
-        // Batched: one pass per drain, not one marshal per row — keeps a high-rate producer cheap.
+        // Batched: one pass per drain, not one marshal per row, keeps a high-rate producer cheap.
         foreach (TelemetryLogRow row in batch)
         {
             if (Passes(row))
@@ -547,7 +547,7 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
     }
 
     // The filtered view is a subset of the bounded hub, so it can never legitimately exceed the hub's
-    // current size — trim any stragglers left from rows the hub has since dropped from its ring. This is
+    // current size: trim any stragglers left from rows the hub has since dropped from its ring. This is
     // what keeps the view bounded (the prior CSVG view grew unbounded because it never dropped).
     private void TrimView()
     {
@@ -641,8 +641,8 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
     }
 
     // Classify by instrument type: histograms track n/sum/last; observable instruments report their
-    // current cumulative value (store latest, never sum — that would double-count each poll);
-    // plain Counter/UpDownCounter measurements are deltas we accumulate.
+    // current cumulative value (store latest, never sum: that would double-count each poll);
+    // plain Counter/UpDownCounter measurements are deltas the recorder accumulates.
     private void RecordCsvgMeasurement(Instrument inst, double value)
     {
         string typeName = inst.GetType().Name;
@@ -796,7 +796,7 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
             return;
         }
 
-        // Guarantee a LIVE listener for this run — gate on the actual resource, not the toggle bool,
+        // Guarantee a LIVE listener for this run: gate on the actual resource, not the toggle bool,
         // which could read ON from a stale state. AttachRuntimeListeners also clears prior capture.
         if (_meterListener is null)
         {
@@ -815,7 +815,7 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
         }
 
         // Turn on the single runtime profiling switch BEFORE the run so the entity-decode accumulators
-        // latch and populate this pass — the evaluator counters come from the listener, but the
+        // latch and populate this pass. The evaluator counters come from the listener, but the
         // parse/entity profile trees come from Profiling.Enabled. Set before RunAsync (which drives the
         // scanner / parallel precompute) so the set-before-run contract holds.
         Profiling.Enabled = true;
@@ -888,7 +888,7 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
         }
         else
         {
-            // No readable file (WASM, file logging off, or a read that came back empty) — dump the tail
+            // No readable file (WASM, file logging off, or a read that came back empty): dump the tail
             // of the in-memory hub instead. Note the file path if there was one, for context.
             if (files.Count > 0)
             {

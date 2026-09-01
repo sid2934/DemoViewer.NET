@@ -19,12 +19,12 @@ namespace DemoViewer.NET.ViewModels.Highlights;
 ///     Maps the background <see cref="IReelJobService" /> status onto the second status-strip chip and its
 ///     flyout. It owns one reusable <see cref="StatusChipViewModel" />
 ///     whose <c>FlyoutContent</c> is this VM (the app <c>ViewLocator</c> resolves
-///     <c>Views/Highlights/ReelJobStatusView</c> for the body) — the Reel instance of the shared
+///     <c>Views/Highlights/ReelJobStatusView</c> for the body): the Reel instance of the shared
 ///     <c>StatusChip</c> pattern, alongside the Live Sync chip (the ≥2× that justifies the shared control).
 ///     <para>
 ///         <b>Contract-faithful reductions.</b> <see cref="ReelJobStatus" /> carries only clip-level counts,
-///         <c>CurrentClipLabel</c>, and <c>FailedClipIndices</c> — no per-clip labels and no intra-clip
-///         percent — so the per-clip list labels non-active rows generically ("Clip k") and the progress
+///         <c>CurrentClipLabel</c>, and <c>FailedClipIndices</c>: no per-clip labels and no intra-clip
+///         percent, so the per-clip list labels non-active rows generically ("Clip k") and the progress
 ///         bar is <em>indeterminate</em> (an intra-clip fill has no seam in the App contract). The
 ///         status carries no <c>DryRun</c> flag either, so the chip renders identically for a real vs a mock
 ///         run; the dry-run framing lives in the dialog.
@@ -62,7 +62,7 @@ public sealed partial class ReelJobStatusViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _isRunning;
 
-    // The error last written to the diagnostics pillar — dedupes the Apply call (fired on every status
+    // The error last written to the diagnostics pillar: dedupes the Apply call (fired on every status
     // change, and again at construction) so one failed job logs exactly one Error line, not N.
     private string? _loggedError;
 
@@ -106,13 +106,13 @@ public sealed partial class ReelJobStatusViewModel : ViewModelBase, IDisposable
     /// <summary>The per-clip status list, rebuilt on every status change.</summary>
     public ObservableCollection<ReelClipStatusRow> Clips { get; } = [];
 
-    /// <summary>True when the finished job carries a diagnosable error message — gates the Copy affordance.</summary>
+    /// <summary>True when the finished job carries a diagnosable error message: gates the Copy affordance.</summary>
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorText);
 
     /// <summary>
     ///     A paste-ready diagnostic block for the failed job (the Copy button + the diagnostics-log line share
-    ///     it). Full context — phase, clip tally, failed indices, the active clip, and the verbatim engine
-    ///     error — so a user handing this back is a self-contained bug report, not a truncated sentence.
+    ///     it). Full context: phase, clip tally, failed indices, the active clip, and the verbatim engine
+    ///     error, so a user handing this back is a self-contained bug report, not a truncated sentence.
     /// </summary>
     public string CopyDiagnosticsText
     {
@@ -155,7 +155,7 @@ public sealed partial class ReelJobStatusViewModel : ViewModelBase, IDisposable
         _reelJob.StatusChanged -= OnStatusChanged;
     }
 
-    /// <summary>Raised when the flyout's Dismiss fires — the shell removes the chip.</summary>
+    /// <summary>Raised when the flyout's Dismiss fires: the shell removes the chip.</summary>
     public event EventHandler? DismissRequested;
 
     // ── Commands ──────────────────────────────────────────────────────────────
@@ -178,7 +178,7 @@ public sealed partial class ReelJobStatusViewModel : ViewModelBase, IDisposable
         }
     }
 
-    /// <summary>Dismisses a finished chip — raises <see cref="DismissRequested" /> for the shell.</summary>
+    /// <summary>Dismisses a finished chip: raises <see cref="DismissRequested" /> for the shell.</summary>
     [RelayCommand]
     private void Dismiss() => DismissRequested?.Invoke(this, EventArgs.Empty);
 
@@ -198,7 +198,7 @@ public sealed partial class ReelJobStatusViewModel : ViewModelBase, IDisposable
         _status = status;
         int total = Math.Max(status.ClipsTotal, status.ClipsCompleted);
         // CurrentClipLabel is the engine echo of ReelClip.Label, which is built from RAW
-        // in-demo player-name-bearing highlight titles — sanitize at the render boundary like
+        // in-demo player-name-bearing highlight titles: sanitize at the render boundary like
         // every other rendered player name (hostile bidi/combining-mark names crash the wrap
         // splitter; see DisplayText).
         string? clipLabel = status.CurrentClipLabel is { Length: > 0 } rawLabel
@@ -234,7 +234,7 @@ public sealed partial class ReelJobStatusViewModel : ViewModelBase, IDisposable
                     $"Reel · failed ({status.FailedClipIndices.Count})");
                 ShowSection(failed: true);
                 // Generic headline; the specific reason renders once, in the failed section body (icon +
-                // neutral text) — no duplication.
+                // neutral text): no duplication.
                 Headline = "Reel generation failed.";
                 break;
 
@@ -244,7 +244,7 @@ public sealed partial class ReelJobStatusViewModel : ViewModelBase, IDisposable
                 Headline = "Reel cancelled.";
                 break;
 
-            default: // Idle — the chip is not shown in this phase, but keep the map total.
+            default: // Idle: the chip is not shown in this phase, but keep the map total.
                 SetChip(StatusChipDotState.Off, false, "Reel · idle");
                 ShowSection();
                 Headline = "";
@@ -281,7 +281,7 @@ public sealed partial class ReelJobStatusViewModel : ViewModelBase, IDisposable
         RetryCommand.NotifyCanExecuteChanged();
         OpenFolderCommand.NotifyCanExecuteChanged();
 
-        // IsIdle is derived from four [ObservableProperty] flags, so it needs its own raise — the dashboard's
+        // IsIdle is derived from four [ObservableProperty] flags, so it needs its own raise: the dashboard's
         // inline strip binds to it and would otherwise never appear.
         OnPropertyChanged(nameof(IsIdle));
         OnPropertyChanged(nameof(HasError));
@@ -341,7 +341,7 @@ public sealed class ReelClipStatusRow(int number, string label, ReelClipRowState
 {
     public int Number { get; } = number;
 
-    /// <summary>The clip label — the live <c>CurrentClipLabel</c> for the active clip, else "Clip k".</summary>
+    /// <summary>The clip label: the live <c>CurrentClipLabel</c> for the active clip, else "Clip k".</summary>
     public string Label { get; } = label;
 
     public ReelClipRowState State { get; } = state;

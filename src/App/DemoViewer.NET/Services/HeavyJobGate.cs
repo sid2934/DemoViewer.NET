@@ -3,13 +3,13 @@ namespace DemoViewer.NET.Services;
 /// <summary>
 ///     The machine-wide heavy-parse invariant, made explicit
 ///     : a 16 GB machine holds at most <see cref="MaxConcurrency" />
-///     multi-GB demo parses at a time — DEFAULT 1. Consumers: the global demo-processing queue's
+///     multi-GB demo parses at a time: DEFAULT 1. Consumers: the global demo-processing queue's
 ///     background workers, and the shell's interactive demo load.
 ///     <list type="bullet">
 ///         <item>
 ///             <b>Interactive preemption:</b> an interactive acquisition raises a pending flag;
 ///             background workers yield BETWEEN demos (their acquisition loop re-checks the flag
-///             while it is up) so a user's load never waits behind a queue of scans — at most the
+///             while it is up) so a user's load never waits behind a queue of scans, at most the
 ///             single in-flight background parse.
 ///         </item>
 ///         <item>
@@ -20,7 +20,7 @@ namespace DemoViewer.NET.Services;
 ///         </item>
 ///         <item>
 ///             <b>Resizable concurrency:</b> <see cref="MaxConcurrency" />
-///             is apply-forward — a change affects newly-started parses, not ones already running —
+///             is apply-forward, a change affects newly-started parses, not ones already running,
 ///             so concurrency is a plain integer compared under this gate's one lock. There is NO
 ///             semaphore and NO permit accounting to get subtly wrong; at <c>MaxConcurrency == 1</c>
 ///             every path is behaviourally identical to the historical <c>SemaphoreSlim(1,1)</c> gate.
@@ -28,8 +28,8 @@ namespace DemoViewer.NET.Services;
 ///         </item>
 ///     </list>
 ///     <para>
-///         <b>WASM-safe:</b> every wait is <c>await Task.Delay</c> — no <c>SemaphoreSlim.Wait</c>,
-///         no <c>.Result</c> — so the single-threaded browser head never deadlocks. Waits poll every
+///         <b>WASM-safe:</b> every wait is <c>await Task.Delay</c>, never <c>SemaphoreSlim.Wait</c>
+///         or <c>.Result</c>, so the single-threaded browser head never deadlocks. Waits poll every
 ///         <see cref="PollIntervalMs" /> ms (unchanged from the historical gate); parses take
 ///         seconds, so the poll latency is negligible.
 ///     </para>
@@ -37,7 +37,7 @@ namespace DemoViewer.NET.Services;
 public sealed class HeavyJobGate : IDisposable
 {
     /// <summary>
-    ///     The hard ceiling on <see cref="MaxConcurrency" /> — headroom for a hypothetical big
+    ///     The hard ceiling on <see cref="MaxConcurrency" />: headroom for a hypothetical big
     ///     machine, NOT a recommendation. Two concurrent multi-GB parses OOM a 16 GB box.
     /// </summary>
     public const int HardCapConcurrency = 8;
@@ -91,7 +91,7 @@ public sealed class HeavyJobGate : IDisposable
 
     /// <summary>
     ///     True while a 2D video export owns the machine's spare CPU. Background parses pause for its
-    ///     duration; an interactive demo load does NOT (plan B4 D10 — an export is CPU-bound, not
+    ///     duration; an interactive demo load does NOT (plan B4 D10: an export is CPU-bound, not
     ///     multi-GB-RAM-bound, so making a user wait to open a demo would be a UX regression bought with
     ///     nothing).
     /// </summary>
@@ -106,7 +106,7 @@ public sealed class HeavyJobGate : IDisposable
         }
     }
 
-    /// <summary>True while an interactive job is waiting or holding — background workers yield.</summary>
+    /// <summary>True while an interactive job is waiting or holding: background workers yield.</summary>
     public bool IsInteractivePending
     {
         get
@@ -133,8 +133,8 @@ public sealed class HeavyJobGate : IDisposable
     /// <summary>
     ///     Non-blocking peek used by the queue pump as its budget check: <c>true</c> when a
     ///     background parse could START right now (a free slot, no interactive pending, no reel, no
-    ///     export). The authoritative gate check still happens in <see cref="AcquireBackgroundAsync" /> —
-    ///     this only spares the pump from spawning a worker that would immediately poll-block.
+    ///     export). The authoritative gate check still happens in <see cref="AcquireBackgroundAsync" />.
+    ///     This only spares the pump from spawning a worker that would immediately poll-block.
     /// </summary>
     public bool CanStartBackground
     {
@@ -169,7 +169,7 @@ public sealed class HeavyJobGate : IDisposable
                 throw new ReelInProgressException();
             }
 
-            // The pending flag is held only while WAITING — it is what makes background yield. Once
+            // The pending flag is held only while WAITING. It is what makes background yield. Once
             // this job HOLDS a slot, background may use OTHER slots when MaxConcurrency > 1.
             _interactivePending++;
         }
@@ -184,7 +184,7 @@ public sealed class HeavyJobGate : IDisposable
                 {
                     if (_reelSessions > 0)
                     {
-                        // A reel started while we waited — same refusal, never a silent queue.
+                        // A reel started while we waited: same refusal, never a silent queue.
                         _interactivePending--;
                         pendingCleared = true;
                         throw new ReelInProgressException();
@@ -219,7 +219,7 @@ public sealed class HeavyJobGate : IDisposable
     /// <summary>
     ///     Acquires the gate for a background job (a queue worker). Yields rather than queues: while
     ///     an interactive job is pending or a reel or export session is active or every slot is held, the
-    ///     caller keeps polling — so a background worker drains one demo at a time and steps aside at
+    ///     caller keeps polling, so a background worker drains one demo at a time and steps aside at
     ///     the next demo boundary.
     /// </summary>
     public async Task<IDisposable> AcquireBackgroundAsync(CancellationToken cancellationToken = default)
@@ -243,8 +243,8 @@ public sealed class HeavyJobGate : IDisposable
 
     /// <summary>
     ///     Marks a reel session for its whole duration AND drains every in-flight holder: the flag
-    ///     goes up first (stops every new acquisition), then we poll until <c>_held == 0</c> —
-    ///     The CS2+OBS-vs-parse overlap must not happen even for a background parse that was
+    ///     goes up first (stops every new acquisition), then we poll until <c>_held == 0</c>. The
+    ///     CS2+OBS-vs-parse overlap must not happen even for a background parse that was
     ///     already mid-demo when the reel started. No hold is kept after the drain (a reel doesn't
     ///     parse). Dispose to end.
     /// </summary>
@@ -304,12 +304,12 @@ public sealed class HeavyJobGate : IDisposable
     ///         Deliberately <b>not</b> an interactive or a background slot (plan B4 D10). An export is
     ///         CPU-bound and holds one extra <c>EntityTracker</c>, not a multi-gigabyte parse: taking an
     ///         interactive slot would block the user's next demo open for the whole render, and taking a
-    ///         background one would queue it behind — and then in front of — the user's own work.
+    ///         background one would queue it behind, and then in front of, the user's own work.
     ///     </para>
     ///     <para>
     ///         What it does instead: background parses pause for its duration (they would steal the CPU a
     ///         realtime-target encode needs), interactive loads are untouched, and a reel start is
-    ///         refused. Unlike a reel session it does NOT drain in-flight parses — an export can share a
+    ///         refused. Unlike a reel session it does NOT drain in-flight parses. An export can share a
     ///         machine with a parse that is already running; it only declines to let a new one start.
     ///     </para>
     ///     Dispose to end.

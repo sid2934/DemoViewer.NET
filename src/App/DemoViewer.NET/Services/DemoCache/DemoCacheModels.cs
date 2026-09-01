@@ -15,15 +15,15 @@ namespace DemoViewer.NET.Services.DemoCache;
 /// </summary>
 public enum DemoCacheTier
 {
-    /// <summary>Nothing but the file itself — path, size, mtime.</summary>
+    /// <summary>Nothing but the file itself: path, size, mtime.</summary>
     Identity = 0,
 
     /// <summary>The cheap header read: map, server, demo version.</summary>
     Header = 1,
 
     /// <summary>
-    ///     A full parse: duration, tick rate, roster with teams, rounds, final score. NO analysis-engine run —
-    ///     this is the pass that already covers ~80% of a real library.
+    ///     A full parse: duration, tick rate, roster with teams, rounds, final score. NO analysis-engine run.
+    ///     This is the pass that already covers ~80% of a real library.
     /// </summary>
     Parse = 2,
 
@@ -49,7 +49,7 @@ public enum DemoAnalysisState
 
 /// <summary>
 ///     Per-tier version + timestamp. Carried separately for every tier so a schema bump invalidates only its
-///     own tier — the single whole-record <c>CurrentSchema</c> the library cache uses today is exactly why
+///     own tier: the single whole-record <c>CurrentSchema</c> the library cache uses today is exactly why
 ///     that cache has been conservative about growing new fields.
 /// </summary>
 public sealed class TierStamp
@@ -69,7 +69,7 @@ public sealed class CachedPlayerInfo
 {
     public int Slot { get; set; }
 
-    /// <summary>RAW name — the CSVG <c>spec_player</c> currency. Sanitize at the render boundary, never here.</summary>
+    /// <summary>RAW name: the CSVG <c>spec_player</c> currency. Sanitize at the render boundary, never here.</summary>
     public string Name { get; set; } = "";
 
     public string SteamId64 { get; set; } = "";
@@ -90,7 +90,7 @@ public sealed class CachedRound
 
 /// <summary>
 ///     Adapters between the cache's mutable JSON rows and the packaged clip pipeline's neutral
-///     inputs (<c>CS2DemoKit.Analysis.Clips</c>). Both sides are FRAME CLOCK — the conversion is a
+///     inputs (<c>CS2DemoKit.Analysis.Clips</c>). Both sides are FRAME CLOCK: the conversion is a
 ///     shape change only, never a clock change.
 /// </summary>
 public static class CachedRoundExtensions
@@ -124,7 +124,7 @@ public sealed class CachedStatRow
 {
     public int Slot { get; set; }
 
-    /// <summary>2 = T, 3 = CT — the side the player FINISHED on.</summary>
+    /// <summary>2 = T, 3 = CT: the side the player FINISHED on.</summary>
     public int Team { get; set; }
 
     public int Kills { get; set; }
@@ -133,7 +133,7 @@ public sealed class CachedStatRow
     public double Adr { get; set; }
     public double Rating { get; set; }
 
-    /// <summary>Rounds won while on the CT side. Unreliable on HLTV demos — see the side-split reconcile.</summary>
+    /// <summary>Rounds won while on the CT side. Unreliable on HLTV demos: see the side-split reconcile.</summary>
     public int CtWins { get; set; }
 
     /// <summary>Rounds won while on the T side.</summary>
@@ -142,7 +142,7 @@ public sealed class CachedStatRow
 
 /// <summary>
 ///     One fired highlight. Player identity is by <see cref="PlayerSlot" /> into
-///     <see cref="DemoCacheRecord.Players" /> rather than re-stored per event — the highlights cache repeats
+///     <see cref="DemoCacheRecord.Players" /> rather than re-stored per event: the highlights cache repeats
 ///     name + steamId on every row today, which is pure redundancy and makes renames incoherent.
 /// </summary>
 public sealed class CachedHighlightEvent
@@ -153,7 +153,7 @@ public sealed class CachedHighlightEvent
 
     public int FrameIndex { get; set; }
 
-    /// <summary>Frame clock — NOT server-tick space. Never subtract ServerStartTick from this.</summary>
+    /// <summary>Frame clock: NOT server-tick space. Never subtract ServerStartTick from this.</summary>
     public int Tick { get; set; }
 
     /// <summary>
@@ -170,20 +170,20 @@ public sealed class CachedHighlightEvent
     public int RoundNumber { get; set; }
 
     /// <summary>
-    ///     The title as rendered at emission. Embeds the player's name as it was then, deliberately — it is a
+    ///     The title as rendered at emission. Embeds the player's name as it was then, deliberately. It is a
     ///     rendering artifact captured at a point in time, not a live projection.
     /// </summary>
     public string RenderedTitle { get; set; } = "";
 
     /// <summary>
-    ///     Authored ranking weight (0–100) folding rarity × coolness — the reel orders firings by this
+    ///     Authored ranking weight (0–100) folding rarity × coolness: the reel orders firings by this
     ///     (higher first). Old sidecars written before this field deserialize to 0; harmless until re-scan.
     /// </summary>
     public int Score { get; set; }
 
     /// <summary>
     ///     The editorial track (skill <see cref="HighlightKind.Highlight" />, <see cref="HighlightKind.Funny" />,
-    ///     or <see cref="HighlightKind.Lowlight" />) this firing belongs to — routes it into the right reel.
+    ///     or <see cref="HighlightKind.Lowlight" />) this firing belongs to. It routes it into the right reel.
     ///     Old sidecars deserialize to the default (<c>Highlight</c>).
     /// </summary>
     public HighlightKind Kind { get; set; }
@@ -193,13 +193,13 @@ public sealed class CachedHighlightEvent
 }
 
 /// <summary>
-///     The full per-demo record — ONE demo's worth of every tier. Persisted as its own sidecar file and
+///     The full per-demo record: ONE demo's worth of every tier. Persisted as its own sidecar file and
 ///     loaded lazily, because the surfaces that want the fat payload (Match Overview, the reel tray) want it
 ///     for one demo at a time. The always-loaded projection is <see cref="DemoCacheIndexEntry" />.
 /// </summary>
 public sealed class DemoCacheRecord
 {
-    /// <summary>Bump when a tier's payload shape changes. Each is independent — see <see cref="TierStamp" />.</summary>
+    /// <summary>Bump when a tier's payload shape changes. Each is independent: see <see cref="TierStamp" />.</summary>
     public const int HeaderSchema = 1;
 
     public const int ParseSchema = 1;
@@ -212,7 +212,7 @@ public sealed class DemoCacheRecord
 
     public long ModifiedTicks { get; set; }
 
-    /// <summary>Content hash — the dedup key. Null until something has computed it.</summary>
+    /// <summary>Content hash: the dedup key. Null until something has computed it.</summary>
     public string? Sha256 { get; set; }
 
     // ── T1 header ────────────────────────────────────────────────────────────
@@ -235,7 +235,7 @@ public sealed class DemoCacheRecord
 
     /// <summary>
     ///     Round count as a scalar. Normally just <c>Rounds.Count</c>, but carried separately because a
-    ///     migrated legacy row has a round count with no round BOUNDARIES behind it — the old library cache
+    ///     migrated legacy row has a round count with no round BOUNDARIES behind it: the old library cache
     ///     stored the number and nothing else. Without this the count would be silently lost for every
     ///     already-indexed demo.
     /// </summary>
@@ -279,13 +279,13 @@ public sealed class DemoCacheRecord
         : Header.IsPresent ? DemoCacheTier.Header
         : DemoCacheTier.Identity;
 
-    /// <summary>Roster members only (team 2/3) — excludes observers, coaches and the GOTV proxy.</summary>
+    /// <summary>Roster members only (team 2/3): excludes observers, coaches and the GOTV proxy.</summary>
     [JsonIgnore]
     public IEnumerable<CachedPlayerInfo> Roster => Players.Where(p => p.Team is 2 or 3);
 
     /// <summary>
     ///     True when the roster carries a real team split. False for a MIGRATED legacy row, whose players
-    ///     came from the old names-only list and have no team — the case the Match Overview roster cards must
+    ///     came from the old names-only list and have no team: the case the Match Overview roster cards must
     ///     present as "team split needs a re-index" rather than as two empty teams.
     /// </summary>
     [JsonIgnore]
@@ -297,7 +297,7 @@ public sealed class DemoCacheRecord
 
     /// <summary>
     ///     Is the tier-3 payload still valid under <paramref name="currentFingerprint" />? A null current
-    ///     fingerprint means "unknown", which is treated as current rather than as stale — invalidating the
+    ///     fingerprint means "unknown", which is treated as current rather than as stale. Invalidating the
     ///     whole library because the rules failed to load once would be worse than showing slightly old stats.
     /// </summary>
     public bool IsAnalysisCurrent(string? currentFingerprint) =>
@@ -313,12 +313,12 @@ public sealed class DemoCacheRecord
     ///         doubled as "queued" and as "no tier-3 data". Those are different facts, and merging them into
     ///         one persisted field forces a choice between two wrong behaviours: writing <c>Pending</c> on a
     ///         rules change blanks the highlight section of every demo in the library until each is rescanned,
-    ///         and not writing it loses the backlog. Deriving keeps the payload visible while its demo waits —
-    ///         a stale harvest is still the best answer available, and the page says so.
+    ///         and not writing it loses the backlog. Deriving keeps the payload visible while its demo waits.
+    ///         A stale harvest is still the best answer available, and the page says so.
     ///     </para>
     ///     <para>
     ///         <b><see cref="DemoAnalysisState.Failed" /> is excluded deliberately.</b> A demo whose scan threw
-    ///         is never current, so a pure staleness rule would re-queue it forever — one corrupt file
+    ///         is never current, so a pure staleness rule would re-queue it forever, one corrupt file
     ///         re-parsed on every pass, at the cost of a heavy job each time. Retry is an explicit user action.
     ///     </para>
     /// </summary>
@@ -328,7 +328,7 @@ public sealed class DemoCacheRecord
 
     /// <summary>
     ///     Does this record still describe the file on disk? Size + mtime, exactly as the library cache keys
-    ///     freshness today — cheap, and a content hash is not affordable per reconcile pass.
+    ///     freshness today: cheap, and a content hash is not affordable per reconcile pass.
     /// </summary>
     public bool MatchesFile(long size, long modifiedTicks) =>
         Size == size && ModifiedTicks == modifiedTicks;
@@ -346,11 +346,11 @@ public sealed class DemoCacheRecord
         DurationSeconds = DurationSeconds,
         // The Library card prints player NAMES, so the index has to carry them; the richer per-player record
         // (slot / steamId / team / bot) stays in the sidecar. This is why an index row is ~780 B rather than
-        // the ~300 B a pure-identity row would be — which is simply what library.json already costs today.
+        // the ~300 B a pure-identity row would be, which is simply what library.json already costs today.
         //
         // The fallback is load-bearing, not defensive tidiness: a MIGRATED legacy row has names with no team,
         // so filtering to the roster would return nothing and every one of the user's already-indexed demos
-        // would render "…" — reading as un-indexed when it is merely un-re-indexed.
+        // would render "…", reading as un-indexed when it is merely un-re-indexed.
         PlayerNames = HasTeamSplit
             ? [.. Roster.Select(p => p.Name)]
             : [.. Players.Where(p => p.Name.Length > 0).Select(p => p.Name)],
@@ -371,7 +371,7 @@ public sealed class DemoCacheRecord
 }
 
 /// <summary>
-///     One row of <c>index.json</c> — everything the Library grid needs and nothing else. Loaded in full at
+///     One row of <c>index.json</c>: everything the Library grid needs and nothing else. Loaded in full at
 ///     startup; the fat <see cref="DemoCacheRecord" /> behind it is read only when a surface asks for that
 ///     specific demo.
 /// </summary>
@@ -388,7 +388,7 @@ public sealed class DemoCacheIndexEntry
 
     public double DurationSeconds { get; set; }
 
-    /// <summary>Roster names only — what the Library card renders.</summary>
+    /// <summary>Roster names only: what the Library card renders.</summary>
     public List<string> PlayerNames { get; set; } = [];
 
     public int RoundCount { get; set; }
@@ -406,8 +406,8 @@ public sealed class DemoCacheIndexEntry
     public DemoAnalysisState AnalysisState { get; set; } = DemoAnalysisState.Pending;
 
     /// <summary>
-    ///     Rules fingerprint the tier-3 payload was produced under. Mirrored onto the index row — ~64 bytes on
-    ///     a ~780-byte row — because the scan BACKLOG is derived from it: without it, deciding which demos want
+    ///     Rules fingerprint the tier-3 payload was produced under. Mirrored onto the index row, ~64 bytes on
+    ///     a ~780-byte row, because the scan BACKLOG is derived from it: without it, deciding which demos want
     ///     a scan would mean opening every sidecar on every staleness pass instead of reading a dictionary.
     /// </summary>
     public string? ConfigFingerprint { get; set; }
@@ -429,7 +429,7 @@ public sealed class DemoCacheIndexEntry
     public bool HasScore => CtScore is int c && TScore is int t && c + t > 0;
 
     /// <summary>
-    ///     Index-level twin of <see cref="DemoCacheRecord.NeedsAnalysis" /> — same rule, no sidecar read.
+    ///     Index-level twin of <see cref="DemoCacheRecord.NeedsAnalysis" />: same rule, no sidecar read.
     /// </summary>
     /// <param name="currentFingerprint">The rules fingerprint in force, or null when it cannot be computed.</param>
     public bool NeedsAnalysis(string? currentFingerprint) =>
@@ -443,7 +443,7 @@ public sealed class DemoCacheIndexEntry
         Size == size && ModifiedTicks == modifiedTicks;
 }
 
-/// <summary>The on-disk shape of <c>index.json</c> — a versioned wrapper so migrations have a hook.</summary>
+/// <summary>The on-disk shape of <c>index.json</c>: a versioned wrapper so migrations have a hook.</summary>
 public sealed class DemoCacheIndexFile
 {
     /// <summary>Version of the INDEX container itself, independent of the per-tier record schemas.</summary>
@@ -455,7 +455,7 @@ public sealed class DemoCacheIndexFile
     ///     Which revision of the one-shot legacy migration has run. 0 = never.
     ///     <para>
     ///         An explicit marker rather than "does index.json exist": the library indexer dual-writes into
-    ///         this store from its first pass, so the file is created long before any migration — gating on
+    ///         this store from its first pass, so the file is created long before any migration. Gating on
     ///         its existence would skip the migration forever and silently drop the legacy data.
     ///     </para>
     /// </summary>

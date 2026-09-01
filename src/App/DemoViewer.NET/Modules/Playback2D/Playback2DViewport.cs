@@ -30,7 +30,7 @@ public enum CameraMode
     /// <summary>Continuously + smoothly keep all ALIVE players in view, lerped per render frame.</summary>
     Alive,
 
-    /// <summary>Fix the view to the all-demo observed extent (an approximation — no real radar metadata).</summary>
+    /// <summary>Fix the view to the all-demo observed extent (an approximation, no real radar metadata).</summary>
     Map,
 
     /// <summary>Smoothly keep the view centred on one selected player; holds last-known if they die/orphan.</summary>
@@ -40,7 +40,7 @@ public enum CameraMode
 /// <summary>
 ///     The custom-drawn 2D viewport. Renders a scaled grid background and one team-coloured disc
 ///     per live player with a heading stub and an event-driven ring. Each rendered floor slice owns its own
-///     <see cref="SliceCamera" /> so pan (drag) / zoom (wheel) act independently per floor — the pointer
+///     <see cref="SliceCamera" /> so pan (drag) / zoom (wheel) act independently per floor. The pointer
 ///     is hit-tested to the band under the cursor. The camera MODE drives each slice's target every
 ///     render frame; the smooth modes (Alive / Follow) lerp toward their target off the render loop, NOT the
 ///     per-tick push, and a manual gesture flips that slice to a free/manual camera.
@@ -60,15 +60,15 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
     // ── Marker position interpolation ──
     // Per-slot smoothed DRAW position (world units), chased toward the latest sampled marker position on the
     // render loop so markers GLIDE between discrete pushes instead of stepping. Camera targeting stays on the
-    // RAW positions (above) — only the rendered dot is smoothed. Snaps on a large jump (seek / backward /
-    // round reset / respawn elsewhere — teleport detection) so a glide never streaks across the map.
+    // RAW positions (above). Only the rendered dot is smoothed. Snaps on a large jump (seek / backward /
+    // round reset / respawn elsewhere, teleport detection) so a glide never streaks across the map.
     private const double MarkerLerpResponse = 16.0; // exponential-decay rate (snappier than the camera)
     private const float MarkerSnapDistanceSq = 250f * 250f; // ≥ max plausible per-push move ⇒ a jump = teleport
     private const float MarkerSettleEpsilonSq = 0.5f * 0.5f; // within this, snap + treat as settled (stops loop)
 
     // Per-player FOV "view cone": a fan of horizontal rays across the player's ~106° horizontal FOV, each
     // clipped to the first collision wall at eye height, filled faintly in the team colour. A 2D visibility
-    // footprint for the PICTURE (endorsed for viz — the stat itself stays full-3D). Needs the vision engine.
+    // footprint for the PICTURE (endorsed for viz, the stat itself stays full-3D). Needs the vision engine.
     private const int ConeRays = 26;
     private const float ConeHalfFovDeg = 53f;
     private const float ConeMaxRange = 3200f;
@@ -103,7 +103,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
     private SliceCamera[] _cameras = Array.Empty<SliceCamera>();
     private int _dragSlice = -1;
 
-    // Pan drag state — captured per slice so the gesture stays bound to the band it began on.
+    // Pan drag state: captured per slice so the gesture stays bound to the band it began on.
     private bool _dragging;
     private int _followSlot = -1;
 
@@ -117,7 +117,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
     private Point _lastPointer;
     private double _maxX = DefaultWorldExtent, _maxY = DefaultWorldExtent;
 
-    // Running observed-extent bound — also the Map-mode bounds proxy: the all-demo observed
+    // Running observed-extent bound, also the Map-mode bounds proxy: the all-demo observed
     // min/max (only ever widened), surfaced to the user as an approximation until real radar metadata lands.
     private double _minX = -DefaultWorldExtent, _minY = -DefaultWorldExtent;
 
@@ -133,7 +133,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
     {
         Focusable = true;
         ClipToBounds = true;
-        _palette = BuildPalette(); // T1a — resolve the initial canvas palette from the current theme
+        _palette = BuildPalette(); // T1a: resolve the initial canvas palette from the current theme
     }
 
     // Delegating properties keep the original field names so every render/helper call site is unchanged; each
@@ -213,7 +213,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
     }
 
     /// <summary>
-    ///     Re-frames the viewport to the observed (or default) extent — the explicit "Fit". Sets the
+    ///     Re-frames the viewport to the observed (or default) extent: the explicit "Fit". Sets the
     ///     mode to <see cref="CameraMode.Fit" /> (left-click semantics), clears every slice's manual override,
     ///     and applies the fit to all slices immediately.
     /// </summary>
@@ -290,7 +290,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        RefreshCanvasPalette(); // L2a — pick the Dark/Light canvas bundle for the current variant
+        RefreshCanvasPalette(); // L2a: pick the Dark/Light canvas bundle for the current variant
         ActualThemeVariantChanged += OnThemeVariantChanged;
         AttachVm(DataContext as Playback2DTabViewModel);
     }
@@ -305,7 +305,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
         _havePrevFrameTime = false;
     }
 
-    // L2a — swap the cached canvas palette when the theme flips (Settings toggle / OS change) and repaint.
+    // L2a: swap the cached canvas palette when the theme flips (Settings toggle / OS change) and repaint.
     // Resolve+cache here (not per-frame): the render hot path only reads _palette.
     private void OnThemeVariantChanged(object? sender, EventArgs e) => RefreshCanvasPalette();
 
@@ -338,7 +338,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
     }
 
     // One VM push → one observed-extent update + one repaint (the whole render-frame-coalescing story). The
-    // smooth modes do NOT key their motion off this push — they advance on the render frame (ArmFrameLoop).
+    // smooth modes do NOT key their motion off this push. They advance on the render frame (ArmFrameLoop).
     private void OnFrameUpdated()
     {
         UpdateObservedExtent();
@@ -356,7 +356,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
         // The map's real networked Z-floor boundaries, when the VM has read them. Idempotent.
         _floors.SetSectionHeights(_vm.SectionHeights);
 
-        // Baked-bundle nav floors — when present these OVERRIDE the histogram + section
+        // Baked-bundle nav floors: when present these OVERRIDE the histogram + section
         // heights entirely (validated map-intrinsic bands); null → histogram fallback. Pulled each push so a
         // late-arriving bundle (MapName after activation) takes effect without a re-activation.
         _floors.SetAuthoritativeFloors(_vm.AuthoritativeFloors);
@@ -377,7 +377,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
             foreach (PlayerMarker m in _vm.Markers)
             {
                 Widen(m.WorldX, m.WorldY);
-                // Always fold Z into the histogram — even with section heights present, the splitter needs
+                // Always fold Z into the histogram: even with section heights present, the splitter needs
                 // the observed distribution to validate that the heights separate REAL floor clusters (the
                 // single-floor radar-section guard); it falls back to the histogram when they don't.
                 _floors.Observe(m.WorldZ);
@@ -569,7 +569,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
         // Drives off the render loop (real dt), NOT the tick push. Fit + manual slices are untouched.
         AdvanceCameras();
 
-        // Interpolate marker positions toward their latest sampled spot — runs in ALL modes (Fit too),
+        // Interpolate marker positions toward their latest sampled spot: runs in ALL modes (Fit too),
         // so re-arm the render loop while any marker is still gliding even when the camera is static.
         if (_vm is not null && AdvanceMarkers(_vm.Markers, _lastDt))
         {
@@ -628,7 +628,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
 
             if (!TryComputeTarget(i, out ViewportTransform target))
             {
-                continue; // no target this frame (e.g. no alive players, no followed marker) — hold.
+                continue; // no target this frame (e.g. no alive players, no followed marker), hold.
             }
 
             if (_cameras[i].IsSettledAt(target))
@@ -666,7 +666,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
 
             if (!_smoothedPos.TryGetValue(m.Slot, out (float X, float Y) cur))
             {
-                _smoothedPos[m.Slot] = (tx, ty); // first appearance — start ON the player, never glide from 0,0
+                _smoothedPos[m.Slot] = (tx, ty); // first appearance: start ON the player, never glide from 0,0
                 continue;
             }
 
@@ -780,7 +780,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
 
         if (count == 0)
         {
-            return false; // no alive players on this slice this frame — hold the camera.
+            return false; // no alive players on this slice this frame, hold the camera.
         }
 
         // Pad so players aren't pinned to the very edge; a single alive player gets a fixed box around them.
@@ -836,7 +836,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
 
         // The loop drives BOTH the smooth camera modes AND marker interpolation, so it must run in Fit
         // mode too. Callers gate on actual movement (a still-settling camera or a gliding marker), so the
-        // loop self-terminates the frame after everything settles — no perpetual spin while idle.
+        // loop self-terminates the frame after everything settles, no perpetual spin while idle.
 
         TopLevel? top = TopLevel.GetTopLevel(this);
         if (top is null)
@@ -1067,9 +1067,9 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
     // Draws the baked radar bitmap for this floor band, placed via the bundle's world Bounds through the
     // shared transform, slightly muted so bright markers pop. Returns false when there's no bundle/image (the
     // caller then falls back to the grid). The image's top-left pixel is world (MinX, MaxY); its bottom-right
-    // is (MaxX, MinY) — Y is inverted by the transform. rotate/zoom from the overview txt are in-game
+    // is (MaxX, MinY). Y is inverted by the transform. rotate/zoom from the overview txt are in-game
     // minimap-widget hints and are deliberately NOT applied: verified that dust2 (rotate=1/zoom=1.1) aligns
-    // correctly with pos/scale alone — round-start CTs land on CT spawn, Ts on T spawn (matching awpy/boltobserv).
+    // correctly with pos/scale alone: round-start CTs land on CT spawn, Ts on T spawn (matching awpy/boltobserv).
     private bool TryDrawRadar(DrawingContext context, ViewportTransform transform, int sliceIndex)
     {
         LoadedMapAsset? asset = _vm?.MapAsset;
@@ -1175,7 +1175,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
             _ => NeutralBrush
         };
 
-        // Heading stub from yaw (NOT velocity) — drawn behind the disc so the disc occludes its root.
+        // Heading stub from yaw (NOT velocity): drawn behind the disc so the disc occludes its root.
         if (marker.IsAlive)
         {
             double yawRad = marker.YawDegrees * Math.PI / 180.0;
@@ -1191,7 +1191,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
         IBrush discFill = marker.IsAlive ? fill : Brushes.Transparent;
         context.DrawEllipse(discFill, null, center, Radius, Radius);
 
-        // Event-driven ring — colour + alpha and precedence resolved on the VM side.
+        // Event-driven ring: colour + alpha and precedence resolved on the VM side.
         Color ringColor = marker.Ring switch
         {
             RingState.Shooting => RingShooting,
@@ -1240,7 +1240,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
     // Draws ONLY the segments whose points lie on floor <paramref name="sliceIndex" /> (a segment belongs to a
     // floor if EITHER endpoint maps to it, so the crossing segment bridges both bands continuously); the whole
     // arc when sliceIndex < 0 (single-floor render). trail.Alpha dims the line after detonation; the head dot
-    // (current position) draws only on the tip's floor. Cheap — a handful of live trails, ≤256 points each.
+    // (current position) draws only on the tip's floor. Cheap: a handful of live trails, ≤256 points each.
     private void DrawTrajectory(DrawingContext context, GrenadeTrail trail, ViewportTransform transform,
         int sliceIndex)
     {
@@ -1283,7 +1283,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
         Pen pen = new(new SolidColorBrush(Color.FromArgb(lineA, c.R, c.G, c.B)), 2);
         context.DrawGeometry(null, pen, geo);
 
-        // Head dot at the live position (brighter) — only on the floor the current tip sits on.
+        // Head dot at the live position (brighter): only on the floor the current tip sits on.
         GrenadeTrailPoint head = pts[^1];
         if (sliceIndex >= 0 && _floors.SliceIndexFor(head.Z) != sliceIndex)
         {
@@ -1297,8 +1297,8 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
     }
 
     // The contiguous point-index runs of a trail whose SEGMENTS belong to floor <paramref name="sliceIndex" />.
-    // A segment (i-1 → i) belongs to the floor if EITHER endpoint's Z maps to it (via <paramref name="floorOf" />)
-    // — so a grenade whose arc crosses floors renders each portion on the right band, and the single crossing
+    // A segment (i-1 → i) belongs to the floor if EITHER endpoint's Z maps to it (via <paramref name="floorOf" />),
+    // so a grenade whose arc crosses floors renders each portion on the right band, and the single crossing
     // segment bridges both bands (drawn on each) for visual continuity. sliceIndex &lt; 0 → one run over all
     // points (single-floor render). Each run (Start, End) is a polyline of points[Start..End]. Internal + pure
     // for unit testing the multi-level split without a full render.
@@ -1340,7 +1340,7 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
     }
 
     // Planted-C4 timer ring (A4): a red diamond at the bomb, a dim ring track, a bright RED detonation arc
-    // depleting clockwise from 12 o'clock (m_flC4Blow countdown), and — during a defuse — an inner CYAN arc
+    // depleting clockwise from 12 o'clock (m_flC4Blow countdown), and, during a defuse, an inner CYAN arc
     // depleting alongside it (the defuse-vs-detonation race made spatial).
     private void DrawBomb(DrawingContext context, BombMarker bomb, ViewportTransform transform)
     {
@@ -1404,11 +1404,11 @@ public sealed class Playback2DViewport : Control, IPlayback2DSurface
 
     // ── 2D canvas colour palette (theme-aware, T1a) ─────────────────────────────────────────────────
     //   The renderer's colours are TOKENS (Pb2dCanvas* + Pb2dTeamT/Ct) resolved from the app's theme
-    //   dictionaries for this control's variant, so ANY theme — built-in or a user drop-in — colours the radar
+    //   dictionaries for this control's variant, so ANY theme, built-in or a user drop-in, colours the radar
     //   with no code change here (central theme system, design notes in git history). BuildPalette resolves
     //   them ONCE per theme-change into _palette; the render hot path reads _palette through the delegating
     //   properties below, so there is NO per-frame resource lookup. The baked radar BITMAP (TryDrawRadar) is a
-    //   theme-independent dark asset and is NOT recoloured — only the synthetic grid + overlays adapt. The hex
+    //   theme-independent dark asset and is NOT recoloured. Only the synthetic grid + overlays adapt. The hex
     //   literals in BuildPalette are the design-time fallback (the Dark values) for when app resources aren't
     //   available (tests / design surface).
     private sealed record CanvasPalette(

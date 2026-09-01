@@ -25,7 +25,7 @@ using UpdateSvc = DemoViewer.NET.Services.Update;
 namespace DemoViewer.NET.ViewModels.Settings;
 
 /// <summary>
-///     Backs the Settings screen (P2a-i): the core, always-available settings — user <b>category</b>,
+///     Backs the Settings screen (P2a-i): the core, always-available settings: user <b>category</b>,
 ///     <b>library folders</b>, and <b>theme</b>. All settings logic lives here (not in the shell): each
 ///     change is persisted through <see cref="SettingsService" /> and the VM keeps its bound state in sync
 ///     with <em>external</em> changes (another surface's write, a hand-edited <c>settings.json</c>) via the
@@ -45,7 +45,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // ── Findability: filter + grouped sections (v0.6.x package, review R4+R5) ─────────────────
     // Each section's EFFECTIVE visibility = its platform gate AND the fuzzy filter; groups show
     // while any member does, and a non-empty filter auto-expands matching groups. Keywords are the
-    // search surface — section title + the labels a user would hunt for.
+    // search surface: section title + the labels a user would hunt for.
 
     private static readonly (string Section, string Keywords)[] _sectionKeywords =
     [
@@ -74,7 +74,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // toggle here reconciles the app's tabs/chrome and this list from the one gate.
     private readonly IFeatureGate _gate;
 
-    // Whether this is the WASM head. Injected, not read from OperatingSystem here — see the internal ctor.
+    // Whether this is the WASM head. Injected, not read from OperatingSystem here. See the internal ctor.
     private readonly Func<bool> _isBrowser;
 
     // The external-change subscription (IOptionsMonitor.OnChange). Disposed with the VM.
@@ -92,7 +92,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // persist it straight back (which would be a redundant write, and could echo).
     private bool _applyingExternal;
 
-    // ── Background processing — desktop only; suppressed on WASM like Highlights. ──
+    // ── Background processing: desktop only; suppressed on WASM like Highlights. ──
 
     /// <summary>
     ///     Master enable for background processing (the persisted "disable" switch, default ON) →
@@ -147,13 +147,13 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _forceIncompatiblePlugin;
 
-    // ── Highlights — desktop only; suppressed on WASM like Live Sync. ──
+    // ── Highlights: desktop only; suppressed on WASM like Live Sync. ──
 
     /// <summary>Background library scan opt-in → <c>AppSettings.Highlights.BackgroundScan</c> (default OFF).</summary>
     [ObservableProperty]
     private bool _highlightsBackgroundScan;
 
-    // ── Idle mode — desktop only; suppressed on WASM like Background processing. ──
+    // ── Idle mode: desktop only; suppressed on WASM like Background processing. ──
 
     /// <summary>Master enable for idle mode → <c>AppSettings.Idle.Enabled</c> (default ON). Live.</summary>
     [ObservableProperty]
@@ -196,9 +196,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _liveSyncCaptureFrameworkLogs;
 
-    // ── Live Sync (CS2) section — desktop only; suppressed on WASM like the theme drop-ins. ──
+    // ── Live Sync (CS2) section: desktop only; suppressed on WASM like the theme drop-ins. ──
 
-    /// <summary>The <c>chrome.livesync</c> opt-in — the non-dev two-step entry. Writes an override; does NOT start a session.</summary>
+    /// <summary>The <c>chrome.livesync</c> opt-in: the non-dev two-step entry. Writes an override; does NOT start a session.</summary>
     [ObservableProperty]
     private bool _liveSyncEnabled;
 
@@ -226,7 +226,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     private bool _liveSyncMockMode;
 
     /// <summary>
-    ///     The frame→CS2-demo-tick skew shim → <c>AppSettings.LiveSync.TickOffset</c> (v0.6.0 UI —
+    ///     The frame→CS2-demo-tick skew shim → <c>AppSettings.LiveSync.TickOffset</c> (v0.6.0 UI:
     ///     its own doc says "override only if validation finds a fixed skew", but until now the only
     ///     way to override it was hand-editing settings.json). Developer-expander surface.
     /// </summary>
@@ -234,7 +234,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     private int _liveSyncTickOffset;
 
     /// <summary>
-    ///     Max concurrent heavy parses → <c>AppSettings.ProcessingQueue.MaxConcurrency</c>. DEFAULT 1 — a
+    ///     Max concurrent heavy parses → <c>AppSettings.ProcessingQueue.MaxConcurrency</c>. DEFAULT 1: a
     ///     16 GB OOM-safety invariant; &gt; 1 is advanced and clamped to [1, <see cref="ConcurrencyMax" />].
     /// </summary>
     [ObservableProperty]
@@ -302,7 +302,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _showGroupFeatures = true;
 
-    // Group visibility (any member visible) + expansion. Features starts COLLAPSED — its ~25
+    // Group visibility (any member visible) + expansion. Features starts COLLAPSED: its ~25
     // toggle rows are ~35% of the whole page, which is the wall the grouping exists to remove.
     [ObservableProperty]
     private bool _showGroupGeneral = true;
@@ -348,11 +348,11 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     private bool _showSectionUserCategory = true;
 
     // Desktop folder-picker source, handed in by the view code-behind (mirrors MainView's storage-provider
-    // handoff). Null on WASM / headless — the folder picker is then unavailable (see CanAddFolder).
+    // handoff). Null on WASM / headless, so the folder picker is then unavailable (see CanAddFolder).
     private IStorageProvider? _storageProvider;
 
-    // true while THIS VM is persisting a change, so the synchronous OnChange echo of our own write is
-    // skipped as redundant (the bound state already matches what we just wrote).
+    // true while THIS VM is persisting a change, so the synchronous OnChange echo of its own write is
+    // skipped as redundant (the bound state already matches what was just written).
     private bool _writing;
 
     /// <summary>
@@ -424,7 +424,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _diagnosticsMaxLogRows = current.Diagnostics.MaxLogRows;
         _diagnosticsFileMaxSizeKb = current.Diagnostics.FileMaxSizeKilobytes;
         _diagnosticsFileMaxCount = current.Diagnostics.FileMaxCount;
-        // Highlights section — seed from fields so construction trips no change-hooks.
+        // Highlights section: seed from fields so construction trips no change-hooks.
         _highlightsBackgroundScan = current.Highlights.BackgroundScan;
         _reelOutputFolder = current.Highlights.ReelOutputDirectory;
         _reelContainerFormat = current.Highlights.ReelContainerFormat;
@@ -436,11 +436,11 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _reelUseCrf = current.Highlights.ReelBitrateKbps is null;
         _reelCrf = current.Highlights.ReelCrf;
         _reelBitrateKbps = current.Highlights.ReelBitrateKbps ?? 0;
-        // Background processing section — seed from fields so construction trips no change-hooks.
+        // Background processing section: seed from fields so construction trips no change-hooks.
         _backgroundProcessingEnabled = current.ProcessingQueue.BackgroundProcessingEnabled;
         _maxQueueSize = current.ProcessingQueue.MaxQueueSize;
         _maxConcurrency = current.ProcessingQueue.MaxConcurrency;
-        // Idle section — seed from fields so construction trips no change-hooks. The model is a TimeSpan;
+        // Idle section: seed from fields so construction trips no change-hooks. The model is a TimeSpan;
         // the editable surface is whole/fractional minutes.
         _idleEnabled = current.Idle.Enabled;
         _idleTimeoutMinutes = current.Idle.IdleTimeoutWait.TotalMinutes;
@@ -461,8 +461,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         BuildKeybindRows();
         RefreshKeybindRows();
 
-        // React to external settings changes. Self-writes raise this too — synchronously, while _writing is
-        // set — so they are skipped as a redundant echo. The name arg is unused.
+        // React to external settings changes. Self-writes raise this too, synchronously, while _writing is
+        // set, so they are skipped as a redundant echo. The name arg is unused.
         _onChange = monitor.OnChange((updated, _) => OnSettingsChanged(updated));
 
         // Findability (v0.6.x): seed the section/group visibility from the platform gates (empty filter).
@@ -475,30 +475,30 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <summary>The rolling-log-file directory (null on WASM), shown so users can find the files.</summary>
     public string? DiagnosticsLogsFolderPath { get; } = AppPaths.LogsDir;
 
-    /// <summary>Whether the diagnostics-logging section is manageable (desktop only — no filesystem on WASM).</summary>
+    /// <summary>Whether the diagnostics-logging section is manageable (desktop only: no filesystem on WASM).</summary>
     public bool CanManageDiagnosticsLogging { get; } = !OperatingSystem.IsBrowser();
 
-    /// <summary>The gate's hard concurrency ceiling ([1, 8]) — surfaces the bound in the picker + copy.</summary>
+    /// <summary>The gate's hard concurrency ceiling ([1, 8]): surfaces the bound in the picker + copy.</summary>
     public int ConcurrencyMax { get; } = HeavyJobGate.HardCapConcurrency;
 
     /// <summary>The selectable max-concurrency values (1..<see cref="ConcurrencyMax" />) for the picker.</summary>
     public IReadOnlyList<int> ConcurrencyOptions { get; } =
         [.. Enumerable.Range(1, HeavyJobGate.HardCapConcurrency)];
 
-    /// <summary>True when max-concurrency is above the safe default of 1 — reveals the RAM-risk warning.</summary>
+    /// <summary>True when max-concurrency is above the safe default of 1, revealing the RAM-risk warning.</summary>
     public bool ShowConcurrencyRiskWarning => MaxConcurrency > 1;
 
     /// <summary>
-    ///     Whether the Background-processing section is shown — desktop only (background work needs a
+    ///     Whether the Background-processing section is shown: desktop only (background work needs a
     ///     filesystem; there is none on the browser host, so nothing to configure there).
     /// </summary>
     public bool CanManageProcessingQueue { get; } = !OperatingSystem.IsBrowser();
 
-    /// <summary>Whether the Idle-mode section is shown — desktop only (idle mode is a no-op on WASM).</summary>
+    /// <summary>Whether the Idle-mode section is shown: desktop only (idle mode is a no-op on WASM).</summary>
     public bool CanManageIdle { get; } = !OperatingSystem.IsBrowser();
 
     /// <summary>
-    ///     The shared updater VM — the SAME instance the shell banner binds to, so a check started
+    ///     The shared updater VM: the SAME instance the shell banner binds to, so a check started
     ///     here raises the banner and the resolved update stays installable. Bound directly by the
     ///     Settings view (version line, Check button, status text).
     /// </summary>
@@ -528,25 +528,25 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <summary>The user theme drop-in folder path (for the hint), or <c>null</c> on WASM (no filesystem).</summary>
     public string? ThemesFolderPath { get; } = AppPaths.ThemesDirectory;
 
-    /// <summary>Whether user theme drop-ins are available (a real filesystem — false on the browser host).</summary>
+    /// <summary>Whether user theme drop-ins are available (a real filesystem: false on the browser host).</summary>
     public bool CanManageThemes { get; } = !OperatingSystem.IsBrowser();
 
-    /// <summary>Whether the Live Sync (CS2) section is shown — desktop only (suppressed on WASM).</summary>
+    /// <summary>Whether the Live Sync (CS2) section is shown: desktop only (suppressed on WASM).</summary>
     public bool CanManageLiveSync { get; } = !OperatingSystem.IsBrowser();
 
-    /// <summary>Whether the Highlights section is shown — desktop only (cache/scan/reel need a filesystem).</summary>
+    /// <summary>Whether the Highlights section is shown: desktop only (cache/scan/reel need a filesystem).</summary>
     public bool CanManageHighlights { get; } = !OperatingSystem.IsBrowser();
 
-    /// <summary>The effective user category — the selected card's value. Convenience for callers/tests.</summary>
+    /// <summary>The effective user category: the selected card's value. Convenience for callers/tests.</summary>
     public UserCategory SelectedCategory => SelectedCategoryOption.Value;
 
     /// <summary>
     ///     Tab rows and their nested SubFeature rows (each tab immediately followed by its children, indented),
-    ///     in catalog order — the first grouped block of the feature-toggle list.
+    ///     in catalog order, the first grouped block of the feature-toggle list.
     /// </summary>
     public ObservableCollection<FeatureToggleRow> TabFeatureRows { get; } = [];
 
-    /// <summary>Global-chrome rows (no parent tab) — the second grouped block of the feature-toggle list.</summary>
+    /// <summary>Global-chrome rows (no parent tab), the second grouped block of the feature-toggle list.</summary>
     public ObservableCollection<FeatureToggleRow> ChromeFeatureRows { get; } = [];
 
     /// <summary>
@@ -587,18 +587,18 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     // ── 2D playback controls: the keybinding surface ──────────────────────────
     // The shipped table is the row list; the RESOLVED profile is what each row displays. Every write is
-    // validated before it is persisted, so the settings file can only ever hold rows that resolve — the
+    // validated before it is persisted, so the settings file can only ever hold rows that resolve. The
     // profile's drop-and-report path exists for a HAND-edited file, not for anything this screen writes.
 
     /// <summary>One row per keymap action, in the shipped table's authored order.</summary>
     public ObservableCollection<KeybindRow> Playback2DKeybindRows { get; } = [];
 
-    /// <summary>Whether any override row was dropped — reveals the note.</summary>
+    /// <summary>Whether any override row was dropped, revealing the note.</summary>
     public bool HasKeybindRejections => KeybindRejectionNote.Length > 0;
 
     /// <summary>
     ///     Whether rebinds survive a restart. False on the browser head, where <c>SettingsService</c>
-    ///     selects its fileless in-memory provider — every write lands in a dictionary that dies with the
+    ///     selects its fileless in-memory provider. Every write lands in a dictionary that dies with the
     ///     page. A user rebinds twenty gestures, watches every one of them apply live, and loses the lot on
     ///     refresh.
     /// </summary>
@@ -625,10 +625,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <summary>How many actions are bound to something other than their shipped gesture.</summary>
     public int CustomKeybindCount { get; private set; }
 
-    /// <summary>Whether anything is rebound — reveals the section header's "N custom" badge.</summary>
+    /// <summary>Whether anything is rebound, revealing the section header's "N custom" badge.</summary>
     public bool HasCustomKeybinds => CustomKeybindCount > 0;
 
-    /// <summary>Whether the "Replay walkthrough" affordance is shown (a starter was wired — desktop app only).</summary>
+    /// <summary>Whether the "Replay walkthrough" affordance is shown (a starter was wired: desktop app only).</summary>
     public bool CanReplayWalkthrough => _replayWalkthrough is not null;
 
     /// <inheritdoc />
@@ -645,7 +645,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     The three selectable user-category cards with their one-line descriptions — the single shared
+    ///     The three selectable user-category cards with their one-line descriptions: the single shared
     ///     source used by both the Settings screen and the first-run wizard, so the copy never drifts.
     /// </summary>
     public static IReadOnlyList<CategoryOption> BuildCategoryOptions() =>
@@ -715,7 +715,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     partial void OnKeybindRejectionNoteChanged(string value) =>
         OnPropertyChanged(nameof(HasKeybindRejections));
 
-    // One row per SHIPPED binding, reserved rows included — a reserved gesture that is simply absent from
+    // One row per SHIPPED binding, reserved rows included: a reserved gesture that is simply absent from
     // the list reads as free, which is the opposite of what the reservation means.
     private void BuildKeybindRows()
     {
@@ -782,7 +782,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Feeds a keypress to the armed row. Returns true when the key was CONSUMED — the view marks it
+    ///     Feeds a keypress to the armed row. Returns true when the key was CONSUMED: the view marks it
     ///     handled, which is what stops a captured <c>Space</c> from also clicking the button underneath
     ///     it and a captured letter from typing into the search box.
     ///     <para>
@@ -851,7 +851,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     }
 
     // Validate FIRST, persist second. A conflicting rebind is refused with its reason on the row rather
-    // than written and silently dropped on the next load — the user has to be able to see WHY the key
+    // than written and silently dropped on the next load. The user has to be able to see WHY the key
     // they pressed did not take.
     private void ApplyKeybindCapture(KeybindRow row, Key key, KeyModifiers modifiers)
     {
@@ -968,7 +968,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     // ── Live Sync section change-hooks (echo-guarded like the theme/category hooks) ──
 
-    // Writes the chrome.livesync OVERRIDE (the opt-in) — it makes the chip AVAILABLE; it never starts a
+    // Writes the chrome.livesync OVERRIDE (the opt-in): it makes the chip AVAILABLE; it never starts a
     // session. The override write fires gate.Changed → RefreshFeatureRows re-syncs this back under the guard.
     partial void OnLiveSyncEnabledChanged(bool value)
     {
@@ -1030,8 +1030,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         Persist(s => s.LiveSync.CaptureFrameworkLogs = value);
     }
 
-    // Game-window geometry (v0.6.0): clamped to sane pixel ranges like the other numeric fields —
-    // a 0×0 or absurd window is a typo, not a preference. Applies to the NEXT session launch.
+    // Game-window geometry (v0.6.0): clamped to sane pixel ranges like the other numeric fields.
+    // A 0×0 or absurd window is a typo, not a preference. Applies to the NEXT session launch.
 
     partial void OnLiveSyncGameWindowWidthChanged(int value)
     {
@@ -1117,7 +1117,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         Persist(s => s.Diagnostics.WriteLogFile = value);
     }
 
-    // The three caps (v0.6.0) clamp defensively like MaxQueueSize — a hand-edited settings.json or a
+    // The three caps (v0.6.0) clamp defensively like MaxQueueSize: a hand-edited settings.json or a
     // typo'd field must not produce a zero-row log window or an unbounded file set.
 
     partial void OnDiagnosticsMaxLogRowsChanged(int value)
@@ -1343,7 +1343,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         }
 
         // Clamp defensively (hand-edited value / bad input): floor at 0.1 min (6 s) so the countdown is
-        // never effectively disabled by a zero here — the master Enabled toggle is the way to turn it off.
+        // never effectively disabled by a zero here. The master Enabled toggle is the way to turn it off.
         double clamped = Math.Clamp(value, 0.1, 1440); // up to 24h
         if (Math.Abs(clamped - value) > double.Epsilon)
         {
@@ -1388,7 +1388,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Picks the CS2 install folder via the OS folder picker (desktop). No-op when no picker is wired
-    ///     (WASM / headless) — the whole section is suppressed there via <see cref="CanManageLiveSync" />.
+    ///     (WASM / headless). The whole section is suppressed there via <see cref="CanManageLiveSync" />.
     /// </summary>
     [RelayCommand]
     private async Task BrowseCs2InstallAsync()
@@ -1417,7 +1417,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Adds one or more folders via the OS folder picker (desktop). No-op when no picker is wired
-    ///     (WASM / headless) — the Add button is disabled there via <see cref="CanAddFolder" />.
+    ///     (WASM / headless). The Add button is disabled there via <see cref="CanAddFolder" />.
     /// </summary>
     [RelayCommand]
     private async Task AddFolderAsync()
@@ -1480,9 +1480,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Re-scans the drop-in theme folder (T3) so a newly-added / edited / deleted <c>*.json</c> shows up
     ///     without a restart. <see cref="ThemeRegistry.Reload" /> raises <c>Reloaded</c>, which
-    ///     <c>App.WireTheme</c> handles by repainting the running app; here we refresh the picker list and keep
-    ///     the current selection (or fall back if its drop-in was removed). No settings are persisted (a reload
-    ///     is not a user choice) — the reselect is guarded.
+    ///     <c>App.WireTheme</c> handles by repainting the running app; here the picker list refreshes, keeping
+    ///     the current selection (or falling back if its drop-in was removed). No settings are persisted (a reload
+    ///     is not a user choice). The reselect is guarded.
     /// </summary>
     [RelayCommand]
     private void ReloadThemes()
@@ -1503,9 +1503,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Re-launches the first-run setup wizard (P2b — the relaunchable first-run experience). Resolves
-    ///     the host window service + a fresh wizard VM from the composition root — the same service-locator
-    ///     seam <c>MainViewModel.OpenSettings</c> uses — so it needs no extra constructor dependency. Inert
+    ///     Re-launches the first-run setup wizard (P2b: the relaunchable first-run experience). Resolves
+    ///     the host window service + a fresh wizard VM from the composition root, the same service-locator
+    ///     seam <c>MainViewModel.OpenSettings</c> uses, so it needs no extra constructor dependency. Inert
     ///     on the designer / test path (no container, or a partial one).
     /// </summary>
     [RelayCommand]
@@ -1639,7 +1639,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     };
 
     // Persist a folder-set change AND mirror it into the bound collection. The self-write echo is skipped
-    // (_writing), so the collection would not otherwise refresh — do it here under the external guard.
+    // (_writing), so the collection would not otherwise refresh. It is refreshed here, under the external guard.
     private void ApplyFolders(string[] folders)
     {
         Persist(s => s.Library.Folders = folders);
@@ -1663,7 +1663,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         }
     }
 
-    // Mutate + persist through the settings service, guarding the synchronous OnChange echo of our own write.
+    // Mutate + persist through the settings service, guarding the synchronous OnChange echo of its own write.
     private void Persist(Action<AppSettings> mutate)
     {
         if (_disposed)
@@ -1682,7 +1682,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         }
     }
 
-    // IOptionsMonitor.OnChange handler. Skips our own writes (the synchronous echo). An external change (the
+    // IOptionsMonitor.OnChange handler. Skips its own writes (the synchronous echo). An external change (the
     // file watcher) can arrive on a threadpool thread, so marshal to the UI thread before touching bound
     // state (per the SettingsService OnChange-threading contract).
     private void OnSettingsChanged(AppSettings settings)
@@ -1703,7 +1703,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     }
 
     // Push external settings into the bound properties WITHOUT persisting them back (the _applyingExternal
-    // guard neuters the change-hooks). Idempotent — unchanged values short-circuit.
+    // guard neuters the change-hooks). Idempotent: unchanged values short-circuit.
     private void Reflect(AppSettings settings)
     {
         if (_disposed)
@@ -1779,7 +1779,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             }
         }
 
-        return Categories[1]; // PowerUser — the default tier
+        return Categories[1]; // PowerUser: the default tier
     }
 
     // Refresh the bound theme list from the registry (built-ins + current user drop-ins). Called at
@@ -1794,7 +1794,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     }
 
     // Map a persisted theme id onto one of the offered Theme instances (case-insensitive, matching the
-    // registry's id lookup — so a legacy capitalized "Dark"/"Light"/"System" still selects the right theme).
+    // registry's id lookup, so a legacy capitalized "Dark"/"Light"/"System" still selects the right theme).
     // An unknown id falls back to the first theme (Dark) for DISPLAY only; it is never silently rewritten
     // (only an explicit selection or an external edit persists, guarded by _applyingExternal). Returns an
     // instance FROM the bound Themes list so the ComboBox SelectedItem matches by reference.

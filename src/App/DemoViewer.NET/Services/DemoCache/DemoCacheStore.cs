@@ -9,12 +9,12 @@ using System.Text.Json;
 namespace DemoViewer.NET.Services.DemoCache;
 
 /// <summary>
-///     The unified demo-information cache — one tiered record per demo, replacing the overlapping
+///     The unified demo-information cache: one tiered record per demo, replacing the overlapping
 ///     <c>library.json</c> and <c>highlights.json</c> stores.
 ///     <para>
 ///         <b>Storage shape.</b> A thin always-loaded <c>index.json</c> plus one lazily-read sidecar
-///         per demo under <c>demos/</c>. The surfaces that want the fat payload — Match Overview, the reel
-///         tray — want it for exactly ONE demo at a time, which is what "Match Overview is a cache render"
+///         per demo under <c>demos/</c>. The surfaces that want the fat payload, Match Overview and the reel
+///         tray, want it for exactly ONE demo at a time, which is what "Match Overview is a cache render"
 ///         means; the Library grid wants a small projection of all of them. A monolith serves neither well: it
 ///         deserializes in full at every app start regardless of which demo the user cares about, and a
 ///         library backfill rewrites the whole growing file after every single demo.
@@ -22,7 +22,7 @@ namespace DemoViewer.NET.Services.DemoCache;
 ///     <para>
 ///         <b>Durability.</b> Every write is atomic (temp file + replace), inherited from
 ///         <c>HighlightsCacheStore</c>, whose own note is the reason: a crash mid-write must never destroy an
-///         hour of scan progress. Beyond atomicity, I/O failure is swallowed — this cache is rebuildable and
+///         hour of scan progress. Beyond atomicity, I/O failure is swallowed: this cache is rebuildable and
 ///         is never a source of truth.
 ///     </para>
 ///     <para>
@@ -41,17 +41,17 @@ public sealed class DemoCacheStore
     private readonly object _gate = new();
 
     // The always-loaded projection, keyed by demo path (the same case-insensitive keying the library and
-    // highlights caches both use — macOS and Windows default filesystems are case-insensitive).
+    // highlights caches both use: macOS and Windows default filesystems are case-insensitive).
     private readonly Dictionary<string, DemoCacheIndexEntry> _index =
         new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    ///     Record store used when there is no cache root — the browser host, and tests.
+    ///     Record store used when there is no cache root: the browser host, and tests.
     ///     <para>
     ///         <b>Not a test convenience.</b> Without it the no-root mode can hold exactly ONE record: writes
     ///         go nowhere and reads are served only by the capacity-1 JSON cache, so the second demo upserted
     ///         evicts the first and <see cref="TryLoadRecord" /> returns null for it forever. Every surface
-    ///         that resolves more than one demo — the Reels clip tray is cross-demo BY DEFINITION — silently
+    ///         that resolves more than one demo, the Reels clip tray is cross-demo BY DEFINITION, silently
     ///         loses all but the most recent. The class contract already promised "nothing is written and
     ///         every API still works"; this is what makes the second half true.
     ///     </para>
@@ -65,11 +65,11 @@ public sealed class DemoCacheStore
     ///     Distinct from <see cref="_gate" />, which guards short index/cache critical sections only and is
     ///     taken INSIDE this one by the load and upsert steps.
     ///     <para>
-    ///         Needed because one demo has several tier writers running concurrently — an interactive open
+    ///         Needed because one demo has several tier writers running concurrently: an interactive open
     ///         fires the highlights mirror (off-thread, from <c>OnOpenDemoEvaluated</c>) and the scoreboard
     ///         write at nearly the same moment, on the same record. Without this, both read the pre-write
     ///         record, both mutate their own copy, and whichever upserts last silently erases the other's
-    ///         tier — losing exactly the highlights this cache was fixed to store.
+    ///         tier, losing exactly the highlights this cache was fixed to store.
     ///     </para>
     /// </summary>
     private readonly object _rmwGate = new();
@@ -78,13 +78,13 @@ public sealed class DemoCacheStore
     private bool _batchDirty; // under _gate
 
     // Capacity-1 record cache. Match Overview re-reads the same record on every property touch while a demo
-    // is selected, and arrow-keying the Library grid walks one demo at a time — so remembering exactly the
+    // is selected, and arrow-keying the Library grid walks one demo at a time, so remembering exactly the
     // last one collapses the common case to zero I/O without holding a library's worth of records live.
     // (The same capacity-1 idiom the demo GetOrParse cache uses, for the same reason.)
     //
     // Cached as JSON TEXT, not as a live object, and every read deserializes a fresh instance. Handing out a
     // shared mutable record would let a UI-thread reader (Match Overview, rendering the selected demo) watch
-    // fields change under it while a background tier-2 pass mutates the same instance through Update — a
+    // fields change under it while a background tier-2 pass mutates the same instance through Update, a
     // torn read with no lock a caller could reasonably take. The cache still spares the disk I/O, which is
     // what it was for; a few KB of deserialization per selection change is not worth a data race.
     private string? _lastRecordJson;
@@ -155,13 +155,13 @@ public sealed class DemoCacheStore
     private string? SidecarDir => _cacheRoot is null ? null : Path.Combine(_cacheRoot, "demos");
 
     /// <summary>
-    ///     Raised (via the post delegate) after any mutation — or, inside a <see cref="BeginBatch" /> scope,
+    ///     Raised (via the post delegate) after any mutation, or, inside a <see cref="BeginBatch" /> scope,
     ///     exactly once when the scope closes. Consumers re-project wholesale per event, so an O(library) pass
     ///     MUST batch or it becomes an O(n²) re-projection storm on the dispatcher.
     ///     <para>
     ///         The argument is the demo path that changed, or <c>null</c> when the change spans many (a batch,
-    ///         a bulk remove). <b>Carrying it is not a nicety.</b> A per-demo consumer — Match Overview
-    ///         re-rendering the demo it is showing — would otherwise re-project on every unrelated write:
+    ///         a bulk remove). <b>Carrying it is not a nicety.</b> A per-demo consumer, Match Overview
+    ///         re-rendering the demo it is showing, would otherwise re-project on every unrelated write:
     ///         arrow-keying the Library while the indexer works would cost a capacity-1 cache miss and a full
     ///         page rebuild per demo indexed, and rebuilding the highlight groups pops open every group the
     ///         user had collapsed.
@@ -190,10 +190,10 @@ public sealed class DemoCacheStore
     }
 
     /// <summary>
-    ///     The full record for a demo — read from its sidecar on demand. Returns null when the demo is unknown
+    ///     The full record for a demo: read from its sidecar on demand. Returns null when the demo is unknown
     ///     or its sidecar is missing/corrupt; callers treat that exactly as "not cached" and re-index.
     ///     <para>
-    ///         <b>Does no work beyond a small file read.</b> No parse, no header read, no queue — the cached
+    ///         <b>Does no work beyond a small file read.</b> No parse, no header read, no queue: the cached
     ///         render's credibility rests on this page starting nothing the user did not ask for.
     ///     </para>
     /// </summary>
@@ -264,7 +264,7 @@ public sealed class DemoCacheStore
     {
         DemoCacheRecord? existing = TryLoadRecord(path);
 
-        // A record whose file no longer matches describes a DIFFERENT demo at the same path — the user
+        // A record whose file no longer matches describes a DIFFERENT demo at the same path: the user
         // replaced or re-downloaded it. Keeping any tier would attribute the old match's rosters and score to
         // the new file, so identity drift discards everything rather than trying to salvage tiers.
         if (existing is not null && existing.MatchesFile(size, modifiedTicks))
@@ -281,14 +281,14 @@ public sealed class DemoCacheStore
     }
 
     /// <summary>
-    ///     Bulk-reads full records for every index row matching <paramref name="where" /> — the one genuinely
+    ///     Bulk-reads full records for every index row matching <paramref name="where" />: the one genuinely
     ///     cross-demo consumer, the Reels <c>Add clips…</c> picker, which flattens every harvested highlight in
     ///     the library into one selectable list.
     ///     <para>
     ///         <b>Deliberately not the normal path.</b> This store is index-plus-lazy-sidecars precisely so
     ///         nothing deserializes the whole library at startup; every other reader wants one demo at a time
     ///         and must keep using <see cref="TryLoadRecord" />. Filter on
-    ///         <see cref="DemoCacheIndexEntry.HighlightCount" /> — that field exists so a caller can decide
+    ///         <see cref="DemoCacheIndexEntry.HighlightCount" />: that field exists so a caller can decide
     ///         which sidecars are worth opening without opening them.
     ///     </para>
     ///     <para>
@@ -332,9 +332,9 @@ public sealed class DemoCacheStore
     ///         business restating it in a different unit.
     ///     </para>
     ///     <para>
-    ///         When no record exists yet, one is created using the LIBRARY's convention (local ticks) — the
-    ///         convention every record on disk was written with — so that the library's next reconcile matches
-    ///         it instead of discarding the tier we just wrote.
+    ///         When no record exists yet, one is created using the LIBRARY's convention (local ticks), the
+    ///         convention every record on disk was written with, so that the library's next reconcile matches
+    ///         it instead of discarding the tier this call just wrote.
     ///     </para>
     /// </summary>
     public void UpdateExisting(string path, Action<DemoCacheRecord> mutate)
@@ -361,7 +361,7 @@ public sealed class DemoCacheStore
     }
 
     /// <summary>
-    ///     Writes a record's sidecar and refreshes its index projection. The single write path — every tier
+    ///     Writes a record's sidecar and refreshes its index projection. The single write path: every tier
     ///     fill goes through here so the index can never drift from the sidecars.
     /// </summary>
     public void Upsert(DemoCacheRecord record)
@@ -417,7 +417,7 @@ public sealed class DemoCacheStore
         stamp.ComputedAtTicks = DateTime.UtcNow.Ticks;
     }
 
-    /// <summary>Forgets a demo entirely — index row and sidecar.</summary>
+    /// <summary>Forgets a demo entirely: index row and sidecar.</summary>
     public void Remove(string path)
     {
         bool removed;
@@ -440,7 +440,7 @@ public sealed class DemoCacheStore
         }
     }
 
-    /// <summary>Drops every row matching <paramref name="predicate" /> — library reconciliation.</summary>
+    /// <summary>Drops every row matching <paramref name="predicate" />: library reconciliation.</summary>
     public void RemoveWhere(Func<DemoCacheIndexEntry, bool> predicate)
     {
         List<string> doomed;
@@ -484,7 +484,7 @@ public sealed class DemoCacheStore
         }
         catch (Exception)
         {
-            // Rebuildable cache — persistence noise is never surfaced.
+            // Rebuildable cache: persistence noise is never surfaced.
         }
     }
 
@@ -552,7 +552,7 @@ public sealed class DemoCacheStore
         }
         catch (Exception)
         {
-            // Best effort — an orphaned sidecar is harmless, it is simply never read again.
+            // Best effort: an orphaned sidecar is harmless, it is simply never read again.
         }
     }
 

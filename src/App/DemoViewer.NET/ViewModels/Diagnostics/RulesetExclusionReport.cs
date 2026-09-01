@@ -16,10 +16,10 @@ namespace DemoViewer.NET.ViewModels.Diagnostics;
 ///         composition validates cross-references up front: a ruleset naming a scoreboard or table
 ///         that does not resolve, or an unsupported <c>per:</c> dimension, is excluded from the
 ///         composed set rather than loaded and left partly broken. Tolerant composition is the right
-///         call — one bad file must not take the other twenty with it — but it means a mistyped
+///         call: one bad file must not take the other twenty with it, but it means a mistyped
 ///         column name costs the WHOLE ruleset, contributes no graph nodes, and produces exactly the
-///         same observable result as rules that ran and matched nothing. Nobody reading a scoreboard
-///         can tell those apart.
+///         same observable result as rules that ran and matched nothing. A person reading a scoreboard
+///         cannot tell those apart.
 ///     </para>
 ///     <para>
 ///         Every <c>DemoAnalysis.Build</c> call site in the app routes through here so the report

@@ -51,12 +51,12 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     private const int PrewarmFrameCap = 12_000;
     private static readonly IReadOnlySet<string> _emptyChainKeys = new HashSet<string>();
 
-    // A per-fire accessor that always resolves to null — the fallback when a Recompute closure is ever
+    // A per-fire accessor that always resolves to null: the fallback when a Recompute closure is ever
     // invoked without a positioned cache (not on the pending path; the host always supplies EntityAccessorAt).
     private static readonly Func<int, IEntityValueAt?> _noAccessor = _ => null;
 
     // Per-demo breakpoint persistence. _demoKey is the SHA-256 of the loaded demo's bytes
-    // (null when no demo is loaded — that null gates the save off so Reset()'s Clear can't wipe the
+    // (null when no demo is loaded: that null gates the save off so Reset()'s Clear can't wipe the
     // previous demo's file). _loadingBreakpoints suppresses the save while we Add the restored set, so
     // a load doesn't immediately re-persist what it just read (one write per real user edit, not N).
     private readonly GraphBreakpointStore _breakpointStore = new();
@@ -81,7 +81,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     private List<INodeGroup> _allGroups = [];
     private IReadOnlyList<PlayerTableViewModel> _allTables = [];
 
-    // Per-edge applied (fired) message indices, keyed by (source, dest, label, conditionLabel) — the
+    // Per-edge applied (fired) message indices, keyed by (source, dest, label, conditionLabel): the
     // default hit set for an edge breakpoint. The condition label is part of the key because one rule
     // can wire two same-event triggers between the same node pair differing only by condition (foe vs
     // friend); without it they'd collapse and a breakpoint would track the wrong fire set. ONLY
@@ -113,7 +113,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     [NotifyCanExecuteChangedFor(nameof(NextMessageCommand))]
     private int _currentMessageIndex = -1;
 
-    // The snapshot row backing the currently-displayed message — kept so ApplyFilters (fired
+    // The snapshot row backing the currently-displayed message, kept so ApplyFilters (fired
     // outside a seek) can recompute surviving cells' live values when the filter toggles.
     private NodeSnapshot[]? _currentSnapshot;
 
@@ -125,7 +125,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     private string? _demoKey;
 
-    // Diagnostics-pillar logger (v0.6.0 — the failure surfaces show clean text, this carries the
+    // Diagnostics-pillar logger (v0.6.0: the failure surfaces show clean text; this carries the
     // real exception). Lazy: the ambient factory is wired after construction.
     private ILogger? _diagLog;
 
@@ -147,7 +147,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string? _editingConditionText;
 
-    /// <summary>Whether entity-check rows apply here — the target has a trigger event to scope them against.</summary>
+    /// <summary>Whether entity-check rows apply here: the target has a trigger event to scope them against.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowEntityChecks))]
     [NotifyPropertyChangedFor(nameof(ShowAdvancedNote))]
@@ -156,7 +156,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Whether the editor shows the structured view (event-match box + entity rows) vs. a single
     ///     advanced free-text box. False when the saved condition can't decompose into AND-clauses (a
-    ///     top-level <c>||</c>, parens — see <see cref="StructuredCondition.Decomposed" />).
+    ///     top-level <c>||</c>, parens; see <see cref="StructuredCondition.Decomposed" />).
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowEntityChecks))]
@@ -164,7 +164,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     private bool _editingStructured;
 
     // The element whose condition is being edited. A single field (vs the old _editingNode XOR
-    // _editingEdge pair) makes the "exactly one is being edited" invariant structural — the source of
+    // _editingEdge pair) makes the "exactly one is being edited" invariant structural: the source of
     // the earlier CanApplyCondition dead-disable bug.
     private ConditionTarget? _editingTarget;
 
@@ -182,7 +182,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     // Diagnostics tab can READ per-layer profiling snapshots and re-invoke evaluation with a live
     // listener attached ("Re-run captured"). Both are cleared in ClearFullGraph() alongside
     // _demoFrames so a reload can't hand back stale state. The scanner retention keeps its
-    // EntityStateLayer (and precomputed digests) alive for the session — a modest working-set
+    // EntityStateLayer (and precomputed digests) alive for the session, a modest working-set
     // cost accepted unconditionally rather than coupling App code to a parser compile symbol.
 
     private EntityValueCache? _entityValueCache;
@@ -194,9 +194,9 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     private double _evaluationProgress;
 
     // Per-edge event metadata (CLR event type + field accessors) for edges whose Label resolves to a
-    // registered game event or net message — the basis for conditional edge breakpoints (event.<field>
+    // registered game event or net message: the basis for conditional edge breakpoints (event.<field>
     // predicates). Same 4-tuple key as _appliedByEdgeKey. Entity-change-backed edges DON'T appear here
-    // (their Label isn't a registry event), so they stay default-only — that's the second gate
+    // (their Label isn't a registry event), so they stay default-only: that's the second gate
     // (SupportsCondition), independent of IsBreakpointable.
     private Dictionary<(string Source, string Dest, string Label, string? Condition),
         (Type EventType, Type? ParameterType, IReadOnlyDictionary<string, EventFieldAccessor> Fields)> _eventMetaByEdgeKey = new();
@@ -231,7 +231,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     private bool _isBreakpointListOpen;
 
     /// <summary>
-    ///     True while an entity-state replay is in flight — the one-time pre-warm at demo load, or a rebuild
+    ///     True while an entity-state replay is in flight: the one-time pre-warm at demo load, or a rebuild
     ///     kicked by a new/edited entity-read breakpoint. Drives the toolbar "computing entity state…"
     ///     indicator so the ~one-time replay reads as working, not as a broken/empty breakpoint.
     /// </summary>
@@ -282,7 +282,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     // The player slot currently RENDERED into the tables (vs Filter.SelectedPlayer, the live UI
     // state). null = all players shown. Selecting a player REMOVES the other rows (structural), so a
-    // change here routes through the swap/relayout like a chain change — not a cheap cell repaint.
+    // change here routes through the swap/relayout like a chain change, not a cheap cell repaint.
     private int? _renderedPlayerSlot;
 
     // The graph Root VM (always included in a sub-graph so chains stay anchored to a common origin).
@@ -303,7 +303,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     private string _statusText = "No demo loaded.";
 
     // Debounce for the swap: rapid multi-select toggles (click A, B, C) collapse into ONE swap to
-    // {A,B,C}. This also serializes swaps — without it, overlapping async SetGraphAsync calls race
+    // {A,B,C}. This also serializes swaps: without it, overlapping async SetGraphAsync calls race
     // and CurrentLayout/Nodes can desync. Token is bumped on each request; only the latest survives.
     private int _swapRequestToken;
 
@@ -317,7 +317,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(MessagePositionText))]
     private int _totalMessages;
 
-    // FinalTrackedNodes by snapshot column — lets a node-breakpoint condition reference any other
+    // FinalTrackedNodes by snapshot column: lets a node-breakpoint condition reference any other
     // tracked node (and game entity contexts) by name, resolved against the snapshot. Set in RunAsync.
     private IReadOnlyList<StateNode> _trackedNodesByColumn = [];
 
@@ -354,7 +354,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     public GraphFilterViewModel Filter { get; }
 
     /// <summary>
-    ///     Rule-config load errors and semantic warnings for the last run — the rule author's build
+    ///     Rule-config load errors and semantic warnings for the last run: the rule author's build
     ///     log and the user's "why is my stat empty" in one list.
     /// </summary>
     public IReadOnlyList<RuleDiagnostic> RuleDiagnostics
@@ -376,7 +376,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Toolbar toggle label: the diagnostic count when there are issues, otherwise the
-    ///     fire-badge entry point (the toggle stays reachable on lint-free runs — authoring
+    ///     fire-badge entry point (the toggle stays reachable on lint-free runs, since authoring
     ///     visibility is work item 0.2's whole point).
     /// </summary>
     public string RuleDiagnosticsLabel => _ruleDiagnostics.Count > 0
@@ -471,7 +471,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     The <see cref="EntityChangeScanner" /> retained from the last evaluation, or
     ///     <c>null</c> until a demo is evaluated. The Diagnostics tab reads its profiling
-    ///     snapshot — both this and <c>scanner.Layer.Tracker.GetProfilingSnapshot()</c> return
+    ///     snapshot: both this and <c>scanner.Layer.Tracker.GetProfilingSnapshot()</c> return
     ///     <c>default</c> (Enabled=false) in a normal build, so consumption is zero-cost there.
     /// </summary>
     public EntityChangeScanner? EntityScanner { get; private set; }
@@ -510,7 +510,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Mode-appropriate watermark for the condition box: node value-expression examples when
     ///     editing a node, event-field examples when editing an edge (so the empty-box hint never
-    ///     suggests the wrong grammar — `value`/node names don't apply to an edge's event condition).
+    ///     suggests the wrong grammar: `value`/node names don't apply to an edge's event condition).
     /// </summary>
     public string EditingConditionWatermark => _editingTarget is { Kind: GraphBreakpointTarget.Edge }
         ? "event.IsHeadshot == true   •   event.Weapon == \"ak47\"   •   event.DmgHealth > 50      (blank = break on every fire)"
@@ -543,7 +543,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     public IReadOnlyList<string> EditingTriggerEvents { get; private set; } = [];
 
     /// <summary>
-    ///     Whether the node-picker affordance applies to the current edit — true only when editing a
+    ///     Whether the node-picker affordance applies to the current edit: true only when editing a
     ///     NODE condition (picking a graph node makes no sense for an edge's event-field condition).
     ///     Bound to the pick toggle's visibility.
     /// </summary>
@@ -584,7 +584,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         if (diagnostic.FilePath is not null
             && !OpenExternal.OpenLocalFile(diagnostic.FilePath, diagnostic.Line, diagnostic.Column))
         {
-            // v0.6.0: a silent no-op click reads as broken — say what didn't open.
+            // v0.6.0: a silent no-op click reads as broken, so say what didn't open.
             StatusText = $"Couldn't open {diagnostic.FilePath} — no editor or file handler responded.";
         }
     }
@@ -595,7 +595,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Raised on the UI thread after each successful evaluation with the result and the demo it
-    ///     came from. The Stats tab projects its scoreboard/round tables from this — the engine's
+    ///     came from. The Stats tab projects its scoreboard/round tables from this: the engine's
     ///     "same data, multiple consumers" seam, without the consumer coupling to RunAsync internals.
     /// </summary>
     public event Action<AnalysisRun, ParsedDemo>? EvaluationCompleted;
@@ -605,7 +605,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     /// <summary>Reset.</summary>
     public void Reset()
     {
-        // The demo is going away — abort any in-flight evaluation with it (P1-5.2).
+        // The demo is going away, so abort any in-flight evaluation with it (P1-5.2).
         _runCts?.Cancel();
 
         RuleDiagnostics = [];
@@ -633,7 +633,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         Filter.Clear();
         // Drop graph breakpoints on reset so stale node names from a previous demo can't linger. Null
         // the demo key FIRST: the Clear below raises Changed, and a null key gates PersistBreakpoints
-        // off — otherwise we'd save an empty set under the previous demo's key and wipe its file.
+        // off; otherwise we'd save an empty set under the previous demo's key and wipe its file.
         _demoKey = null;
         GraphBreakpoints.Clear();
         _graphViewModel = new GraphViewModel();
@@ -669,9 +669,9 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         _warmEntityCacheOnNextBuild = false;
         IsComputingEntityCache = false;
         _entityRecomputeToken++;
-        // Abort (not just supersede) any in-flight cache replay — see RunEntityRecomputeAsync.
+        // Abort (not just supersede) any in-flight cache replay; see RunEntityRecomputeAsync.
         _entityBuildCts?.Cancel();
-        // _lastEvaluatedDemo was cleared above — the re-run button must gray out with it.
+        // _lastEvaluatedDemo was cleared above: the re-run button must gray out with it.
         RerunAnalysisCommand.NotifyCanExecuteChanged();
     }
 
@@ -680,7 +680,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Evaluates the state graph for <paramref name="demo" /> and renders it. <paramref name="demoKey" />
     ///     (the SHA-256 of the demo's bytes) keys per-demo breakpoint persistence; <c>null</c> (tests, WASM,
-    ///     or a caller without the bytes) runs in-memory only — no breakpoints are restored or saved.
+    ///     or a caller without the bytes) runs in-memory only: no breakpoints are restored or saved.
     /// </summary>
     public async Task RunAsync(ParsedDemo demo, string? demoKey = null)
     {
@@ -725,7 +725,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             EntityScanner = build.EntityScanner;
             LastEvaluatedDemo = demo;
 
-            // Progressive reveal: paint the graph SKELETON (nodes + edges + groups — all known
+            // Progressive reveal: paint the graph SKELETON (nodes + edges + groups, all known
             // right after Build, ~0.1 s) so the user sees the rule-graph topology during the eval wait
             // instead of a blank canvas. Best-effort and self-contained: the authoritative post-eval
             // render below is left untouched and replaces this with the fully-evaluated graph (live
@@ -774,11 +774,11 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
             // ── Node view-models ────────────────────────────────────────────
             // Map each tracked StateNode to its absolute snapshot column. FinalTrackedNodes is the
-            // column authority for MessageSnapshots (a superset of build.Nodes — it appends
+            // column authority for MessageSnapshots (a superset of build.Nodes, since it appends
             // materialized per-player nodes), so stamping each node VM with this index decouples
             // its state lookup from its position in the rendered list. This is the keystone that
-            // lets us render an arbitrary subset (a chain sub-graph) while the full evaluation —
-            // and every node's correct snapshot column — stays intact.
+            // lets us render an arbitrary subset (a chain sub-graph) while the full evaluation,
+            // and every node's correct snapshot column, stays intact.
             Dictionary<StateNode, int> snapshotIndexByNode = new(ReferenceEqualityComparer.Instance);
             for (int i = 0; i < result.FinalTrackedNodes.Count; i++)
             {
@@ -826,7 +826,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             // ── Edge → applied-message-index map (edge breakpoint default hits) ──
             // descriptor → backing StateEdge (build.EdgeBacking) → applied indices
             // (result.AppliedMessagesByEdge). Keyed by the (source, dest, label) identity the
-            // breakpoint uses. Only trigger-backed descriptors are present — that's the gate that
+            // breakpoint uses. Only trigger-backed descriptors are present: that's the gate that
             // keeps logic/conjunction edges (no StateEdge) from arming a never-firing breakpoint.
             Dictionary<(string, string, string, string?), IReadOnlyList<int>> appliedByEdgeKey = new();
             Dictionary<(string, string, string, string?), (Type, Type?, IReadOnlyDictionary<string, EventFieldAccessor>)> eventMetaByEdgeKey = new();
@@ -855,7 +855,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
                     // message expose typed fields for an event.<field> predicate. Entity-change edges
                     // (Label = an entity context name) don't resolve → default-only. A game event
                     // compiles against the GameEvent envelope (ParameterType) so per-fire transport
-                    // (event.tick) resolves; a net message has no envelope — its payload is the
+                    // (event.tick) resolves; a net message has no envelope: its payload is the
                     // parameter (null).
                     EventRegistration? ev = registry.GetEvent(e.Label);
                     if (ev is not null)
@@ -893,7 +893,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
             // ── Per-player tables (one per template × column-group) ──────────
             // Column edges are built INSIDE BuildPlayerTables' per-group loop, where the
-            // group's local column list and column nodes are both in hand — so each edge's
+            // group's local column list and column nodes are both in hand, so each edge's
             // ColumnIndex is LOCAL to its table (aligned 1:1 with that table's ColumnNames).
             PlayerTables = BuildPlayerTables(result, nodeVmByNode, build.Nodes);
 
@@ -953,7 +953,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             // restore's recompute when there is one, or kicks an empty pre-warm build when there isn't.
             // DESKTOP ONLY: the WASM host is single-threaded, so an unconditional ~14s Task.Run on every load
             // would freeze the tab. There, the entity build stays lazy/opt-in (kicked only when the user adds
-            // an entity breakpoint, as it was before pre-warm) — the toolbar indicator still covers that.
+            // an entity breakpoint, as it was before pre-warm); the toolbar indicator still covers that.
             _warmEntityCacheOnNextBuild = !OperatingSystem.IsBrowser();
 
             // Restore this demo's persisted breakpoints and bind them to the fresh evaluation
@@ -980,7 +980,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
                     catch
                     {
                         // Developer-only dump path (DEMOVIEWER_GRAPH_DUMP_DIR): if even the error
-                        // file can't be written the disk/path is the problem — nothing to do.
+                        // file can't be written the disk/path is the problem: nothing to do.
                     }
                 }
             }
@@ -996,7 +996,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         }
         catch (RuleConfigException rce)
         {
-            // Shipped-tier rule errors hard-fail the run — surface every collected
+            // Shipped-tier rule errors hard-fail the run: surface every collected
             // error in the diagnostics panel instead of one truncated status line.
             RuleDiagnostics = rce.Errors
                 .Select(RuleDiagnostic.FromError)
@@ -1013,7 +1013,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         }
         finally
         {
-            // Only the CURRENT run owns the busy flag — a canceled run racing a fresh one must not
+            // Only the CURRENT run owns the busy flag: a canceled run racing a fresh one must not
             // clear the newcomer's spinner.
             if (runToken == _runCts?.Token)
             {
@@ -1024,17 +1024,17 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Progressive-reveal pre-render: paints the graph skeleton from
-    ///     <see cref="BuildResult" /> alone — nodes, edges, and group hints are all known after Build,
+    ///     <see cref="BuildResult" /> alone: nodes, edges, and group hints are all known after Build,
     ///     before the multi-second evaluation. Node values are the pre-eval defaults (filled in by the
     ///     authoritative post-eval render in <see cref="RunAsync" />); per-player tables aren't included
     ///     because they need the evaluated result. Best-effort: any failure is swallowed so a cosmetic
-    ///     pre-render can never abort the load — the post-eval render is the source of truth.
+    ///     pre-render can never abort the load: the post-eval render is the source of truth.
     /// </summary>
     private async Task RenderGraphSkeletonAsync(BuildResult build)
     {
         try
         {
-            // Shared skeleton conversion — the Workbench's ruleset-structure graph reuses the same helper.
+            // Shared skeleton conversion: the Workbench's ruleset-structure graph reuses the same helper.
             RuleGraphSkeleton.Skeleton skeleton = RuleGraphSkeleton.Build(build);
             await _graphViewModel.SetGraphAsync(
                 skeleton.Nodes,
@@ -1108,7 +1108,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         // Resolution follows "never guess": a stat
         // gets a badge only when its qualified {ruleset}.{stat} node exists AND some dispatched
         // StateEdge writes it (i.e. it appears in fireCountByNode). That naturally excludes
-        // compute:/live stats and count-on-flag counters — those advance via rising-edge
+        // compute:/live stats and count-on-flag counters: those advance via rising-edge
         // actions or round-end recomputes, not dispatch edges, so a 0× badge for them would be
         // a fabrication, not a measurement.
         foreach (RulesetDoc ruleset in loadedRules.Rulesets)
@@ -1119,7 +1119,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
                 AddV2FireStat(ruleset.Id, stat.Id, seenStatIds, build, result, fireCountByNode,
                     fireStats, diags);
 
-                // tally: buckets increment their TARGET counters — the stat id itself carries
+                // tally: buckets increment their TARGET counters. The stat id itself carries
                 // no counting node, the targets do. Badge each target under its own id.
                 if (stat.Thresholds is { } thresholds)
                 {
@@ -1137,7 +1137,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Emits the badge row (and, at zero, the never-fired lint) for one v2 stat id, resolved
-    ///     via the qualified <c>{ruleset}.{stat}</c> key — across every materialized player for
+    ///     via the qualified <c>{ruleset}.{stat}</c> key, across every materialized player for
     ///     <c>for: each_player</c> rulesets, then the game-scope map. Stats whose node no
     ///     dispatched edge writes produce no row (see the call site's rationale).
     /// </summary>
@@ -1240,7 +1240,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     {
         // Scope each chain key by the POSITIVE game signal. Every game chain that fired events has
         // a satisfaction conjunction node, and the graph build stamps that node's "_chain_{id}" key into
-        // NodeChains — so a key present in NodeChains is unambiguously game-scoped. Per-player
+        // NodeChains, so a key present in NodeChains is unambiguously game-scoped. Per-player
         // chains never reach NodeChains (their factory doesn't touch it), so the two sets are
         // disjoint. Default unknowns to PerPlayer: a per-player chain that fires but declares no
         // columns would otherwise be mis-scoped Game and, on selection, project to an empty
@@ -1256,7 +1256,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         // One chip per chain that produced events. ChainSummaries also include auto-activate
         // logic-rule nodes (the timeline records every rising conjunction/disjunction), so keep
-        // only the chain-satisfaction conjunctions — named with the "_chain_" prefix at both the
+        // only the chain-satisfaction conjunctions: named with the "_chain_" prefix at both the
         // game (RuleChainBuilder:408) and per-player (:646) sites. This keeps chips actionable
         // (a non-chain logic name would join to nothing and render an inert chip) and matches the
         // _chain_{id} join-key discipline. Label = the key; the human RuleChainDef.Name isn't
@@ -1292,7 +1292,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             return [];
         }
 
-        // Lifecycle (game-chain) nodes are the only valid column-edge sources — these are the
+        // Lifecycle (game-chain) nodes are the only valid column-edge sources: these are the
         // graph nodes that actually render. Membership test by reference identity.
         HashSet<StateNode> lifecycleNodes = new(lifecycleNodeList, ReferenceEqualityComparer.Instance);
 
@@ -1327,7 +1327,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
                 List<string> columnNames = groupAssignments.Select(a => a.ColumnName).ToList();
                 // Column → owning chain key, aligned 1:1 with columnNames. Set for EVERY column
-                // (incl. computed ones with no lifecycle edge) — this is what sub-graph column
+                // (incl. computed ones with no lifecycle edge): this is what sub-graph column
                 // projection selects on.
                 List<string?> columnChainIds = groupAssignments.Select(a => a.ChainId).ToList();
 
@@ -1424,7 +1424,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Reloads the rule config from disk and re-evaluates the already-loaded demo (P1-1.3) —
+    ///     Reloads the rule config from disk and re-evaluates the already-loaded demo (P1-1.3):
     ///     the edit-a-rule → see-the-stat loop, without re-parsing the demo. Rules are read fresh
     ///     inside <see cref="RunAsync" /> on every run; the entity-value cache survives (same demo,
     ///     same frames), so breakpoint recompute usually re-filters without a second ~14 s replay.
@@ -1455,7 +1455,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         (GraphBreakpoint Breakpoint, int Index)? hit = GraphBreakpoints.NextHit(CurrentMessageIndex);
         if (hit is null)
         {
-            // An entity breakpoint reads no hits until its replay finishes — say so rather than the
+            // An entity breakpoint reads no hits until its replay finishes: say so rather than the
             // misleading "no hit ahead" (the report that started this: ran, found nothing, looked broken).
             StatusText = IsComputingEntityCache
                 ? "Computing entity state — try Continue again in a moment."
@@ -1538,7 +1538,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Whether the target can carry a breakpoint. A node always can; an edge only if it's
-    ///     trigger-backed (has recorded fire indices) — logic / conjunction edges would arm a
+    ///     trigger-backed (has recorded fire indices): logic / conjunction edges would arm a
     ///     breakpoint that can never fire and are gated out.
     /// </summary>
     public bool IsBreakpointable(ConditionTarget target) =>
@@ -1546,7 +1546,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Whether the target supports an authored condition. A node always does; an edge only if its
-    ///     event exposes typed fields (game / net-message edges) — entity-change edges are default-only.
+    ///     event exposes typed fields (game / net-message edges): entity-change edges are default-only.
     ///     Read independently of <see cref="IsBreakpointable" />.
     /// </summary>
     public bool SupportsCondition(ConditionTarget target) =>
@@ -1570,8 +1570,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     // Surfaces a breakpoint's hit count the moment it's armed/edited. Hits are recomputed synchronously
     // by the time Add/Apply returns (service Changed → OnBreakpointsChanged → recompute), so a
-    // breakpoint that will never stop — an edge that fired 0 times this demo, a node that never went
-    // active — reads as "0 hits" instead of a silently-dead marker.
+    // breakpoint that will never stop, an edge that fired 0 times this demo or a node that never went
+    // active, reads as "0 hits" instead of a silently-dead marker.
     private void ReportBreakpointArmed(GraphBreakpoint bp)
     {
         int n = bp.HitIndices.Count;
@@ -1623,7 +1623,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     ///     Filters the available identifiers by <paramref name="prefix" /> (the token before the caret)
     ///     into <see cref="ConditionSuggestions" />. Case-insensitive prefix match; the exact-typed
     ///     identifier is omitted (nothing left to complete). Capped only to bound the per-keystroke
-    ///     work on large node sets — high enough to show an event's full field set when you type
+    ///     work on large node sets: high enough to show an event's full field set when you type
     ///     <c>event.</c> (the list scrolls); the box itself is height-limited in XAML.
     /// </summary>
     public void UpdateConditionSuggestions(string? prefix)
@@ -1679,7 +1679,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
             Dictionary<string, NodeBreakpointConditions.InputEventInfo> inputs = NodeInputEventsByName(target.Node!.Name);
             // The free-text event-match box autocompletes node value-references, the input.<event>.<field>
-            // shapes, and the bare `player` slot-comparison token — but NOT the entity-read grammar, which
+            // shapes, and the bare `player` slot-comparison token, but NOT the entity-read grammar, which
             // the scope-aware rows below author (includeEntityReads: false).
             _activeConditionIdentifiers = inputs.Count == 0
                 ? _availableConditionIdentifiers
@@ -1766,7 +1766,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         SeedEditorFromCondition(existingCondition);
         IsPickingNode = false;
         ClearConditionSuggestions();
-        IsBreakpointListOpen = false; // editor and list both anchor top — show one at a time
+        IsBreakpointListOpen = false; // editor and list both anchor top: show one at a time
         IsEditingCondition = true;
     }
 
@@ -1925,7 +1925,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     // Seeds the editor from a saved condition: parse it into the event-match box + rows (when it decomposes
     // and rows apply), else show it as advanced free text. Runs under _seedingEditor so the per-field
-    // change handlers don't each recompute — one validate runs at the end.
+    // change handlers don't each recompute: one validate runs at the end.
     private void SeedEditorFromCondition(string? existing)
     {
         _seedingEditor = true;
@@ -2148,11 +2148,11 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // Bump the recompute token up front, so EVERY recompute — not just the union-grew one that kicks a
-        // build — supersedes any in-flight entity build. Without this, a recompute that resolves synchronously
+        // Bump the recompute token up front, so EVERY recompute, not just the union-grew one that kicks a
+        // build, supersedes any in-flight entity build. Without this, a recompute that resolves synchronously
         // (the pending==0 or cache-reuse path below) would leave a prior build's token valid; its later
         // hand-back would then clobber the hits we just set. Capture it locally for the build we may kick.
-        // The CTS additionally ABORTS the superseded build mid-replay (P1-5.2) — the token alone only
+        // The CTS additionally ABORTS the superseded build mid-replay (P1-5.2): the token alone only
         // discarded its result, leaving the ~14 s replay burning CPU to completion.
         int token = ++_entityRecomputeToken;
         _entityBuildCts?.Cancel();
@@ -2187,10 +2187,10 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         // Pre-warm: the entity replay to the last fire frame is the whole cost (~all-match), so the FIRST
         // build at demo load widens the union to every breakpointable edge's fire frames. One replay then
-        // serves any entity breakpoint the user later adds — its frames are a subset → instant re-filter, no
+        // serves any entity breakpoint the user later adds: its frames are a subset → instant re-filter, no
         // second replay. Consumed once; later edits build narrow (and hit the reuse path below anyway).
         // Declined when the widened set is implausibly large (a high-frequency net-message edge approaching
-        // every frame) — capturing that many frames would bloat the cache; such breakpoints lazy-build their
+        // every frame): capturing that many frames would bloat the cache; such breakpoints lazy-build their
         // own narrower set instead.
         bool warm = _warmEntityCacheOnNextBuild && _demoFrames is not null;
         _warmEntityCacheOnNextBuild = false;
@@ -2243,7 +2243,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             unionFrames, pending, _entityBuildCts!.Token);
     }
 
-    // Every breakpointable edge's fire frames — the superset any entity breakpoint (edge or node, since node
+    // Every breakpointable edge's fire frames: the superset any entity breakpoint (edge or node, since node
     // input fires come from the same applied-edge sets) could ever query. The load-time pre-warm builds the
     // cache over this so the first entity breakpoint needs no replay of its own.
     private HashSet<int> AllEdgeFireFrames()
@@ -2266,11 +2266,11 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     // The per-fire entity accessor backed by the current frozen cache (frameIndexOfMessage → pre-frame
     // state). Passed to a PendingEntityHit's Recompute once the cache covers its fire frames; a null cache
-    // yields a null accessor at every fire (defensive — Recompute treats that as no hits).
+    // yields a null accessor at every fire (defensive: Recompute treats that as no hits).
     private IEntityValueAt? EntityAccessorAt(int msgIdx) => _entityValueCache?.At(FrameIndexOfMessage(msgIdx));
 
-    // Builds the entity-value cache over the fire-frame union off the UI thread (one entity replay), then
-    // — back on the UI thread — assigns the frozen cache and re-filters the pending breakpoints. Mirrors
+    // Builds the entity-value cache over the fire-frame union off the UI thread (one entity replay), then,
+    // back on the UI thread, assigns the frozen cache and re-filters the pending breakpoints. Mirrors
     // RunSwapAsync: the tail serializes builds, the token drops a build superseded by a newer recompute
     // (a condition edit, a selection change, or a demo switch), so a stale cache never lands.
     private async Task RunEntityRecomputeAsync(Task previous, int token,
@@ -2306,7 +2306,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         }
         catch (OperationCanceledException)
         {
-            return; // aborted by a supersede — the newer cycle owns IsComputingEntityCache
+            return; // aborted by a supersede: the newer cycle owns IsComputingEntityCache
         }
         catch (Exception ex)
         {
@@ -2325,7 +2325,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         _entityCacheFrames = [.. unionFrames];
         IsComputingEntityCache = false;
 
-        // Always clear Computing per breakpoint — even if its Recompute throws — so a single bad predicate
+        // Always clear Computing per breakpoint, even if its Recompute throws, so a single bad predicate
         // can't strand the breakpoint (or the ones after it) in a permanent "computing…" spinner. A throw
         // is surfaced to the status line rather than swallowed by this fire-and-forget task.
         foreach (PendingEntityHit e in pending)
@@ -2360,10 +2360,10 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     }
 
     // An edge breakpoint's default hits are the discrete message indices where its backing StateEdge
-    // FIRED (recorded during the eval pass) — NOT a rising edge: two adjacent applies are two hits.
+    // FIRED (recorded during the eval pass), not a rising edge: two adjacent applies are two hits.
     // A conditional edge breakpoint narrows that set to the fires whose decoded event payload (and, for an
     // entity-read condition, the pre-frame entity state) satisfies the predicate. Returns the synchronous
-    // hits, OR — for an entity-read condition — a Pending descriptor the caller resolves against the cache.
+    // hits, or, for an entity-read condition, a Pending descriptor the caller resolves against the cache.
     private (List<int> Hits, PendingEntityHit? Pending) ComputeEdgeHits(GraphBreakpoint bp)
     {
         if (bp.EdgeSource is null || bp.EdgeDest is null || bp.EdgeLabel is null)
@@ -2421,7 +2421,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             acc => EdgeBreakpointConditions.FilterAppliedWithEntities(applied, predicate, PayloadAt, acc ?? _noAccessor)));
     }
 
-    // The decoded subject backing message index i: a game event yields the FIRE — breakpoint
+    // The decoded subject backing message index i: a game event yields the FIRE. Breakpoint
     // predicates on game-event edges compile envelope-typed (ParameterType = GameEvent), reaching
     // wire fields through Payload and per-fire transport (event.tick) off the fire itself, so
     // synthesized events (GameEvent subclasses declaring their own fields, no payload) need no
@@ -2448,8 +2448,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         // The condition may reference the target's own `value`, other tracked nodes / game entity
         // contexts (state, rising-edge), OR input.<event>.<field> for the events activating this node
-        // (discrete over those fires, optionally joined with state) — including a bare `player` comparison
-        // and event-subject / selected-player entity reads — the helper dispatches by substrate. An
+        // (discrete over those fires, optionally joined with state), including a bare `player` comparison
+        // and event-subject / selected-player entity reads: the helper dispatches by substrate. An
         // entity-read input condition returns a DEFERRED plan the entity cache fulfils; everything else
         // resolves synchronously. Invalid conditions yield no hits (the editor blocks saving them).
         NodeBreakpointConditions.NodeHitPlan plan = NodeBreakpointConditions.PlanNodeHits(
@@ -2539,7 +2539,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         _currentSnapshot = snap;
 
         // Each node pulls its own absolute snapshot column (TrackedIndex), not its position in the
-        // list — so this stays correct whether GraphNodes is the full set or an arbitrary chain
+        // list, so this stays correct whether GraphNodes is the full set or an arbitrary chain
         // sub-graph in arbitrary order. A node with no column (TrackedIndex < 0 or out of range)
         // is left inert.
         foreach (GraphNodeViewModel node in GraphNodes)
@@ -2617,7 +2617,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         IReadOnlySet<string> selectedChains = Filter.SelectedChainKeys;
         int? selectedSlot = Filter.SelectedPlayer is { Slot: >= 0 } sel ? sel.Slot : null;
 
-        // A player-selection change re-binds any breakpoint whose condition references `player` — both
+        // A player-selection change re-binds any breakpoint whose condition references `player`: both
         // edge conditions (`event.Attacker == player`) and node input conditions
         // (`input.player_death.Attacker == player`) recompile against the new slot; conditions that
         // don't reference `player` are inert. Independent of the sub-graph swap below; cheap (no entity
@@ -2657,7 +2657,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     ///         Burst collapse is handled by the token, not a timer: every click in a burst runs
     ///         <c>++_swapRequestToken</c> synchronously on the UI thread before any continuation
     ///         executes, so by the time A's/B's continuation runs the token already points at the
-    ///         last click — they see the mismatch and skip; only the final swap runs. The
+    ///         last click: they see the mismatch and skip; only the final swap runs. The
     ///         <c>previous</c> await serializes the actual layouts so they can't overlap.
     ///     </para>
     /// </summary>
@@ -2831,7 +2831,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Projects the player tables to the selected per-player chains. A column survives iff its
-    ///     chain (from <see cref="PlayerTableViewModel.ColumnChainIds" />) is selected — full stop,
+    ///     chain (from <see cref="PlayerTableViewModel.ColumnChainIds" />) is selected, full stop,
     ///     independent of whether it has a column edge. This keeps computed columns (KAST%, 2K–5K
     ///     etc., which produce no lifecycle edge) that the old edge-based selection silently dropped.
     ///     Connector edges are projected only for surviving columns whose source node is rendered.
@@ -2906,7 +2906,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     ///     Projects each table to just the selected player's row, REMOVING the others (vs the old
     ///     in-place dim). Columns, column chain ids and column edges are preserved verbatim (row
     ///     filtering never touches the column axis). A table with no matching row is dropped. Cells
-    ///     are reused by reference — they keep resolving their own <c>NodeTrackedIndex</c> snapshot
+    ///     are reused by reference: they keep resolving their own <c>NodeTrackedIndex</c> snapshot
     ///     column, so no evaluation work is duplicated.
     /// </summary>
     private static List<PlayerTableViewModel> FilterTableRows(
@@ -2994,7 +2994,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     private void WriteTableCells(NodeSnapshot[] snap)
     {
         // Player-row filtering is structural now (FilterTableRows removes non-selected rows in the
-        // swap), so every row present here is a kept row — just write its cells from the snapshot.
+        // swap), so every row present here is a kept row: just write its cells from the snapshot.
         foreach (PlayerTableViewModel table in PlayerTables)
         {
             foreach (TableRowViewModel row in table.Rows)
@@ -3016,7 +3016,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         }
     }
 
-    // A breakpoint awaiting the entity cache — an entity-read EDGE condition OR an entity-read NODE input
+    // A breakpoint awaiting the entity cache: an entity-read EDGE condition OR an entity-read NODE input
     // condition. FireMessages are the fire MESSAGE indices whose frames the cache must cover; Recompute,
     // given a per-fire accessor (frameIndexOfMessage → pre-frame entity state), produces the matching
     // message indices. Edge: filters the cached fires by the compiled predicate. Node: re-runs the input

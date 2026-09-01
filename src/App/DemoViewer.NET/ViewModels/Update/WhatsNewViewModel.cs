@@ -10,7 +10,7 @@ using DemoViewer.NET.Services.Update;
 namespace DemoViewer.NET.ViewModels.Update;
 
 /// <summary>
-///     Backs the post-update "What's new" window — shown once on the first launch after the
+///     Backs the post-update "What's new" window, shown once on the first launch after the
 ///     running version changes (gated by <c>AppSettings.LastSeenVersion</c>, advanced before the
 ///     window opens so a crash can never re-show it in a loop). Renders the RUNNING version's
 ///     release notes; the update notice renders the OFFERED version's.

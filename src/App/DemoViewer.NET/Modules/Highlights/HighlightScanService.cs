@@ -14,21 +14,21 @@ using DemoViewer.NET.Services.DemoProcessing;
 namespace DemoViewer.NET.Modules.Highlights;
 
 /// <summary>
-///     The highlights scanner (migrated onto the global queue —
+///     The highlights scanner (migrated onto the global queue: see
 ///     the design notes in git history). The unified <see cref="DemoCacheStore" /> IS the work list, and the
 ///     backlog is DERIVED from it rather than stored (see <see cref="BacklogNewestFirst" />); the scanner
 ///     FEEDS that backlog into the shared <see cref="IDemoProcessingQueue" /> (which owns the workers, the
 ///     newest-first drain, the gate yielding, and the one-at-a-time invariant). A demo the Library already
 ///     submitted is
-///     parsed ONCE — the queue coalesces both owners onto a single parse (this dissolves the historical
+///     parsed ONCE. The queue coalesces both owners onto a single parse (this dissolves the historical
 ///     tier-2/backfill double-parse). Three feeders:
 ///     <list type="bullet">
 ///         <item>
-///             <b>Piggyback:</b> the Library tier-2 hook hands over its already-parsed demo — a
+///             <b>Piggyback:</b> the Library tier-2 hook hands over its already-parsed demo: a
 ///             stale/missing row refreshes on the already-serialized job; only when the background-scan opt-in is on.
 ///         </item>
 ///         <item>
-///             <b>Backfill:</b> demos wanting a scan are submitted to the queue — auto rows only while the
+///             <b>Backfill:</b> demos wanting a scan are submitted to the queue: auto rows only while the
 ///             the opt-in holds; forced (manual) rows always, at <see cref="DemoJobPriority.UserRequested" />.
 ///         </item>
 ///         <item>
@@ -46,7 +46,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     private readonly Func<bool> _backgroundScanEnabled;
     private readonly DemoCacheStore _demoCache;
 
-    // Manual per-demo requests: they submit REGARDLESS of the opt-in, but ONLY these paths — a
+    // Manual per-demo requests: they submit REGARDLESS of the opt-in, but ONLY these paths. A
     // retry click on one demo must never trigger a whole-library scan marathon. Cleared when the demo's
     // Evaluate/OnFailed runs. Drives PriorityFor (forced → UserRequested).
     private readonly HashSet<string> _forcedPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -72,7 +72,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     /// <param name="backgroundScanEnabled">The background-scan opt-in probe (live settings read).</param>
     /// <param name="post">UI-thread marshal for progress events.</param>
     /// <param name="processorOverride">Test seam replacing the rules run per path.</param>
-    /// <param name="demoCache">The unified demo cache — tier 3 lives here, and nowhere else now.</param>
+    /// <param name="demoCache">The unified demo cache: tier 3 lives here, and nowhere else now.</param>
     public HighlightScanService(
         DemoCacheStore demoCache,
         IHighlightHarvester harvester,
@@ -95,17 +95,17 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     /// <summary>The evaluation coordinator that submits this evaluator's work; null → nothing is fed.</summary>
     public DemoEvaluationCoordinator? Coordinator { get; set; }
 
-    /// <summary>Queued-demo count — the tab toolbar's "⟳ scan: N queued". DERIVED, never stored.</summary>
+    /// <summary>Queued-demo count: the tab toolbar's "⟳ scan: N queued". DERIVED, never stored.</summary>
     public int QueueLength => BacklogNewestFirst().Count;
 
     /// <summary>True while any highlights demo is outstanding in the shared queue (via the coordinator).</summary>
     public bool IsScanning => Coordinator?.HasOutstanding(Id) ?? false;
 
     /// <summary>
-    ///     Opportunistic hand-off: a demo parsed elsewhere — the Library
-    ///     tier-2 slot (holding the parse), or an interactive open — is handed over via the coordinator's
+    ///     Opportunistic hand-off: a demo parsed elsewhere, the Library
+    ///     tier-2 slot (holding the parse) or an interactive open, is handed over via the coordinator's
     ///     <see cref="DemoEvaluationCoordinator.FanOutParsed" />. Refreshes the row only when missing/stale
-    ///     AND the opt-in is on — the common fresh case (and every demo when the opt-in is off) costs one
+    ///     AND the opt-in is on. The common fresh case (and every demo when the opt-in is off) costs one
     ///     fingerprint compare. Not gated on <see cref="Wants" /> (order-independent: it refreshes a row
     ///     that may not exist yet), which is exactly what the old Library <c>Tier2DemoParsed</c> piggyback
     ///     guaranteed before this generalized it.
@@ -154,7 +154,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     /// <inheritdoc />
     /// <remarks>
     ///     Interested when the row is Pending AND either it was manually forced or the opt-in is
-    ///     on — forced rows flow regardless of the opt-in, auto rows only while it holds.
+    ///     on. Forced rows flow regardless of the opt-in, auto rows only while it holds.
     /// </remarks>
     public bool Wants(string path)
     {
@@ -186,7 +186,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
 
     /// <inheritdoc />
     /// <remarks>
-    ///     Runs in the queue's gate slot with the parse held. Re-checks the row is still Pending —
+    ///     Runs in the queue's gate slot with the parse held. Re-checks the row is still Pending:
     ///     the Library piggyback may have refreshed it while this was queued (re-processing would waste
     ///     the slot). Clears the forced flag either way.
     /// </remarks>
@@ -199,7 +199,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             // does. That split is what lets "Compute full stats" mean what it says: the scoreboard is
             // projected from snapshot vectors, which the bare run does not produce at all, so a forced scan
             // that stayed bare would deliver highlights and quietly leave the stats half of the page reading
-            // "needs a full analysis pass" — with the button that supposedly fixes it having just run.
+            // "needs a full analysis pass", with the button that supposedly fixes it having just run.
             bool forced;
             lock (_lifecycle)
             {
@@ -209,7 +209,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             // A FORCED request runs even when the row is no longer Pending.
             //
             // The skip below exists so a demo the Library piggyback already refreshed does not burn a queue
-            // slot being re-scanned — sound while every run was equivalent, and WRONG the moment bare and
+            // slot being re-scanned: sound while every run was equivalent, and WRONG the moment bare and
             // full stopped being the same thing. Both owners coalesce onto one parse, so the Library's
             // Evaluate fans out to OnParsedOpportunistically (a BARE run, which upserts Indexed) and can
             // easily win the race against this. The user's press would then be silently consumed: the row
@@ -238,8 +238,8 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             {
                 WriteHarvest(path, parsed, harvested);
 
-                // Only when the run actually carried snapshots — a harvester that does not implement the full
-                // mode falls back to the bare run, and no scoreboard is the honest outcome there.
+                // Only when the run actually carried snapshots: a harvester that does not implement the full
+                // mode falls back to the bare run, which never produces snapshots, so having no scoreboard there is correct.
                 if (run?.Snapshots is not null)
                 {
                     WriteScoreboardFromRun(path, run, parsed);
@@ -289,11 +289,11 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         {
             _disposed = true;
         }
-        // The coordinator owns the CapacityAvailable subscription now — nothing queue-side to detach here.
+        // The coordinator owns the CapacityAvailable subscription now. Nothing queue-side to detach here.
     }
 
     /// <summary>
-    ///     The demos wanting a scan, newest first. THE work list — computed from the index each time rather
+    ///     The demos wanting a scan, newest first. THE work list: computed from the index each time rather
     ///     than read out of a persisted <c>Pending</c> flag.
     ///     <para>
     ///         The old design stored that flag, which forced one field to mean both "queued" and "has no
@@ -338,7 +338,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
 
     // The rules fingerprint is tick-rate dependent, and the backlog spans demos of several rates. 64 is what
     // every supported CS2 demo records at, so it is the right single probe; a rate that genuinely differs is
-    // caught per demo at scan time. A config that cannot load yields null, which reads as "current" — one
+    // caught per demo at scan time. A config that cannot load yields null, which reads as "current". One
     // broken rule file must never mark the whole library stale.
     private string? TryFingerprint()
     {
@@ -366,14 +366,14 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     ///     reconciles rows against the library (drops vanished files, skips AppleDouble sidecars),
     ///     creates Pending skeletons for unseen demos, and re-marks rows whose fingerprint no longer
     ///     matches the current config at their tick rate. No parse, but it stats every library file and
-    ///     may compose+hash the rule config — so the pass runs on a background thread, serialized, with
+    ///     may compose+hash the rule config, so the pass runs on a background thread, serialized, with
     ///     bursts of library Changed events coalesced to one queued pass. Then feeds the backfill queue.
     /// </summary>
     public void RefreshStaleness()
     {
         if (Interlocked.Exchange(ref _refreshQueued, 1) == 1)
         {
-            // A pass is already queued (not yet started) — it will observe this trigger's world.
+            // A pass is already queued (not yet started). It will observe this trigger's world.
             return;
         }
 
@@ -402,13 +402,13 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     private void RefreshStalenessCore()
     {
         // WRITES NOTHING. The backlog is derived (see BacklogNewestFirst), so "refreshing staleness" is now
-        // just re-deriving it and asking the coordinator to reconsider — the pass that used to stamp Pending
+        // just re-deriving it and asking the coordinator to reconsider. The pass that used to stamp Pending
         // across the library has no work left to do.
         //
         // AND IT MUST NOT PRUNE. The old version dropped every row whose demo was not in the current
         // library paths, which was safe when it owned a highlights-only store. Against the UNIFIED cache the
-        // same call would delete whole records — taking the Library's tier-2 roster, score and rounds with
-        // them — and a configured folder on a detached volume enumerates zero files, so it would fire exactly
+        // same call would delete whole records, taking the Library's tier-2 roster, score and rounds with
+        // them, and a configured folder on a detached volume enumerates zero files, so it would fire exactly
         // when the demos are still perfectly fine. Pruning the unified cache belongs to the Library, which
         // already does it, with the reached-roots guard that makes it safe.
         RaiseProgress();
@@ -416,15 +416,15 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     }
 
     /// <summary>
-    ///     Manual per-demo rescan (staleness badge / failed-retry click). Runs regardless of the opt-in
-    ///     — but scoped to THIS path: it is submitted at <see cref="DemoJobPriority.UserRequested" />
+    ///     Manual per-demo rescan (staleness badge / failed-retry click). Runs regardless of the opt-in,
+    ///     but scoped to THIS path: it is submitted at <see cref="DemoJobPriority.UserRequested" />
     ///     (outranks auto, bypasses the size cap); auto rows still only flow while the opt-in holds.
     /// </summary>
     public void RequestScan(string path)
     {
         // ONE write, and only for a failure: Failed is excluded from the derived backlog on purpose (else a
         // corrupt demo is re-parsed on every pass), so an explicit retry has to lift it. It also keeps the
-        // scan chip honest — leaving the record Failed would make "retry" a button that changes nothing
+        // scan chip's count accurate: leaving the record Failed would make "retry" a button that changes nothing
         // visible until the scan finishes, on a count that gates the button itself.
         try
         {
@@ -448,12 +448,12 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     }
 
     /// <summary>
-    ///     Marks every row Pending and forces them all (toolbar "Rescan all" — the one whole-queue
+    ///     Marks every row Pending and forces them all (toolbar "Rescan all", the one whole-queue
     ///     force; an explicit user click on exactly that).
     /// </summary>
     public void RescanAll()
     {
-        // Every demo the library knows about, forced — "rescan all" has to reach the demos that are
+        // Every demo the library knows about, forced: "rescan all" has to reach the demos that are
         // CURRENT too, which is precisely what the forced set is for now that the backlog is derived.
         List<string> all = [.. _libraryDemoPaths()];
 
@@ -492,13 +492,13 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     }
 
     /// <summary>
-    ///     Pending row paths (newest first) — this evaluator's slice of the coordinator's candidate
+    ///     Pending row paths (newest first): this evaluator's slice of the coordinator's candidate
     ///     universe (worker-readable snapshot; never enumerated off-thread against a UI collection).
     /// </summary>
     public IReadOnlyList<string> PendingPaths() => BacklogNewestFirst();
 
     /// <summary>
-    ///     Asks the coordinator to (re-)consider the Pending rows — a call-site-compatible shim over the
+    ///     Asks the coordinator to (re-)consider the Pending rows: a call-site-compatible shim over the
     ///     old queue feeder. Per-row gating (forced set + opt-in) lives in <see cref="Wants" /> now, and
     ///     the coordinator's outstanding set makes it idempotent.
     /// </summary>
@@ -523,7 +523,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     {
         // Best-effort HERE and nowhere else. This runs from the catch block that is already handling a scan
         // failure; letting a cache-write error out of it would replace the real cause with a second one and
-        // escape Evaluate entirely. The SUCCESS path deliberately does not catch — a write that silently fails
+        // escape Evaluate entirely. The SUCCESS path deliberately does not catch: a write that silently fails
         // there is the bug this whole seam exists to fix, and it must be loud.
         try
         {
@@ -538,7 +538,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     }
 
     /// <summary>
-    ///     Stores the SCOREBOARD half of tier 3 from a snapshot-bearing run — the other producer being a real
+    ///     Stores the SCOREBOARD half of tier 3 from a snapshot-bearing run, the other producer being a real
     ///     interactive open, which gets its table for free. Same projection either way, so a demo's stats do
     ///     not depend on which route computed them.
     /// </summary>
@@ -580,7 +580,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     }
 
     /// <summary>
-    ///     Writes a completed harvest into the demo's tier 3 — the highlights half. The scoreboard half comes
+    ///     Writes a completed harvest into the demo's tier 3: the highlights half. The scoreboard half comes
     ///     from a snapshot-bearing run (<see cref="WriteScoreboardFromRun" />) or from a real interactive open.
     ///     <para>
     ///         This is step 4's absorption finished: the scanner used to write <c>highlights.json</c> and
@@ -604,7 +604,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
                 : _harvester.ComputeFingerprint(parsed.TickRate);
 
         // ClipRounds is the frame-clock round authority: round_freeze_end opens a
-        // round, GameTick is the tick. CS2 emits no round_start — the string-matching walk this replaced
+        // round, GameTick is the tick. CS2 emits no round_start. The string-matching walk this replaced
         // produced an EMPTY list on every CS2 demo, silently disabling the clip lead-in floor.
         List<CachedRound> rounds = ClipRounds.Derive(parsed).ToCachedRounds();
 
@@ -615,7 +615,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             record.ConfigFingerprint = fingerprint;
             record.HighlightHashes = new Dictionary<string, string>(hashes);
             // The surfacing policy (Hidden drop + group supersession) lives in the packaged
-            // HighlightSurfacing — one implementation, so a reel and this cache row can never
+            // HighlightSurfacing, one implementation, so a reel and this cache row can never
             // disagree about which firings are moments.
             record.Highlights =
             [
@@ -634,13 +634,13 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
                 })
             ];
 
-            // Parse-tier facts this run happens to hold, filled where the record has none — a demo
+            // Parse-tier facts this run happens to hold, filled where the record has none: a demo
             // scanned but never library-indexed otherwise renders with no tick rate and, worse, no roster,
             // which would leave every highlight attributed to a placeholder name. Never stamps Parse: the
             // score half of that tier is the Library's to claim.
             //
             // Also REPAIRS a placeholder roster, not only a missing one. Legacy names-only cache records
-            // migrate in with every player at Slot = -1 / Team = 0 (LegacyCacheMigration) — names but no slot
+            // migrate in with every player at Slot = -1 / Team = 0 (LegacyCacheMigration), names but no slot
             // attribution. Every consumer resolves a player's name BY SLOT (HighlightSelection.RawPlayerName,
             // and through it the reel's PlayerNameToSpectate); against a -1 roster that lookup returns empty,
             // and CSVG then rejects the whole clip plan ("PlayerNameToSpectate must not be empty"). This scan
@@ -660,7 +660,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             ];
 
             bool rosterMissing = record.Players.Count == 0;
-            // Only overwrite a NAMES-ONLY placeholder when this parse actually recovered real slots — never
+            // Only overwrite a NAMES-ONLY placeholder when this parse actually recovered real slots. Never
             // trade a roster that at least has names for an empty one just because the parse saw no players.
             bool placeholderRepairable = record.Players.Count > 0
                                          && record.Players.All(p => p.Slot < 0)
@@ -701,11 +701,11 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     }
 
     /// <summary>
-    ///     File identity in the LIBRARY'S UNITS — local <c>LastWriteTime</c> ticks, which is what every record
+    ///     File identity in the LIBRARY'S UNITS: local <c>LastWriteTime</c> ticks, which is what every record
     ///     on disk actually carries (<see cref="DemoCacheStore.UpdateExisting" /> documents why).
     ///     <para>
     ///         This used to read <c>LastWriteTimeUtc</c>, the scanner's old convention from when it owned its
-    ///         own file. Nothing was corrupted by that — this value is only ever COMPARED, never written — but
+    ///         own file. Nothing was corrupted by that: this value is only ever COMPARED, never written, but
     ///         for every user not on UTC the compare could not match, so the freshness early-out in
     ///         <see cref="OnParsedOpportunistically" /> never fired and a current demo was re-harvested on
     ///         every hand-off. Read-side alignment is safe precisely because it is read-side: it changes no
@@ -717,7 +717,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         try
         {
             FileInfo info = new(path);
-            // A missing file reports the 1601 epoch, not zero — normalize so "unknown" is stable.
+            // A missing file reports the 1601 epoch, not zero. Normalize so "unknown" is stable.
             return info.Exists ? (info.Length, info.LastWriteTime.Ticks) : (0, 0);
         }
         catch (Exception)

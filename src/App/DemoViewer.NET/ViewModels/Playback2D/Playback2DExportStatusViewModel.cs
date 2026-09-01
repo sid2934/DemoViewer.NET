@@ -13,14 +13,14 @@ using DemoViewer.NET.Services.Export;
 namespace DemoViewer.NET.ViewModels.Playback2D;
 
 /// <summary>
-///     Maps the background <see cref="IExportJobService" /> status onto a status-strip chip and its flyout
-///     — the export instance of the shared <c>StatusChip</c> pattern, built to
+///     Maps the background <see cref="IExportJobService" /> status onto a status-strip chip and its flyout,
+///     the export instance of the shared <c>StatusChip</c> pattern, built to
 ///     <see cref="Highlights.ReelJobStatusViewModel" />'s shape because the two jobs are the same shape:
 ///     one at a time, started fire-and-forget, running for minutes while the user carries on.
 ///     <para>
 ///         <b>This class is the missing half.</b> <c>ExportJobService</c> marshalled phase, frame counts,
 ///         throughput, elapsed and the error to the UI thread and raised <c>StatusChanged</c> on every
-///         one — and nothing anywhere subscribed. <c>CancelAsync</c> had no production call site at all,
+///         one, and nothing anywhere subscribed. <c>CancelAsync</c> had no production call site at all,
 ///         so an export that had started could not be stopped by any means short of killing the app, and
 ///         a failure set <c>Error</c> into a status no surface read. Three doc comments described the chip
 ///         you are looking at as though it already existed.
@@ -67,7 +67,7 @@ public sealed partial class Playback2DExportStatusViewModel : ViewModelBase, IDi
     [ObservableProperty]
     private bool _isRunning;
 
-    /// <summary>The tail of the export's own log — the chosen encoder, then ffmpeg's stderr.</summary>
+    /// <summary>The tail of the export's own log: the chosen encoder, then ffmpeg's stderr.</summary>
     [ObservableProperty]
     private string _logText = "";
 
@@ -106,7 +106,7 @@ public sealed partial class Playback2DExportStatusViewModel : ViewModelBase, IDi
     /// <summary>True when the finished job carries a message worth copying.</summary>
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorText);
 
-    /// <summary>True once anything has been logged — gates the flyout's log section.</summary>
+    /// <summary>True once anything has been logged: gates the flyout's log section.</summary>
     public bool HasLog => LogText.Length > 0;
 
     /// <summary>Whether the Open-folder affordance applies.</summary>
@@ -153,18 +153,18 @@ public sealed partial class Playback2DExportStatusViewModel : ViewModelBase, IDi
         _job.StatusChanged -= OnStatusChanged;
     }
 
-    /// <summary>Raised when the flyout's Dismiss fires — the shell removes the chip.</summary>
+    /// <summary>Raised when the flyout's Dismiss fires: the shell removes the chip.</summary>
     public event EventHandler? DismissRequested;
 
     /// <summary>
     ///     One line from the export's own diagnostics: the encoder the ladder chose, then whatever ffmpeg
     ///     writes to stderr.
     ///     <para>
-    ///         <b>Callable from any thread</b>, which is the whole point — the runner reports from the
+    ///         <b>Callable from any thread</b>, which is the whole point: the runner reports from the
     ///         export's pool thread. The ring is behind a lock, and the two bound properties are published
     ///         on the UI thread: an <c>ObservableObject</c> raising <c>PropertyChanged</c> off-thread
     ///         reaches <c>AvaloniaObject.SetValue</c> through the binding and throws "call from invalid
-    ///         thread" — from inside ffmpeg's stderr pump, where nothing would catch it. The rate is one
+    ///         thread", from inside ffmpeg's stderr pump, where nothing would catch it. The rate is one
     ///         line per second or so, not per frame, so a post per line costs nothing.
     ///     </para>
     /// </summary>
@@ -197,7 +197,7 @@ public sealed partial class Playback2DExportStatusViewModel : ViewModelBase, IDi
     }
 
     // CheckAccess is true in a harness with no platform at all, which is what lets the pure-VM cases run
-    // this inline — the same reason ExportJobService.SetStatus is written this way.
+    // this inline, the same reason ExportJobService.SetStatus is written this way.
     private static void Publish(Action action)
     {
         if (Dispatcher.UIThread.CheckAccess())

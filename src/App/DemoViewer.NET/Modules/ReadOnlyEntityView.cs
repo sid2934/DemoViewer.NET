@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Modules;
 ///     . Re-aimed across pushes (no per-push allocation of the view itself). The single
 ///     lookups (<see cref="BySerial" /> / <see cref="ByIndex" /> / <see cref="ResolveHandle" />) return
 ///     a shared pooled facade; the enumerations (<see cref="All" /> / <see cref="OfClass" />) yield a
-///     fresh facade per element (on-demand module reads, not the per-tick hot path — the pilot reads
+///     fresh facade per element (on-demand module reads, not the per-tick hot path, the pilot reads
 ///     positions off the pooled <c>PlayerState</c> list).
 /// </summary>
 internal sealed class ReadOnlyEntityView : IReadOnlyEntityView
@@ -72,11 +72,11 @@ internal sealed class ReadOnlyEntityView : IReadOnlyEntityView
         // BOTH invalid encodings are folded to null, the full-width 0xFFFFFFFF and the narrower
         // 0x00FFFFFF, matching EntityTracker.ResolveHandle's contract. The networked form is 14
         // index bits then 10 serial bits with no gap, so the 24-bit all-ones sentinel is what a
-        // dead entity's handle actually looks like on the wire — and it masks to a perfectly
+        // dead entity's handle actually looks like on the wire, and it masks to a perfectly
         // plausible index (16383) rather than to anything obviously wrong. Missing it therefore
         // does not throw or return garbage; it silently resolves a DEAD reference to whatever
         // occupies that slot. This view reimplements the mask rather than delegating, so it did
-        // not inherit the fix when the parser folded these upstream in 0.9.2 — keep the two in
+        // not inherit the fix when the parser folded these upstream in 0.9.2: keep the two in
         // step, or a module reading a dead pawn's weapon handle gets a live answer.
         if (handle is 0 or 0xFFFF_FFFF or 0x00FF_FFFF)
         {
@@ -87,6 +87,6 @@ internal sealed class ReadOnlyEntityView : IReadOnlyEntityView
         return ByIndex(index);
     }
 
-    /// <summary>Re-aims this view at the current authoritative entity set (pooling — no allocation).</summary>
+    /// <summary>Re-aims this view at the current authoritative entity set (pooling, no allocation).</summary>
     public void Aim(EntitySet set) => _set = set;
 }

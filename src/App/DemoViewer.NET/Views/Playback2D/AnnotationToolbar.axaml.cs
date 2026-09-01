@@ -8,7 +8,7 @@ using Avalonia.Markup.Xaml;
 namespace DemoViewer.NET.Views.Playback2D;
 
 /// <summary>
-///     The annotation toolbar. Purely declarative — every command and every piece of state lives on
+///     The annotation toolbar. Purely declarative: every command and every piece of state lives on
 ///     <see cref="ViewModels.Playback2D.AnnotationsPanelViewModel" />, which is what lets the toolbar's
 ///     behaviour be tested without a window.
 /// </summary>

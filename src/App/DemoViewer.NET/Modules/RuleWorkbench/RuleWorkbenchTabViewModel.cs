@@ -27,7 +27,7 @@ using DemoViewer.NET.Visualization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-// RuleGraphSkeleton / GraphViewModel — authoring graph
+// RuleGraphSkeleton / GraphViewModel: authoring graph
 
 #endregion
 
@@ -61,7 +61,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
 
     private ICurrentDemoSource? _demoSource;
 
-    // Diagnostics-pillar logger (v0.6.0 — failure surfaces show clean text, this carries the real
+    // Diagnostics-pillar logger (v0.6.0: failure surfaces show clean text, this carries the real
     // exception). Lazy: the ambient factory is wired after construction.
     private ILogger? _diagLog;
 
@@ -71,11 +71,11 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     [ObservableProperty]
     private string _evalSummary = "Evaluate the open ruleset against the loaded demo.";
 
-    /// <summary>Node count of the open ruleset's focused graph (0 = nothing open) — the deterministic, sync test hook.</summary>
+    /// <summary>Node count of the open ruleset's focused graph (0 = nothing open), the deterministic, sync test hook.</summary>
     [ObservableProperty]
     private int _graphNodeCount;
 
-    /// <summary>Caption for the graph panel — reflects the last build or an empty state.</summary>
+    /// <summary>Caption for the graph panel, reflects the last build or an empty state.</summary>
     [ObservableProperty]
     private string _graphSummary = "Open a ruleset to see its state graph.";
 
@@ -87,7 +87,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
 
     /// <summary>
     ///     True while an evaluation is in flight. Gates <see cref="CanEvaluate" /> so BOTH Evaluate and
-    ///     Advanced Evaluate are disabled until the running one finishes — a single evaluation at a time. The
+    ///     Advanced Evaluate are disabled until the running one finishes, a single evaluation at a time. The
     ///     heavy build/evaluate/project runs off the UI thread (<see cref="EvaluateDocsAsync" />), so this flag
     ///     genuinely spans the work rather than flipping within one synchronous UI beat.
     /// </summary>
@@ -157,7 +157,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     // Shipped rulesets are read-only unless developer mode is on. A save on a read-only file
     // prompts for a new name (save-as to the user overlay).
     //
-    // BEHAVIORAL CHANGE: this was a load-time `static readonly` env read — a gate fixed for
+    // BEHAVIORAL CHANGE: this was a load-time `static readonly` env read, a gate fixed for
     // the process lifetime. It is now a LIVE read of AppSettings.Features.DeveloperMode via the injected
     // IOptionsMonitor, so toggling developer mode in settings.json flips shipped-file editability without a
     // restart (the ctor subscribes OnChange to re-raise IsReadOnlyFile). When no settings monitor is
@@ -171,13 +171,13 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     /// <summary>Shipped + user <c>*.rules.yaml</c> in the Authoring dropdown.</summary>
     public ObservableCollection<RulesetFileRef> OpenableFiles { get; } = [];
 
-    /// <summary>True when the open file is a shipped baseline and DeveloperMode is off — Save must save-as.</summary>
+    /// <summary>True when the open file is a shipped baseline and DeveloperMode is off. Save must save-as.</summary>
     public bool IsReadOnlyFile => SelectedFile is { IsShipped: true } && !DeveloperMode;
 
     /// <summary>Every diagnostic from the last check (all rulesets).</summary>
     public ObservableCollection<WorkbenchDiagnostic> Diagnostics { get; } = [];
 
-    /// <summary>Diagnostics whose file is the currently-open document — the inline set.</summary>
+    /// <summary>Diagnostics whose file is the currently-open document: the inline set.</summary>
     public ObservableCollection<WorkbenchDiagnostic> OpenFileDiagnostics { get; } = [];
 
     /// <summary>Neither Evaluate command may start while one is already running (shared single-flight guard).</summary>
@@ -185,28 +185,28 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
 
     /// <summary>
     ///     Rendered evaluation outputs: the per-player scoreboard first, then the declared
-    ///     <c>tables:</c> and keyed tables — each a real grid, like the Stats tab.
+    ///     <c>tables:</c> and keyed tables, each a real grid, like the Stats tab.
     /// </summary>
     public ObservableCollection<WorkbenchScoreboard> Boards { get; } = [];
 
     /// <summary>Traceable stats + highlights from the last evaluation (applied-fire picker).</summary>
     public ObservableCollection<WorkbenchTraceTarget> TraceTargets { get; } = [];
 
-    /// <summary>Applied fires of the selected trace target — when/where/who it fired.</summary>
+    /// <summary>Applied fires of the selected trace target: when/where/who it fired.</summary>
     public ObservableCollection<WorkbenchTraceFire> TraceFires { get; } = [];
 
-    /// <summary>The draggable authoring vocabulary (catalog context + entity-read paths) — the data browser palette.</summary>
+    /// <summary>The draggable authoring vocabulary (catalog context + entity-read paths): the data browser palette.</summary>
     public IReadOnlyList<WorkbenchPath> Paths { get; }
 
     /// <summary>The vocabulary as an expandable tree: match → match.* → sub-properties.</summary>
     public IReadOnlyList<WorkbenchPathNode> PathTree { get; }
 
-    /// <summary>Live player values at the current frame (name / team / position) — populated while a demo is loaded.</summary>
+    /// <summary>Live player values at the current frame (name / team / position), populated while a demo is loaded.</summary>
     public ObservableCollection<LivePlayerRow> LivePlayers { get; } = [];
 
     // ── Ruleset state-graph visualization ────────────────────────────────────────────────────────
 
-    /// <summary>The MSAGL graph of the OPEN ruleset (demo-less, structural) — reuses the shipped Visualization stack.</summary>
+    /// <summary>The MSAGL graph of the OPEN ruleset (demo-less, structural), reuses the shipped Visualization stack.</summary>
     public GraphViewModel GraphViewModel { get; } = new();
 
     /// <summary>Graph rendering is desktop-only (MSAGL layout runs off-thread); the toggle hides on WASM.</summary>
@@ -220,16 +220,16 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
 
     /// <summary>
     ///     Evaluates the open ruleset (+ its sibling rulesets, the open file from the edited buffer)
-    ///     against the loaded demo and projects the per-player game board — the in-Workbench 2MUCH
+    ///     against the loaded demo and projects the per-player game board: the in-Workbench 2MUCH
     ///     display. Composes and builds via the same seam the shipped analysis path uses
     ///     (<see cref="DemoAnalysis.Build(ParsedDemo, IReadOnlyList{RulesetDoc}, AnalysisOptions?)" />).
     /// </summary>
-    /// <summary>Files available to "Advanced Evaluate" — shipped + user rulesets, each toggleable.</summary>
+    /// <summary>Files available to "Advanced Evaluate": shipped + user rulesets, each toggleable.</summary>
     public ObservableCollection<EvaluableFile> EvaluableFiles { get; } = [];
 
     /// <summary>
     ///     Releases the file watcher and the settings subscription. (The module framework retains the
-    ///     VM for the tab's life; this is the correctness/analyzer hook — the watcher is a live OS handle and
+    ///     VM for the tab's life; this is the correctness/analyzer hook. The watcher is a live OS handle and
     ///     the settings subscription pins this VM otherwise.)
     /// </summary>
     public void Dispose()
@@ -274,8 +274,8 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     public event Action<int, int>? JumpRequested;
 
     /// <summary>
-    ///     Default Evaluate: only the OPEN ruleset plus its transitive <c>use:</c> dependencies
-    ///     — not every loaded ruleset. "Advanced Evaluate" (<see cref="EvaluateAdvanced" />) picks an
+    ///     Default Evaluate: only the OPEN ruleset plus its transitive <c>use:</c> dependencies,
+    ///     not every loaded ruleset. "Advanced Evaluate" (<see cref="EvaluateAdvanced" />) picks an
     ///     arbitrary set.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanEvaluate))]
@@ -302,11 +302,11 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     /// <summary>
     ///     Builds + evaluates the given docs on the loaded demo and renders the REAL outputs:
     ///     the per-player game scoreboard, then the declared <c>tables:</c> and keyed tables (via the same
-    ///     projectors the Stats tab uses), plus the applied-fire trace — all from one evaluation.
+    ///     projectors the Stats tab uses), plus the applied-fire trace, all from one evaluation.
     ///     <para>
     ///         The heavy build/evaluate/project runs on a background thread (<c>Task.Run</c>)
     ///         so the UI stays responsive; <see cref="IsEvaluating" /> is held across the whole run so BOTH
-    ///         Evaluate commands are disabled until it finishes — only one evaluation at a time. Results are
+    ///         Evaluate commands are disabled until it finishes, only one evaluation at a time. Results are
     ///         computed as plain data off-thread and only applied to the observable collections after the await
     ///         (back on the UI thread). Re-entry is additionally short-circuited by the guard.
     ///     </para>
@@ -315,7 +315,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     {
         if (IsEvaluating)
         {
-            return; // a run is already in flight — belt-and-suspenders behind CanEvaluate
+            return; // a run is already in flight, belt-and-suspenders behind CanEvaluate
         }
 
         Boards.Clear();
@@ -427,15 +427,15 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     }
 
     /// <summary>
-    ///     Renders the <b>open ruleset's</b> focused state graph into <see cref="GraphViewModel" /> — structural
+    ///     Renders the <b>open ruleset's</b> focused state graph into <see cref="GraphViewModel" />, structural
     ///     and independent of any evaluation. It builds from the open file + its <c>use:</c>
     ///     dependencies and <see cref="AuthoringGraph" /> reduces it to the ruleset's declared stats/highlights
-    ///     plus the events/gates that feed them — a bare kill stat is two nodes, not the whole engine's
+    ///     plus the events/gates that feed them. A bare kill stat is two nodes, not the whole engine's
     ///     scaffolding. Per-player template nodes are materialized once and flagged so authors can see what
     ///     materializes per player. With nothing open the graph is empty (no fallback to "all rulesets").
     ///     <para>
     ///         Most rulesets graph with NO demo. The exception is a ruleset that reads live entity state
-    ///         (<c>player.entity.*</c> — health, armor, equipment): those nodes need the entity scanner, which
+    ///         (<c>player.entity.*</c>: health, armor, equipment): those nodes need the entity scanner, which
     ///         only exists when a demo is bound (entity state <em>is</em> the demo). So we try demo-less first
     ///         (cheap, and keeps the graph demo-independent for the common case) and, only if that hits the
     ///         entity-provider requirement, retry with the loaded demo. With no demo loaded, such a ruleset
@@ -487,8 +487,8 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     /// <summary>
     ///     Builds + renders the authoring graph for <paramref name="docs" /> under <paramref name="demo" />
     ///     (null = demo-less). Returns <c>false</c> ONLY when the build hit the "needs a bound entity scanner"
-    ///     requirement — the caller's signal to retry with a loaded demo. Any other failure is reported into
-    ///     <see cref="GraphSummary" /> and returns <c>true</c> (handled — do not retry).
+    ///     requirement, the caller's signal to retry with a loaded demo. Any other failure is reported into
+    ///     <see cref="GraphSummary" /> and returns <c>true</c> (handled: do not retry).
     /// </summary>
     private bool TryRenderGraph(List<RulesetDoc> docs, ParsedDemo? demo)
     {
@@ -526,7 +526,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
             when (demo is null && ex.Message.Contains("requires per-player entity providers and a player slot",
                       StringComparison.Ordinal))
         {
-            return false; // entity-read ruleset — caller retries with a loaded demo
+            return false; // entity-read ruleset, caller retries with a loaded demo
         }
         catch (Exception ex)
         {
@@ -613,7 +613,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     /// <summary>
     ///     Captures the applied-fire trace for the just-completed evaluation: rebuilds the picker of
     ///     declared stats/highlights and auto-selects the first that fired. The trace reads the same
-    ///     <see cref="EvaluationResult" /> the results board projects from — no second evaluation.
+    ///     <see cref="EvaluationResult" /> the results board projects from, no second evaluation.
     /// </summary>
     private void ApplyTrace(WorkbenchTraceReport report)
     {
@@ -663,7 +663,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
 
     /// <summary>
     ///     A readable row label: the player name first, then any non-structural dimensions (weapon, site,
-    ///     round_number …) joined — so a per-player scoreboard shows the name and a keyed table shows
+    ///     round_number …) joined, so a per-player scoreboard shows the name and a keyed table shows
     ///     "name · weapon". Falls back to the slot.
     /// </summary>
     private static string RowLabel(MetricRow row)
@@ -785,7 +785,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
 
         IsDirty = true;
         OnPropertyChanged(nameof(CanSave));
-        Check(); // buffer-aware — inline diagnostics track the edit
+        Check(); // buffer-aware, inline diagnostics track the edit
     }
 
     partial void OnIsDirtyChanged(bool value) => OnPropertyChanged(nameof(CanSave));
@@ -814,7 +814,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
         SelectedFile = FindOpenable(path); // triggers LoadSelected
     }
 
-    /// <summary>Writes the editor buffer to the open file in place (only for editable files — see CanSave).</summary>
+    /// <summary>Writes the editor buffer to the open file in place (only for editable files, see CanSave).</summary>
     [RelayCommand]
     private void Save()
     {
@@ -827,7 +827,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     }
 
     /// <summary>
-    ///     Writes the buffer to a NEW user-overlay file named <see cref="SaveAsName" /> and opens it —
+    ///     Writes the buffer to a NEW user-overlay file named <see cref="SaveAsName" /> and opens it:
     ///     the "prompt for a new name" path (used for shipped files, or any explicit fork).
     /// </summary>
     [RelayCommand]
@@ -931,7 +931,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     ///     The unified check: builds the ruleset-doc set (shipped + user <c>*.rules.yaml</c>, the open
     ///     file taken from the editor buffer), collects mapping diagnostics, composes demo-less for the
     ///     resolve/cross-ruleset diagnostics (D11a), and splits out the open-file inline set. Exception-
-    ///     safe — a filesystem-less host degrades to a summary line.
+    ///     safe, a filesystem-less host degrades to a summary line.
     /// </summary>
     private void Check()
     {

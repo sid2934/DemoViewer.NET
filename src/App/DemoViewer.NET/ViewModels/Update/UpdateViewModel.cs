@@ -15,7 +15,7 @@ namespace DemoViewer.NET.ViewModels.Update;
 ///     <para>
 ///         <b>Nothing downloads without consent.</b> A check is cheap (one feed request); the payload
 ///         is a ~110 MB full package, because the release currently ships no delta packages. So the
-///         banner announces and waits — <see cref="UpdateAndRestartAsync" /> is the only path that
+///         banner announces and waits: <see cref="UpdateAndRestartAsync" /> is the only path that
 ///         spends bandwidth, and it only runs on a click.
 ///     </para>
 ///     <para>
@@ -47,13 +47,13 @@ public sealed partial class UpdateViewModel : ViewModelBase
 
     /// <summary>
     ///     Banner visibility. Set only by a check that found something, and cleared by Later or by a
-    ///     started download — the banner never coexists with progress.
+    ///     started download: the banner never coexists with progress.
     /// </summary>
     [ObservableProperty]
     private bool _isUpdateAvailable;
 
     /// <summary>
-    ///     Result line for the Settings pane — "You're up to date", a version, or a failure reason.
+    ///     Result line for the Settings pane: "You're up to date", a version, or a failure reason.
     ///     Empty until the user checks, so the pane does not open with a stale verdict.
     /// </summary>
     [ObservableProperty]
@@ -65,7 +65,7 @@ public sealed partial class UpdateViewModel : ViewModelBase
     /// <summary>
     ///     The one instance the shell banner and the Settings pane both bind to. They MUST share:
     ///     a check started from Settings has to raise the banner, and the underlying service holds
-    ///     the resolved update between check and apply — two instances would mean Settings finds an
+    ///     the resolved update between check and apply: two instances would mean Settings finds an
     ///     update the banner cannot install.
     ///     <para>
     ///         Created lazily rather than in a static initializer, because the Desktop entry point
@@ -80,7 +80,7 @@ public sealed partial class UpdateViewModel : ViewModelBase
         set => _shared = value;
     }
 
-    /// <summary>True when this build can update at all — gates the Settings controls.</summary>
+    /// <summary>True when this build can update at all: gates the Settings controls.</summary>
     public bool IsSupported => _service is not null;
 
     /// <summary>
@@ -111,7 +111,7 @@ public sealed partial class UpdateViewModel : ViewModelBase
     }
 
     /// <summary>
-    ///     The Settings button. Unlike the startup check this always reports — the user asked, so
+    ///     The Settings button. Unlike the startup check this always reports: the user asked, so
     ///     silence would read as a broken button.
     /// </summary>
     [RelayCommand]
@@ -173,8 +173,8 @@ public sealed partial class UpdateViewModel : ViewModelBase
             bool ok = await _service.DownloadAndApplyAsync(progress).ConfigureAwait(true);
             if (!ok)
             {
-                // Still running, so the apply failed. Put the banner back — the user asked for this
-                // and should be able to retry — and say so in Settings.
+                // Still running, so the apply failed. Put the banner back, the user asked for this
+                // and should be able to retry, and say so in Settings.
                 IsUpdateAvailable = true;
                 StatusMessage = "Update failed to download. You can retry, or download the installer manually.";
             }

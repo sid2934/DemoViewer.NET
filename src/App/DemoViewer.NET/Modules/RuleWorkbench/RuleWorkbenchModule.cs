@@ -21,7 +21,7 @@ namespace DemoViewer.NET.Modules.RuleWorkbench;
 ///     </para>
 ///     <para>
 ///         Uses <see cref="WorkspaceTabDescriptor.ViewModelFactory" /> (lazy + retained) so
-///         <c>Activate()</c> drives the VM's <c>OnActivated</c>/<c>OnDeactivated</c> lifecycle —
+///         <c>Activate()</c> drives the VM's <c>OnActivated</c>/<c>OnDeactivated</c> lifecycle:
 ///         the same wiring contract as the 2D Playback pilot.
 ///     </para>
 /// </summary>

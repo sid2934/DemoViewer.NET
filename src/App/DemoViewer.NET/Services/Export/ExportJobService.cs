@@ -171,7 +171,7 @@ public sealed class ExportJobService : IExportJobService, IDisposable
         ExportJobStatus? terminal = null;
 
         // Eta is named rather than omitted, and named rather than passed positionally. Preparing has no
-        // rate to extrapolate from, so null is the answer and not an oversight — and an omitted optional
+        // rate to extrapolate from, so null is the answer and not an oversight, and an omitted optional
         // is invisible in the IL, which is the gap Playback2DCompositionTests exists to close. It reads
         // as a redundant argument to an IDE inspection; it is the one argument here that is not.
         SetStatus(new ExportJobStatus(ExportPhase.Preparing, 0, request.Core.FrameCount, 0, TimeSpan.Zero,
@@ -258,7 +258,7 @@ public sealed class ExportJobService : IExportJobService, IDisposable
     ///     Calls straight through instead of posting.
     ///     <para>
     ///         <see cref="Progress{T}" /> captures the <see cref="SynchronizationContext" /> of whoever
-    ///         constructed it, and this job is constructed on a thread-pool thread — so it would post to
+    ///         constructed it, and this job is constructed on a thread-pool thread, so it would post to
     ///         the pool, and a report queued mid-render could arrive <b>after</b> the terminal status and
     ///         overwrite "Completed" with "Rendering". The status would then say the export is still going
     ///         forever. Marshalling to the UI thread is <see cref="SetStatus" />'s job and happens once,

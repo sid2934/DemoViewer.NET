@@ -13,8 +13,8 @@ using DemoViewer.NET.ViewModels.Settings;
 namespace DemoViewer.NET.ViewModels.Setup;
 
 /// <summary>
-///     Backs the first-run setup wizard: a short stepped flow — Welcome → pick a
-///     <b>category</b> → add demo <b>folders</b> → Done — that runs once on a fresh desktop install (no
+///     Backs the first-run setup wizard: a short stepped flow (Welcome → pick a
+///     <b>category</b> → add demo <b>folders</b> → Done) that runs once on a fresh desktop install (no
 ///     persisted <c>settings.json</c>) and is relaunchable from Settings. Derives from
 ///     <see cref="ViewModelBase" /> so the app's <c>ViewLocator</c> resolves
 ///     <c>Views.Setup.FirstRunWizardView</c> for it (desktop window <em>and</em> the WASM overlay).
@@ -22,7 +22,7 @@ namespace DemoViewer.NET.ViewModels.Setup;
 ///         The VM is <b>seeded from <see cref="SettingsService.Current" /></b>: on a genuine first run
 ///         that is the <see cref="UserCategory.PowerUser" /> default with no folders (so PowerUser is
 ///         pre-selected); on a re-run from Settings it shows the user's real choices. This is
-///         what lets <see cref="Skip" /> be a <em>basis-preserving</em> write — it materialises
+///         what lets <see cref="Skip" /> be a <em>basis-preserving</em> write: it materialises
 ///         <c>settings.json</c> (so <see cref="SettingsService.NeedsFirstRun" /> flips false and the
 ///         wizard never re-triggers) without ever clobbering an existing configuration.
 ///     </para>
@@ -53,13 +53,13 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
 
     /// <summary>
     ///     Done-page opt-in: run the Visual Walkthrough after setup (default on). Only honoured on
-    ///     <see cref="Finish" /> (reaching the Done page) — a <see cref="Skip" /> never starts the tour.
+    ///     <see cref="Finish" /> (reaching the Done page); a <see cref="Skip" /> never starts the tour.
     /// </summary>
     [ObservableProperty]
     private bool _startWalkthrough = true;
 
     // Desktop folder-picker source, handed in by the view code-behind (mirrors SettingsView's handoff).
-    // Null on WASM / headless — the folder picker is then unavailable (see CanAddFolder).
+    // Null on WASM / headless, so the folder picker is then unavailable (see CanAddFolder).
     private IStorageProvider? _storageProvider;
 
     /// <summary>
@@ -100,7 +100,7 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
     /// <summary>The auto-detected CS2 downloaded-demos folder, or null when none was found.</summary>
     public string? DetectedDemosFolder => _cs2Lookup.DemosDirectory;
 
-    /// <summary>True when a CS2 demos folder was detected — drives the folders-step suggestion's visibility.</summary>
+    /// <summary>True when a CS2 demos folder was detected, driving the folders-step suggestion's visibility.</summary>
     public bool HasDetectedDemosFolder => DetectedDemosFolder is not null;
 
     /// <summary>True once the detected folder is in the pending set (the suggestion then shows "Added").</summary>
@@ -111,7 +111,7 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
     public bool CanAddDetectedFolder => HasDetectedDemosFolder && !IsDetectedFolderAdded;
 
     /// <summary>
-    ///     True when auto-detection found nothing — drives the "couldn't auto-detect" notice on the folders
+    ///     True when auto-detection found nothing, driving the "couldn't auto-detect" notice on the folders
     ///     step (mutually exclusive with <see cref="HasDetectedDemosFolder" />).
     /// </summary>
     public bool ShowNotFoundNotice => DetectedDemosFolder is null;
@@ -122,7 +122,7 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
     /// <summary>True when at least one Steam library was searched (so the notice can list them).</summary>
     public bool HasSearchedDirectories => SearchedDirectories.Count > 0;
 
-    /// <summary>The not-found notice text — adapts to whether any Steam libraries were searched.</summary>
+    /// <summary>The not-found notice text: adapts to whether any Steam libraries were searched.</summary>
     public string NotFoundMessage => HasSearchedDirectories
         ? "Couldn't find your Counter-Strike 2 demos folder automatically. Searched these Steam libraries:"
         : "Couldn't auto-detect your Counter-Strike 2 demos folder — no Steam installation was found in the "
@@ -140,7 +140,7 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
     /// </summary>
     public bool CanAddFolder { get; } = !OperatingSystem.IsBrowser();
 
-    /// <summary>The effective user category — the selected card's value. Convenience for callers/tests.</summary>
+    /// <summary>The effective user category: the selected card's value. Convenience for callers/tests.</summary>
     public UserCategory SelectedCategory => SelectedCategoryOption.Value;
 
     // ── Step-driven view state (raised together in OnCurrentStepChanged) ──────────────────────────
@@ -168,7 +168,7 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
     /// <summary>Skip is offered on every step before the last (the last step's action is Finish).</summary>
     public bool ShowSkip => CurrentStep < LastStep;
 
-    /// <summary>Progress-bar fill fraction (0..1) — the 1-based current step over the total step count.</summary>
+    /// <summary>Progress-bar fill fraction (0..1): the 1-based current step over the total step count.</summary>
     public double StepProgress => (double)(CurrentStep + 1) / (LastStep + 1);
 
     /// <summary>Header caption, e.g. "Step 2 of 4".</summary>
@@ -233,7 +233,7 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
 
     /// <summary>
     ///     Adds one or more folders via the OS folder picker (desktop). No-op when no picker is wired
-    ///     (WASM / headless) — the Add button is disabled there via <see cref="CanAddFolder" />.
+    ///     (WASM / headless). The Add button is disabled there via <see cref="CanAddFolder" />.
     /// </summary>
     [RelayCommand]
     private async Task AddFolderAsync()
@@ -302,7 +302,7 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
     /// <summary>
     ///     Dismisses the wizard without applying any new choice, but still marks setup complete
     ///     (<see cref="AppSettings.FirstRunCompleted" /> → true) so <see cref="SettingsService.NeedsFirstRun" />
-    ///     flips false and the wizard never re-triggers. The rest of the basis is preserved unchanged — on a
+    ///     flips false and the wizard never re-triggers. The rest of the basis is preserved unchanged: on a
     ///     genuine first run that is the PowerUser default with no folders; on a re-run it keeps the user's
     ///     existing configuration rather than clobbering it. Raises <see cref="Completed" />.
     /// </summary>
@@ -323,6 +323,6 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
             }
         }
 
-        return Categories[1]; // PowerUser — the default tier
+        return Categories[1]; // PowerUser: the default tier
     }
 }

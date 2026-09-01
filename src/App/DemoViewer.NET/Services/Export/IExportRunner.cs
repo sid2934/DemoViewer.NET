@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Services.Export;
 ///     Does the actual rendering for one export.
 ///     <para>
 ///         The seam exists so <see cref="ExportJobService" /> can be tested for what it is responsible
-///         for — refusals, the gate, single-flight, status ordering — without a demo, a compositor or an
+///         for (refusals, the gate, single-flight, status ordering) without a demo, a compositor or an
 ///         ffmpeg on the machine. <see cref="SceneExportRunner" /> is the one production implementation.
 ///     </para>
 /// </summary>
@@ -36,7 +36,7 @@ public interface IExportRunner
 ///     <para>
 ///         It is a capture, not a live view: the demo's frame list is immutable post-parse, and everything
 ///         else here is either a value or an object the export owns outright. In particular the export
-///         builds its <b>own</b> compositor — sharing the window's would mean an unsynchronised layer
+///         builds its <b>own</b> compositor: sharing the window's would mean an unsynchronised layer
 ///         stack being advanced from two threads, which is the hazard B1 recorded as its carry-forward 28.
 ///     </para>
 /// </summary>
@@ -52,7 +52,7 @@ public interface IExportRunner
 ///     <para>
 ///         A factory rather than a value, because the clock half of the HUD has to read the frame the
 ///         export is drawing. Handing over a finished <c>IHudDataSource</c> meant the only thing a tab
-///         could close over was its <i>live viewport's</i> frame — so every frame of the video carried
+///         could close over was its <i>live viewport's</i> frame, so every frame of the video carried
 ///         the scoreboard as it stood when Start was pressed, and moved if the user resumed playback
 ///         while it rendered. The frame source is the export's private tracker; nothing else on this
 ///         record can answer "what round is this frame".
@@ -62,7 +62,7 @@ public interface IExportRunner
 /// <param name="Annotations">
 ///     The ink to burn in, or null to export without it.
 ///     <para>
-///         A <b>snapshot</b> of the tab's document, taken on the UI thread when Start is pressed — never
+///         A <b>snapshot</b> of the tab's document, taken on the UI thread when Start is pressed: never
 ///         the live session. The export renders for minutes on a pool thread while the user keeps drawing,
 ///         and <c>AnnotationLayer</c> re-records its cached pictures whenever <c>Document.Version</c> moves:
 ///         handing over the live document would put strokes made DURING the render into frames the export

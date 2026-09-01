@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Services;
 
 /// <summary>
 ///     The outcome of a CS2 demos-folder lookup: the found folder (or null) plus the Steam library
-///     directories that were actually searched — so the UI can either offer the folder or explain, with the
+///     directories that were actually searched, so the UI can either offer the folder or explain, with the
 ///     concrete locations it checked, why it couldn't be auto-detected.
 /// </summary>
 /// <param name="DemosDirectory">The CS2 downloaded-demos ("replays") folder, or null when not found.</param>
@@ -19,7 +19,7 @@ namespace DemoViewer.NET.Services;
 public sealed record Cs2DemosLookup(string? DemosDirectory, IReadOnlyList<string> SearchedDirectories);
 
 /// <summary>
-///     Best-effort, cross-platform locator for the CS2 install and its downloaded-demos ("replays") folder —
+///     Best-effort, cross-platform locator for the CS2 install and its downloaded-demos ("replays") folder:
 ///     where the in-game client saves GOTV / competitive match demos (<c>…/game/csgo/replays</c>, verified
 ///     against the CS2 <c>sv_replaysdir</c> convar default). Used by the first-run wizard to offer the user's
 ///     real demo folder with one click.
@@ -28,7 +28,7 @@ public sealed record Cs2DemosLookup(string? DemosDirectory, IReadOnlyList<string
 ///         project. It finds Steam's root from the well-known per-OS install locations, reads
 ///         <c>steamapps/libraryfolders.vdf</c> to discover every Steam library (games can live on other
 ///         drives), and looks for the CS2 <c>common</c> folder under each. Custom Steam install roots on
-///         Windows (installed outside Program Files) are the one gap — detection is best-effort by design.
+///         Windows (installed outside Program Files) are the one gap, detection is best-effort by design.
 ///     </para>
 /// </summary>
 public static partial class Cs2InstallLocator
@@ -54,7 +54,7 @@ public static partial class Cs2InstallLocator
     /// <summary>
     ///     Testable core: given candidate Steam roots and injected filesystem probes, returns the first
     ///     existing CS2 replays directory found across all Steam libraries (or null), plus the existing
-    ///     library roots searched. Deterministic — candidates are tried in order.
+    ///     library roots searched. Deterministic: candidates are tried in order.
     /// </summary>
     internal static Cs2DemosLookup FindDemos(
         IEnumerable<string> steamRoots, Func<string, bool> dirExists, Func<string, string?> readText)
@@ -160,7 +160,7 @@ public static partial class Cs2InstallLocator
             yield break;
         }
 
-        // Linux — native, plus the common symlink roots and the Flatpak sandbox.
+        // Linux: native, plus the common symlink roots and the Flatpak sandbox.
         yield return Path.Combine(home, ".steam", "steam");
         yield return Path.Combine(home, ".local", "share", "Steam");
         yield return Path.Combine(home, ".steam", "root");
@@ -175,7 +175,7 @@ public static partial class Cs2InstallLocator
         }
         catch
         {
-            return null; // unreadable / locked vdf — best-effort, treat as absent.
+            return null; // unreadable / locked vdf, best-effort, treat as absent.
         }
     }
 

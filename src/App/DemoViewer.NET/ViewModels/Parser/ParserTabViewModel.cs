@@ -42,7 +42,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
     /// <summary>
     ///     A link into the parser's source on GitHub. The parse pipeline and entity decoder ship as
     ///     the CS2DemoKit packages, so their files are not in this checkout and there is nothing for
-    ///     <c>code --goto</c> to open — the chain links out to the upstream repository instead.
+    ///     <c>code --goto</c> to open. The chain links out to the upstream repository instead.
     /// </summary>
     private const string EntityTrackerSourcePath = "src/CS2DemoKit.Parser/EntityTracking/EntityTracker.cs";
 
@@ -51,13 +51,13 @@ public sealed partial class ParserTabViewModel : ObservableObject
     private byte[]? _cachedDecompressedPayload;
 
     // Unknown-message RE: the Frame Details buffer (normalized bitstream or raw
-    // decompressed payload) + its header for the selected frame, cached so we can restore it
+    // decompressed payload) + its header for the selected frame, cached so it can be restored
     // after an unknown card temporarily swapped HexViewDecompressed to its standalone bytes.
     private byte[]? _cachedFrameDetailsBytes;
     private string? _cachedFrameDetailsHeader;
     private bool _cardModeActive;
 
-    // F5.2 — flat [byteRange → PayloadNode] index over the active card's PayloadNodes,
+    // F5.2: flat [byteRange → PayloadNode] index over the active card's PayloadNodes,
     // rebuilt whenever PayloadNodes changes. Coordinates are 0-based within the message
     // payload; the click handler subtracts the Frame Details shift before looking up.
     private List<ByteRangeEntry> _decompressedByteIndex = [];
@@ -92,13 +92,13 @@ public sealed partial class ParserTabViewModel : ObservableObject
     // _isNormalizedView           : true when Frame Details shows a normalized (re-encoded)
     //                               bitstream instead of the raw decompressed bytes
     // _msgHlInfo / _msgDecompressedRanges : message-level highlight, restored when node selection clears
-    // _cardModeActive             : INTRINSIC guard — keep it. SelectedMessage is dual-trigger:
+    // _cardModeActive             : INTRINSIC guard; keep it. SelectedMessage is dual-trigger:
     //                               the card UI sets it via HandleCardSelected, AND its change
     //                               handler (OnSelectedMessageChanged) runs the non-card payload/
     //                               highlight/parse-chain rebuild. Without this flag, a card click
     //                               would run BOTH paths, and the generic handler would clobber the
     //                               card-specific work (entity_data injection, card-based highlight).
-    //                               This is NOT a leftover from the old god-VM shared state — the
+    //                               This is NOT a leftover from the old god-VM shared state. The
     //                               duality is inherent to one bindable property having a side-
     //                               effecting handler, so splitting VMs does not remove the need.
     //                               Only a refactor (a separate SetSelectedMessageFromCard that
@@ -135,7 +135,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
             PlaceholderText = "Select a frame to view decoded payload"
         };
 
-        // F5.2 — reverse byte → node selection. Clicking a byte in the Frame Details
+        // F5.2: reverse byte → node selection. Clicking a byte in the Frame Details
         // (decompressed) view resolves the encompassing payload-tree node and selects it,
         // which drives the existing node → hex highlight + parse-chain rebuild flow.
         HexViewDecompressed.ByteClicked += OnDecompressedByteClicked;
@@ -283,7 +283,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
     /// <summary>
     ///     Snapshots the Parser tab's durable selection for session persistence. The selected-frame
     ///     index is reverse-resolved via <see cref="FrameListSource" />; <c>SelectedNodePath</c> is the
-    ///     selected payload-node's <c>Name</c> (best-effort — node names aren't strictly unique within
+    ///     selected payload-node's <c>Name</c> (best-effort: node names aren't strictly unique within
     ///     a card, mirroring the doc's <c>SelectedRow.FieldName</c> sketch).
     /// </summary>
     public TabSessionState SnapshotState()
@@ -480,7 +480,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
     internal void ResetForDemoUnload()
     {
         // SelectedFrame/SelectedFrameRow hold a DemoFrame, and one live frame pins the entire demo byte
-        // buffer (zero-copy slicing) — the shell nulls SelectedFrame through its shim, but the row (which
+        // buffer (zero-copy slicing). The shell nulls SelectedFrame through its shim, but the row (which
         // carries its own Source frame) has no shim, so it must be dropped here.
         SelectedFrameRow = null;
         SelectedFrame = null;
@@ -644,14 +644,14 @@ public sealed partial class ParserTabViewModel : ObservableObject
         // ── RAW view ─────────────────────────────────────────────────────────
         // For non-compressed frames the decompressed payload IS the raw payload, so spans
         // translate 1-to-1 (offset by PayloadStart).  For compressed frames the bytes differ,
-        // so we always keep/restore the frame-level highlight — never mirror node/message spans.
+        // so the frame-level highlight is always kept or restored; node/message spans are never mirrored.
         if (SelectedFrame is not { } frame || DemoBytesSource?.Invoke() is null)
         {
             return;
         }
 
         // For normalized views Frame Details shows re-encoded bytes that don't correspond
-        // byte-for-byte to the raw payload, so we never mirror those spans to the RAW view.
+        // byte-for-byte to the raw payload, so those spans are never mirrored to the RAW view.
         if (!frame.IsCompressed && !IsNormalizedView && decompSpans is { Count: > 0 })
         {
             int rawBase = frame.PayloadStart;
@@ -692,8 +692,8 @@ public sealed partial class ParserTabViewModel : ObservableObject
     ///     known-card construction loop, injects the "unknown" cards, and loads the hex views.
     ///     <para>
     ///         Each caller keeps its own pre-reset and post-selection work. The two in-span deltas
-    ///         that exist only on the frame-selection path —
-    ///         <see cref="HasInnerMessages" /> and populating <see cref="SelectedFrameMessages" /> —
+    ///         that exist only on the frame-selection path,
+    ///         <see cref="HasInnerMessages" /> and populating <see cref="SelectedFrameMessages" />,
     ///         are gated in place by <paramref name="isFrameSelectionPath" /> to preserve exact
     ///         ordering relative to the surrounding shared statements.
     ///     </para>
@@ -769,8 +769,8 @@ public sealed partial class ParserTabViewModel : ObservableObject
     /// <summary>
     ///     Reverse-engineering aid: surface net-messages the parser could not decode as
     ///     distinct cards. They never become a <see cref="NetMessage" /> (so the known-card path
-    ///     above is untouched); instead we re-walk the bitstream keeping type IDs and add a card —
-    ///     with the message's exact bytes and a generic proto-wire decode — for each slice whose
+    ///     above is untouched); instead the bitstream is re-walked keeping type IDs, adding a card,
+    ///     with the message's exact bytes and a generic proto-wire decode, for each slice whose
     ///     type ID is in this frame's unknown census. Classification by census type-id set is exact:
     ///     a given type ID is either always-decoded or always-unknown. No-ops for frames without
     ///     unknowns, so clean frames are unaffected.
@@ -1118,7 +1118,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
             {
                 SetMessageHighlight(card);
 
-                // Inject decoded entity_data if we have an active tracker.
+                // Inject decoded entity_data when an active tracker exists.
                 if (msg.Payload is CSVCMsg_PacketEntities pe)
                 {
                     InjectEntityDataNodes(card, pe);
@@ -1267,7 +1267,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
     /// <summary>
     ///     Maps a clicked Frame Details byte offset back to the encompassing payload-tree node and
     ///     selects it. The offset arrives in Frame Details (decompressed/normalized) coordinates;
-    ///     node byte ranges are 0-based within the message payload, so we subtract the same shift
+    ///     node byte ranges are 0-based within the message payload, so this subtracts the same shift
     ///     the node → hex highlight path adds when going the other direction.
     /// </summary>
     private void OnDecompressedByteClicked(int frameDetailsOffset)
@@ -1313,7 +1313,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
 
         SelectedMessage = null;
 
-        // Clear shell-owned FrameGameEvents unconditionally — matches the legacy
+        // Clear shell-owned FrameGameEvents unconditionally: matches the legacy
         // OnSelectedFrameChanged behaviour, which cleared them at the top before
         // the null check (PopulateFrameGameEvents accepts null and clears).
         PopulateFrameGameEvents?.Invoke(null);
@@ -1356,7 +1356,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
 
         RebuildParseChain(value, null, null, null);
 
-        // Shell hook fires last — it does the index assignment, command CanExecute refresh,
+        // Shell hook fires last: it does the index assignment, command CanExecute refresh,
         // SeekControls.SetCurrentFrame, EntityTab.SeekEntitiesAsync, and the Analysis seek.
         OnFrameSelected?.Invoke(idx);
     }
@@ -1400,7 +1400,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
     {
         // Unknown-message cards show their exact bytes standalone in the Frame Details view, so
         // node byte ranges map directly (shift 0) and only that view is highlighted (the Raw view
-        // stays on the whole-frame highlight — these standalone bytes have no raw-buffer mapping).
+        // stays on the whole-frame highlight: these standalone bytes have no raw-buffer mapping).
         if (_hexShowingUnknown)
         {
             ApplyUnknownNodeHighlight(value);
@@ -1505,7 +1505,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
         Span<byte> span = demoBytes.AsSpan(frame.RawStart, frame.HeaderLength);
         int pos = 0;
 
-        // 1 — cmd (EDemoCommands with bit 6 = DemIsCompressed)
+        // 1: cmd (EDemoCommands with bit 6 = DemIsCompressed)
         Leb128Utils.TryReadUInt32(span[pos..], out uint rawCmd, out int cmdLen);
         bool isCompressed = (rawCmd & 0x40u) != 0;
         string cmdHex = string.Join(" ", span.Slice(pos, cmdLen).ToArray().Select(b => $"{b:X2}"));
@@ -1529,7 +1529,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
         });
         pos += cmdLen;
 
-        // 2 — tick
+        // 2: tick
         Leb128Utils.TryReadUInt32(span[pos..], out _, out int tickLen);
         string tickHex = string.Join(" ", span.Slice(pos, tickLen).ToArray().Select(b => $"{b:X2}"));
         int tickAbsOffset = frame.RawStart + pos;
@@ -1550,7 +1550,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
         });
         pos += tickLen;
 
-        // 3 — size (stored payload size; for compressed frames this is the Snappy-compressed length)
+        // 3: size (stored payload size; for compressed frames this is the Snappy-compressed length)
         Leb128Utils.TryReadUInt32(span[pos..], out uint rawSize, out int sizeLen);
         string sizeHex = string.Join(" ", span.Slice(pos, sizeLen).ToArray().Select(b => $"{b:X2}"));
         string sizeDecoded = frame.IsCompressed && decompressedPayload is not null

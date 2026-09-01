@@ -24,7 +24,7 @@ namespace DemoViewer.NET.Modules;
 ///     <para>
 ///         <c>m_flGameStartTime</c> cancels out of the consume-time formula, so the module needs only
 ///         the one <c>clockBase</c> scalar. Lives in the App project (not Abstractions) because it
-///         advances an <see cref="EntityTracker" /> — the abstractions assembly stays Parser-free
+///         advances an <see cref="EntityTracker" />, the abstractions assembly stays Parser-free
 ///         . This is a load-time, run-once computation; the per-tick consume path is a single
 ///         subtraction.
 ///     </para>

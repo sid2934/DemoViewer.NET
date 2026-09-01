@@ -14,14 +14,14 @@ namespace DemoViewer.NET.Diagnostics;
 /// <summary>
 ///     App-layer helper for the Diagnostics tab's always-on info. Gathers the
 ///     system/session rows and the curated env-var allowlist rows as
-///     <see cref="KvpRow" /> lists. Pure reflection / environment reads — cheap, synchronous, and
+///     <see cref="KvpRow" /> lists. Pure reflection / environment reads, cheap, synchronous, and
 ///     safe in any build (the compile-gated profiling panels live in the VM, not here).
 /// </summary>
 public static class RuntimeEnvInfo
 {
     /// <summary>
     ///     Curated allowlist of runtime-affecting, non-secret environment variables surfaced in the
-    ///     Diagnostics tab. <b>Extend here only</b> — never enumerate all env vars, which
+    ///     Diagnostics tab. <b>Extend here only</b>, never enumerate all env vars, which
     ///     can leak Steam tokens, <c>PATH</c>, or auth. On the browser host every read is <c>(unset)</c>.
     /// </summary>
     public static readonly string[] EnvAllowlist =
@@ -45,7 +45,7 @@ public static class RuntimeEnvInfo
     /// <summary>
     ///     System/session rows: app + parser version, .NET runtime, OS/arch, GC mode,
     ///     processor count, and the runtime profiling state (the single <c>Profiling.Enabled</c> switch
-    ///     plus whether the last parse captured data — both off/No by default).
+    ///     plus whether the last parse captured data, both off/No by default).
     /// </summary>
     public static IReadOnlyList<KvpRow> SystemRows()
     {
@@ -89,7 +89,7 @@ public static class RuntimeEnvInfo
 
     private static string AppVersion() => InformationalVersion(typeof(RuntimeEnvInfo).Assembly);
 
-    // Parser version is a DIFFERENT assembly than the app — read the informational
+    // Parser version is a DIFFERENT assembly than the app, read the informational
     // version attribute off the parser assembly, not the app's ThisAssembly.
     private static string ParserVersion() => InformationalVersion(typeof(DemoParser).Assembly);
 

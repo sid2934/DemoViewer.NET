@@ -22,7 +22,7 @@ namespace DemoViewer.NET.Services.Tutorial;
 ///             stays
 ///             visible and waits
 ///         </b>
-///         — spotlight on the Open-Demo affordance, advance disabled, a hint shown — and
+///         (spotlight on the Open-Demo affordance, advance disabled, a hint shown) and
 ///         auto-advances into the demo run the instant a demo loads (<see cref="NotifyDemoLoaded" />). If a demo
 ///         is already open at the gateway (replay-from-Settings), it is a normal Next-able step. The step
 ///         indicator ("2 of 8") counts across the whole script so the two runs read as one tour.
@@ -74,10 +74,10 @@ public sealed class TutorialController
     ///     <paramref name="hasSampleCta" />, then falls back to the Open-Demo button (file picker).
     /// </param>
     /// <param name="hasSampleCta">
-    ///     Predicate: is the Library hero's "Try a sample match" CTA on screen — a bundled sample demo
+    ///     Predicate: is the Library hero's "Try a sample match" CTA on screen: a bundled sample demo
     ///     resolved AND the hero (empty-library) state showing? The gateway's second preference: one click
     ///     opens the sample and the tour continues with real match data, no file dialog. Must be false when
-    ///     the hero is hidden (folders configured) — the CTA control is invisible then, so spotlighting it
+    ///     the hero is hidden (folders configured): the CTA control is invisible then, so spotlighting it
     ///     would frame nothing.
     /// </param>
     public TutorialController(
@@ -209,7 +209,7 @@ public sealed class TutorialController
             return;
         }
 
-        // Last step of the current run. On the first run this is the gateway step — Next is only enabled here
+        // Last step of the current run. On the first run this is the gateway step: Next is only enabled here
         // when a demo is already open (a waiting gateway disables Next and advances via NotifyDemoLoaded), so
         // reaching this branch means we can flow straight into the demo segment.
         if (ReferenceEquals(_run, _firstRun) && _demoRun.Count > 0)
@@ -252,6 +252,6 @@ public sealed class TutorialController
         TutorialTarget.StatsContent => "builtin.stats",
         TutorialTarget.PlaybackTab => "playback2d.viewport",
         TutorialTarget.PlaybackTransport => "playback2d.viewport",
-        _ => null // None (welcome / outro) — no switch; play over the current tab.
+        _ => null // None (welcome / outro): no switch; play over the current tab.
     };
 }

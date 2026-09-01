@@ -21,13 +21,13 @@ namespace DemoViewer.NET.Modules;
 ///     abstractions assembly stays clean of every parser type, which is what lets a module be written
 ///     against <see cref="IPlayerState" /> without taking a dependency on the demo parser at all.
 ///     <para>
-///         <b>Read-only by construction</b> — the only handle a module gets. No mutators, no raw
+///         <b>Read-only by construction</b>: the only handle a module gets. No mutators, no raw
 ///         tracker, no bytes, no parser (the primary guardrail). The <c>Request*</c> operations route
 ///         to the controller (capability-gated by the host).
 ///     </para>
 ///     <para>
 ///         <b>Allocation: POOLED.</b> The entity view, per-entity facade, and the ~10
-///         <see cref="PooledPlayerState" /> instances are reused and re-aimed each push — the framework
+///         <see cref="PooledPlayerState" /> instances are reused and re-aimed each push: the framework
 ///         allocates nothing per tick on the hot path.
 ///     </para>
 /// </summary>
@@ -36,10 +36,10 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     private readonly PlaybackController _controller;
     private readonly Func<string?> _demoPath;
 
-    // Pooled transient facades / states — re-aimed each push, never reallocated.
+    // Pooled transient facades / states, re-aimed each push, never reallocated.
     private readonly ReadOnlyEntityView _entityView = new(EmptyEntitySet);
 
-    // The shell-owned semantic navigator (Phase E forward-nav). Optional — null in test harnesses that
+    // The shell-owned semantic navigator (Phase E forward-nav). Optional: null in test harnesses that
     // construct the context without navigation; the AvailableEventNames / Request*Event members no-op then.
     private readonly SemanticNavigator? _navigator;
     private readonly Dictionary<int, EntityState> _pawnBySlot = new(16);
@@ -50,8 +50,8 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
 
     // The demo's pre-decoded flat event list (set once at load, mirroring SetRoster) + a per-name cache of
     // the projected GameEventView timeline. A module pre-builds its own windowed view from a timeline; the
-    // host materializes a given name's views ONCE on first request (so high-volume names it never asks for —
-    // e.g. weapon_fire — are never built). Reset on unload.
+    // host materializes a given name's views ONCE on first request (so high-volume names it never asks for,
+    // e.g. weapon_fire, are never built). Reset on unload.
     private IReadOnlyList<GameEvent> _allGameEvents = Array.Empty<GameEvent>();
 
     // Shared game-clock calibration (set once per demo at load by the shell, mirroring SetRoster). When
@@ -59,10 +59,10 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     private double _clockBase;
 
     // The currently-loaded parsed demo (set once at load, mirroring SetRoster). Exposed to first-party
-    // modules via ICurrentDemoSource so the Rulesets v2 Workbench can evaluate against it — the Parser
+    // modules via ICurrentDemoSource so the Rulesets v2 Workbench can evaluate against it: the Parser
     // type stays OFF the minimal IModuleContext abstraction.
 
-    // The live-sync HUD projection, set ONCE by the shell in AttachLiveSync (never cleared —
+    // The live-sync HUD projection, set ONCE by the shell in AttachLiveSync (never cleared:
     // the projection folds the chrome.livesync gate into its own IsActive). Null on Browser / tests / no
     // desktop engine → the 2D indicator is simply absent.
 
@@ -93,7 +93,7 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     private static EntitySet EmptyEntitySet { get; } = new();
 
     /// <summary>
-    ///     The 2D tab's video-export host, or null when this build has none (browser, tests, designer) —
+    ///     The 2D tab's video-export host, or null when this build has none (browser, tests, designer),
     ///     in which case the tab's Export affordance stays hidden rather than half-wired.
     ///     <para>
     ///         Deliberately NOT on <see cref="IModuleContext" />: that interface exposes no tracker, no
@@ -156,7 +156,7 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     /// <inheritdoc />
     public IModuleFeatureGate? Features { get; private set; }
 
-    // Phase E forward-nav — delegate to the shell-owned navigator (the seek lands on the shared clock and
+    // Phase E forward-nav: delegate to the shell-owned navigator (the seek lands on the shared clock and
     // re-publishes to every module). null navigator (test harness) → empty set / no-op.
     public IReadOnlyCollection<string> AvailableEventNames =>
         _navigator is null
@@ -217,7 +217,7 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
 
     /// <summary>
     ///     Signals every ACTIVE module that a new demo has been loaded and this context's roster / map /
-    ///     events / clock are now repopulated — call it AFTER the <c>Set*</c> methods on a (re)load. A module
+    ///     events / clock are now repopulated: call it AFTER the <c>Set*</c> methods on a (re)load. A module
     ///     can only OBSERVE this via <see cref="IModuleContext.DemoReset" /> (read-only guardrail); only
     ///     the host raises it. Inactive modules aren't subscribed and resync on their next activation instead.
     /// </summary>
@@ -226,20 +226,20 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     /// <summary>
     ///     Host-side relay for <see cref="IModuleContext.NotifySpectateTarget" /> (csvg-integration
     ///     the spectate seam): module surfaces report the user's follow pick; the live-sync engine
-    ///     subscribes here (the module-owned tab VMs are lazily built, so this context — which
-    ///     always exists — is the reachable seam).
+    ///     subscribes here (the module-owned tab VMs are lazily built, so this context, which
+    ///     always exists, is the reachable seam).
     /// </summary>
     public event Action<int>? SpectateTargetChanged;
 
 
     /// <summary>
-    ///     Sets the stable identity roster on demo load. Identity only — team is volatile and
+    ///     Sets the stable identity roster on demo load. Identity only: team is volatile and
     ///     comes from the per-tick join. Reset to empty on unload.
     /// </summary>
     public void SetRoster(IEnumerable<PlayerRosterEntry> roster) => _roster = roster.ToList();
 
     /// <summary>
-    ///     Sets the map's logical name on demo load (mirrors <see cref="SetRoster" />) — the host reads it
+    ///     Sets the map's logical name on demo load (mirrors <see cref="SetRoster" />): the host reads it
     ///     from <c>ParsedDemo.MapName</c>. Pass null on unload. Lets a module select map assets by identity.
     /// </summary>
     public void SetMapName(string? mapName) => MapName = mapName;
@@ -256,7 +256,7 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
 
     /// <summary>
     ///     Wires the host's speed-lock predicate (mirrors <see cref="SetLiveSyncHud" />). A module's speed
-    ///     keys must honour the SAME lock the NavStrip speed ComboBox binds its <c>IsEnabled</c> to — a
+    ///     keys must honour the SAME lock the NavStrip speed ComboBox binds its <c>IsEnabled</c> to: a
     ///     parallel path would let a keypress desync a Synced session.
     /// </summary>
     public void SetSpeedLock(Func<bool>? isLocked) => _speedLocked = isLocked;
@@ -270,7 +270,7 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
 
     /// <summary>
     ///     Sets the shared game-clock calibration on demo load (mirrors <see cref="SetRoster" />). The
-    ///     host computes <c>clockBase</c> once via <see cref="GameClock.ComputeClockBase" /> — it owns
+    ///     host computes <c>clockBase</c> once via <see cref="GameClock.ComputeClockBase" />: it owns
     ///     the frame history + the precomputed <c>round_freeze_end</c> frames a seeking module lacks.
     ///     Reset to 0 (naive fallback) on unload.
     /// </summary>
@@ -317,11 +317,11 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
         }
 
         // Map live, validly-controllered pawns by slot (ForEachLivePawn skips orphaned/dead-orphaned
-        // pawns whose m_hController no longer resolves — see PawnLookup guard).
+        // pawns whose m_hController no longer resolves, see PawnLookup guard).
         _pawnBySlot.Clear();
         PawnLookup.ForEachLivePawn(tracker, (slot, pawn) => _pawnBySlot[slot] = pawn);
 
-        // Controller-anchored emission: one PlayerState per stable roster slot, EVERY frame — identity
+        // Controller-anchored emission: one PlayerState per stable roster slot, EVERY frame. Identity
         // comes from the persistent controller, not the fragile pawn. A dead player whose pawn has
         // orphaned still gets a row (HasLivePawn=false, pawn/position null) with their controller
         // resolved, so K/D/A / cash keep updating and the module can gray the card + hold the last-known

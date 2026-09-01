@@ -15,7 +15,7 @@ using DemoViewer.NET.ViewModels.Library;
 namespace DemoViewer.NET.ViewModels.Highlights;
 
 /// <summary>
-///     The cross-demo <b>Add clips</b> picker — the
+///     The cross-demo <b>Add clips</b> picker: the
 ///     reason multi-demo reels still work with the card grid gone. A
 ///     <b>
 ///         flat, virtualized highlight-ROW
@@ -26,7 +26,7 @@ namespace DemoViewer.NET.ViewModels.Highlights;
 ///     virtualizing counterpart.
 ///     <para>
 ///         <b>Where the card grid's orphaned filters landed.</b> Free text, players (with counts), highlight types and
-///         maps — the same <see cref="PlayerFilterItem" /> / <see cref="HighlightTypeFilterItem" /> /
+///         maps, the same <see cref="PlayerFilterItem" /> / <see cref="HighlightTypeFilterItem" /> /
 ///         <see cref="MapFilterItem" /> item types the card grid used, re-pointed at highlight rows. They
 ///         were <em>discovery</em> affordances over a library-wide corpus, which is exactly what this list
 ///         is; putting them over the staged tray instead would have been machinery without a job.
@@ -34,8 +34,8 @@ namespace DemoViewer.NET.ViewModels.Highlights;
 ///     <para>
 ///         <b>The row set is SNAPSHOTTED at open.</b> A backfill raises <c>DemoCacheStore.Changed</c>
 ///         every few seconds; re-projecting under an open picker would reset scroll and wipe the user's
-///         multi-select mid-assembly. A picker is transient by construction, so the honest fix is a snapshot
-///         plus a footer note when a scan is running — not the <c>SameProjection</c> stale-guard the
+///         multi-select mid-assembly. A picker is transient by construction, so the fix that fits is a snapshot
+///         plus a footer note when a scan is running, not the <c>SameProjection</c> stale-guard the
 ///         always-on card grid needed. <b>Staged flags are the exception</b> and are pushed live
 ///         (<see cref="SyncStagedFlags" />), because the tray and this list must never disagree about what is
 ///         already in the reel.
@@ -66,7 +66,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     ///     Builds the picker over a snapshot of the highlights cache.
     /// </summary>
     /// <param name="records">Cache records that CARRY highlights (the index filters the rest out).</param>
-    /// <param name="libraryRowCount">How many demos the cache knows about at all — the coverage denominator.</param>
+    /// <param name="libraryRowCount">How many demos the cache knows about at all, the coverage denominator.</param>
     /// <param name="isStaged">O(1) staged test against the live tray.</param>
     /// <param name="stage">Stages a batch into the tray (a single <c>[ + ]</c> passes a one-item list).</param>
     /// <param name="unstage">Un-stages one highlight (the <c>[ ✓ ]</c> toggle-off path).</param>
@@ -75,7 +75,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     /// <param name="leadOutSeconds">Lead-out used for the per-row estimate.</param>
     /// <param name="dontCrossRoundStart">Whether the estimate floors the lead-in at the round start.</param>
     /// <param name="rescanAll">Mirrored <c>⟳ Rescan all</c>; null hides it (browser host / tests).</param>
-    /// <param name="scanQueueDepth">Demos still queued for a scan — drives the honest "more are coming" note.</param>
+    /// <param name="scanQueueDepth">Demos still queued for a scan, drives the "more are coming" note.</param>
     public AddClipsPickerViewModel(
         IReadOnlyList<DemoCacheRecord> records,
         int libraryRowCount,
@@ -104,7 +104,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
         {
             // COVERAGE DEFINITION (a subtlety, resolved deliberately): a demo appears here when it
             // has EVENTS, not when its ScanState is Indexed. The measured library has 346/348 rows Pending
-            // yet 267 events present — a re-queued row keeps its previous harvest — so counting Indexed rows
+            // yet 267 events present, a re-queued row keeps its previous harvest, so counting Indexed rows
             // would print "0 analysed demos" above a list of hundreds of visible highlights. A page that
             // contradicts what it is showing is the exact defect the earlier capture review caught.
             if (record.Highlights.Count == 0)
@@ -120,9 +120,9 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
             }
         }
 
-        // Discovery order is Score DESCENDING — the picker surfaces the best firings first, matching the reel's
+        // Discovery order is Score DESCENDING: the picker surfaces the best firings first, matching the reel's
         // own ordering (CachedHighlightEvent.Score, higher = cooler). OrderByDescending is stable, so ties keep
-        // the recency order the enumeration above already established. (The user-curated TRAY is never sorted —
+        // the recency order the enumeration above already established. (The user-curated TRAY is never sorted,
         // curation lives in HighlightsTabViewModel._order and is left alone by design.)
         _allRows = [.. built.OrderByDescending(r => r.Score)];
         TotalHighlights = _allRows.Count;
@@ -163,7 +163,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     /// <summary>How many demos contribute at least one highlight (the coverage denominator that matters).</summary>
     public int DemosWithHighlights { get; }
 
-    /// <summary>How many rows the cache knows about at all (analysed or not) — the library-size context.</summary>
+    /// <summary>How many rows the cache knows about at all (analysed or not): the library-size context.</summary>
     public int LibraryRowCount { get; }
 
     /// <summary>Demos still queued for a scan when the picker opened.</summary>
@@ -181,7 +181,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     /// <summary>Filter-button caption, e.g. "Kind (1)".</summary>
     public string KindFilterSummary => Summary("Kind", KindFilters.Count(k => k.IsSelected));
 
-    /// <summary>True when any filter is narrowing the list — drives the Clear affordance.</summary>
+    /// <summary>True when any filter is narrowing the list, drives the Clear affordance.</summary>
     public bool HasActiveFilters =>
         !string.IsNullOrWhiteSpace(SearchText) || PlayerFilters.Any(p => p.IsSelected)
                                                || TypeFilters.Any(t => t.IsSelected)
@@ -191,7 +191,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     /// <summary>The filtered-out empty state: rows exist, but the filters exclude every one of them.</summary>
     public bool ShowNoFilterMatch => _allRows.Count > 0 && Rows.Count == 0;
 
-    /// <summary>The library has no usable harvest at all — a different emptiness from "no filter match".</summary>
+    /// <summary>The library has no usable harvest at all, a different emptiness from "no filter match".</summary>
     public bool ShowNothingIndexed => _allRows.Count == 0;
 
     /// <summary>True while the list itself should render (mutually exclusive with both empty states).</summary>
@@ -200,7 +200,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     /// <summary>How many rows are ticked for the bulk <c>Add N selected</c> action.</summary>
     public int PickedCount => _allRows.Count(r => r.IsPicked);
 
-    /// <summary>Primary caption — always states the count, so an empty selection reads as "nothing yet".</summary>
+    /// <summary>Primary caption: always states the count, so an empty selection reads as "nothing yet".</summary>
     public string AddSelectedLabel => PickedCount > 0 ? $"Add {PickedCount} selected" : "Add selected";
 
     /// <summary>Gates the bulk add.</summary>
@@ -210,7 +210,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     public bool CanRescan => _rescanAll is not null;
 
     /// <summary>
-    ///     The footer's honest coverage line. Unfiltered it states the corpus; filtered it states the
+    ///     The footer's coverage line. Unfiltered it states the corpus; filtered it states the
     ///     narrowing, because "12 highlights" over a list of 3 rows is the same self-contradiction the
     ///     coverage definition above exists to avoid.
     /// </summary>
@@ -226,8 +226,8 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
 
     /// <summary>
     ///     The coverage caveat. Careful: the wireframe's copy ("Only demos with full stats appear here") is
-    ///     wrong under the chosen definition — a re-queued <c>Pending</c> row with a previous harvest DOES
-    ///     appear — so the wording follows the definition rather than the wireframe.
+    ///     wrong under the chosen definition, a re-queued <c>Pending</c> row with a previous harvest DOES
+    ///     appear, so the wording follows the definition rather than the wireframe.
     /// </summary>
     public string CoverageNote
     {
@@ -246,7 +246,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
         }
     }
 
-    /// <summary>True while a scan is still queued — the list will grow, and saying so prevents "it's broken".</summary>
+    /// <summary>True while a scan is still queued: the list will grow, and saying so prevents "it's broken".</summary>
     public bool ShowScanPendingNote => ScanQueueDepth > 0;
 
     /// <summary>Copy for <see cref="ShowScanPendingNote" />.</summary>
@@ -260,7 +260,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     /// <summary>
     ///     Re-reads the staged flag for every row against the live tray. Called from the tab's single tray
     ///     funnel (<c>PushTray</c>), so an un-stage performed in the TRAY flips this list's <c>[ ✓ ]</c> back
-    ///     to <c>[ + ]</c> while it is open — the round-trip the plan requires.
+    ///     to <c>[ + ]</c> while it is open: the round-trip the plan requires.
     /// </summary>
     /// <param name="isStaged">O(1) staged test against the live tray.</param>
     public void SyncStagedFlags(Func<HighlightKey, bool> isStaged)
@@ -347,8 +347,8 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     [RelayCommand]
     private void Close() => _close();
 
-    // Row [ + ] / [ ✓ ]: stage or un-stage exactly this highlight. The row does NOT mutate its own IsStaged —
-    // the tray is the source of truth and pushes the flag back through SyncStagedFlags, so a rejected stage
+    // Row [ + ] / [ ✓ ]: stage or un-stage exactly this highlight. The row does NOT mutate its own IsStaged.
+    // The tray is the source of truth and pushes the flag back through SyncStagedFlags, so a rejected stage
     // (e.g. the demo vanished from the cache) can never leave the row lying about being in the reel.
     private void OnRowStageRequested(AddClipsRowViewModel row)
     {
@@ -433,7 +433,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
         // Same result → don't touch the collection. Rows are stable instances, so this is reference equality,
         // and it matters: a Clear + N Adds over a 240-row corpus tears down and re-realizes every virtualized
         // container. Typing a character that narrows nothing, or backspacing back to a set already shown, is
-        // the common case — and it would otherwise reset the user's scroll position mid-search.
+        // the common case, and it would otherwise reset the user's scroll position mid-search.
         if (next.Count == Rows.Count && !next.Where((r, i) => !ReferenceEquals(r, Rows[i])).Any())
         {
             OnPropertyChanged(nameof(HasActiveFilters));
@@ -503,7 +503,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     private void BuildKindFilters()
     {
         // Ordered by the enum (Highlight, Funny, Lowlight) so the chips read in editorial-track order rather
-        // than by count. Only kinds actually present get a chip — a library with no lowlights shows no Lowlight
+        // than by count. Only kinds actually present get a chip: a library with no lowlights shows no Lowlight
         // option rather than a dead "(0)" one.
         foreach ((HighlightKind kind, int count) in _allRows
                      .GroupBy(r => r.Kind)
@@ -529,7 +529,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
         return id.Replace('_', ' ');
     }
 
-    // Chip label for the editorial track. The enum names already read well, so this is a plain map — kept
+    // Chip label for the editorial track. The enum names already read well, so this is a plain map, kept
     // explicit rather than ToString() so a future enum rename can't silently change a user-facing chip.
     private static string KindDisplay(HighlightKind kind) => kind switch
     {
@@ -540,12 +540,12 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
 }
 
 /// <summary>
-///     One highlight ROW in the Add-clips picker — the unit of work the list is built around. Carries
+///     One highlight ROW in the Add-clips picker: the unit of work the list is built around. Carries
 ///     its own provenance (map accent + map + demo file + player + title + round + estimated window) because
 ///     a flat cross-demo list is unreadable without it.
 ///     <para>
 ///         <b>Both interaction states live on the VM, never on the container.</b> The list is virtualized,
-///         and <c>VirtualizingStackPanel</c> recycles containers on scroll — multi-select riding container
+///         and <c>VirtualizingStackPanel</c> recycles containers on scroll, multi-select riding container
 ///         state would silently evaporate the moment the user scrolled past their own picks.
 ///     </para>
 /// </summary>
@@ -594,7 +594,7 @@ public sealed partial class AddClipsRowViewModel : ObservableObject
             : highlight.RenderedTitle;
         RoundDisplay = highlight.RoundNumber > 0 ? $"r{highlight.RoundNumber}" : "";
 
-        // The SAME window maths the config pane uses, with the pane's CURRENT padding snapshotted at open —
+        // The SAME window maths the config pane uses, with the pane's CURRENT padding snapshotted at open,
         // so the "~20s" a user reads here is the duration they get, not a nominal lead-in + lead-out sum
         // that ignores the round-start floor and the demo-end clamp.
         int rate = record.TickRate > 0 ? record.TickRate : 64;
@@ -615,13 +615,13 @@ public sealed partial class AddClipsRowViewModel : ObservableObject
     /// <summary>Prettified map name (also the map filter's key).</summary>
     public string MapDisplay { get; }
 
-    /// <summary>Raw map name, for the accent dot — the same converter the Library cards use.</summary>
+    /// <summary>Raw map name, for the accent dot, the same converter the Library cards use.</summary>
     public string MapKey { get; }
 
     /// <summary>Demo file name (provenance; the full path is the tooltip).</summary>
     public string FileName { get; }
 
-    /// <summary>Full demo path — the row's tooltip, since two demos can share a file name.</summary>
+    /// <summary>Full demo path: the row's tooltip, since two demos can share a file name.</summary>
     public string FilePath => Selection.Record.Path;
 
     /// <summary>Sanitized player name.</summary>
@@ -648,13 +648,13 @@ public sealed partial class AddClipsRowViewModel : ObservableObject
     /// <summary>Estimated clip length under the config pane's current padding.</summary>
     public string DurationText { get; }
 
-    /// <summary>The stage button's glyph — <c>+</c> to add, <c>✓</c> when already in the tray.</summary>
+    /// <summary>The stage button's glyph: <c>+</c> to add, <c>✓</c> when already in the tray.</summary>
     public string StageGlyph => IsStaged ? "✓" : "+";
 
     /// <summary>The stage button's tooltip, which is where the toggle semantics are actually stated.</summary>
     public string StageHint => IsStaged ? "In the tray — click to remove" : "Add this clip to the tray";
 
-    /// <summary>False once staged — ticking a row that is already in the tray has no meaning.</summary>
+    /// <summary>False once staged, ticking a row that is already in the tray has no meaning.</summary>
     public bool CanPick => !IsStaged;
 
     /// <summary>Free-text match over everything the row displays.</summary>
@@ -670,7 +670,7 @@ public sealed partial class AddClipsRowViewModel : ObservableObject
         OnPropertyChanged(nameof(StageGlyph));
         OnPropertyChanged(nameof(StageHint));
         OnPropertyChanged(nameof(CanPick));
-        // A staged row cannot also be "pending add" — leaving a tick behind would make Add N selected count
+        // A staged row cannot also be "pending add", leaving a tick behind would make Add N selected count
         // clips that are already in the tray.
         if (value)
         {

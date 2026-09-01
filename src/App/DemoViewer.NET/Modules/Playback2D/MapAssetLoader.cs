@@ -41,7 +41,7 @@ public static class MapAssetLoader
             return null;
         }
 
-        // primary (upper) radar — good enough for a card
+        // primary (upper) radar, good enough for a card
         if (bundle.RadarImages is not { Count: > 0 } images || string.IsNullOrEmpty(images[0]))
         {
             return null;
@@ -112,7 +112,7 @@ internal sealed class LegacyRadarBitmapCache
             }
             catch (Exception)
             {
-                decoded = null; // headless without imaging, or a corrupt PNG — draw the grid instead
+                decoded = null; // headless without imaging, or a corrupt PNG: draw the grid instead
             }
         }
 

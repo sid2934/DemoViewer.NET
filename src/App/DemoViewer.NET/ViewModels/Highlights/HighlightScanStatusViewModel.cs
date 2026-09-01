@@ -11,7 +11,7 @@ namespace DemoViewer.NET.ViewModels.Highlights;
 
 /// <summary>
 ///     Library-wide highlight-scan progress as the <b>fourth</b> <c>StatusChip</c> consumer
-///     (row 2) — the home the card grid's
+///     (row 2), the home the card grid's
 ///     <c>ScanQueueSummary</c> badge and its per-card scanning animation were re-assigned to. The design
 ///     system says verbatim that three consumers now share the control and
 ///     <em>
@@ -21,7 +21,7 @@ namespace DemoViewer.NET.ViewModels.Highlights;
 ///     , so this owns a <see cref="StatusChipViewModel" /> whose <c>FlyoutContent</c> is this
 ///     VM and adds nothing to the shared control.
 ///     <para>
-///         <b>Pure projection — safe to instantiate more than once.</b> Unlike
+///         <b>Pure projection: safe to instantiate more than once.</b> Unlike
 ///         <see cref="ReelJobStatusViewModel" /> (which must be a single instance,
 ///         because the chip and the inline strip are two views of one <em>job</em>), this holds no job state
 ///         at all: every property is derived from the live <see cref="HighlightScanService" /> plus the
@@ -69,7 +69,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
     private int _queueDepth;
 
     /// <summary>
-    ///     The demo believed to be scanning right now — the ONE thing the per-card animation carried that a
+    ///     The demo believed to be scanning right now, the ONE thing the per-card animation carried that a
     ///     chip cannot: which demo. Null when nothing is in flight.
     /// </summary>
     [ObservableProperty]
@@ -125,7 +125,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
     /// <summary>The status-strip chip this VM drives (the shell adds it to <c>MainViewModel.Chips</c>).</summary>
     public StatusChipViewModel Chip { get; }
 
-    /// <summary>True when at least one row failed — gates the flyout's <c>Retry all failed</c> action.</summary>
+    /// <summary>True when at least one row failed: gates the flyout's <c>Retry all failed</c> action.</summary>
     public bool HasFailed => FailedCount > 0;
 
     /// <summary>True when at least one row is carrying a stale harvest.</summary>
@@ -135,7 +135,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
     public bool HasScanningName => !string.IsNullOrEmpty(ScanningName);
 
     /// <summary>
-    ///     Whether the chip is worth showing at all — the presence rule the shell reconciles against
+    ///     Whether the chip is worth showing at all, the presence rule the shell reconciles against
     ///     (mirroring <c>ReconcileQueueChip</c>). An idle, fully-indexed library adds no strip clutter.
     /// </summary>
     public bool IsRelevant => QueueDepth > 0 || IsScanning || FailedCount > 0;
@@ -174,7 +174,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
         }
     }
 
-    /// <summary>Whole-library rescan — the flyout's copy of the dashboard/picker action.</summary>
+    /// <summary>Whole-library rescan, the flyout's copy of the dashboard/picker action.</summary>
     [RelayCommand]
     private void RescanAll() => _scanner.RescanAll();
 
@@ -183,7 +183,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
 
     private void Refresh()
     {
-        // The backlog is DERIVED now — the scanner owns the rule (fingerprint + tier state), so asking it is
+        // The backlog is DERIVED now: the scanner owns the rule (fingerprint + tier state), so asking it is
         // the only way these counts and its own queue can never disagree.
         IReadOnlyList<string> queued = _scanner.PendingPaths();
         IReadOnlyList<DemoCacheIndexEntry> rows = _store.Index;
@@ -195,7 +195,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
 
         QueueDepth = queued.Count;
         FailedCount = rows.Count(r => r.AnalysisState == DemoAnalysisState.Failed);
-        // Stale = queued but still carrying a previous harvest — the re-queued-yet-showing-results case. Same
+        // Stale = queued but still carrying a previous harvest, the re-queued-yet-showing-results case. Same
         // rule as before; it just reads highlight COUNT off the index instead of a Pending flag.
         StaleCount = queued.Count(p => byPath.TryGetValue(p, out DemoCacheIndexEntry? e) && e.HighlightCount > 0);
         IsScanning = _scanner.IsScanning;
@@ -238,7 +238,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
         RetryAllFailedCommand.NotifyCanExecuteChanged();
     }
 
-    // The chip LABEL carries the state in words — the dot is a redundant colour cue (WCAG 1.4.1, and the
+    // The chip LABEL carries the state in words. The dot is a redundant colour cue (WCAG 1.4.1, and the
     // StatusChip contrast contract forbids tinting the label to signal state).
     private string BuildChipLabel()
     {

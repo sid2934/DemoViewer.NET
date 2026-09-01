@@ -76,7 +76,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private const int MaxContinueFrames = 200_000;
 
     // Interactive-open fan-out skip set: Highlights is fed the open demo through the completed analysis run
-    // (OnOpenDemoEvaluated) — a richer, re-analysis-free channel — so it is not re-fed on the open path.
+    // (OnOpenDemoEvaluated), a richer, re-analysis-free channel, so it is not re-fed on the open path.
     private static readonly IReadOnlySet<string> _openFanOutSkip =
         new HashSet<string>(StringComparer.Ordinal)
         {
@@ -103,16 +103,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     // The FULL descriptor set from every registered module, built ONCE in BuildWorkspaceTabs. The gate
     // FILTERS which of these become Tabs; the live reconcile re-adds / removes the SAME descriptor objects
-    // by reference from this cache, so a re-enabled tab keeps its cached module-tab VM state (tabs reconcile by TabId —
+    // by reference from this cache, so a re-enabled tab keeps its cached module-tab VM state (tabs reconcile by TabId:
     // never re-running CreateTabs, which would tear down that state).
     private readonly List<WorkspaceTabDescriptor> _allTabDescriptors = [];
 
-    // The unified demo cache — the source for a cached Match Overview render. Null on WASM and in tests
+    // The unified demo cache, the source for a cached Match Overview render. Null on WASM and in tests
     // that do not exercise the preview path.
     private readonly DemoCacheStore? _demoCache;
 
     // The "one parse, many evaluators" coordinator. Used on an interactive
-    // open to fan the just-parsed demo out to the background evaluators — so an un-indexed library demo
+    // open to fan the just-parsed demo out to the background evaluators, so an un-indexed library demo
     // fills its card from THAT parse rather than a second background one. Null (designer / tests) → no fan-out.
     private readonly DemoEvaluationCoordinator? _evaluationCoordinator;
 
@@ -146,11 +146,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     // The shell-owned semantic-navigation service: the "boundary movement"
     // counterpart to the clock. Boundary indices are precomputed once after parse (BuildUnknownMessageCensus
-    // co-location) and consumed by the six *Frame* methods below — replacing their per-press re-scans.
+    // co-location) and consumed by the six *Frame* methods below, replacing their per-press re-scans.
 
     /// <summary>
     ///     Named handler for the STATIC <see cref="DemoParser.OnUnknownMessageType" /> event so
-    ///     it can be unsubscribed in <see cref="Dispose" /> — a static event would otherwise pin this
+    ///     it can be unsubscribed in <see cref="Dispose" />. A static event would otherwise pin this
     ///     view-model for the process lifetime.
     /// </summary>
     private readonly Action<UnknownMessageInfo> _onUnknownMessageType;
@@ -164,7 +164,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // CPU/RAM perf tracking.
     //
     // Null on the WASM head. System.Diagnostics.Process does not exist in a browser and
-    // Process.GetCurrentProcess() throws PlatformNotSupportedException — from a FIELD INITIALIZER, so
+    // Process.GetCurrentProcess() throws PlatformNotSupportedException, from a FIELD INITIALIZER, so
     // constructing MainViewModel threw before its constructor body ran and the whole app came up black
     // with one line in the console (`Process_PlatformNotSupported`). Found by B5's WASM verification
     // pass, which is the first thing to actually boot the published head. There is nothing to degrade
@@ -191,7 +191,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Recently-opened-demos store. Every successful open through the shared load core
     ///     records here; the Library landing tab binds its recents to it. Null on the designer / older
-    ///     test path — recording then no-ops (fail-safe, like the other optional deps).
+    ///     test path, recording then no-ops (fail-safe, like the other optional deps).
     /// </summary>
     private readonly RecentFilesStore? _recentFiles;
 
@@ -201,7 +201,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly EntitySeekService? _seekService;
 
     /// <summary>
-    ///     Best-effort UI session persistence — the <c>Session</c> section of the single
+    ///     Best-effort UI session persistence, the <c>Session</c> section of the single
     ///     consolidated config file. Constructed in the ctor from the injected
     ///     <see cref="SettingsService" />; no-op when none (WASM / older-test path).
     /// </summary>
@@ -225,13 +225,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // Match Overview "sample clip" banner so both key off the same file.
     private readonly string? _tourSamplePath;
 
-    // First-run Visual Walkthrough engine — drives the tutorial overlay + tab navigation. Always built (UI
+    // First-run Visual Walkthrough engine: drives the tutorial overlay + tab navigation. Always built (UI
     // only); starts on the post-setup trigger or the Settings replay affordance.
     private readonly TutorialController _tutorial;
 
     /// <summary>
     ///     Thread-safe sink for unknown-message occurrences raised during the (parallel) parse.
-    ///     Drained once after parse into the grouped Output rows + the per-frame census — far
+    ///     Drained once after parse into the grouped Output rows + the per-frame census, far
     ///     cheaper than the old per-occurrence UI dispatch (tens of thousands of posts per demo).
     /// </summary>
     private readonly ConcurrentBag<UnknownMessageInfo> _unknownAccumulator = new();
@@ -255,7 +255,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private bool _exportChipDismissed;
 
     /// <summary>
-    ///     The active first-run wizard when shown as an in-app OVERLAY (P2b — the WASM host has no OS
+    ///     The active first-run wizard when shown as an in-app OVERLAY (P2b: the WASM host has no OS
     ///     windows). Null when none is up. Desktop opens a modal <c>FirstRunWizardWindow</c> instead and
     ///     leaves this null, so the overlay panel in <c>MainView</c> is WASM-only in practice.
     /// </summary>
@@ -271,7 +271,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // _selectedCard / _selectedProp / _cachedDecompressedPayload / _isNormalizedView
     // / _msgHlInfo / _msgDecompressedRanges / _cardModeActive moved to ParserTab (3.5a).
     //
-    // HasEntities / HasEntitySelection moved to EntityTab in 3.4b — see comment above.
+    // HasEntities / HasEntitySelection moved to EntityTab in 3.4b. See comment above.
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CloseDemoCommand))]
     private bool _hasFile;
@@ -288,7 +288,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private bool _isDebuggerPanelVisible;
 
     /// <summary>
-    ///     True while the app is in idle mode — the <see cref="Views.Idle.IdleView" /> overlay is shown over
+    ///     True while the app is in idle mode. The <see cref="Views.Idle.IdleView" /> overlay is shown over
     ///     the shell (MainView binds its visibility here). Set by <see cref="EnterIdleModeAsync" /> and cleared
     ///     by <see cref="ResumeFromIdle" />.
     /// </summary>
@@ -322,7 +322,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private ShellModuleFeatureGate? _moduleFeatures;
 
     // Keyed by game-event userid; built from PlayerConnectEvent (more reliable than binary string-table parsing in CS2).
-    // Populated by PlayerSnapshotBuilder.BuildNameLookups on file load — primary
+    // Populated by PlayerSnapshotBuilder.BuildNameLookups on file load: primary
     // for nameByUserId is parsed.Players (string-table), secondary is PlayerConnectEvents.
     [SuppressMessage("Performance", "CA1859:Use concrete types when possible for improved performance")]
     private IReadOnlyDictionary<int, string> _nameByUserId = new Dictionary<int, string>();
@@ -339,7 +339,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private int _navLastValidFrame;
 
     // The library tier-2 fan-out started by the last open (LoadDemoFromBytesAsync). It reads the just-parsed
-    // ParsedDemo on a background thread, so it ROOTS the demo until it finishes — which is why a close
+    // ParsedDemo on a background thread, so it ROOTS the demo until it finishes, which is why a close
     // immediately after an open used to leave RAM committed for a few seconds. CloseDemoAsync awaits this
     // before its reclaim collection so the whole frame graph is unrooted when the GC runs. Not held across
     // a reload (the new open's UnloadDemoState clears it; the old fan-out finishing late is harmless).
@@ -384,7 +384,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // ── Main tab state ────────────────────────────────────────────────────────
     // Tab selection is NAME-BASED end to end: SelectedTab (the descriptor, keyed by its stable TabId) is
     // the single source of truth the ItemsSource TabControl drives and the only thing persisted.
-    // There is deliberately no int index mirror — the tab set is dynamic (feature gating, new built-ins),
+    // There is deliberately no int index mirror: the tab set is dynamic (feature gating, new built-ins),
     // so a position means a different tab from one build to the next. Navigate with SelectTabById.
 
     /// <summary>The currently-selected workspace tab descriptor. Drives activation/deactivation.</summary>
@@ -400,9 +400,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private SettingsViewModel? _settingsOverlay;
 
     // _selectedTickFrame / _selectedTickFrameRow / _selectedTickGroup moved to ReplayTabViewModel (3.5b).
-    // ShowDeltaFieldsOnly moved to EntityTab in 3.4b — see HasEntities comment above.
+    // ShowDeltaFieldsOnly moved to EntityTab in 3.4b. See HasEntities comment above.
     // ShowDormantEntities moved to EntityTab in 3.4c with its OnChanged + RefreshEntityView.
-    // ShowRawHex now lives on ParserTab (3.3b) — see FrameHeaderText note.
+    // ShowRawHex now lives on ParserTab (3.3b). See FrameHeaderText note.
     [ObservableProperty]
     private string _statusText = "Open a .dem file to begin.";
 
@@ -479,7 +479,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     Resolves the bundled sample demo's path (the real app passes
     ///     <c>TourDemoLocator.FindSampleDemo</c>; it returns null on Browser/WASM). Invoked once here.
     ///     Null func (designer / tests) → no sample: the Library hero's "Try a sample match" CTA hides and
-    ///     the walkthrough gateway keeps its library-card / Open-Demo-button behavior — which also keeps
+    ///     the walkthrough gateway keeps its library-card / Open-Demo-button behavior, which also keeps
     ///     every test shell deterministic regardless of what ships next to the test binary.
     /// </param>
     /// <param name="demoCache">
@@ -531,37 +531,37 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         AnalysisTab = new AnalysisTabViewModel(Navigation);
         ReplayTab = new ReplayTabViewModel(Navigation);
 
-        // Unified diagnostics telemetry hub — the single log sink for both the internal ILogger pillar
+        // Unified diagnostics telemetry hub: the single log sink for both the internal ILogger pillar
         // and the CSVG host logs. Ring cap read live from Diagnostics.MaxLogRows so a settings change
         // takes effect immediately (null settings → 5000 default).
         Telemetry = new DiagnosticsTelemetryHub(() => _settings?.CurrentValue.Diagnostics.MaxLogRows ?? 5000);
 
-        // Diagnostics tab — reads (never owns) the analysis state, the loaded demo path,
+        // Diagnostics tab: reads (never owns) the analysis state, the loaded demo path,
         // and the frame list. Refreshes lazily on tab activation and after each evaluation.
         Diagnostics = new DiagnosticsTabViewModel(AnalysisTab, () => _loadedDemoPath, () => _allFrames, Telemetry);
 
-        // Stats tab (release plan P1-3.1) — the user-facing scoreboard. Subscribes to the engine's
+        // Stats tab (release plan P1-3.1): the user-facing scoreboard. Subscribes to the engine's
         // EvaluationCompleted and projects the MetricTables itself; reads (never owns) analysis state.
         StatsTab = new StatsTabViewModel(Analysis, () => _loadedDemoPath);
 
-        // Match Overview — the demo landing page shown the instant a demo is opened (before the parse), so a
+        // Match Overview: the demo landing page shown the instant a demo is opened (before the parse), so a
         // double-click has an immediate visible effect. The shell drives it through the load pipeline; its CTAs
         // just switch to the Stats / 2D-Playback tabs.
         MatchOverviewTab = new MatchOverviewTabViewModel(
             () => SelectTabById("builtin.stats"),
             () => SelectTabById("playback2d.viewport"),
-            // Compute full stats — the per-demo replacement for the all-or-nothing library sweep. Resolved
+            // Compute full stats: the per-demo replacement for the all-or-nothing library sweep. Resolved
             // lazily through a settable handler because the scanner that owns it lives in the Highlights
             // module, which the shell must not reference (the Library-delegate precedent).
             ComputeFullStats,
             path => _ = LoadDemoFromPathAsync(path),
             RestoreLiveMatchOverview,
-            // Frame clock, passed AS-IS — the same handler the Analysis tab's Verify uses.
+            // Frame clock, passed AS-IS: the same handler the Analysis tab's Verify uses.
             (tick, spectateName, ct) =>
                 LiveSync?.VerifyMomentAsync(tick, spectateName: spectateName, cancellationToken: ct)
                 ?? Task.FromResult(false),
             () => IsLiveSyncEnabled,
-            // The cross-demo clip tray lives on the Reels tab, which is a LAZY module tab — so these resolve
+            // The cross-demo clip tray lives on the Reels tab, which is a LAZY module tab, so these resolve
             // it at press time rather than holding it. Staging from Match Overview must work whether or not
             // the user has ever opened Reels; resolving on demand builds it if needed.
             (demo, ruleset, id, tick, slot) =>
@@ -678,7 +678,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             () => _protoIndex,
             () => Frames.Count);
 
-        // navigation-review Phase D — the per-tab SeekControls (control + VM) is fully retired: Phase C
+        // navigation-review Phase D: the per-tab SeekControls (control + VM) is fully retired: Phase C
         // removed its last view mount, so the shell NavStrip is the single nav surface. The six legacy
         // *Frame* wrapper methods remain (they delegate to the SemanticNavigator and are still the
         // implementation the NavStrip's Nav*Command targets route through indirectly).
@@ -696,9 +696,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         };
 
         // "Verify in CS2". Same decoupled-delegate direction as
-        // CardFactory / OnFrameSeeked above — the Analysis VM never references the Live Sync contract. The
+        // CardFactory / OnFrameSeeked above: the Analysis VM never references the Live Sync contract. The
         // two-level gate lives here: PRESENT iff the Live Sync chip is (chrome.livesync + desktop); ENABLED
-        // only while an actual Synced session exists. The tick is already frame-clock — passed AS-IS. The
+        // only while an actual Synced session exists. The tick is already frame-clock, passed AS-IS. The
         // engine surface never throws for playback failures (returns false), so no try/catch here.
         Analysis.IsVerifyInCs2Present = () => IsLiveSyncEnabled;
         Analysis.CanVerifyMoment = () => IsLiveSyncEnabled && (LiveSync?.State.IsSynced ?? false);
@@ -737,9 +737,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             EntityTab.SeekCts = null;
         };
 
-        // Play loop — on-Pause discrete-tab snap. The snap runs the light fan-out (SelectedFrame /
+        // Play loop: on-Pause discrete-tab snap. The snap runs the light fan-out (SelectedFrame /
         // analysis seek) plus a SYNCHRONOUS EntityTab rebuild from the already-stepped authoritative
-        // tracker — not an O(N) async re-seek (the loop already advanced the tracker to
+        // tracker, not an O(N) async re-seek (the loop already advanced the tracker to
         // CurrentFrameIndex). The per-tick frame readout is no longer pushed here: the NavStrip's
         // NavFrameText tracks PlaybackController.CurrentFrameIndex via PropertyChanged (set every tick).
         Playback.SnapDiscreteTabsToCurrent = idx =>
@@ -773,7 +773,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         };
 
         // 3.5a: wire ParserTab's shell callbacks. Same dependency direction as
-        // EntityTab/Analysis — ParserTab calls these to reach shell-owned state
+        // EntityTab/Analysis: ParserTab calls these to reach shell-owned state
         // without holding a reference to MainViewModel.
         ParserTab.FrameListSource = () => _allFrames;
         ParserTab.DemoBytesSource = () => _demoBytes;
@@ -789,7 +789,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ParserTab.OnFrameSelected = Playback.SeekToFrame;
 
         // 3.5b: wire ReplayTab's shell callbacks. Same dependency direction as the
-        // other tabs — ReplayTab reads frames + raw bytes via Funcs and pushes card
+        // other tabs: ReplayTab reads frames + raw bytes via Funcs and pushes card
         // builds into ParserTab via the ParserCard* hooks.
         ReplayTab.FrameSource = () => _allFrames;
         ReplayTab.DemoBytesSource = () => _demoBytes;
@@ -800,7 +800,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ReplayTab.ParserCardFactory = (msg, msgBytes, normOffset) =>
             ParserTab.BuildHarvestCardExternal(msg, msgBytes, normOffset);
         ReplayTab.SlotNameResolver = SlotToName;
-        // navigation-review Phase D — ReplayTab.GameEventFilterProvider removed with the orphaned
+        // navigation-review Phase D: ReplayTab.GameEventFilterProvider removed with the orphaned
         // NextGameEventTick; the single demo-derived filter (GameEventFilters) now drives the NavStrip.
         ReplayTab.OnTickGroupSelected = group => _ = EntityTab.SeekEntitiesWithDeltaAsync(group);
         ReplayTab.OnTickFrameSelected = frame =>
@@ -827,8 +827,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ReplayTab.NotifyCanGoNextTickChanged = NotifyDebuggerCommandsCanExecute;
 
         // Demo-library landing tab: wraps the shared indexer and routes opening a demo through the same
-        // path-based load core the Open-file picker uses. The load funnel owns the landing tab —
-        // Match Overview on a normal open, stay-put while the tutorial is touring — so the Library
+        // path-based load core the Open-file picker uses. The load funnel owns the landing tab:
+        // Match Overview on a normal open, stay-put while the tutorial is touring, so the Library
         // passes no tab-switch delegate (the old pre-switch to Parser is what used to yank the tour's
         // spotlighted card-click onto the Parser tab).
         // Resolved ONCE and shared: the Library's "Try a sample match" CTA and the Match Overview
@@ -842,13 +842,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _recentFiles,
             _tourSamplePath); // bundled sample (assets/tour) → the hero's "Try a sample match" CTA
 
-        // Selecting a card (single click / arrow key) renders that demo's CACHED record on Match Overview —
+        // Selecting a card (single click / arrow key) renders that demo's CACHED record on Match Overview:
         // browsing, not opening. Reads the cache and starts nothing; double-click still owns the parse.
         LibraryTab.DemoPreviewRequested += PreviewDemoFromCache;
 
         // A scan finishing must reach the page that is SHOWING that demo. Without this, pressing "Compute
         // full stats" queued real work, wrote a real record, and changed nothing on screen until the user
-        // navigated away and back — which reads exactly like the button doing nothing.
+        // navigated away and back, which reads exactly like the button doing nothing.
         if (_demoCache is not null)
         {
             _demoCache.Changed += RefreshCachedMatchOverview;
@@ -858,7 +858,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         BuildWorkspaceTabs();
 
         // Highlights pipeline wiring: the open-demo harvest (the Analysis
-        // tab's own evaluation refreshes the open demo's row for free) and the staleness triggers — app
+        // tab's own evaluation refreshes the open demo's row for free) and the staleness triggers, app
         // start now, and after every library scan phase (the start-time library is empty until its folder
         // scan lands). The former Library tier-2 → Highlights piggyback is gone: the coordinator now fans
         // a held parse to the OTHER evaluators, covering both the
@@ -874,7 +874,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 scanner.OnOpenDemoEvaluated(_loadedDemoPath, run, demo);
             scanner.RefreshStaleness();
 
-            // Enabling the background-scan opt-in in Settings must actually start the scan —
+            // Enabling the background-scan opt-in in Settings must actually start the scan:
             // without this, the persisted flag did nothing until an unrelated trigger (tab
             // activation, library rescan, app restart) happened to run the scanner.
             if (_settings is not null)
@@ -894,7 +894,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
         }
 
-        // Global demo-processing queue — the live status-strip surface. Build
+        // Global demo-processing queue: the live status-strip surface. Build
         // the chip mapper over the injected queue (null on the designer / older tests) and reconcile its
         // presence per the chrome.processingQueue gate + queue activity. The queue posts Changed on the UI
         // thread, so the reconcile handler runs there; a gate flip reconciles via ApplyGateChange.
@@ -905,10 +905,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             ReconcileQueueChip();
         }
 
-        // Idle mode — the surface VM (always built so the overlay binds; the embedded queue is the shared
+        // Idle mode: the surface VM (always built so the overlay binds; the embedded queue is the shared
         // status-strip mapper, null on hosts without a queue) and the controller (only when a live settings
         // monitor exists). The controller is inert until StartIdleMonitoring() is called by the DESKTOP
-        // composition root — WASM never starts it, so idle mode is desktop-only. Playback.IsPlaying is the
+        // composition root, WASM never starts it, so idle mode is desktop-only. Playback.IsPlaying is the
         // single "don't go idle" signal (paused / ended playback both read false).
         IdleView = new IdleViewModel(ResumeFromIdle, OpenSettings, _processingQueueStatus);
         if (_settings is not null)
@@ -925,11 +925,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _tutorial = new TutorialController(
             TutorialSteps.Default, SelectTabById, () => HasFile, () => { }, () => _library.Entries.Count > 0,
             // The sample CTA is only spotlightable while it is ON SCREEN: a sample resolved AND the hero
-            // (empty-library) state showing — with folders configured the hero (and the CTA) is hidden.
+            // (empty-library) state showing, with folders configured the hero (and the CTA) is hidden.
             () => LibraryTab.HasSampleDemo && LibraryTab.HasNoFolders);
 
         // Session restore used to run HERE, and must never come back. It selects the persisted
-        // tab, and activating a tab builds that tab's view-model, which may legitimately need the shell —
+        // tab, and activating a tab builds that tab's view-model, which may legitimately need the shell,
         // but a DI singleton is not cached until its factory RETURNS, so resolving MainViewModel from
         // inside its own constructor builds a SECOND shell that restores again, without bound. The
         // composition root now calls RestoreSession() after construction (see
@@ -966,7 +966,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public TutorialViewModel Tutorial => _tutorial.ViewModel;
 
     /// <summary>
-    ///     In-app updater VM — backs the shell's update banner and the Settings update controls.
+    ///     In-app updater VM: backs the shell's update banner and the Settings update controls.
     ///     Always non-null; when the host supplied no <c>IUpdateService</c> (Browser, tests, dev
     ///     runs) it reports <c>IsSupported == false</c> and every path is inert, so neither the
     ///     banner nor Settings needs a platform branch.
@@ -999,7 +999,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public ILiveSyncService? LiveSync { get; private set; }
 
     /// <summary>
-    ///     Status-strip chips — the Live Sync chip (and the Reel-job
+    ///     Status-strip chips: the Live Sync chip (and the Reel-job
     ///     chip). Bound by <c>StatusStrip.Chips</c>. Empty when no chip is active, so the strip reads exactly
     ///     as before. The Live Sync chip is present only while <see cref="IsLiveSyncEnabled" /> and an engine
     ///     is attached (reconciled by <see cref="ReconcileChips" />); a session never auto-starts.
@@ -1048,7 +1048,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Gate shim: the Live Sync (CS2) chip / flyout + NavStrip speed-lock (<c>chrome.livesync</c>).
-    ///     <b>Fail-CLOSED</b> (unlike the other shims) — a null gate returns <c>false</c> — AND ANDed with
+    ///     <b>Fail-CLOSED</b> (unlike the other shims): a null gate returns <c>false</c>, AND ANDed with
     ///     <c>!OperatingSystem.IsBrowser()</c>, because a browser build must never surface Live Sync even in
     ///     the fail-open case. Developer default-on; power/consumer opt in via Settings.
     /// </summary>
@@ -1057,7 +1057,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Gate shim: the demo-processing-queue chip / flyout (<c>chrome.processingQueue</c>, demo-processing-
     ///     queue.md). <b>Fail-CLOSED</b> like Live Sync (a null gate returns <c>false</c>) and ANDed with
-    ///     <c>!OperatingSystem.IsBrowser()</c> — background parse/analyse work needs a filesystem, so a browser
+    ///     <c>!OperatingSystem.IsBrowser()</c>: background parse/analyse work needs a filesystem, so a browser
     ///     build never surfaces the queue surface. Power-user+ default; the chip appears only while the queue
     ///     has activity or is paused (see <see cref="ReconcileQueueChip" />).
     /// </summary>
@@ -1066,7 +1066,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     True while a Live Sync session is in any Synced sub-state AND the connected plugin lacks the
-    ///     v1.1 timescale capability — the NavStrip speed ComboBox binds its <c>IsEnabled</c> to the
+    ///     v1.1 timescale capability: the NavStrip speed ComboBox binds its <c>IsEnabled</c> to the
     ///     inverse. With "timescale-set" advertised, Speed becomes a mirrored control-plane
     ///     property (the lock simply stops reporting locked). False without an engine.
     /// </summary>
@@ -1077,7 +1077,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public int HiddenFeatureCount => _gate?.HiddenCount ?? 0;
 
     /// <summary>
-    ///     Informational status-strip note for the "N features hidden" affordance — empty when nothing is
+    ///     Informational status-strip note for the "N features hidden" affordance, empty when nothing is
     ///     hidden (0 for a developer / null gate), which the status strip binds to hide the affordance.
     /// </summary>
     public string HiddenFeatureNote
@@ -1112,11 +1112,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>Analysis tab.</summary>
     public AnalysisTabViewModel AnalysisTab { get; }
 
-    /// <summary>Diagnostics tab — session/system info + per-layer profiling panels.</summary>
+    /// <summary>Diagnostics tab: session/system info + per-layer profiling panels.</summary>
     public DiagnosticsTabViewModel Diagnostics { get; }
 
     /// <summary>
-    ///     Bounded, app-lifetime sink for ALL diagnostics logs — the internal ILogger pillar plus the
+    ///     Bounded, app-lifetime sink for ALL diagnostics logs: the internal ILogger pillar plus the
     ///     CSVG host logs. Fed by the internal logger provider and (across the <c>AppHostHooks</c> seam)
     ///     the desktop LiveSync engine; bound by the Diagnostics tab and mirrored into the Output
     ///     drawer's lazy "Live Sync" channel. Empty on the Browser head. Constructed in the ctor so the
@@ -1124,16 +1124,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     public DiagnosticsTelemetryHub Telemetry { get; }
 
-    /// <summary>Stats tab (release plan P1-3.1) — the user-facing scoreboard + per-round browser.</summary>
+    /// <summary>Stats tab (release plan P1-3.1): the user-facing scoreboard + per-round browser.</summary>
     public StatsTabViewModel StatsTab { get; }
 
-    /// <summary>Match Overview tab — the demo landing page (identity + load progress + summary).</summary>
+    /// <summary>Match Overview tab: the demo landing page (identity + load progress + summary).</summary>
     public MatchOverviewTabViewModel MatchOverviewTab { get; }
 
     /// <summary>Bookmarks panel. In-memory + best-effort desktop persistence.</summary>
     public BookmarksViewModel Bookmarks { get; }
 
-    // 3.5a — Parser-tab RelayCommand shims. XAML retargets in 3.5d.
+    // 3.5a: Parser-tab RelayCommand shims. XAML retargets in 3.5d.
     /// <summary>Collapse all cards command.</summary>
     public ICommand CollapseAllCardsCommand => ParserTab.CollapseAllCardsCommand;
 
@@ -1158,7 +1158,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         set => EntityTab.EntityDeltaFieldCount = value;
     }
 
-    // 3.4a — Entity-tracking collections now owned by EntityTab. Pass-through shims
+    // 3.4a: Entity-tracking collections now owned by EntityTab. Pass-through shims
     //         keep current XAML bindings ({Binding EntityListItems}, EntityFieldNodes)
     //         and in-class call sites working unchanged. XAML retargets in 3.5.
     /// <summary>Entity field nodes.</summary>
@@ -1194,7 +1194,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     // PayloadNodes / SelectedFrameMessages moved to ParserTab (3.5a). Compat shims
     // exposed above route the legacy paths to the ParserTab collections.
-    // FrameGameEvents moved to ReplayTab (3.5b) — see shim below.
+    // FrameGameEvents moved to ReplayTab (3.5b). See shim below.
     /// <summary>Frame game events.</summary>
     public ObservableCollection<FrameGameEventViewModel> FrameGameEvents => ReplayTab.FrameGameEvents;
 
@@ -1204,7 +1204,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>Frame header fields.</summary>
     public ObservableCollection<FrameHeaderFieldViewModel> FrameHeaderFields => ParserTab.FrameHeaderFields;
 
-    // ── Parser-tab scalars (3.3b) — pass-through shims. The forwarder hooked
+    // ── Parser-tab scalars (3.3b): pass-through shims. The forwarder hooked
     //    in the constructor re-raises PropertyChanged for these names whenever
     //    ParserTab raises its own, keeping legacy `{Binding FrameHeaderText}`
     //    etc. XAML bindings live until the 3.5 XAML sweep retargets them.
@@ -1223,7 +1223,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     // ── Game event seek filter ────────────────────────────────────────────────
     // Shown as right-click context menu on the ▶⚡ button.  When the list is empty (cleared
-    // between file loads) every event type passes.  Items are never removed — new event names
+    // between file loads) every event type passes.  Items are never removed. New event names
     // seen in a loaded demo are appended with IsEnabled=true.
     /// <summary>Game event filters.</summary>
     public ObservableCollection<GameEventFilterItem> GameEventFilters { get; } =
@@ -1252,7 +1252,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         new("player_team")
     ];
 
-    // ── Entity-tab scalars (3.4b) — pass-through shims. The forwarder hooked in
+    // ── Entity-tab scalars (3.4b): pass-through shims. The forwarder hooked in
     //     the constructor re-raises PropertyChanged for these names whenever
     //     EntityTab raises its own. XAML retargets in 3.5.
     /// <summary>Has entities.</summary>
@@ -1321,7 +1321,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         set => ReplayTab.HasTickGroups = value;
     }
 
-    // HasTickGroups moved to ReplayTab in 3.5b — see shim block below.
+    // HasTickGroups moved to ReplayTab in 3.5b. See shim block below.
     /// <summary>Has watched.</summary>
     public bool HasWatched
     {
@@ -1387,7 +1387,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>Parser tab.</summary>
     public ParserTabViewModel ParserTab { get; }
 
-    // 3.5a additions — collections that previously lived on the shell:
+    // 3.5a additions, collections that previously lived on the shell:
     /// <summary>Payload nodes.</summary>
     public ObservableCollection<PayloadNode> PayloadNodes => ParserTab.PayloadNodes;
 
@@ -1508,7 +1508,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     // SubTickEvents / TickGroups / TickViewFrames / TickViewFrameRows moved to
-    // ReplayTab (3.5b). TickGroups had a brief stop on EntityTab (3.4a) — the
+    // ReplayTab (3.5b). TickGroups had a brief stop on EntityTab (3.4a), the
     // collection never had logic-coupling there; the placement is reassessed in
     // 3.5b and the cluster is unified under ReplayTab. WatchedValues is still
     // owned by EntityTab.
@@ -1518,7 +1518,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>Tick groups.</summary>
     public ObservableCollection<TickGroup> TickGroups => ReplayTab.TickGroups;
 
-    /// <summary>Styled row view-models for the tick-view frame list — parallel to <see cref="TickViewFrames" />.</summary>
+    /// <summary>Styled row view-models for the tick-view frame list, parallel to <see cref="TickViewFrames" />.</summary>
     public ObservableCollection<HarvestFrameRowViewModel> TickViewFrameRows => ReplayTab.TickViewFrameRows;
 
     /// <summary>Tick view frames.</summary>
@@ -1537,15 +1537,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     shell only surfaces the chip.
     /// </summary>
     /// <summary>
-    ///     The one reel-job status mapper. The Reels dashboard's inline job strip binds to THIS instance —
-    ///     it is a second VIEW of one job, never a second job model, so a second mapper would give the chip
+    ///     The one reel-job status mapper. The Reels dashboard's inline job strip binds to THIS instance.
+    ///     It is a second VIEW of one job, never a second job model, so a second mapper would give the chip
     ///     and the strip independently-drifting progress for the same render. The shell owns its lifetime;
     ///     the tab must not dispose it. Null until <see cref="AttachReelJob" /> runs (Browser, tests).
     /// </summary>
     internal ReelJobStatusViewModel? ReelJobStatus { get; private set; }
 
     /// <summary>
-    ///     Resolves the Reels tab's clip tray on demand — set by the composition root, which owns the
+    ///     Resolves the Reels tab's clip tray on demand, set by the composition root, which owns the
     ///     container. A locator rather than a held reference because the Reels tab is a lazy module tab and
     ///     the shell is constructed long before it: staging a clip from Match Overview has to work whether or
     ///     not the user has ever opened Reels, and resolving at press time builds it if it does not exist yet.
@@ -1558,7 +1558,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Main-window geometry for the NEXT snapshot. Written by the desktop host (which tracks the
-    ///     window's last-Normal bounds — the VM deliberately has no <c>Window</c> reference) and read
+    ///     window's last-Normal bounds, the VM deliberately has no <c>Window</c> reference) and read
     ///     by <see cref="SnapshotSession" />. Null on WASM/tests → nothing persisted.
     /// </summary>
     public WindowBoundsState? WindowBounds { get; set; }
@@ -1630,7 +1630,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _moduleContext?.Dispose();
         _moduleFeatures?.Dispose();
         Playback.Dispose();
-        // Detach the STATIC unknown-message-type handler — otherwise this VM is pinned for the
+        // Detach the STATIC unknown-message-type handler, otherwise this VM is pinned for the
         // process lifetime and a subsequent shell would leak alongside it.
         DemoParser.OnUnknownMessageType -= _onUnknownMessageType;
         GC.SuppressFinalize(this);
@@ -1684,7 +1684,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     <c>AppSettings.LastSeenVersion</c> and, when they differ on an already-set-up install,
     ///     shows the What's New window once. The stored version is advanced BEFORE the window opens
     ///     so a crash can never re-show it in a loop. A fresh install (first-run wizard pending)
-    ///     just records the version silently — the wizard is enough for one launch.
+    ///     just records the version silently. The wizard is enough for one launch.
     /// </summary>
     public void StartWhatsNewCheck()
     {
@@ -1717,15 +1717,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Runs the full analysis pass for ONE demo — the Match Overview completeness chip's
+    ///     Runs the full analysis pass for ONE demo: the Match Overview completeness chip's
     ///     <c>Compute full stats</c>, and the per-demo replacement for the all-or-nothing library sweep the
     ///     opt-in offers.
     ///     <para>
     ///         <b>Enqueues; never opens.</b> It hands the path to the highlight scanner's forced-rescan path,
-    ///         which submits at user-requested priority — outranking background work and bypassing the queue
+    ///         which submits at user-requested priority, outranking background work and bypassing the queue
     ///         size cap, because a user action is never rejected. From there it routes through
     ///         <c>HeavyJobGate</c> (one heavy parse machine-wide), surfaces in the processing-queue chip, and
-    ///         fans that ONE parse out to every evaluator — so a single press fills the parse gaps, the
+    ///         fans that ONE parse out to every evaluator, so a single press fills the parse gaps, the
     ///         scoreboard and the highlights together.
     ///     </para>
     /// </summary>
@@ -1738,13 +1738,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Re-renders Match Overview when the cache record behind it changes — the completion signal for
+    ///     Re-renders Match Overview when the cache record behind it changes: the completion signal for
     ///     <c>Compute full stats</c> and for any background scan that happens to land on the demo on screen.
     ///     <para>
     ///         <b>Cached mode only.</b> <c>SetCachedRecord</c> calls <c>ResetValues</c> and flips the page to
     ///         <see cref="OverviewMode.Cached" />; firing it during a live open would wipe the pipeline's fills
     ///         mid-load and then silently drop every subsequent one, because the keyed setters only accept
-    ///         pushes while the page is Live. A live page needs no refresh anyway — its own pipeline is the
+    ///         pushes while the page is Live. A live page needs no refresh anyway. Its own pipeline is the
     ///         thing writing the record.
     ///     </para>
     /// </summary>
@@ -1757,7 +1757,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         // Only this demo's own write, or a bulk change that may include it. Re-rendering on every unrelated
         // write would mean browsing the Library during a background index cost a sidecar read and a full
-        // page rebuild per demo indexed — and since the rebuild recreates the highlight groups, every group
+        // page rebuild per demo indexed, and since the rebuild recreates the highlight groups, every group
         // the user had collapsed would pop back open under them.
         if (changedPath is not null
             && !string.Equals(changedPath, path, StringComparison.OrdinalIgnoreCase))
@@ -1776,8 +1776,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // LIVE: fill only the highlight section, never the whole page. The open's own harvest lands here —
-        // it runs off-thread and completes after SetAnalysis, so without this the demo you just opened shows
+        // LIVE: fill only the highlight section, never the whole page. The open's own harvest lands here.
+        // It runs off-thread and completes after SetAnalysis, so without this the demo you just opened shows
         // an empty moments column until you navigate away and back. A full SetCachedRecord would flip the
         // page to Cached and drop every pipeline push that followed.
         if (MatchOverviewTab.Mode == OverviewMode.Live)
@@ -1789,12 +1789,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Paints an opening demo's cached record onto Match Overview before the parse begins.
     ///     <para>
-    ///         <b>Validates file identity first.</b> <c>TryLoadRecord</c> deliberately does not — only
-    ///         <c>LoadOrCreate</c> compares — so a record for a demo that has since been replaced at the same
+    ///         <b>Validates file identity first.</b> <c>TryLoadRecord</c> deliberately does not, only
+    ///         <c>LoadOrCreate</c> compares, so a record for a demo that has since been replaced at the same
     ///         path would otherwise paint the PREVIOUS match's score and rosters over the new one, and the
     ///         wrong score would sit there for the whole load. The size/mtime pair comes from the library
     ///         entry rather than a fresh <c>FileInfo</c> read, because the library is what wrote the record and
-    ///         the two stamp <c>modified</c> in different units — deriving it independently here would fail
+    ///         the two stamp <c>modified</c> in different units. Deriving it independently here would fail
     ///         every comparison and silently disable the seed.
     ///     </para>
     /// </summary>
@@ -1862,8 +1862,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
                 // Only the analysis STAMP is set here, NEVER AnalysisState: that field tracks the highlights
                 // scan's own lifecycle and is the scanner's alone. Setting it from here said "a scan
-                // succeeded" on a demo that had never been scanned, so the highlight section — which reads it
-                // — asserted "No highlights fired for this demo" while the harvest was still running, and
+                // succeeded" on a demo that had never been scanned, so the highlight section, which reads it
+                // , asserted "No highlights fired for this demo" while the harvest was still running, and
                 // would have overridden the failure copy if that harvest then threw.
                 DemoCacheStore.StampAnalysis(record);
             });
@@ -1871,19 +1871,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
         {
             // Non-fatal: the open itself succeeded and the page is already showing these numbers live. Logged
-            // rather than swallowed — a silently-failing cache write is precisely how the highlight section
+            // rather than swallowed: a silently-failing cache write is precisely how the highlight section
             // came to be empty for every demo in the first place.
             AppLog.CacheWriteFailed(DiagLog, localPath, ex);
         }
     }
 
     /// <summary>
-    ///     Renders a Library selection's CACHED record on Match Overview — the browsing gesture, as opposed to
+    ///     Renders a Library selection's CACHED record on Match Overview: the browsing gesture, as opposed to
     ///     the double-click that opens it.
     ///     <para>
     ///         <b>Starts nothing.</b> One index lookup and one small sidecar read: no parser, no header read,
     ///         no <c>HeavyJobGate</c>, no queue. That is the whole premise of "Match Overview is a cache
-    ///         render" — and with one heavy parse allowed machine-wide, a preview that parsed would make
+    ///         render", and with one heavy parse allowed machine-wide, a preview that parsed would make
     ///         arrow-keying the library strictly worse than the card grid it replaces.
     ///     </para>
     ///     <para>
@@ -1900,7 +1900,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // Never replace the page for the demo that is actually open — the live render is strictly richer
+        // Never replace the page for the demo that is actually open: the live render is strictly richer
         // than its own cached record, and a selection is not a request to leave it.
         if (_loadedDemoPath is { Length: > 0 } open
             && string.Equals(open, entry.FilePath, StringComparison.OrdinalIgnoreCase))
@@ -1910,7 +1910,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         // Identity-checked for the same reason the open-path seed is: TryLoadRecord does not compare, so a
         // demo replaced at a path the library still lists would render the OLD match's score and rosters under
-        // the new file's name — and a preview gives the user no pipeline to correct it.
+        // the new file's name, and a preview gives the user no pipeline to correct it.
         DemoCacheRecord? record = _demoCache.TryLoadRecord(entry.FilePath);
         if (record is not null && !record.MatchesFile(entry.FileSizeBytes, entry.Modified.Ticks))
         {
@@ -1989,7 +1989,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             LoadDemoFromPathAsync, () => IsLiveSyncEnabled);
 
         // Wire the 2D-tab CS2 indicator: the status VM IS the ILiveSyncHudState projection. Set once
-        // (never cleared) — the projection folds the chrome.livesync gate into its own IsActive, so a gate
+        // (never cleared): the projection folds the chrome.livesync gate into its own IsActive, so a gate
         // flip while the 2D tab is active still shows/hides the indicator (via NotifyHudGateChanged below).
         _moduleContext?.SetLiveSyncHud(_liveSyncStatus);
 
@@ -2023,7 +2023,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             Chips.Remove(_liveSyncStatus.Chip);
         }
 
-        // The gate feeds the 2D indicator's visibility too — re-raise so an active 2D tab reflows.
+        // The gate feeds the 2D indicator's visibility too: re-raise so an active 2D tab reflows.
         _liveSyncStatus.NotifyHudGateChanged();
     }
 
@@ -2092,7 +2092,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     // Adds/removes the "Processing" chip: shown only while the chrome.processingQueue gate is on (desktop) AND
-    // the queue has activity (running/queued) or is transiently paused — so an idle, enabled queue adds no
+    // the queue has activity (running/queued) or is transiently paused, so an idle, enabled queue adds no
     // status-strip clutter, and a paused queue always offers a Resume affordance.
     private void ReconcileQueueChip()
     {
@@ -2117,7 +2117,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     The library-wide highlight-scan chip — the FOURTH <c>StatusChip</c> consumer.
+    ///     The library-wide highlight-scan chip: the FOURTH <c>StatusChip</c> consumer.
     ///     Carries what the retired demo card grid used to show through its per-card animation and header
     ///     badge: queue depth, which demo is scanning, and how many rows are stale or failed.
     ///     <para>
@@ -2132,7 +2132,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         scanStatus.PropertyChanged += (_, e) =>
         {
             // IsRelevant is the only thing chip PRESENCE depends on; the chip re-renders itself from the
-            // rest. Subscribing beats polling — the scanner already raises on every queue/store change.
+            // rest. Subscribing beats polling: the scanner already raises on every queue/store change.
             if (e.PropertyName is nameof(HighlightScanStatusViewModel.IsRelevant))
             {
                 ReconcileHighlightScanChip();
@@ -2144,7 +2144,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     // Deliberately UNGATED: the chip appears only while work is actually happening, and
     // chrome.processingQueue already established that background work done on the user's behalf is visible
-    // to every category. Browser-excluded because scanning needs a filesystem — the same shim the
+    // to every category. Browser-excluded because scanning needs a filesystem, the same shim the
     // processing-queue chip uses.
     private void ReconcileHighlightScanChip()
     {
@@ -2165,7 +2165,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    // Reveals a finished job's output ("Open folder") — the reel chip and the 2D export chip.
+    // Reveals a finished job's output ("Open folder"): the reel chip and the 2D export chip.
     // Desktop-only (both features are), and best-effort: a launcher failure must never crash the UI thread.
     internal void OpenOutputFolder(string path)
     {
@@ -2193,7 +2193,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    /// <summary>Mounts the 2D export status chip. Idempotent — the tab builds its job exactly once.</summary>
+    /// <summary>Mounts the 2D export status chip. Idempotent: the tab builds its job exactly once.</summary>
     /// <param name="status">The mapper the tab built over its job service.</param>
     internal void AttachPlayback2DExportStatus(
         Playback2DExportStatusViewModel status)
@@ -2247,7 +2247,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     // Shown while running, or while a finished result has not been dismissed. An idle mapper adds nothing
-    // to the strip — the tab attaches it on the first Export, which is long before the first Start.
+    // to the strip: the tab attaches it on the first Export, which is long before the first Start.
     private void ReconcileExportChip()
     {
         if (Playback2DExportStatus is not { } status)
@@ -2273,7 +2273,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     module tabs follow. The concrete read-only <see cref="ModuleContext" /> (with the per-tick
     ///     host player-join) is constructed here and handed to each module's host. Descriptors are
     ///     sorted by (Placement, Order); the initial tab is activated explicitly (the first-tab
-    ///     edge — the ItemsSource auto-select may not round-trip through OnSelectedTabChanged).
+    ///     edge: the ItemsSource auto-select may not round-trip through OnSelectedTabChanged).
     /// </summary>
     private void BuildWorkspaceTabs()
     {
@@ -2282,10 +2282,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _moduleContext = new ModuleContext(
             Playback,
             () => _loadedDemoPath,
-            Navigator); // Phase E: modules drive "jump to next event of my type" through the shared navigator
+            Navigator); // Phase E: modules drive "jump to next event of its own type" through the shared navigator
 
         // The 2D tab's ↑/↓ speed keys must honour the same Live Sync speed lock the NavStrip speed
-        // ComboBox binds its IsEnabled to (IsPlaybackSpeedLocked) — a parallel path would let a keypress
+        // ComboBox binds its IsEnabled to (IsPlaybackSpeedLocked): a parallel path would let a keypress
         // desync a Synced session.
         _moduleContext.SetSpeedLock(() => IsPlaybackSpeedLocked);
 
@@ -2331,7 +2331,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             Tabs.Add(d);
         }
 
-        // First-tab edge — activate the initial tab explicitly so the first descriptor reliably
+        // First-tab edge: activate the initial tab explicitly so the first descriptor reliably
         // receives OnActivated even if the ItemsSource binding doesn't round-trip the setter.
         if (Tabs.Count > 0)
         {
@@ -2339,7 +2339,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         // Live reconcile: re-run the filter whenever gate decisions change (a category / override write).
-        // Only when a gate is present — the null path never filters, so it never needs to reconcile.
+        // Only when a gate is present: the null path never filters, so it never needs to reconcile.
         if (_gate is not null)
         {
             _gate.Changed += OnGateChanged;
@@ -2364,7 +2364,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     // IFeatureGate.Changed handler. The production gate already marshals Changed to the UI thread, and a
-    // test gate raises it inline on the writing (UI) thread — so CheckAccess() is normally true and the
+    // test gate raises it inline on the writing (UI) thread, so CheckAccess() is normally true and the
     // work runs synchronously (observable without a RunJobs pump). The Post branch is a defensive marshal
     // for any off-thread raise, since ApplyGateChange mutates the bound Tabs collection AND re-raises
     // PropertyChanged (both must land on the UI thread).
@@ -2413,14 +2413,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(HiddenFeatureCount));
         OnPropertyChanged(nameof(HiddenFeatureNote));
 
-        // The chrome.livesync gate may have flipped — add/remove the Live Sync chip to match.
+        // The chrome.livesync gate may have flipped: add/remove the Live Sync chip to match.
         ReconcileChips();
-        // The chrome.processingQueue gate may have flipped — add/remove the Processing chip to match.
+        // The chrome.processingQueue gate may have flipped: add/remove the Processing chip to match.
         ReconcileQueueChip();
     }
 
     /// <summary>
-    ///     Reconciles the <see cref="Tabs" /> collection to the gate-enabled set BY TabId — never a full
+    ///     Reconciles the <see cref="Tabs" /> collection to the gate-enabled set BY TabId, never a full
     ///     rebuild (that would tear down cached module-tab VM state). Removes now-disabled tabs
     ///     (neighbor-selecting FIRST when the removed tab is selected, so Avalonia's auto-reselect never
     ///     lands somewhere arbitrary) and inserts now-enabled tabs at their sorted (Placement, Order)
@@ -2447,7 +2447,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             if (ReferenceEquals(SelectedTab, removed))
             {
                 // Neighbor-select BEFORE the remove so the selection is already on a surviving tab when
-                // Avalonia's TabControl reacts — no auto-reselect race through the sync guard.
+                // Avalonia's TabControl reacts: no auto-reselect race through the sync guard.
                 SelectedTab = ChooseNeighbor(removed, desired);
             }
 
@@ -2467,9 +2467,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             Tabs.Insert(SortedInsertIndex(add), add);
         }
 
-        // (3) Inserts/removes shift positions but never identity, so there is nothing to re-sync — the
+        // (3) Inserts/removes shift positions but never identity, so there is nothing to re-sync: the
         // selected DESCRIPTOR is still the selected descriptor. Only the "nothing is selected" case needs
-        // handling (shouldn't happen — Library is Required).
+        // handling (shouldn't happen: Library is Required).
         if (SelectedTab is null && Tabs.Count > 0)
         {
             SelectedTab = Tabs[0];
@@ -2503,7 +2503,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         return nearestLower ?? desired[0];
     }
 
-    // First index in Tabs at which `descriptor` sorts strictly before the existing entry — i.e. the
+    // First index in Tabs at which `descriptor` sorts strictly before the existing entry, i.e. the
     // insert point that keeps Tabs ordered by (Placement, Order), placing a tie AFTER equal-key tabs
     // (matching the initial OrderBy/ThenBy stable-sort append-for-ties).
     private int SortedInsertIndex(WorkspaceTabDescriptor descriptor)
@@ -2519,7 +2519,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         return Tabs.Count;
     }
 
-    // The strip's sort key: Placement first, then Order — identical to BuildWorkspaceTabs' OrderBy/ThenBy.
+    // The strip's sort key: Placement first, then Order, identical to BuildWorkspaceTabs' OrderBy/ThenBy.
     private static int CompareTabs(WorkspaceTabDescriptor a, WorkspaceTabDescriptor b)
     {
         int byPlacement = ((int)a.Placement).CompareTo((int)b.Placement);
@@ -2578,7 +2578,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _demoBytes = rawBytes;
             _loadedDemoPath = path; // Diagnostics Session card
             // The interactive load takes the machine-wide
-            // heavy-parse gate — background indexing/scanning yields at its next demo boundary.
+            // heavy-parse gate: background indexing/scanning yields at its next demo boundary.
             // During a reel render the acquisition throws ReelInProgressException, which the
             // site's existing failure handling surfaces with its clear user-facing message.
             ParsedDemo parsed;
@@ -2610,7 +2610,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Register the demo with the controller (frame list + tick rate for the play loop).
             Playback.LoadDemo(_allFrames, parsed.TickRate);
             // Hand the module context the stable identity roster (slot / steamID / name; no
-            // team — team is per-tick via the host player-join).
+            // team: team is per-tick via the host player-join).
             _moduleContext?.SetRoster(parsed.Players.Values.Select(p => new PlayerRosterEntry
             {
                 Slot = p.Slot,
@@ -2621,11 +2621,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _moduleContext?.SetMapName(parsed.MapName); // data-driven map identity for asset selection
             _moduleContext?.SetDemo(parsed); // M5: expose the loaded demo to the first-party Workbench
             BuildUnknownMessageCensus(parsed);
-            // navigation-review Phase A — precompute round / event / tick boundary indices once,
+            // navigation-review Phase A: precompute round / event / tick boundary indices once,
             // drained alongside the unknown-message census. The six *Frame* nav methods + the Phase C
             // strip binary-search these instead of re-scanning the frame list on every press.
             Navigator.Build(_allFrames);
-            // #4/#5 — calibrate the shared game-clock once (first round_freeze_end) for the 2D round
+            // #4/#5: calibrate the shared game-clock once (first round_freeze_end) for the 2D round
             // timer + bomb/defuse timers; consumed via IModuleContext.CurtimeSeconds.
             ApplyGameClock(_allFrames, parsed.TickRate);
             // Mirror the production load path: signal active modules to resync to the new demo (see the
@@ -2645,7 +2645,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             string demoKey = await Task.Run(() => GraphBreakpointStore.ComputeDemoKey(rawBytes));
             await Analysis.RunAsync(parsed, demoKey);
             MatchOverviewTab.SetAnalysis(path, StatsTab.GameTable, StatsTab.TeamScoresBySort, StatsTab.Rounds.Count);
-            // Per-team round wins from the same evaluation — each team's total across BOTH halves.
+            // Per-team round wins from the same evaluation: each team's total across BOTH halves.
             MatchOverviewTab.SetTeamScores(
                 path,
                 StatsTab.TeamScoresBySort.GetValueOrDefault(0),
@@ -2726,7 +2726,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     // ── Entity-state refresh notification ─────────────────────────────────────
-    // 3.4a — event now owned by EntityTab. Pass-through add/remove forwards to it
+    // 3.4a: event now owned by EntityTab. Pass-through add/remove forwards to it
     //         so any external subscribers (currently none) keep their behaviour.
     /// <summary>Fired on the UI thread whenever entity state is rebuilt (after seeking).</summary>
     public event Action? EntitiesRefreshed
@@ -2778,9 +2778,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     CanExecute for debugger Continue / Step Tick / Step Round. Looser than
-    ///     <see cref="CanGoNext" /> — doesn't require a selected frame, because a common
+    ///     <see cref="CanGoNext" />, doesn't require a selected frame, because a common
     ///     debugger workflow is: open demo, add ParserDecodeError breakpoint, click
-    ///     Continue — which should run from frame 0 without forcing a click first.
+    ///     Continue, which should run from frame 0 without forcing a click first.
     /// </summary>
     private bool CanDebugStep() => HasFile && !IsLoading && _selectedFrameIndex < Frames.Count - 1;
 
@@ -2797,7 +2797,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // WriteUInt32LE all moved to ParserTab in 3.5a.
     //
     // CollapseAllCards / ExpandAllCards / SelectDecompressedTab / SelectRawTab
-    // (RelayCommands) moved with them — they're command targets on ParserTab now;
+    // (RelayCommands) moved with them: they're command targets on ParserTab now;
     // XAML still binds via the shell paths (PropertyChanged forwarder + the
     // RelayCommand generator auto-exposes them on ParserTab's surface).
 
@@ -2809,14 +2809,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         HasFile && !IsLoading && _selectedFrameIndex >= 0 && _selectedFrameIndex < Frames.Count - 1;
 
     // CanGoNextTick / CanGoPreviousTick / CanGoNextGameEventTick moved to
-    // ReplayTabViewModel (3.5b) — they gate the tick-level navigation commands
+    // ReplayTabViewModel (3.5b): they gate the tick-level navigation commands
     // which are now owned by ReplayTab.
 
     private bool CanGoPrev() =>
         HasFile && !IsLoading && _selectedFrameIndex > 0;
 
     /// <summary>
-    ///     "Continue" — advance frame-by-frame until either a breakpoint trips or the demo
+    ///     "Continue": advance frame-by-frame until either a breakpoint trips or the demo
     ///     ends. Capped at <see cref="MaxContinueFrames" /> frames per click so we never hang
     ///     the UI on a runaway loop. Selecting a frame fires the normal display pipeline so
     ///     the user sees the same UI state as if they'd manually stepped there.
@@ -2856,7 +2856,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Construct an <see cref="EntityTracker" /> with the debugger subscribed so Tier 3
     ///     breakpoints (packet#, decode error, delta-on-unknown) can fire during seek.
-    ///     The subscription auto-clears with the tracker — there's a new tracker per seek call.
+    ///     The subscription auto-clears with the tracker: there's a new tracker per seek call.
     /// </summary>
     private EntityTracker CreateTracker()
     {
@@ -2882,7 +2882,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     // CollapseAllCards / ExpandAllCards / SelectDecompressedTab / SelectRawTab moved to
-    // ParserTab in 3.5a — their RelayCommand shims are exposed above.
+    // ParserTab in 3.5a: their RelayCommand shims are exposed above.
 
     // FilterAndSetEntityFieldNodes moved to EntityTab in 3.4b. The single remaining
     // in-class caller (OnSelectedEntityItemChanged) reaches in via EntityTab until
@@ -2904,9 +2904,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         return null;
     }
 
-    // FrameContainsGameEvent / FrameContainsRoundEvent retired in navigation-review Phase A — the
+    // FrameContainsGameEvent / FrameContainsRoundEvent retired in navigation-review Phase A: the
     // per-frame scans they backed are now precomputed once in SemanticNavigator.Build (the *Frame*
-    // methods delegate to the navigator). FrameHasRoundTransition stays — it serves StepRoundToBreakpoint.
+    // methods delegate to the navigator). FrameHasRoundTransition stays: it serves StepRoundToBreakpoint.
 
     private static bool FrameHasRoundTransition(DemoFrame frame)
     {
@@ -3001,7 +3001,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // tightly bracket the await here. The PacketProcessed handler reads Debugger.Suppress
             // at each fire, so as long as the user doesn't click anything else during the seek,
             // no breakpoint will retrigger. Re-arm in OnSelectedFrameChanged after the seek
-            // completes — see the bottom of that handler.
+            // completes. See the bottom of that handler.
             // (Alternative: drive the seek with a cancellation-aware await here. Out of scope.)
         }
         catch
@@ -3032,7 +3032,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void NextFrameByTick() => Navigator.NextTick();
 
-    // ── Special seek — parser tab (frame-level, reads SeekControls filters) ──────
+    // ── Special seek: parser tab (frame-level, reads SeekControls filters) ──────
 
     private void NextSpecialFrame() => Navigator.NextEvent(SelectedSpecialFilter());
 
@@ -3187,7 +3187,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Loads a demo directly from a filesystem path — the demo-library browser's open path. Reads the
+    ///     Loads a demo directly from a filesystem path: the demo-library browser's open path. Reads the
     ///     bytes and routes through the shared <see cref="LoadDemoFromBytesAsync" /> core (the same load the
     ///     Open-file picker uses). Callers have real local paths (desktop).
     /// </summary>
@@ -3216,7 +3216,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Opens a demo in the workspace through the shared load core. The Highlights tab's
     ///     "Open in workspace" delegate. The funnel lands the tab
-    ///     (Match Overview — the demo-opening surface every open path shares); the old pre-switch to
+    ///     (Match Overview: the demo-opening surface every open path shares); the old pre-switch to
     ///     Parser only produced a one-frame Parser flash before the funnel took over.
     /// </summary>
     public async Task OpenDemoInWorkspaceAsync(string path) => await LoadDemoFromPathAsync(path);
@@ -3230,7 +3230,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///         Completeness matters far more here than it reads: the parser slices frames ZERO-COPY into the
     ///         demo byte buffer (<see cref="DemoFrame" />.RawStart/RawLength over the raw
     ///         <see cref="ReadOnlyMemory{T}" />), so a single surviving frame reference anywhere pins the
-    ///         ENTIRE file — a multi-gigabyte retention from one missed field. <c>MemoryReleaseTests</c>
+    ///         ENTIRE file, a multi-gigabyte retention from one missed field. <c>MemoryReleaseTests</c>
     ///         guards this with a weak-reference assertion; if you add a demo-scale cache, clear it here.
     ///     </para>
     /// </summary>
@@ -3238,7 +3238,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         _replayDemoContext = null;
         _demoBytes = null;
-        // Drop our handle to the previous open's fan-out (it may still be running on a reload — that is
+        // Drop our handle to the previous open's fan-out (it may still be running on a reload: that is
         // fine and pre-existing; it holds only the OLD demo, which is being replaced anyway). CloseDemoAsync
         // captures the handle before calling this, so the explicit-close await is unaffected.
         _openFanOutTask = null;
@@ -3272,7 +3272,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         Frames.ClearAndTrim();
         FrameRows.ClearAndTrim();
         // Demo-derived event filters are rebuilt from the new demo's event names by the load path's append
-        // loop. Clearing here means a reload fully restores to the first-load point — otherwise the previous
+        // loop. Clearing here means a reload fully restores to the first-load point: otherwise the previous
         // demo's event names (and the user's per-event toggle state) leak into the new demo's filter set.
         // (The auto-load path's hand-copied block was missing this clear; folding the two together fixes it.)
         GameEventFilters.Clear();
@@ -3302,7 +3302,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///         it is deliberate here because returning RAM IS the user-visible point of the action. Under
     ///         Server GC an ordinary collection leaves the freed segments committed, so
     ///         <see cref="GCCollectionMode.Aggressive" /> plus a one-shot LOH compaction is what makes RSS
-    ///         drop — the demo buffer is a single multi-hundred-megabyte LOH array.
+    ///         drop: the demo buffer is a single multi-hundred-megabyte LOH array.
     ///     </para>
     ///     <para>
     ///         Best-effort by design: background work started by the open (the library tier-2 fan-out at the
@@ -3317,7 +3317,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // so the reclaim collection below would free nothing while it is in flight. Awaiting it first makes
         // the close deterministic: the whole frame graph is unrooted when the GC runs. For an already-indexed
         // demo the fan-out is a near-instant skip; only a close that races a fresh demo's first indexing waits
-        // (rare), and the status line reflects it. Failures are swallowed — the fan-out already isolates them.
+        // (rare), and the status line reflects it. Failures are swallowed: the fan-out already isolates them.
         Task? fanOut = _openFanOutTask;
         Task? teamNames = _teamNamesTask;
 
@@ -3353,7 +3353,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         StatusText = "No demo loaded.";
         AppLog.DemoClosed(DiagLog);
 
-        // Off the UI thread — a blocking gen-2 compacting collection over a demo-sized heap is long
+        // Off the UI thread: a blocking gen-2 compacting collection over a demo-sized heap is long
         // enough to be felt as a hitch.
         await Task.Run(static () =>
         {
@@ -3368,7 +3368,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Begins idle-mode monitoring (global input hook + poll timer). Called by the DESKTOP composition
-    ///     root only — WASM never starts it, so idle mode is desktop-only. Inert if no controller was built
+    ///     root only: WASM never starts it, so idle mode is desktop-only. Inert if no controller was built
     ///     (no settings monitor).
     /// </summary>
     public void StartIdleMonitoring() => _idle?.Start();
@@ -3400,7 +3400,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Ctrl+1..9 accelerator (v0.6.0): selects the Nth tab of the CURRENTLY VISIBLE, gate-filtered
-    ///     strip — live positional, evaluated at press time. This does not violate the name-based
+    ///     strip: live positional, evaluated at press time. This does not violate the name-based
     ///     tab-identity rule above: nothing positional is ever persisted, and "the third tab I can see
     ///     right now" is exactly the contract a numeric accelerator promises. Out-of-range = no-op.
     /// </summary>
@@ -3417,7 +3417,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     // What must NOT be interrupted by idle. Playback is the primary signal (paused / ended both read false),
     // but a running reel render or an ACTIVE live-sync session are long-running operations with no per-frame
-    // input either — closing the demo under them would break work in flight, so they block idle too. Evaluated
+    // input either: closing the demo under them would break work in flight, so they block idle too. Evaluated
     // fresh each poll tick (ReelJob / LiveSync are attached after the ctor by the desktop host).
     private bool IsIdleBlocked() =>
         Playback.IsPlaying
@@ -3436,7 +3436,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // throw can't become an unobserved task exception (CloseDemoAsync isolates its own fan-out failures).
         try
         {
-            // Capture the resume point BEFORE closing — the demo graph is about to be torn down, so this is the
+            // Capture the resume point BEFORE closing: the demo graph is about to be torn down, so this is the
             // one clean moment to record where playback sat. ResumeFrameIndex is a playback frame index (the
             // clock's own unit), NOT a CS2 demo tick.
             TimeSpan wait = _settings?.CurrentValue.Idle.IdleTimeoutWait ?? TimeSpan.FromMinutes(15);
@@ -3463,7 +3463,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             IsIdle = true;
 
-            // Drop resource usage — the deterministic close (awaits the library fan-out, then an aggressive
+            // Drop resource usage: the deterministic close (awaits the library fan-out, then an aggressive
             // compacting reclaim). Guarded so an idle with nothing open pays nothing.
             if (HasFile)
             {
@@ -3480,7 +3480,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Leaves idle mode: dismisses the overlay, restarts the idle countdown, resumes any parked
-    ///     background processing, and reopens the captured demo — restoring the active tab and playback
+    ///     background processing, and reopens the captured demo, restoring the active tab and playback
     ///     position. Wired to the idle surface's Resume button.
     /// </summary>
     private void ResumeFromIdle() => _ = ResumeFromIdleAsync();
@@ -3497,7 +3497,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         if (_idleResume is not { } resume)
         {
-            return; // nothing was open — dismissing the overlay is the whole resume.
+            return; // nothing was open: dismissing the overlay is the whole resume.
         }
 
         _idleResume = null;
@@ -3528,7 +3528,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     Fills the Match Overview's TEAM NAMES (clan tags) for the score plate. Pro demos carry them;
     ///     matchmaking demos do not, and the plate then labels each team by the side it finished on.
     ///     <para>
-    ///         Names only — the SCORE comes from the analysis engine's per-team round wins, which counts the
+    ///         Names only: the SCORE comes from the analysis engine's per-team round wins, which counts the
     ///         rounds each team actually won and therefore survives a demo cut at the buzzer. The clan names
     ///         ride along on the library entry that this open's own fan-out already populates, so this costs
     ///         nothing extra: no second parse, no entity replay, and no ParsedDemo held past the close.
@@ -3596,8 +3596,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         StatusText = $"Parsing {fileName}…";
         AppLog.DemoLoadStarted(DiagLog, fileName, rawBytes.Length);
 
-        // Match Overview landing (responsiveness): surface the demo the INSTANT the open begins — before the
-        // multi-second parse — so a double-click has an immediate, visible effect instead of a silent wait. The
+        // Match Overview landing (responsiveness): surface the demo the INSTANT the open begins, before the
+        // multi-second parse, so a double-click has an immediate, visible effect instead of a silent wait. The
         // cheap header read (~first 256 KB) gives the map/server right away; the full summary lands post-parse.
         string? quickMap = null;
         string? quickServer = null;
@@ -3609,7 +3609,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         // Match Overview's subject identity for this open. The browser host has no local path, so the file
-        // name stands in — the key only has to be stable and comparable, and every keyed fill below derives
+        // name stands in: the key only has to be stable and comparable, and every keyed fill below derives
         // it the same way. Late continuations from a PREVIOUS open present that open's key and are dropped.
         string subjectKey = localPath ?? fileName;
 
@@ -3620,7 +3620,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // sitting in a sidecar file the whole time.
         SeedMatchOverviewFromCache(localPath, subjectKey);
         MatchOverviewTab.IsSampleClip = IsTourSample(localPath);
-        // Switch to the landing page for normal opens — BUT NOT while the first-run tour is active: the tour
+        // Switch to the landing page for normal opens, BUT NOT while the first-run tour is active: the tour
         // owns navigation then (its gateway spotlights the Library card), and switching away would unload the
         // Library and strand the coach-mark's spotlight over the wrong content until the tour advances. The VM
         // is still populated above/below, so Match Overview is correct if the user visits it after the tour.
@@ -3639,12 +3639,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Retain the full path for the Diagnostics Session card; null on browser hosts.
             _loadedDemoPath = localPath ?? fileName;
 
-            // Parse on a background thread — zero-copy: the parser slices directly into rawBytes for
+            // Parse on a background thread, zero-copy: the parser slices directly into rawBytes for
             // uncompressed frames via ReadOnlyMemory<byte>. The open is the HIGHEST-priority, awaitable
             // FOREGROUND request on the global demo-processing queue: it
             // preempts background indexing/scanning (which yields at its next demo boundary), best-effort
             // coalesces onto an in-flight parse of the same demo, and during a reel render throws
-            // ReelInProgressException — surfaced by this site's existing failure handling. The queue
+            // ReelInProgressException, surfaced by this site's existing failure handling. The queue
             // parses the in-hand rawBytes (no re-read). Legacy fallbacks: the direct gate, then ungated.
             MatchOverviewTab.SetStage(subjectKey, "Parsing demo…", 0.15);
             ParsedDemo parsed;
@@ -3661,7 +3661,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
 
             // Fill the Match Overview quick facts + rosters from the parsed result and advance its stage strip
-            // to "Enriching". The page does NOT leave its loading state here — the score and scoreboard are
+            // to "Enriching". The page does NOT leave its loading state here: the score and scoreboard are
             // still placeholders until the analysis run below lands.
             MatchOverviewTab.SetSummary(subjectKey, parsed);
             MatchOverviewTab.SetParseHealth(subjectKey, parsed.Health, parsed.Warnings); // S11 damaged-demo banner
@@ -3698,7 +3698,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Register the demo with the controller (frame list + tick rate for the play loop).
             Playback.LoadDemo(_allFrames, parsed.TickRate);
             // Hand the module context the stable identity roster (slot / steamID / name; no
-            // team — team is per-tick via the host player-join).
+            // team: team is per-tick via the host player-join).
             _moduleContext?.SetRoster(parsed.Players.Values.Select(p => new PlayerRosterEntry
             {
                 Slot = p.Slot,
@@ -3709,15 +3709,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _moduleContext?.SetMapName(parsed.MapName); // data-driven map identity for asset selection
             _moduleContext?.SetDemo(parsed); // M5: expose the loaded demo to the first-party Workbench
             BuildUnknownMessageCensus(parsed);
-            // navigation-review Phase A — precompute round / event / tick boundary indices once,
+            // navigation-review Phase A: precompute round / event / tick boundary indices once,
             // drained alongside the unknown-message census. The six *Frame* nav methods + the Phase C
             // strip binary-search these instead of re-scanning the frame list on every press.
             Navigator.Build(_allFrames);
-            // #4/#5 — calibrate the shared game-clock once (first round_freeze_end) for the 2D round
+            // #4/#5: calibrate the shared game-clock once (first round_freeze_end) for the 2D round
             // timer + bomb/defuse timers; consumed via IModuleContext.CurtimeSeconds.
             ApplyGameClock(_allFrames, parsed.TickRate);
             // The context now holds the NEW demo's roster / events / map / clock. Signal any ACTIVE module to
-            // fully resync — LoadDemo above reset the clock WITHOUT an Advanced push, so a tab left open across
+            // fully resync: LoadDemo above reset the clock WITHOUT an Advanced push, so a tab left open across
             // a reload (Open-file button OR the library browser) would otherwise keep the previous demo's map
             // image, marker labels, and trails. Inactive tabs resync on their next OnActivated. This is the
             // load-path parity the two entry points must share (full state restoration on every new demo).
@@ -3741,11 +3741,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             string demoKey = await Task.Run(() => GraphBreakpointStore.ComputeDemoKey(rawBytes));
             await Analysis.RunAsync(parsed, demoKey);
             // StatsTab is fed by AnalysisViewModel.EvaluationCompleted, which is raised SYNCHRONOUSLY inside
-            // RunAsync (AnalysisViewModel.cs) — so its tables are already built by the time this await
+            // RunAsync (AnalysisViewModel.cs), so its tables are already built by the time this await
             // returns. Reading them here rather than subscribing keeps the Match Overview's score and
             // scoreboard byte-identical to the Stats tab's with no handler-order dependency.
             MatchOverviewTab.SetAnalysis(subjectKey, StatsTab.GameTable, StatsTab.TeamScoresBySort, StatsTab.Rounds.Count);
-            // Per-team round wins from the same evaluation — each team's total across BOTH halves.
+            // Per-team round wins from the same evaluation: each team's total across BOTH halves.
             MatchOverviewTab.SetTeamScores(
                 subjectKey,
                 StatsTab.TeamScoresBySort.GetValueOrDefault(0),
@@ -3769,7 +3769,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 }
             }
 
-            // Now safe to load the full demo into the raw hex view — parsing is done and the UI
+            // Now safe to load the full demo into the raw hex view: parsing is done and the UI
             // thread is no longer needed for the channel loop.
             HexViewRaw.Load(rawBytes);
 
@@ -3786,14 +3786,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             // "One processing event": hand this just-parsed demo to
             // the background evaluators so an un-indexed library demo fills its Library card from THIS parse
-            // instead of a redundant second background parse. Off the UI thread — the Library score replay is
-            // multi-second — and isolated (a handler failure never fails the open). `parsed` is immutable
+            // instead of a redundant second background parse. Off the UI thread: the Library score replay is
+            // multi-second, and isolated (a handler failure never fails the open). `parsed` is immutable
             // post-parse, so the concurrent read-only replay is safe. Highlights is skipped: it is fed the
             // open demo through the completed analysis run (OnOpenDemoEvaluated), a re-analysis-free channel.
             if (localPath is { } openPath && HasFile && _evaluationCoordinator is { } coordinator)
             {
                 ParsedDemo openParsed = parsed;
-                // Tracked (not fire-and-forget) so CloseDemoAsync can await it before reclaiming — a
+                // Tracked (not fire-and-forget) so CloseDemoAsync can await it before reclaiming: a
                 // running fan-out roots the demo, so an un-awaited close would free nothing.
                 _openFanOutTask = Task.Run(() => coordinator.FanOutParsed(openPath, openParsed, _openFanOutSkip));
             }
@@ -3804,7 +3804,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex)
         {
-            // Clean text on the user surfaces (v0.6.0 — a corrupt .dem used to surface as raw CLR
+            // Clean text on the user surfaces (v0.6.0, a corrupt .dem used to surface as raw CLR
             // text like "Index was outside the bounds of the array"); the full exception goes to
             // the Diagnostics tab + file.
             string described = UserFacingError.Describe("load the demo", ex);
@@ -3823,7 +3823,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             IsLoading = false;
         }
 
-        // Always build tick groups — needed by both the legacy Tick View and the Replay tab.
+        // Always build tick groups: needed by both the legacy Tick View and the Replay tab.
         ReplayTab.ResetForFileLoad();
         if (_allFrames is not null)
         {
@@ -3857,7 +3857,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Opens the parse-chain inspector via <see cref="IWindowService" /> —
+    ///     Opens the parse-chain inspector via <see cref="IWindowService" />,
     ///     replaces the former <c>MainView.axaml.cs</c> code-behind window spawn. Desktop opens a
     ///     real window; browser no-ops. Inert when no window service was injected (XAML designer).
     /// </summary>
@@ -3866,7 +3866,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Opens the Settings screen (P2a-i). Resolves a FRESH <see cref="SettingsViewModel" /> from the
-    ///     composition root (a manual-new factory — see <c>App.BuildServices</c>) and hands it to the window
+    ///     composition root (a manual-new factory, see <c>App.BuildServices</c>) and hands it to the window
     ///     service: a non-modal window on desktop, an in-app overlay on WASM. Inert on the designer / test
     ///     path (no window service, or no container yet).
     /// </summary>
@@ -3874,10 +3874,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private void OpenSettings() => OpenSettingsCore(null);
 
     /// <summary>
-    ///     Opens Settings scrolled to the USER CATEGORY section — the status strip's "N features
+    ///     Opens Settings scrolled to the USER CATEGORY section: the status strip's "N features
     ///     hidden" note routes here (v0.6.0), so the note is an entry point to changing the gate
     ///     rather than a dead end. Note: when a Settings window is already open, the window service
-    ///     re-activates it as-is (no re-scroll) — acceptable, the user is already in Settings.
+    ///     re-activates it as-is (no re-scroll): acceptable, the user is already in Settings.
     /// </summary>
     [RelayCommand]
     private void OpenSettingsAtCategory() => OpenSettingsCore("SectionUserCategory");
@@ -3931,7 +3931,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Shows <paramref name="viewModel" /> as the in-app first-run wizard overlay (P2b — the WASM host
+    ///     Shows <paramref name="viewModel" /> as the in-app first-run wizard overlay (P2b: the WASM host
     ///     path, wired by <c>App.axaml.cs</c> and reached only via Settings' "Re-run first-time setup").
     ///     Replaces any prior overlay VM, and clears this one when the wizard raises Completed (Finish / Skip).
     /// </summary>
@@ -4086,7 +4086,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     // Computes the shared game-clock calibration once per demo load and hands it to the module context
     // (mirrors SetRoster). Both demo-load paths call this AFTER _navigator.Build, so the precomputed
-    // round_freeze_end frames are available — the first one calibrates the curtime offset that the 2D
+    // round_freeze_end frames are available: the first one calibrates the curtime offset that the 2D
     // round timer (#4) and bomb/defuse timers (#5) consume via IModuleContext.CurtimeSeconds. Reads
     // game-rules entity state by advancing a fresh tracker to that early frame (cheap, run-once).
     private void ApplyGameClock(IReadOnlyList<DemoFrame> frames, int tickRate)
@@ -4153,11 +4153,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     / output visibility) is set immediately; per-tab selection is deferred via
     ///     <see cref="_pendingRestore" /> until a demo finishes loading.
     ///     <para>
-    ///         <b>Must be called by the host AFTER the shell is fully constructed</b> — never from the
+    ///         <b>Must be called by the host AFTER the shell is fully constructed</b>, never from the
     ///         constructor. Restoring selects the persisted tab, and <c>WorkspaceTabDescriptor.Activate</c>
     ///         builds that tab's view-model and runs its <c>OnActivated</c>, either of which may resolve
     ///         the shell from the DI container. A singleton is not cached until its factory returns, so
-    ///         doing this during construction builds a second shell that restores again — unbounded, and
+    ///         doing this during construction builds a second shell that restores again, unbounded, and
     ///         without a <c>StackOverflowException</c> to stop it, because ServiceProvider's StackGuard
     ///         hops to a fresh thread as the stack deepens. It presents as a launch that pins a core and
     ///         never shows a window (shipped in v0.5.0 for anyone whose last active tab was Highlights).
@@ -4174,12 +4174,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         RestoreActiveTab(p);
         // Never restore an owned panel OPEN when its chrome is gated off for the current
-        // category — otherwise a drawer/rail a developer left open would return open at startup with its
+        // category: otherwise a drawer/rail a developer left open would return open at startup with its
         // toggle button hidden (no way to close it). The gate reads live, so the shims are already resolved.
         IsDebuggerPanelVisible = p.DebuggerVisible && IsDebuggerChromeEnabled;
         Output.IsVisible = p.OutputVisible && IsOutputChromeEnabled;
 
-        // Window geometry is the HOST's to apply (the VM has no Window reference) — parked here for
+        // Window geometry is the HOST's to apply (the VM has no Window reference), parked here for
         // App.axaml.cs to read right after this returns, before the window shows.
         RestoredWindowBounds = p.Window;
 
@@ -4187,7 +4187,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _pendingRestore = p;
     }
 
-    // Re-selects the persisted tab by its durable TabId — the ONLY key, because the tab
+    // Re-selects the persisted tab by its durable TabId: the ONLY key, because the tab
     // set is dynamic (feature gating, new built-ins landing mid-strip) and a position means a different tab
     // from one build to the next. A stale, gated-out, or absent id falls back to the first tab (Library);
     // for a session predating TabId persistence that is a one-time, self-healing loss of the remembered
@@ -4217,7 +4217,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             EntityTab.ClassBrowser.Classes.FirstOrDefault(c => c.ClassName == className);
     }
 
-    // ── Special seek — replay tab (tick-group-level) ──────────────────────────
+    // ── Special seek: replay tab (tick-group-level) ──────────────────────────
     // NextSpecialTick / PreviousSpecialTick / NextRoundTick / PreviousRoundTick /
     // TickGroupContainsRoundEvent / TickGroupContainsGameEvent moved to
     // ReplayTabViewModel in 3.5b.
@@ -4271,19 +4271,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         AnalysisTab.SnapshotState(),
         IsDebuggerPanelVisible,
         Output.IsVisible,
-        SelectedTab?.TabId, // the durable, name-based key — the only tab identity persisted.
+        SelectedTab?.TabId, // the durable, name-based key, the only tab identity persisted.
         SnapshotModuleTabs(),
         WindowBounds);
 
     /// <summary>
     ///     Collects session state from MODULE-contributed tabs. The framework has always declared
     ///     <c>IWorkspaceTabViewModel.SnapshotState()</c> and never called it, so no module tab's state
-    ///     survived a restart — the Reels tray being the first one where that is a real loss rather than a
+    ///     survived a restart, the Reels tray being the first one where that is a real loss rather than a
     ///     theoretical one (a half-built cross-demo reel is minutes of work).
     ///     <para>
     ///         Only tabs whose VM ALREADY EXISTS are asked. <c>TabViewModel</c> is null until first
     ///         activation, and building every module VM at shutdown purely to ask it for state would pay each
-    ///         module's construction cost on every exit — for tabs the user never opened.
+    ///         module's construction cost on every exit, for tabs the user never opened.
     ///     </para>
     /// </summary>
     private Dictionary<string, JsonElement>? SnapshotModuleTabs()
@@ -4303,7 +4303,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             catch (Exception ex) when (ex is JsonException or NotSupportedException)
             {
                 // A module returned something unserializable. That module's state is lost; the SESSION is
-                // not — one badly-behaved tab must never cost the user their whole restored layout.
+                // not. One badly-behaved tab must never cost the user their whole restored layout.
                 AppLog.DemoLoadFailed(DiagLog, tab.TabId, ex.Message);
             }
         }
@@ -4313,8 +4313,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Hands each module tab its persisted blob. Parked on the descriptor rather than applied here:
-    ///     module VMs are built lazily on first activation, so at restore time most of them do not exist yet
-    ///     — <c>WorkspaceTabDescriptor.Activate</c> applies the state the moment it builds one, exactly once.
+    ///     module VMs are built lazily on first activation, so at restore time most of them do not exist yet:
+    ///     <c>WorkspaceTabDescriptor.Activate</c> applies the state the moment it builds one, exactly once.
     /// </summary>
     private void RestoreModuleTabs(IReadOnlyDictionary<string, JsonElement>? states)
     {
@@ -4333,7 +4333,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     "Step Round" — same shape as StepTick but the boundary is "first frame whose tick
+    ///     "Step Round": same shape as StepTick but the boundary is "first frame whose tick
     ///     contains a round_start or round_end game event after the current position".
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanDebugStep))]
@@ -4370,10 +4370,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     "Step Tick" — like NextTick, but scans Tier 1 breakpoints between current frame
+    ///     "Step Tick": like NextTick, but scans Tier 1 breakpoints between current frame
     ///     and the next tick boundary. Halts at the first hit, or at the tick boundary if
     ///     none. Tier 3 hits (PacketIndex / DecodeError / DeltaOnUnknown) surface AFTER
-    ///     the seek lands — the Jump-to button on the panel navigates there.
+    ///     the seek lands: the Jump-to button on the panel navigates there.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanDebugStep))]
     private void StepTickToBreakpoint()
@@ -4390,7 +4390,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         for (int i = startIdx; i < Frames.Count; i++)
         {
             DemoFrame frame = Frames[i];
-            // Tier 1 hit check first — overrides the tick-boundary stop.
+            // Tier 1 hit check first: overrides the tick-boundary stop.
             if (Debugger.CheckFrame(frame) is not null)
             {
                 Debugger.Suppress = true; // protect the just-recorded Tier 1 hit during the seek
@@ -4481,7 +4481,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         double cpuPct = elapsed > 0 ? used / (elapsed * Environment.ProcessorCount) * 100.0 : 0;
         long ramMb = _process.WorkingSet64 / 1_048_576;
         // PID is in the title so the running instance can be handed straight to the diagnostics CLI
-        // (dotnet-gcdump / dotnet-dump / footprint) without hunting for it in ps — memory questions about
+        // (dotnet-gcdump / dotnet-dump / footprint) without hunting for it in ps: memory questions about
         // this app are answered by attaching to a LIVE process, and `pgrep` is ambiguous while a test host
         // or a second build is running. Constant for the process, so it is read once, not per tick.
         WindowTitle = $"DemoViewer.NET  |  PID {ProcessId}  |  CPU {cpuPct:F1}%  RAM {ramMb} MB";

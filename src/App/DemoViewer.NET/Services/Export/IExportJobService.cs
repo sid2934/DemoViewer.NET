@@ -53,7 +53,7 @@ public interface IExportJobService
 /// </param>
 /// <param name="DemoEndFrame">Last demo frame index, inclusive.</param>
 /// <param name="EncoderOverride">
-///     <c>auto</c> (the default), <c>software</c>, or an <c>EncoderLadder</c> rung's ffmpeg name — plan
+///     <c>auto</c> (the default), <c>software</c>, or an <c>EncoderLadder</c> rung's ffmpeg name, plan
 ///     P2 D4. It rides the request rather than the runner so two exports in one process can disagree,
 ///     which is the per-session shape the plan's §7 export node needs.
 /// </param>
@@ -75,7 +75,7 @@ public interface IExportJobService
 ///     decide.
 ///     <para>
 ///         <b>Here for a harder reason than the ink.</b> The setup is built on the export's pool thread, and
-///         it resolved the palette from <c>Application.Current.ActualThemeVariant</c> — a styled property, so
+///         it resolved the palette from <c>Application.Current.ActualThemeVariant</c>, a styled property, so
 ///         <c>AvaloniaObject.VerifyAccess</c> threw <i>"Call from invalid thread"</i> before frame zero. A
 ///         <c>ScenePalette</c> is a plain record of <c>SKColor</c>, so once resolved it crosses threads
 ///         freely: the theme is only reachable where it is read, so the read has to happen at Start and
@@ -102,7 +102,7 @@ public sealed record Scene2DExportRequest(
 /// <param name="OutputPath">The file being written.</param>
 /// <param name="Error">The failure or refusal message, when there is one.</param>
 /// <param name="Eta">
-///     Estimated time remaining, or null before the session can measure one — the figure a user watching a
+///     Estimated time remaining, or null before the session can measure one, the figure a user watching a
 ///     multi-minute render most wants to see.
 /// </param>
 public readonly record struct ExportJobStatus(
@@ -125,7 +125,7 @@ public readonly record struct ExportJobStatus(
     /// <summary>True before any job has run. Distinguishes "nothing happened" from "finished".</summary>
     public bool IsIdle { get; init; }
 
-    /// <summary>True while the job occupies the machine — the chip is visible and the interlocks hold.</summary>
+    /// <summary>True while the job occupies the machine: the chip is visible and the interlocks hold.</summary>
     public bool IsRunning => !IsIdle && Phase is ExportPhase.Preparing or ExportPhase.Seeking
         or ExportPhase.Rendering or ExportPhase.Finalizing;
 
@@ -135,7 +135,7 @@ public readonly record struct ExportJobStatus(
 
 /// <summary>
 ///     An export was refused before it started, because something else owns the machine. The message is
-///     user-facing copy — the dialog and the chip show it verbatim, which is the whole point of refusing
+///     user-facing copy: the dialog and the chip show it verbatim, which is the whole point of refusing
 ///     rather than silently queueing.
 /// </summary>
 public sealed class ExportRefusedException : InvalidOperationException

@@ -20,7 +20,7 @@ namespace DemoViewer.NET.Services.Export;
 ///     The production <see cref="IExportRunner" />: resolves an encoder, builds the export's private
 ///     scene, and hands both to <c>SceneExportSession</c>.
 ///     <para>
-///         Everything reusable is in Pipeline — the session, the sinks, the ffmpeg ladder, the frame
+///         Everything reusable is in Pipeline: the session, the sinks, the ffmpeg ladder, the frame
 ///         source. What is here is the App's own three decisions: which rung of the ladder to take, what
 ///         the export's layer stack contains, and where its map art comes from.
 ///     </para>
@@ -39,7 +39,7 @@ public sealed class SceneExportRunner : IExportRunner
     ///         It used to end "…or let DemoViewer download the LGPL build", advertising in a refusal the
     ///         exact rung that had just silently not happened: acquiring ffmpeg was an optional constructor
     ///         parameter the one production caller omitted. Acquisition is now a foreground action in the
-    ///         export pane — <c>FfmpegAcquisition</c> asks for consent only after the transfer, so it can
+    ///         export pane: <c>FfmpegAcquisition</c> asks for consent only after the transfer, so it can
     ///         never be something a background job does on a user's behalf. The refusal now points at the
     ///         pane instead of promising to act.
     ///     </para>
@@ -59,7 +59,7 @@ public sealed class SceneExportRunner : IExportRunner
     /// <param name="surfaces">Builds the render surface provider. Defaults to the CPU rasteriser.</param>
     /// <param name="managedFfmpegDirectory">
     ///     Where an app-managed ffmpeg lives. Defaults to <see cref="FfmpegDependency.ManagedDirectory" />,
-    ///     which is also where <c>CsvgWebHost</c> looks — one download serves reels and exports alike.
+    ///     which is also where <c>CsvgWebHost</c> looks: one download serves reels and exports alike.
     /// </param>
     /// <param name="log">Optional line sink; the chosen encoder and ffmpeg's stderr flow through it.</param>
     /// <param name="encoderProbe">
@@ -123,7 +123,7 @@ public sealed class SceneExportRunner : IExportRunner
             EndFrame = Math.Max(0, source.FrameCount - 1)
         };
 
-        // After BuildSource, because the HUD's clock reads the source's own last-built frame — the whole
+        // After BuildSource, because the HUD's clock reads the source's own last-built frame: the whole
         // point of the factory (see ExportSceneSetup.Hud).
         IHudDataSource? hud = setup.Hud?.Invoke(source);
 
@@ -164,7 +164,7 @@ public sealed class SceneExportRunner : IExportRunner
     private static SceneCompositor BuildCompositor(ExportRequest core, ExportSceneSetup setup,
         IHudDataSource? hud)
     {
-        // Empty LayerIds means "the scene, nothing opt-in" — CreateSceneStack's own null-include behaviour.
+        // Empty LayerIds means "the scene, nothing opt-in": CreateSceneStack's own null-include behaviour.
         IReadOnlyList<string>? include = core.LayerIds.Count == 0 ? null : [.. core.LayerIds];
         return SceneLayerCatalog.CreateSceneStack(include, null, setup.Vision, hud, setup.Annotations);
     }
@@ -174,7 +174,7 @@ public sealed class SceneExportRunner : IExportRunner
     {
         if (!ffmpeg.Found)
         {
-            // The floor. Reached only for GIF — RunAsync refused the video formats above.
+            // The floor. Reached only for GIF: RunAsync refused the video formats above.
             return new ManagedGifSink(request.OutputPath, core.Fps);
         }
 

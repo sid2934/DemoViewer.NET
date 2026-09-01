@@ -11,12 +11,12 @@ namespace DemoViewer.NET.Controls;
 
 /// <summary>
 ///     Tags a control as the live anchor for a walkthrough <see cref="TutorialTarget" /> region, so the
-///     tour overlay can spotlight it. Set in XAML — <c>controls:TutorialAnchor.Target="StatsContent"</c> — on
+///     tour overlay can spotlight it. Set in XAML, <c>controls:TutorialAnchor.Target="StatsContent"</c>, on
 ///     the coarse region a step points at (a tab's content root, the Open-Demo button, the NavStrip transport
 ///     cluster). The overlay resolves the target to this control and measures its on-screen rectangle.
 ///     <para>
 ///         <b>Lifecycle-correct by design.</b> Registration happens on <c>AttachedToVisualTree</c>
-///         and unregisters on detach — NOT at construction. Inactive workspace tabs unload their content
+///         and unregisters on detach, NOT at construction. Inactive workspace tabs unload their content
 ///         (<c>WorkspaceTabDescriptor</c> drops the realized view on deactivation), so a construction-time
 ///         registry would fill with dead references; attach/detach keeps the registry pointing only at the
 ///         control currently live in the tree. Only one content tab is active at a time, so at most one control

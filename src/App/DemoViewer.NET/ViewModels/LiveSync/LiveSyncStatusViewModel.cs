@@ -20,7 +20,7 @@ namespace DemoViewer.NET.ViewModels.LiveSync;
 ///     Maps the engine-side <see cref="ILiveSyncService" /> state onto the status-strip chip and its flyout
 ///     . It owns a single reusable
 ///     <see cref="StatusChipViewModel" /> (the chip the shell shows) whose <c>FlyoutContent</c> is this VM
-///     itself — the app <c>ViewLocator</c> resolves <c>Views/LiveSync/LiveSyncStatusView</c> for the flyout
+///     itself: the app <c>ViewLocator</c> resolves <c>Views/LiveSync/LiveSyncStatusView</c> for the flyout
 ///     body, so there is no VM→View reference here.
 ///     <para>
 ///         Sync is outbound-only today: no inferred states occur yet (<see cref="LiveSyncState.IsInferred" />
@@ -46,7 +46,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _demoBindingText = "";
 
-    // Diagnostics-pillar logger (v0.6.0 — the restore-failure surface shows clean text, this
+    // Diagnostics-pillar logger (v0.6.0, the restore-failure surface shows clean text, this
     // carries the real exception). Lazy: the ambient factory is wired after construction.
     private ILogger? _diagLog;
 
@@ -59,7 +59,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
 
     private EventHandler? _hudChanged;
 
-    // ── 2D HUD projection (ILiveSyncHudState) — recomputed in MapState, mirrored from the chip ──
+    // ── 2D HUD projection (ILiveSyncHudState), recomputed in MapState, mirrored from the chip ──
     private LiveSyncHudDot _hudDot;
 
     [ObservableProperty]
@@ -119,7 +119,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
 
     // Shown in the Synced/Degraded flyout sections when the connected plugin is a
     // v1.0-era build that advertised nothing (Capabilities.IsV10Baseline). Capabilities present-but-partial
-    // shows NO note (the flyout stays lean — no matrix enumeration in v1).
+    // shows NO note (the flyout stays lean, no matrix enumeration in v1).
     [ObservableProperty]
     private bool _showV10BaselineNote;
 
@@ -167,7 +167,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
         MapState(_liveSync.State);
 
         // Probe the CS2 install for a crashed prior session's leftovers exactly once, at
-        // host start (this VM is constructed when the engine attaches) — the offer surfaces in
+        // host start (this VM is constructed when the engine attaches): the offer surfaces in
         // the Off flyout BEFORE any session start. Detection never errors (null → no offer).
         _ = ProbeLeftoverModificationsAsync();
     }
@@ -177,7 +177,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
     /// <summary>The status-strip chip this VM drives (added to <c>MainViewModel.Chips</c> when gated on).</summary>
     public StatusChipViewModel Chip { get; }
 
-    // Whether the current demo has a real, rooted, on-disk path — CSVG needs a host file path. A bare
+    // Whether the current demo has a real, rooted, on-disk path: CSVG needs a host file path. A bare
     // filename (WASM / non-local picker) is not usable, so Enable / Re-sync are disabled with the path note.
     private bool HasRootedDemoPath
     {
@@ -193,7 +193,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
     /// <summary>Whether the informed-launch "Enable Live Sync…" action can fire.</summary>
     public bool CanEnable => HasDemoLoaded && HasRootedDemoPath;
 
-    /// <summary>Whether "Re-sync" can fire — needs a rooted demo path and an active session.</summary>
+    /// <summary>Whether "Re-sync" can fire: needs a rooted demo path and an active session.</summary>
     public bool CanResync => HasRootedDemoPath && _liveSync.State.IsSessionActive;
 
     /// <summary>
@@ -273,7 +273,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
         {
             AppLog.OperationFailed(DiagLog, "restore the CS2 install", ex);
-            // Prefixed, user-phrased text (v0.6.0 — was a bare ex.Message); the adjacent manual-
+            // Prefixed, user-phrased text (v0.6.0, was a bare ex.Message); the adjacent manual-
             // fallback copy still points at `csvg restore` for the by-hand path.
             RestoreFailureText = UserFacingError.Describe("restore the CS2 install", ex);
         }
@@ -295,11 +295,11 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
         }
         catch (OperationCanceledException)
         {
-            // Cancelled via Disable — the state machine already reflects the teardown.
+            // Cancelled via Disable, the state machine already reflects the teardown.
         }
     }
 
-    /// <summary>Stops the session (kills CS2, restores install) — the Disable / Cancel action.</summary>
+    /// <summary>Stops the session (kills CS2, restores install), the Disable / Cancel action.</summary>
     [RelayCommand]
     private Task Disable() => _liveSync.DisableAsync();
 
@@ -318,7 +318,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
         }
         catch (OperationCanceledException)
         {
-            // Cancelled mid-reconnect — the state machine reflects it.
+            // Cancelled mid-reconnect, the state machine reflects it.
         }
     }
 
@@ -327,7 +327,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
     private void OpenLiveSyncSettings() => _openSettings();
 
     /// <summary>
-    ///     Opens the demo CS2 switched to in DemoViewer — the explicit,
+    ///     Opens the demo CS2 switched to in DemoViewer, the explicit,
     ///     never-silent adoption of a CS2-side demo change. Loading it fires DemoReset, which
     ///     re-pushes intent and clears the Degraded offer.
     /// </summary>
@@ -346,7 +346,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
         {
             // Surface the open failure inline in the Degraded flyout section (bound ReasonText).
-            // Do NOT touch RestoreFailureText here — that's the unrelated crash-recovery surface.
+            // Do NOT touch RestoreFailureText here. That's the unrelated crash-recovery surface.
             ReasonText = $"Could not open the demo — {ex.Message}";
         }
     }
@@ -361,7 +361,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // Entering any Synced sub-state locks DV playback to 1× — but only when the plugin
+        // Entering any Synced sub-state locks DV playback to 1×, but only when the plugin
         // cannot mirror speed; with the v1.1 "timescale-set" capability Speed is a mirrored
         // control-plane property and stays user-controlled.
         if (e.Current.IsSynced && !e.Previous.IsSynced && !(_liveSync.Capabilities?.TimescaleSet ?? false))
@@ -381,7 +381,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
     // The single state→chip + state→flyout map. Called at construction and on every transition.
     private void MapState(LiveSyncState state)
     {
-        // The live position refresh runs ONLY while a Synced sub-state is current — stop it here and let
+        // The live position refresh runs ONLY while a Synced sub-state is current: stop it here and let
         // MapSynced re-start it for the synced kinds (idempotent; "live position while synced").
         StopPositionTimer();
 
@@ -412,7 +412,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
                 break;
 
             case LiveSyncStateKind.ConnectedIdle:
-                // Session up, no demo in CS2 — a solid AccentInteractive dot, not pulsing.
+                // Session up, no demo in CS2: a solid AccentInteractive dot, not pulsing.
                 SetChip(StatusChipDotState.Working, false, "CS2 · Connected (no demo)", null);
                 ShowSection(connectedIdle: true);
                 StateHeadline = "Connected — no demo loaded in CS2.";
@@ -481,7 +481,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Re-raises the 2D HUD <see cref="ILiveSyncHudState.Changed" /> when the <c>chrome.livesync</c> gate
     ///     flips (the shell calls this from its chip reconcile), so the 2D indicator shows/hides live without
-    ///     a tab re-activation — <see cref="ILiveSyncHudState.IsActive" /> folds the gate in.
+    ///     a tab re-activation: <see cref="ILiveSyncHudState.IsActive" /> folds the gate in.
     /// </summary>
     public void NotifyHudGateChanged()
     {
@@ -536,7 +536,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
     }
 
     // Starts the ~2 Hz position refresh if not already running. The timer is lazily created so the pure-VM
-    // tests (no dispatcher pump) never depend on it ticking — they assert _positionTimerRunning instead.
+    // tests (no dispatcher pump) never depend on it ticking: they assert _positionTimerRunning instead.
     private void StartPositionTimer()
     {
         if (IsPositionTimerRunning || _disposed)
@@ -603,7 +603,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
     private void RefreshVersions()
     {
         // A v1.0-era plugin advertised NO capabilities (IsV10Baseline) → the "update CSVG
-        // for exact pause sync" note. Present-but-partial capabilities show nothing (the flyout stays lean —
+        // for exact pause sync" note. Present-but-partial capabilities show nothing (the flyout stays lean,
         // no matrix enumeration in v1). Null capabilities (no session yet) → no note.
         ShowV10BaselineNote = _liveSync.Capabilities?.IsV10Baseline ?? false;
 
@@ -611,7 +611,7 @@ public sealed partial class LiveSyncStatusViewModel : ViewModelBase, IDisposable
         if (v is null || v.PluginVersion is null && v.GameVersion is null)
         {
             VersionsText = "Plugin —   ·   Game —";
-            ShowUntestedVersionsNote = true; // "untested plugin/game pair" — a warning, never a block.
+            ShowUntestedVersionsNote = true; // "untested plugin/game pair", a warning, never a block.
             return;
         }
 

@@ -34,7 +34,7 @@ public partial class Playback2DExportStatusView : UserControl
         IClipboard? clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
         if (clipboard is null)
         {
-            return; // no clipboard host (designer / degraded) — the selectable text is the fallback
+            return; // no clipboard host (designer / degraded): the selectable text is the fallback
         }
 
         try

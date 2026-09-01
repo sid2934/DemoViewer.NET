@@ -46,7 +46,7 @@ public class ViewLocator : IDataTemplate
     ///     the app, and most <c>ObservableObject</c>s here have no <c>…View</c> type at all, which
     ///     <see cref="Build" /> would render as "Not Found: …". A view-model hosted by a bare
     ///     <c>ContentControl</c> must derive from <see cref="ViewModelBase" /> or it silently renders as its
-    ///     own <c>ToString()</c> — <c>Playback2DExportDialogViewModel</c> shipped as an
+    ///     own <c>ToString()</c>: <c>Playback2DExportDialogViewModel</c> shipped as an
     ///     <c>ObservableObject</c> once and the entire 2D export pane rendered as one line of
     ///     fully-qualified type name.
     /// </remarks>

@@ -106,7 +106,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
 
     /// <summary>
     ///     The <c>LICENSE.txt</c> read out of the verified archive, or null when there is nothing to
-    ///     answer. Non-null is what reveals the accept/decline pair — nothing is extracted until then.
+    ///     answer. Non-null is what reveals the accept/decline pair: nothing is extracted until then.
     /// </summary>
     [ObservableProperty]
     private string? _ffmpegLicenseText;
@@ -119,7 +119,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     ///     <para>
     ///         It stays because it is the key already in users' settings files, and because the three
     ///         sub-toggles below would otherwise make "no HUD at all" a three-click operation. Off here
-    ///         means off regardless of what the three say — the sub-toggles are a composition, not an
+    ///         means off regardless of what the three say: the sub-toggles are a composition, not an
     ///         override.
     ///     </para>
     /// </summary>
@@ -162,7 +162,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     ///             second export
     ///             ever attempted
     ///         </b>
-    ///         opened with a red banner and a dead Export button — the failure mode of
+    ///         opened with a red banner and a dead Export button, the failure mode of
     ///         one channel carrying two meanings.
     ///     </para>
     /// </summary>
@@ -198,7 +198,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     /// <param name="defaults">Saved defaults to seed the fields with, or null for the built-ins.</param>
     /// <param name="job">The service Start hands off to. Null makes the dialog inert (design preview).</param>
     /// <param name="captureLiveCamera">
-    ///     Snapshots the live host's panes. Called <b>on Start</b>, never on selection — plan D12: mirroring
+    ///     Snapshots the live host's panes. Called <b>on Start</b>, never on selection, plan D12: mirroring
     ///     the live view is a capture, so panning after pressing Start must change nothing.
     /// </param>
     /// <param name="outputFrameCount">
@@ -217,7 +217,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     /// </param>
     /// <param name="capturePalette">
     ///     Resolves the scene colours, called <b>on Start</b> and on the UI thread for the same reason as
-    ///     <paramref name="captureInk" /> — but a harder one. See <see cref="Scene2DExportRequest.Palette" />.
+    ///     <paramref name="captureInk" />, but a harder one. See <see cref="Scene2DExportRequest.Palette" />.
     /// </param>
     /// <param name="acquireFfmpeg">
     ///     Fetches the pinned LGPL build for the Download button. Null hides the button entirely, which is
@@ -277,7 +277,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
 
     /// <summary>
     ///     The output size presets. All even, so no preset can trip the yuv420p rule. 720p leads because
-    ///     it is the one that exports faster than the clip plays on a CPU — see
+    ///     it is the one that exports faster than the clip plays on a CPU: see
     ///     <see cref="Playback2DSettings.ExportWidth" /> for the measurement.
     /// </summary>
     public static IReadOnlyList<ExportSizeOption> SizePresets { get; } =
@@ -292,7 +292,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     public static IReadOnlyList<string> Formats => ExportFormats.All;
 
     /// <summary>
-    ///     The quality rungs, fastest first — plan P2 D3. They are an intent, not a codec setting: every
+    ///     The quality rungs, fastest first, plan P2 D3. They are an intent, not a codec setting: every
     ///     encoder maps the three onto its own rate and speed controls, so "standard" means the same thing
     ///     whether the file is coming off NVENC or off libvpx.
     /// </summary>
@@ -372,7 +372,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
 
     /// <summary>
     ///     Closing the pane aborts an in-flight ffmpeg download. The export job outlives the dialog by
-    ///     design; the download does not — it is the pane's own foreground action, and there would be
+    ///     design; the download does not: it is the pane's own foreground action, and there would be
     ///     nowhere left to show its licence.
     /// </summary>
     public void Dispose()
@@ -397,7 +397,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
             ExportRequest core = BuildRequest(range);
 
             // The ink is frozen HERE, on the UI thread, one statement after the camera and before the
-            // request leaves for the pool — so the snapshot and the request are the same Start. Riding
+            // request leaves for the pool, so the snapshot and the request are the same Start. Riding
             // the request is what makes two Starts incapable of trading documents.
             _job.Start(new Scene2DExportRequest(core, OutputPath, string.Empty,
                 range.StartFrame, range.EndFrame, SelectedEncoder, SelectedQuality,
@@ -423,9 +423,9 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     [RelayCommand]
     private void RecheckFfmpeg()
     {
-        // Also forget which encoders the OLD ffmpeg had. Normally the two agree by accident — a newly
+        // Also forget which encoders the OLD ffmpeg had. Normally the two agree by accident: a newly
         // installed ffmpeg lives in a directory the probe has never asked about, and the cache is keyed
-        // by directory — but a user who swapped the binary in place for an NVENC-capable build would
+        // by directory, but a user who swapped the binary in place for an NVENC-capable build would
         // otherwise be told, from cache, that their new build cannot do what it plainly can.
         EncoderProbeCache.Shared.Clear();
 
@@ -443,7 +443,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     ///     <para>
     ///         <b>Here rather than inside the export.</b> <c>FfmpegAcquisition</c> asks for consent
     ///         after the transfer, so that the licence a user reads is the one inside the bytes
-    ///         whose checksum was just verified — which makes it a foreground action or nothing. Wired
+    ///         whose checksum was just verified, which makes it a foreground action or nothing. Wired
     ///         into the runner it would have meant a background job silently pulling 140 MB minutes after
     ///         the pane closed and then raising a modal over whatever the user had moved on to.
     ///     </para>
@@ -548,7 +548,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     }
 
     // CheckAccess is true in a harness with no platform at all, which is what keeps the pure-VM tests
-    // dispatcher-free — the same reason ExportJobService.SetStatus is written this way.
+    // dispatcher-free, the same reason ExportJobService.SetStatus is written this way.
     private static void OnUiThread(Action action)
     {
         if (Dispatcher.UIThread.CheckAccess())
@@ -626,7 +626,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
         {
             // The constant, not the string it spells: the literal was the same nine characters and STILL
             // not an id CreateSceneStack knew, so it failed with "unknown layer id(s):
-            // playback2d.annotations" before rendering a frame. Naming it here is only half of it — the tab
+            // playback2d.annotations" before rendering a frame. Naming it here is only half of it. The tab
             // has to hand the setup a document too, or the layer is asked for with nothing to feed it and
             // is skipped.
             ids.Add(SceneLayerIds.Annotations);
@@ -788,7 +788,7 @@ public sealed partial class Playback2DExportDialogViewModel : ViewModelBase, IDi
     }
 
     // The one non-blocking remark there is. Overwriting is what the user asked for by naming an existing
-    // path, and the default path is a constant — so refusing here meant every export after the first.
+    // path, and the default path is a constant, so refusing here meant every export after the first.
     private string? Notice() =>
         !string.IsNullOrWhiteSpace(OutputPath) && _fileExists(OutputPath)
             ? $"{Path.GetFileName(OutputPath)} already exists and will be overwritten."

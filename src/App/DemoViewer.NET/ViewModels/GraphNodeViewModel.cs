@@ -38,7 +38,7 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
     private bool _isActive;
 
     /// <summary>
-    ///     True when this node comes from a per-player template — it materializes once per player at
+    ///     True when this node comes from a per-player template: it materializes once per player at
     ///     evaluation time. Set by the Workbench's authoring-graph conversion so the renderer can flag it
     ///     (a distinct teal border via <see cref="Style" />), letting authors tell per-player rules from
     ///     the shared game-scope scaffolding. Purely cosmetic; never triggers a relayout.
@@ -59,7 +59,7 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
     ///     state lookup from its position in the rendered list, so an arbitrary <em>subset</em> of
     ///     nodes can be rendered (a chain sub-graph) while each still resolves its own correct
     ///     snapshot column from the full, unchanged evaluation. <c>-1</c> means "no snapshot column"
-    ///     (e.g. a node not present in the tracked set) — the seek loop then leaves it inert.
+    ///     (e.g. a node not present in the tracked set): the seek loop then leaves it inert.
     ///     Mirrors <see cref="TableCellViewModel.NodeTrackedIndex" />, the proven pattern.
     /// </summary>
     public int TrackedIndex { get; init; } = -1;
@@ -77,7 +77,7 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
     ///     Per-node style override (<see cref="IGraphNode.Style" />). Per-player nodes get a teal border
     ///     so they read as "materializes per player"; every other node inherits the global theme
     ///     (<c>null</c>). The border resolves the <c>GraphNodePerPlayerBorder</c> token at READ time
-    ///     (v0.6.0 code-color promotion — was a fixed teal that ignored the theme); the graph re-reads
+    ///     (v0.6.0 code-color promotion, was a fixed teal that ignored the theme); the graph re-reads
     ///     styles when it re-renders, which the theme-switch repaint already triggers.
     /// </summary>
     public NodeStyle? Style

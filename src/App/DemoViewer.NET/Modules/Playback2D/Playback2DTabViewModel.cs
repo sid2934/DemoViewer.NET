@@ -45,7 +45,7 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///     The 2D Playback tab's view-model. Subscribes to <c>IModuleContext.Advanced</c> on
 ///     activation and unsubscribes on deactivation, so it does ZERO per-tick work while inactive.
 ///     In the <c>Advanced</c> handler it copies out scalars for each live player (position / team / health
-///     / weapons) INSIDE the callback — the <see cref="IPlayerState" />, the snapshot, and any resolved
+///     / weapons) INSIDE the callback: the <see cref="IPlayerState" />, the snapshot, and any resolved
 ///     <see cref="IReadOnlyEntity" /> are transient/pooled and invalid the instant the callback
 ///     returns. The viewport redraw is coalesced to the render frame, driven by
 ///     <see cref="FrameUpdated" />.
@@ -63,7 +63,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     // The module's own "events of interest" for forward-nav (Phase E): a 2D combat viewer scrubs between
     // kills. The filter is matched against the host's demo-derived event set, so the buttons only show when
-    // the demo actually carries player_death (asset/demo-independent — no hardcoded assumption it exists).
+    // the demo actually carries player_death (asset/demo-independent, no hardcoded assumption it exists).
     private const string KillEventName = "player_death";
 
     /// <summary>The feature id gating the whole export affordance. A persisted key; never renamed.</summary>
@@ -91,7 +91,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     };
 
     // The WHOLE demo's kills, pre-built ONCE at load from IModuleContext.GetEventTimeline("player_death")
-    // (decoupling display from the push cadence — no kill lost to a render-skipped frame). Rebuilt if the
+    // (decoupling display from the push cadence, no kill lost to a render-skipped frame). Rebuilt if the
     // roster arrives after activation (#2, names depend on it). _killWindow is reusable render scratch.
     private readonly List<KillFeedRow> _allKills = new();
 
@@ -206,7 +206,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     // Identity of the last-published visible slice (count + boundary ticks) so an unchanged window doesn't
     // churn the ObservableCollection every push (the slice changes only when the playhead crosses a kill's
-    // tick or its expiry — rare relative to ~60 pushes/sec).
+    // tick or its expiry, rare relative to ~60 pushes/sec).
     private int _lastKillCount = -1;
     private int _lastKillFirstTick;
     private int _lastKillLastTick;
@@ -214,11 +214,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // ── Live Sync (CS2) in-context HUD indicator ─────────────────────────────────────────────────────────
     // A display-only chip on the HUD overlay band, driven by the shell-pushed ILiveSyncHudState projection
     // (engine-free; read via IModuleContext.LiveSyncHud). Captured at activation so deactivation unsubscribes
-    // the SAME instance. Non-interactive (IsHitTestVisible=False in the view) — the shell status chip is the
+    // the SAME instance. Non-interactive (IsHitTestVisible=False in the view): the shell status chip is the
     // control centre; see the design-system decision on the display-only call.
     private ILiveSyncHudState? _liveSyncHud;
 
-    /// <summary>Hollow-ring flag — the inferred-pause treatment.</summary>
+    /// <summary>Hollow-ring flag: the inferred-pause treatment.</summary>
     [ObservableProperty]
     private bool _liveSyncHudHollow;
 
@@ -226,7 +226,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     [ObservableProperty]
     private string _liveSyncHudLabel = "";
 
-    /// <summary>Dot-pulse flag (Following / working) — an opacity animation, not a colour change.</summary>
+    /// <summary>Dot-pulse flag (Following / working): an opacity animation, not a colour change.</summary>
     [ObservableProperty]
     private bool _liveSyncHudPulsing;
 
@@ -271,14 +271,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     [ObservableProperty]
     private bool _showRadar = true; // baked radar background (A1); off → grid fallback
 
-    // Overlay visibility toggles (A4 — "each sub-overlay toggleable"). Default ON. The three viewport-drawn
+    // Overlay visibility toggles (A4: "each sub-overlay toggleable"). Default ON. The three viewport-drawn
     // overlays (trails / area effects / bomb ring) are gated in the viewport's DrawSection and need a repaint
-    // when toggled — hence the FrameUpdated nudge below (a toggle isn't a playback push). The kill feed is a
+    // when toggled, hence the FrameUpdated nudge below (a toggle isn't a playback push). The kill feed is a
     // bound panel in the view, so its toggle drives IsVisible directly (the nudge is a harmless no-op for it).
     [ObservableProperty]
     private bool _showTrails = true;
 
-    // 3D line-of-sight ("Vision") overlay. OFF by default — it lazily builds a collision BVH (~0.5s,
+    // 3D line-of-sight ("Vision") overlay. OFF by default: it lazily builds a collision BVH (~0.5s,
     // off-thread) the first time it's enabled on a map that has baked collision. Draws could-see sightlines.
     [ObservableProperty]
     private bool _showVision;
@@ -370,7 +370,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public LoadedMapAsset? MapAsset { get; private set; }
 
     /// <summary>
-    ///     Test seam: the map name the viewport last (re)loaded assets for — set unconditionally by
+    ///     Test seam: the map name the viewport last (re)loaded assets for, set unconditionally by
     ///     <see cref="EnsureMapAsset" /> whether or not a baked bundle exists, so a headless test can assert
     ///     the map-reload path ran on a demo reload without the bundle files being present.
     /// </summary>
@@ -384,7 +384,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     /// <summary>
     ///     The kill-feed rows currently in the display window (ordered oldest→newest). A tick-window
-    ///     filter over the pre-built timeline, refreshed each push — NOT an accumulator.
+    ///     filter over the pre-built timeline, refreshed each push, NOT an accumulator.
     /// </summary>
     public ObservableCollection<KillFeedRow> KillFeed { get; } = new();
 
@@ -1839,7 +1839,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // list), which leaves the user with a dead key and no reason unless the footer says one.
     partial void OnSpeedLockNoteChanged(string value) => Timeline.SpeedLockNote = value;
 
-    // A NEW demo was loaded while this tab is active — the roster / map / entities changed under us with no
+    // A NEW demo was loaded while this tab is active: the roster / map / entities changed under us with no
     // Advanced push (LoadDemo resets the clock silently). Full resync so the map image, marker labels,
     // trails, ring state, and kill feed all reflect the new demo, exactly as a fresh activation would. This
     // is the state-restoration parity the Open-file button and the library browser must share.
@@ -1926,7 +1926,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // Seeds the roster-DERIVED display state (slot→name labels + one attributes row per slot). Re-runnable:
     // if the roster arrives AFTER activation (host sets it post-load), BuildFrame re-invokes this on the
     // empty→populated transition so cards/initials appear without a tab re-activation (#2). Touches ONLY
-    // display state — never the ring / last-known gameplay caches (slot-keyed; a display re-seed must not
+    // display state, never the ring / last-known gameplay caches (slot-keyed; a display re-seed must not
     // wipe ring-flash / death-marker history).
     private void SeedRosterDisplay()
     {
@@ -1964,7 +1964,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         BuildKillTimeline();
 
         // IModuleContext.MapName arrives with the roster (same host load step), so this is also the moment the
-        // baked map-asset bundle (nav floors + radar) becomes selectable — load it here (and on the late
+        // baked map-asset bundle (nav floors + radar) becomes selectable: load it here (and on the late
         // roster-arrival re-seed) so the viewport gets authoritative floors without a tab re-activation.
         EnsureMapAsset();
     }
@@ -1990,7 +1990,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     /// <summary>
     ///     Swaps in a new map asset and DISPOSES the one it replaces. The radar images are Skia-backed, so
-    ///     their pixel buffers are unmanaged (~4 MB each) — simply dropping the reference leaks them until a
+    ///     their pixel buffers are unmanaged (~4 MB each): simply dropping the reference leaks them until a
     ///     finalizer happens to run, which is why a map swap used to grow native memory every time.
     ///     <para>
     ///         The old asset is disposed at Background priority rather than inline: the render thread may
@@ -2044,7 +2044,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             }
             catch
             {
-                // ignore — overlay silently stays off if collision can't be loaded/built
+                // ignore: overlay silently stays off if collision can't be loaded/built
             }
 
             Dispatcher.UIThread.Post(() =>
@@ -2107,7 +2107,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     // Kill feed (A4): PRE-BUILD the whole demo's kills ONCE from the host's player_death timeline, resolving
     // slots → roster names and reading the typed modifiers the event factory enriched. Display is a tick
-    // WINDOW filter over this (UpdateKillFeedWindow) — so nothing is lost to a render-skipped frame and a
+    // WINDOW filter over this (UpdateKillFeedWindow), so nothing is lost to a render-skipped frame and a
     // seek shows the right kills. Rebuilt when the roster (re)seeds, since names depend on it (#2).
     private void BuildKillTimeline()
     {
@@ -2120,8 +2120,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         foreach (GameEventView ev in _context.GetEventTimeline("player_death"))
         {
             // Field names are the SDK payload record's properties (PlayerDeathEvent). The retired
-            // generator's semantic-role names — KillerSlot / VictimSlot / AssisterSlot / IsHeadshot /
-            // PenetratedObjects / ThroughSmoke — no longer exist as keys, and every read of one returned
+            // generator's semantic-role names, KillerSlot / VictimSlot / AssisterSlot / IsHeadshot /
+            // PenetratedObjects / ThroughSmoke, no longer exist as keys, and every read of one returned
             // the miss default: "world" killed "world", never a headshot. Check the embedded catalog (CatalogResource.Load()) before
             // adding a key here; it is generated by reflecting over these same records.
             int assister = ReadSlot(ev, "Assister");
@@ -2157,7 +2157,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _lastKillCount = -1;
     }
 
-    // Refreshes the visible rows to the kills whose tick is in (now − window, now] — inclusive upper bound is
+    // Refreshes the visible rows to the kills whose tick is in (now − window, now], inclusive upper bound is
     // load-bearing: a kill AHEAD of the playhead must not appear when paused/seeking. Linear filter over a
     // few-hundred-element list (tens of µs), then sort the small visible window by tick (AllGameEvents order
     // is not guaranteed) and keep the most recent N. Skips the ObservableCollection update when the visible
@@ -2175,7 +2175,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         if (count == _lastKillCount && firstTick == _lastKillFirstTick && lastTick == _lastKillLastTick)
         {
-            return; // unchanged visible slice — don't churn the UI
+            return; // unchanged visible slice: don't churn the UI
         }
 
         KillFeed.Clear();
@@ -2255,7 +2255,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             int health = ReadInt(pawn, "m_iHealth", hasPawn ? 100 : 0);
             bool alive = hasPawn && IsAlive(pawn);
 
-            // Attributes for EVERY roster player — a dead/orphaned player keeps its controller-sourced
+            // Attributes for EVERY roster player: a dead/orphaned player keeps its controller-sourced
             // stats (K/D/A, cash, score) and grays out, instead of vanishing from the panel.
             UpdateAttributes(p, entities, health, alive, CurrentFrame.GameInfo.RoundsPlayed);
         }
@@ -2297,7 +2297,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     // Updates one player's attributes row in place. The weapon resolves walk the clobber
-    // hazard — ResolveHandle returns a SHARED pooled facade, so each resolved entity's class is read
+    // hazard: ResolveHandle returns a SHARED pooled facade, so each resolved entity's class is read
     // IMMEDIATELY, before the next resolve.
     private void UpdateAttributes(IPlayerState p, IReadOnlyEntityView entities, int health, bool alive,
         int roundsPlayed)
@@ -2325,7 +2325,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         a.Cash = FormatInt(ctrl, "m_pInGameMoneyServices.m_iAccount");
         a.RoundKills = FormatInt(ctrl, "m_pActionTrackingServices.m_iNumRoundKills");
 
-        // Match-total K/D/A — cumulative scoreboard stats, networked directly under the
+        // Match-total K/D/A: cumulative scoreboard stats, networked directly under the
         // action-tracking service (verified flattened paths; m_matchStats aggregates flatten up). Totals
         // are the headline stat the panel shows; round-kills stays available on the row VM.
         a.Kda = ctrl is null
@@ -2339,7 +2339,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // (carried on the built frame as SceneGameInfo.RoundsPlayed). Floored at 1 round so the opening round (0
         // completed) shows damage/1 instead of dividing by zero; reduces to total-damage/total-rounds at game
         // end. Mid-round it reads slightly high (the live round's damage over a not-yet-incremented
-        // denominator) then normalizes at round end — the standard live-scoreboard ADR behaviour.
+        // denominator) then normalizes at round end. That is the standard live-scoreboard ADR behaviour.
         if (ctrl is null)
         {
             a.Damage = "—";
@@ -2391,7 +2391,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                 continue;
             }
 
-            // Read the class name immediately (clobber rule) — classify before the next resolve.
+            // Read the class name immediately (clobber rule): classify before the next resolve.
             switch (Classify(w.ClassName))
             {
                 case NadeKind.Flash: flash++; break;
@@ -2455,7 +2455,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     private static bool ReadBool(IReadOnlyEntity? entity, string path) =>
-        // Bools arrive as Int32 (0/1) on the wire (project_cs2_wire_encoding) — compare to 0, never `is bool`.
+        // Bools arrive as Int32 (0/1) on the wire (project_cs2_wire_encoding): compare to 0, never `is bool`.
         entity is not null && entity.TryGet(path, out int v) && v != 0;
 
     private static string FormatInt(IReadOnlyEntity? entity, string path)

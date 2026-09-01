@@ -24,14 +24,14 @@ public interface IWindowService
     void OpenParseChainInspector(object dataContext);
 
     /// <summary>
-    ///     Opens the Settings screen for <paramref name="viewModel" /> — a separate
+    ///     Opens the Settings screen for <paramref name="viewModel" />: a separate
     ///     <see cref="SettingsWindow" /> on desktop, an in-app overlay on WASM. The service takes ownership
     ///     of <paramref name="viewModel" />'s disposal (it is a fresh VM per open).
     /// </summary>
     void OpenSettings(SettingsViewModel viewModel);
 
     /// <summary>
-    ///     Shows the first-run setup wizard for <paramref name="viewModel" /> — a MODAL
+    ///     Shows the first-run setup wizard for <paramref name="viewModel" />: a MODAL
     ///     <see cref="FirstRunWizardWindow" /> owned by the main window on desktop (setup completes before
     ///     the app is used), an in-app overlay on WASM. The wizard closes itself on its
     ///     <c>Completed</c> event (Finish / Skip).
@@ -39,14 +39,14 @@ public interface IWindowService
     void ShowFirstRunWizard(FirstRunWizardViewModel viewModel);
 
     /// <summary>
-    ///     Shows the update-notice pop-up (version, release notes, Update &amp; Restart / Later) —
+    ///     Shows the update-notice pop-up (version, release notes, Update &amp; Restart / Later):
     ///     a non-modal <see cref="UpdateNoticeWindow" /> on desktop. No-op on WASM: the browser
     ///     head has no installed build to update, so the notice can never be reached there.
     /// </summary>
     void ShowUpdateNotice(UpdateNoticeViewModel viewModel);
 
     /// <summary>
-    ///     Shows the post-update "What's new" window — a non-modal <see cref="WhatsNewWindow" />
+    ///     Shows the post-update "What's new" window: a non-modal <see cref="WhatsNewWindow" />
     ///     on desktop. No-op on WASM (version is per-deploy there; there is no "first launch after
     ///     an update" moment to gate on).
     /// </summary>
@@ -54,11 +54,11 @@ public interface IWindowService
 }
 
 /// <summary>
-///     Desktop <see cref="IWindowService" /> — spawns a single re-used <see cref="ParseChainWindow" />.
+///     Desktop <see cref="IWindowService" />: spawns a single re-used <see cref="ParseChainWindow" />.
 ///     <para>
 ///         Lives in the shared <c>DemoViewer.NET</c> project (not the Desktop host) because
-///         <see cref="ParseChainWindow" /> is a shared <see cref="Window" /> and <c>App.axaml.cs</c> — which
-///         constructs the service per lifetime — is itself in the shared assembly and cannot reference the
+///         <see cref="ParseChainWindow" /> is a shared <see cref="Window" /> and <c>App.axaml.cs</c>, which
+///         constructs the service per lifetime, is itself in the shared assembly and cannot reference the
 ///         Desktop host project. The lifetime branch in <c>App</c> selects this only under the classic
 ///         desktop lifetime.
 ///     </para>
@@ -127,7 +127,7 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
     /// <summary>
     ///     Shows the update-notice pop-up, single re-used window (the parse-chain pattern): the shell
     ///     keeps ONE <see cref="UpdateNoticeViewModel" /> per run, so re-showing an open window just
-    ///     re-activates it. Non-modal on purpose — an update is never urgent enough to block work.
+    ///     re-activates it. Non-modal on purpose: an update is never urgent enough to block work.
     /// </summary>
     public void ShowUpdateNotice(UpdateNoticeViewModel viewModel)
     {
@@ -161,7 +161,7 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
 
     /// <summary>
     ///     Shows the "What's new" window (non-modal, owned). Shown at most once per launch by the
-    ///     shell's version gate, so no re-activate path is needed — but it keeps the single-window
+    ///     shell's version gate, so no re-activate path is needed, but it keeps the single-window
     ///     guard anyway for symmetry with every other window here.
     /// </summary>
     public void ShowWhatsNew(WhatsNewViewModel viewModel)
@@ -219,13 +219,13 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
         if (owner is not null)
         {
             // Modal: the owner is disabled until setup is finished / skipped. Fire-and-forget the dialog
-            // task — completion is driven by the Completed → Close wiring above.
+            // task: completion is driven by the Completed → Close wiring above.
             _ = window.ShowDialog(owner);
         }
         else
         {
             // No showable owner (should not happen at the launch trigger, which waits for
-            // MainWindow.Opened) — fall back to a non-modal show rather than throwing.
+            // MainWindow.Opened): fall back to a non-modal show rather than throwing.
             window.Show();
         }
     }
@@ -249,7 +249,7 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
     ///     The main window, but ONLY when it can legally act as an owner. Avalonia throws
     ///     <see cref="InvalidOperationException" /> ("Cannot show window with non-visible owner") from
     ///     both <c>Show(owner)</c> and <c>ShowDialog(owner)</c> if the owner has not been shown yet or
-    ///     has already closed — and the lookup hands back the main window from the moment it is
+    ///     has already closed, and the lookup hands back the main window from the moment it is
     ///     constructed, well before it is shown. Callers that reach this during framework-init (or
     ///     after the shell closes) therefore get <c>null</c> and fall back to a free-standing show,
     ///     which is a cosmetically worse pop-up but never a crash.
@@ -258,7 +258,7 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
 }
 
 /// <summary>
-///     Browser <see cref="IWindowService" /> — the WASM host has no OS windows, so opening a separate
+///     Browser <see cref="IWindowService" />: the WASM host has no OS windows, so opening a separate
 ///     parse-chain window is unsupported. No-ops for now; an in-app overlay can replace this later
 ///     (the design doc sketched a <c>ShellOverlayService</c>, which does not yet exist).
 /// </summary>
@@ -281,7 +281,7 @@ public sealed class BrowserWindowService : IWindowService
     /// <summary>Open parse chain inspector.</summary>
     public void OpenParseChainInspector(object dataContext)
     {
-        // No OS windows on WASM. Intentionally no-op — the parse-chain strip remains visible
+        // No OS windows on WASM. Intentionally no-op: the parse-chain strip remains visible
         // inline in the shell, so no functionality is lost on the browser host.
     }
 
@@ -296,7 +296,7 @@ public sealed class BrowserWindowService : IWindowService
         }
         else
         {
-            // No shell wired (should not happen in the real host) — release the VM's subscription.
+            // No shell wired (should not happen in the real host): release the VM's subscription.
             viewModel.Dispose();
         }
     }
@@ -306,19 +306,19 @@ public sealed class BrowserWindowService : IWindowService
     {
         ArgumentNullException.ThrowIfNull(viewModel);
 
-        // No shell wired (should not happen in the real host) — nothing to surface it on. The wizard VM is
+        // No shell wired (should not happen in the real host): nothing to surface it on. The wizard VM is
         // not IDisposable, so there is nothing to release.
         OnShowFirstRun?.Invoke(viewModel);
     }
 
-    /// <summary>No-op — the browser head has no installed build, so updates never surface there.</summary>
+    /// <summary>No-op: the browser head has no installed build, so updates never surface there.</summary>
     public void ShowUpdateNotice(UpdateNoticeViewModel viewModel)
     {
         // Intentionally empty: UpdateViewModel.IsSupported is false on WASM, so this is unreachable
         // in practice; the no-op keeps the interface total rather than throwing.
     }
 
-    /// <summary>No-op — WASM deploys have no "first launch after an update" moment to gate on.</summary>
+    /// <summary>No-op: WASM deploys have no "first launch after an update" moment to gate on.</summary>
     public void ShowWhatsNew(WhatsNewViewModel viewModel)
     {
         // Intentionally empty; see ShowUpdateNotice.

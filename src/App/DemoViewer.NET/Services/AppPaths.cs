@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Services;
 
 /// <summary>
 ///     The single owner of the App layer's app-data file paths. Every persisted store (the consolidated
-///     config file — plus the still-separate per-demo bookmarks / graph breakpoints and the
+///     config file, plus the still-separate per-demo bookmarks / graph breakpoints and the
 ///     library cache) and the desktop crash log resolves its location here instead of reaching for
 ///     <see cref="Environment.SpecialFolder.ApplicationData" />
 ///     directly, so the whole app writes under ONE cross-platform root
@@ -20,12 +20,12 @@ namespace DemoViewer.NET.Services;
 ///     <c>$XDG_CONFIG_HOME/DemoViewer.NET</c> (default <c>~/.config/DemoViewer.NET</c>) on Linux.
 ///     <para>
 ///         There is no filesystem in the WASM/browser sandbox, so <see cref="ConfigRoot" /> and every
-///         file path is <c>null</c> there — callers mirror the stores' existing no-op-on-WASM behavior.
+///         file path is <c>null</c> there. Callers mirror the stores' existing no-op-on-WASM behavior.
 ///     </para>
 ///     <para>
 ///         <b>macOS migration.</b> The stores historically resolved
 ///         <see cref="Environment.SpecialFolder.ApplicationData" />, which .NET maps to <c>~/.config</c>
-///         on Unix (macOS included) — NOT the unified macOS root above. Requesting a path therefore runs
+///         on Unix (macOS included), NOT the unified macOS root above. Requesting a path therefore runs
 ///         a one-time, best-effort move of any legacy <c>~/.config/DemoViewer.NET/&lt;file&gt;</c> into the
 ///         new location (see the private migration helper).
 ///     </para>
@@ -35,7 +35,7 @@ public static class AppPaths
     private const string AppConfigDirName = "DemoViewer.NET";
 
     /// <summary>
-    ///     Environment override that replaces <see cref="ConfigRoot" /> wholesale — a test seam that keeps
+    ///     Environment override that replaces <see cref="ConfigRoot" /> wholesale, a test seam that keeps
     ///     tests out of the real user config dir. Being set also suppresses the legacy macOS migration, so
     ///     a test run never touches the developer's real <c>~/.config</c> files.
     /// </summary>
@@ -66,7 +66,7 @@ public static class AppPaths
     }
 
     /// <summary>
-    ///     The single consolidated per-user config file — <c>settings.json</c>. Besides preferences
+    ///     The single consolidated per-user config file: <c>settings.json</c>. Besides preferences
     ///     it now also carries the UI session-restore snapshot and the recents list (the former
     ///     <c>session.json</c> / <c>recent-files.json</c>, folded in by <see cref="Configuration.SettingsService" />).
     ///     <c>null</c> on WASM.
@@ -74,39 +74,39 @@ public static class AppPaths
     public static string? SettingsFile => Resolve("settings.json");
 
     /// <summary>
-    ///     Persisted bookmarks — <c>SessionState.json</c>. Per-demo working data; kept SEPARATE from the config file.
+    ///     Persisted bookmarks: <c>SessionState.json</c>. Per-demo working data; kept SEPARATE from the config file.
     ///     <c>null</c> on
     ///     WASM.
     /// </summary>
     public static string? BookmarksFile => Resolve("SessionState.json");
 
     /// <summary>
-    ///     Persisted analysis-graph breakpoints — <c>GraphBreakpoints.json</c>. Per-demo; kept SEPARATE.
+    ///     Persisted analysis-graph breakpoints: <c>GraphBreakpoints.json</c>. Per-demo; kept SEPARATE.
     ///     <c>null</c> on WASM.
     /// </summary>
     public static string? GraphBreakpointsFile => Resolve("GraphBreakpoints.json");
 
     /// <summary>
-    ///     Demo-library metadata cache — <c>library.json</c>. Rebuildable cache; kept SEPARATE. <c>null</c> on
+    ///     Demo-library metadata cache: <c>library.json</c>. Rebuildable cache; kept SEPARATE. <c>null</c> on
     ///     WASM.
     /// </summary>
     public static string? LibraryCacheFile => Resolve("library.json");
 
-    /// <summary>Desktop last-chance crash log — <c>crash.log</c>. Not a config store; kept SEPARATE. <c>null</c> on WASM.</summary>
+    /// <summary>Desktop last-chance crash log: <c>crash.log</c>. Not a config store; kept SEPARATE. <c>null</c> on WASM.</summary>
     public static string? CrashLogFile => Resolve("crash.log");
 
     /// <summary>
-    ///     Library-wide highlights cache — <c>highlights.json</c>.
+    ///     Library-wide highlights cache: <c>highlights.json</c>.
     ///     A rebuildable cache like <see cref="LibraryCacheFile" />; kept SEPARATE. <c>null</c> on WASM.
     /// </summary>
     public static string? HighlightsCacheFile => Resolve("highlights.json");
 
     /// <summary>
-    ///     The unified demo-information cache directory — <c>&lt;config&gt;/cache/</c>, holding
+    ///     The unified demo-information cache directory: <c>&lt;config&gt;/cache/</c>, holding
     ///     <c>index.json</c> plus one sidecar per demo under <c>demos/</c>
     ///     . Supersedes <see cref="LibraryCacheFile" /> and
     ///     <see cref="HighlightsCacheFile" />, which remain here only so the one-shot migration can read them.
-    ///     A PURE path — the store creates directories when it first writes. <c>null</c> on WASM.
+    ///     A PURE path: the store creates directories when it first writes. <c>null</c> on WASM.
     /// </summary>
     public static string? DemoCacheDir
     {
@@ -118,9 +118,9 @@ public static class AppPaths
     }
 
     /// <summary>
-    ///     The user theme drop-in directory — <c>&lt;config&gt;/themes/</c> (central theme system,
+    ///     The user theme drop-in directory: <c>&lt;config&gt;/themes/</c> (central theme system,
     ///     the design notes in git history, T3). Each <c>*.json</c> here is loaded as a custom theme. A PURE path
-    ///     (no directory creation — a side-effect-free getter keeps VM construction hermetic in tests);
+    ///     (no directory creation, a side-effect-free getter keeps VM construction hermetic in tests);
     ///     <see cref="EnsureThemesDirectory" /> creates it once at app startup. <c>null</c> on WASM (no filesystem).
     /// </summary>
     public static string? ThemesDirectory
@@ -133,9 +133,9 @@ public static class AppPaths
     }
 
     /// <summary>
-    ///     Directory for the unified diagnostics rolling log files — <c>&lt;config&gt;/logs/</c>. A stable,
+    ///     Directory for the unified diagnostics rolling log files: <c>&lt;config&gt;/logs/</c>. A stable,
     ///     discoverable location under the app-data root (NOT the OS temp dir, which is too ephemeral for
-    ///     "attach recent logs to a user-reported issue"). A PURE path — no directory creation — so getter
+    ///     "attach recent logs to a user-reported issue"). A PURE path: no directory creation, so getter
     ///     access stays side-effect-free; <see cref="EnsureLogsDirectory" /> creates it once at startup.
     ///     <c>null</c> on WASM (no filesystem).
     /// </summary>
@@ -155,7 +155,7 @@ public static class AppPaths
     ///         <see cref="RuleSetLocator" /> lives in CS2DemoKit.Analysis, which is a general
     ///         library with its own default name. Leaving that default in place would silently
     ///         move every existing install's settings, session state, recents, bookmarks, library
-    ///         cache and user rules to a directory that has never had anything in it — the data is
+    ///         cache and user rules to a directory that has never had anything in it. The data is
     ///         not lost, but the app comes up looking factory-fresh, which is worse than an error.
     ///     </para>
     ///     <para>
@@ -177,7 +177,7 @@ public static class AppPaths
 
     /// <summary>
     ///     Best-effort creates <see cref="ThemesDirectory" /> so a user has somewhere to drop theme files
-    ///     (called once at startup, off the hot path). No-op on WASM; a failure is swallowed — the registry's
+    ///     (called once at startup, off the hot path). No-op on WASM; a failure is swallowed, the registry's
     ///     scan tolerates a missing directory (no drop-ins). Returns the path (or <c>null</c> on WASM).
     /// </summary>
     public static string? EnsureThemesDirectory()
@@ -194,7 +194,7 @@ public static class AppPaths
         }
         catch
         {
-            // Best-effort — the scan (LoadUserThemes) checks Directory.Exists and no-ops when absent.
+            // Best-effort, the scan (LoadUserThemes) checks Directory.Exists and no-ops when absent.
         }
 
         return dir;
@@ -202,8 +202,8 @@ public static class AppPaths
 
     /// <summary>
     ///     Best-effort creates <see cref="LogsDir" /> so the rolling file sink has somewhere to write
-    ///     (called once at startup, off the hot path). No-op / <c>null</c> on WASM; a failure is swallowed
-    ///     — the sink tolerates a missing directory by staying disabled.
+    ///     (called once at startup, off the hot path). No-op / <c>null</c> on WASM; a failure is swallowed,
+    ///     the sink tolerates a missing directory by staying disabled.
     /// </summary>
     public static string? EnsureLogsDirectory()
     {
@@ -219,7 +219,7 @@ public static class AppPaths
         }
         catch
         {
-            // Best-effort — the sink checks writeability and disables itself on failure.
+            // Best-effort, the sink checks writeability and disables itself on failure.
         }
 
         return dir;
@@ -228,7 +228,7 @@ public static class AppPaths
     /// <summary>
     ///     The diagnostics log files present under <see cref="LogsDir" />, newest first (by last-write
     ///     time), for the copy-diagnostics attachment. Returns an empty array on WASM or when the directory
-    ///     is absent/unreadable — never throws.
+    ///     is absent/unreadable, never throws.
     /// </summary>
     public static IReadOnlyList<string> LatestLogFiles()
     {
@@ -259,7 +259,7 @@ public static class AppPaths
         string? root = ConfigRoot;
         if (root is null)
         {
-            return null; // WASM — no filesystem
+            return null; // WASM: no filesystem
         }
 
         try
@@ -318,7 +318,7 @@ public static class AppPaths
         }
         catch
         {
-            // Best-effort: a missing source, a locked file, or a cross-volume move must never throw — the
+            // Best-effort: a missing source, a locked file, or a cross-volume move must never throw. The
             // store simply starts fresh at the new location.
         }
     }

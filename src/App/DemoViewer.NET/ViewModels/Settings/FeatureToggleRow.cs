@@ -18,7 +18,7 @@ namespace DemoViewer.NET.ViewModels.Settings;
 ///     <para>
 ///         <b>Echo guard.</b> A gate-driven refresh (<see cref="Refresh" />) pushes the gate's decision into
 ///         <see cref="IsEnabled" /> under <see cref="_applyingRefresh" /> so the change-hook does NOT persist
-///         it straight back as a new override — the row-level analog of the VM's <c>_applyingExternal</c>
+///         it straight back as a new override, the row-level analog of the VM's <c>_applyingExternal</c>
 ///         guard. This is deliberately NOT the VM's <c>_writing</c> guard: an <em>external</em> category
 ///         change refreshes rows while <c>_writing</c> is false, and a <c>_writing</c>-only guard would then
 ///         materialise a spurious override for every row whose default shifted.
@@ -26,7 +26,7 @@ namespace DemoViewer.NET.ViewModels.Settings;
 /// </summary>
 public sealed partial class FeatureToggleRow : ObservableObject
 {
-    // The live gate — the source of truth for IsEnabled, and the value a locked row bounces its setter back
+    // The live gate: the source of truth for IsEnabled, and the value a locked row bounces its setter back
     // to (Required / group-follower). Reads only; the row never mutates it.
     private readonly IFeatureGate _gate;
     private readonly SettingsViewModel _owner;
@@ -35,12 +35,12 @@ public sealed partial class FeatureToggleRow : ObservableObject
     // change-hook then does NOT persist it back as an override. See the class remarks.
     private bool _applyingRefresh;
 
-    /// <summary>Whether the feature resolves visible right now (the gate's decision — GET is authoritative).</summary>
+    /// <summary>Whether the feature resolves visible right now (the gate's decision: GET is authoritative).</summary>
     [ObservableProperty]
     private bool _isEnabled;
 
     /// <summary>
-    ///     Whether an explicit override exists for this feature (it differs from the category default) — drives
+    ///     Whether an explicit override exists for this feature (it differs from the category default), drives
     ///     the subtle "overridden" indicator and the per-row clear-override affordance.
     /// </summary>
     [ObservableProperty]
@@ -61,7 +61,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
         IsPlatformUnavailable = platformUnavailable;
 
         // A grouped feature toggles atomically from its LEADER (the gate resolves every member's own-state
-        // from the leader). So a NON-leader member's own override is inert — the row must not offer an
+        // from the leader). So a NON-leader member's own override is inert. The row must not offer an
         // independent toggle for it (that would persist a phantom override that snaps back). Detect it and
         // present it as "follows <leader>", locked like a Required row.
         if (descriptor.GroupId is { } groupId)
@@ -75,7 +75,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
         }
     }
 
-    /// <summary>The stable catalog id — the persisted override key.</summary>
+    /// <summary>The stable catalog id: the persisted override key.</summary>
     public string FeatureId { get; }
 
     /// <summary>Short human name (from the descriptor).</summary>
@@ -84,13 +84,13 @@ public sealed partial class FeatureToggleRow : ObservableObject
     /// <summary>One-line explanation (from the descriptor).</summary>
     public string Description { get; }
 
-    /// <summary>Tab / SubFeature / Chrome — for the scope chip and grouping.</summary>
+    /// <summary>Tab / SubFeature / Chrome: for the scope chip and grouping.</summary>
     public FeatureScope Scope { get; }
 
     /// <summary>0 for a Tab/Chrome row, 1 for a SubFeature nested under its parent tab.</summary>
     public int IndentLevel { get; }
 
-    /// <summary>A Required feature can never be disabled — the toggle is locked on with a "required" hint.</summary>
+    /// <summary>A Required feature can never be disabled: the toggle is locked on with a "required" hint.</summary>
     public bool IsRequired { get; }
 
     /// <summary>
@@ -103,7 +103,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
     public string? FollowsLabel { get; }
 
     /// <summary>
-    ///     True when this feature cannot exist on THIS host whatever the user's override says — the
+    ///     True when this feature cannot exist on THIS host whatever the user's override says: the
     ///     browser head and one of <c>ShellModuleFeatureGate.DesktopOnlyIds</c>.
     ///     <para>
     ///         This list binds the raw <see cref="IFeatureGate" />, which resolves catalog and override
@@ -150,14 +150,14 @@ public sealed partial class FeatureToggleRow : ObservableObject
     public Thickness IndentMargin => new(IndentLevel * 20, 0, 0, 0);
 
     // Push the gate's authoritative decision into the bound state WITHOUT echoing a write (the change-hook is
-    // neutered by _applyingRefresh). Concrete Dictionary param (CA1859) — the only caller passes
+    // neutered by _applyingRefresh). Concrete Dictionary param (CA1859): the only caller passes
     // AppSettings.Features.Overrides.
     internal void Refresh(IFeatureGate gate, Dictionary<string, bool> overrides)
     {
         _applyingRefresh = true;
         try
         {
-            // A platform-unavailable row shows OFF regardless of what the raw gate answers — the gate
+            // A platform-unavailable row shows OFF regardless of what the raw gate answers: the gate
             // resolves catalog + override and does not know the host, and this row has to agree with
             // what the module will actually see through ShellModuleFeatureGate.
             IsEnabled = !IsPlatformUnavailable && gate.IsEnabled(FeatureId);
@@ -173,7 +173,7 @@ public sealed partial class FeatureToggleRow : ObservableObject
     {
         if (_applyingRefresh)
         {
-            return; // a gate-driven refresh, not a user toggle — never persist it back.
+            return; // a gate-driven refresh, not a user toggle: never persist it back.
         }
 
         if (IsPlatformUnavailable)

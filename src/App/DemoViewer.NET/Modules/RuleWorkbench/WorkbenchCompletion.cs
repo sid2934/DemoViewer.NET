@@ -8,7 +8,7 @@ using CS2DemoKit.Analysis.Catalog;
 namespace DemoViewer.NET.Modules.RuleWorkbench;
 
 /// <summary>
-///     One completion candidate surfaced in the Workbench editor — a catalog term or a
+///     One completion candidate surfaced in the Workbench editor: a catalog term or a
 ///     sibling stat. Kept UI-free (no AvaloniaEdit dependency) so the vocabulary is unit-testable; the
 ///     View wraps each in an <c>ICompletionData</c> for the AvaloniaEdit completion window.
 /// </summary>
@@ -17,7 +17,7 @@ namespace DemoViewer.NET.Modules.RuleWorkbench;
 /// <param name="Detail">A short type/description shown beside the candidate.</param>
 public sealed record WorkbenchCompletion(string Text, string Category, string Detail)
 {
-    /// <summary>Completion priority by category — the terms an author reaches for most sort first.</summary>
+    /// <summary>Completion priority by category: the terms an author reaches for most sort first.</summary>
     public double Priority => Category switch
     {
         "stat" => 6,
@@ -36,7 +36,7 @@ public sealed record WorkbenchCompletion(string Text, string Category, string De
 }
 
 /// <summary>
-///     Where the caret sits, so completion can suggest the RIGHT kind of term (type-aware completion —
+///     Where the caret sits, so completion can suggest the RIGHT kind of term (type-aware completion:
 ///     "type suggestions"). Parsed from the current line up to the caret.
 /// </summary>
 /// <param name="ActiveKey">
@@ -48,7 +48,7 @@ public sealed record WorkbenchCompletion(string Text, string Category, string De
 ///     The enclosing top-level section (v0.6.0 block-scope, GAP-UI-2 cause 3): the last column-0
 ///     key above the caret ("stats", "show", "highlights", …), the
 ///     <see cref="WorkbenchCompletionSource.TopLevelBlock" /> sentinel when the caret is itself at
-///     column 0, or <c>null</c> when unknown (the line-only overload — legacy behaviour).
+///     column 0, or <c>null</c> when unknown (the line-only overload, legacy behaviour).
 /// </param>
 public readonly record struct WorkbenchCompletionContext(string? ActiveKey, bool AtKeyPosition, string? Block = null)
 {
@@ -59,23 +59,23 @@ public readonly record struct WorkbenchCompletionContext(string? ActiveKey, bool
 /// <summary>Builds the Workbench editor's completion vocabulary from the catalog + the edited buffer.</summary>
 public static class WorkbenchCompletionSource
 {
-    /// <summary>Block sentinel: the caret is at column 0 — a TOP-LEVEL section key position.</summary>
+    /// <summary>Block sentinel: the caret is at column 0, a TOP-LEVEL section key position.</summary>
     public const string TopLevelBlock = "<top>";
 
-    // The closed function set (docs/rules-v2/rules-v2-spec.md) and the stat kinds — stable, not catalog-derived.
+    // The closed function set (docs/rules-v2/rules-v2-spec.md) and the stat kinds: stable, not catalog-derived.
     private static readonly string[] _functions = ["min", "max", "abs", "floor", "contains", "startswith"];
 
     private static readonly string[] _kinds =
         ["count", "sum", "capture", "compute", "tally", "streak", "bucket", "rate", "flag"];
 
-    // The stat/rule/show modifier keys — offered (alongside kinds) when the caret is at a key position.
+    // The stat/rule/show modifier keys: offered (alongside kinds) when the caret is at a key position.
     private static readonly string[] _modifiers =
     [
         "per", "when", "while", "where", "on", "as", "keep", "of", "by", "match", "title", "group", "label",
         "stat", "reset", "live", "at_least", "at_most", "format"
     ];
 
-    // The document's top-level section keys (the rules authoring guide in the CS2DemoKit repo) —
+    // The document's top-level section keys (the rules authoring guide in the CS2DemoKit repo):
     // offered at a column-0 key position.
     private static readonly string[] _sections = ["ruleset", "for", "use", "stats", "highlights", "show"];
 
@@ -83,7 +83,7 @@ public static class WorkbenchCompletionSource
     // _modifiers; only the containers are show-specific.
     private static readonly string[] _showKeys = ["scoreboard", "tables", "columns"];
 
-    // Stat ids are direct children of `stats:` — 2-space indent. Matching exactly two leading spaces
+    // Stat ids are direct children of `stats:`, 2-space indent. Matching exactly two leading spaces
     // avoids the 4-space kind keys (count/sum/…) and deeper nesting. (A proper YAML-block parse is a
     // follow-up; the shipped rulesets use 2-space indentation.)
     private static readonly Regex _statIdLine =
@@ -109,7 +109,7 @@ public static class WorkbenchCompletionSource
             "capture"
         };
 
-    // Keys whose value is a read expression — the whole read vocabulary (contexts, entity, functions,
+    // Keys whose value is a read expression: the whole read vocabulary (contexts, entity, functions,
     // facets, sibling stats, events, booleans).
     private static readonly HashSet<string> _expressionValuedKeys =
         new(StringComparer.Ordinal)
@@ -126,7 +126,7 @@ public static class WorkbenchCompletionSource
             "rate"
         };
 
-    // The LAST `<key>:` before the caret — the tolerant value-position anchor (GAP-UI-2).
+    // The LAST `<key>:` before the caret: the tolerant value-position anchor (GAP-UI-2).
     private static readonly Regex _keyBeforeCaret = new(@"([A-Za-z_][\w]*)\s*:", RegexOptions.Compiled);
 
     /// <summary>
@@ -135,7 +135,7 @@ public static class WorkbenchCompletionSource
     ///     <see cref="WorkbenchCompletionContext.Any" />.
     ///     <para>
     ///         GAP-UI-2 fix: the value position anchors on the LAST <c>key:</c> before the caret instead
-    ///         of demanding the line END exactly at the partial value — so trailing spaces after a
+    ///         of demanding the line END exactly at the partial value, so trailing spaces after a
     ///         completed token, mid-line carets, values containing spaces, and inline maps
     ///         (<c>when: { enemy: tr</c> narrows on the INNER key) all narrow instead of falling
     ///         through to the whole vocabulary. A column-0 prefix still reports <c>Any</c> on purpose:
@@ -151,7 +151,7 @@ public static class WorkbenchCompletionSource
             Match last = keys[^1];
             string tail = lineBeforeCaret[(last.Index + last.Length)..];
             // Still inside this key's value unless an inline-map delimiter has already closed the
-            // entry (`{ enemy: true, ` / `{ enemy: true }`) — a between-entries caret is not a
+            // entry (`{ enemy: true, ` / `{ enemy: true }`): a between-entries caret is not a
             // value position, and guessing a key there would narrow to the WRONG set.
             if (!tail.Contains(',') && !tail.Contains('}'))
             {
@@ -161,7 +161,7 @@ public static class WorkbenchCompletionSource
             return WorkbenchCompletionContext.Any;
         }
 
-        // `<indent><partial-key>` with no colon yet — the caret is typing a stat-body key.
+        // `<indent><partial-key>` with no colon yet, the caret is typing a stat-body key.
         if (Regex.IsMatch(lineBeforeCaret, @"^\s+[A-Za-z_]?[\w]*$"))
         {
             return new WorkbenchCompletionContext(null, true);
@@ -171,11 +171,11 @@ public static class WorkbenchCompletionSource
     }
 
     /// <summary>
-    ///     Block-scoped overload (v0.6.0 — GAP-UI-2 cause 3): resolves the line context AND the
+    ///     Block-scoped overload (v0.6.0, GAP-UI-2 cause 3): resolves the line context AND the
     ///     enclosing top-level section from <paramref name="textBeforeCaret" /> (everything from the
     ///     document start to the caret). A key position inside <c>show:</c> then offers the show
     ///     vocabulary instead of stat kinds, and a partial word at COLUMN 0 offers the section keys
-    ///     instead of everything. Value positions keep their line-local key — the nearest key always
+    ///     instead of everything. Value positions keep their line-local key: the nearest key always
     ///     outranks the block.
     /// </summary>
     public static WorkbenchCompletionContext ContextFor(string lineBeforeCaret, string? textBeforeCaret)
@@ -193,7 +193,7 @@ public static class WorkbenchCompletionSource
         };
     }
 
-    // The last column-0 `key:` on any line ABOVE the caret's line — the enclosing section.
+    // The last column-0 `key:` on any line ABOVE the caret's line: the enclosing section.
     private static string? EnclosingBlock(string? textBeforeCaret)
     {
         if (string.IsNullOrEmpty(textBeforeCaret))
@@ -215,14 +215,14 @@ public static class WorkbenchCompletionSource
         return block;
     }
 
-    /// <summary>Vocabulary-wide candidates (legacy behaviour) — no cursor narrowing.</summary>
+    /// <summary>Vocabulary-wide candidates (legacy behaviour): no cursor narrowing.</summary>
     public static IReadOnlyList<WorkbenchCompletion> Build(CatalogRoot catalog, string? bufferText) =>
         Build(catalog, bufferText, WorkbenchCompletionContext.Any);
 
     /// <summary>
     ///     The candidate set for the cursor <paramref name="context" />: the catalog views + facets, context
     ///     paths, entity reads, functions, stat kinds/modifiers, closed value-enums, and the sibling stat ids
-    ///     parsed from <paramref name="bufferText" /> — then NARROWED to the roles that fit where the caret
+    ///     parsed from <paramref name="bufferText" />, then NARROWED to the roles that fit where the caret
     ///     sits (a value after <c>per:</c> offers <c>round/match</c>; after <c>count:</c> the events; a key
     ///     position offers kinds + modifiers). <see cref="WorkbenchCompletionContext.Any" /> returns the whole
     ///     vocabulary. Deduplicated by (Text, Category); the completion window still filters by typed prefix.
@@ -230,7 +230,7 @@ public static class WorkbenchCompletionSource
     public static IReadOnlyList<WorkbenchCompletion> Build(
         CatalogRoot catalog, string? bufferText, WorkbenchCompletionContext context)
     {
-        // A key with a closed value-enum (per/for/keep) is answered directly — nothing else fits.
+        // A key with a closed value-enum (per/for/keep) is answered directly: nothing else fits.
         if (context.ActiveKey is { } key && _valueEnums.TryGetValue(key, out string[]? enumValues))
         {
             return [.. enumValues.Select(v => new WorkbenchCompletion(v, "literal", $"value · {key}"))];
