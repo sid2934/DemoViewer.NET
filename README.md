@@ -18,7 +18,7 @@ release](https://github.com/sid2934/DemoViewer.NET/releases/latest):
 | macOS (Apple Silicon) | `…-osx-Setup.pkg` |
 | Linux (x64) | `…-linux….AppImage` |
 
-Each installer is self-contained — it carries the .NET runtime and the map assets, so one download
+Each installer is self-contained: it carries the .NET runtime and the map assets, so one download
 is everything. The app updates itself from this repository's releases; you are told about a new
 version and it downloads only when you say so.
 
@@ -26,7 +26,7 @@ Builds are currently **unsigned**, so the first launch needs one extra step: on 
 the app and choose **Open**; on Windows, click **More info → Run anyway** at the SmartScreen
 prompt.
 
-The other files on a release — `.nupkg`, `RELEASES*`, `releases.*.json` — are what the updater
+The other files on a release (`.nupkg`, `RELEASES*`, `releases.*.json`) are what the updater
 reads. You never need to download those by hand.
 
 ## What it does
@@ -48,7 +48,7 @@ straight to a moment in-game, or render clips to video (requires `ffmpeg`).
 **Library.** Points at your demo folders, reads match metadata in the background, and remembers
 what it has seen so a re-open is instant.
 
-**Live Sync.** Drives a running CS2 instance from the app — seek the game to the tick you are
+**Live Sync.** Drives a running CS2 instance from the app: seek the game to the tick you are
 looking at, verify a highlight actually looks the way the rules claim.
 
 **The developer half.** A Parser tab that walks every demo frame down to the message, the byte
@@ -67,7 +67,7 @@ recorded per capability in
 Stats and highlights are YAML rulesets, not hard-coded queries. The shipped set lives in `rules/`,
 and the in-app Rule Workbench edits them with completion and validation against the JSON schema.
 
-Your own rules go in a user directory the app creates for you — a ruleset there with the same id as
+Your own rules go in a user directory the app creates for you. A ruleset there with the same id as
 a shipped one replaces it wholesale, and a new id adds new stats. `enabled: false` turns a shipped
 ruleset off without redefining it.
 
@@ -80,7 +80,7 @@ from `CS2DemoKit.Analysis` and are kept byte-identical to the package's copies; 
 
 Bugs and feature requests live in [GitHub
 issues](https://github.com/sid2934/DemoViewer.NET/issues). Note that the parser and analysis engine
-are a separate project — anything about demo parsing, entity decoding, stat correctness or the
+are a separate project. Anything about demo parsing, entity decoding, stat correctness or the
 rules engine belongs in [CS2DemoKit's
 issues](https://github.com/CS2OpenDev/CS2DemoKit/issues) instead, since that is where the fix would
 land.
@@ -92,18 +92,18 @@ dotnet build                                          # whole solution
 dotnet run --project src/App/DemoViewer.NET.Desktop   # run the app
 ```
 
-Needs the .NET 10 SDK. Restore pulls everything from nuget.org — no extra feeds, no credentials.
+Needs the .NET 10 SDK. Restore pulls everything from nuget.org: no extra feeds, no credentials.
 
 Tests use [TUnit](https://tunit.dev), not xUnit or NUnit:
 
 ```sh
-scripts/test-app-suite.sh -n 6                        # app suite, batched — see below
+scripts/test-app-suite.sh -n 6                        # app suite, batched; see below
 dotnet run --project src/Testing/DemoViewer.NET.LiveSync.Tests
 ```
 
 The app suite must go through the batch runner. It is a single-process headless UI suite and runs
 out of memory on a 16 GB machine otherwise; `-n 6` is the batch count that holds. The Live Sync
-suite binds port 50051, which is machine-exclusive — close other CS2 tooling first, and note those
+suite binds port 50051, which is machine-exclusive, so close other CS2 tooling first, and note those
 tests skip rather than fail if the port is busy.
 
 The parser and analysis engine are not in this repository. They live in
@@ -112,7 +112,7 @@ parser or engine change belongs there, followed by a version bump here.
 
 ## Licence
 
-MIT — see [`LICENSE`](LICENSE). Portions of the demo decoder are adapted from
+MIT; see [`LICENSE`](LICENSE). Portions of the demo decoder are adapted from
 [demofile-net](https://github.com/saul/demofile-net), also MIT; see
 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
 

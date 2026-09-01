@@ -4,7 +4,7 @@ A maintenance release built on new parser and analysis packages. One fix in it i
 for on its own.
 
 **Demos that used to fail analysis outright now work.** Some demos died with an unhandled error the
-moment analysis started — not a degraded result, no result at all. The cause was a frame sharing a
+moment analysis started: not a degraded result, no result at all. The cause was a frame sharing a
 tick with a checkpoint the analyzer had picked, and across a corpus spanning every protocol version
 in a real matchmaking replays folder it took out 6 of 15 demos. All 15 now analyze. If you have a
 many-core machine you were far more likely to hit this: the analyzer picks more checkpoints the more
@@ -50,16 +50,16 @@ highlights with in-app reels, and a long list of scoring and roster correctness 
 
 ## Install
 
-Download the one installer for your platform — nothing else is required:
+Download the one installer for your platform. Nothing else is required:
 
-- **Windows** — `…-win-Setup.exe`
-- **macOS (Apple Silicon)** — `…-osx-Setup.pkg`
-- **Linux (x64)** — the `…-linux…AppImage`
+- **Windows**: `…-win-Setup.exe`
+- **macOS (Apple Silicon)**: `…-osx-Setup.pkg`
+- **Linux (x64)**: the `…-linux…AppImage`
 
 Each installer is **self-contained**: it bundles the .NET runtime **and** the map assets, so a single download has everything.
 
 This build is **unsigned** (signing is planned):
-- **macOS** — right-click the app → **Open** on first launch.
-- **Windows** — at the SmartScreen prompt, click **More info → Run anyway**.
+- **macOS**: right-click the app → **Open** on first launch.
+- **Windows**: at the SmartScreen prompt, click **More info → Run anyway**.
 
-> The `.nupkg`, `RELEASES*`, and `releases.*.json` files below are what the in-app updater reads — you don't need to download them by hand.
+> The `.nupkg`, `RELEASES*`, and `releases.*.json` files below are what the in-app updater reads; you don't need to download them by hand.

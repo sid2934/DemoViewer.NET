@@ -104,7 +104,7 @@ public readonly record struct PlayerMarker(int Slot, int Team, float WorldX, flo
 
 public readonly record struct KillFeedRow(int Tick, string Attacker, string? Assister,
     string Victim, string Weapon, bool Headshot, bool Penetrated, bool NoScope, bool ThroughSmoke,
-    bool AttackerBlind, bool AttackerInAir, bool AssistedFlash);        // CORE — B4 must not redeclare
+    bool AttackerBlind, bool AttackerInAir, bool AssistedFlash);        // CORE: B4 must not redeclare
 ```
 
 `IsDiscontinuity` is authored by `SceneFrameBuilder`; `Scene2DHost`'s frame-index-delta fallback is

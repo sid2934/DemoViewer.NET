@@ -121,7 +121,7 @@ next HUD layer cannot be added to two of the three.
 ### 3.2 HUD roster (D3b)
 
 ```csharp
-// …Core.Hud — a Core type, because IHudDataSource returns it and Core cannot see Pipeline.
+// …Core.Hud, a Core type, because IHudDataSource returns it and Core cannot see Pipeline.
 public readonly record struct HudPlayerRow(
     int Slot, int Team, string Name, bool IsAlive,
     int Health, int Armor, bool HasHelmet, bool HasDefuser,
@@ -147,7 +147,7 @@ argument and reads the source's last-built frame, and the roster reader does the
 ### 3.3 Keymap profile (D1)
 
 ```csharp
-// The shipped table stays static, stays conflict-checked, and STILL THROWS — it is a compile-time
+// The shipped table stays static, stays conflict-checked, and STILL THROWS: it is a compile-time
 // contract. User overrides never route through it.
 public sealed class Playback2DKeymapProfile
 {
@@ -174,7 +174,7 @@ existing array precedent in `SettingsService.WriteInMemory` and the one shape
 ### 3.4 Per-button tools and ink (D2)
 
 ```csharp
-// …Core.Input — the router owns the button→tool map; the session owns the button→style map.
+// …Core.Input. The router owns the button→tool map; the session owns the button→style map.
 public sealed class InputToolRouter
 {
     public ToolKind? SecondaryTool { get; set; }   // right button; null = same as Active

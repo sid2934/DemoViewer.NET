@@ -73,9 +73,17 @@ the punctuation it actually needs:
 `- ` is not the answer. It reads as a dash that lost its nerve, and it leaves the interrupter
 stacking of rule 8 exactly where it was.
 
-Two things are not prose and keep their character: an em-dash inside a code span or a `<c>` tag
-(`design-system.md` documents `—` as a glyph), and a lone `—` in a table cell meaning "not
-applicable". Replace the latter with `n/a` only if the column reads better for it.
+Three things are not prose and keep their character:
+
+- An em-dash inside a code span or a `<c>` tag, where the glyph is the subject. `design-system.md`
+  documents `—` as a character.
+- A lone `—` in a table cell meaning "not applicable". Replace with `n/a` only if the column reads
+  better for it.
+- **A doc quoting a user-facing string.** Product strings are neither comments nor documents and are
+  out of scope, so `AnnotationSessionController` still returns `"session only — this browser tab
+  forgets annotations when it reloads"`, and `wasm-matrix.md` quotes it verbatim. Editing the quote
+  makes the doc wrong about the app, and one of these is pinned by
+  `Playback2DAnnotationPersistenceTests`. Check the string exists in source before touching a quote.
 
 Then the clause-level cuts. Search, then remove the clause. Each is ≥3× the house rate.
 

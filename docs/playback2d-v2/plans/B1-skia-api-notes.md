@@ -53,7 +53,7 @@ under a world matrix" case never arises.
 ### Text (`TextBlobCache`, T8/T9)
 
 ```csharp
-SKTextBlob? blob = SKTextBlob.Create(string, SKFont);       // NULLABLE — empty string returns null
+SKTextBlob? blob = SKTextBlob.Create(string, SKFont);       // NULLABLE: empty string returns null
 canvas.DrawText(SKTextBlob, float x, float y, SKPaint);     // NOTE: SKPaint, not SKFont
 
 int    n       = font.CountGlyphs(text);
@@ -130,7 +130,7 @@ exists but is **not** used: it implies a `MoveTo` and would change the sub-path 
 
 ```csharp
 SKSurface.Create(SKImageInfo);                              // offscreen, Skia owns the memory
-SKSurface.Create(SKImageInfo, IntPtr pixels, int rowBytes); // over a locked framebuffer — T13
+SKSurface.Create(SKImageInfo, IntPtr pixels, int rowBytes); // over a locked framebuffer, T13
 ```
 
 Both present. T13 uses the second over `ILockedFramebuffer.Address` / `.RowBytes` with

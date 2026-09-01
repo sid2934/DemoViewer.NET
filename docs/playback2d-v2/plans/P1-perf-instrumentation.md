@@ -134,7 +134,7 @@ or changes meaning.
 "perf": {
   "frames": 900,
   "frame_ms": { "p50": …, "p95": …, "p99": …, "max": …, "mean": … },  // sum of captured stages
-  "max_render_fps": …,     // 1000 / render-stage p50 — the uncapped render-only ceiling
+  "max_render_fps": …,     // 1000 / render-stage p50: the uncapped render-only ceiling
   "max_frame_fps": …,      // 1000 / frame p50
   "stages": [ { "name": "source", "p50": …, "total_ms": …, "share_pct": … }, … ],
   "layers": [ { "name": "playback2d.vision", "phase": "render", "p50": …, "total_ms": …,

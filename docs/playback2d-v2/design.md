@@ -294,7 +294,7 @@ parsing, nothing more.
 public readonly record struct SceneTime(
     int Tick, int FrameIndex, double DemoSeconds,   // DemoSeconds = ServerTick / tickRate − clockBase
     double DeltaSeconds,                            // injected: real dt interactive, 1/fps on export
-    bool IsDiscontinuity);                          // seek/jump — layers reset smoothing/trails
+    bool IsDiscontinuity);                          // seek/jump: layers reset smoothing/trails
 
 public enum RenderPurpose { Interactive, Export, Thumbnail }
 ```
@@ -342,7 +342,7 @@ guideline).
 
 ```csharp
 public interface ICameraRig { ViewportTransform? ComputeTarget(LevelPane pane, Scene2DFrame frame); }
-// FitMapRig, FitAliveRig, ManualRig, FollowPlayerRig(slot) — the follow rig adds a deadzone window
+// FitMapRig, FitAliveRig, ManualRig, FollowPlayerRig(slot). The follow rig adds a deadzone window
 // (Keren) on top of today's 900u half-extent box so small strafes don't shimmy the camera.
 
 public sealed class LevelPane
@@ -357,7 +357,7 @@ public sealed class MapSpace
 {
     public IReadOnlyList<MapLevel> Levels { get; }   // { Id, Name, ZMin, ZMax, SKImage? Radar }
     public MapLevel LevelFor(double worldZ);          // hysteresis band at boundaries
-    public event Action? LevelSetChanged;             // FloorSplitter keeps learning — see below
+    public event Action? LevelSetChanged;             // FloorSplitter keeps learning; see below
 }
 
 public interface ILevelLayoutPolicy { IReadOnlyList<LevelPane> Arrange(MapSpace space, LevelDisplayMode mode, SKSize host); }
@@ -386,7 +386,7 @@ public sealed record AnnotationElement(
     Guid Id, AnnotationKind Kind,                  // Freehand, Line, Arrow, Rect, Ellipse, Text
     AnnotationStyle Style,                         // ARGB color, width (world units), opacity
     SpaceRef Space, TimeEnvelope Time,
-    IReadOnlyList<InkPoint> Points,                // world x,y (+pressure) — never screen space
+    IReadOnlyList<InkPoint> Points,                // world x,y (+pressure), never screen space
     string? Text);
 
 public abstract record SpaceRef
@@ -501,12 +501,12 @@ public sealed record ExportRequest(int StartFrame, int EndFrame, int Fps, SKSize
     string FormatId /* webm | mp4 | gif */, IReadOnlySet<string> LayerIds, CameraScript Camera);
 
 public sealed record CameraScript;   // Fixed(transform) | FollowPlayer(steamId) | MirrorLiveView
-                                     // — the future highlight generator emits these
+                                     // the future highlight generator emits these
 
 public sealed class SceneExportSession
 {
     public Task RunAsync(ExportRequest req, ISceneFrameSource src, IFrameSink sink,
-        IRenderSurfaceProvider surfaces,            // CPU or GPU — §5.8
+        IRenderSurfaceProvider surfaces,            // CPU or GPU, §5.8
         IProgress<ExportProgress> progress, CancellationToken ct);
 }
 ```

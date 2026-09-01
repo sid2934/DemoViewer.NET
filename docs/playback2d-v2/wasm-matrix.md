@@ -65,7 +65,7 @@ from. The method, so the next reading is comparable:
 ```bash
 # uncompressed = every file under wwwroot EXCEPT the .br/.gz siblings
 # brotli       = the .br files alone
-# `du -sh wwwroot` reports ~102 MiB and is NOT either figure — it counts all three copies.
+# `du -sh wwwroot` reports ~102 MiB and is NOT either figure: it counts all three copies.
 ```
 
 The publish emits `.br`/`.gz` beside every asset; serve them. That size is the price of

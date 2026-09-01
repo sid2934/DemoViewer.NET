@@ -38,8 +38,8 @@ pays for all of it. That is the cost this phase removes.
 > **Pre-push and final review run `full`. CI runs `full`.**
 
 ```bash
-scripts/test.sh                              # standard, every project — the default
-scripts/test.sh -t standard -p playback2d    # standard, one project — the in-flight loop
+scripts/test.sh                              # standard, every project: the default
+scripts/test.sh -t standard -p playback2d    # standard, one project: the in-flight loop
 scripts/test.sh -t fast                      # the 40-second sanity sweep
 scripts/test.sh -t full                      # before you push, and what CI does
 scripts/test.sh -t fast -p app -l            # discover and count, run nothing
