@@ -15,7 +15,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Render probes for the docked timeline: it draws SOMETHING where it is supposed to, and nothing at all
-///     when its feature gate is off. Non-blank probes rather than goldens — the golden corpus exists only
+///     when its feature gate is off. Non-blank probes rather than goldens: the golden corpus exists only
 ///     for the CPU surface provider.
 /// </summary>
 [NotInParallel]
@@ -58,7 +58,7 @@ public class Playback2DTimelineRenderTests
                               + $"-> {path}");
 
             // This used to assert `nonBg > 100`, where nonBg counted pixels with ANY non-zero channel.
-            // Pb2dPanelBg is #1A1E24 — every channel non-zero — so the opaque panel fill alone satisfied
+            // Pb2dPanelBg is #1A1E24, every channel non-zero, so the opaque panel fill alone satisfied
             // it several thousand times over, on a completely empty timeline. The line below records that
             // the old metric is still trivially true, so the reason this case was rewritten cannot be
             // lost by someone restoring it.
@@ -103,7 +103,7 @@ public class Playback2DTimelineRenderTests
             await Assert.That(vm.Timeline.IsVisible).IsFalse();
             await Assert.That(timeline.IsVisible).IsFalse();
 
-            // Auto-sized row: an off gate must leave no layout HOLE — the viewport takes the space back.
+            // Auto-sized row: an off gate must leave no layout HOLE, so the viewport takes the space back.
             Console.WriteLine($"[timeline-gate] viewport {viewportWithTimeline:F0} -> {viewport.Bounds.Height:F0}"
                               + $" (timeline was {timelineHeight:F0})");
             await Assert.That(viewport.Bounds.Height).IsEqualTo(viewportWithTimeline + timelineHeight);
@@ -174,7 +174,7 @@ public class Playback2DTimelineRenderTests
 
     /// <summary>What one rectangle of the captured frame actually contains.</summary>
     /// <param name="Area">Pixels examined.</param>
-    /// <param name="Fill">The most common colour — for a panel, its background.</param>
+    /// <param name="Fill">The most common colour: for a panel, its background.</param>
     /// <param name="FillCount">How many pixels are that colour.</param>
     /// <param name="Ink">Pixels that are NOT the fill: everything drawn on top of it.</param>
     /// <param name="DistinctColours">Distinct colours present, fill included.</param>

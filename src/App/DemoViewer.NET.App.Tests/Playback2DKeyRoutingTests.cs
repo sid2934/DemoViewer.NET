@@ -91,7 +91,7 @@ public class Playback2DKeyRoutingTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
-            // Inject a text field INSIDE the tunnel's subtree — outside it the guard would never be
+            // Inject a text field INSIDE the tunnel's subtree: outside it the guard would never be
             // reached, so an in-subtree field is the only form of this test that proves anything.
             TextBox field = new()
             {

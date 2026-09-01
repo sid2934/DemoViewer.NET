@@ -134,7 +134,7 @@ internal sealed class Playback2DFakeContext : IModuleContext
     /// <summary>
     ///     Pushes one snapshot of ALIVE players at explicit world positions, advancing the frame and
     ///     tick. The default <see cref="AddPlayer" /> states carry a field-less pawn, which the scene
-    ///     builder correctly reads as "not alive" — no discs, no rings, nothing to look at. This is the
+    ///     builder correctly reads as "not alive", no discs, no rings, nothing to look at. This is the
     ///     entry point the render tests use.
     /// </summary>
     /// <param name="markers">Slot, team, world X/Y/Z and yaw per player.</param>

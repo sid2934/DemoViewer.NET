@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Render smoke for the shell's update banner. The VM tests prove the decision logic; this proves
-///     the markup actually draws — the two banner rows live in <c>MainView.axaml</c> and bind through
+///     the markup actually draws: the two banner rows live in <c>MainView.axaml</c> and bind through
 ///     <c>Update.*</c>, so a renamed property or a bad resource key would otherwise fail silently at
 ///     runtime (Avalonia binding errors do not throw) and ship an invisible update prompt.
 ///     <para>
@@ -100,7 +100,7 @@ public class UpdateBannerRenderTests
                         {
                             // "Details…" mirrors the v0.6.0 banner (it re-opens the update-notice
                             // pop-up; the command lives on MainViewModel, so the mirror uses a
-                            // placeholder — presence and layout are what this smoke proves).
+                            // placeholder: presence and layout are what this smoke proves).
                             new Button
                             {
                                 Content = "Details…"
@@ -164,7 +164,7 @@ public class UpdateBannerRenderTests
         return window.CaptureRenderedFrame();
     }
 
-    /// <summary>Same marshal-copy scan the other render smokes use — no unsafe blocks in this project.</summary>
+    /// <summary>Same marshal-copy scan the other render smokes use. No unsafe blocks in this project.</summary>
     private static int ScanNonBackground(WriteableBitmap bmp)
     {
         PixelSize size = bmp.PixelSize;

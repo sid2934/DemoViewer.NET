@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Scanner queue/staleness battery, now over the GLOBAL demo-
 ///     processing queue (demo-processing-queue.md). The scanner FEEDS Pending rows into a real
-///     <see cref="DemoProcessingQueue" /> (fake parser — no demos), which owns the newest-first drain,
+///     <see cref="DemoProcessingQueue" /> (fake parser, no demos), which owns the newest-first drain,
 ///     the gate yielding, and the one-at-a-time invariant. The behaviours asserted here are the ones
 ///     that stayed the scanner's: forced-vs-opt-in gating, staleness reconciliation, the piggyback
 ///     opt-in, and failure marking only the row. Drain-order / concurrency / gate-yield are exercised
@@ -26,8 +26,8 @@ namespace DemoViewer.NET.AppTests;
 public class HighlightScanServiceTests
 {
     /// <summary>
-    ///     A minimal synthetic <see cref="ParsedDemo" /> (internal ctor via InternalsVisibleTo) —
-    ///     the fake queue parser hands one to the scanner's per-row processing.
+    ///     A minimal synthetic <see cref="ParsedDemo" /> (internal ctor via InternalsVisibleTo) that
+    ///     the fake queue parser hands to the scanner's per-row processing.
     /// </summary>
     private static ParsedDemo SyntheticDemo(int tickRate = 64) => SyntheticParsedDemo.Create(
         [],
@@ -48,7 +48,7 @@ public class HighlightScanServiceTests
         "",
         DemoProfile.Unknown);
 
-    // Builds a scanner wired to a real queue THROUGH the coordinator — the production path (phase 3b): the
+    // Builds a scanner wired to a real queue THROUGH the coordinator, the production path (phase 3b): the
     // coordinator submits the scanner's Wants'd rows, the queue (fake parser, no filesystem) drives the
     // drain/gate, and the scanner's Evaluate does the per-row work via its processorOverride. The queue +
     // coordinator are kept alive by scanner.Coordinator; tests dispose only the scanner.
@@ -142,7 +142,7 @@ public class HighlightScanServiceTests
     public async Task GotvProfileId_PinsTheBuildersResolvedProfileTypeName()
     {
         // The A2 fingerprint stamps this literal while the real build composes with
-        // RuleChainBuilder.Profile.GetType().Name — a profile-class rename must break HERE,
+        // RuleChainBuilder.Profile.GetType().Name. A profile-class rename must break HERE,
         // loudly, instead of silently invalidating every cached fingerprint.
         await Assert.That(typeof(Cs2GotvProfile).Name)
             .IsEqualTo(RulesHighlightHarvester.GotvProfileId);
@@ -171,7 +171,7 @@ public class HighlightScanServiceTests
         {
             // THE ONE THAT MATTERS. The old pass deleted every row whose demo was not in the current
             // library paths. That was safe against a highlights-only store and is destructive against the
-            // SHARED one: the same call would take the Library's tier-2 roster, score and rounds with it —
+            // SHARED one: the same call would take the Library's tier-2 roster, score and rounds with it,
             // and a folder on a detached volume enumerates zero files, so it would fire precisely when the
             // demos are still fine. Pruning belongs to the Library, which has the reached-roots guard.
             await Assert.That(store.TryLoadRecord("/demos/vanished.dem")).IsNotNull()
@@ -204,7 +204,7 @@ public class HighlightScanServiceTests
             (path, _) =>
             {
                 int now = Interlocked.Increment(ref concurrent);
-                // CAS max — a plain read-modify-write could drop the very violation it exists to record.
+                // CAS max: a plain read-modify-write could drop the very violation it exists to record.
                 int seen;
                 while (now > (seen = Volatile.Read(ref maxConcurrent))
                        && Interlocked.CompareExchange(ref maxConcurrent, now, seen) != seen)
@@ -303,7 +303,7 @@ public class HighlightScanServiceTests
             .Because("with the opt-in on the piggyback runs a full replay");
 
         // Fresh matching row (mtime/size 0 == missing-file identity, fingerprint fp-A@64): the fast
-        // path returns even with the opt-in on — the counter must not advance.
+        // path returns even with the opt-in on. The counter must not advance.
         store.Upsert(IndexedRow("/d/fresh.dem", 0));
         scanner.OnParsedOpportunistically("/d/fresh.dem", parsed);
         await Assert.That(harvester.RunBareAnalysisCalls).IsEqualTo(1)
@@ -345,11 +345,11 @@ public class HighlightScanServiceTests
             ModifiedTicks = 1
         });
 
-        // …a manual retry on ONE demo drains exactly that demo — even though it is the OLDEST —
+        // …a manual retry on ONE demo drains exactly that demo, even though it is the OLDEST,
         // and leaves the rest queued (D8: no whole-library marathon from a single retry click).
         scanner.RequestScan("/d/wanted.dem");
         await WaitForAsync(() => processed.Count > 0 && !scanner.IsScanning, "scoped forced drain");
-        // Settle: give any (wrongly) enqueued auto rows a chance to run — they must not.
+        // Settle: give any (wrongly) enqueued auto rows a chance to run. They must not.
         await Task.Delay(100);
 
         await Assert.That(processed).IsEquivalentTo(["/d/wanted.dem"]);
@@ -401,7 +401,7 @@ public class HighlightScanServiceTests
             },
             gate);
 
-        // An interactive job holds the machine — the scanner's queued work must not process.
+        // An interactive job holds the machine. The scanner's queued work must not process.
         IDisposable interactive = await gate.AcquireInteractiveAsync();
         store.Upsert(new DemoCacheRecord
         {
@@ -424,7 +424,7 @@ public class HighlightScanServiceTests
         public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate) =>
             ($"{CurrentFingerprint}@{tickRate}", new Dictionary<string, string>());
 
-        // Records the call so the piggyback gate is observable, then throws — the queue/staleness
+        // Records the call so the piggyback gate is observable, then throws. The queue/staleness
         // tests still route real work through the processor override, never through here.
         public AnalysisRun RunBareAnalysis(ParsedDemo demo)
         {

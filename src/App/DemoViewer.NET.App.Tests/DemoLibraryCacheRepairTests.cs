@@ -15,7 +15,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The library cache's SELF-HEALING contract. <c>ExtractFinalScore</c> is both-or-nothing, so a row with
-///     a CT score and no T score is a state the current code cannot produce — yet the reference library is
+///     a CT score and no T score is a state the current code cannot produce, yet the reference library is
 ///     full of them (555 rows with a CT score, 3 with the T score), left behind when the model's
 ///     <c>TScore</c>/<c>TClan</c> properties were renamed to <c>Score</c>/<c>Clan</c> and every already-written
 ///     row silently stopped deserializing its T side. <c>ScoreComputed = true</c> then guaranteed nothing would
@@ -23,8 +23,8 @@ namespace DemoViewer.NET.AppTests;
 ///     <para>
 ///         <b>The risk these tests actually guard is the re-index loop.</b> A repair that cannot tell "never
 ///         computed" from "computed and legitimately produced nothing" re-parses the same demos on every single
-///         launch, forever. Termination here is structural — the repair predicate flags only states the
-///         extractor cannot emit, so a re-derived row is never suspect again — and that is only believable if
+///         launch, forever. Termination here is structural: the repair predicate flags only states the
+///         extractor cannot emit, so a re-derived row is never suspect again, and that is only believable if
 ///         it is measured across THREE launches, not two: two cannot distinguish "terminated" from "terminates
 ///         one launch later".
 ///     </para>
@@ -38,7 +38,7 @@ public class DemoLibraryCacheRepairTests
 {
     private static readonly Action<Action> _inline = a => a();
 
-    /// <summary>A parse with no frames — <c>ExtractFinalScore</c>'s genuine "produced nothing" case.</summary>
+    /// <summary>A parse with no frames, <c>ExtractFinalScore</c>'s genuine "produced nothing" case.</summary>
     private static ParsedDemo ScorelessDemo(int rounds = 0)
     {
         List<GameEvent> events = [];
@@ -62,7 +62,7 @@ public class DemoLibraryCacheRepairTests
     }
 
     // Writes a library.json holding the folder plus one cache row per stub demo, keyed on the real
-    // (path, size, mtime) so the row is a genuine cache HIT — a mis-keyed row is silently ignored and
+    // (path, size, mtime) so the row is a genuine cache HIT. A mis-keyed row is silently ignored and
     // would make every one of these tests pass for the wrong reason.
     private static string SeedLibrary(string dir, params (string Name, Action<DemoLibraryCacheEntry> Row)[] demos)
     {
@@ -100,7 +100,7 @@ public class DemoLibraryCacheRepairTests
     }
 
     // One app launch: construct the service over the persisted library (folders come from the file, so every
-    // launch is identical — no AddFolders rescan racing the explicit one), drain tier-2, return how many
+    // launch is identical: no AddFolders rescan racing the explicit one), drain tier-2, return how many
     // demos were PARSED. That count is the whole measurement: a repair that loops shows up as a non-zero
     // count on launch 3.
     private static async Task<int> LaunchAsync(string dataPath, Func<string, ParsedDemo>? parse = null)
@@ -149,14 +149,14 @@ public class DemoLibraryCacheRepairTests
     ///     on disk is left EXACTLY as written.
     ///     <para>
     ///         NOTE: this test was reversed on 2026-07-29. It previously demanded
-    ///         <c>first == 1</c> — the repaired row rejoined the tier-2 backlog and re-derived automatically.
+    ///         <c>first == 1</c>: the repaired row rejoined the tier-2 backlog and re-derived automatically.
     ///         Correct in the small, ruinous at scale: on the reference library that is 342 demos / ~100 GB of
     ///         background parsing on the first launch after upgrade, on a library that looks unchanged. It is
     ///         an explicit action now (<c>RepairPendingScoresAsync</c>) and the card says so meanwhile.
     ///     </para>
     ///     <para>
     ///         The untouched row is the load-bearing half. The state is re-derived from the row's own data on
-    ///         every load, so it cannot be lost — which is what lets this work with no persisted marker.
+    ///         every load, so it cannot be lost, which is what lets this work with no persisted marker.
     ///     </para>
     /// </summary>
     [Test]
@@ -258,7 +258,7 @@ public class DemoLibraryCacheRepairTests
 
             DemoLibraryCacheEntry row = ReadRows(dataPath).Single();
 
-            // Launch 3: quiet again — the repair must not become a loop.
+            // Launch 3, quiet again: the repair must not become a loop.
             int after = await LaunchAsync(dataPath);
 
             using (Assert.Multiple())
@@ -329,7 +329,7 @@ public class DemoLibraryCacheRepairTests
     }
 
     /// <summary>
-    ///     A complete row is left alone — the repair must not become a whole-library re-index. The parser
+    ///     A complete row is left alone. The repair must not become a whole-library re-index. The parser
     ///     THROWS, so any submitted parse fails the test loudly rather than passing quietly.
     /// </summary>
     [Test]
@@ -447,7 +447,7 @@ public class DemoLibraryCacheRepairTests
     /// <summary>
     ///     The other half of the stale-data finding: <c>RoundCount</c> was 0 on every row in the reference
     ///     cache because tier-2 never wrote it, and the legacy migration then carried that zero into the
-    ///     unified cache. The round boundaries were already being derived — just not for this field.
+    ///     unified cache. The round boundaries were already being derived, just not for this field.
     /// </summary>
     [Test]
     public async Task Tier2_WritesTheRoundCount()

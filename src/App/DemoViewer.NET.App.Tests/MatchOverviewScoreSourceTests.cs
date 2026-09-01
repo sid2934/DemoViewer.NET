@@ -14,7 +14,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Match Overview's final score comes from the ANALYSIS ENGINE — per-team round wins, i.e. the rounds
+///     The Match Overview's final score comes from the ANALYSIS ENGINE: per-team round wins, i.e. the rounds
 ///     each team won regardless of which side it was on. This gate sweeps every demo it can find and pins the
 ///     internal consistency of that score (totals reconcile with the round count and with the side split when
 ///     one is shown), that a completed match reaches a legal premier result, plus team naming.
@@ -24,7 +24,7 @@ namespace DemoViewer.NET.AppTests;
 ///         <c>cs_win_panel_match</c>. Which per-round marker a demo actually carries depends on the
 ///         RECORDING SERVER, not the profile: third-party tournament servers (ESL, BLAST) emit only
 ///         <c>cs_pre_restart</c>, yet they record through SourceTV and so classify as
-///         <c>GotvMatchmaking</c> off their <c>SourceTV Demo</c> client name — indistinguishable from Valve
+///         <c>GotvMatchmaking</c> off their <c>SourceTV Demo</c> client name, indistinguishable from Valve
 ///         matchmaking in the header. Measured: furia-vs-vitality fires <c>round_officially_ended</c> zero
 ///         times across 15 rounds, so only the once-per-match terminal marker ever fired and the match
 ///         scored 0–1. Fixed by <c>Cs2GotvPreRestartProfile</c>, selected off the events the demo actually
@@ -38,8 +38,8 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 ///     <para>
 ///         It deliberately does NOT compare against the Library card badge. That badge reads
-///         <c>CCSTeam.m_iScore</c>, which loses the winning team's final round on a demo cut at the buzzer —
-///         both pro demos here report a 12 that cannot be a completed premier result.
+///         <c>CCSTeam.m_iScore</c>, which loses the winning team's final round on a demo cut at the buzzer.
+///         Both pro demos here report a 12 that cannot be a completed premier result.
 ///     </para>
 ///     <para>
 ///         The gate therefore sweeps EVERY demo it can find, not just the reference one: on the reference demo
@@ -58,7 +58,7 @@ public class MatchOverviewScoreSourceTests
     //
     // vitality-vs-fut-m3-nuke is the match-restart case: the server restarts after a warmup/knife round
     // (`begin_new_match` fires TWICE, ticks 346 and 4506). Before the evaluator's match-restart reset it
-    // scored 14-11 across "25" rounds — the knife round counted into the real match — and was excluded
+    // scored 14-11 across "25" rounds, the knife round counted into the real match, and was excluded
     // here; it now pins the reset (13-11 over 24, the real result).
     private static readonly string[] _candidates =
     [
@@ -94,7 +94,7 @@ public class MatchOverviewScoreSourceTests
             (int? libCt, int? libT, string? ctClan, string? tClan) = DemoLibraryService.ExtractFinalScore(parsed);
             if (libCt is null || libT is null)
             {
-                continue; // warmup-only / team-less demo — the card omits the score, so there is nothing to match
+                continue; // warmup-only / team-less demo: the card omits the score, so there is nothing to match
             }
 
             if (!string.IsNullOrWhiteSpace(ctClan))
@@ -109,7 +109,7 @@ public class MatchOverviewScoreSourceTests
                 {
                     await vm.LoadDemoFromPathAsync(demo);
 
-                    // The score resolves off the load path (library entry, or a gated replay) — wait for it.
+                    // The score resolves off the load path (library entry, or a gated replay). Wait for it.
                     for (int i = 0; i < 200 && !vm.MatchOverviewTab.HasScore; i++)
                     {
                         Dispatcher.UIThread.RunJobs();
@@ -124,7 +124,7 @@ public class MatchOverviewScoreSourceTests
                     {
                         await Assert.That(o.HasScore).IsTrue().Because($"{name}: the score must resolve");
 
-                        // Team totals must account for every round the analysis counted — an attribution
+                        // Team totals must account for every round the analysis counted: an attribution
                         // error shows up here even when each individual number looks plausible.
                         int ct = int.Parse(o.CtTeamScoreDisplay, CultureInfo.InvariantCulture);
                         int t = int.Parse(o.TTeamScoreDisplay, CultureInfo.InvariantCulture);
@@ -150,7 +150,7 @@ public class MatchOverviewScoreSourceTests
                         // COMPLETE match, so the winner must land on a legal premier result (13 in
                         // regulation, 15 drawn OT, 16 OT win). This is what the declared-but-silent
                         // round-end candidate used to break: the affected demos scored 0–1, and this
-                        // line — not the consistency checks above — is what says so.
+                        // line, not the consistency checks above, is what says so.
                         await Assert.That(o.ScoreLooksComplete).IsTrue()
                             .Because($"{name}: {ct}–{t} is not a completed premier result — the round-win "
                                      + "count is wrong (a silent $round_end candidate shadowing a live one "
@@ -170,7 +170,7 @@ public class MatchOverviewScoreSourceTests
 
         if (discriminating == 0)
         {
-            // Not a failure — but say it plainly, because without a pro demo this gate cannot tell the
+            // Not a failure, but say it plainly, because without a pro demo this gate cannot tell the
             // authoritative score from the analysis-derived one that used to be wrong.
             Console.WriteLine("[score-sweep] WARNING: no clan-carrying (pro/HLTV) demo was available — this "
                               + "run could not discriminate the authoritative score from the analysis-derived one.");

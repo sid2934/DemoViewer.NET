@@ -16,8 +16,8 @@ using DemoViewer.NET.ViewModels.Highlights;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Reels dashboard VM battery: the clip tray —
-///     staging, ordering, removal, the guarded clear — the tray→plan→output ordering contract, the
+///     The Reels dashboard VM battery covers the clip tray: staging, ordering, removal, the
+///     guarded clear. It also covers the tray→plan→output ordering contract, the
 ///     staging-time pre-flight, tray persistence, and the responsive collapse. All headless over a seeded
 ///     cache store (no demos, no parse, no UI thread).
 ///     <para>
@@ -30,7 +30,7 @@ public class HighlightsTabViewModelTests
 {
     // CA1861: hoisted out of the assertions so the analyser stops flagging repeated inline arrays.
     //
-    // These are ORDER-SENSITIVE expectations, and TUnit's IsEquivalentTo honours sequence — verified by
+    // These are ORDER-SENSITIVE expectations, and TUnit's IsEquivalentTo honours sequence: verified by
     // deliberately flipping _pathsBA to {a,b} and _pathsAAB to the same multiset in a different order
     // {a,b,a}: both tests FAILED. Worth stating, because "equivalent" means order-INsensitive in several
     // assertion libraries, and if it did here the reorder contract would be unverified by a green suite.
@@ -39,11 +39,11 @@ public class HighlightsTabViewModelTests
     private static readonly string[] _pathsAAB = ["/d/a.dem", "/d/a.dem", "/d/b.dem"];
     private static readonly string[] _fileNamesAB = ["a.dem", "b.dem"];
 
-    // camelCase writer — the naming policy a session/settings file plausibly grows tomorrow. Hoisted per
+    // camelCase writer: the naming policy a session/settings file plausibly grows tomorrow. Hoisted per
     // CA1869 (the analyser rejects a per-call JsonSerializerOptions).
     private static readonly JsonSerializerOptions _webCase = new(JsonSerializerDefaults.Web);
 
-    // NOTE: name/steam are no longer stored ON the event — the unified record keeps each player once and
+    // NOTE: name/steam are no longer stored ON the event. The unified record keeps each player once and
     // references them by SLOT, so they must match a roster entry passed to Row(). They stay in this
     // signature because they seed the rendered title, which IS captured at emission.
     private static CachedHighlightEvent Ev(string name, string steam, int slot, int round, int tick, string type)
@@ -130,7 +130,7 @@ public class HighlightsTabViewModelTests
         return vm;
     }
 
-    // Stage every highlight of every row, in row order — the shorthand most tests want.
+    // Stage every highlight of every row, in row order: the shorthand most tests want.
     private static void StageAll(HighlightsTabViewModel vm, params DemoCacheRecord[] rows)
     {
         foreach (DemoCacheRecord row in rows)
@@ -273,7 +273,7 @@ public class HighlightsTabViewModelTests
 
         // The load-bearing half: reorder must reach the RENDERED sequence. ReelJobService walks
         // request.Clips by index and maps them 1:1 into Cs2Compilation.Clips, which the shipped CSVG docs
-        // define as "Ordered list of clips to capture. Processed sequentially" — and ConcatenateClips
+        // define as "Ordered list of clips to capture. Processed sequentially", and ConcatenateClips
         // "uses FFmpeg to combine clips in order". So this list order IS the order of the finished video.
         vm.ReelConfig.GenerateCommand.Execute(null);
         await Assert.That(job.LastRequest!.Clips.Select(c => c.DemoPath))
@@ -289,8 +289,8 @@ public class HighlightsTabViewModelTests
     [Test]
     public async Task Reorder_KeepsEachDemosClipsContiguous()
     {
-        // Interleaving demos is the expensive case — ReelJobService issues a LoadDemoAsync whenever
-        // clip.DemoPath changes — so the tray normalises to group-contiguous order however it was built.
+        // Interleaving demos is the expensive case: ReelJobService issues a LoadDemoAsync whenever
+        // clip.DemoPath changes, so the tray normalises to group-contiguous order however it was built.
         DemoCacheRecord a = Row("/d/a.dem", "de_dust2", 2, [("s1mple", "1", 2, 0)],
             [Ev("s1mple", "1", 0, 3, 3000, "clutch.ace"), Ev("s1mple", "1", 0, 9, 40000, "clutch.plant")]);
         DemoCacheRecord b = Row("/d/b.dem", "de_nuke", 1, [("ZywOo", "2", 3, 0)],
@@ -299,7 +299,7 @@ public class HighlightsTabViewModelTests
         FakeReelJob job = new();
         HighlightsTabViewModel vm = Vm(store, scanner, job);
 
-        // Stage a, then b, then a again — an interleaved build order.
+        // Stage a, then b, then a again: an interleaved build order.
         vm.Stage(a, a.Highlights[0]);
         vm.Stage(b, b.Highlights[0]);
         vm.Stage(a, a.Highlights[1]);
@@ -344,7 +344,7 @@ public class HighlightsTabViewModelTests
         StageAll(vm, a);
         await Assert.That(vm.ClearTrayCommand.CanExecute(null)).IsTrue();
 
-        // Arming must NOT clear — a tray is minutes of curation with no undo.
+        // Arming must NOT clear. A tray is minutes of curation with no undo.
         vm.ClearTrayCommand.Execute(null);
         await Assert.That(vm.ShowClearConfirm).IsTrue();
         await Assert.That(vm.StagedCount).IsEqualTo(1);
@@ -389,7 +389,7 @@ public class HighlightsTabViewModelTests
             [Ev("ZywOo", "2", 0, 2, 20000, "clutch.retake")]);
         (DemoCacheStore store, HighlightScanService scanner) = NewStore(a, b);
         HighlightsTabViewModel vm = Vm(store, scanner);
-        StageAll(vm, b, a); // deliberately NOT store order — the snapshot must carry the user's sequence
+        StageAll(vm, b, a); // deliberately NOT store order: the snapshot must carry the user's sequence
         vm.TrayColumnWidth = new GridLength(2, GridUnitType.Star);
 
         object? blob = vm.SnapshotState();
@@ -401,7 +401,7 @@ public class HighlightsTabViewModelTests
         await Assert.That(restored.TrayColumnWidth.Value).IsEqualTo(2d);
         await Assert.That(restored.HasStatusMessage).IsFalse();
 
-        // A demo that vanished between sessions is DROPPED with a note — never resurrected against maths
+        // A demo that vanished between sessions is DROPPED with a note, never resurrected against maths
         // (tickRate / tickCount / rounds) that no longer exists.
         (DemoCacheStore thinner, HighlightScanService scanner2) = NewStore(a);
         HighlightsTabViewModel partial = Vm(thinner, scanner2);
@@ -416,7 +416,7 @@ public class HighlightsTabViewModelTests
     public async Task Snapshot_Survives_A_Real_JsonRoundTrip()
     {
         // THE ONLY PATH THAT HAPPENS IN PRODUCTION. The shell persists module tab state through the session
-        // FILE, so RestoreState is handed a JsonElement — not the DTO SnapshotState returned. The DTO-typed
+        // FILE, so RestoreState is handed a JsonElement, not the DTO SnapshotState returned. The DTO-typed
         // test above would stay green while the tray silently evaporated on every restart, which is exactly
         // the loss tray persistence exists to prevent.
         DemoCacheRecord a = Row("/d/a.dem", "de_dust2", 2, [("s1mple", "1", 2, 0)],
@@ -436,7 +436,7 @@ public class HighlightsTabViewModelTests
         await Assert.That(restored.TrayColumnWidth.Value).IsEqualTo(2d);
 
         // AND THE SAME PAYLOAD IN camelCase. Today the write path sets no naming policy, so both halves
-        // happen to say "StagedClips" — an agreement that is incidental, not contracted. One
+        // happen to say "StagedClips", an agreement that is incidental, not contracted. One
         // JsonSerializerDefaults.Web added anywhere upstream renames every property, a case-SENSITIVE read
         // binds nothing, and the tray restores empty with no error raised anywhere. This is the assertion
         // that pins it; without it the test above only proves our two halves agree with each other.
@@ -475,7 +475,7 @@ public class HighlightsTabViewModelTests
         await Assert.That(scan.Chip.Label).Contains("queued");
         await Assert.That(scan.RetryAllFailedCommand.CanExecute(null)).IsTrue();
 
-        // Retry re-queues the FAILED row only — a user retrying one broken demo has not asked to re-harvest
+        // Retry re-queues the FAILED row only. A user retrying one broken demo has not asked to re-harvest
         // the ones that worked.
         scan.RetryAllFailedCommand.Execute(null);
         await Assert.That(store.TryLoadRecord("/d/c.dem")!.AnalysisState).IsEqualTo(DemoAnalysisState.Pending)
@@ -639,7 +639,7 @@ public class HighlightsTabViewModelTests
 
         vm.SetViewportWidth(560);
         await Assert.That(vm.IsNarrow).IsTrue();
-        // The TRAY is the landing pane here — the inverse of the browser layout this pattern came from.
+        // The TRAY is the landing pane here: the inverse of the browser layout this pattern came from.
         await Assert.That(vm.TrayVisible).IsTrue();
         await Assert.That(vm.ConfigVisible).IsFalse();
         await Assert.That(vm.ShowConfigButton).IsTrue();

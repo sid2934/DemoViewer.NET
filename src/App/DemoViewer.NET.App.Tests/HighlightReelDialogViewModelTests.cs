@@ -12,11 +12,11 @@ using DemoViewer.NET.Views.Highlights;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Covers the <see cref="HighlightReelDialogViewModel" /> — the reel CONFIG PANE
+///     Covers the <see cref="HighlightReelDialogViewModel" />: the reel CONFIG PANE
 ///     (promoted out of the modal by the Reels-dashboard redesign): the
 ///     coalesced clip-plan build (via <see cref="ClipWindows" />), CRF⊕bitrate exclusivity,
 ///     inline pre-flight gating, the platform primary-action, the defaults-persistence
-///     payload, and the live-sync interlock confirm. Pure VM — a fake <see cref="IReelJobService" /> captures the
+///     payload, and the live-sync interlock confirm. Pure VM: a fake <see cref="IReelJobService" /> captures the
 ///     hand-off; the demo-existence predicate is injected so the tests stay filesystem-free.
 /// </summary>
 public class HighlightReelDialogViewModelTests
@@ -127,7 +127,7 @@ public class HighlightReelDialogViewModelTests
         };
         HighlightReelDialogViewModel vm = New(sels, out _);
 
-        vm.LeadInSeconds = 5; // windows [4680,5320] & [5680,6320] — no overlap → 2 clips
+        vm.LeadInSeconds = 5; // windows [4680,5320] & [5680,6320], no overlap → 2 clips
         await Assert.That(vm.ClipGroups[0].Rows.Count).IsEqualTo(2);
 
         vm.LeadInSeconds = 15; // windows overlap again → back to 1 merged clip
@@ -136,7 +136,7 @@ public class HighlightReelDialogViewModelTests
     }
 
     // Mid-match demos (ServerStartTick ≠ 0): highlight ticks are FRAME CLOCK and
-    // flow into the handed-off ReelClip window unmodified — an accidental −ServerStartTick
+    // flow into the handed-off ReelClip window unmodified. An accidental −ServerStartTick
     // anywhere in the dialog's clip build would shift the window by 40k ticks. Asserted at the
     // hand-off layer (the one that could regress), not just in ClipWindows' pure math.
     [Test]
@@ -171,7 +171,7 @@ public class HighlightReelDialogViewModelTests
         await Assert.That(clip.EndTick).IsEqualTo(5000 + 5 * Rate);
     }
 
-    // (d) SteamId64 → PlayerSteamId64 via long.TryParse (0 on empty/non-numeric — never throws).
+    // (d) SteamId64 → PlayerSteamId64 via long.TryParse (0 on empty/non-numeric, never throws).
     [Test]
     public async Task SteamId_ParsedOrZero()
     {
@@ -251,7 +251,7 @@ public class HighlightReelDialogViewModelTests
 
     // (f2) A placeholder roster (legacy names-only cache record: every player at Slot = -1) can't resolve the
     // highlight's PlayerSlot, so the spectate name is empty. CSVG rejects such a plan ("PlayerNameToSpectate
-    // must not be empty"); DV catches it first — the clip is kept out of the plan, its row is flagged, and
+    // must not be empty"); DV catches it first: the clip is kept out of the plan, its row is flagged, and
     // Generate is blocked with an actionable "re-scan" banner instead of the raw CSVG dump.
     [Test]
     public async Task UnresolvedPlayer_KeptOutOfPlan_BlocksGenerate_WithActionableBanner()
@@ -263,7 +263,7 @@ public class HighlightReelDialogViewModelTests
             TickRate = Rate,
             TickCount = 120_000,
             Sha256 = "sha",
-            // Placeholder slot (-1) — the exact shape LegacyCacheMigration writes for a names-only record.
+            // Placeholder slot (-1): the exact shape LegacyCacheMigration writes for a names-only record.
             Players =
             [
                 new CachedPlayerInfo
@@ -346,7 +346,7 @@ public class HighlightReelDialogViewModelTests
         await Assert.That(settings.Highlights.ReelBitrateKbps).IsEqualTo(8500);
     }
 
-    // (h2) resolution — the picker seeds from the persisted size, a preset flows to the request Width/
+    // (h2) resolution: the picker seeds from the persisted size, a preset flows to the request Width/
     // Height AND persists, and the Custom sentinel unlocks the width/height fields.
     [Test]
     public async Task Resolution_SeedsSelectsAndPersists()
@@ -377,7 +377,7 @@ public class HighlightReelDialogViewModelTests
         await Assert.That(settings.Highlights.ReelHeight).IsEqualTo(1440);
     }
 
-    // (h3) resolution — a Custom size flows through; an ODD custom dimension (invalid for yuv420p) blocks
+    // (h3) resolution: a Custom size flows through; an ODD custom dimension (invalid for yuv420p) blocks
     // Generate with a banner, and correcting it to an even size clears the block.
     [Test]
     public async Task Resolution_CustomOddValue_BlocksGenerate_ThenClears()
@@ -438,7 +438,7 @@ public class HighlightReelDialogViewModelTests
         await Assert.That(job.StartCount).IsEqualTo(0);
     }
 
-    // (k) The dialog body resolves via the ViewLocator name mapping — a rename would ship a "Not Found"
+    // (k) The dialog body resolves via the ViewLocator name mapping. A rename would ship a "Not Found"
     // TextBlock in the modal, invisible to build + capture (mirrors the LiveSync flyout guard).
     [Test]
     public async Task DialogView_TypeName_MatchesViewLocatorMapping()
@@ -449,7 +449,7 @@ public class HighlightReelDialogViewModelTests
     }
 
     // (l) The pane now lives for the whole app run, where the modal was built per invocation. The
-    // interlock latch must therefore RE-ARM after every Generate — otherwise the user consents to restarting
+    // interlock latch must therefore RE-ARM after every Generate. Otherwise the user consents to restarting
     // CS2 once and every later reel starts silently.
     [Test]
     public async Task Interlock_ReArms_After_Every_Generate()
@@ -469,9 +469,9 @@ public class HighlightReelDialogViewModelTests
         await Assert.That(job.StartCount).IsEqualTo(1);
     }
 
-    // (m) SetSelections replaces the tray live. The output name re-seeds while it is still OUR suggestion —
-    // the pane is constructed against an EMPTY tray, so without this it reads "reel" forever — but never
-    // overwrites a name the user typed.
+    // (m) SetSelections replaces the tray live. The output name re-seeds while it is still OUR suggestion,
+    // since the pane is constructed against an EMPTY tray and without this it reads "reel" forever, but it
+    // never overwrites a name the user typed.
     [Test]
     public async Task SetSelections_ReseedsBaseName_UntilTheUserEditsIt()
     {
@@ -487,7 +487,7 @@ public class HighlightReelDialogViewModelTests
         await Assert.That(vm.BaseFileName).IsEqualTo("my_montage");
     }
 
-    // (n) Tray ORDER drives the emitted clip sequence — and nothing else. ClipWindows.Coalesce stays
+    // (n) Tray ORDER drives the emitted clip sequence, and nothing else. ClipWindows.Coalesce stays
     // order-independent (it groups by demo/player/round), so the same two selections in either order produce
     // the same MERGE and the opposite EMISSION order.
     [Test]
@@ -520,7 +520,7 @@ public class HighlightReelDialogViewModelTests
 
     // (o) Casing-variant paths: Coalesce upper-cases its group key, so the CONTRIBUTOR lookup has to as
     // well. It did not, and a clip built from a differently-cased path merged correctly while rendering with
-    // ZERO contributors — an empty tray block under a real clip.
+    // ZERO contributors, an empty tray block under a real clip.
     [Test]
     public async Task CasingVariantPaths_StillMapContributorsOntoTheirClip()
     {

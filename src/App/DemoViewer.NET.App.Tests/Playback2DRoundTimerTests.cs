@@ -25,7 +25,7 @@ namespace DemoViewer.NET.AppTests;
 ///         assertion is made at a LATER freeze_end (round 2+). That only closes if the offset is truly
 ///         constant across rounds (the physical claim), not because the algebra forces it.
 ///     </para>
-///     Sync parse path (no rendering) — see <see cref="Playback2DRealDemoRenderTests" />.
+///     Sync parse path (no rendering): see <see cref="Playback2DRealDemoRenderTests" />.
 /// </summary>
 [NotInParallel]
 [Category("Integration")]
@@ -77,7 +77,7 @@ public class Playback2DRoundTimerTests
     }
 
     // Activates a real VM against a real ModuleContext (controller-published tracker advanced to the frame,
-    // host-join driven), with the host's clock calibration applied — then reads GameInfo.RoundSeconds.
+    // host-join driven), with the host's clock calibration applied, then reads GameInfo.RoundSeconds.
     private static double RoundSecondsAt(IReadOnlyList<DemoFrame> frames, ParsedDemo demo, string path,
         double clockBase, int tickRate, int frame)
     {

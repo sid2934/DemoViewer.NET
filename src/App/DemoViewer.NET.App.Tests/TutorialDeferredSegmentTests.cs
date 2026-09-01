@@ -22,16 +22,16 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The load-bearing gateway-wait path over the REAL shell + a real demo: when the first run reaches the
 ///     open-a-demo gateway with nothing open, the demo segment (stats / playback / transport / outro) WAITS in
-///     place — the overlay stays visible with advance disabled — and opening a demo auto-resumes the tour at
+///     place, the overlay stays visible with advance disabled, and opening a demo auto-resumes the tour at
 ///     the Stats step. This exercises the shell's <c>NotifyDemoLoaded</c> wiring at the end of the interactive
 ///     load, the whole-script step indicator continuing across the two runs, the tab-switch to Stats, and the
 ///     overlay measuring the Stats / playback / transport spotlights over live tab content (rendered to PNGs
-///     for inspection). Requires a demo — skips cleanly via <see cref="DemoTestHelper.RequireDemo()" />.
+///     for inspection). Requires a demo. Skips cleanly via <see cref="DemoTestHelper.RequireDemo()" />.
 ///     <para>
 ///         <b>Load path:</b> resumption is driven through <see cref="MainViewModel.LoadDemoFromPathAsync" />,
 ///         the real interactive-open funnel (Library browser / Open-file picker → <c>LoadDemoFromBytesAsync</c>,
 ///         which calls <c>NotifyDemoLoaded</c>). The <c>MemoryReleaseWiredTests</c> idiom's
-///         <c>AutoLoadDemoAsync</c> is a SEPARATE (CLI auto-open) path that also wires the resume — but is
+///         <c>AutoLoadDemoAsync</c> is a SEPARATE (CLI auto-open) path that also wires the resume, but is
 ///         deliberately not used here.
 ///     </para>
 /// </summary>
@@ -47,8 +47,8 @@ public class TutorialDeferredSegmentTests
         await HeadlessSession.RunOnUi(async () =>
         {
             // Register the first-party 2D Playback module the way App.axaml.cs does, so the
-            // "playback2d.viewport" tab (and its PlaybackTab / PlaybackTransport anchors) actually exist —
-            // without it the tour's tab-switch for steps 5–6 no-ops and the anchors never realize.
+            // "playback2d.viewport" tab (and its PlaybackTab / PlaybackTransport anchors) actually exist.
+            // Without it the tour's tab-switch for steps 5–6 no-ops and the anchors never realize.
             ModuleRegistry registry = new();
             registry.Register(new Playback2DModule());
             MainViewModel vm = new(null, registry, TestLibraries.Empty());
@@ -67,7 +67,7 @@ public class TutorialDeferredSegmentTests
                 window.Show();
 
                 // First-run run: welcome → tabs → library → open-demo gateway. With no demo open the gateway
-                // WAITS in place (overlay stays visible, advance disabled) rather than hiding — the fix for the
+                // WAITS in place (overlay stays visible, advance disabled) rather than hiding: the fix for the
                 // "left on the Library tab with no guidance" dead-end.
                 vm.StartWalkthrough(); // welcome (1/8)
                 vm.Tutorial.NextCommand.Execute(null); // tab strip (2/8)
@@ -84,13 +84,13 @@ public class TutorialDeferredSegmentTests
                     await Assert.That(vm.Tutorial.CurrentStep!.Target).IsEqualTo(TutorialTarget.OpenDemo);
                 }
 
-                // The real interactive open path — the funnel that carries NotifyDemoLoaded. Recorded as a
+                // The real interactive open path: the funnel that carries NotifyDemoLoaded. Recorded as a
                 // TRAIL of tab selections, because the Match Overview landing page must not hijack navigation
                 // while the tour owns it: a normal open switches to "builtin.matchoverview" the instant the
                 // parse starts, but during the gateway that would unload the Library (the spotlit card
                 // vanishes) and strand the coach-mark's spotlight over stale coordinates for the whole
                 // multi-second parse. Both the gated and ungated paths END on Stats, so only the mid-load
-                // trail discriminates — an end-state assert would pass either way.
+                // trail discriminates: an end-state assert would pass either way.
                 List<string> tabTrail = new();
                 PropertyChangedEventHandler onTabChanged = (_, e) =>
                 {
@@ -143,7 +143,7 @@ public class TutorialDeferredSegmentTests
 
                 // Advance the rest of the demo segment: playback (6) → transport (7) → outro (8) → Finish.
                 // Steps 6–7 ARE the "2d playback and controls" the tour was built to show, so each is measured
-                // for a real non-zero spotlight over the live shell — not merely advanced past (a zero-size
+                // for a real non-zero spotlight over the live shell, not merely advanced past (a zero-size
                 // spotlight would still let the tour sail through, so the enum/step asserts alone prove nothing).
                 vm.Tutorial.NextCommand.Execute(null); // 2D playback (6/8)
                 await Assert.That(vm.Tutorial.CurrentStep!.Target).IsEqualTo(TutorialTarget.PlaybackTab);
@@ -161,7 +161,7 @@ public class TutorialDeferredSegmentTests
                 await Assert.That(vm.Tutorial.StepNumber).IsEqualTo(7);
 
                 // The transport anchor is structurally different from every prior one: it sits on the NavStrip
-                // clock-group cluster (app chrome), not a tab-root control — so its resolution is proven, not
+                // clock-group cluster (app chrome), not a tab-root control, so its resolution is proven, not
                 // assumed. Rendered to a PNG for eyeball inspection of the spotlight landing on the controls.
                 PumpLayout();
                 await Assert.That(vm.Tutorial.SpotlightRect.Width).IsGreaterThan(0)

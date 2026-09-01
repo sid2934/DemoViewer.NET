@@ -15,7 +15,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Stats-tab 3D visibility tests (deferred-features plan F4). The gating tests are fully
-///     synthetic (injected collision resolver, hand-built <see cref="EvaluationResult" /> — the
+///     synthetic (injected collision resolver, hand-built <see cref="EvaluationResult" />, the
 ///     StatsTabTests harness practice); the single demo-gated smoke drives the real pipeline
 ///     (locator → <c>VisibilityEngine</c> → <c>VisibilityAnalyzer.Analyze</c> → projector → VM
 ///     tables) end-to-end through <see cref="StatsTabViewModel.ComputeVisibilityCommand" /> on a
@@ -26,7 +26,7 @@ public class StatsVisibilityTests
 {
     private const string Dust2Demo = "vitality-vs-fut-m2-dust2.dem";
 
-    /// <summary>One player (Alice slot 0 / T), one Kills column, one snapshot — enough for HasStats.</summary>
+    /// <summary>One player (Alice slot 0 / T), one Kills column, one snapshot: enough for HasStats.</summary>
     private static EvaluationResult BuildResult()
     {
         StubNode node = new("Alice_Kills");
@@ -124,7 +124,7 @@ public class StatsVisibilityTests
         // full-demo compute took ~108 s and dominated the suite; the quarter slice runs the
         // IDENTICAL end-to-end path (locator → engine → Analyze → projector → VM tables) and,
         // being mid-match with live engaged players, keeps every non-zero-table assertion
-        // meaningful. (P5 of the app-suite speed plan — windowed visibility compute.)
+        // meaningful. (P5 of the app-suite speed plan: windowed visibility compute.)
         int quarter = demo.Frames.Count / 4;
         VisibilityAnalyzer.Options window = new(StartFrame: quarter, EndFrame: quarter * 2);
 

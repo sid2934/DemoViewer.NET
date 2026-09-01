@@ -59,7 +59,7 @@ public class WhatsNewGateTests
     }
 
     /// <summary>
-    ///     Set-up install, version changed (the first post-update launch — including upgrades from
+    ///     Set-up install, version changed (the first post-update launch, including upgrades from
     ///     builds that predate the gate, where LastSeenVersion is null): show once, advance the
     ///     stored version, and never re-show for the same version.
     /// </summary>
@@ -80,7 +80,7 @@ public class WhatsNewGateTests
             await Assert.That(windows.WhatsNews).HasCount().EqualTo(1);
             await Assert.That(windows.WhatsNews[0].Version)
                 .IsEqualTo(AppVersionInfo.CurrentReleaseVersion);
-            // Advanced BEFORE the window opened — the crash-loop guard.
+            // Advanced BEFORE the window opened: the crash-loop guard.
             await Assert.That(settings.Current.LastSeenVersion)
                 .IsEqualTo(AppVersionInfo.CurrentReleaseVersion);
 
@@ -120,13 +120,13 @@ public class WhatsNewGateTests
     // ── Update-notice routing ─────────────────────────────────────────────────
 
     /// <summary>
-    ///     "Details…" builds ONE notice VM per run and re-shows the same instance — the notes fetch
+    ///     "Details…" builds ONE notice VM per run and re-shows the same instance: the notes fetch
     ///     must not repeat per click, and the window service re-activates rather than re-spawns.
     /// </summary>
     [Test]
     public async Task ShowUpdateDetails_ReusesOneNoticeVm()
     {
-        UpdateViewModel shared = UpdateViewModel.Shared; // restore after — a process-wide static
+        UpdateViewModel shared = UpdateViewModel.Shared; // restore after: a process-wide static
         try
         {
             UpdateViewModel.Shared = new UpdateViewModel(null);

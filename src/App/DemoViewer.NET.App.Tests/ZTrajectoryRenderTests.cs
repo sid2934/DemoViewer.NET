@@ -20,7 +20,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Visual gate for the A4 grenade flight-trail overlay: feeds a smoke projectile moving across several
 ///     pushes, renders the bare <see cref="Playback2DViewport" />, and asserts the viewport contains BRIGHT
 ///     pixels (the gray smoke trail #B0BEC5) that neither the dark background (#15181C) nor the dark grid
-///     lines (#22272E/#2E3742) can produce — i.e. the comet line actually DREW, not just accumulated in the
+///     lines (#22272E/#2E3742) can produce, i.e. the comet line actually DREW, not just accumulated in the
 ///     VM. Z-named so it sorts late (the headless platform / fonts are fully initialised by then).
 /// </summary>
 [NotInParallel]
@@ -68,7 +68,7 @@ public class ZTrajectoryRenderTests
             // Pin the canvas to Dark: CountBright's "R,G,B all > 0x80" heuristic assumes a DARK canvas (dark bg
             // + bright trail). The central theme system made ThemeVariant.Default resolve to LIGHT headless, so
             // without this the light canvas bg counts as bright and the trail-hidden assertion fails. This test
-            // is about the trail drawing, not the theme — pin the variant it always implicitly needed.
+            // is about the trail drawing, not the theme: pin the variant it always implicitly needed.
             Window window = new()
             {
                 Width = Width,
@@ -89,7 +89,7 @@ public class ZTrajectoryRenderTests
             Console.WriteLine($"[trajectory] trail pts={vm.GrenadeTrails[0].Points.Count}  brightPixels={bright}");
             await Assert.That(bright).IsGreaterThan(60); // the gray comet line clearly drew
 
-            // Toggle the overlay OFF — the viewport must stop drawing the trail (the VM data is unchanged).
+            // Toggle the overlay OFF: the viewport must stop drawing the trail (the VM data is unchanged).
             vm.ShowTrails = false;
             Dispatcher.UIThread.RunJobs();
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
@@ -153,7 +153,7 @@ public class ZTrajectoryRenderTests
         });
     }
 
-    // Counts "bright" pixels (every channel well above the dark bg/grid range) — only the smoke trail + head
+    // Counts "bright" pixels (every channel well above the dark bg/grid range): only the smoke trail + head
     // dot can produce these, so a non-trivial count proves the line rendered.
     private static int CountBright(WriteableBitmap bmp)
     {

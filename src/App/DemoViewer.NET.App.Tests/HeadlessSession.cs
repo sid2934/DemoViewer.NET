@@ -14,7 +14,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Avalonia entry point for headless UI tests. Uses the REAL <see cref="DemoViewer.NET.App" /> so
-///     its styles, brushes, converters, and card/hex DataTemplates are loaded — and the Skia backend
+///     its styles, brushes, converters, and card/hex DataTemplates are loaded, and the Skia backend
 ///     (UseHeadlessDrawing = false) so rendered frames can be captured to PNG for inspection.
 /// </summary>
 public static class TestAppBuilder
@@ -30,7 +30,7 @@ public static class TestAppBuilder
 }
 
 /// <summary>
-///     Thrown internally when a dispatch faulted BEFORE the test body was entered — i.e. the fault
+///     Thrown internally when a dispatch faulted BEFORE the test body was entered, i.e. the fault
 ///     came from Avalonia's per-dispatch isolated-application setup, not from the test. Never
 ///     escapes <see cref="HeadlessSession.RunOnUi(Func{Task})" />.
 /// </summary>
@@ -64,7 +64,7 @@ public static class HeadlessSession
     private static HeadlessUnitTestSession? _session;
 
     // Set (with the culprit's description) when a dispatched body never completed: the session
-    // thread is then wedged forever — Avalonia's DispatchCore does a BLOCKING
+    // thread is then wedged forever: Avalonia's DispatchCore does a BLOCKING
     // task.GetAwaiter().GetResult() after its DispatcherFrame exits, so neither cancellation
     // nor timeout can free it, and every later dispatch would queue behind it eternally.
     // Poisoning turns that cascade into immediate, attributed failures.
@@ -73,7 +73,7 @@ public static class HeadlessSession
     // Set when isolated-application setup failed twice in a row. Avalonia builds a FRESH
     // application per dispatch (StartNew defaults to AvaloniaTestIsolationLevel.PerTest, so
     // EnsureIsolatedApplication runs on EVERY Dispatch, not once at session start), and the
-    // observed cold-start signature — TypeInitializationException on Avalonia.StyledElement — is
+    // observed cold-start signature, TypeInitializationException on Avalonia.StyledElement, is
     // a poisoned type initializer, which .NET caches for the life of the process. Nothing
     // recovers from that, so the first surviving setup fault is recorded here with its fully
     // unwrapped cause and every later RunOnUi fails fast against it. That is the whole point:
@@ -86,7 +86,7 @@ public static class HeadlessSession
 
     // Auto-close registry: the headless session installs NO application lifetime (so there is
     // no IClassicDesktopStyleApplicationLifetime.Windows), but Window raises public routed
-    // Opened/Closed events — the same mechanism the desktop lifetime uses for its own list.
+    // Opened/Closed events, the same mechanism the desktop lifetime uses for its own list.
     // 23 of the suite's 24 window constructions leaked (holding up to ~8 GB of ParsedDemo
     // graphs), and a leaked window whose content keeps animating is the compositor-wedge
     // class; closing after every body fixes both without per-test churn.
@@ -234,24 +234,24 @@ public static class HeadlessSession
     }
 
     /// <summary>
-    ///     Runs an async body on the shared headless UI thread and — unlike the naive
-    ///     <c>Dispatch(work)</c> form — actually awaits the body.
+    ///     Runs an async body on the shared headless UI thread and, unlike the naive
+    ///     <c>Dispatch(work)</c> form, actually awaits the body.
     /// </summary>
     /// <remarks>
     ///     <para>
     ///         The wrapper MUST hand Dispatch a <c>Func&lt;Task&lt;T&gt;&gt;</c>: a bare
     ///         <c>Func&lt;Task&gt;</c> binds to the generic <c>Func&lt;TResult&gt;</c> overload
-    ///         with <c>TResult = Task</c>, which awaits only the dispatch — the body's task was
+    ///         with <c>TResult = Task</c>, which awaits only the dispatch. The body's task was
     ///         never observed, so an async body's failure (or hang) after its first yield
     ///         silently PASSED the test (found by work item 0.2's canary; the "headless
     ///         swallows async-load exceptions" lore was this bug).
     ///     </para>
     ///     <para>
-    ///         Honest awaiting surfaces bodies that never complete, so the timeout race turns
+    ///         Awaiting the body itself surfaces bodies that never complete, so the timeout race turns
     ///         them into loud failures instead of eternal suite hangs. Budget: the longest
     ///         legitimate UI-thread body is a ~30s real-demo render; the multi-minute suite
     ///         members are pure compute and never dispatch. A timed-out body has wedged the
-    ///         session thread permanently (see <see cref="_wedgedBy" />) — subsequent tests
+    ///         session thread permanently (see <see cref="_wedgedBy" />). Subsequent tests
     ///         fail fast with the culprit's name rather than hanging behind it.
     ///     </para>
     /// </remarks>
@@ -311,7 +311,7 @@ public static class HeadlessSession
     {
         // Detail is published BEFORE the gate: _poisonedBy is what readers test, so writing it
         // first would let a parallel test report "Root cause:" with nothing under it. A loser of
-        // the race may overwrite the detail, which is harmless — both describe the same fault.
+        // the race may overwrite the detail, which is harmless: both describe the same fault.
         Volatile.Write(ref _poisonDetail, detail);
 
         // First-writer-wins, matching the wedge attribution: under parallel load several tests
@@ -346,10 +346,10 @@ public static class HeadlessSession
     {
         // Avalonia invokes the body only after EnsureIsolatedApplication has returned, so this
         // flag cleanly separates "the harness could not build an application" from "the test
-        // failed". Written on the session thread, read on the caller's — hence Volatile.
+        // failed". Written on the session thread, read on the caller's, hence Volatile.
         StrongBox<bool> bodyEntered = new(false);
 
-        // Acquiring the session (StartNew) and queueing the dispatch can both fail synchronously —
+        // Acquiring the session (StartNew) and queueing the dispatch can both fail synchronously,
         // and when they do the body has just as surely not run, so they belong on the same
         // retry-and-attribute path rather than surfacing as a bare fault from the harness.
         Task<bool> dispatched;
@@ -367,14 +367,14 @@ public static class HeadlessSession
 
                 // Post-body composition flush. A body that leaves a Window open whose content keeps
                 // requesting animation frames (e.g. the 2D viewport's smooth camera lerp) saturates
-                // the compositor's in-flight batch queue — the headless render timer never ticks on
+                // the compositor's in-flight batch queue: the headless render timer never ticks on
                 // its own (manual ForceRenderTimerTick platform), so the NEXT test's `new Window()`
                 // then parks forever inside a nested dispatcher frame waiting for a commit slot
                 // (root-caused via Playback2DCameraModeTests: AllModes leaked an animating window
                 // and ManualPanZoom wedged at Window construction; closing the window fixed it).
                 // Ticking here drains the backlog to at most the single re-requested frame, keeping
                 // leaked-but-animating windows from wedging their successors. The flush renders
-                // OTHER tests' leaked windows in whatever mid-teardown state they're in — a render
+                // OTHER tests' leaked windows in whatever mid-teardown state they're in. A render
                 // exception there is the leaker's mess, not this body's failure, so log instead of
                 // faulting the innocent current test.
                 try
@@ -432,7 +432,7 @@ public static class HeadlessSession
         {
             // First-writer-wins: the session queue is FIFO, so the first timeout is the actual
             // wedger; a parallel caller whose body queued behind it also times out but is
-            // collateral — attribute it as such rather than letting the last writer steal blame.
+            // collateral: attribute it as such rather than letting the last writer steal blame.
             string? prior = Interlocked.CompareExchange(ref _wedgedBy, caller, null);
             if (prior is not null)
             {
@@ -442,7 +442,7 @@ public static class HeadlessSession
             }
 
             // Forensic hint: DispatchCore pumps a DispatcherFrame while awaiting the body, so a
-            // wedged body usually leaves the dispatcher itself responsive — "alive" means the
+            // wedged body usually leaves the dispatcher itself responsive: "alive" means the
             // body awaits a completion that never arrives (not a jammed dispatcher).
             bool dispatcherAlive = false;
             try

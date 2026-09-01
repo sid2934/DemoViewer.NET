@@ -59,7 +59,7 @@ public class RuleWorkbenchModuleTests
     {
         WorkspaceTabDescriptor tab = new RuleWorkbenchModule().CreateTabs(new FakeHost()).Single();
 
-        // ViewModelFactory (lazy + retained), NOT DataContext — so Activate() drives the lifecycle.
+        // ViewModelFactory (lazy + retained), NOT DataContext, so Activate() drives the lifecycle.
         await Assert.That(tab.DataContext).IsNull();
         await Assert.That(tab.ViewModelFactory is not null).IsTrue();
         IWorkspaceTabViewModel vm = tab.ViewModelFactory!.Invoke();
@@ -148,7 +148,7 @@ public class RuleWorkbenchModuleTests
             await Assert.That(vm.IsReadOnlyFile).IsTrue().Because("shipped rulesets are read-only without DeveloperMode");
             await Assert.That(vm.CanSave).IsFalse();
 
-            // Save-in-place is a no-op on a read-only file — it must NOT create a user copy.
+            // Save-in-place is a no-op on a read-only file. It must NOT create a user copy.
             vm.DocumentText += "\n# a tweak\n";
             vm.SaveCommand.Execute(null);
             await Assert.That(vm.OpenableFiles.Count(f => !f.IsShipped)).IsEqualTo(0)
@@ -170,7 +170,7 @@ public class RuleWorkbenchModuleTests
         {
             vm.NewFileCommand.Execute(null);
 
-            // A bogus view name — the checker must reject it, and it must land on THIS file (inline).
+            // A bogus view name: the checker must reject it, and it must land on THIS file (inline).
             vm.DocumentText = "ruleset: broken_probe\nfor: each_player\nstats:\n  x:\n    count: not_a_real_view\n    per: match\n";
 
             await Assert.That(vm.IsClean).IsFalse();
@@ -216,7 +216,7 @@ public class RuleWorkbenchModuleTests
         await Assert.That(texts).Contains("my_kills").Because("sibling stats parsed from the buffer are offered");
         await Assert.That(texts).Contains("my_deaths");
 
-        // "count" appears once (as a kind) — the 2-space-indent regex must not also capture the
+        // "count" appears once (as a kind): the 2-space-indent regex must not also capture the
         // 4-space-indented `count:` kind key as a stat.
         await Assert.That(candidates.Count(c => c.Text == "count")).IsEqualTo(1);
         await Assert.That(candidates.First(c => c.Text == "my_kills").Category).IsEqualTo("stat");
@@ -236,21 +236,21 @@ public class RuleWorkbenchModuleTests
                 .Select(c => c.Text).ToHashSet(StringComparer.Ordinal);
         }
 
-        // After `per:` — only the closed enum, nothing else.
+        // After `per:`, only the closed enum, nothing else.
         HashSet<string> afterPer = Texts("    per: ");
         await Assert.That(afterPer).Contains("round");
         await Assert.That(afterPer).Contains("match");
         await Assert.That(afterPer.Contains("kill")).IsFalse().Because("an event is not a valid `per:` value");
         await Assert.That(afterPer.Contains("count")).IsFalse().Because("a stat kind is not a valid `per:` value");
 
-        // After `count:` — events/facets (the triggers), not contexts or kinds.
+        // After `count:`, events/facets (the triggers), not contexts or kinds.
         HashSet<string> afterCount = Texts("    count: ");
         await Assert.That(afterCount).Contains("kill").Because("count takes an event/view");
         await Assert.That(afterCount.Any(t => t.StartsWith("round.", StringComparison.Ordinal))).IsFalse()
             .Because("a context path is not a countable event");
         await Assert.That(afterCount.Contains("per")).IsFalse().Because("a modifier is not a count value");
 
-        // After `when:` — the read vocabulary (contexts, functions, facets, sibling stats), not kinds.
+        // After `when:`, the read vocabulary (contexts, functions, facets, sibling stats), not kinds.
         HashSet<string> afterWhen = Texts("    when: ");
         await Assert.That(afterWhen.Any(t => t.StartsWith("round.", StringComparison.Ordinal))).IsTrue()
             .Because("a condition can read a context path");
@@ -258,7 +258,7 @@ public class RuleWorkbenchModuleTests
         await Assert.That(afterWhen).Contains("my_kills").Because("a condition can reference a sibling stat");
         await Assert.That(afterWhen.Contains("count")).IsFalse().Because("a stat kind is not a condition term");
 
-        // At a key position (fresh indented line) — kinds + modifiers, not values.
+        // At a key position (fresh indented line), kinds + modifiers, not values.
         HashSet<string> atKey = Texts("    ");
         await Assert.That(atKey).Contains("count").Because("a stat body starts with a kind");
         await Assert.That(atKey).Contains("per").Because("or a modifier");
@@ -289,8 +289,8 @@ public class RuleWorkbenchModuleTests
 
     /// <summary>
     ///     v0.6.0 block-scope: the enclosing top-level section picks the KEY
-    ///     vocabulary — show-block keys inside <c>show:</c>, section keys at column 0, stat
-    ///     kinds/modifiers inside <c>stats:</c> — while value positions stay line-local.
+    ///     vocabulary: show-block keys inside <c>show:</c>, section keys at column 0, stat
+    ///     kinds/modifiers inside <c>stats:</c>, while value positions stay line-local.
     /// </summary>
     [Test]
     public async Task Completion_NarrowsByBlockScope()
@@ -305,7 +305,7 @@ public class RuleWorkbenchModuleTests
                 .Select(c => c.Text).ToHashSet(StringComparer.Ordinal);
         }
 
-        // Key position inside `show:` — containers + entry keys, not stat kinds or events.
+        // Key position inside `show:`, containers + entry keys, not stat kinds or events.
         HashSet<string> inShow = Texts("  ", Buffer);
         await Assert.That(inShow).Contains("scoreboard").Because("show: hosts the scoreboard container");
         await Assert.That(inShow).Contains("tables");
@@ -313,14 +313,14 @@ public class RuleWorkbenchModuleTests
         await Assert.That(inShow.Contains("count")).IsFalse().Because("a stat kind is not a show key");
         await Assert.That(inShow.Contains("kill")).IsFalse().Because("an event is not a show key");
 
-        // Key position inside `stats:` — kinds/modifiers, exactly as before block scope existed.
+        // Key position inside `stats:`, kinds/modifiers, exactly as before block scope existed.
         const string StatsPrefix = "ruleset: t\nstats:\n  my_kills:\n    ";
         HashSet<string> inStats = Texts("    ", StatsPrefix);
         await Assert.That(inStats).Contains("count");
         await Assert.That(inStats.Contains("scoreboard")).IsFalse()
             .Because("show containers must not leak into a stat body");
 
-        // A partial word at COLUMN 0 — the top-level section keys, not the whole vocabulary.
+        // A partial word at COLUMN 0: the top-level section keys, not the whole vocabulary.
         HashSet<string> topLevel = Texts("sh", "ruleset: t\nsh");
         await Assert.That(topLevel).Contains("show");
         await Assert.That(topLevel).Contains("stats");
@@ -423,7 +423,7 @@ public class RuleWorkbenchModuleTests
             await vm.EvaluateAdvancedCommand.ExecuteAsync(null); // evaluate all shipped rulesets
 
             // Beyond the scoreboard, the shipped rulesets declare tables: (kast_game_totals) and keyed
-            // buckets (weapon) — so more than one board renders.
+            // buckets (weapon), so more than one board renders.
             await Assert.That(vm.Boards.Count).IsGreaterThan(1)
                 .Because("scoreboard + declared/keyed tables all render");
             WorkbenchScoreboard board = vm.Boards[0];
@@ -453,7 +453,7 @@ public class RuleWorkbenchModuleTests
     /// <summary>
     ///     Only a single evaluation runs at a time: while one is in flight (
     ///     <see cref="RuleWorkbenchTabViewModel.IsEvaluating" />),
-    ///     BOTH Evaluate and Advanced Evaluate are disabled — the shared single-flight guard.
+    ///     BOTH Evaluate and Advanced Evaluate are disabled, per the shared single-flight guard.
     /// </summary>
     [Test]
     public async Task Evaluate_SingleFlight_DisablesBothCommandsWhileRunning()
@@ -559,7 +559,7 @@ public class RuleWorkbenchModuleTests
                 await Assert.That(toolbar).IsGreaterThan(100).Because("the toolbar controls render");
 
                 // The editor content area (left of the 300px data panel, below the toolbar) must render
-                // the document text — proving the AvaloniaEdit control theme is registered (App.axaml
+                // the document text, proving the AvaloniaEdit control theme is registered (App.axaml
                 // StyleInclude). Without the theme the TextEditor has no template and this band is blank.
                 int editor = CountDifferentFromCorner(bmp, 40, 480, 56, 220);
                 Console.WriteLine($"[ruleworkbench] editor-text non-background pixels: {editor}");
@@ -608,7 +608,7 @@ public class RuleWorkbenchModuleTests
         // Fires are tick-ordered.
         await Assert.That(fires.Zip(fires.Skip(1)).All(p => p.First.Tick <= p.Second.Tick)).IsTrue();
 
-        // Non-tautological guard: kill/death conservation — every kill is exactly one death, so the
+        // Non-tautological guard: kill/death conservation, every kill is exactly one death, so the
         // total applied fires of the kills stat must equal the deaths stat's. This proves the
         // applied-edge extraction reflects real gameplay counts (the eyeballed KAST-golden match above),
         // not just internal list-length consistency.
@@ -621,7 +621,7 @@ public class RuleWorkbenchModuleTests
             .Because("kill/death conservation: each kill applied-fire is exactly one death applied-fire");
     }
 
-    /// <summary>Value-node stats (e.g. count:) are traceable via AppliedMessagesByEdge — not just highlights.</summary>
+    /// <summary>Value-node stats (e.g. count:) are traceable via AppliedMessagesByEdge, not just highlights.</summary>
     [Test]
     public async Task Trace_CoversValueNodeStats_NotJustHighlights()
     {
@@ -761,7 +761,7 @@ public class RuleWorkbenchModuleTests
         Environment.SetEnvironmentVariable("DEMOVIEWER_USER_RULES_DIR", userDir);
 
         RuleWorkbenchTabViewModel vm = new();
-        vm.Dispose(); // stop the file watcher — the test drives the VM directly, deterministically
+        vm.Dispose(); // stop the file watcher: the test drives the VM directly, deterministically
         try
         {
             await body(vm, userDir);
@@ -837,7 +837,7 @@ public class RuleWorkbenchModuleTests
 
     /// <summary>
     ///     A minimal <see cref="IModuleContext" /> that also carries a loaded demo via
-    ///     <see cref="ICurrentDemoSource" /> — the M5 first-party demo-access seam. Only the members the
+    ///     <see cref="ICurrentDemoSource" />, the M5 first-party demo-access seam. Only the members the
     ///     Workbench actually touches (Players / CurrentPlayers / Advanced / the demo) are functional; the
     ///     rest are unused stubs.
     /// </summary>

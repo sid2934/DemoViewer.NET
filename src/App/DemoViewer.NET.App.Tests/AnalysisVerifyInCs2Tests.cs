@@ -10,12 +10,12 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     "Verify in CS2" (the UI half; design notes in git history). Pins the
-///     testable core of the Analysis-tab affordance — two-level gating, the trigger's firing-tick
+///     testable core of the Analysis-tab affordance: two-level gating, the trigger's firing-tick
 ///     resolution (an edge's own fire / a node's incoming-trigger fire / playhead fallback, always
 ///     frame clock AS-IS, no <c>−ServerStartTick</c>), raw spectate-name resolution, busy/re-entry,
-///     and inline failure surfacing — without an MSAGL graph (the surface itself is a pointer-release
-///     context menu that does not settle geometry headlessly) and without parsing a demo. Pure VM — no
-///     headless UI session — so it runs in parallel.
+///     and inline failure surfacing, without an MSAGL graph (the surface itself is a pointer-release
+///     context menu that does not settle geometry headlessly) and without parsing a demo. Pure VM, no
+///     headless UI session, so it runs in parallel.
 /// </summary>
 public class AnalysisVerifyInCs2Tests
 {
@@ -138,7 +138,7 @@ public class AnalysisVerifyInCs2Tests
         ConditionTarget edge = ConditionTarget.ForEdge(
             new GraphEdgeViewModel(new GraphNodeViewModel("A"), new GraphNodeViewModel("X"), "player_death", default));
 
-        // Nearest fire at-or-before playhead (2) is message 1 ⇒ tick 100 — NOT the playhead's 200.
+        // Nearest fire at-or-before playhead (2) is message 1 ⇒ tick 100, NOT the playhead's 200.
         await Assert.That(vm.ResolveVerifyTick(edge)).IsEqualTo(100)
             .Because("an edge is the trigger itself — its own recorded fire is verified");
     }
@@ -151,7 +151,7 @@ public class AnalysisVerifyInCs2Tests
         vm.SetVerifyEdgeFiresForTests(("A", "X", "e1", null), [2]);
         vm.SetVerifyEdgeFiresForTests(("B", "X", "e2", null), [5]);
 
-        // Union {2,5}; nearest at-or-before playhead (6) is 5 ⇒ tick 500 — NOT the playhead's 600.
+        // Union {2,5}; nearest at-or-before playhead (6) is 5 ⇒ tick 500, NOT the playhead's 600.
         await Assert.That(vm.ResolveVerifyTick(NodeTarget("X"))).IsEqualTo(500)
             .Because("a node verifies the nearest fire of the triggers that activate it");
     }

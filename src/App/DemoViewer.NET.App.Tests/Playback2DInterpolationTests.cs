@@ -12,12 +12,12 @@ namespace DemoViewer.NET.AppTests;
 ///     sampled spot on the render loop, so markers glide between discrete pushes instead of stepping. It must
 ///     snap (not glide) on first appearance and on a teleport-sized jump (seek / round reset / respawn
 ///     elsewhere) so a glide never streaks across the map, and prune slots that leave. Driven directly with a
-///     known dt — the headless RAF dt can't be relied on (the "stopwatch fallback" comment notwithstanding,
+///     known dt: the headless RAF dt can't be relied on (the "stopwatch fallback" comment notwithstanding,
 ///     there is none), so the smoothing logic is exercised without the render loop.
 /// </summary>
 /// <remarks>
 ///     Runs on the UI thread: <c>Playback2DViewport</c> is a Control, so constructing one verifies
-///     dispatcher access. Off-thread these passed only while no dispatch had yet bound the UI thread — a
+///     dispatcher access. Off-thread these passed only while no dispatch had yet bound the UI thread, a
 ///     race the assembly warm-up now settles, and the "Call from invalid thread" half of issue #6.
 /// </remarks>
 public class Playback2DInterpolationTests
@@ -51,7 +51,7 @@ public class Playback2DInterpolationTests
                 Marker(0, 100f, 0f)
             }, Dt); // seed at A
 
-            // One step toward B = (140,0): partway (between A and B), reported as moving — NOT snapped.
+            // One step toward B = (140,0): partway (between A and B), reported as moving, NOT snapped.
             bool moving = vp.AdvanceMarkers(new[]
             {
                 Marker(0, 140f, 0f)

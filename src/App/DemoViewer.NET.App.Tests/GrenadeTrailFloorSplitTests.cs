@@ -9,7 +9,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     A grenade whose flight arc crosses floors (e.g. a Nuke upper→lower throw) must render each portion on
-///     the correct band — not the whole arc on the tip's floor (the reported bug). Verifies
+///     the correct band, not the whole arc on the tip's floor (the reported bug). Verifies
 ///     <see cref="Playback2DViewport.FloorSegmentRuns" />: each floor draws only the segments whose points lie
 ///     on it, with the single crossing segment bridging both bands.
 /// </summary>
@@ -45,7 +45,7 @@ public class GrenadeTrailFloorSplitTests
         {
             (1, 3)
         });
-        // The crossing segment (index 1→2) appears in BOTH — continuity across the floor boundary.
+        // The crossing segment (index 1→2) appears in BOTH: continuity across the floor boundary.
     }
 
     [Test]
@@ -90,7 +90,7 @@ public class GrenadeTrailFloorSplitTests
     [Test]
     public async Task ArcDipsToOtherFloorAndReturns_ProducesTwoRunsOnHomeFloor()
     {
-        // Upper, upper, DIP to lower (TWO samples — so there's a segment fully on the lower floor), back up.
+        // Upper, upper, DIP to lower (TWO samples, so there's a segment fully on the lower floor), back up.
         // The home (upper) floor gets two runs split by the dip; a single-sample dip would NOT split (its two
         // segments each still touch an upper endpoint under the either-endpoint rule).
         List<GrenadeTrailPoint> pts = new()

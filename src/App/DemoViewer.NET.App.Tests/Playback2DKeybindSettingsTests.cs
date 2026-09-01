@@ -20,7 +20,7 @@ namespace DemoViewer.NET.AppTests;
 ///     fine, writes fine, and forgets itself on the next read with nothing to see anywhere.
 ///     <para>
 ///         The Settings-screen cases are the other half of the contract: this screen VALIDATES before it
-///         writes, so nothing it persists can ever be dropped on load — which is why a non-empty rejection
+///         writes, so nothing it persists can ever be dropped on load, which is why a non-empty rejection
 ///         note always means a hand-edited file.
 ///     </para>
 /// </summary>
@@ -30,7 +30,7 @@ public class Playback2DKeybindSettingsTests
     [Test]
     public async Task Overrides_SurviveAFilelessWrite_AndAShrinkDropsStaleIndices()
     {
-        SettingsService svc = new(null); // the WASM branch — no file, only the in-memory provider
+        SettingsService svc = new(null); // the WASM branch: no file, only the in-memory provider
 
         svc.Write(s => s.Playback2D.KeybindOverrides = ["NextRound=Shift+R", "PrevRound=Shift+T"]);
         await Assert.That(svc.Current.Playback2D.KeybindOverrides.Length).IsEqualTo(2);
@@ -114,7 +114,7 @@ public class Playback2DKeybindSettingsTests
             {
                 KeybindRow row = Row(vm, Playback2DAction.NextRound);
 
-                // Ctrl+O is MainView.axaml's Open — a shell accelerator the tab must never shadow.
+                // Ctrl+O is MainView.axaml's Open, a shell accelerator the tab must never shadow.
                 Capture(vm, row, Key.O, KeyModifiers.Control);
                 Console.WriteLine($"[keybind-ui] shell refusal: {row.Conflict}");
                 await Assert.That(row.Conflict).Contains("app-wide");
@@ -169,7 +169,7 @@ public class Playback2DKeybindSettingsTests
                 await Assert.That(row.IsCapturing).IsFalse();
                 await Assert.That(svc.Current.Playback2D.KeybindOverrides).IsEmpty();
 
-                // Un-armed, the handler consumes nothing — the search box has to keep working.
+                // Un-armed, the handler consumes nothing: the search box has to keep working.
                 await Assert.That(vm.HandleKeybindCapture(Key.R, KeyModifiers.None)).IsFalse();
 
                 vm.Dispose();
@@ -364,7 +364,7 @@ public class Playback2DKeybindSettingsTests
         }
     }
 
-    // Arms the row and feeds it one keypress — the exact path SettingsView's tunnelling KeyDown handler
+    // Arms the row and feeds it one keypress: the exact path SettingsView's tunnelling KeyDown handler
     // drives, minus the visual tree.
     private static void Capture(SettingsViewModel vm, KeybindRow row, Key key, KeyModifiers modifiers)
     {

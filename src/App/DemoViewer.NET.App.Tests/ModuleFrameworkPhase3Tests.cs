@@ -102,7 +102,7 @@ public class ModuleFrameworkPhase3Tests
             // Exactly one descriptor is realized at a time.
             await Assert.That(vm.Tabs.Count(t => t.ActiveContent is not null)).IsEqualTo(1);
 
-            // Switch tabs: the old View is dropped, the new one realized — still exactly one.
+            // Switch tabs: the old View is dropped, the new one realized, still exactly one.
             WorkspaceTabDescriptor first = vm.SelectedTab!;
             vm.SelectedTab = vm.Tabs[1];
             Dispatcher.UIThread.RunJobs();
@@ -134,7 +134,7 @@ public class ModuleFrameworkPhase3Tests
             vm.Navigation.SeekToFrame(mid);
             await WaitUntil(() => vm.Playback.AuthoritativeTracker?.CurrentFrameIndex == mid);
 
-            // Activate the sandbox. Its OnActivated pulls context.CurrentPlayers — proving the host
+            // Activate the sandbox. Its OnActivated pulls context.CurrentPlayers, proving the host
             // player-join (PawnLookup reverse m_hController + PositionUtil) is reachable end-to-end.
             vm.SelectedTab = sandbox;
             Dispatcher.UIThread.RunJobs();
@@ -154,7 +154,7 @@ public class ModuleFrameworkPhase3Tests
 
             await Assert.That(sandboxVm.PushCount).IsEqualTo(pushesAfterDeactivate);
 
-            // Re-activate the sandbox and play — it DOES receive coalesced pushes (active-only work).
+            // Re-activate the sandbox and play: it DOES receive coalesced pushes (active-only work).
             vm.SelectedTab = sandbox;
             Dispatcher.UIThread.RunJobs();
             int before = sandboxVm.PushCount;

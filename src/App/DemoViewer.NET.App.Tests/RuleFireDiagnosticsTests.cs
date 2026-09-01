@@ -28,7 +28,7 @@ namespace DemoViewer.NET.AppTests;
 ///     user rule (its trigger event occurs, its condition never matches) must produce the
 ///     "fired 0 times" warning and a 0× badge, while shipped rules show nonzero badges.
 ///     The contract is pinned on the engine thread via the pure
-///     <see cref="AnalysisViewModel.ComputeRuleDiagnostics" /> (no UI machinery — immune to the
+///     <see cref="AnalysisViewModel.ComputeRuleDiagnostics" /> (no UI machinery, immune to the
 ///     suite-order UI-session wedge, see the quarantined shell test below).
 /// </summary>
 /// <remarks>
@@ -59,10 +59,10 @@ public class RuleFireDiagnosticsTests
     ///     The work item's required assertions, driven entirely on the test thread:
     ///     load the shipped rules + a dead user rule, run the engine, and compute the
     ///     diagnostics/badges exactly as RunAsync does. player_death occurs in every real demo
-    ///     (so the pre-existing absent-event warning stays silent — this pins the NEW lint),
+    ///     (so the pre-existing absent-event warning stays silent: this pins the NEW lint),
     ///     while slot 99 never matches (so the rule fires zero times). Note 0.4a is
     ///     load-bearing: pre-fix, game-event conditions were honored but net-message ones were
-    ///     not — the probe uses a game-event condition.
+    ///     not. The probe uses a game-event condition.
     /// </summary>
     [Test]
     public async Task DeadRule_ProducesNeverFiredLint_AndBadges_EngineThread()
@@ -89,7 +89,7 @@ public class RuleFireDiagnosticsTests
             (List<RuleDiagnostic> diags, List<RuleFireStat> fireStats) =
                 AnalysisViewModel.ComputeRuleDiagnostics(rules, parsed, run.Build, run.Snapshots!);
 
-            // The never-fired lint row — exactly one row for the probe rule (the absent-event
+            // The never-fired lint row, exactly one row for the probe rule (the absent-event
             // warning must NOT also fire: player_death is present in the demo).
             List<RuleDiagnostic> probeRows = diags.Where(d => d.RuleId == "never_fires_probe").ToList();
             await Assert.That(probeRows.Count).IsEqualTo(1);

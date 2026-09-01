@@ -16,13 +16,13 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The export dialog's "mirror the live view" camera is a CAPTURE taken once at Start — but until the
+///     The export dialog's "mirror the live view" camera is a CAPTURE taken once at Start, but until the
 ///     v2 host exposed its panes it captured an empty <c>Fixed</c> script, so every exported pane
 ///     silently kept the fit its own level was born with. A user who had
 ///     zoomed into A site got a whole-map export and no indication why.
 ///     <para>
 ///         Two halves: the host produces a keyed snapshot of what is actually on screen, and the View
-///         hands that capture to the tab view-model — because the VM cannot reach the mounted surface and
+///         hands that capture to the tab view-model, because the VM cannot reach the mounted surface and
 ///         the legacy escape hatch has no pane cameras to capture at all.
 ///     </para>
 /// </summary>
@@ -126,7 +126,7 @@ public class Playback2DMirrorLiveViewTests
 
     /// <summary>
     ///     The wiring: with the v2 host mounted the tab's capture is the host's, and it is cleared when
-    ///     the View unbinds — the View is destroyed on every tab deactivation, and a stale delegate onto a
+    ///     the View unbinds: the View is destroyed on every tab deactivation, and a stale delegate onto a
     ///     disposed control is the shape of bug that outlives its own tab.
     /// </summary>
     [Test]
@@ -160,7 +160,7 @@ public class Playback2DMirrorLiveViewTests
 
     /// <summary>
     ///     Under the legacy escape hatch there are no pane cameras, so nothing is wired and the dialog
-    ///     falls back to the empty <c>Fixed</c> script — the original behaviour, kept deliberately rather
+    ///     falls back to the empty <c>Fixed</c> script: the original behaviour, kept deliberately rather
     ///     than stubbed with a lie.
     /// </summary>
     [Test]

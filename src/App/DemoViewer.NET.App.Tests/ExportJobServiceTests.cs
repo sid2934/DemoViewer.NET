@@ -122,7 +122,7 @@ public class ExportJobServiceTests
     ///         The job body runs on the thread pool, so between <c>Start</c> returning and
     ///         <c>RunAsync</c> publishing <see cref="ExportPhase.Preparing" /> there is a window in which
     ///         <c>Status.IsRunning</c> is still false. A guard that reads only the published status
-    ///         therefore misses a double-click on the dialog's Start button — and two exports would then
+    ///         therefore misses a double-click on the dialog's Start button, and two exports would then
     ///         race for the same output path, with the first one's cancellation source overwritten and
     ///         its task no longer reachable by <c>CancelAsync</c>.
     ///     </para>
@@ -173,7 +173,7 @@ public class ExportJobServiceTests
 
         // Status is assigned before StatusChanged is raised, and the gate is released before Status is
         // assigned. So the instant a poller can SEE a terminal status, the machine must already be free:
-        // that is the reel job's rule, for the same reason — anything that reacts to "finished" by
+        // that is the reel job's rule, for the same reason: anything that reacts to "finished" by
         // starting its own heavy work must not find a gate this job has not let go of yet.
         await Assert.That(gate.IsExportActive).IsFalse();
         await Assert.That(service.Status.Phase).IsEqualTo(ExportPhase.Completed);
@@ -227,7 +227,7 @@ public class ExportJobServiceTests
         await runner.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         // Refusal is start-time only. An export never touches the shared clock, so it cannot corrupt a
-        // sync session — and throwing away minutes of finished render to enforce a rule that was about
+        // sync session, and throwing away minutes of finished render to enforce a rule that was about
         // STARTING would be worse than the overlap.
         liveSyncBusy = true;
         runner.Block.SetResult();

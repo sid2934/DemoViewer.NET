@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests;
 ///     the good bits, move on.
 ///     <para>
 ///         The tray is the authority throughout. Match Overview holds no clip state of its own and never
-///         assumes a stage succeeded — the tray resolves the owning cache row itself, because it needs that
+///         assumes a stage succeeded: the tray resolves the owning cache row itself, because it needs that
 ///         row's tick rate and round boundaries to compute a clip window at all.
 ///     </para>
 /// </summary>
@@ -119,7 +119,7 @@ public class MatchOverviewStagingTests
 
     /// <summary>
     ///     Re-rendering the page must show what is already in the tray. Otherwise a staged clip shows a
-    ///     <c>[ + ]</c>, and pressing it would toggle the clip OUT — the button doing the opposite of what it
+    ///     <c>[ + ]</c>, and pressing it would toggle the clip OUT, the button doing the opposite of what it
     ///     says.
     /// </summary>
     [Test]
@@ -132,7 +132,7 @@ public class MatchOverviewStagingTests
         FirstRow(vm).StageCommand.Execute(null);
         await Assert.That(tray.StagedCount).IsEqualTo(1);
 
-        // Navigate away and back — the page rebuilds its rows from the cache record.
+        // Navigate away and back: the page rebuilds its rows from the cache record.
         vm.Clear();
         vm.SetCachedRecord(Record());
 
@@ -141,7 +141,7 @@ public class MatchOverviewStagingTests
 
     /// <summary>
     ///     The tray resolves the owning cache row itself and refuses a clip it cannot window. Match Overview
-    ///     must reflect the REPORTED outcome — an optimistic ✓ would claim a clip is staged when the tray
+    ///     must reflect the REPORTED outcome: an optimistic ✓ would claim a clip is staged when the tray
     ///     holds nothing, and the tray is what actually renders.
     /// </summary>
     [Test]
@@ -165,7 +165,7 @@ public class MatchOverviewStagingTests
     }
 
     /// <summary>
-    ///     Un-wired (no shell, browser host, tests), the button must be inert — not throwing, and not
+    ///     Un-wired (no shell, browser host, tests), the button must be inert, not throwing, and not
     ///     pretending it staged something.
     /// </summary>
     [Test]
@@ -180,7 +180,7 @@ public class MatchOverviewStagingTests
         await Assert.That(row.IsStaged).IsFalse();
     }
 
-    // A three-highlight record for one player — the Select-all header button's subject.
+    // A three-highlight record for one player, the Select-all header button's subject.
     private static DemoCacheRecord MultiRecord() => new()
     {
         Path = Demo,
@@ -240,7 +240,7 @@ public class MatchOverviewStagingTests
         ]
     };
 
-    // Per-player sections start COLLAPSED — a demo can produce a dozen of them, and pre-expanding buries the
+    // Per-player sections start COLLAPSED: a demo can produce a dozen of them, and pre-expanding buries the
     // "who had moments" overview.
     [Test]
     public async Task PerPlayerSections_StartCollapsed()

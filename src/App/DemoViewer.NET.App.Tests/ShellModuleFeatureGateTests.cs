@@ -31,7 +31,7 @@ public class ShellModuleFeatureGateTests
     /// <summary>
     ///     The WASM branch, driven through the internal <c>Func&lt;bool&gt;</c> seam.
     ///     <c>OperatingSystem.IsBrowser()</c> is a JIT-folded intrinsic, so it cannot be faked from
-    ///     outside — and a desktop-only gate never proved to close is a gate nobody tested.
+    ///     outside, and a desktop-only gate never proved to close is a gate no test actually closes.
     /// </summary>
     [Test]
     public async Task DesktopOnlyId_IsFalse_OnBrowser_TrueOtherwise()
@@ -51,7 +51,7 @@ public class ShellModuleFeatureGateTests
         await Assert.That(onBrowser.IsEnabled("playback2d.annotations")).IsTrue();
     }
 
-    /// <summary>A user override cannot resurrect export on the browser — the platform AND is not a default.</summary>
+    /// <summary>A user override cannot resurrect export on the browser: the platform AND is not a default.</summary>
     [Test]
     public async Task DesktopOnlyId_StaysFalse_OnBrowser_EvenWhenTheGateSaysYes()
     {
@@ -96,7 +96,7 @@ public class ShellModuleFeatureGateTests
 
     /// <summary>
     ///     Null fails OPEN, at both levels: a null underlying gate (designer / unit-test path), and an
-    ///     <see cref="IModuleContext" /> that never had <c>SetFeatures</c> called on it — the default
+    ///     <see cref="IModuleContext" /> that never had <c>SetFeatures</c> called on it: the default
     ///     interface implementation returns null and a module then shows everything, exactly as it did
     ///     before gating existed.
     /// </summary>

@@ -10,13 +10,13 @@ using DemoViewer.NET.TestSupport;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Position-constant gate — the highest-leverage correctness item for the 2D pilot. Asserts
+///     Position-constant gate: the highest-leverage correctness item for the 2D pilot. Asserts
 ///     that <see cref="PositionUtil.CellToWorld" /> (constant lifted from the demofile-net oracle:
 ///     <c>world = (cell - 32) * 512 + offset</c>) reconstructs known pawn positions that land ON-RADAR
 ///     (within plausible CS2 map bounds). This guards the pilot from plotting markers in the wrong
 ///     place. The test is DISCRIMINATING: it requires at least one OFF-CENTER pawn (cellX/cellY ≠ 32),
 ///     for which the wrong cell multiplier (1024) would throw the position roughly 2× out and far
-///     outside the asserted bounds — so passing actually proves the 512 constant, not just "near
+///     outside the asserted bounds, so passing actually proves the 512 constant, not just "near
 ///     origin where 512 and 1024 collapse."
 /// </summary>
 [NotInParallel]
@@ -81,7 +81,7 @@ public class PositionUtilGateTests
         await Assert.That(offCenter).IsGreaterThan(0);
 
         // On-radar: every live pawn lands within map bounds on X/Y. This is the assertion the wrong
-        // (1024) cell multiplier fails for the off-center pawns above — the empirical pin of the
+        // (1024) cell multiplier fails for the off-center pawns above, the empirical pin of the
         // oracle-derived constant (WorldHalfExtent = 16384 = 1<<14, CellWidth = 512).
         await Assert.That(maxAbsXy).IsLessThan(MapBound);
     }

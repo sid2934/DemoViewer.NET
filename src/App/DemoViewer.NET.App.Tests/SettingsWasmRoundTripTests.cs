@@ -12,7 +12,7 @@ namespace DemoViewer.NET.AppTests;
 ///     The mechanical guarantee that no <c>Playback2DSettings</c> property can be added without a matching
 ///     <c>SettingsService.WriteInMemory</c> row (B5-3 / B5-6).
 ///     <para>
-///         On the WASM head there is no settings file — only the in-memory configuration provider that
+///         On the WASM head there is no settings file, only the in-memory configuration provider that
 ///         <c>WriteInMemory</c> populates by hand, key by key. A property modelled on
 ///         <see cref="Playback2DSettings" /> but missing from that method binds fine, writes fine, and
 ///         forgets itself on the next read, with nothing to see anywhere. This class is
@@ -47,7 +47,7 @@ public class SettingsWasmRoundTripTests
 
         foreach (PropertyInfo property in properties)
         {
-            SettingsService svc = new(null); // fileless in-memory path — the WASM branch
+            SettingsService svc = new(null); // fileless in-memory path, the WASM branch
             object? original = property.GetValue(svc.Current.Playback2D);
             object? changed = NonDefaultFor(property, original);
             if (changed is null)
@@ -107,8 +107,8 @@ public class SettingsWasmRoundTripTests
     }
 
     /// <summary>
-    ///     Regression net over the pre-existing flattened set — the root keys and the processing-queue
-    ///     block — so a future edit to <c>WriteInMemory</c> cannot drop them while adding Playback2D rows.
+    ///     Regression net over the pre-existing flattened set, the root keys and the processing-queue
+    ///     block, so a future edit to <c>WriteInMemory</c> cannot drop them while adding Playback2D rows.
     /// </summary>
     [Test]
     public async Task RootAndProcessingQueue_StillRoundTrip()

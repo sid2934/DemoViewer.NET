@@ -22,7 +22,7 @@ namespace DemoViewer.NET.AppTests;
 ///         behaviour. Both write a PNG to the artifact dir for eyeball review.
 ///     </para>
 ///     <para>
-///         <b>Deleted wholesale by the removal commit</b> — see
+///         <b>Deleted wholesale by the removal commit</b>: see
 ///         <c>docs/playback2d-v2/old-control-removal.md</c>.
 ///     </para>
 /// </summary>

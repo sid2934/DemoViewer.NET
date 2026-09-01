@@ -9,7 +9,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     <see cref="RoundTrack" /> / <see cref="KillTrack" /> / <see cref="BombTrack" /> against a hand-rolled
-///     <see cref="ITimelineData" />. No host, no Avalonia, no demo — which is the point of the contract
+///     <see cref="ITimelineData" />. No host, no Avalonia, no demo, which is the point of the contract
 ///     being defined over primitives: these are the tests that must keep passing verbatim regardless of
 ///     which namespace the types live in.
 /// </summary>
@@ -50,7 +50,7 @@ public class TimelineTrackTests
         await Assert.That(bands[0].StartFrameIndex).IsEqualTo(0);
         await Assert.That(bands[0].EndFrameIndex).IsEqualTo(49);
 
-        // Round numbering is a 1-based ordinal over the freeze-end list — the warmup band is not round 1.
+        // Round numbering is a 1-based ordinal over the freeze-end list. The warmup band is not round 1.
         await Assert.That(bands[1].Label).IsEqualTo("1");
     }
 
@@ -136,7 +136,7 @@ public class TimelineTrackTests
     [Test]
     public async Task KillTrack_DropsEventsPastEndOfFrameList()
     {
-        // The DROP happens in the adapter (an unresolvable tick yields no record at all) — the track then
+        // The DROP happens in the adapter (an unresolvable tick yields no record at all), the track then
         // simply never sees it, which is what keeps a -1 frame index out of the layout.
         FakeTimelineData data = new(100);
         data.Events["player_death"] = [Record(64, 10)];
@@ -154,7 +154,7 @@ public class TimelineTrackTests
     ///     the two sides to be two colours.
     ///     <para>
     ///         <b>The MAPPING, not two colours.</b> This case used to assert only that the
-    ///         two were non-zero, different and opaque — under which swapping <c>TintTeamT</c> and
+    ///         two were non-zero, different and opaque, under which swapping <c>TintTeamT</c> and
     ///         <c>TintTeamCt</c> stayed green and every T kill on the bar rendered in the CT blue. The
     ///         entire user-visible claim is "the kill colour reads at a glance", and a colour that reads as
     ///         the wrong side is worse than one colour for both.
@@ -172,7 +172,7 @@ public class TimelineTrackTests
 
         IReadOnlyList<TimelineMarker> markers = new KillTrack().BuildMarkers(data);
 
-        // team 2 is T and team 3 is CT — the game's own numbering, which is what the demo carries.
+        // team 2 is T and team 3 is CT, the game's own numbering, which is what the demo carries.
         await Assert.That(markers[0].Argb).IsEqualTo(TintTeamT)
             .Because("a T kill is amber; swapping the two constants must fail here, not pass on 'different'");
         await Assert.That(markers[1].Argb).IsEqualTo(TintTeamCt)
@@ -185,7 +185,7 @@ public class TimelineTrackTests
     }
 
     /// <summary>
-    ///     The two tracks agree about which side is which colour — the same RGB, at the two alphas their
+    ///     The two tracks agree about which side is which colour: the same RGB, at the two alphas their
     ///     shapes need. A band and the markers inside it disagreeing about who is amber is the one way
     ///     "read the bar for momentum" can be actively misleading rather than merely dull.
     /// </summary>

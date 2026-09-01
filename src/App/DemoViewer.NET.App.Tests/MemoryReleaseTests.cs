@@ -13,13 +13,13 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Close-demo memory gate. The user-visible promise of the Close Demo action is that the RAM an open
-///     demo occupies comes back — so this asserts COLLECTABILITY, not field-nulling: a checklist of "the
-///     fields I remembered to null are null" cannot prove completeness, because the parser slices frames
+///     demo occupies comes back, so this asserts COLLECTABILITY, not field-nulling: a checklist of "the
+///     fields someone remembered to null are null" cannot prove completeness, because the parser slices frames
 ///     ZERO-COPY into the demo byte buffer and any ONE surviving frame reference pins the entire file. A
 ///     weak reference still alive after close NAMES a missed root. (It earned its keep immediately: the
 ///     first run caught <c>ReplayTabViewModel.SelectedTickFrame</c> pinning the whole demo.)
 ///     <para>
-///         The demo graph must never be reachable from a local in the test body — a plain
+///         The demo graph must never be reachable from a local in the test body: a plain
 ///         <c>ParsedDemo parsed = …</c> is hoisted into the async state machine (or simply kept alive on
 ///         the frame in Debug builds) and the test would pass vacuously. Hence <see cref="CaptureRefs" />:
 ///         a non-async, non-inlined helper whose locals die with its frame, returning only weak references.
@@ -45,7 +45,7 @@ public class MemoryReleaseTests
             await vm.CloseDemoCommand.ExecuteAsync(null);
 
             // Null the only remaining strong root. This local IS hoisted into the state machine (it is
-            // used across awaits) and the state-machine box outlives this body — so nulling is required,
+            // used across awaits) and the state-machine box outlives this body, so nulling is required,
             // not cosmetic.
             vm = null;
         });
@@ -70,11 +70,11 @@ public class MemoryReleaseTests
     }
 
     /// <summary>
-    ///     The load-only test above cannot see the caches that only EXIST after interaction — the
+    ///     The load-only test above cannot see the caches that only EXIST after interaction: the
     ///     <see cref="EntityTracker" /> and its baselines/snapshots, the entity inspector + delta log, the
     ///     parser card build. Clearing an empty collection is indistinguishable from a no-op, so this test
     ///     seeks and inspects FIRST, then closes. That is also the realistic session shape: open, seek
-    ///     around, inspect, close — and the tracker (per-class instance baselines, class shapes, entity
+    ///     around, inspect, close, and the tracker (per-class instance baselines, class shapes, entity
     ///     snapshots) is one of the largest holders in the whole app.
     /// </summary>
     [Test]
@@ -98,13 +98,13 @@ public class MemoryReleaseTests
             await Assert.That(vm.EntityTab.EntityListItems.Count).IsGreaterThan(0);
 
             // Inspect: fills EntityInspector (relationship tree) + DeltaLog for the selected entity.
-            // Skip header rows — those carry no Entity.
+            // Skip header rows. Those carry no Entity.
             EntityState? entity = vm.EntityTab.EntityListItems.First(i => i.Entity is not null).Entity!;
             vm.EntityTab.SelectedEntityItem = entity;
 
             refs = CaptureInteractedRefs(vm);
             // Drop the locals: both are (or may be) hoisted into the async state machine, whose box
-            // outlives this body — leaving either set would make the weak-ref assertions vacuous.
+            // outlives this body, leaving either set would make the weak-ref assertions vacuous.
             tracker = null;
             entity = null;
 
@@ -166,7 +166,7 @@ public class MemoryReleaseTests
                 await Assert.That(vm.CloseDemoCommand.CanExecute(null)).IsFalse();
             }
 
-            // …and a load after a close still works — the reset is not one-way.
+            // …and a load after a close still works: the reset is not one-way.
             await vm.AutoLoadDemoAsync(demo);
             await Assert.That(vm.HasFile).IsTrue();
             await Assert.That(vm.Frames.Count).IsGreaterThan(0);
@@ -189,7 +189,7 @@ public class MemoryReleaseTests
 
     /// <summary>
     ///     Weak-refs the interaction-created state as well as the demo. Same non-async / non-inlined
-    ///     discipline as <see cref="CaptureRefs" /> — none of these objects may outlive this frame.
+    ///     discipline as <see cref="CaptureRefs" />: none of these objects may outlive this frame.
     /// </summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static InteractedRefs CaptureInteractedRefs(MainViewModel vm)

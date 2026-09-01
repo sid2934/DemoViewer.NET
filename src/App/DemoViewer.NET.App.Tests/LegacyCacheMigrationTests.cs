@@ -97,7 +97,7 @@ public class LegacyCacheMigrationTests
     }
 
     /// <summary>
-    ///     The gate must be an explicit marker, not "does index.json exist" — the indexer's dual-write
+    ///     The gate must be an explicit marker, not "does index.json exist": the indexer's dual-write
     ///     creates that file during its first pass, long before any migration.
     /// </summary>
     [Test]
@@ -291,7 +291,7 @@ public class LegacyCacheMigrationTests
                 await Assert.That(real.ConfigFingerprint).IsEqualTo("fp-legacy");
                 await Assert.That(real.HasTeamSplit).IsTrue()
                     .Because("the highlights row did store teams, unlike the library row");
-                // The legacy highlights cache never held a scoreboard, so tier 3 is only partially filled —
+                // The legacy highlights cache never held a scoreboard, so tier 3 is only partially filled, but
                 // the completeness model still offers Compute full stats for the stats half.
                 await Assert.That(real.Scoreboard).IsEmpty();
             }

@@ -34,7 +34,7 @@ public class StatsRealDemoRenderProbe
         string path = DemoTestHelper.RequireDemo();
         ParsedDemo demo = DemoTestHelper.GetOrParse(path);
         // Post Rulesets v2 cutover the shipped scoreboard stats are v2 rulesets (in .Rulesets),
-        // so build through the v2 overload — otherwise the rendered scoreboard is empty.
+        // so build through the v2 overload: otherwise the rendered scoreboard is empty.
         RuleConfigLoadResult loaded = YamlConfigLoader.TryLoadDirectory(RuleSetLocator.ResolveShippedRulesDirectory());
         BuildResult build = DemoAnalysis.Build(demo, loaded.Rulesets);
         AnalysisRun run = DemoAnalysis.Evaluate(demo, build);

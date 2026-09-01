@@ -35,8 +35,8 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 ///     <para>
 ///         <b>The scene write shares the PNG's regeneration guard</b>, or an App-suite run silently
-///         rewrites <c>scenes/nuke-multilevel.scene.json</c> — the input to <c>GoldenParityTests</c> and
-///         <c>LevelGoldenTests</c> — because the tour sample ships in every checkout. These captures own
+///         rewrites <c>scenes/nuke-multilevel.scene.json</c>, the input to <c>GoldenParityTests</c> and
+///         <c>LevelGoldenTests</c>, because the tour sample ships in every checkout. These captures own
 ///         the <c>prev2-</c> namespace exclusively, so a capture on a machine with Mirage demos staged
 ///         cannot overwrite a hand-authored dv2d fixture. <c>nuke-multilevel</c> keeps its name because
 ///         that scene, golden and expectation all originate here.
@@ -104,7 +104,7 @@ public class Playback2DGoldenCaptureTests
     ///     Resolves one demo candidate. A bare file name goes through the usual
     ///     <see cref="DemoTestHelper" /> search (<c>DEMO_PATH</c> → <c>TestData/</c> →
     ///     <c>demos/benchmarks/</c> → <c>demos/</c>); a candidate containing a separator is treated as
-    ///     repo-relative, so a demo committed to the tree — rather than staged by a developer — is
+    ///     repo-relative, so a demo committed to the tree, rather than staged by a developer, is
     ///     reachable. Returns null when neither locates a file.
     /// </summary>
     /// <param name="candidate">A bare demo file name, or a repo-relative path.</param>
@@ -170,7 +170,7 @@ public class Playback2DGoldenCaptureTests
             }
 
             // The fixture is written from the SAME push that produced the PNG, so the parity and level
-            // suites can diff JSON against image knowing both came from one run — gated identically to
+            // suites can diff JSON against image knowing both came from one run, gated identically to
             // the PNG for the same reason described on the class.
             Directory.CreateDirectory(Path.GetDirectoryName(scenePath)!);
             SceneFixtureSerializer.WriteFile(new SceneFixture
@@ -205,7 +205,7 @@ public class Playback2DGoldenCaptureTests
         // Off it, the ONLY thing that differs is glyph ink, and a maximum cannot express that. Measured
         // on ubuntu against the committed nuke-multilevel golden: 99.70 % of the 810 000 pixels are
         // byte-identical, and the 2451 that are not form 23 connected clusters, none bigger than
-        // 56x10 px — twelve of them the two floor captions, the other eleven the marker initials. The
+        // 56x10 px: twelve of them the two floor captions, the other eleven the marker initials. The
         // radar art, the map geometry, the discs, the rings and the floor split do not differ by a
         // single value anywhere. The worst pixel, (69,274), sits inside a marker initial, which is the
         // same label GoldenParityTests already records at (63,276) for the v2 renderer.
@@ -256,8 +256,8 @@ public class Playback2DGoldenCaptureTests
         ModuleContext context = new(controller, () => demoPath);
 
         // Calibrate the game clock, exactly as the shell does on load. Without it CurtimeSeconds is the
-        // naive tick/tickRate and every round/bomb timer in the captured fixture is offset by clockBase
-        // — measured once as a 7:14 round clock on a 1:55 round. Nothing in the PICTURE depends on it,
+        // naive tick/tickRate and every round/bomb timer in the captured fixture is offset by clockBase,
+        // measured once as a 7:14 round clock on a 1:55 round. Nothing in the PICTURE depends on it,
         // but a fixture whose game info is wrong will mislead whoever reads it next.
         int firstFreezeEnd = FindFirstFreezeEndFrame(frames);
         (double clockBase, bool clockValid) = GameClock.ComputeClockBase(frames, firstFreezeEnd, 64);
@@ -336,7 +336,7 @@ public class Playback2DGoldenCaptureTests
         return capture;
     }
 
-    /// <summary>The first <c>round_freeze_end</c> in the demo — the clock calibration point.</summary>
+    /// <summary>The first <c>round_freeze_end</c> in the demo: the clock calibration point.</summary>
     /// <param name="frames">The demo's frames.</param>
     private static int FindFirstFreezeEndFrame(IReadOnlyList<DemoFrame> frames)
     {

@@ -53,7 +53,7 @@ public class Playback2DAreaEffectsTests
         await Assert.That(smoke.WorldY).IsEqualTo(-1058f);
         await Assert.That(smoke.WorldRadius).IsGreaterThan(100f); // ~144 standard smoke radius
 
-        // Only the burning cells (0 and 2) — not the unburning middle one.
+        // Only the burning cells (0 and 2), not the unburning middle one.
         await Assert.That(vm.AreaEffects.Any(a => a.Kind == AreaEffectKind.Fire && a.WorldX == 36f)).IsTrue();
         await Assert.That(vm.AreaEffects.Any(a => a.Kind == AreaEffectKind.Fire && a.WorldX == -46f)).IsTrue();
         await Assert.That(vm.AreaEffects.Any(a => a.Kind == AreaEffectKind.Fire && a.WorldX == 5f)).IsFalse();

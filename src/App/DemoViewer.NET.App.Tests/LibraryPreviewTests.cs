@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests;
 ///     <para>
 ///         The parse-free property is the premise of the whole "Match Overview is a cache render" move. One
 ///         heavy parse is allowed machine-wide, so a preview that parsed would make arrow-keying the library
-///         strictly worse than the card grid it replaces — and would queue hundreds of parses for a user
+///         strictly worse than the card grid it replaces, and would queue hundreds of parses for a user
 ///         merely scrolling.
 ///     </para>
 /// </summary>
@@ -117,7 +117,7 @@ public class LibraryPreviewTests
     }
 
     /// <summary>
-    ///     A demo the library knows but has never indexed still renders — its NOT INDEXED state carries the
+    ///     A demo the library knows but has never indexed still renders. Its NOT INDEXED state carries the
     ///     action that fixes it. Falling back to a blank page would make the un-indexed majority of a fresh
     ///     library look broken.
     /// </summary>
@@ -147,7 +147,7 @@ public class LibraryPreviewTests
     }
 
     /// <summary>
-    ///     Selecting the demo that is ALREADY OPEN must not replace its live page with the cached one — the
+    ///     Selecting the demo that is ALREADY OPEN must not replace its live page with the cached one. The
     ///     live render is strictly richer, and a selection is not a request to leave it.
     /// </summary>
     [Test]
@@ -189,7 +189,7 @@ public class LibraryPreviewTests
 
     /// <summary>
     ///     Previewing another demo while one is open offers the way back, and taking it re-renders the live
-    ///     page. The shell re-derives rather than restoring a stash — a stash taken mid-load would be a
+    ///     page. The shell re-derives rather than restoring a stash. A stash taken mid-load would be a
     ///     snapshot of a page that was still filling in.
     /// </summary>
     [Test]

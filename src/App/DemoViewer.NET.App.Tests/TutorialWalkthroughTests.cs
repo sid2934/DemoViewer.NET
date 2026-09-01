@@ -94,7 +94,7 @@ public class TutorialWalkthroughTests
                 vm.Tutorial.NextCommand.Execute(null); // → open a demo, the gateway (4/8)
                 await Assert.That(vm.Tutorial.CurrentStep!.Target).IsEqualTo(TutorialTarget.OpenDemo);
 
-                // The gateway waits IN PLACE with no demo open — the overlay stays up (guiding the user to the
+                // The gateway waits IN PLACE with no demo open: the overlay stays up (guiding the user to the
                 // spotlighted Open-Demo button), advance is disabled, and it auto-resumes when a demo loads.
                 await Assert.That(vm.Tutorial.IsActive).IsTrue()
                     .Because("the gateway waits in place rather than hiding and stranding the user");
@@ -155,8 +155,8 @@ public class TutorialWalkthroughTests
 
     // The fragile core (per the design review): as the tour walks the first-run segment, the overlay must
     // resolve each tagged region and measure a non-empty spotlight over the real shell. Covers all three
-    // first-run anchors — the tab strip (a header-union measurement), the Library region, and the Open-Demo
-    // chrome button — and renders the tab-strip step to a PNG.
+    // first-run anchors: the tab strip (a header-union measurement), the Library region, and the Open-Demo
+    // chrome button. Renders the tab-strip step to a PNG.
     [Test]
     public async Task FirstRunSteps_MeasureSpotlights_OverRealShell_AndRender()
     {
@@ -179,7 +179,7 @@ public class TutorialWalkthroughTests
 
                 vm.StartWalkthrough();
 
-                // Step 2: the tab strip — a union of the realized TabItem headers, NOT the whole workspace, so
+                // Step 2: the tab strip, a union of the realized TabItem headers, NOT the whole workspace, so
                 // it must measure a short, wide rect near the top of the window (a chrome-strip region).
                 vm.Tutorial.NextCommand.Execute(null); // → move between areas / tab strip (2/8)
                 PumpLayout();
@@ -205,7 +205,7 @@ public class TutorialWalkthroughTests
                     .Because("the overlay resolved the Library anchor and measured its rect");
                 await Assert.That(vm.Tutorial.SpotlightRect.Height).IsGreaterThan(0);
 
-                // Step 4: the Open-Demo toolbar button — a chrome control, not a tab root. With no demo open it
+                // Step 4: the Open-Demo toolbar button, a chrome control, not a tab root. With no demo open it
                 // is the waiting gateway, but the spotlight still frames the button (advance disabled).
                 vm.Tutorial.NextCommand.Execute(null); // → open a demo, the gateway (4/8)
                 PumpLayout();
@@ -283,7 +283,7 @@ public class TutorialWalkthroughTests
                     .Because("a click in the spotlight hole passes through the scrim to the real Open-Demo button");
 
                 // …while a point over the dimmed area (bottom-left, away from both the hole and the callout) is
-                // still blocked by the scrim — the tour stays modal everywhere except the highlighted control.
+                // still blocked by the scrim. The tour stays modal everywhere except the highlighted control.
                 Control? blocked = window.InputHitTest(new Point(80, 720)) as Control;
                 await Assert.That(blocked is SpotlightScrim).IsTrue()
                     .Because("outside the hole the scrim still blocks click-through — the tour stays modal");
@@ -297,7 +297,7 @@ public class TutorialWalkthroughTests
 
     // The user's chosen gateway behaviour: when the library holds a demo, the spotlight points at the first
     // library CARD (double-click loads it, no dialog), and the scrim lets that click through to the real card.
-    // Proven over the real shell — a rendered card is measured, and a hit in the hole resolves to a demoCard.
+    // Proven over the real shell. A rendered card is measured, and a hit in the hole resolves to a demoCard.
     [Test]
     public async Task Gateway_WithLibraryDemo_SpotlightsAndClicksThroughToTheFirstCard()
     {
@@ -362,7 +362,7 @@ public class TutorialWalkthroughTests
     }
 
     // The empty-library on-ramp: with no folders and no cards but a bundled sample resolved, the gateway's
-    // second preference spotlights the hero's "Try a sample match" CTA — measured over the real shell, with
+    // second preference spotlights the hero's "Try a sample match" CTA, measured over the real shell, with
     // the scrim's hole click-through reaching the real button. The sample is injected via the shell's
     // tourSampleLocator seam (production passes TourDemoLocator.FindSampleDemo); the file is garbage bytes
     // because targeting must not depend on the demo being loadable.
@@ -414,7 +414,7 @@ public class TutorialWalkthroughTests
                 await Assert.That(hole.Height).IsGreaterThan(0);
 
                 // The hole must sit over the real anchored button, and a click there must fall through the
-                // scrim to it — same modality contract as the Open-Demo and first-card gateways.
+                // scrim to it, same modality contract as the Open-Demo and first-card gateways.
                 await Assert.That(TutorialAnchor.TryResolve(TutorialTarget.SampleDemo, out Control cta)).IsTrue();
                 await Assert.That(cta is Button { Command: not null }).IsTrue()
                     .Because("the anchor is the live CTA button, wired to OpenSampleCommand");
@@ -435,10 +435,10 @@ public class TutorialWalkthroughTests
 
     // The regression this pins: the Library's card-open path used to pre-switch to the Parser tab
     // unconditionally, while the load funnel's Match Overview landing is deliberately suppressed
-    // during the tour — so the tour's spotlighted card-click stranded the user on Parser with the
+    // during the tour, so the tour's spotlighted card-click stranded the user on Parser with the
     // spotlight pointing at nothing. The open paths pass no tab switch of their own anymore: the
     // funnel owns the landing, and mid-tour the shell stays on the Library until the tour's demo
-    // run navigates itself. The entry is deliberately garbage bytes — the old yank was synchronous
+    // run navigates itself. The entry is deliberately garbage bytes: the old yank was synchronous
     // and unconditional, so it fired even for a load that goes on to fail; "no tab change" must
     // hold regardless of load outcome.
     [Test]
@@ -512,7 +512,7 @@ public class TutorialWalkthroughTests
                 };
                 window.Show();
 
-                vm.StartWalkthrough(); // welcome (1/8) — a centred card, no spotlight
+                vm.StartWalkthrough(); // welcome (1/8), a centred card, no spotlight
                 Pump();
 
                 SpotlightScrim scrim = view.GetVisualDescendants().OfType<SpotlightScrim>().Single();

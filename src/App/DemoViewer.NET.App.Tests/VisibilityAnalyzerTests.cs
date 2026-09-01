@@ -14,7 +14,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     <b>Phase-2 validation</b> of the "time enemy was visible" stat (<see cref="VisibilityAnalyzer" />),
-///     run on BOTH a single-plane map (dust2) and a <b>multi-level</b> map (nuke) — the latter is the case
+///     run on BOTH a single-plane map (dust2) and a <b>multi-level</b> map (nuke): the latter is the case
 ///     3D exists to get right (a 2D top-down would wrongly call stacked players visible). Load-bearing check
 ///     is the <b>kill-tick oracle</b>: at a direct kill the killer's crosshair is on the victim, so a correct
 ///     eye/angle/anchor pipeline yields could-see≈true. Reporting <b>exposed% and could-see% separately</b>
@@ -81,7 +81,7 @@ public class VisibilityAnalyzerTests
         return (engine, demo);
     }
 
-    /// <summary>Kill-tick oracle — the decisive angle-math check — on single-plane AND multi-level maps.</summary>
+    /// <summary>Kill-tick oracle, the decisive angle-math check, on single-plane AND multi-level maps.</summary>
     [Test]
     [Arguments("de_dust2")]
     [Arguments("de_nuke")]
@@ -161,16 +161,16 @@ public class VisibilityAnalyzerTests
     }
 
     /// <summary>
-    ///     <b>Smoke occlusion — the core validation.</b> Smoke must block <b>could-see</b> (vision) yet leave
+    ///     <b>Smoke occlusion, the core validation.</b> Smoke must block <b>could-see</b> (vision) yet leave
     ///     <b>exposed</b> (line of fire) untouched. Two complementary checks at real kill ticks:
     ///     <list type="number">
     ///         <item>
-    ///             <b>Structural:</b> for every kill, exposed is bit-identical with and without smoke — smoke
+    ///             <b>Structural:</b> for every kill, exposed is bit-identical with and without smoke. Smoke
     ///             can only ever change could-see (a hard regression guard).
     ///         </item>
     ///         <item>
     ///             <b>Synthetic (decisive, sample-robust):</b> on the geometry-clear + in-FOV kills, injecting
-    ///             a smoke on the sightline midpoint flips could-see true→false for ~all of them — proving the smoke
+    ///             a smoke on the sightline midpoint flips could-see true→false for ~all of them, proving the smoke
     ///             span actually gates could-see through the full eye/anchor/frustum pipeline on real geometry.
     ///         </item>
     ///     </list>
@@ -284,7 +284,7 @@ public class VisibilityAnalyzerTests
             }
 
             // Synthetic injection: on kills we'd otherwise call "could see", drop a smoke on the sightline
-            // midpoint (eye → victim chest) and confirm could-see collapses — decisive and sample-robust.
+            // midpoint (eye → victim chest) and confirm could-see collapses, decisive and sample-robust.
             if (couldSeeNo)
             {
                 synthCandidates++;
@@ -320,7 +320,7 @@ public class VisibilityAnalyzerTests
         // Ordinary direct kills (bullet did NOT pass through smoke) are essentially unaffected by real smokes.
         await Assert.That(directFlipped).IsLessThanOrEqualTo(Math.Max(1, directKills / 20));
 
-        // (3) Ecological: real through-smoke kills — hard-gate only when the subset is big enough to be stable.
+        // (3) Ecological: real through-smoke kills, hard-gated only when the subset is big enough to be stable.
         if (realSmokeSubset >= 5)
         {
             await Assert.That((double)realSmokeFlipped / realSmokeSubset).IsGreaterThan(0.5);
@@ -330,7 +330,7 @@ public class VisibilityAnalyzerTests
     /// <summary>
     ///     <b>The silent-failure gate:</b> confirms active smokes have a bounded lifetime, so they
     ///     can't occlude vision for the rest of the round. Enumerates raw active <c>CSmokeGrenadeProjectile</c>
-    ///     clouds across a windowed replay — if the entity lingered after fade, the concurrent count and the
+    ///     clouds across a windowed replay. If the entity lingered after fade, the concurrent count and the
     ///     observed age-spread would blow up toward the whole window. Also A/Bs <see cref="VisibilityAnalyzer.Analyze" />
     ///     with smoke on vs off: smoke must reduce could-see, never exposed, and must not collapse vision to near-zero.
     /// </summary>
@@ -348,7 +348,7 @@ public class VisibilityAnalyzerTests
         int start = frames.Count / 4;
         int end = Math.Min(frames.Count - 1, start + 16000);
 
-        // Raw smoke-lifetime scan (deliberately NO age cap — we want to SEE a never-expiring entity if it exists).
+        // Raw smoke-lifetime scan (deliberately NO age cap: we want to SEE a never-expiring entity if it exists).
         EntityTracker tracker = new();
         tracker.ReplayToIndex(start, frames);
         int maxConcurrent = 0, ticksWithSmoke = 0, minAge = int.MaxValue, maxAge = int.MinValue;
@@ -396,7 +396,7 @@ public class VisibilityAnalyzerTests
         }
 
         // NOTE: m_nSmokeEffectTickBegin lives on a DIFFERENT tick origin than DemoFrame.ServerTick (offset by a
-        // per-demo constant — pre-recording ticks), so the ABSOLUTE age (tick − begin) is large-negative and
+        // per-demo constant, pre-recording ticks), so the ABSOLUTE age (tick − begin) is large-negative and
         // meaningless. The age SPREAD (maxAge − minAge) is base-independent, though, and equals the real span of
         // smoke ages observed ≈ one smoke's lifetime. That's what proves the window ends: a lingering entity
         // would push the spread toward the whole window (and pile up concurrency).
@@ -475,7 +475,7 @@ public class VisibilityAnalyzerTests
 
     /// <summary>
     ///     <b>The multi-level differentiator.</b> On nuke, enemy pairs at similar XY but separated in Z across
-    ///     the floor band (a player stacked above another) must be <b>mostly occluded</b> — the solid floor
+    ///     the floor band (a player stacked above another) must be <b>mostly occluded</b>. The solid floor
     ///     slab blocks the sightline. A 2D top-down projection would call every one of these visible (same
     ///     spot on the map), so a high occlusion rate here is exactly the 3D correctness dust2 cannot test.
     /// </summary>
@@ -550,8 +550,8 @@ public class VisibilityAnalyzerTests
         Console.WriteLine($"[crossfloor] near-XY cross-floor pairs={crossFloorPairs} occluded={occluded} ({rate:P0}) " +
                           "— a 2D projection would call ALL of these visible");
 
-        // Need a meaningful sample of stacked pairs, and the floor must block the majority (openings —
-        // ramp/hole/vents — are the visible minority). A floor-occlusion bug would drive this toward 0%.
+        // Need a meaningful sample of stacked pairs, and the floor must block the majority (openings,
+        // ramp/hole/vents, are the visible minority). A floor-occlusion bug would drive this toward 0%.
         await Assert.That(crossFloorPairs).IsGreaterThan(30);
         await Assert.That(rate).IsGreaterThan(0.6);
     }

@@ -130,8 +130,8 @@ public class MatchOverviewSeedTests
 
     /// <summary>
     ///     The seam that makes seeding safe: it fills VALUES without changing MODE. Routing it through
-    ///     <c>SetCachedRecord</c> would flip the page to Cached, and every keyed live fill — all of which
-    ///     require Live — would be dropped silently for the rest of the load.
+    ///     <c>SetCachedRecord</c> would flip the page to Cached, and every keyed live fill, all of which
+    ///     require Live, would be dropped silently for the rest of the load.
     /// </summary>
     [Test]
     public async Task Seeding_LeavesThePageLive_SoThePipelineCanStillFillIt()
@@ -174,8 +174,8 @@ public class MatchOverviewSeedTests
 
     /// <summary>
     ///     Tier 3's halves are independent, and the page must say so. A scanned-but-not-stats-computed demo
-    ///     used to render a FULL chip directly above "Analysis produced no per-player stats for this demo." —
-    ///     a page whose whole job is honesty about tiers, contradicting itself on one screen.
+    ///     used to render a FULL chip directly above "Analysis produced no per-player stats for this demo.",
+    ///     on a page whose whole job is reporting which tiers are actually complete, contradicting itself on one screen.
     /// </summary>
     [Test]
     public async Task HighlightsWithoutAScoreboard_RenderTheMoments_ButDoNotClaimFull()
@@ -199,7 +199,7 @@ public class MatchOverviewSeedTests
     ///     <para>
     ///         This is the second half of the reported symptom, and the ordering is the whole problem: opening
     ///         a demo DOES harvest highlights (<c>OnOpenDemoEvaluated</c>), but off-thread, completing after
-    ///         <c>SetAnalysis</c> — the page's last fill point. Seeding cannot cover it either, because at
+    ///         <c>SetAnalysis</c>, the page's last fill point. Seeding cannot cover it either, because at
     ///         seed time the harvest has not started. So a demo you just opened and watched finish showed an
     ///         empty moments column until you navigated away and came back.
     ///     </para>
@@ -244,7 +244,7 @@ public class MatchOverviewSeedTests
     ///         The two halves have different producers, and on an open the scoreboard write ALWAYS precedes
     ///         the harvest completing. When the scoreboard writer also set <c>AnalysisState = Indexed</c>, the
     ///         highlight section read that as "the scan is done" and asserted "No highlights fired for this
-    ///         demo" about a harvest still in flight — and would have overridden the failure copy if that
+    ///         demo" about a harvest still in flight, and would have overridden the failure copy if that
     ///         harvest then threw. Each half now reads its own evidence.
     ///     </para>
     /// </summary>

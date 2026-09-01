@@ -11,7 +11,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     A4 grenade flight trails: each in-flight grenade projectile (the five <c>C*Projectile</c> classes)
 ///     accumulates a Serial-keyed trail of its reconstructed flight path, coloured by grenade kind. The trail
-///     fades + prunes after the projectile detonates, and — the one real correctness guard — is cleared
+///     fades + prunes after the projectile detonates and, the one real correctness guard, is cleared
 ///     wholesale on a discontinuous frame jump so a polyline never streaks from a pre-seek point to a
 ///     post-seek point (a live-accumulate teleport guard, mirroring marker-snap).
 /// </summary>
@@ -30,11 +30,11 @@ public class Playback2DTrajectoryTests
         SetPos(nade, 100, 50, 0);
         view.Add(nade);
 
-        ctx.Push(new Snap(1, view)); // 1 point — not yet a visible line
+        ctx.Push(new Snap(1, view)); // 1 point, not yet a visible line
         await Assert.That(vm.GrenadeTrails.Count).IsEqualTo(0);
 
         SetPos(nade, 200, 50, 0);
-        ctx.Push(new Snap(2, view)); // 2 points — now a visible trail
+        ctx.Push(new Snap(2, view)); // 2 points, now a visible trail
         SetPos(nade, 300, 50, 0);
         ctx.Push(new Snap(3, view)); // 3 points
 
@@ -107,8 +107,8 @@ public class Playback2DTrajectoryTests
     [Test]
     public async Task BackwardMicroStep_HoldsTrail_NoKinkNoPrune()
     {
-        // A 1-frame backward step (within the jump threshold, so NO wholesale clear) must hold the trail as-is
-        // — neither append a backward point (kink) nor prune it.
+        // A 1-frame backward step (within the jump threshold, so NO wholesale clear) must hold the trail as-is,
+        // neither append a backward point (kink) nor prune it.
         Playback2DTabViewModel vm = new();
         Ctx ctx = NewCtx();
         vm.OnActivated(ctx);
@@ -130,7 +130,7 @@ public class Playback2DTrajectoryTests
 
         GrenadeTrail trail = vm.GrenadeTrails.Single(); // still present (not pruned)
         await Assert.That(trail.Points.Count).IsEqualTo(3); // no backward point appended
-        await Assert.That(trail.Points[^1].X).IsEqualTo(300f); // head unchanged — no kink back to 200
+        await Assert.That(trail.Points[^1].X).IsEqualTo(300f); // head unchanged, no kink back to 200
         await Assert.That(trail.Alpha).IsEqualTo(1.0); // held at full opacity
     }
 
@@ -157,13 +157,13 @@ public class Playback2DTrajectoryTests
         // NOT connect the pre-seek arc (x≈100..300) to the post-seek position with a streak.
         SetPos(nade, 900, 0, 0);
         ctx.Push(new Snap(1000, view));
-        await Assert.That(vm.GrenadeTrails.Count).IsEqualTo(0); // single post-jump point — no visible line yet
+        await Assert.That(vm.GrenadeTrails.Count).IsEqualTo(0); // single post-jump point, no visible line yet
 
         SetPos(nade, 910, 0, 0);
         ctx.Push(new Snap(1001, view));
         GrenadeTrail trail = vm.GrenadeTrails.Single();
         await Assert.That(trail.Points.Count).IsEqualTo(2);
-        await Assert.That(trail.Points[0].X).IsGreaterThanOrEqualTo(900f); // post-jump only — pre-jump arc gone
+        await Assert.That(trail.Points[0].X).IsGreaterThanOrEqualTo(900f); // post-jump only, pre-jump arc gone
     }
 
     [Test]

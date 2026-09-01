@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests;
 ///     <para>
 ///         This is the "a control too small to render its own contents" defect, and it is invisible to
 ///         every other kind of test: the binding is correct, the view-model is correct, the control is
-///         present, hit-testable and non-zero — it simply clips. <c>Playback2DHudLayoutTests</c> asserts
+///         present, hit-testable and non-zero. It simply clips. <c>Playback2DHudLayoutTests</c> asserts
 ///         that a control is inside the column and reachable, which a two-digit-wide spinner passes.
 ///     </para>
 ///     <para>
@@ -35,8 +35,8 @@ public class EnvelopeSpinnerWidthTests
     // TWO unit domains, and the worst case is measured in each rather than in whichever one the test
     // happened to be written against.
     //
-    // TICKS (from/until): six digits covers any tick a real demo produces — the reference Nuke demo is
-    // 19 237 frames, five digits — and both fields accept eight.
+    // TICKS (from/until): six digits covers any tick a real demo produces: the reference Nuke demo is
+    // 19 237 frames, five digits, and both fields accept eight.
     private const int SixDigits = 123456;
 
     // SECONDS (in/out/hold): the spinners' own Maximum, which is what the control clamps anything larger
@@ -54,7 +54,7 @@ public class EnvelopeSpinnerWidthTests
     }
 
     /// <summary>
-    ///     Same for the Fade envelope, whose <c>hold</c> field is hidden in Custom — a field that only
+    ///     Same for the Fade envelope, whose <c>hold</c> field is hidden in Custom: a field that only
     ///     appears in one mode is a field only one mode's test can measure.
     /// </summary>
     [Test]
@@ -95,7 +95,7 @@ public class EnvelopeSpinnerWidthTests
                                     $"{name} has no inner TextBox. A NumericUpDown that never built its "
                                     + "template is the missing-control-theme defect, not a sizing one.");
 
-                // What the box actually holds, measured in the font it actually renders in — not a
+                // What the box actually holds, measured in the font it actually renders in, not a
                 // digit-width constant, which would drift the moment the theme's face or size changed.
                 string text = inner.Text ?? "";
                 double needed = MeasureText(text, inner);

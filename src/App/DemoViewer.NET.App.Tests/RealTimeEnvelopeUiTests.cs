@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests;
 ///     and is wide enough to read, and picking it opens the three RELATIVE envelope fields without
 ///     opening <c>Custom</c>'s absolute window.
 ///     <para>
-///         The spinners themselves are not re-measured here — Real-time shows the very same
+///         The spinners themselves are not re-measured here: Real-time shows the very same
 ///         <c>FadeInBox</c> / <c>FadeOutBox</c> / <c>HoldBox</c> at the same width that
 ///         <see cref="EnvelopeSpinnerWidthTests" /> already pins against rendered text. What is new is
 ///         the ComboBox: <c>Real-time</c> is the longest label the box can show, and a ComboBox spends a
@@ -38,7 +38,7 @@ public class RealTimeEnvelopeUiTests
     ///     is the half a view-model test cannot see.
     ///     <para>
     ///         Counted against the enum rather than against a literal, so a mode added to one side and not
-    ///         the other fails here instead of silently deselecting the ComboBox — which is what an
+    ///         the other fails here instead of silently deselecting the ComboBox, which is what an
     ///         out-of-range <c>SelectedIndex</c> does.
     ///     </para>
     /// </summary>
@@ -69,7 +69,7 @@ public class RealTimeEnvelopeUiTests
     /// <summary>
     ///     Picking Real-time opens <c>in</c>, <c>out</c> and <c>hold</c>, and leaves <c>from</c> /
     ///     <c>until</c> shut. Each section runs the element's own trapezoid shifted by the offset it was
-    ///     drawn at, so all three keep their meaning per section — while an absolute window
+    ///     drawn at, so all three keep their meaning per section, while an absolute window
     ///     would be a second, contradictory answer to "when".
     /// </summary>
     [Test]

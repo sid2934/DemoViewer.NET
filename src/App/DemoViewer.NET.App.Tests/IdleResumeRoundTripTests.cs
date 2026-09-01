@@ -30,7 +30,7 @@ public class IdleResumeRoundTripTests
             await vm.AutoLoadDemoAsync(demo);
             await Assert.That(vm.HasFile).IsTrue().Because("the demo must load before we can idle-close it");
 
-            // Seek to a non-trivial frame and note the active tab — this is what resume must restore.
+            // Seek to a non-trivial frame and note the active tab. This is what resume must restore.
             int targetFrame = Math.Min(120, vm.Playback.TotalFrames - 1);
             vm.Playback.SeekToFrame(targetFrame);
             string? tabId = vm.SelectedTab?.TabId;

@@ -28,7 +28,7 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 ///     <para>
 ///         <c>OperatingSystem.IsBrowser()</c> is a JIT-folded intrinsic that cannot be faked from
-///         outside, so every surface under test takes an injected host predicate — the same seam
+///         outside, so every surface under test takes an injected host predicate, the same seam
 ///         <c>ShellModuleFeatureGate</c> and <c>AnnotationSessionController</c> use. Without it, none of
 ///         these sentences are exercised by anything.
 ///     </para>
@@ -117,7 +117,7 @@ public class Playback2DBrowserHonestyTests
     ///         platform.
     ///     </b>
     ///     Modules read the same ids through <c>ShellModuleFeatureGate</c>, whose
-    ///     <c>DesktopOnlyIds</c> forces a set of them off on the browser — so the browser showed a live,
+    ///     <c>DesktopOnlyIds</c> forces a set of them off on the browser, so the browser showed a live,
     ///     ON "Video export" toggle for a capability refused one layer out, and flipping it persisted an
     ///     override nothing would ever honour. This was a known gap that shipped unfixed.
     /// </summary>
@@ -171,7 +171,7 @@ public class Playback2DBrowserHonestyTests
 
     /// <summary>
     ///     <b>The export button vanished with no explanation</b>, and the SAME binding hides it on desktop
-    ///     when no demo is open — so a browser user could not tell "not available here" from "open a demo
+    ///     when no demo is open, so a browser user could not tell "not available here" from "open a demo
     ///     first". The codebase does this correctly elsewhere: the Settings folder picker says
     ///     "(unavailable in the browser)" rather than disappearing.
     /// </summary>
@@ -189,7 +189,7 @@ public class Playback2DBrowserHonestyTests
         await Assert.That(browser.HasExportUnavailableNote).IsTrue();
         await Assert.That(browser.ExportUnavailableNote).Contains("browser");
 
-        // Desktop, feature on, no demo yet: a DIFFERENT sentence, which is the whole point — the two
+        // Desktop, feature on, no demo yet: a DIFFERENT sentence, which is the whole point. The two
         // absences were indistinguishable, and only one of them is something the user can act on.
         (Playback2DTabViewModel desktop, Playback2DFakeContext desktopCtx) =
             Playback2DActionDispatchTests.Activated();

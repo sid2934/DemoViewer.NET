@@ -10,7 +10,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Guards the issue-#6 harness contract: a failure in Avalonia's per-dispatch
 ///     isolated-application setup must be reported with its real cause and attributed to the
-///     harness, while a failure in the test body must still be reported as the test's own — run
+///     harness, while a failure in the test body must still be reported as the test's own, run
 ///     exactly once, unretried.
 /// </summary>
 [NotInParallel]

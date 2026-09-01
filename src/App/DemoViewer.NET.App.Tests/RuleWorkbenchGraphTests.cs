@@ -56,14 +56,14 @@ public class RuleWorkbenchGraphTests
     /// <summary>
     ///     The graph builds structurally from the OPEN ruleset with NO demo and NO evaluation
     ///     (a review fix): toggling it on publishes the node count, and a simple 1-stat ruleset is far smaller than
-    ///     the whole shipped corpus — it reflects the open selection, not "all rulesets".
+    ///     the whole shipped corpus. It reflects the open selection, not "all rulesets".
     /// </summary>
     [Test]
     public async Task Graph_DemoLess_FromOpenRuleset_ReflectsSelection()
     {
         await WithTempRules(async (vm, _) =>
         {
-            // NO OnActivated(demo), NO Evaluate — just open a simple ruleset and toggle the graph on.
+            // NO OnActivated(demo), NO Evaluate, just open a simple ruleset and toggle the graph on.
             vm.NewFileCommand.Execute(null); // starter template: a single kill stat
             vm.ShowGraph = true;
 
@@ -79,7 +79,7 @@ public class RuleWorkbenchGraphTests
 
     /// <summary>
     ///     An entity-reading ruleset (player_stats reads player.entity.* health/armor/equipment) cannot graph
-    ///     without a demo — the entity scanner needs one. With no demo loaded the graph shows a clear
+    ///     without a demo: the entity scanner needs one. With no demo loaded the graph shows a clear
     ///     "load a demo" note, not the raw engine requirement error.
     /// </summary>
     [Test]
@@ -163,7 +163,7 @@ public class RuleWorkbenchGraphTests
                 // Drive the graph, then render the overlay. MSAGL's layout runs off-thread and does not
                 // reliably rasterize in the headless capture window, so we assert the graph PIPELINE
                 // deterministically (the overlay renders without crashing + the skeleton built) rather than
-                // the async geometry pixels — visual fidelity is a desktop pass.
+                // the async geometry pixels. Visual fidelity is a desktop pass.
                 await vm.GraphViewModel.SetGraphAsync(skeleton.Nodes, skeleton.Edges, skeleton.Groups);
                 Dispatcher.UIThread.RunJobs();
                 AvaloniaHeadlessPlatform.ForceRenderTimerTick();
@@ -209,7 +209,7 @@ public class RuleWorkbenchGraphTests
         Environment.SetEnvironmentVariable("DEMOVIEWER_USER_RULES_DIR", userDir);
 
         RuleWorkbenchTabViewModel vm = new();
-        vm.Dispose(); // stop the file watcher — the test drives the VM directly, deterministically
+        vm.Dispose(); // stop the file watcher: the test drives the VM directly, deterministically
         try
         {
             await body(vm, userDir);
@@ -246,8 +246,8 @@ public class RuleWorkbenchGraphTests
     }
 
     /// <summary>
-    ///     A minimal <see cref="IModuleContext" /> carrying a loaded demo via <see cref="ICurrentDemoSource" />
-    ///     — only the members the Workbench touches are functional; the rest are unused stubs.
+    ///     A minimal <see cref="IModuleContext" /> carrying a loaded demo via <see cref="ICurrentDemoSource" />,
+    ///     only the members the Workbench touches are functional; the rest are unused stubs.
     /// </summary>
     private sealed class FakeDemoContext(ParsedDemo demo) : IModuleContext, ICurrentDemoSource
     {

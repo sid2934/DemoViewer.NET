@@ -8,7 +8,7 @@ using DemoViewer.NET.ViewModels.Playback;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <see cref="PlaybackController.FrameIndexAtTick" /> — the O(log n) lower_bound that replaced
+///     <see cref="PlaybackController.FrameIndexAtTick" />, the O(log n) lower_bound that replaced
 ///     <c>SeekToTick</c>'s linear scan. The removed scan IS the oracle these assert against: the timeline
 ///     places every tick-stamped marker through this seam, so an off-by-one here silently mis-places
 ///     hundreds of markers rather than failing loudly.
@@ -62,7 +62,7 @@ public class PlaybackControllerTickSeekTests
     [Test]
     public async Task SeekToTick_MovesToSameFrameAsLinearScan()
     {
-        // 5 000 frames with repeating ticks — the shape a real demo has (several frames per tick).
+        // 5 000 frames with repeating ticks: the shape a real demo has (several frames per tick).
         int[] ticks = new int[5000];
         for (int i = 0; i < ticks.Length; i++)
         {

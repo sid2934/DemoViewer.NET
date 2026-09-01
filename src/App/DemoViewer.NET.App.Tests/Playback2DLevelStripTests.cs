@@ -20,7 +20,7 @@ namespace DemoViewer.NET.AppTests;
 public class Playback2DLevelStripTests
 {
     /// <summary>
-    ///     Most maps have one floor, and they must look exactly as they did — no buttons, no gutter,
+    ///     Most maps have one floor, and they must look exactly as they did, no buttons, no gutter,
     ///     nothing.
     /// </summary>
     [Test]
@@ -48,7 +48,7 @@ public class Playback2DLevelStripTests
 
     /// <summary>
     ///     The AUTO chip is a <c>ToggleButton</c> with <c>IsChecked="{Binding IsAutoEnabled}"</c>, so a
-    ///     user's flip sets the PROPERTY and never touches the command — which was the only thing that
+    ///     user's flip sets the PROPERTY and never touches the command, which was the only thing that
     ///     raised <c>SettingsChanged</c>. AUTO applied instantly, looked right, and was gone on the next
     ///     launch. The old test drove the command, i.e. the one path the UI does not take.
     ///     <para>
@@ -129,8 +129,8 @@ public class Playback2DLevelStripTests
 
             TwoFloors(ctx, view);
 
-            // The strip's IsVisible flips INSIDE a render pass — the level set is derived while the host
-            // draws — and a collapsed control has no measured size to invalidate from, so the headless
+            // The strip's IsVisible flips INSIDE a render pass. The level set is derived while the host
+            // draws, and a collapsed control has no measured size to invalidate from, so the headless
             // pump alone leaves it at zero bounds. Ask for the measure explicitly.
             Strip(view).InvalidateMeasure();
             Playback2DTimelineHarness.Pump(5);
@@ -186,7 +186,7 @@ public class Playback2DLevelStripTests
     }
 
     /// <summary>
-    ///     The gate covers AutoFollow only. The strip still picks floors with it off — a manual picker
+    ///     The gate covers AutoFollow only. The strip still picks floors with it off. A manual picker
     ///     does not need a permanent persisted key of its own.
     /// </summary>
     [Test]
@@ -252,7 +252,7 @@ public class Playback2DLevelStripTests
     ///     <c>SingleLayout.ActiveLevelId</c> → the arranged pane. <c>LevelSelectionTests</c> pins the
     ///     decision in isolation and <see cref="ManualPick_SwitchesPane_AndDisablesAuto" /> pins the
     ///     strip, but neither involves a followed player, so nothing else catches the seam between them
-    ///     going quiet — and a level chooser wired to a followed slot that is never assigned looks
+    ///     going quiet, and a level chooser wired to a followed slot that is never assigned looks
     ///     exactly like one whose dwell has not elapsed.
     /// </summary>
     [Test]
@@ -293,7 +293,7 @@ public class Playback2DLevelStripTests
             await Assert.That(host.ActiveLevelId).IsEqualTo(lower);
             await Assert.That(host.PrimaryPaneLevelForTest).IsEqualTo(lower);
 
-            // Releasing the pin — re-arming AUTO — hands the decision back to the followed player.
+            // Releasing the pin, re-arming AUTO, hands the decision back to the followed player.
             // A method, not a command: the AUTO chip is a ToggleButton bound to IsAutoEnabled, so the
             // generated command was never on the user's path.
             vm.LevelStrip.EnableAuto();

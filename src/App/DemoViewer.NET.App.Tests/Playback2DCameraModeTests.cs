@@ -19,7 +19,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Headless render gates for the four camera modes. Each mode (Fit / Alive / Map / Follow) is set
-///     on the viewport and the View is rendered to a Skia frame, asserting it is NON-BLANK — the smooth
+///     on the viewport and the View is rendered to a Skia frame, asserting it is NON-BLANK: the smooth
 ///     modes' CONVERGENCE is unit-tested purely in <c>SliceCameraTests</c> (which moved to the
 ///     direct-execution Playback2D suite in B0), so here we only confirm
 ///     each mode renders without crashing through the render loop (the split: pure math tests the
@@ -81,7 +81,7 @@ public class Playback2DCameraModeTests
 
             Playback2DViewport viewport = FindViewport(view);
 
-            // The Follow picker reads the VM roster — confirm it surfaces both players.
+            // The Follow picker reads the VM roster. Confirm it surfaces both players.
             await Assert.That(vm.FollowablePlayers.Count).IsEqualTo(2);
 
             foreach (CameraMode mode in new[]
@@ -140,7 +140,7 @@ public class Playback2DCameraModeTests
             vm.OnActivated(ctx);
 
             // TWO players far apart so the followed one is clearly NOT where a Fit (which frames the midpoint)
-            // would centre — proving the Follow lerp actually moved the camera onto slot 0.
+            // would centre, proving the Follow lerp actually moved the camera onto slot 0.
             const float Px = 2200, Py = -1600;
             ctx.Push(new ModeSnapshot(0, 0, new List<IPlayerState>
             {
@@ -174,7 +174,7 @@ public class Playback2DCameraModeTests
                 Dispatcher.UIThread.RunJobs();
             }
 
-            // The followed player should now map near the viewport centre (within a generous tolerance —
+            // The followed player should now map near the viewport centre (within a generous tolerance:
             // single-floor band is the full height here).
             ViewportTransform t = viewport.PrimaryCameraTransform;
             (double sx, double sy) = t.WorldToScreen(Px, Py);
@@ -189,7 +189,7 @@ public class Playback2DCameraModeTests
     [Test]
     public async Task ManualPanZoom_FlipsModeToManualOverride_WithoutCrash()
     {
-        // A manual gesture on a slice in a smooth mode must not throw and must still render — the auto-mode
+        // A manual gesture on a slice in a smooth mode must not throw and must still render: the auto-mode
         // pauses for that slice (verified behaviourally: the frame still draws after the override).
         await HeadlessSession.RunOnUi(async () =>
         {

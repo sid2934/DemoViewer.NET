@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Pure-logic coverage of <see cref="IdleController" />'s decision core (<c>TryEnterIdle</c>) — the idle
+///     Pure-logic coverage of <see cref="IdleController" />'s decision core (<c>TryEnterIdle</c>): the idle
 ///     state machine, driven with an explicit wall-clock so there is no timer / real-time dependency. Covers:
 ///     the timeout boundary, the master enable, the playback-blocked reset, fire-once semantics, and that
 ///     <c>ClearIdle</c> (Resume) re-arms the countdown. No Avalonia / headless session → runs in parallel.
@@ -54,7 +54,7 @@ public class IdleControllerTests
         IdleController c = Build(WithIdle(true, TimeSpan.FromMinutes(15)), () => playing);
         c.NotifyActivity();
 
-        // While playing, a tick well past the timeout does NOT go idle — and it re-stamps activity, so the
+        // While playing, a tick well past the timeout does NOT go idle, and it re-stamps activity, so the
         // countdown starts fresh from that moment. Simulate the pause happening at +30m.
         DateTime pausedAt = NowAfter(c, TimeSpan.FromMinutes(30));
         await Assert.That(c.TryEnterIdle(pausedAt)).IsFalse().Because("active playback blocks idle");

@@ -15,7 +15,7 @@ namespace DemoViewer.NET.AppTests;
 ///         extracts it into a user's rules directory. The copy in this repo exists so that editing
 ///         <c>rules/*.rules.yaml</c> in a normal editor gets validation from the sibling file the
 ///         <c>yaml-language-server</c> modeline points at. Two copies of a generated file drift,
-///         and the drift is invisible — the editor simply validates against yesterday's rules.
+///         and the drift is invisible. The editor simply validates against yesterday's rules.
 ///     </para>
 ///     <para>
 ///         To fix a failure, re-extract rather than hand-edit:

@@ -40,7 +40,7 @@ public class Playback2DFollowCardRenderTests
             await Assert.That(viewport.Mode).IsEqualTo(CameraMode.FollowPlayer);
             await Assert.That(ctx.SpectateTargets).Contains(2);
 
-            // Exactly one card carries the followed class — the treatment must not smear across the panel.
+            // Exactly one card carries the followed class. The treatment must not smear across the panel.
             int followed = view.GetVisualDescendants().OfType<Border>()
                 .Count(b => b.Classes.Contains("followed"));
             Console.WriteLine($"[follow-card] followed borders={followed}");
@@ -55,7 +55,7 @@ public class Playback2DFollowCardRenderTests
         {
             // WorkspaceTabDescriptor DESTROYS the view on deactivation and rebuilds it from ViewFactory on
             // the next activation, keeping the cached VM. Without a re-projection the followed card and the
-            // "requested" chip come back while the new viewport sits in Fit — the follow would look live and
+            // "requested" chip come back while the new viewport sits in Fit. The follow would look live and
             // be dead.
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             ctx.Push(1, 2);

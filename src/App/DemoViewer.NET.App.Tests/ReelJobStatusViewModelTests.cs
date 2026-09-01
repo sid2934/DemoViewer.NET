@@ -107,7 +107,7 @@ public class ReelJobStatusViewModelTests
 
     // (e2) A failed job exposes the copyable diagnostic block (Copy button gate + clipboard payload): it
     // carries the phase, the clip tally, the failed clip number (1-based), the active clip, and the verbatim
-    // engine error — a self-contained report, not a truncated sentence. A running/idle job has nothing to copy.
+    // engine error, a self-contained report, not a truncated sentence. A running/idle job has nothing to copy.
     [Test]
     public async Task Failed_ExposesCopyableDiagnostics_RunningDoesNot()
     {
@@ -143,7 +143,7 @@ public class ReelJobStatusViewModelTests
         await Assert.That(vm.IsCancelled).IsTrue();
     }
 
-    // (g) The flyout sections are mutually exclusive — at most one visible per phase.
+    // (g) The flyout sections are mutually exclusive: at most one visible per phase.
     [Test]
     public async Task FlyoutSections_AreMutuallyExclusive()
     {

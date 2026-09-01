@@ -34,8 +34,8 @@ public class Playback2DAnnotationPersistenceTests
     }
 
     /// <summary>
-    ///     Opening a demo must not litter a sidecar beside it. Loading raises the document's Changed —
-    ///     it resets the element list — and without suppressing autosave there, every demo the user ever
+    ///     Opening a demo must not litter a sidecar beside it. Loading raises the document's Changed,
+    ///     which resets the element list, and without suppressing autosave there, every demo the user ever
     ///     opened would grow an empty <c>.dvann.json</c> next to it. Caught by a stray file appearing in
     ///     the repo's own <c>assets/tour/</c> after a test run.
     /// </summary>
@@ -221,7 +221,7 @@ public class Playback2DAnnotationPersistenceTests
     ///     it, and the user reads a filename as a promise the next reload breaks. Design §8: annotations
     ///     work in session, a reload loses them, and the UI says so.
     ///     <para>
-    ///         Found by a WASM verification pass on the published head — with a demo attached, the
+    ///         Found by a WASM verification pass on the published head: with a demo attached, the
     ///         panel read "saving to /sample-de_nuke.dem.dvann.json" in a browser tab.
     ///     </para>
     /// </summary>
@@ -254,7 +254,7 @@ public class Playback2DAnnotationPersistenceTests
     ///         The check also MOVED, from the schedule to <see cref="AnnotationSessionController" />'s save
     ///         itself: <c>FlushAsync</c> is called on a demo swap, on tab deactivation and at shutdown, and
     ///         it went straight past the schedule-time guard. "Session only" that still writes the sidecar
-    ///         when you close the tab is not session only — it is the same file arriving at a moment the
+    ///         when you close the tab is not session only. It is the same file arriving at a moment the
     ///         user is even less likely to notice.
     ///     </para>
     /// </summary>
@@ -327,7 +327,7 @@ public class Playback2DAnnotationPersistenceTests
 
     /// <summary>
     ///     <c>CanAutoSave</c> drives the toggle's enabled state, and it has to be false wherever no
-    ///     sidecar is possible — no demo, no store, or the browser head, whose "writable" path is a
+    ///     sidecar is possible: no demo, no store, or the browser head, whose "writable" path is a
     ///     virtual FS that dies with the tab. A checkbox offering to control saving where nothing can be
     ///     saved is this audit's own defect class one layer down.
     /// </summary>

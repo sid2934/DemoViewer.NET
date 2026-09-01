@@ -19,15 +19,15 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     <b>Which frame the exported scoreboard is read off.</b>
 ///     <para>
-///         The tab's export HUD used to close over the tab's own <c>_frame</c> — the LIVE viewport's
-///         frame — so the round and the score in the video were whatever the user happened to be looking
+///         The tab's export HUD used to close over the tab's own <c>_frame</c>, the LIVE viewport's
+///         frame, so the round and the score in the video were whatever the user happened to be looking
 ///         at when they pressed Start, burnt onto every frame of the export. Worse, the closure was live:
 ///         if playback resumed while the export rendered, the burnt-in scoreboard drifted with the
 ///         viewport rather than with the video.
 ///     </para>
 ///     <para>
 ///         The kill feed was always right, because it is the whole demo's timeline windowed by tick
-///         inside the data source. Only the clock half read a moment instead of a function — which is
+///         inside the data source. Only the clock half read a moment instead of a function, which is
 ///         why <c>Playback2DKillFeedTests</c>' snapshot case could pass with the bug in place: it
 ///         verified <c>ClockReading.From</c> and the VM's <c>GameInfo</c> separately, and never executed
 ///         the closure that joins them.
@@ -81,7 +81,7 @@ public class Playback2DExportHudSourceTests
 
     /// <summary>
     ///     And it keeps reading it. The export walks its range while the app carries on; the video's
-    ///     scoreboard must follow the VIDEO. A capture — of either frame — is a frozen number, and this is
+    ///     scoreboard must follow the VIDEO. A capture, of either frame, is a frozen number, and this is
     ///     the case that says so out loud: the live viewport is pushed forward between samples and the
     ///     exported clock ignores it.
     /// </summary>
@@ -103,7 +103,7 @@ public class Playback2DExportHudSourceTests
             Scene2DFrame exported = source.FrameAt(i);
             HudSnapshot drawn = hud.At(exported.Time.Tick);
 
-            // The user keeps watching while the export runs — the exact thing that used to move the
+            // The user keeps watching while the export runs, the exact thing that used to move the
             // burnt-in scoreboard.
             ctx.PushMarkers((0, 2, -800f + i, 600f, 64f, 90f));
 
@@ -120,8 +120,8 @@ public class Playback2DExportHudSourceTests
 
     /// <summary>
     ///     <b>Where the exported roster's numbers come from.</b> Health, armour, weapon, cash
-    ///     and K/D/A used to exist only in the App's <c>PlayerAttributes</c> — a live-viewport panel an
-    ///     export cannot see — so <c>hud.roster</c> could not have been built on them. They are read in
+    ///     and K/D/A used to exist only in the App's <c>PlayerAttributes</c>, a live-viewport panel an
+    ///     export cannot see, so <c>hud.roster</c> could not have been built on them. They are read in
     ///     <c>SceneFrameBuilder</c> now, off the export's own replayed entities, and reach the layer as
     ///     <c>TrackerFrameSource.LastRoster</c>.
     ///     <para>
@@ -184,7 +184,7 @@ public class Playback2DExportHudSourceTests
     }
 
     /// <summary>
-    ///     And it keeps reading it, frame by frame — the roster is a function of the frame being drawn, so
+    ///     And it keeps reading it, frame by frame: the roster is a function of the frame being drawn, so
     ///     a card frozen at frame 0 would show a player who died ten seconds ago at full health.
     /// </summary>
     [Test]

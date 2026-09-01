@@ -18,7 +18,7 @@ namespace DemoViewer.NET.AppTests;
 ///         The list is not a copy safe to delete in favor of a shared factory: <c>Scene2DHost</c> holds
 ///         typed fields for the layers it re-binds per frame and hands <c>VisionLayer</c> a live
 ///         <c>VisibilityEngineSolver</c>, so forcing it through <c>CreateSceneStack</c> would trade one
-///         drift risk for a worse one — a factory with two callers and five opinions. What must not
+///         drift risk for a worse one: a factory with two callers and five opinions. What must not
 ///         differ is the <b>id set</b>.
 ///     </para>
 ///     <para>
@@ -56,7 +56,7 @@ public class SceneLayerListParityTests
 
             // The SCENE half, exactly. Split rather than compared whole because the host mounts one
             // opt-in layer the CLI cannot: AttachAnnotationsToCurrentDemo binds an AnnotationSession
-            // after BuildScene and adds playback2d.annotations then — the live document the user is
+            // after BuildScene and adds playback2d.annotations then, the live document the user is
             // drawing into. An export gets a frozen copy instead, so the catalog leaves the id opt-in
             // rather than making it one of the seven.
             string[] scene = [.. mounted.Where(id => !SceneLayerIds.OptIn.Contains(id))];
@@ -67,7 +67,7 @@ public class SceneLayerListParityTests
             await Assert.That(scene.Length).IsEqualTo(7);
 
             // And the ONLY opt-in id a window may hold. The three HUD layers are burned-in export
-            // chrome — the window draws its scoreboard, clock and kill feed in XAML — so one appearing
+            // chrome, the window draws its scoreboard, clock and kill feed in XAML, so one appearing
             // here would mean an export-only layer had leaked into the interactive stack.
             string[] optIn = [.. mounted.Where(SceneLayerIds.OptIn.Contains)];
             await Assert.That(optIn.Length).IsLessThanOrEqualTo(1);
@@ -82,7 +82,7 @@ public class SceneLayerListParityTests
 
     /// <summary>
     ///     The catalog's own table, pinned by name and order. <see cref="SceneLayerCatalog" /> ids are
-    ///     persisted keys — a saved export preset, a feature gate and the layer panel all store them — so
+    ///     persisted keys, a saved export preset, a feature gate and the layer panel all store them, so
     ///     a rename is a silent data migration, and this is the tripwire for one. Order is asserted too:
     ///     it is the registration order a compositor receives, and while <c>ISceneLayer.Order</c> is what
     ///     actually decides draw order, a reader of the table has every right to expect the two agree.

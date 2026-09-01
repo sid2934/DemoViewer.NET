@@ -78,7 +78,7 @@ public class ModuleTimelineDataTests
     /// <summary>
     ///     The attacker's side, resolved AT the kill's tick. It cannot come off the roster (identity only,
     ///     because team swaps at half) nor off <c>CurrentPlayers</c> (that is the PLAYHEAD's tick, and the
-    ///     adapter builds whenever the demo loads), so <c>player_team</c> is the only record there is — and
+    ///     adapter builds whenever the demo loads), so <c>player_team</c> is the only record there is, and
     ///     it is the same one the parser's own team post-pass reads.
     /// </summary>
     [Test]
@@ -100,7 +100,7 @@ public class ModuleTimelineDataTests
     }
 
     /// <summary>
-    ///     GOTV emits <c>player_team</c> ONLY for the halftime swap — measured on both reference demos, and
+    ///     GOTV emits <c>player_team</c> ONLY for the halftime swap, measured on both reference demos, and
     ///     the reason the demo trimmer synthesizes the initial seating. So for every kill in the first half
     ///     the only record of a player's side is the one they are swapping AWAY from at half.
     /// </summary>
@@ -201,7 +201,7 @@ public class ModuleTimelineDataTests
     }
 
     // A player_team fire. Team / OldTeam are KV1 `byte` fields, which GameEventViewFactory materialises as
-    // boxed ints — so the fixture boxes ints, not bytes, or the adapter's read misses exactly as production
+    // boxed ints, so the fixture boxes ints, not bytes, or the adapter's read misses exactly as production
     // would not.
     private static GameEventView TeamChange(int tick, int slot, int team, int oldTeam = 0) => new()
     {

@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests;
 ///     navigation inside the tab.
 ///     <para>
 ///         <b>Conflicts only.</b> Which gesture each action carries is <c>Playback2DKeymapTests</c>'
-///         business, and the shipped table's conflict-freedom is the static constructor's — restating
+///         business, and the shipped table's conflict-freedom is the static constructor's: restating
 ///         both here once made a rebind a three-file edit, and a real duplicate threw
 ///         <c>TypeInitializationException</c> before any of the three ran. The single global
 ///         text-input-suppression rule is asserted where it lives, in
@@ -90,7 +90,7 @@ public class Playback2DKeybindConflictTests
     /// <summary>
     ///     <b>The display formatter dropped <c>Meta</c> while the persist formatter wrote it.</b> A
     ///     macOS user who captured ⌘+K got <c>ToolDraw=Meta+K</c> in the file, correctly, and
-    ///     read back a bare <c>"K"</c> in every Settings row, reset chip, tooltip and refusal message —
+    ///     read back a bare <c>"K"</c> in every Settings row, reset chip, tooltip and refusal message,
     ///     indistinguishable from an unmodified K, and from a DIFFERENT action bound to plain K.
     ///     <para>
     ///         The two formatters are asserted against each other rather than against a literal: they are
@@ -125,7 +125,7 @@ public class Playback2DKeybindConflictTests
     /// <summary>
     ///     The same contract closed over EVERY modifier combination rather than three samples. Both
     ///     spellings now come from one formatter asked for a different key half, and this is what pins
-    ///     them there: the modifier chain must be character-identical, and only the key may differ — the
+    ///     them there: the modifier chain must be character-identical, and only the key may differ: the
     ///     arrow glyph is the half that would not survive <c>KeyGesture.Parse</c>.
     /// </summary>
     [Test]
@@ -182,7 +182,7 @@ public class Playback2DKeybindConflictTests
 
     /// <summary>
     ///     The browser list must not overreach. <c>Ctrl+Z</c>, <c>Ctrl+X</c> and the arrows are editing
-    ///     and navigation keys the browser DOES deliver to the page and the page CAN cancel — reserving
+    ///     and navigation keys the browser DOES deliver to the page and the page CAN cancel: reserving
     ///     them would refuse a rebind that works perfectly, which is this defect's mirror image.
     /// </summary>
     [Test]

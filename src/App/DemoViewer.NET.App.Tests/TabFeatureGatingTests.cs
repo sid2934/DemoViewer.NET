@@ -29,8 +29,8 @@ namespace DemoViewer.NET.AppTests;
 ///     settings write (add/remove by TabId, never a full rebuild), neighbor-selects when the selected tab is
 ///     removed, and migrates active-tab session persistence from a fragile int index to the durable TabId.
 ///     <para>
-///         The gate is a real <see cref="FeatureGate" /> over a live <see cref="SettingsService" /> — the
-///         exact production wiring — built via its INTERNAL test ctor with UI-thread marshaling disabled so
+///         The gate is a real <see cref="FeatureGate" /> over a live <see cref="SettingsService" />, the
+///         exact production wiring, built via its INTERNAL test ctor with UI-thread marshaling disabled so
 ///         <see cref="FeatureGate.Changed" /> raises inline on the writing (UI) thread and the reconcile is
 ///         synchronously observable. <see cref="NotInParallelAttribute" /> because these mutate process-global
 ///         session-path state and run heavy shell constructions on the memory-pressured machine.
@@ -40,7 +40,7 @@ namespace DemoViewer.NET.AppTests;
 [Category("Render")]
 public class TabFeatureGatingTests
 {
-    // The full Main + Diagnostics tab set (developer sees all) — static so CA1861 stays clean.
+    // The full Main + Diagnostics tab set (developer sees all). It is static so CA1861 stays clean.
     private static readonly string[] _allTabIds =
     [
         "builtin.library", "builtin.matchoverview", "builtin.parser", "builtin.entity", "builtin.stats",
@@ -49,8 +49,8 @@ public class TabFeatureGatingTests
 
     // ── Fixtures ──────────────────────────────────────────────────────────────
 
-    // Composes the shell the way App.axaml.cs BuildRegistry does — the 2D Playback pilot (tab.playback2d)
-    // and the Rule Workbench (tab.authoring) — so every gated Main-strip tab is exercised.
+    // Composes the shell the way App.axaml.cs BuildRegistry does: the 2D Playback pilot (tab.playback2d)
+    // and the Rule Workbench (tab.authoring), so every gated Main-strip tab is exercised.
     private static MainViewModel NewShell(IFeatureGate? gate, SettingsService? settings = null)
     {
         ModuleRegistry registry = new();
@@ -60,7 +60,7 @@ public class TabFeatureGatingTests
         // single config file; null → session persistence no-ops (the default for the gating cases).
         MainViewModel vm = new(null, registry, TestLibraries.Empty(), null, gate, null, settings);
         // Mirror the composition root: the ctor deliberately restores NOTHING (a ctor-time tab activation
-        // can resolve the still-uncached shell singleton and recurse — see App.BuildShell). The host calls
+        // can resolve the still-uncached shell singleton and recurse: see App.BuildShell). The host calls
         // RestoreSession once construction is complete; these fixtures must do the same to stay faithful.
         vm.RestoreSession();
         return vm;
@@ -86,7 +86,7 @@ public class TabFeatureGatingTests
     }
 
     // Builds the SettingsService → IOptionsMonitor<AppSettings> → FeatureGate chain over a throwaway config
-    // dir at the given starting category, constructs a gated shell, and runs the body — all on the headless
+    // dir at the given starting category, constructs a gated shell, and runs the body, all on the headless
     // UI thread (the shell needs a dispatcher). A body svc.Write flips the live category/override and the
     // gate re-resolves + raises Changed inline. The VM is disposed (unsubscribing from the gate) before the
     // gate is.
@@ -209,7 +209,7 @@ public class TabFeatureGatingTests
             vm.SelectedTab = vm.Tabs.First(t => t.TabId == "builtin.stats");
             await Assert.That(RealizedViewCount(vm)).IsEqualTo(1);
 
-            // Flip up to Developer — the write raises Changed inline → reconcile runs synchronously.
+            // Flip up to Developer. The write raises Changed inline → reconcile runs synchronously.
             svc.Write(s => s.UserCategory = UserCategory.Developer);
 
             string[] ids = vm.Tabs.Select(t => t.TabId).ToArray();
@@ -218,7 +218,7 @@ public class TabFeatureGatingTests
             await Assert.That(ids).Contains("builtin.diagnostics");
             await Assert.That(vm.Tabs.Count).IsEqualTo(9);
 
-            // Parser inserted at its sorted (Order 0) slot — after Library and the always-present Match Overview
+            // Parser inserted at its sorted (Order 0) slot, after Library and the always-present Match Overview
             // (also Order 0, yielded first, so it keeps the earlier slot under the stable ThenBy(Order)).
             await Assert.That(vm.Tabs[0].TabId).IsEqualTo("builtin.library");
             await Assert.That(vm.Tabs[1].TabId).IsEqualTo("builtin.matchoverview");
@@ -239,15 +239,15 @@ public class TabFeatureGatingTests
             await Assert.That(after).DoesNotContain("builtin.parser").Because("the disabled selected tab is removed");
 
             // Selection moved to the nearest lower-Order surviving tab. Parser (Order 0)'s nearest lower in
-            // the Consumer set {library(-1), stats(2), playback2d(4)} is Library — assert the concrete
+            // the Consumer set {library(-1), stats(2), playback2d(4)} is Library, assert the concrete
             // neighbor AND the generic contract (a still-enabled, non-removed tab).
             await Assert.That(vm.SelectedTab!.TabId).IsEqualTo("builtin.library");
             await Assert.That(vm.SelectedTab.TabId).IsNotEqualTo("builtin.parser");
             await Assert.That(RealizedViewCount(vm)).IsEqualTo(1);
 
             // Selection survives reconciliation as an IDENTITY, not a position: the selected descriptor is
-            // still an element of the live collection. (This replaces the old int-mirror sync assertion —
-            // the mirror is gone; tab selection is name-based end to end.)
+            // still an element of the live collection. (This replaces the old int-mirror sync assertion.
+            // The mirror is gone; tab selection is name-based end to end.)
             await Assert.That(vm.Tabs.Contains(vm.SelectedTab)).IsTrue()
                 .Because("the surviving selection must be a live descriptor, not a dangling one");
         });
@@ -333,7 +333,7 @@ public class TabFeatureGatingTests
     // Tab restore is NAME-BASED, with no positional fallback. A session that predates TabId persistence
     // (ActiveTabId omitted → null) therefore lands on the first tab, Library. That is deliberate: the tab
     // set is dynamic (feature gating, new built-ins landing mid-strip), so an index restored from an older
-    // build silently selects a DIFFERENT tab — which is exactly what happened when Match Overview was
+    // build silently selects a DIFFERENT tab, which is exactly what happened when Match Overview was
     // inserted at position 1. A one-time, self-healing loss of the remembered tab beats confidently
     // restoring the wrong one.
     [Test]
@@ -343,7 +343,7 @@ public class TabFeatureGatingTests
         try
         {
             SettingsService svc = new(dir);
-            // A payload with NO ActiveTabId (the 5-arg ctor defaults it to null — the omitted-in-JSON case).
+            // A payload with NO ActiveTabId (the 5-arg ctor defaults it to null, the omitted-in-JSON case).
             svc.SaveSession(new SessionPayload(null, null, null, false, false));
 
             await HeadlessSession.RunOnUi(async () =>
@@ -368,7 +368,7 @@ public class TabFeatureGatingTests
 
     // Shell navigation must resolve tabs BY NAME, never by position. "Reveal this entity class" is the one
     // in-shell jump that used a hardcoded index (`SelectedMainTab = 1`, commented for a v2 tab order of
-    // "0 Parser · 1 Entity Tracking · 2 Analysis"). Every tab added since shifted it silently — by the time
+    // "0 Parser · 1 Entity Tracking · 2 Analysis"). Every tab added since shifted it silently. By the time
     // Match Overview landed at position 1 the jump was two tabs off target and opened the landing page. This
     // pins the destination by id so the next inserted tab cannot move it again.
     [Test]
@@ -395,7 +395,7 @@ public class TabFeatureGatingTests
     }
 
     // Headless render smoke: the full MainView under a Consumer gate (with a file loaded) instantiates and
-    // lays out without throwing — runtime-exercising the toolbar MultiBinding (HasFile AND parse-chain gate),
+    // lays out without throwing: runtime-exercising the toolbar MultiBinding (HasFile AND parse-chain gate),
     // the gated Debugger/Output toggles, the NavStrip breakpoint-cluster gate, and the StatusStrip
     // "N features hidden" note. Consumer lands on the Library tab (no MSAGL) so the render stays cheap. This
     // catches a malformed-binding/layout throw that compiled-binding TYPE-checking alone would not; the
@@ -433,7 +433,7 @@ public class TabFeatureGatingTests
             int nonBg = ScanNonBackground(frame);
             Console.WriteLine($"[mainview-gate] {outPath} nonBg={nonBg}");
 
-            // The shell draws its toolbar / tab strip / status strip — far more than an empty background.
+            // The shell draws its toolbar / tab strip / status strip, far more than an empty background.
             await Assert.That(nonBg).IsGreaterThan(200);
         });
     }
@@ -463,7 +463,7 @@ public class TabFeatureGatingTests
     // ── Sub-feature + chrome gate shims ───────────────────────────────────────
     // The shell exposes read-only bool shims the XAML binds IsVisible to. These prove the shims resolve
     // per-category off the SAME gate the tab strip uses, force owned panels closed on a live downgrade, and
-    // fail open (all true) with no gate — the enforcement counterpart to the tab-filtering cases above.
+    // fail open (all true) with no gate, the enforcement counterpart to the tab-filtering cases above.
 
     // A Consumer sees none of the deep-dive / developer chrome: every sub-feature + chrome shim is off, and
     // the "N features hidden" count is positive so the status-strip affordance shows.
@@ -547,7 +547,7 @@ public class TabFeatureGatingTests
     }
 
     // Null gate (every existing no-gate `new MainViewModel(...)`) → every shim fails open (true) and nothing is
-    // reported hidden — the additive-change regression guard for the shims.
+    // reported hidden, the additive-change regression guard for the shims.
     [Test]
     public async Task NullGate_SubFeatureAndChromeShims_AllVisible()
     {

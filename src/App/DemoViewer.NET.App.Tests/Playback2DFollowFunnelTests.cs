@@ -15,13 +15,13 @@ namespace DemoViewer.NET.AppTests;
 ///     <para>
 ///         <b>Every body runs on the dispatcher</b>, like the eighteen sibling classes that activate a
 ///         <see cref="Playback2DTabViewModel" />. Activation lays the timeline out, and laying it out
-///         builds a brush per band — an <c>AvaloniaObject</c> whose theme token is read off
+///         builds a brush per band, an <c>AvaloniaObject</c> whose theme token is read off
 ///         <c>Application.ActualThemeVariant</c>, a styled property with thread affinity. This class alone
 ///         ran its bodies on the bare TUnit worker thread, and it passed for the same reason the export
 ///         palette resolved off-thread for a whole release: with no <c>Application.Current</c> the
 ///         affinity check has nothing to verify. Under <c>-t full</c> a parallel headless dispatch
-///         supplies one, and <c>Dispatcher.UIThread</c> — a process-wide singleton the headless harness
-///         re-establishes around every dispatch — can move under the layout between the guard that reads
+///         supplies one, and <c>Dispatcher.UIThread</c>, a process-wide singleton the headless harness
+///         re-establishes around every dispatch, can move under the layout between the guard that reads
 ///         it and the property read it guards. Two of the bodies below went red on ubuntu CI that way
 ///         while Windows stayed green on ordering luck.
 ///     </para>
@@ -178,7 +178,7 @@ public class Playback2DFollowFunnelTests
 
     /// <summary>
     ///     A slot is only meaningful inside one demo, and every piece of follow state is
-    ///     slot-keyed — so a swap has to clear all of it or the three disagree: the ring and the camera
+    ///     slot-keyed, so a swap has to clear all of it or the three disagree: the ring and the camera
     ///     silently re-point at whoever the NEW demo has in that slot, the footer keeps naming the OLD
     ///     player, and no card highlights because <c>SelectedPlayer</c> still references a row that is no
     ///     longer in <c>Attributes</c>.
@@ -196,7 +196,7 @@ public class Playback2DFollowFunnelTests
             List<int> mirrored = [];
             vm.FollowSlotChanged += mirrored.Add;
 
-            // A different demo, with a DIFFERENT player in slot 1 — the case the defect makes invisible.
+            // A different demo, with a DIFFERENT player in slot 1, the case the defect makes invisible.
             ctx.ClearPlayers();
             ctx.DemoPath = "/demos/second.dem";
             ctx.AddPlayer(0, "Delta", 2);

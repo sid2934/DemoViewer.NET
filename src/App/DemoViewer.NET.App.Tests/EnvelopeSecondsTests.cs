@@ -16,7 +16,7 @@ namespace DemoViewer.NET.AppTests;
 ///     <para>
 ///         Those two halves are one test suite because they are one defect. A tick is not a unit a user
 ///         can reason about, so the toolbar shows seconds; and the moment it does, the rate stops being
-///         invisible — on a 128-tick parse a user typing "5 s" against a hard-coded 64 would get 2.5 s of
+///         invisible: on a 128-tick parse a user typing "5 s" against a hard-coded 64 would get 2.5 s of
 ///         hold and a real-time stroke replaying at half speed. Showing the number is what makes the
 ///         wrong divisor a visible bug rather than a latent one.
 ///     </para>
@@ -26,7 +26,7 @@ public class EnvelopeSecondsTests
 {
     /// <summary>
     ///     <b>The sharp one.</b> Five seconds of hold on a 128-tick session is 640 ticks. At a hard-coded
-    ///     64-tick rate it would be 320 — a hold half as long as the one the user asked for, in a control
+    ///     64-tick rate it would be 320, a hold half as long as the one the user asked for, in a control
     ///     that now says "5.00" either way.
     /// </summary>
     [Test]
@@ -91,7 +91,7 @@ public class EnvelopeSecondsTests
     ///     <b>Ticks are the source of truth, and the seconds are a projection re-derived from them.</b>
     ///     A value the user typed survives any number of panel reloads unchanged.
     ///     <para>
-    ///         The failure this forbids is the other design — holding the typed seconds beside the ticks —
+    ///         The failure this forbids is the other design, holding the typed seconds beside the ticks,
     ///         where each reload re-rounds one against the other and a 5.30 s hold walks to 5.29, 5.28,
     ///         and on down. Quantizing ONCE, to within half a tick (7.8 ms at 64), is invisible; a value
     ///         that moves every time the panel is re-seeded is not.
@@ -99,7 +99,7 @@ public class EnvelopeSecondsTests
     /// </summary>
     [Test]
     [Arguments(64, 5.0)]
-    [Arguments(64, 5.3)] // 339.2 ticks — deliberately NOT on a tick boundary
+    [Arguments(64, 5.3)] // 339.2 ticks, deliberately NOT on a tick boundary
     [Arguments(128, 0.17)] // 21.76 ticks, on the rate a naive conversion gets wrong
     [Arguments(64, 0.0)]
     public async Task SecondsRoundTripThroughTicks_WithoutDrift(int rate, double typed)
@@ -147,7 +147,7 @@ public class EnvelopeSecondsTests
 
     /// <summary>
     ///     A demo attach that changes the rate changes every DURATION on the panel without moving a
-    ///     single tick — so the projections have to be re-raised off the attach, which no
+    ///     single tick, so the projections have to be re-raised off the attach, which no
     ///     <c>[ObservableProperty]</c> setter would do.
     /// </summary>
     [Test]

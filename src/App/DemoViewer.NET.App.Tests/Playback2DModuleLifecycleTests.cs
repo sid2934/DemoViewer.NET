@@ -68,7 +68,7 @@ public class Playback2DModuleLifecycleTests
             await WaitUntil(() => vm.Playback.AuthoritativeTracker?.CurrentFrameIndex == mid);
 
             // Activate the 2D tab. The ViewModelFactory path must build the VM AND fire OnActivated, which
-            // pulls context.CurrentPlayers — proving the host player-join is reachable end-to-end.
+            // pulls context.CurrentPlayers, proving the host player-join is reachable end-to-end.
             vm.SelectedTab = tab;
             Dispatcher.UIThread.RunJobs();
             await Assert.That(tab.TabViewModel).IsNotNull();
@@ -107,7 +107,7 @@ public class Playback2DModuleLifecycleTests
 
             await Assert.That(pvm.PushCount).IsEqualTo(pushesAfterDeactivate);
 
-            // Re-activate and play — it DOES receive coalesced pushes (active-only work).
+            // Re-activate and play: it DOES receive coalesced pushes (active-only work).
             vm.SelectedTab = tab;
             Dispatcher.UIThread.RunJobs();
             int before = pvm.PushCount;

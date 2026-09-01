@@ -16,8 +16,8 @@ namespace DemoViewer.NET.AppTests;
 ///     they sit at the end of a row of readouts that grow during playback. They were laid out as the
 ///     trailing <c>Auto</c> column of a grid, which is a shape that cannot fail visibly: <c>Auto</c> columns
 ///     are measured unconstrained and never shrink, so the <c>*</c> status column collapsed to zero and the
-///     toggles were arranged past the control's right edge — 99 px past it at a 1000 px window, 279 px at
-///     820 px — where the <c>GridSplitter</c> and the roster panel (later siblings of the root grid, so they
+///     toggles were arranged past the control's right edge, 99 px past it at a 1000 px window, 279 px at
+///     820 px, where the <c>GridSplitter</c> and the roster panel (later siblings of the root grid, so they
 ///     paint over it) took every click.
 ///     <para>
 ///         Geometry is the assertion, in the same style as <see cref="Playback2DHudLayoutTests" />: a test
@@ -32,7 +32,7 @@ public class TimelineFooterLayoutTests
     ///     The footer at its WIDEST, which is also when it is being read: mid-playback on a 90 000-frame
     ///     demo, six-digit frame and tick, a follow target, the pointer over the scrub bar and Live Sync
     ///     pinning the speed. Every one of those readouts is untrimmed monospace, and the shipped fixture
-    ///     with all of them blank fits by eight pixels — so a test that leaves them blank proves nothing.
+    ///     with all of them blank fits by eight pixels, so a test that leaves them blank proves nothing.
     /// </summary>
     /// <param name="windowWidth">Window width; 820 is the responsive floor the HUD contract is pinned at.</param>
     [Test]

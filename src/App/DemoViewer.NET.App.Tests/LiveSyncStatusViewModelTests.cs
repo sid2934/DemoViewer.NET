@@ -14,8 +14,8 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Covers the <see cref="LiveSyncStatusViewModel" /> state→chip + state→flyout mapping
-///     over a fake <see cref="ILiveSyncService" />. Pure VM —
-///     no headless UI session — so it runs in parallel. Asserts the dot vocabulary (token state + solid
+///     over a fake <see cref="ILiveSyncService" />. Pure VM: no headless UI session,
+///     so it runs in parallel. Asserts the dot vocabulary (token state + solid
 ///     vs hollow + pulse), the neutral "CS2 · …" labels, the mutually-exclusive flyout sections, and the
 ///     speed-lock (entering Synced forces DV playback to 1×).
 /// </summary>
@@ -28,7 +28,7 @@ public class LiveSyncStatusViewModelTests
         return new LiveSyncStatusViewModel(svc, null, playback, () => { });
     }
 
-    // (a) The initial state is seeded from the CURRENT service state in the ctor (not a first transition) —
+    // (a) The initial state is seeded from the CURRENT service state in the ctor (not a first transition):
     // Disconnected ⇒ a SOLID dim "Off" chip and the Off flyout section.
     [Test]
     public async Task InitialState_IsOff_SolidDimDot()
@@ -117,8 +117,8 @@ public class LiveSyncStatusViewModelTests
         await Assert.That(vm.StateHeadline).IsEqualTo("Disconnected — CS2 quit.");
     }
 
-    // (g) With no demo loaded (null module context) the informed-launch action is disabled with the honest
-    // "Open a demo first." reason, and no path warning is shown (no demo to warn about).
+    // (g) With no demo loaded (null module context) the informed-launch action is disabled with a reason
+    // naming the actual cause, "Open a demo first.", and no path warning is shown (no demo to warn about).
     [Test]
     public async Task NoDemo_DisablesEnable_WithReason()
     {
@@ -129,7 +129,7 @@ public class LiveSyncStatusViewModelTests
         await Assert.That(vm.ShowNoPathWarning).IsFalse();
     }
 
-    // (h) The flyout sections are mutually exclusive — exactly one is visible per state.
+    // (h) The flyout sections are mutually exclusive: exactly one is visible per state.
     [Test]
     public async Task FlyoutSections_AreMutuallyExclusive()
     {
@@ -147,7 +147,7 @@ public class LiveSyncStatusViewModelTests
     }
 
     // (i) The chip flyout renders via the app ViewLocator, which maps the VM's full type name to the view's
-    // by replacing "ViewModel"→"View". Assert that mapping lands EXACTLY on the real view type — a rename that
+    // by replacing "ViewModel"→"View". Assert that mapping lands EXACTLY on the real view type: a rename that
     // broke it would otherwise ship a "Not Found" TextBlock in the flyout, invisible to build + capture.
     [Test]
     public async Task FlyoutView_TypeName_MatchesViewLocatorMapping()
@@ -171,7 +171,7 @@ public class LiveSyncStatusViewModelTests
         PlaybackController playback = new();
         LiveSyncStatusViewModel vm = new(svc, null, playback, () => { });
 
-        // The probe is fire-and-forget from the ctor — wait for it to land.
+        // The probe is fire-and-forget from the ctor, so wait for it to land.
         DateTime deadline = DateTime.UtcNow.AddSeconds(5);
         while (!vm.ShowLeftoverRestoreOffer && DateTime.UtcNow < deadline)
         {
@@ -215,7 +215,7 @@ public class LiveSyncStatusViewModelTests
         await Assert.That(vm.ShowV10BaselineNote).IsTrue();
     }
 
-    // (m) A PARTIAL capability set (something advertised) is NOT the v1.0 baseline — no note (the flyout stays
+    // (m) A PARTIAL capability set (something advertised) is NOT the v1.0 baseline, so no note appears (the flyout stays
     // lean; v1 deliberately doesn't enumerate a capability matrix).
     [Test]
     public async Task PartialCapabilities_ShowNoBaselineNote()
@@ -244,7 +244,7 @@ public class LiveSyncStatusViewModelTests
 
     // (o) The ~2 Hz position refresh runs ONLY while a Synced sub-state is current: it starts on entering
     // any Synced kind and stops on leaving. Asserts the start/stop DECISION (IsPositionTimerRunning), never a
-    // real tick — the pure-VM test has no dispatcher pump (that is why the decision is separated out).
+    // real tick: the pure-VM test has no dispatcher pump (that is why the decision is separated out).
     [Test]
     public async Task PositionRefreshTimer_RunsOnlyWhileSynced()
     {

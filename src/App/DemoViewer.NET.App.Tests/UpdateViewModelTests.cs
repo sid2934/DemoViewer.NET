@@ -8,8 +8,8 @@ using DemoViewer.NET.ViewModels.Update;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The in-app updater's decision logic. The Velopack layer itself is not exercised here — that
-///     needs a real install — so these pin the behaviour the UI depends on: when the banner appears,
+///     The in-app updater's decision logic. The Velopack layer itself is not exercised here, that
+///     needs a real install, so these pin the behaviour the UI depends on: when the banner appears,
 ///     that <b>nothing downloads without consent</b>, and that every failure mode leaves the app
 ///     usable rather than stuck.
 /// </summary>
@@ -51,7 +51,7 @@ public class UpdateViewModelTests
 
     /// <summary>
     ///     Offline at launch must be invisible. A user who opens the app on a plane gets no banner and
-    ///     no error — the check simply found nothing it could report.
+    ///     no error: the check simply found nothing it could report.
     /// </summary>
     [Test]
     public async Task StartupCheck_Failure_IsSilent()
@@ -102,7 +102,7 @@ public class UpdateViewModelTests
         });
         await avail.CheckNowCommand.ExecuteAsync(null);
         await Assert.That(avail.StatusMessage).Contains("0.6.0");
-        // A Settings check must also raise the shell banner — they share one VM for exactly this.
+        // A Settings check must also raise the shell banner: they share one VM for exactly this.
         await Assert.That(avail.IsUpdateAvailable).IsTrue();
     }
 
@@ -162,7 +162,7 @@ public class UpdateViewModelTests
         vm.DismissCommand.Execute(null);
 
         await Assert.That(vm.IsUpdateAvailable).IsFalse();
-        // Still resolved — a later Settings check shouldn't have to re-discover it.
+        // Still resolved: a later Settings check shouldn't have to re-discover it.
         await Assert.That(vm.AvailableVersion).IsEqualTo("0.5.2");
         await Assert.That(svc.DownloadCalls).IsEqualTo(0);
     }

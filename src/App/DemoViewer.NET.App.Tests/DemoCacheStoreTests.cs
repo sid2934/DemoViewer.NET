@@ -276,7 +276,7 @@ public class DemoCacheStoreTests
     }
 
     /// <summary>
-    ///     An O(library) pass raises one Changed, not one per demo — consumers re-project wholesale per event,
+    ///     An O(library) pass raises one Changed, not one per demo: consumers re-project wholesale per event,
     ///     so an unbatched sweep is an O(n²) storm on the dispatcher.
     /// </summary>
     [Test]
@@ -319,7 +319,7 @@ public class DemoCacheStoreTests
 
     /// <summary>
     ///     A single-demo write names the demo it changed. Per-demo consumers (Match Overview re-rendering the
-    ///     demo it is showing) key off this — without it they re-project on every unrelated write, so browsing
+    ///     demo it is showing) key off this: without it they re-project on every unrelated write, so browsing
     ///     the Library during a background index costs a sidecar read and a full page rebuild per demo
     ///     indexed, and the rebuild pops open every highlight group the user had collapsed.
     /// </summary>
@@ -354,7 +354,7 @@ public class DemoCacheStoreTests
 
     /// <summary>
     ///     Readers must never be handed the store's own instance. Match Overview reads a record on the UI
-    ///     thread while a background tier-2 pass writes the same demo — a shared mutable record would let the
+    ///     thread while a background tier-2 pass writes the same demo. A shared mutable record would let the
     ///     page watch fields change under it mid-render, with no lock a caller could reasonably take.
     /// </summary>
     [Test]
@@ -422,7 +422,7 @@ public class DemoCacheStoreTests
 
     /// <summary>
     ///     Sidecar names must survive a restart. <c>string.GetHashCode</c>/<c>System.HashCode</c> are
-    ///     randomized per process, so a name derived from one would be unfindable on the next launch — this
+    ///     randomized per process, so a name derived from one would be unfindable on the next launch. This
     ///     asserts the key is a real content hash of the path.
     /// </summary>
     [Test]

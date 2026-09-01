@@ -84,7 +84,7 @@ public class Playback2DFloorThresholdProbeTests
             await Assert.That(heights[i]).IsGreaterThan(heights[i - 1]);
         }
 
-        // The boundaries are world-Z, same as the players — they must lie within a credible band around the
+        // The boundaries are world-Z, same as the players. They must lie within a credible band around the
         // observed player Z (not, say, in cell-space ~16k or normalized 0..1).
         await Assert.That(heights[0]).IsGreaterThan(minZ - 5000);
         await Assert.That(heights[^1]).IsLessThan(maxZ + 5000);
@@ -93,7 +93,7 @@ public class Playback2DFloorThresholdProbeTests
     // DIAGNOSTIC (not an assertion gate): dumps how the networked section heights distribute players across
     // sections over many frames. A radar floor-switch threshold that cuts THROUGH a continuous single-floor
     // Z distribution (boundaries only tens of units apart) fragments players into flickering bands with empty
-    // sections — the histogram heuristic (180u gap + hysteresis) avoids that. This logs the evidence so the
+    // sections. The histogram heuristic (180u gap + hysteresis) avoids that. This logs the evidence so the
     // section-height-vs-histogram decision is data-driven.
     [Test]
     public async Task SectionHeights_PlayerDistribution_Diagnostic()
@@ -136,7 +136,7 @@ public class Playback2DFloorThresholdProbeTests
         splitter.SetSectionHeights(heights);
         // Control: identical histogram, but the section heights are NOT supplied. If the heights were
         // adopted, the two splitters would diverge; equal slice counts prove the heights have no effect
-        // (gated off — the histogram owns the split). Robust regardless of how many floors the map has.
+        // (gated off, the histogram owns the split). Robust regardless of how many floors the map has.
         FloorSplitter splitterNoHeights = new();
 
         int sampled = 0;
@@ -208,7 +208,7 @@ public class Playback2DFloorThresholdProbeTests
 
         await Assert.That(sampled).IsGreaterThan(0);
 
-        // The regression gate: the networked radar section heights are GATED OFF — supplying them does not
+        // The regression gate: the networked radar section heights are GATED OFF: supplying them does not
         // change the split (the density-valley histogram owns it). Proven by the no-heights control matching.
         await Assert.That(adopted).IsFalse();
         await Assert.That(finalSectionCount).IsEqualTo(splitterNoHeights.Slices.Count);

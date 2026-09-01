@@ -10,7 +10,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The global demo-processing queue (demo-processing-queue.md). A fake parser stands in for the
-///     heavy demo parse — no demos, no bytes — so the tests exercise priority ordering, coalescing,
+///     heavy demo parse, no demos, no bytes, so the tests exercise priority ordering, coalescing,
 ///     the size cap + refeed, max-concurrency, pause/disable, removal, and the awaitable foreground
 ///     path deterministically. Correctness of the concurrency primitive is the whole point here.
 /// </summary>
@@ -193,7 +193,7 @@ public class DemoProcessingQueueTests
                 }
             }
 
-            // The consumer refeeds on capacity — the reject-on-full + idempotent-refeed contract.
+            // The consumer refeeds on capacity, the reject-on-full + idempotent-refeed contract.
             q.CapacityAvailable += Feed;
             Feed(); // initial submit (2 admitted, 3 rejected)
 
@@ -373,7 +373,7 @@ public class DemoProcessingQueueTests
             q.SubmitBackground(Req("/d/x.dem", "highlights", DemoJobPriority.Background, 5,
                 _ => Interlocked.Increment(ref hlRan)));
 
-            // The library cancels ITS submission — the item survives for highlights.
+            // The library cancels ITS submission. The item survives for highlights.
             libHandle.Cancel();
             await Assert.That(q.Snapshot().Count).IsEqualTo(1).Because("a co-owner keeps the item alive");
             await Assert.That(q.Snapshot()[0].Owners).IsEquivalentTo(["highlights"]);

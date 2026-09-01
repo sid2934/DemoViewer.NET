@@ -12,18 +12,18 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Session persistence for MODULE-contributed tabs. The framework has always declared
 ///     <see cref="IWorkspaceTabViewModel.SnapshotState" /> and never called it, so no module tab's state
-///     survived a restart — the Reels clip tray being the first place that is a real loss rather than a
+///     survived a restart, the Reels clip tray being the first place that is a real loss rather than a
 ///     theoretical one (a half-built cross-demo reel is minutes of work).
 ///     <para>
 ///         These tests pin the framework contract with a FAKE tab, deliberately: the mechanism has to be
-///         correct independently of any one module, and the awkward part is not storage but LIFECYCLE —
+///         correct independently of any one module, and the awkward part is LIFECYCLE, not storage:
 ///         module VMs are lazy, so at restore time the object that should receive the state does not exist.
 ///     </para>
 /// </summary>
 /// <remarks>
 ///     The cases that <c>Activate</c> a tab run on the UI thread: activation realizes the descriptor's
 ///     View, and constructing a Control verifies dispatcher access. Off-thread they passed only while no
-///     dispatch had yet bound the UI thread — a race the assembly warm-up now settles, and the "Call from
+///     dispatch had yet bound the UI thread, a race the assembly warm-up now settles, and the "Call from
 ///     invalid thread" half of issue #6.
 /// </remarks>
 public class ModuleTabPersistenceTests
@@ -37,7 +37,7 @@ public class ModuleTabPersistenceTests
     };
 
     /// <summary>
-    ///     A tab that was never opened has no VM, and must not be built just to be asked for state — that
+    ///     A tab that was never opened has no VM, and must not be built just to be asked for state, that
     ///     would pay every module's construction cost on every exit, for tabs the user never touched.
     /// </summary>
     [Test]
@@ -62,7 +62,7 @@ public class ModuleTabPersistenceTests
 
     /// <summary>
     ///     THE LIFECYCLE CASE. Restore happens at startup, when a lazy module VM does not exist yet. The
-    ///     state is parked on the descriptor and applied the moment the VM is first built — not before
+    ///     state is parked on the descriptor and applied the moment the VM is first built: not before
     ///     (nothing to give it) and not by force-building every module (that defeats the laziness).
     /// </summary>
     [Test]
@@ -96,7 +96,7 @@ public class ModuleTabPersistenceTests
 
     /// <summary>
     ///     Re-selecting a tab later in the session must not replay the startup snapshot over state the user
-    ///     has changed since. Deactivate/Activate is an ordinary gesture — every tab switch does it.
+    ///     has changed since. Deactivate/Activate is an ordinary gesture. Every tab switch does it.
     /// </summary>
     [Test]
     public async Task ReActivating_DoesNotReplayTheStartupSnapshot() =>
@@ -157,12 +157,12 @@ public class ModuleTabPersistenceTests
     /// <summary>
     ///     A blob written by an older build must not cost the user the TAB.
     ///     <para>
-    ///         The fake here is deliberately NAIVE — it calls <c>Deserialize&lt;T&gt;</c> and lets the
+    ///         The fake here is deliberately NAIVE: it calls <c>Deserialize&lt;T&gt;</c> and lets the
     ///         <c>JsonException</c> fly, which is exactly what a module written without reading the contract
     ///         does. So this asserts the FRAMEWORK is resilient, not that well-behaved modules are fine. The
     ///         first version of this test failed for precisely that reason, and the backstop in
     ///         <c>Activate</c> is the fix: without it, a renamed field in one module's state means a tab that
-    ///         cannot be opened — or, if it is the restored active tab, a launch that fails.
+    ///         cannot be opened, or, if it is the restored active tab, a launch that fails.
     ///     </para>
     /// </summary>
     [Test]
@@ -172,7 +172,7 @@ public class ModuleTabPersistenceTests
             FakeTabViewModel? created = null;
             WorkspaceTabDescriptor tab = Descriptor(() => created = new FakeTabViewModel(), "fake.legacy");
 
-            // Shape from an imaginary older schema — a bare string where a record is expected.
+            // Shape from an imaginary older schema, a bare string where a record is expected.
             tab.PendingRestoreState = JsonSerializer.SerializeToElement("this used to be a state blob");
 
             tab.Activate(null!);
@@ -192,7 +192,7 @@ public class ModuleTabPersistenceTests
 
     /// <summary>
     ///     A persisted key whose tab no longer exists (module removed, feature gated off) is simply never
-    ///     handed to anyone — it must not throw, and must not leak onto a different tab.
+    ///     handed to anyone. It must not throw, and must not leak onto a different tab.
     /// </summary>
     [Test]
     public async Task StateForAVanishedTab_IsIgnored() =>

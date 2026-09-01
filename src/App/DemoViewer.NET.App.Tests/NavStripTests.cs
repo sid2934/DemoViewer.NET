@@ -114,7 +114,7 @@ public class NavStripTests
             int nonBg = ScanNonBackground(frame);
             Console.WriteLine($"[navstrip] {outPath} nonBg={nonBg}");
 
-            // The strip draws buttons / readout / labels — far more than an empty background.
+            // The strip draws buttons / readout / labels, far more than an empty background.
             await Assert.That(nonBg).IsGreaterThan(200);
             await Assert.That(File.Exists(outPath)).IsTrue();
         });

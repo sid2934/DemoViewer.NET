@@ -7,7 +7,7 @@ using DemoViewer.NET.Services.Diagnostics;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <see cref="DiagnosticsFileLog" /> coverage — the rolling file mirror of the diagnostics logs.
+///     <see cref="DiagnosticsFileLog" /> coverage: the rolling file mirror of the diagnostics logs.
 ///     Facts under test: it writes lines to <c>diagnostics.log</c>, rolls to <c>diagnostics.N.log</c>
 ///     at the byte cap, and retains at most <c>maxFiles</c> rolled files (bounded disk). Uses the
 ///     internal directory seam so no real app-data path is touched. Dispose drains the async pump.
@@ -28,7 +28,7 @@ public class DiagnosticsFileLogTests
 {
     private static string NewTempDir()
     {
-        // Deterministic per-test dir under the OS temp root (no Guid — Math.random is unavailable in
+        // Deterministic per-test dir under the OS temp root (no Guid, Math.random is unavailable in
         // some harness contexts, and the dir is cleaned each run).
         //
         // SANITISED, because a TUnit TestId is not a filename. It is a fully-qualified name with the

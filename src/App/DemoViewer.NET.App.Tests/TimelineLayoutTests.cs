@@ -12,7 +12,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     <see cref="Playback2DTimelineViewModel" />'s layout math and coalescing. Pure numbers: no window, no
-///     render, no platform — the degenerate cases (one frame, zero width) are exactly the ones that produce
+///     render, no platform: the degenerate cases (one frame, zero width) are exactly the ones that produce
 ///     NaN offsets and a silently blank bar rather than an exception.
 /// </summary>
 public class TimelineLayoutTests
@@ -142,7 +142,7 @@ public class TimelineLayoutTests
     ///             the literal.
     ///         </b>
     ///         <c>Token</c> resolves from the theme when <c>Application.Current</c> exists
-    ///         AND the call is on the UI thread, and falls back to a hard-coded ARGB otherwise — both of
+    ///         AND the call is on the UI thread, and falls back to a hard-coded ARGB otherwise, both of
     ///         which are properties of what else has run in this PROCESS, not of the code under test.
     ///         Asserting the fallback literal made this case fail roughly one run in ten, always as
     ///         "expected unknown to be #fff44336", and it is about to sit in a required CI lane.
@@ -170,7 +170,7 @@ public class TimelineLayoutTests
         Color ct = Colour(vm.Markers[1]);
         Color unknown = Colour(vm.Markers[2]);
 
-        // The tints themselves, exactly — the non-zero branch must carry KillTrack's ARGB through
+        // The tints themselves, exactly: the non-zero branch must carry KillTrack's ARGB through
         // untouched, and "the two differ" would still pass if it handed back any two colours at all.
         await Assert.That(t).IsEqualTo(Color.FromUInt32(0xFFE0A030)).Because("T is amber");
         await Assert.That(ct).IsEqualTo(Color.FromUInt32(0xFF4A90D9)).Because("CT is blue");
@@ -259,7 +259,7 @@ public class TimelineLayoutTests
 
     /// <summary>
     ///     A USER toggle announces itself so the owner can persist it (the
-    ///     <c>Playback2D:TimelineShow*</c> keys). Restoring a persisted value must NOT announce — otherwise
+    ///     <c>Playback2D:TimelineShow*</c> keys). Restoring a persisted value must NOT announce, otherwise
     ///     construction writes settings on every launch, and a read-only config dir turns startup into a
     ///     swallowed exception per tab open.
     /// </summary>
@@ -288,7 +288,7 @@ public class TimelineLayoutTests
 
     /// <summary>
     ///     Availability is a property of the DEMO, not a user choice, so a rebuild that flips it must not
-    ///     look like a preference change — persisting "this demo has no bomb" would carry to the next one.
+    ///     look like a preference change: persisting "this demo has no bomb" would carry to the next one.
     /// </summary>
     [Test]
     public async Task AvailabilityChange_DoesNotAnnounceAVisibilityChange()
@@ -313,7 +313,7 @@ public class TimelineLayoutTests
     ///     The three ids <c>Playback2DTabViewModel.LoadTimelineSettings</c> / <c>SaveTimelineSettings</c>
     ///     key <c>Playback2D:TimelineShowKills|Bomb|Annotations</c> on. <c>RestoreTrackEnabled</c> and
     ///     <c>SetTrackEnabled</c> both IGNORE an unknown id by contract, and <c>IsTrackEnabled</c> answers
-    ///     <c>true</c> for one — so renaming a track's id does not fail anywhere: it just quietly turns the
+    ///     <c>true</c> for one, so renaming a track's id does not fail anywhere: it just quietly turns the
     ///     persisted preference back into session state, which is the exact bug this guard catches.
     /// </summary>
     [Test]
@@ -338,7 +338,7 @@ public class TimelineLayoutTests
 
     /// <summary>
     ///     <b>
-    ///         <see cref="ITimelineTrack.MarkersChanged" /> is documented "the host must re-query it" —
+    ///         <see cref="ITimelineTrack.MarkersChanged" /> is documented "the host must re-query it",
     ///         and the host never subscribed.
     ///     </b>
     ///     <see cref="Playback2DTimelineViewModel.Rebuild" /> runs on
@@ -363,7 +363,7 @@ public class TimelineLayoutTests
         await Assert.That(toggle.IsAvailable).IsFalse();
         await Assert.That(vm.Markers.Count).IsEqualTo(0);
 
-        // One time-anchored stroke — what Fade, Custom and "pin to now" all stamp. Nothing calls
+        // One time-anchored stroke: what Fade, Custom and "pin to now" all stamp. Nothing calls
         // Rebuild from here on; the track saying so is the only signal there is.
         doc.Apply(new DocDelta.Add(Anchored(400), 0));
 

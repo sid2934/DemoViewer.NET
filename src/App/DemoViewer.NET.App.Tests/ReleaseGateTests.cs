@@ -17,14 +17,14 @@ namespace DemoViewer.NET.AppTests;
 ///     The release gates, automated.
 ///     <list type="bullet">
 ///         <item>
-///             <b>Installed-build smoke</b> — publishes the Desktop app to a directory OUTSIDE the
+///             <b>Installed-build smoke</b>: publishes the Desktop app to a directory OUTSIDE the
 ///             repo and proves the shipped rules land next to the binary and strict-load from there.
 ///             This is the test that would have caught the original finding (analysis
 ///             dead-on-arrival in installed builds). Opt-in via <c>RELEASE_GATES=1</c> (it runs
 ///             <c>dotnet publish</c>, ~1–2 min).
 ///         </item>
 ///         <item>
-///             <b>User-rule journey</b> — the customization story end-to-end on a real demo: a user
+///             <b>User-rule journey</b>, the customization story end-to-end on a real demo: a user
 ///             file wholesale-overrides a shipped chain, adds a new chain, and a broken user file is
 ///             contained; the overridden/new columns land in the scoreboard VM and the CSV export.
 ///             Demo-gated (skips without a demo).
@@ -71,11 +71,11 @@ public class ReleaseGateTests
             string rulesDir = Path.Combine(publishDir, "rules");
             await Assert.That(File.Exists(Path.Combine(rulesDir, "player_stats.rules.yaml"))).IsTrue();
             await Assert.That(File.Exists(Path.Combine(rulesDir, "kast.rules.yaml"))).IsTrue();
-            // The v2 schema is what EnsureUserRulesDirectory copies into new user dirs —
-            // if it stopped shipping, new users would silently lose editor validation.
+            // The v2 schema is what EnsureUserRulesDirectory copies into new user dirs.
+            // If it stopped shipping, new users would silently lose editor validation.
             await Assert.That(File.Exists(Path.Combine(rulesDir, "cs2demokit-rules.schema.json"))).IsTrue();
 
-            // Strict-load from the PUBLISHED location — the exact failure mode of the original
+            // Strict-load from the PUBLISHED location: the exact failure mode of the original
             // finding (DirectoryNotFoundException → dead Analysis tab) can never silently return.
             // The shipped tier hard-fails on any error, so a clean load proves the v2 rulesets
             // resolve from the packaged dir; kast ships as a v2 ruleset (not a v1 chain).
@@ -87,7 +87,7 @@ public class ReleaseGateTests
             // The bundled sample demo, on the same terms as the rules: present in a publish that
             // did NOT route through scripts/publish.sh. TourDemoLocator resolves the first
             // assets/tour/*.dem by walking up from the binary, so an installer missing it has a
-            // dead "Try a sample match" CTA and a first-run walkthrough with nothing to open —
+            // dead "Try a sample match" CTA and a first-run walkthrough with nothing to open,
             // a silent failure, since the locator degrades to null rather than throwing. Asserted
             // against the PUBLISHED tree (outside the repo) so the repo's own copy can't satisfy
             // it; the filename is deliberately not pinned, matching the locator.
@@ -98,8 +98,8 @@ public class ReleaseGateTests
                 .Because("the walkthrough and the Library sample CTA both resolve a .dem from here");
 
             // …and nothing else doc-shaped rides along. Both shipping paths copy assets/ by
-            // wildcard — the Content glob above is `assets\tour\**`, and scripts/publish.sh does a
-            // wholesale `cp -R assets "$OUT/assets"` — so any maintainer note dropped next to an
+            // wildcard: the Content glob above is `assets\tour\**`, and scripts/publish.sh does a
+            // wholesale `cp -R assets "$OUT/assets"`, so any maintainer note dropped next to an
             // asset silently lands in every installer. That is how assets/tour/README.md (repo
             // paths, a commit SHA, and the reasoning about the private matchmaking demo) shipped
             // to end users; it now lives at docs/tour-sample-demo.md. Asserted over the whole
@@ -145,7 +145,7 @@ public class ReleaseGateTests
         try
         {
             // The user tier: two additive v2 rulesets with constant compute stats (deterministic
-            // assertions), plus a leftover retired-v1 `chains:` file (the containment case — it
+            // assertions), plus a leftover retired-v1 `chains:` file (the containment case: it
             // must error loudly and legibly without breaking the rest of the tier).
             File.WriteAllText(Path.Combine(userDir, "journey-check.rules.yaml"), """
                                                                                  ruleset: journey_check_rs
@@ -205,7 +205,7 @@ public class ReleaseGateTests
             await Assert.That(rules.Rulesets.Select(r => r.Id)).Contains("journey_new");
             await Assert.That(rules.Rulesets.Select(r => r.Id)).Contains("journey_check_rs");
 
-            // Full engine run on a real demo with the merged rulesets — exactly as the app's
+            // Full engine run on a real demo with the merged rulesets, exactly as the app's
             // BuildFromConfig path now does.
             ParsedDemo parsed = DemoTestHelper.GetOrParse(demoPath);
             BuildResult build = DemoAnalysis.Build(parsed, rules.Rulesets);
@@ -218,7 +218,7 @@ public class ReleaseGateTests
             vm.UpdateFromRun(run, parsed);
 
             await Assert.That(vm.HasStats).IsTrue();
-            // User-authored columns land in the 'Other' category chip — select it,
+            // User-authored columns land in the 'Other' category chip. Select it,
             // exercising the category rail as part of the journey.
             await Assert.That(vm.Categories.Select(c => c.Group)).Contains(StatGroup.Other);
             vm.SelectedCategory = StatGroup.Other;

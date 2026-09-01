@@ -11,9 +11,9 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The release-notes markdown renderer behind the update-notice and What's New windows
-///     (v0.6.0). Pins the block shapes the REAL release bodies use — headings, hard-wrapped
+///     (v0.6.0). Pins the block shapes the REAL release bodies use: headings, hard-wrapped
 ///     paragraphs, bullets, blockquotes, bold, and the <c>&lt;details&gt;</c> previous-version
-///     fold — and that unknown syntax degrades to text rather than throwing.
+///     fold, and that unknown syntax degrades to text rather than throwing.
 /// </summary>
 public class MarkdownBlockTests
 {
@@ -80,13 +80,13 @@ public class MarkdownBlockTests
         });
     }
 
-    /// <summary>Junk in, text out — the renderer must never throw on syntax it doesn't model.</summary>
+    /// <summary>Junk in, text out: the renderer must never throw on syntax it doesn't model.</summary>
     [Test]
     public async Task UnknownSyntax_DegradesToText()
     {
         await HeadlessSession.RunOnUi(() =>
         {
-            // Unclosed details, stray brackets, an image, a table row — all must render as SOMETHING.
+            // Unclosed details, stray brackets, an image, a table row: all must render as SOMETHING.
             StackPanel panel = (StackPanel)MarkdownBlock.RenderBlocks(
                 "<details>\nnever closed\n\n| a | b |\n\n![alt text](x.png)\n[link](https://x)");
             if (panel.Children.Count == 0)

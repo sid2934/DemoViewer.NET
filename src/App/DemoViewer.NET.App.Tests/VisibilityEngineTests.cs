@@ -13,12 +13,12 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     <b>Phase-1 automatic validation</b> of the VRF-free <see cref="VisibilityEngine" /> (BVH +
-///     Möller-Trumbore) against a dependency-free oracle — a brute-force scan over the same triangle soup.
+///     Möller-Trumbore) against a dependency-free oracle, a brute-force scan over the same triangle soup.
 ///     If the accelerated engine agrees with the naive baseline on thousands of REAL rays (player eyes,
 ///     bodies, feet on dust2) the primitive is correct; a BVH-traversal or slab-test bug would surface as a
 ///     disagreement. Plus map-independent geometric invariants (through-floor occlusion, symmetry) that hold
 ///     regardless of oracle. awpy's <c>.tri</c> + VisibilityChecker is the noted heavier second check
-///     (Python + CDN) — deferred; this suite is the gate. Skips without the dust2 demo + baked collision.
+///     (Python + CDN), deferred; this suite is the gate. Skips without the dust2 demo + baked collision.
 /// </summary>
 [NotInParallel]
 [Category("Integration")]
@@ -100,7 +100,7 @@ public class VisibilityEngineTests
     }
 
     /// <summary>
-    ///     Segment occlusion: engine.IsVisible must match a brute-force any-hit on a large set of real rays —
+    ///     Segment occlusion: engine.IsVisible must match a brute-force any-hit on a large set of real rays:
     ///     eyes → other players' bodies, and eyes → nearby free/through-geometry probe points. This is the
     ///     master correctness proof for the BVH traversal.
     /// </summary>

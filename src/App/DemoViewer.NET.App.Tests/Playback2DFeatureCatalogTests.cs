@@ -18,7 +18,7 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 ///     <para>
 ///         Direct execution: the gate is built through its internal test ctor with UI-thread marshaling
-///         off, exactly as <see cref="FeatureGateTests" /> does — no Avalonia dispatcher required.
+///         off, exactly as <see cref="FeatureGateTests" /> does: no Avalonia dispatcher required.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -81,7 +81,7 @@ public class Playback2DFeatureCatalogTests
 
     /// <summary>
     ///     B5 D6: these are the release's headline consumer features, so every category gets them on by
-    ///     default — the same call the design-system matrix records for <c>tab.highlights</c>.
+    ///     default, the same call the design-system matrix records for <c>tab.highlights</c>.
     /// </summary>
     [Test]
     public async Task Defaults_OnForEveryCategory()

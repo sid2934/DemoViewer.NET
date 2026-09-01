@@ -10,7 +10,7 @@ namespace DemoViewer.NET.AppTests;
 ///     <see cref="Playback2DTabViewModel.ExecuteAction" /> against a recording context. The assertions are
 ///     deliberately about WHICH host call happened, not about VM fields: every keyboard mutation has to land
 ///     on <c>IModuleContext.Request*</c>, because that is the surface LiveSync's <c>SyncStateObserver</c>
-///     watches — a VM that moved the clock itself would pass a state-based test and silently desync a
+///     watches: a VM that moved the clock itself would pass a state-based test and silently desync a
 ///     Synced session.
 /// </summary>
 public class Playback2DActionDispatchTests

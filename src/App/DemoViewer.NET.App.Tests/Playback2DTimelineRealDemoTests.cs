@@ -21,7 +21,7 @@ namespace DemoViewer.NET.AppTests;
 ///         <see cref="FrameIndexAtTick_MatchesLinearScan_AcrossWholeDemo" /> is the one that matters:
 ///         the binary search assumes <c>ServerTick</c> is non-decreasing across the frame list, and only
 ///         real tick data can prove that assumption. If it ever fails, the fix is a once-per-load
-///         <c>isSorted</c> check with the linear scan as the fallback — not a quiet mis-seek.
+///         <c>isSorted</c> check with the linear scan as the fallback, not a quiet mis-seek.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -129,7 +129,7 @@ public class Playback2DTimelineRealDemoTests
         await Assert.That(records.Any(r => r.Fields.ContainsKey(TimelineEventKeys.Attacker))).IsTrue();
     }
 
-    // The body of the linear scan FrameIndexAtTick replaced — kept as the oracle.
+    // The body of the linear scan FrameIndexAtTick replaced, kept as the oracle.
     private static int LinearScan(IReadOnlyList<DemoFrame> frames, int tick)
     {
         for (int i = 0; i < frames.Count; i++)

@@ -29,7 +29,7 @@ internal sealed record SettingConsumption(
 
 /// <summary>
 ///     <b>
-///         D6 §4 guard 3 — every <see cref="Playback2DSettings" /> key has a production reader AND a
+///         D6 §4 guard 3: every <see cref="Playback2DSettings" /> key has a production reader AND a
 ///         production writer.
 ///     </b>
 ///     <para>
@@ -40,10 +40,10 @@ internal sealed record SettingConsumption(
 ///     <para>
 ///         <b>Read from IL.</b> A read is a call to <c>get_X</c> and a write a call to <c>set_X</c>,
 ///         attributed to the calling method, with everything in <c>DemoViewer.NET.Configuration</c>
-///         excluded — that namespace is exactly <c>AppSettings.cs</c> and <c>SettingsService.cs</c>, whose
+///         excluded: that namespace is exactly <c>AppSettings.cs</c> and <c>SettingsService.cs</c>, whose
 ///         job is to move the value, not to mean anything by it. The binder's reflective writes are
 ///         invisible to IL, which is correct: <c>IConfiguration</c> filling a property is transport too.
-///         The registry check below covers what reflection structurally cannot see — a key with no property
+///         The registry check below covers what reflection structurally cannot see: a key with no property
 ///         at all.
 ///     </para>
 /// </summary>
@@ -168,8 +168,8 @@ public class Playback2DSettingsConsumptionTests
     }
 
     /// <summary>
-    ///     The self-check. Three canary properties on a type in THIS assembly — read and written, read
-    ///     only, written only — must be classified correctly. A scan that could not tell them apart would
+    ///     The self-check. Three canary properties on a type in THIS assembly, read and written, read
+    ///     only, written only, must be classified correctly. A scan that could not tell them apart would
     ///     make every assertion above either a false alarm or a rubber stamp.
     /// </summary>
     [Test]
@@ -277,7 +277,7 @@ public class Playback2DSettingsConsumptionTests
         string block = end < 0 ? text[start..] : text[start..end];
 
         // BLOCKQUOTE lines are commentary, not registry lines, and are dropped BEFORE the shape filter.
-        // §3.10 carries `>` callouts whose prose names types in backticks — every one a bare PascalCase
+        // §3.10 carries `>` callouts whose prose names types in backticks: every one a bare PascalCase
         // identifier, and so a "key" this guard would otherwise demand the settings class declare.
         block = string.Join('\n', block.Split('\n')
             .Where(l => !l.TrimStart().StartsWith('>')));
@@ -298,10 +298,10 @@ public class Playback2DSettingsConsumptionTests
 /// </summary>
 internal sealed class SettingsGuardCanary
 {
-    /// <summary>Both halves — the shape a healthy key has.</summary>
+    /// <summary>Both halves: the shape a healthy key has.</summary>
     public int ReadAndWritten { get; set; }
 
-    /// <summary><c>AnnotationAutoSave</c>'s shape: honoured at runtime, expressible by nobody.</summary>
+    /// <summary><c>AnnotationAutoSave</c>'s shape: honoured at runtime, but no UI or CLI surface can set it.</summary>
     public int ReadNeverWritten { get; set; }
 
     /// <summary>The mirror image: a preference stored and never honoured.</summary>

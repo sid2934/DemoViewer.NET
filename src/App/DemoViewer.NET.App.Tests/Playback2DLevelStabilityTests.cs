@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests;
 ///     <b>The risk-5 gate, on real data.</b> <c>FloorSplitter</c> keeps learning for the whole demo: the
 ///     floor count grows and, more importantly, the <i>boundaries keep moving</i> as the histogram
 ///     accumulates. A level identity that is re-derived from Z on every rebuild therefore churns, and
-///     everything keyed on it — pane cameras, picture caches, annotation anchors — churns with it.
+///     everything keyed on it, including pane cameras, picture caches, and annotation anchors, churns with it.
 ///     <para>
 ///         Replayed against the committed <c>assets/tour/sample-de_nuke.dem</c> (three rounds of a pro
 ///         de_nuke GOTV demo, two floors), so this runs in every checkout rather than waiting on a demo
@@ -32,7 +32,7 @@ public class Playback2DLevelStabilityTests
     private const string NukeSample = "assets/tour/sample-de_nuke.dem";
 
     /// <summary>
-    ///     <b>The drift case, on real data.</b> Replays Nuke with the histogram alone — no baked bundle —
+    ///     <b>The drift case, on real data.</b> Replays Nuke with the histogram alone, no baked bundle,
     ///     so the band boundaries move for the whole demo as more player Z accumulates. Every identity
     ///     must survive that: an id whose band no longer overlaps the one it was minted on has silently
     ///     become a different floor, taking its camera and (from B2) its annotations with it.
@@ -159,7 +159,7 @@ public class Playback2DLevelStabilityTests
         EntityTracker tracker = new();
         LevelHysteresis hysteresis = new();
 
-        // One observation stride of scene time per sample — the dwell is scene-time based, so a replay
+        // One observation stride of scene time per sample, the dwell is scene-time based, so a replay
         // driving it with the demo's own clock is what the interactive path does too.
         SceneTime time = new(0, 0, 0, ObserveStride / 128.0, false);
 
@@ -238,7 +238,7 @@ public class Playback2DLevelStabilityTests
     /// <summary>
     ///     <b>The positive half of AutoFollow, on real data.</b>
     ///     <see cref="Nuke_AutoFollow_SwitchCount_IsBounded" /> follows the first live slot it meets and
-    ///     bounds the switch count from above — on this capture that slot never clears the spatial band,
+    ///     bounds the switch count from above, on this capture that slot never clears the spatial band,
     ///     so it observes zero switches and cannot tell a working chooser from one that never switches at
     ///     all. This drives every player's own Z track through the chooser and asserts the other
     ///     direction: floors are genuinely traversed, each switch lands on a level that <i>contains</i>
@@ -412,7 +412,7 @@ public class Playback2DLevelStabilityTests
     }
 
     // de_nuke's committed bundle: the two baked nav floors the app binds through MapAssetLoader. They
-    // are what makes Nuke a two-floor map in the viewport — the three-round tour sample's own Z
+    // are what makes Nuke a two-floor map in the viewport. The three-round tour sample's own Z
     // histogram never accumulates enough lower-floor traffic to split on its own.
     private static IReadOnlyList<FloorSlice> BakedNukeFloors()
     {

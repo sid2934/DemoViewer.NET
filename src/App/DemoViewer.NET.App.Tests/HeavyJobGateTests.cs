@@ -11,8 +11,8 @@ namespace DemoViewer.NET.AppTests;
 ///     <c>MaxConcurrency == 1</c> every path must be behaviourally identical to the historical
 ///     <c>SemaphoreSlim(1,1)</c> gate: one holder at a time; background yields to a pending
 ///     interactive between demos; a reel session drains the in-flight holder and refuses
-///     interactive. Resize is apply-forward — grow admits more, shrink drains.
-///     <para>No demo parses here — pure concurrency assertions, so the class runs in parallel.</para>
+///     interactive. Resize is apply-forward: grow admits more, shrink drains.
+///     <para>No demo parses here: pure concurrency assertions, so the class runs in parallel.</para>
 /// </summary>
 public class HeavyJobGateTests
 {
@@ -41,7 +41,7 @@ public class HeavyJobGateTests
     }
 
     // TUnit's async value-delegate builder doesn't surface Throws for a Task<T>-returning lambda, so
-    // assert the throw directly (catches derived types too — e.g. TaskCanceledException : OperationCanceled).
+    // assert the throw directly (catches derived types too, e.g. TaskCanceledException : OperationCanceled).
     private static async Task AssertThrowsAsync<TException>(Func<Task> action) where TException : Exception
     {
         try

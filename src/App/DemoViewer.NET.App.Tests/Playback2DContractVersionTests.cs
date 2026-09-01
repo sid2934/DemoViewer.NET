@@ -10,8 +10,8 @@ using DemoViewer.NET.ViewModels.Shell;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     B5-9's audit, as a test. Nothing in the codebase ENFORCES <c>ContractVersion</c> — it is a
-///     documented claim about which additive <see cref="IModuleContext" /> members the module consumes —
+///     B5-9's audit, as a test. Nothing in the codebase ENFORCES <c>ContractVersion</c>: it is a
+///     documented claim about which additive <see cref="IModuleContext" /> members the module consumes,
 ///     so the enforcement is this pin plus the human read that accompanies a deliberate edit.
 ///     <para>
 ///         The three ids alongside it are persisted / cross-referenced keys: the TabId is written into the
@@ -23,7 +23,7 @@ namespace DemoViewer.NET.AppTests;
 public class Playback2DContractVersionTests
 {
     /// <summary>
-    ///     1.2.0 is the whole v2 release's ONE bump (B5 D7, registry §3.10) — A1 made it, and B2/B3/B4
+    ///     1.2.0 is the whole v2 release's ONE bump (B5 D7, registry §3.10): A1 made it, and B2/B3/B4
     ///     consumed the same six additive members without bumping again. Changing it should require
     ///     re-reading the comment above it and re-verifying the member list by grep.
     /// </summary>

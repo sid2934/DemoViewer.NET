@@ -111,13 +111,13 @@ public class DemoCacheTier2Tests
     }
 
     /// <summary>
-    ///     Round boundaries must come from <c>round_freeze_end</c>, NOT <c>round_start</c> — CS2 does not emit
+    ///     Round boundaries must come from <c>round_freeze_end</c>, NOT <c>round_start</c>. CS2 does not emit
     ///     the latter at all. Deriving them from the wrong event yields an empty list on every CS2 demo, which
     ///     silently disables the clip lead-in floor that <c>ClipWindows.RoundStartFor</c> exists to apply. That
     ///     is precisely the state the shipped highlights cache was in: every scanned row had zero rounds.
     ///     <para>
-    ///         This test asserts BOTH halves — that rounds are found, and that the event the old code looked
-    ///         for genuinely does not exist — so a future "simplification" back to the string match fails here
+    ///         This test asserts BOTH halves: that rounds are found, and that the event the old code looked
+    ///         for genuinely does not exist, so a future "simplification" back to the string match fails here
     ///         with the reason attached rather than quietly producing nothing.
     ///     </para>
     /// </summary>
@@ -142,7 +142,7 @@ public class DemoCacheTier2Tests
             await Assert.That(rounds.Zip(rounds.Skip(1)).All(p => p.Second.StartTickFrameClock
                                                                   >= p.First.StartTickFrameClock)).IsTrue()
                 .Because("round starts are monotonic in frame-clock ticks");
-            // Frame clock, NOT server-tick space — never offset by ServerStartTick. A round start below the
+            // Frame clock, NOT server-tick space, never offset by ServerStartTick. A round start below the
             // server start tick would prove the wrong clock had been stored.
             await Assert.That(rounds[^1].StartTickFrameClock).IsLessThanOrEqualTo(parsed.TickCount);
         }
@@ -186,7 +186,7 @@ public class DemoCacheTier2Tests
                 await Assert.That(cached.DurationSeconds).IsGreaterThan(0).Because("DURATION tile");
                 await Assert.That(cached.Roster.Any()).IsTrue().Because("both roster cards");
                 await Assert.That(cached.Map).IsNotNull().Because("the identity hero");
-                // And the scoreboard is deliberately absent — that is tier 3, behind an explicit action.
+                // And the scoreboard is deliberately absent: that is tier 3, behind an explicit action.
                 await Assert.That(cached.Scoreboard).IsEmpty();
                 await Assert.That(cached.Analysis.IsPresent).IsFalse();
                 await Assert.That(cached.AnalysisState).IsEqualTo(DemoAnalysisState.Pending);

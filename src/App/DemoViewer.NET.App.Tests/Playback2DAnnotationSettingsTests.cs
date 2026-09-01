@@ -8,13 +8,13 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The <c>Playback2D</c> annotation preferences: they bind from an empty file, they round-trip
-///     through the real file, and — the one that actually bites — every one of them survives the
+///     through the real file, and every one of them, the one that actually bites, survives the
 ///     FILELESS in-memory path.
 ///     <para>
 ///         On WASM there is no settings file, only the provider <c>SettingsService.WriteInMemory</c>
 ///         populates by hand, key by key. A property modelled on <c>AppSettings</c> but missing from that
 ///         method binds fine, writes fine, and forgets itself on the next reload with nothing to see
-///         anywhere. Annotations ARE WASM-reachable — in-session drawing works in the browser.
+///         anywhere. Annotations ARE WASM-reachable: in-session drawing works in the browser.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -33,8 +33,8 @@ public class Playback2DAnnotationSettingsTests
             await Assert.That(prefs.LastTool).IsEqualTo("PanZoom");
             await Assert.That(prefs.AnnotationColorArgb).IsEqualTo(0xFFFFC107u);
             // 6, not 8: the settings key once disagreed with AnnotationStyle.Default.WidthWorld about
-            // what the shipped pen is, and Core's constant — the one every test, the wet stroke and a
-            // session-only run already use — is the one that won.
+            // what the shipped pen is, and Core's constant, the one every test, the wet stroke and a
+            // session-only run already use, is the one that won.
             await Assert.That(prefs.AnnotationWidth).IsEqualTo(6d);
             await Assert.That(prefs.AnnotationOpacity).IsEqualTo(1d);
             await Assert.That(prefs.AnnotationDefaultVisibility).IsEqualTo("Always");
@@ -45,7 +45,7 @@ public class Playback2DAnnotationSettingsTests
             await Assert.That(prefs.AnnotationAutoSave).IsTrue();
             await Assert.That(prefs.AnnotationRecentColors).IsEmpty();
 
-            // The shipped default set of four. "Same" is the shipped right-button binding — two PENS were
+            // The shipped default set of four. "Same" is the shipped right-button binding: two PENS were
             // asked for, and a right button that erased out of the box would leave the secondary swatch
             // inert with no hint that a second colour exists. The Custom window ships non-empty on
             // purpose: a mode whose default is [0,0] would still look like a second spelling of Always.
@@ -54,8 +54,8 @@ public class Playback2DAnnotationSettingsTests
             await Assert.That(prefs.AnnotationCustomFromTick).IsEqualTo(0);
             await Assert.That(prefs.AnnotationCustomUntilTick).IsEqualTo(320);
 
-            // P2. `auto` is the only encoder value that cannot fail for an environment reason — it walks
-            // the ladder and lands on tuned software where no hardware verifies — so it is the only one
+            // P2. `auto` is the only encoder value that cannot fail for an environment reason: it walks
+            // the ladder and lands on tuned software where no hardware verifies, so it is the only one
             // that can be a default. `standard` is the product goal: decent bitrate, quick encoding.
             await Assert.That(prefs.ExportEncoder).IsEqualTo("auto");
             await Assert.That(prefs.ExportQuality).IsEqualTo("standard");

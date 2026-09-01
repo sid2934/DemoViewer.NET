@@ -23,7 +23,7 @@ internal sealed record CommandBinding(string Owner, string Name, IReadOnlyList<s
 /// <summary>
 ///     <b>Every generated command on a Playback2D view-model is reachable from production.</b> The AUTO
 ///     level-follow chip is a <c>ToggleButton</c> with <c>IsChecked="{Binding IsAutoEnabled}"</c>, which
-///     reaches the property and skips <c>EnableAutoCommand</c> — the only path that raised
+///     reaches the property and skips <c>EnableAutoCommand</c>, the only path that raised
 ///     <c>SettingsChanged</c>. AUTO applied instantly, looked right, and was forgotten on the next launch,
 ///     because a string-based binding makes "is this command used?" invisible to the compiler, the
 ///     analyzer and a C#-only grep.
@@ -101,7 +101,7 @@ public class Playback2DCommandBindingTests
 
     /// <summary>
     ///     The matcher itself, against a synthetic corpus. Whole-word or nothing (so
-    ///     <c>UndoCommand</c> is not evidence for <c>RedoCommand</c>), and a doc comment is not a binding —
+    ///     <c>UndoCommand</c> is not evidence for <c>RedoCommand</c>), and a doc comment is not a binding:
     ///     a comment describing the missing half must not count as one.
     /// </summary>
     [Test]
@@ -161,7 +161,7 @@ public class Playback2DCommandBindingTests
 /// <summary>
 ///     The canary for
 ///     <see cref="Playback2DCommandBindingTests.TheScan_ReportsACommandNothingBinds_AndClearsOneTheXamlDoesBind" />.
-///     Its command name appears in no production source by design — if this ever starts coming back
+///     Its command name appears in no production source by design: if this ever starts coming back
 ///     "reachable", the corpus has grown to include something it must not.
 /// </summary>
 internal sealed class CommandGuardCanaryViewModel

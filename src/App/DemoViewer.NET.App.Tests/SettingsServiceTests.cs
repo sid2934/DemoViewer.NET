@@ -88,7 +88,7 @@ public class SettingsServiceTests
     public async Task NeedsFirstRun_IsDrivenByFlag_NotFileExistence()
     {
         // Regression (the folder-migration-suppresses-wizard bug): NeedsFirstRun must track the
-        // FirstRunCompleted flag, NOT whether settings.json exists — the demo-library folder migration can
+        // FirstRunCompleted flag, NOT whether settings.json exists: the demo-library folder migration can
         // create the file during startup, and that must not count as "setup done" for an upgrading user.
         string dir = NewTempDir();
         try
@@ -208,7 +208,7 @@ public class SettingsServiceTests
     /// <summary>
     ///     An env override stays effective for READS (highest-precedence layer in <c>Current</c>) but must
     ///     NEVER be baked into settings.json by a write. Here a write of an UNRELATED field must leave the
-    ///     env-overridden field at its real FILE value on disk — otherwise a transient <c>DEMOVIEWER_Theme</c>
+    ///     env-overridden field at its real FILE value on disk. Otherwise a transient <c>DEMOVIEWER_Theme</c>
     ///     would permanently overwrite the user's persisted theme the next time anything is saved.
     /// </summary>
     [Test]
@@ -250,7 +250,7 @@ public class SettingsServiceTests
     }
 
     /// <summary>
-    ///     The fileless / in-memory (WASM) write path must drop keys a shrink removes — a rebuilt-from-scratch
+    ///     The fileless / in-memory (WASM) write path must drop keys a shrink removes: a rebuilt-from-scratch
     ///     provider, not an additive one. A <c>null</c> config dir selects that path even off-browser, so this
     ///     runs the branch the file-backed tests never touch. Without the rebuild a shrunk Library.Folders or a
     ///     cleared Features.Overrides key would linger and a subsequent bind would resurrect it.
@@ -395,7 +395,7 @@ public class SettingsServiceTests
     /// <summary>
     ///     One-time migration: legacy standalone <c>session.json</c> / <c>recent-files.json</c> are
     ///     imported into the merged file on first load, the old files are preserved as <c>.bak</c> (never
-    ///     deleted), and the import is not repeated — even if a legacy file is dropped back in.
+    ///     deleted), and the import is not repeated, even if a legacy file is dropped back in.
     /// </summary>
     [Test]
     public async Task LegacyFiles_ImportedOnce_AndPreservedAsBak()
@@ -479,7 +479,7 @@ public class SettingsServiceTests
     /// <summary>
     ///     Best-effort semantics (preserved from the pre-consolidation stores): a <c>SaveSession</c> /
     ///     <c>SaveRecents</c> whose write cannot land (here the <c>settings.json</c> path is occupied by a
-    ///     DIRECTORY, so the atomic <c>File.Move</c> fails) must NOT throw — a shutdown-save or demo-open
+    ///     DIRECTORY, so the atomic <c>File.Move</c> fails) must NOT throw: a shutdown-save or demo-open
     ///     never crashes the app. The reactive preference <c>Write</c>, by contrast, still surfaces the error.
     /// </summary>
     [Test]
@@ -509,7 +509,7 @@ public class SettingsServiceTests
             await Assert.That(savesThrew).IsFalse()
                 .Because("both best-effort saves swallow a write failure rather than crashing the app");
 
-            // The reactive preference write is NOT best-effort — it still throws so the UI can surface it.
+            // The reactive preference write is NOT best-effort: it still throws so the UI can surface it.
             bool writeThrew = false;
             try
             {
@@ -530,8 +530,8 @@ public class SettingsServiceTests
     }
 
     /// <summary>
-    ///     The fileless (WASM) path persists neither session nor recents — the saves no-op and the loads
-    ///     return empty — matching the pre-consolidation in-memory-only behavior. A <c>null</c> config dir
+    ///     The fileless (WASM) path persists neither session nor recents: the saves no-op and the loads
+    ///     return empty, matching the pre-consolidation in-memory-only behavior. A <c>null</c> config dir
     ///     selects that branch off-browser.
     /// </summary>
     [Test]

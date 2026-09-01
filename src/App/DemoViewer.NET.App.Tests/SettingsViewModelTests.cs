@@ -54,7 +54,7 @@ public class SettingsViewModelTests
     // Build a SettingsViewModel over a fresh SettingsService rooted at a throwaway dir, plus an
     // IOptionsMonitor<AppSettings> and an IFeatureGate bound to that same service's live config (mirrors
     // SettingsServiceTests + FeatureGateTests). The gate uses UI-thread marshaling DISABLED so its Changed
-    // event — the cue that refreshes the feature rows — is observable inline in these non-UI cases; it is
+    // event, the cue that refreshes the feature rows, is observable inline in these non-UI cases; it is
     // registered in the container so the provider disposes it.
     private static (SettingsViewModel Vm, SettingsService Svc, IFeatureGate Gate, ServiceProvider Sp) NewVm(string dir)
     {
@@ -177,7 +177,7 @@ public class SettingsViewModelTests
         }
     }
 
-    // (c) Setting the theme persists its id (the central theme system — stores
+    // (c) Setting the theme persists its id (the central theme system: stores
     // the lowercase Theme.Id, not the old capitalized display value; App.WireTheme resolves it case-insensitively).
     [Test]
     public async Task SelectingTheme_WritesTheme()
@@ -458,7 +458,7 @@ public class SettingsViewModelTests
         }
     }
 
-    // (b) A Required feature's row is IsRequired=true and its IsEnabled setter is a no-op — it stays enabled
+    // (b) A Required feature's row is IsRequired=true and its IsEnabled setter is a no-op. It stays enabled
     // and persists no override.
     [Test]
     public async Task RequiredRow_ToggleIsNoOp_StaysEnabled()
@@ -488,7 +488,7 @@ public class SettingsViewModelTests
         }
     }
 
-    // (c) ResetOverrides clears every override — settings.json Overrides empties and rows revert to defaults.
+    // (c) ResetOverrides clears every override: settings.json Overrides empties and rows revert to defaults.
     [Test]
     public async Task ResetOverrides_ClearsAll_RowsRevertToDefaults()
     {
@@ -519,7 +519,7 @@ public class SettingsViewModelTests
         }
     }
 
-    // (d) Changing category refreshes the rows to the new defaults and updates HiddenCount — WITHOUT
+    // (d) Changing category refreshes the rows to the new defaults and updates HiddenCount, WITHOUT
     // materialising any override (the critical no-corruption guarantee).
     [Test]
     public async Task CategoryChange_RefreshesRows_AndHiddenCount_WithoutOverrides()
@@ -550,7 +550,7 @@ public class SettingsViewModelTests
         }
     }
 
-    // (e) IsOverridden reflects whether an explicit override exists — true after a toggle, false after clear.
+    // (e) IsOverridden reflects whether an explicit override exists: true after a toggle, false after clear.
     [Test]
     public async Task IsOverridden_ReflectsExplicitOverride()
     {
@@ -597,7 +597,7 @@ public class SettingsViewModelTests
                 await Assert.That(follower.IsInteractive).IsFalse().Because("a group follower is locked here");
                 await Assert.That(gate.IsEnabled("chrome.debugger")).IsFalse().Because("PowerUser default");
 
-                follower.IsEnabled = true; // stray programmatic set — must not persist an inert override
+                follower.IsEnabled = true; // stray programmatic set: must not persist an inert override
 
                 await Assert.That(follower.IsEnabled).IsFalse().Because("a follower bounces to the leader-governed state");
                 await Assert.That(follower.IsOverridden).IsFalse().Because("no phantom override for a follower");

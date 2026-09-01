@@ -26,7 +26,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Headless render smoke for the four CSVG-integration views: each real view
 ///     is built over a populated VM, attached to a window, laid out, and
-///     Skia-rendered — catching XAML load, compiled-binding, DataTemplate, and converter errors
+///     Skia-rendered: catching XAML load, compiled-binding, DataTemplate, and converter errors
 ///     the compile can't. Construct-and-render only; behavioral coverage lives in the pure-VM
 ///     batteries (LiveSyncStatusViewModelTests, HighlightsTabViewModelTests, reel batteries).
 /// </summary>
@@ -207,7 +207,7 @@ public class ZCsvgViewsRenderTests
             PlaybackController playback = new();
             LiveSyncStatusViewModel syncVm = new(liveSync, null, playback,
                 () => { }, _ => Task.CompletedTask);
-            // Degraded WITH a remote demo path — the densest flyout section (Open in DemoViewer
+            // Degraded WITH a remote demo path: the densest flyout section (Open in DemoViewer
             // offer + Re-sync + the newly-bound ReasonText surface all present).
             liveSync.Raise(new LiveSyncState(LiveSyncStateKind.Degraded,
                 "CS2 is now playing a different demo (other.dem).",

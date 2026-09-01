@@ -11,7 +11,7 @@ namespace DemoViewer.NET.AppTests;
 ///     The declarative keymap. The table is conflict-checked in its own static constructor, so the first
 ///     test here is really "the type could be loaded at all"; the rest pin the two design decisions that
 ///     were direct collisions in the spec (Q/E round nav vs E erase; Space play/pause vs hold-to-pan).
-///     <b>Both of those resolutions live here and nowhere else</b> — a second copy in the conflict suite
+///     <b>Both of those resolutions live here and nowhere else</b>: a second copy in the conflict suite
 ///     was character-identical.
 /// </summary>
 public class Playback2DKeymapTests
@@ -63,7 +63,7 @@ public class Playback2DKeymapTests
 
     /// <summary>
     ///     The annotation gestures were declared reserved before they had any binding. This is the moment
-    ///     the reservation paid off — the gestures were guarded from the day the table shipped, so binding
+    ///     the reservation paid off: the gestures were guarded from the day the table shipped, so binding
     ///     them here is a flag flip rather than a collision hunt.
     /// </summary>
     [Test]
@@ -91,7 +91,7 @@ public class Playback2DKeymapTests
             out Playback2DAction drawing)).IsTrue();
         await Assert.That(drawing).IsEqualTo(Playback2DAction.HoldPan);
 
-        // Same for Esc — clear-follow normally, gesture bail while a drawing tool is active.
+        // Same for Esc: clear-follow normally, gesture bail while a drawing tool is active.
         await Assert.That(Resolve(Key.Escape, KeyModifiers.None)).IsEqualTo(Playback2DAction.ClearFollow);
         await Assert.That(Playback2DKeymap.TryResolve(Key.Escape, KeyModifiers.None, true,
             out Playback2DAction bail)).IsTrue();

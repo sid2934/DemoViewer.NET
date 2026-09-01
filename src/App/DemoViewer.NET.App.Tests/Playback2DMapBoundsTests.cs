@@ -15,7 +15,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Map mode: verifies the VM reads the REAL networked playable-map bounds from
-///     CCSGameRulesProxy.m_pGameRules.m_vMinimapMins / m_vMinimapMaxs (the radar bounding box) — so Map mode
+///     CCSGameRulesProxy.m_pGameRules.m_vMinimapMins / m_vMinimapMaxs (the radar bounding box), so Map mode
 ///     frames the actual map instead of the observed-positions approximation. Sync parse path (no render).
 /// </summary>
 [NotInParallel]

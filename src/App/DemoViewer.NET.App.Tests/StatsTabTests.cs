@@ -19,7 +19,7 @@ using DemoViewer.NET.Views.Stats;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Stats tab tests (release plan P1-3.1/4.1) — fully synthetic per the harness practice
+///     Stats tab tests (release plan P1-3.1/4.1): fully synthetic per the harness practice
 ///     (Playback2DHeadlessSmokeTests caveat: the headless session can't complete the async demo-load
 ///     path, so the VM is fed a hand-built <see cref="EvaluationResult" /> directly via
 ///     <see cref="StatsTabViewModel.Update" />). Covers: scoreboard rows + default kills-desc sort,
@@ -123,7 +123,7 @@ public class StatsTabTests
         StatsTabViewModel vm = BuildUpdatedVm();
 
         await Assert.That(vm.HasStats).IsTrue();
-        // Columns are in catalogue display order now — assert membership, then index by label.
+        // Columns are in catalogue display order now: assert membership, then index by label.
         await Assert.That(vm.Columns.Select(c => c.Label).Order()).IsEquivalentTo(_expectedColumns.Order());
         await Assert.That(vm.GameRows.Count).IsEqualTo(2);
         // Final snapshot kills: Alice 20, Bob 21 → Bob first under kills-desc.
@@ -238,7 +238,7 @@ public class StatsTabTests
             int distinct = CountDistinctColors(frame);
             await Assert.That(distinct).IsGreaterThan(8);
 
-            // Second capture: the Rounds view (its own column set + header — the alignment surface
+            // Second capture: the Rounds view (its own column set + header, the alignment surface
             // the misalignment report was about).
             vm.IsRoundView = true;
             vm.SelectedRound = 1;
@@ -284,7 +284,7 @@ public class StatsTabTests
         public override string Name { get; } = name;
     }
 
-    /// <summary>Round-scoped stub — lands in the per-round table, excluded from the scoreboard.</summary>
+    /// <summary>Round-scoped stub: lands in the per-round table, excluded from the scoreboard.</summary>
     private sealed class RoundStubNode(string name) : StateNode, IRoundScopedNode
     {
         public override bool IsActive => true;

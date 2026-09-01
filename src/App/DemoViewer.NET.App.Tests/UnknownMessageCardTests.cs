@@ -164,7 +164,7 @@ public sealed record UnknownTypeRow(int FirstFrame, string Tick, string Message)
 
 /// <summary>
 ///     Parses the reference demo once and builds the unknown-message census + grouped rows, shared
-///     across tests. Pure parser work — no UI thread needed.
+///     across tests. Pure parser work: no UI thread needed.
 /// </summary>
 public sealed class DemoCensus
 {
@@ -185,7 +185,7 @@ public sealed class DemoCensus
     public byte[] DemoBytes { get; }
     public Dictionary<int, List<UnknownMessageInfo>> Census { get; }
 
-    /// <summary>Frame (with unknowns) that has the fewest inner messages — keeps the card render compact.</summary>
+    /// <summary>Frame (with unknowns) that has the fewest inner messages: keeps the card render compact.</summary>
     public int SmallestUnknownFrame { get; }
 
     public List<UnknownTypeRow> GroupedRows { get; }

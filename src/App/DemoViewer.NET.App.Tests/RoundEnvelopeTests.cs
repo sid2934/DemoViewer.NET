@@ -16,7 +16,7 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <c>EnvelopeMode.Round</c> — the annotation lasts the round it was drawn in.
+///     <c>EnvelopeMode.Round</c>: the annotation lasts the round it was drawn in.
 ///     <para>
 ///         The bounds are a DEMO fact and the envelope is a Core type, so they meet at a resolver seam the
 ///         tab supplies. These tests drive the tab's real resolver over real
@@ -39,7 +39,7 @@ public class RoundEnvelopeTests
         ["FadeInBox", "FadeOutBox", "HoldBox", "CustomFromBox", "CustomUntilBox"];
 
     /// <summary>
-    ///     A playhead inside each of the three rounds gets that round's window, in TICKS — the axis a
+    ///     A playhead inside each of the three rounds gets that round's window, in TICKS, the axis a
     ///     <c>TimeEnvelope</c> is expressed on, which <c>EventsOfType</c> hands over directly.
     ///     <para>
     ///         The LAST round has no following freeze-end, and the choice made is an OPEN upper bound: it
@@ -85,7 +85,7 @@ public class RoundEnvelopeTests
     }
 
     /// <summary>
-    ///     A stroke drawn BEFORE the first freeze-end is in warmup, which is not a round — <c>RoundTrack</c>
+    ///     A stroke drawn BEFORE the first freeze-end is in warmup, which is not a round. <c>RoundTrack</c>
     ///     bands it as <c>wu</c> for the same reason. It falls back rather than being pinned into round 1,
     ///     where the user was not looking.
     /// </summary>
@@ -107,8 +107,8 @@ public class RoundEnvelopeTests
     }
 
     /// <summary>
-    ///     <b>The fallback that matters.</b> A demo with no <c>round_freeze_end</c> — a warmup clip, a
-    ///     partial parse, an unsupported source — produces Fade's pinned trapezoid, never an empty or
+    ///     <b>The fallback that matters.</b> A demo with no <c>round_freeze_end</c>, whether a warmup clip, a
+    ///     partial parse, or an unsupported source, produces Fade's pinned trapezoid, never an empty or
     ///     inverted window. A mode that drew nothing there would be worse than one that drew the wrong
     ///     thing.
     /// </summary>
@@ -142,7 +142,7 @@ public class RoundEnvelopeTests
     }
 
     /// <summary>
-    ///     <c>HasEvent</c> can say yes where <c>EventsOfType</c> has nothing to hand back — a demo whose
+    ///     <c>HasEvent</c> can say yes where <c>EventsOfType</c> has nothing to hand back: a demo whose
     ///     event NAMES were indexed but whose payloads were not decoded, which is what a truncated parse
     ///     looks like from here. That must degrade the same way an absent event does.
     /// </summary>
@@ -174,8 +174,8 @@ public class RoundEnvelopeTests
     }
 
     /// <summary>
-    ///     The panel offers <c>in</c> and <c>out</c> for Round and NOT <c>hold</c> — the window is the
-    ///     round, so a hold would be a second answer to "how long" — nor Custom's absolute window.
+    ///     The panel offers <c>in</c> and <c>out</c> for Round and NOT <c>hold</c>, because the window is the
+    ///     round and a hold would be a second answer to "how long", nor Custom's absolute window.
     /// </summary>
     [Test]
     public async Task Panel_Round_OffersTheRampsOnly()
@@ -244,13 +244,13 @@ public class RoundEnvelopeTests
     }
 
     /// <summary>
-    ///     The mode is persisted by NAME, so a fifth member costs no new settings key — but only if it
+    ///     The mode is persisted by NAME, so a fifth member costs no new settings key, but only if it
     ///     actually survives the fileless path, which is where a setting quietly forgets itself on WASM.
     /// </summary>
     [Test]
     public async Task RoundVisibility_RoundTripsThroughSettings()
     {
-        SettingsService settings = new(null); // the fileless WASM branch — the one that forgets things
+        SettingsService settings = new(null); // the fileless WASM branch, the one that forgets things
 
         using (AnnotationSessionController author = new(null, settings))
         {

@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Renders the full 2D view with a populated kill feed and asserts the feed actually draws as a visible
-///     HUD overlay in the viewport's TOP-RIGHT — guarding against (a) it not rendering in front and (b) the
+///     HUD overlay in the viewport's TOP-RIGHT: guarding against (a) it not rendering in front and (b) the
 ///     regression that prompted it: the strip background matching the viewport's own colour (#15181C) so the
 ///     feed blended into the grid as floating text. The strips are now distinctly DARKER, so the top-right
 ///     region contains plenty of pixels that differ from the viewport background.

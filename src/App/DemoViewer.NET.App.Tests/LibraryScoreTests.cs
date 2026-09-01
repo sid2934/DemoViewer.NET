@@ -11,8 +11,8 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Final-score extraction + card display. The extraction is validated against a REAL demo (CCSTeam
-///     m_iScore entity-replayed to match end) with structural asserts — a plausible scoreboard, not a pinned
-///     value — and skips when no demo is present. The display logic (HasScore / HasClans / subtitle) is a pure
+///     m_iScore entity-replayed to match end) with structural asserts, a plausible scoreboard, not a pinned
+///     value, and skips when no demo is present. The display logic (HasScore / HasClans / subtitle) is a pure
 ///     unit test.
 /// </summary>
 [NotInParallel]

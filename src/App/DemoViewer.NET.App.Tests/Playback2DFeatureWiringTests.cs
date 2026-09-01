@@ -13,7 +13,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     B5-2's audit, as a test. Guards the two failure modes a feature id has once it is in the catalog:
 ///     <b>declared but never consumed</b> (the phase that owns it forgot to gate anything), and
-///     <b>consumed in the wrong assembly</b> — design §7.7 requires Core / Pipeline / <c>dv2d</c> to read
+///     <b>consumed in the wrong assembly</b>: design §7.7 requires Core / Pipeline / <c>dv2d</c> to read
 ///     no gates at all, because a headless renderer takes explicit flags and must produce the same picture
 ///     whatever a user's Settings screen says.
 ///     <para>
@@ -85,7 +85,7 @@ public class Playback2DFeatureWiringTests
 
         // "playback2d.annotations" is deliberately absent: registry §3.3 gives the ink LAYER that exact
         // id, so the literal legitimately appears in Core as SceneLayerIds.Annotations. The two registries
-        // collide on one string by coincidence, which AnnotationTrack's own doc comment records — banning
+        // collide on one string by coincidence, which AnnotationTrack's own doc comment records: banning
         // the literal would flag the layer, not a gate. The GATING TYPES below are the real test: a
         // renderer that could read IFeatureGate is a renderer whose output depends on the caller's
         // Settings screen.
@@ -125,7 +125,7 @@ public class Playback2DFeatureWiringTests
 
     /// <summary>
     ///     The one string that is BOTH a feature id (registry §3.10) and a layer id (§3.3). Pinned because
-    ///     the collision is easy to read as a mistake and "fix" — and because the previous test has to
+    ///     the collision is easy to read as a mistake and "fix", and because the previous test has to
     ///     exempt it, so the exemption needs a reason that is itself under test. The annotation TIMELINE
     ///     track deliberately does not join the collision: its id is the bare word <c>annotation</c>.
     /// </summary>

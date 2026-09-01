@@ -16,7 +16,7 @@ namespace DemoViewer.NET.AppTests;
 ///     <para>
 ///         The annotation toolbar's visibility was bound to the <c>playback2d.annotations</c> FEATURE, so
 ///         under <c>DV_PLAYBACK2D_RENDERER=legacy</c> the whole docked tool row rendered over the pre-v2
-///         viewport — which has no <c>InputToolRouter</c>, no ink layer and no gesture to cancel. Every
+///         viewport, which has no <c>InputToolRouter</c>, no ink layer and no gesture to cancel. Every
 ///         button in it was inert, and one of them was worse than inert: <c>ToolDraw</c> still succeeded,
 ///         so <c>IsDrawingToolActive</c> went true, so the keymap's <c>WhenToolActive</c> rows shadowed the
 ///         always-scoped ones, and <c>Space</c> → <c>HoldPan</c> and <c>Esc</c> → <c>CancelGesture</c>
@@ -100,7 +100,7 @@ public class Playback2DSurfaceCapabilityTests
 
             // The payload. With the tool active the keymap's tool-scoped Space (HoldPan) shadowed the
             // always-scoped one (TogglePlay), and the surface arm that would have handled it did not
-            // exist — so the key was consumed by nothing and play/pause was simply gone.
+            // exist, so the key was consumed by nothing and play/pause was simply gone.
             window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
             Playback2DTimelineHarness.Pump();
 
@@ -140,8 +140,8 @@ public class Playback2DSurfaceCapabilityTests
     }
 
     /// <summary>
-    ///     Selecting a tool BEFORE the view mounts — restored session state does exactly this, since
-    ///     <c>Playback2DTabState</c> carries the last tool — must not survive a bind onto a surface that
+    ///     Selecting a tool BEFORE the view mounts, as restored session state does exactly this since
+    ///     <c>Playback2DTabState</c> carries the last tool, must not survive a bind onto a surface that
     ///     cannot host it. Otherwise the capability is right and <c>IsDrawingToolActive</c> is still true.
     /// </summary>
     [Test]

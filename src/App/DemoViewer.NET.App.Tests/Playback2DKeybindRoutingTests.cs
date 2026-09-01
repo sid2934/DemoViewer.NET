@@ -12,7 +12,7 @@ using DemoViewer.NET.Views.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     A rebind is only real if it survives the whole route — settings → profile → the view's tunnelling
+///     A rebind is only real if it survives the whole route: settings → profile → the view's tunnelling
 ///     handler → <c>ExecuteAction</c>. These run the real controls under real headless key events, because
 ///     two failure modes are both invisible to a unit test of the profile: the view
 ///     still calling the SHIPPED static table, and the KeyUp half of hold-to-pan still hard-coded to Space.
@@ -39,7 +39,7 @@ public class Playback2DKeybindRoutingTests
             await Assert.That(ctx.NextEvents.Count).IsEqualTo(1);
             await Assert.That(ctx.NextEvents[0][0]).IsEqualTo("round_freeze_end");
 
-            // The shipped key is now inert — a view still consulting Playback2DKeymap directly would
+            // The shipped key is now inert: a view still consulting Playback2DKeymap directly would
             // fire here and pass every other assertion in this file.
             window.KeyPressQwerty(PhysicalKey.E, RawInputModifiers.None);
             Playback2DTimelineHarness.Pump();
@@ -51,7 +51,7 @@ public class Playback2DKeybindRoutingTests
     /// <summary>
     ///     The KeyUp hazard. Nothing but the release ever clears the router's pan flag, so a hard-coded
     ///     <c>Space</c> in <c>OnKeyUp</c> would leave a user who rebound hold-to-pan stuck in pan mode from
-    ///     the first time they used it — with the pen selected and no way out short of restarting the tab.
+    ///     the first time they used it, with the pen selected and no way out short of restarting the tab.
     /// </summary>
     [Test]
     public async Task ReboundHoldPan_EntersAndLeavesPanMode()
@@ -88,8 +88,8 @@ public class Playback2DKeybindRoutingTests
 
     /// <summary>
     ///     <b>The rebind that lands MID-HOLD.</b> <c>OnKeyUp</c> resolved <c>HoldPan</c> against the
-    ///     CURRENT profile, so rebinding it — from the Settings page, or by an editor saving
-    ///     <c>settings.json</c>, which the tab watches live — while the key was still down made the
+    ///     CURRENT profile, so rebinding it, from the Settings page, or by an editor saving
+    ///     <c>settings.json</c>, which the tab watches live, while the key was still down made the
     ///     release match nothing. Nothing else ever clears the router's pan flag, so the surface panned
     ///     forever, under the pen, with no way out short of reopening the tab.
     /// </summary>
@@ -183,7 +183,7 @@ public class Playback2DKeybindRoutingTests
 
             Console.WriteLine("[keybind-routing] " + string.Join(" | ", vm.KeymapRejections));
 
-            // Which rows, not how many — the blank one is skipped silently and every other is named.
+            // Which rows, not how many: the blank one is skipped silently and every other is named.
             foreach (string row in bad)
             {
                 await Assert.That(vm.KeymapRejections.Any(r => r.StartsWith(row + ":", StringComparison.Ordinal))).IsTrue()
@@ -206,7 +206,7 @@ public class Playback2DKeybindRoutingTests
 
     /// <summary>
     ///     With no container there are no settings, and the tab must open on the shipped table rather than
-    ///     on nothing — the same trade every other optional dependency in this view-model makes.
+    ///     on nothing, the same trade every other optional dependency in this view-model makes.
     /// </summary>
     [Test]
     public async Task NoContainer_OpensOnTheShippedTable()

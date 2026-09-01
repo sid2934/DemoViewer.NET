@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     De-risks the bomb-timer ring (A4): the planted-C4 world position must reconstruct from its
-///     CBodyComponent cell coords (the open question — does CPlantedC4 carry the same m_cell* fields as a
+///     CBodyComponent cell coords (the open question: does CPlantedC4 carry the same m_cell* fields as a
 ///     pawn?). Activates a real VM at a frame shortly after a real bomb_planted and asserts the
 ///     <see cref="Playback2DTabViewModel.Bomb" /> draw-state is present, in-bounds, and counting down near
 ///     full (just planted).
