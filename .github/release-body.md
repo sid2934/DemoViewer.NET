@@ -1,29 +1,48 @@
-## What's new in 0.7.2
+## What's new in 0.8.0
 
-A maintenance release built on new parser and analysis packages. One fix in it is worth upgrading
-for on its own.
+The 2D playback view is rebuilt. It renders through a new Skia compositor, and that rework is what
+the rest of this release is built on: annotations you can draw on the map, video export straight out
+of the 2D view, maps with more than one floor, and a scrubbable timeline.
 
-**Demos that used to fail analysis outright now work.** Some demos died with an unhandled error the
-moment analysis started: not a degraded result, no result at all. The cause was a frame sharing a
-tick with a checkpoint the analyzer had picked, and across a corpus spanning every protocol version
-in a real matchmaking replays folder it took out 6 of 15 demos. All 15 now analyze. If you have a
-many-core machine you were far more likely to hit this: the analyzer picks more checkpoints the more
-cores you have, so above roughly 32 logical cores nearly every clash landed, while the same demos
-were fine on a 10-core box. That is also why it was hard to reproduce from a bug report.
+**Annotations.** Draw and erase on the 2D view, with undo/redo and a color picker. Each stroke has
+its own time envelope, so it can appear and fade when you want instead of hanging over the whole
+round. Strokes anchor either to the map or to a player, so they survive seeking and level switches
+rather than drifting. Everything saves to a `.dvann.json` file next to the demo, so a marked-up demo
+stays marked up.
 
-**Analysis is faster and much lighter on memory.** Against 0.7.1, measured as the median of three
-runs across nine demos: parsing is about 25% faster, evaluation about 13% faster, and total
-allocation is down between a third and a half.
+**Video export from the 2D view.** Export any range as WebM, MP4, or GIF, HUD included. ffmpeg is
+picked up from your PATH if you have it and downloaded on demand if you don't, and there is a
+built-in GIF encoder that needs no ffmpeg at all. The default is 720p60, which encodes at about 2.7x
+realtime. Export declines to start while LiveSync or a reel job is running rather than fighting them
+for the demo.
 
-**A dead player's entity reference no longer resolves to the wrong entity.** One of the two
-"no such entity" markers was not being recognized in the app's read-only entity view, so instead of
-reading as empty it resolved to whatever happened to occupy that slot.
+**Maps with more than one floor.** Multi-level maps now have a real layered level model instead of
+one flattened overhead. Pick a level by hand or let it switch as the action moves, and following a
+player always puts you on that player's floor.
 
-**The "What's new" window no longer opens before the app does.** On the launch after an update it
-could appear ahead of the main window.
+**A timeline along the bottom.** Scrub the demo directly, with tracks for rounds, kills, the bomb,
+and your own annotations, and hover to see what is under the cursor. There is a full keymap for
+playback speed, follow, fit, and the drawing tools.
+
+**Follow a player by clicking their card.** Selecting a card in the overview follows that player in
+the 2D view, and in-engine as well when LiveSync is on.
+
+**A headless `dv2d` command.** Render frames, export video, run benchmarks, and verify goldens from a
+terminal with no UI, against the same renderer the app uses.
+
+Underneath all of it, drawing a frame is one Skia operation that allocates nothing per frame and
+holds p99 2.5 ms at 1080p against an 8 ms budget. The previous 2D control is still available behind a
+settings toggle for this release and is removed in the next one.
 
 <details>
-<summary>What was new in 0.7.1 and earlier</summary>
+<summary>What was new in 0.7.2 and earlier</summary>
+
+**0.7.2** was a maintenance release. Demos that used to fail analysis outright started working
+again: a frame sharing a tick with a checkpoint the analyzer had picked took out 6 of 15 demos
+across a real matchmaking replays folder, and the more cores you had the more likely you were to hit
+it. Analysis also got roughly 25% faster to parse and 13% faster to evaluate, with total allocation
+down between a third and a half. A dead player's entity reference stopped resolving to whatever
+happened to occupy that slot, and the "What's new" window stopped opening ahead of the main one.
 
 **0.7.1** was a maintenance release: the parser and analysis engine moved out to
 [CS2DemoKit](https://github.com/CS2OpenDev/CS2DemoKit) and are consumed from nuget.org as packages,
