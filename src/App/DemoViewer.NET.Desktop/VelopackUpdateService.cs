@@ -110,9 +110,12 @@ internal sealed class VelopackUpdateService : IUpdateService
 
     /// <summary>
     ///     Builds the manager lazily and never throws: constructing it touches the filesystem to
-    ///     locate install metadata, which fails in unpackaged runs. `prerelease: true` is REQUIRED:
-    ///     `release.yml` uploads with `--pre true`, so every release is a GitHub prerelease and a
-    ///     stable-only source would report "up to date" forever.
+    ///     locate install metadata, which fails in unpackaged runs. `prerelease: true` searches
+    ///     prereleases IN ADDITION to stable ones (Velopack filters on
+    ///     `includePrereleases || !Prerelease`), which is what still reaches 0.7.x and earlier:
+    ///     those were published as GitHub prereleases because `release.yml` passed `--pre true`
+    ///     before 0.8.0. It also means a deliberate prerelease would be offered to every user,
+    ///     so flip this to false if that ever becomes a real channel.
     /// </summary>
     private UpdateManager? TryGetManager()
     {
