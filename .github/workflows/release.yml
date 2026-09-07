@@ -181,7 +181,6 @@ jobs:
               --tag "$tag" \
               --releaseName "DemoViewer.NET $tag" \
               --publish true \
-              --pre true \
               --merge true
           done
 
