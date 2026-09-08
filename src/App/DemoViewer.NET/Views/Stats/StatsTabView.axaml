@@ -6,6 +6,7 @@
              xmlns:local="using:DemoViewer.NET.Views.Stats"
              xmlns:output="using:CS2DemoKit.Analysis.Output"
              xmlns:controls="using:DemoViewer.NET.Controls"
+             xmlns:statsCtl="using:DemoViewer.NET.Controls.Stats"
              controls:TutorialAnchor.Target="StatsContent"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="700"
              x:Class="DemoViewer.NET.Views.Stats.StatsTabView"
@@ -48,13 +49,20 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="stats:StatCell">
-                                <TextBlock Text="{Binding Display}"
-                                           Width="{Binding Width}"
-                                           TextAlignment="{Binding Alignment}"
-                                           Padding="0 0 10 0"
-                                           Classes="statsCell"
-                                           Classes.pos="{Binding IsPositive}"
-                                           Classes.neg="{Binding IsNegative}" />
+                                <!-- One StatValue per cell (v0.8.1). Text comes from the cell so the board
+                                     keeps its own formatting (bools still render as a tick); the control
+                                     only draws. An unscaled column passes Scale=null and renders exactly as
+                                     the TextBlock did, which is what keeps this additive across all 74
+                                     catalogued columns and every user-authored one. -->
+                                <statsCtl:StatValue Text="{Binding Display}"
+                                                    Value="{Binding Numeric}"
+                                                    Scale="{Binding Scale}"
+                                                    IsLeader="{Binding IsLeader}"
+                                                    Width="{Binding Width}"
+                                                    TextAlignment="{Binding Alignment}"
+                                                    Classes="statsCell"
+                                                    Classes.pos="{Binding IsPositive}"
+                                                    Classes.neg="{Binding IsNegative}" />
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -495,6 +503,24 @@
         </Style>
         <Style Selector="TextBlock.statsCell.neg">
             <Setter Property="Foreground" Value="{DynamicResource AccentError}" />
+        </Style>
+        <!-- The scoreboard cell. Same class name, different type: TextBlock.statsCell above still
+             serves the extra-table / highlights / vision lists, which hold pre-formatted strings and
+             have no scale to draw. Padding is the column gutter, and the bar respects it. -->
+        <Style Selector="statsCtl|StatValue.statsCell">
+            <Setter Property="Padding" Value="0 0 10 0" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="MinHeight" Value="17" />
+        </Style>
+        <!-- Emphasis fallback for columns with no scale. StatValue paints no foreground when its
+             sentiment is neutral, so setting Foreground here is enough and the two never fight.
+             `.neg` moves off AccentError to the stat-specific token: a bad stat is a judgement, an
+             error is a fault. -->
+        <Style Selector="statsCtl|StatValue.statsCell.pos">
+            <Setter Property="Foreground" Value="{DynamicResource StatPositive}" />
+        </Style>
+        <Style Selector="statsCtl|StatValue.statsCell.neg">
+            <Setter Property="Foreground" Value="{DynamicResource StatNegative}" />
         </Style>
         <!-- Team-side bullet: T amber, CT blue (foreground must come from styles, not a local
              value, or the .ct class can never override it). -->

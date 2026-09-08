@@ -10,6 +10,7 @@ using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Controls.Stats;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -712,8 +713,14 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsSortedByPlayer));
         OnPropertyChanged(nameof(PlayerSortGlyph));
 
+        // Peers are the whole lobby, both teams: the interesting comparison on a scoreboard is
+        // cross-team, and the rows arrive unfiltered here (the category chips filter COLUMNS, not rows).
+        // Totals are not in this set at all; they are built afterwards inside BuildTeamSections.
+        Dictionary<string, StatScale?> scales =
+            BuildColumnScales(GameTable.Rows, _visibleGameColumnOrder);
+
         List<StatsRow> rows = GameTable.Rows
-            .Select(r => BuildRow(r, _visibleGameColumnOrder))
+            .Select(r => BuildRow(r, _visibleGameColumnOrder, scales))
             .ToList();
 
         rows.Sort((a, b) =>
@@ -912,9 +919,17 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CurrentColumns));
 
         int round = SelectedRound;
-        RoundRows = RoundTable.Rows
+
+        // Materialized before projection on purpose: the peer group for a round is the players IN that
+        // round, and a fused Where/Select never lets the column be seen as a whole.
+        List<MetricRow> roundRows = RoundTable.Rows
             .Where(r => Convert.ToInt32(r.Dimensions["round_number"], CultureInfo.InvariantCulture) == round)
-            .Select(r => BuildRow(r, _visibleRoundColumnOrder))
+            .ToList();
+        Dictionary<string, StatScale?> roundScales =
+            BuildColumnScales(roundRows, _visibleRoundColumnOrder);
+
+        RoundRows = roundRows
+            .Select(r => BuildRow(r, _visibleRoundColumnOrder, roundScales))
             .OrderBy(r => r.TeamSort)
             .ThenBy(r => r.PlayerName, StringComparer.OrdinalIgnoreCase)
             .Select((r, i) => r with
@@ -926,7 +941,70 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CurrentRows));
     }
 
-    private static StatsRow BuildRow(MetricRow row, List<string> orderedColumns)
+    /// <summary>
+    ///     Resolves one <see cref="StatScale" /> per visible column from the rows about to be rendered.
+    ///     <para>
+    ///         Called BEFORE any cell exists, which is the only place it can be: a peer domain needs every
+    ///         value in the column, and <see cref="BuildRow" /> sees one row at a time. It also has to be
+    ///         before <c>BuildTeamSections</c>, because that copies rows with <c>with</c> and the copies
+    ///         share their <c>Cells</c> instance with the originals.
+    ///     </para>
+    ///     <para>
+    ///         Only real numbers count. A column declared numeric that actually holds bools or strings
+    ///         contributes nothing and ends up with no scale, which renders as today's plain cell.
+    ///     </para>
+    /// </summary>
+    private static Dictionary<string, StatScale?> BuildColumnScales(
+        IReadOnlyList<MetricRow> rows, List<string> orderedColumns)
+    {
+        Dictionary<string, StatScale?> scales = new(orderedColumns.Count, StringComparer.Ordinal);
+        List<double> peers = [];
+        foreach (string column in orderedColumns)
+        {
+            if (ColumnCatalogue.Resolve(column).Scale is not { } spec)
+            {
+                scales[column] = null;
+                continue;
+            }
+
+            peers.Clear();
+            foreach (MetricRow row in rows)
+            {
+                if (new StatCell(row.Values.GetValueOrDefault(column)).Numeric is { } v)
+                {
+                    peers.Add(v);
+                }
+            }
+
+            scales[column] = spec.Resolve(peers);
+        }
+
+        return scales;
+    }
+
+    /// <summary>
+    ///     Whether this row has earned a tint on a gated column. Opening-duel win rate is the case: it is
+    ///     pinned at 50% by definition, so two duels won of two reads 100% and says nothing. A row below
+    ///     the gate keeps its bar and loses its colour, rather than vanishing from the column.
+    /// </summary>
+    private static bool ClearsColourGate(MetricRow row, StatScaleSpec spec)
+    {
+        if (spec.ColourGateColumns is not { Count: > 0 } gates)
+        {
+            return true;
+        }
+
+        double total = 0;
+        foreach (string gate in gates)
+        {
+            total += new StatCell(row.Values.GetValueOrDefault(gate)).Numeric ?? 0;
+        }
+
+        return total >= spec.ColourGateMinimum;
+    }
+
+    private static StatsRow BuildRow(MetricRow row, List<string> orderedColumns,
+        IReadOnlyDictionary<string, StatScale?>? scales = null)
     {
         string player = row.Dimensions.GetValueOrDefault("player_name")?.ToString() ?? "?";
         int team = row.Dimensions.GetValueOrDefault("team") is { } t
@@ -936,7 +1014,17 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         List<StatCell> cells = new(orderedColumns.Count);
         foreach (string column in orderedColumns)
         {
-            cells.Add(new StatCell(row.Values.GetValueOrDefault(column), ColumnCatalogue.Resolve(column)));
+            ColumnMeta meta = ColumnCatalogue.Resolve(column);
+            StatScale? scale = scales?.GetValueOrDefault(column);
+
+            // A gated column keeps the bar and drops the judgement, which is why the polarity is
+            // neutered rather than the scale being dropped outright.
+            if (scale is not null && meta.Scale is { } spec && !ClearsColourGate(row, spec))
+            {
+                scale = scale with { Polarity = StatPolarity.Neutral };
+            }
+
+            cells.Add(new StatCell(row.Values.GetValueOrDefault(column), meta, scale));
         }
 
         return new StatsRow(player, team, cells)
@@ -1312,8 +1400,43 @@ public sealed record VisibilityRow(
 ///     One cell: the raw boxed value (for sorting) plus its display string and, when built for a
 ///     catalogued column, the presentation metadata (width, alignment, emphasis).
 /// </summary>
-public sealed record StatCell(object? Raw, ColumnMeta? Meta = null)
+public sealed record StatCell(object? Raw, ColumnMeta? Meta = null, StatScale? Scale = null)
 {
+    /// <summary>
+    ///     The numeric value the bar and tint are computed from, or null when this cell holds no number.
+    ///     Bools are excluded deliberately: four per-round columns (<c>HasKAST</c>, <c>FK</c>, <c>FD</c>,
+    ///     <c>Traded</c>) are declared numeric in the catalogue but carry <c>true</c>/<c>false</c>, and a
+    ///     scale over a two-value set gives every player a full or an empty bar.
+    /// </summary>
+    public double? Numeric => Raw switch
+    {
+        int i => i,
+        long l => l,
+        double d => double.IsFinite(d) ? d : null,
+        float f => double.IsFinite(f) ? f : null,
+        _ => null
+    };
+
+    /// <summary>True when this cell has both a scale and a number for it to act on.</summary>
+    public bool IsScaled => Scale is not null && Numeric is not null;
+
+    /// <summary>
+    ///     True when this cell holds the best value in its column, for the leader marker. Derived from
+    ///     the scale rather than tracked separately: a peer domain's bound IS the best value, so the fact
+    ///     is already in hand and cannot drift out of step with the bar.
+    ///     <para>
+    ///         A column where everyone tied has no domain and therefore no leader, which is correct: a
+    ///         star on all ten rows marks nothing.
+    ///     </para>
+    /// </summary>
+    public bool IsLeader =>
+        IsScaled && Scale!.HasDomain && Numeric is { } v && Scale.Polarity switch
+        {
+            StatPolarity.HigherIsBetter => Math.Abs(v - Scale.Max) < 1e-9,
+            StatPolarity.LowerIsBetter => Math.Abs(v - Scale.Min) < 1e-9,
+            _ => false
+        };
+
     /// <summary>Invariant, compact rendering (doubles to 2 decimals; null → empty).</summary>
     public string Display => Raw switch
     {
@@ -1330,9 +1453,15 @@ public sealed record StatCell(object? Raw, ColumnMeta? Meta = null)
     public TextAlignment Alignment =>
         Meta is { Numeric: true } ? TextAlignment.Right : TextAlignment.Left;
 
-    /// <summary>Flat accent for intrinsically good columns (clutches, aces), style class hook.</summary>
-    public bool IsPositive => Meta?.Emphasis == Emphasis.Positive && Raw is not (null or 0 or 0.0);
+    /// <summary>
+    ///     Flat accent for intrinsically good columns (clutches, aces), style class hook. Suppressed once
+    ///     the cell has a scale: the ramp already says more than the flat accent did, and running both
+    ///     paints the cell twice.
+    /// </summary>
+    public bool IsPositive =>
+        !IsScaled && Meta?.Emphasis == Emphasis.Positive && Raw is not (null or 0 or 0.0);
 
     /// <summary>Flat accent for intrinsically bad columns (team/self damage), style class hook.</summary>
-    public bool IsNegative => Meta?.Emphasis == Emphasis.Negative && Raw is not (null or 0 or 0.0);
+    public bool IsNegative =>
+        !IsScaled && Meta?.Emphasis == Emphasis.Negative && Raw is not (null or 0 or 0.0);
 }

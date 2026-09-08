@@ -209,6 +209,62 @@ public class StatScaleTests
         await Assert.That(scale.Sentiment(-12)).IsEqualTo(-1);
     }
 
+    // ── Separated colour extent (the hybrid shape) ───────────────────────────
+
+    /// <summary>
+    ///     The whole reason the colour extent exists. Two lobbies, same ADR, different spreads: with the
+    ///     extent tied to the peers, 92 would read strong in the weak lobby and mild in the strong one.
+    ///     An absolute benchmark that moves with the lobby is not a benchmark.
+    /// </summary>
+    [Test]
+    public async Task Hybrid_ColourIsIndependentOfThePeerSpread()
+    {
+        StatScale weakLobby = StatScale.Hybrid([57, 70, 80, 87, 92], 0, 120, 70, 82);
+        StatScale strongLobby = StatScale.Hybrid([80, 92, 104, 112, 120], 0, 120, 70, 82);
+
+        await Assert.That(weakLobby.Sentiment(92)).IsEqualTo(strongLobby.Sentiment(92));
+
+        // ...while the BAR still says who topped that particular server.
+        await Assert.That(weakLobby.Fraction(92)).IsEqualTo(1);
+        await Assert.That(strongLobby.Fraction(92)).IsLessThan(0.5);
+    }
+
+    /// <summary>
+    ///     Every player scoring the same kills the bar domain but not the judgement. This is exactly when
+    ///     an absolute benchmark earns its keep, so sentiment must survive a collapsed peer spread.
+    /// </summary>
+    [Test]
+    public async Task Hybrid_ColourSurvivesACollapsedPeerSpread()
+    {
+        StatScale scale = StatScale.Hybrid([80, 80, 80, 80, 80], 0, 120, 70, 82);
+
+        await Assert.That(scale.HasDomain).IsFalse();
+        await Assert.That(scale.Fraction(80)).IsEqualTo(0);
+        await Assert.That(scale.HasColourDomain).IsTrue();
+        await Assert.That(scale.Sentiment(95)).IsGreaterThan(0);
+        await Assert.That(scale.Sentiment(50)).IsLessThan(0);
+    }
+
+    [Test]
+    public async Task Hybrid_WithNoUsablePeers_StillColours()
+    {
+        StatScale scale = StatScale.Hybrid([], 0, 120, 70, 82);
+
+        await Assert.That(scale.Fraction(90)).IsEqualTo(0);
+        await Assert.That(scale.Sentiment(110)).IsGreaterThan(0);
+    }
+
+    /// <summary>An unset colour extent must behave exactly as before, or every existing scale shifts.</summary>
+    [Test]
+    public async Task ColourExtent_DefaultsToTheBarDomain()
+    {
+        StatScale plain = new(0, 100);
+
+        await Assert.That(plain.EffectiveColourMin).IsEqualTo(0);
+        await Assert.That(plain.EffectiveColourMax).IsEqualTo(100);
+        await Assert.That(plain.Sentiment(75)).IsEqualTo(0.5);
+    }
+
     [Test]
     public async Task Absolute_KeepsTheDeclaredDomainWhateverTheValue()
     {

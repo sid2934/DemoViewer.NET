@@ -243,6 +243,16 @@ public class StatValue : StatPresenter
         }
     }
 
+    /// <summary>
+    ///     Draws the bar, anchored to the same edge the text is.
+    ///     <para>
+    ///         The anchor follows <see cref="TextAlignment" /> rather than always growing from the left,
+    ///         because a right-aligned number over a left-growing bar drifts away from its own bar exactly
+    ///         when the bar is shortest, and a value sitting in empty space next to a stub of colour reads
+    ///         as two unrelated things. Sharing an edge keeps them one object. Bar LENGTH is the signal;
+    ///         which side it hangs from carries no meaning, so it is free to follow the text.
+    ///     </para>
+    /// </summary>
     private void DrawBar(DrawingContext context, Rect content, double fraction, IBrush? accent)
     {
         float radius = (float)CornerRadius.TopLeft;
@@ -262,7 +272,15 @@ public class StatValue : StatPresenter
             return;
         }
 
-        context.FillRectangle(fill, content.WithWidth(Math.Max(1, content.Width * fraction)), radius);
+        double width = Math.Max(1, content.Width * fraction);
+        Rect filled = TextAlignment switch
+        {
+            TextAlignment.Right => content.WithX(content.Right - width).WithWidth(width),
+            TextAlignment.Center => content.WithX(content.X + ((content.Width - width) / 2)).WithWidth(width),
+            _ => content.WithWidth(width)
+        };
+
+        context.FillRectangle(fill, filled, radius);
     }
 
     private void DrawChip(DrawingContext context, Rect content, FormattedText text, double starWidth,

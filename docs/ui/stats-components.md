@@ -256,7 +256,31 @@ zero pixels. `ToBytes` now normalises by the framebuffer's declared format.
 
 ---
 
-## 9. Open questions for the next phase
+## 9. Decisions and open questions for the redesign
+
+### Decided (2026-09-08)
+
+**Scope: restructured, not rebuilt.** The page is rebuilt around the existing table engine: a podium
+row, team-sectioned tables with `TeamBadge` headers and sortable columns, and category sub-navigation
+replacing today's chips. The table engine itself, the `MetricTable` data layer and settings persistence
+are all out. The reference's per-column gear (a column picker with per-view persistence) is
+**deferred**: it is a settings surface with a saved-layout migration story attached, and it is not what
+makes the board readable.
+
+**Colour: hybrid. Bar is peer-relative, colour is absolute where a benchmark exists.** Bar length
+answers "who topped this server", colour answers "is this good". They are different questions and the
+whole point of section 1's finding is that they need different scales. A column with no meaningful
+benchmark (kills, damage, utility thrown) falls back to peer-relative for both.
+
+The cost is accepted and is worth stating: **a whole lobby can come out red.** That is correct. A
+peer-only board would paint the least-bad player in a weak lobby green, which is the failure mode this
+choice exists to avoid.
+
+**Totals rows are excluded from the peer min/max.** A team total is an order of magnitude above any
+player value and would flatten every bar in the column to nothing. Same for any aggregate row added
+later.
+
+### Still open
 
 - Where do peer scales get recomputed, and against which row set: the whole lobby, or only the rows the
   active category filter is showing? The reference uses the whole lobby. Filtering changes bar lengths

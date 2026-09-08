@@ -43,15 +43,38 @@ public enum StatPolarity
 ///     <paramref name="NeutralHigh" /> to put a zero-width dead zone at the domain midpoint.
 /// </param>
 /// <param name="NeutralHigh">Upper edge of the uncoloured dead zone, in raw units.</param>
+/// <param name="ColourMin">
+///     Low end of the COLOUR extent. Null falls back to <paramref name="Min" />. Set it when the bar is
+///     peer-relative but the colour must not be: without it, sentiment ramps between the peer bounds and
+///     the same value reads "strong" in a weak lobby and "mild" in a strong one.
+/// </param>
+/// <param name="ColourMax">High end of the colour extent. Null falls back to <paramref name="Max" />.</param>
 public sealed record StatScale(
     double Min,
     double Max,
     StatPolarity Polarity = StatPolarity.HigherIsBetter,
     double? NeutralLow = null,
-    double? NeutralHigh = null)
+    double? NeutralHigh = null,
+    double? ColourMin = null,
+    double? ColourMax = null)
 {
-    /// <summary>True when the domain is usable: finite and non-degenerate.</summary>
+    /// <summary>True when the BAR domain is usable: finite and non-degenerate.</summary>
     public bool HasDomain => double.IsFinite(Min) && double.IsFinite(Max) && Max > Min;
+
+    /// <summary>Low end of the colour extent, defaulting to the bar's.</summary>
+    public double EffectiveColourMin => ColourMin ?? Min;
+
+    /// <summary>High end of the colour extent, defaulting to the bar's.</summary>
+    public double EffectiveColourMax => ColourMax ?? Max;
+
+    /// <summary>
+    ///     True when the COLOUR extent is usable. Checked separately from <see cref="HasDomain" /> on
+    ///     purpose: a column where every player scored the same has no bar domain, but if its colour
+    ///     extent is absolute it still knows whether that shared value is good.
+    /// </summary>
+    public bool HasColourDomain =>
+        double.IsFinite(EffectiveColourMin) && double.IsFinite(EffectiveColourMax)
+                                            && EffectiveColourMax > EffectiveColourMin;
 
     /// <summary>
     ///     The bar channel: where <paramref name="value" /> sits in <see cref="Min" />..<see cref="Max" />,
@@ -75,15 +98,19 @@ public sealed record StatScale(
     /// </summary>
     public double Sentiment(double value)
     {
-        if (Polarity == StatPolarity.Neutral || !HasDomain || !double.IsFinite(value))
+        if (Polarity == StatPolarity.Neutral || !HasColourDomain || !double.IsFinite(value))
         {
             return 0;
         }
 
-        // An unspecified dead zone collapses to the domain midpoint, which makes the default behaviour a
-        // plain linear ramp from -1 at Min to +1 at Max. An edge given on only one side mirrors to the
-        // other, so a caller can band just the top or just the bottom of a column.
-        double mid = Min + ((Max - Min) / 2);
+        // Measured against the COLOUR extent, which is the bar's unless the caller separated them.
+        double cMin = EffectiveColourMin;
+        double cMax = EffectiveColourMax;
+
+        // An unspecified dead zone collapses to the extent's midpoint, which makes the default behaviour
+        // a plain linear ramp from -1 at one end to +1 at the other. An edge given on only one side
+        // mirrors to the other, so a caller can band just the top or just the bottom of a column.
+        double mid = cMin + ((cMax - cMin) / 2);
         double low = NeutralLow ?? NeutralHigh ?? mid;
         double high = NeutralHigh ?? NeutralLow ?? mid;
         if (high < low)
@@ -94,12 +121,12 @@ public sealed record StatScale(
         double raw;
         if (value < low)
         {
-            double span = low - Min;
+            double span = low - cMin;
             raw = span > 0 ? -Math.Clamp((low - value) / span, 0, 1) : -1;
         }
         else if (value > high)
         {
-            double span = Max - high;
+            double span = cMax - high;
             raw = span > 0 ? Math.Clamp((value - high) / span, 0, 1) : 1;
         }
         else
@@ -152,10 +179,37 @@ public sealed record StatScale(
     ///     A peer-relative bar with a colour band pinned to fixed thresholds: the shape an HLTV-style
     ///     rating wants, where the bar compares players but "good" means above 1.00 regardless of who
     ///     else is in the server.
+    ///     <para>
+    ///         The colour EXTENT still follows the bar here. Use <see cref="Hybrid" /> when the tint's
+    ///         strength must also be lobby-independent.
+    ///     </para>
     /// </summary>
     public static StatScale Banded(double min, double max, double neutralLow, double neutralHigh,
         StatPolarity polarity = StatPolarity.HigherIsBetter) =>
         new(min, max, polarity, neutralLow, neutralHigh);
+
+    /// <summary>
+    ///     The fully separated shape: bar from the peers on screen, colour entirely from fixed
+    ///     benchmarks. This is what "the bar says who topped this server, the colour says whether that is
+    ///     good" actually requires, and the two channels share nothing.
+    /// </summary>
+    /// <param name="peers">The values on screen, for the bar domain. An unusable set means no bar.</param>
+    /// <param name="colourMin">Value at which the tint reaches full bad.</param>
+    /// <param name="colourMax">Value at which the tint reaches full good.</param>
+    /// <param name="neutralLow">Lower edge of the untinted band.</param>
+    /// <param name="neutralHigh">Upper edge of the untinted band.</param>
+    /// <param name="polarity">Which direction is good.</param>
+    public static StatScale Hybrid(IEnumerable<double> peers, double colourMin, double colourMax,
+        double neutralLow, double neutralHigh,
+        StatPolarity polarity = StatPolarity.HigherIsBetter)
+    {
+        StatScale? bar = FromPeers(peers, polarity);
+
+        // No usable peer spread still leaves a fully-formed colour scale: every player scoring the same
+        // is exactly when an absolute benchmark earns its keep. Min == Max suppresses the bar on its own.
+        return new StatScale(bar?.Min ?? 0, bar?.Max ?? 0, polarity, neutralLow, neutralHigh,
+            colourMin, colourMax);
+    }
 
     /// <summary>
     ///     Colour by sign with a dead zone straddling <paramref name="zero" />: a rating delta where
