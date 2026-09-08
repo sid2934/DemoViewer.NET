@@ -3,23 +3,31 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:stats="using:DemoViewer.NET.ViewModels.Stats"
-             xmlns:statsViews="using:DemoViewer.NET.Views.Stats"
+             xmlns:statsCtl="using:DemoViewer.NET.Controls.Stats"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="700"
              x:Class="DemoViewer.NET.Views.Stats.PlayerDetailsView"
              x:DataType="stats:PlayerDetailsViewModel">
 
     <UserControl.Resources>
-        <!-- BarRow: label | fixed 150px track with a pre-scaled fill | monospace value.
-             Serves weapons, the duel gauge, and the vision summary (single source of chrome). -->
+        <!-- BarRow: label | fixed 150px track | monospace value.
+             Serves weapons, the duel gauge, and the vision summary (single source of chrome).
+             The track is a StatValue in Bar mode, which scales Value against Max itself: the row used
+             to carry a fill width the view model had already multiplied out. Polarity is Neutral and
+             Text is empty on purpose, so this stays a plain magnitude bar with its value in the third
+             column, exactly as before. Most weapon kills are neither good nor bad. -->
         <DataTemplate x:Key="BarRowTemplate" x:DataType="stats:BarRowItem">
             <Grid ColumnDefinitions="86,150,Auto" Margin="0 2" ToolTip.Tip="{Binding Tooltip}">
                 <TextBlock Grid.Column="0" Text="{Binding Label}" Classes="pdKvLabel"
                            TextTrimming="CharacterEllipsis" Margin="0 0 8 0" />
-                <Border Grid.Column="1" Background="{DynamicResource PanelHeaderBg}"
-                        Height="12" CornerRadius="2" VerticalAlignment="Center">
-                    <Rectangle Width="{Binding BarWidth}" Fill="{DynamicResource AccentInteractive}"
-                               HorizontalAlignment="Left" RadiusX="2" RadiusY="2" />
-                </Border>
+                <statsCtl:StatValue Grid.Column="1"
+                                    Value="{Binding Value}"
+                                    Maximum="{Binding Max}"
+                                    Polarity="Neutral"
+                                    Text=""
+                                    Height="12" Padding="0" CornerRadius="2"
+                                    VerticalAlignment="Center"
+                                    BarTrackBrush="{DynamicResource PanelHeaderBg}"
+                                    BarFillBrush="{DynamicResource AccentInteractive}" />
                 <TextBlock Grid.Column="2" Text="{Binding ValueText}" Classes="pdKvValue"
                            Margin="8 0 0 0" />
             </Grid>
@@ -161,69 +169,37 @@
                                           VerticalScrollBarVisibility="Disabled"
                                           IsVisible="{Binding Form.HasRounds}">
                                 <Grid ColumnDefinitions="56,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
-                                    <!-- kills sparkline -->
+                                    <!-- Three Sparklines over the same per-round series (v0.8.1 stats
+                                         components). Each takes RAW values and normalises itself, so the
+                                         strips re-scale on a resize; they used to be pre-measured pixel
+                                         geometry built once in the view model. Gap 4 over a 14px slot
+                                         reproduces the old 10px bar inside its 14px box exactly. -->
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Kills"
                                                Classes="pdStripLabel" />
-                                    <Canvas Grid.Row="0" Grid.Column="1"
-                                            Width="{Binding Form.PixelWidth}" Height="36"
-                                            ToolTip.Tip="Kills per round">
-                                        <Polyline
-                                            Points="{Binding Form.KillPoints, TargetNullValue={x:Static statsViews:PlayerDetailsView.EmptyPoints}}"
-                                            Stroke="{DynamicResource AccentInteractive}"
-                                            StrokeThickness="1.5"
-                                            StrokeJoin="Round" StrokeLineCap="Round" />
-                                    </Canvas>
+                                    <statsCtl:Sparkline Grid.Row="0" Grid.Column="1"
+                                                     Width="{Binding Form.PixelWidth}" Height="36"
+                                                     Values="{Binding Form.KillValues}"
+                                                     PointTooltips="{Binding Form.PointTooltips}" />
                                     <!-- damage bar strip (click a bar → Rounds deep-link) -->
                                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Damage"
                                                Classes="pdStripLabel" />
-                                    <ItemsControl Grid.Row="1" Grid.Column="1"
-                                                  ItemsSource="{Binding Form.DamageBars}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="stats:FormBar">
-                                                <Border Width="14" Height="36"
-                                                        Background="Transparent"
-                                                        Cursor="Hand"
-                                                        Tapped="OnFormBarTapped"
-                                                        ToolTip.Tip="{Binding Tooltip}">
-                                                    <Rectangle Width="10" Height="{Binding Height}"
-                                                               Fill="{DynamicResource AccentInteractive}"
-                                                               VerticalAlignment="Bottom"
-                                                               HorizontalAlignment="Center" />
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <statsCtl:Sparkline Grid.Row="1" Grid.Column="1"
+                                                     Width="{Binding Form.PixelWidth}" Height="36"
+                                                     Mode="Bars" Gap="4"
+                                                     Values="{Binding Form.DamageValues}"
+                                                     PointTooltips="{Binding Form.PointTooltips}"
+                                                     Cursor="Hand"
+                                                     Tapped="OnFormBarTapped" />
                                     <!-- KAST dot strip -->
                                     <TextBlock Grid.Row="2" Grid.Column="0" Text="KAST"
                                                Classes="pdStripLabel"
                                                IsVisible="{Binding Form.HasKast}" />
-                                    <ItemsControl Grid.Row="2" Grid.Column="1"
-                                                  ItemsSource="{Binding Form.KastDots}"
-                                                  IsVisible="{Binding Form.HasKast}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="stats:FormDot">
-                                                <Border Width="14" Height="14"
-                                                        Background="Transparent"
-                                                        ToolTip.Tip="{Binding Tooltip}">
-                                                    <Ellipse Width="7" Height="7"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Classes="pdKastDot"
-                                                             Classes.filled="{Binding Filled}" />
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <statsCtl:Sparkline Grid.Row="2" Grid.Column="1"
+                                                     Width="{Binding Form.PixelWidth}" Height="14"
+                                                     Mode="Dots" DotRadius="3.5"
+                                                     Values="{Binding Form.KastValues}"
+                                                     PointTooltips="{Binding Form.PointTooltips}"
+                                                     IsVisible="{Binding Form.HasKast}" />
                                     <!-- opening-duel tick strip -->
                                     <TextBlock Grid.Row="3" Grid.Column="0" Text="Duel"
                                                Classes="pdStripLabel"
@@ -280,12 +256,15 @@
                             <Grid ColumnDefinitions="86,150,Auto" Margin="0 2"
                                   ToolTip.Tip="Share of opening duels won (%)">
                                 <TextBlock Grid.Column="0" Text="Duel Win %" Classes="pdKvLabel" />
-                                <Border Grid.Column="1" Background="{DynamicResource PanelHeaderBg}"
-                                        Height="12" CornerRadius="2" VerticalAlignment="Center">
-                                    <Rectangle Width="{Binding DuelGaugeWidth}"
-                                               Fill="{DynamicResource AccentInteractive}"
-                                               HorizontalAlignment="Left" RadiusX="2" RadiusY="2" />
-                                </Border>
+                                <statsCtl:StatValue Grid.Column="1"
+                                                    Value="{Binding DuelPercent}"
+                                                    Maximum="100"
+                                                    Polarity="Neutral"
+                                                    Text=""
+                                                    Height="12" Padding="0" CornerRadius="2"
+                                                    VerticalAlignment="Center"
+                                                    BarTrackBrush="{DynamicResource PanelHeaderBg}"
+                                                    BarFillBrush="{DynamicResource AccentInteractive}" />
                                 <TextBlock Grid.Column="2" Text="{Binding DuelPercentText}"
                                            Classes="pdKvValue" Margin="8 0 0 0" />
                             </Grid>
@@ -612,15 +591,6 @@
             <Setter Property="FontSize" Value="10" />
             <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
             <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-        <Style Selector="Ellipse.pdKastDot">
-            <Setter Property="Fill" Value="Transparent" />
-            <Setter Property="Stroke" Value="{DynamicResource TextDim}" />
-            <Setter Property="StrokeThickness" Value="1" />
-        </Style>
-        <Style Selector="Ellipse.pdKastDot.filled">
-            <Setter Property="Fill" Value="{DynamicResource StatPositive}" />
-            <Setter Property="Stroke" Value="{DynamicResource StatPositive}" />
         </Style>
         <Style Selector="TextBlock.pdTick">
             <Setter Property="Foreground" Value="{DynamicResource TextDim}" />

@@ -124,6 +124,25 @@
             <!-- Semantic green for intrinsically-good stat accents (Stats tab pos cells).
                  Matches the project's established depth-2 green so it stays in the same hue family. -->
             <SolidColorBrush x:Key="StatPositive" Color="#4CAF50" />
+            <!-- The rest of the stat heat ramp (v0.8.1 stats components). Four stops, not two: the
+                 reference boards run red for bad through amber for mildly-bad, an UNPAINTED neutral band,
+                 then teal for mildly-good and green for good. The soft-bad tier is AMBER rather than a
+                 desaturated red so the two bad tiers stay apart by lightness as well as hue, which is also
+                 what keeps them apart without colour discrimination.
+                 There is deliberately NO StatNeutral: a value inside the dead zone paints no foreground at
+                 all and inherits the row's text colour, which is already correct in both variants.
+                 StatNegative is NOT AccentError. An error red should be the loudest thing on screen; a bad
+                 stat is a judgement, not a fault, so this one is a notch calmer. Splitting them is the
+                 point of the token (Stats cells used to borrow AccentError outright). -->
+            <SolidColorBrush x:Key="StatPositiveSoft" Color="#5FA894" />
+            <SolidColorBrush x:Key="StatNegativeSoft" Color="#D98A3F" />
+            <SolidColorBrush x:Key="StatNegative" Color="#DC5A52" />
+            <!-- In-cell bar. The fill is NEUTRAL by design, never tinted by sentiment: colour already
+                 carries good/bad on the number, and tinting the bar too turns a fifteen-column board into a
+                 heat map. Both sit between the row backgrounds and BorderSubtle so a bar reads as a quiet
+                 substrate under the text, not as a second foreground. -->
+            <SolidColorBrush x:Key="StatBarTrack" Color="#16162E" />
+            <SolidColorBrush x:Key="StatBarFill" Color="#33335E" />
             <SolidColorBrush x:Key="PrimaryButtonHover" Color="#252548" />
             <SolidColorBrush x:Key="DeltaRowBg" Color="#25FFC107" />
 
@@ -489,6 +508,17 @@
             <SolidColorBrush x:Key="AccentErrorSoft" Color="#C85454" />
             <SolidColorBrush x:Key="AccentCaution" Color="#9A6A0F" />
             <SolidColorBrush x:Key="StatPositive" Color="#2E7D32" />
+            <!-- Re-authored for light, not inverted: each stop darkened until it clears 4.5:1 on the
+                 WORST surface it lands on (the PanelHeaderBg band), verified with the contrast script.
+                 Measured on #E9EAF3 / #EFF0F7 / #FCFCFE: soft-good 4.99/5.26/5.83, soft-bad 4.56/4.81/5.33,
+                 bad 4.54/4.79/5.31. Hue identity is preserved (teal, amber, red); only value moves. -->
+            <SolidColorBrush x:Key="StatPositiveSoft" Color="#2A6E64" />
+            <SolidColorBrush x:Key="StatNegativeSoft" Color="#9A5A0C" />
+            <SolidColorBrush x:Key="StatNegative" Color="#C0392B" />
+            <!-- Bars FLIP on light: the track is a hair darker than the surface and the fill darker still,
+                 where on dark both step lighter. Same role, opposite direction, like the hover tokens. -->
+            <SolidColorBrush x:Key="StatBarTrack" Color="#E4E5EF" />
+            <SolidColorBrush x:Key="StatBarFill" Color="#C7C9E0" />
             <SolidColorBrush x:Key="PrimaryButtonHover" Color="#D0D0EE" />
             <!-- KEPT (unused in live markup; an amber tint reads as a warm wash on both dark and light rows). -->
             <SolidColorBrush x:Key="DeltaRowBg" Color="#25FFC107" />

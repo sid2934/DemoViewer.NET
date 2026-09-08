@@ -1,8 +1,8 @@
 #region
 
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using DemoViewer.NET.Controls.Stats;
 using DemoViewer.NET.ViewModels.Stats;
 
 #endregion
@@ -24,19 +24,27 @@ public partial class PlayerDetailsView : UserControl
     }
 
     /// <summary>
-    ///     Null-object for the kills sparkline's Points binding: when <c>Form</c> is null
-    ///     mid-transition the binding pushes null, and Avalonia's PolylineGeometry constructor
-    ///     throws on a null point list DURING RENDER, crashing whatever compositor commit
-    ///     happens to run (observed as an unrelated headless test failing on this view's
-    ///     teardown state). Bound via <c>TargetNullValue</c> in the AXAML.
+    ///     Damage-strip deep link. The strip is one drawn control rather than a bar per round, so the tap
+    ///     arrives as a position: <see cref="Sparkline.IndexAt" /> turns it into a series index and
+    ///     <c>RoundNumbers</c> turns that back into the round the user actually clicked.
+    ///     <para>
+    ///         This replaced a <c>Polyline</c> whose <c>Points</c> binding needed a null-object, because
+    ///         Avalonia's <c>PolylineGeometry</c> throws on a null point list DURING RENDER and the view
+    ///         model pushes null mid-transition. The Sparkline treats a null series as an empty one, so
+    ///         the null-object is gone with it.
+    ///     </para>
     /// </summary>
-    public static Points EmptyPoints { get; } = [];
-
     private void OnFormBarTapped(object? sender, TappedEventArgs e)
     {
-        if (DataContext is PlayerDetailsViewModel vm && sender is Control { DataContext: FormBar bar })
+        if (DataContext is not PlayerDetailsViewModel vm || sender is not Sparkline strip)
         {
-            vm.SelectRoundFromForm(bar.Round);
+            return;
+        }
+
+        int index = strip.IndexAt(e.GetPosition(strip));
+        if (index >= 0 && index < vm.Form.RoundNumbers.Count)
+        {
+            vm.SelectRoundFromForm(vm.Form.RoundNumbers[index]);
         }
     }
 }

@@ -68,7 +68,7 @@ dotnet run --project src/App/DemoViewer.NET.UiCapture -- settings --theme egirl
 `--theme` accepts any registry id; a drop-in is re-scanned each run (set `DEMOVIEWER_CONFIG_DIR` to author
 against a scratch folder).
 
-## Token namespace (214 tokens)
+## Token namespace (219 tokens)
 
 Dark is the canonical base; the Dark/Light reference values below are what an omitted token inherits. High-
 impact families for a new theme: **surfaces** (Shell/Panel/Card/Frame/Hex/Primary), the **Text ramp**,
@@ -268,13 +268,31 @@ Tuning tokens for the map-name-hash accent generator. `MapAccentNeutral` is the 
 | `MapAccentNeutral` | `#404068` | `#B0B0C8` |
 | `MapAccentRef` | `#B85353` | `#853535` |
 
-### Stat: `Stat*` (1)
+### Stat: `Stat*` (6)
 
-Positive-delta stat colour.
+The stat heat ramp and the in-cell bar, used by the stats component library
+(`Controls/Stats/`, see [stats-components.md](./stats-components.md)).
 
-| Token | Dark | Light |
-|---|---|---|
-| `StatPositive` | `#4CAF50` | `#2E7D32` |
+Four ramp stops, not two: bad through mildly-bad, an **unpainted** neutral band, then mildly-good
+through good. The soft-bad tier is **amber rather than a desaturated red**, so the two bad tiers stay
+apart by lightness as well as hue and remain separable without colour discrimination. There is
+deliberately no `StatNeutral`: a value inside the dead zone paints no foreground and inherits the
+row's text colour.
+
+Retinting these is how you get a colour-vision-friendly board: they are six values in a JSON file,
+not a code change. Keep the two bad tiers apart in **lightness** if you move them.
+
+`StatNegative` is not `AccentError`. An error red should be the loudest thing on screen; a bad stat is
+a judgement, not a fault, so it is a notch calmer. Stats cells used to borrow `AccentError` outright.
+
+| Token | Dark | Light | Role |
+|---|---|---|---|
+| `StatPositive` | `#4CAF50` | `#2E7D32` | Strong good. |
+| `StatPositiveSoft` | `#5FA894` | `#2A6E64` | Mild good (teal). |
+| `StatNegativeSoft` | `#D98A3F` | `#9A5A0C` | Mild bad (amber). |
+| `StatNegative` | `#DC5A52` | `#C0392B` | Strong bad. |
+| `StatBarTrack` | `#16162E` | `#E4E5EF` | Unfilled part of an in-cell bar. Steps **lighter** than the row on dark and **darker** on light. |
+| `StatBarFill` | `#33335E` | `#C7C9E0` | Filled part. Neutral by design, never tinted by sentiment. |
 
 ### Delta: `Delta*` (1)
 

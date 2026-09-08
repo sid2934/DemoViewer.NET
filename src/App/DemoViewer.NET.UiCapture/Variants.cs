@@ -17,6 +17,7 @@ using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Controls;
+using DemoViewer.NET.Controls.Stats;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
@@ -153,6 +154,11 @@ public static class Variants
             ["pb2d-vision"] = Pb2DVision,
             ["playback2d-canvas"] = () => new Playback2DViewport(),
             ["pb2d-hud-accents"] = Pb2DHudAccents,
+            // v0.8.1 stats component library (docs/ui/stats-components.md). Render under BOTH built-in
+            // themes AND a custom one: the five new Stat* tokens are retintable like any other, and
+            // the ramp is the first thing a bad retint breaks.
+            ["stats-components"] = StatsComponents,
+            ["stats-components-edge"] = StatsComponentsEdge,
             ["livesync-chips"] = LiveSyncChips,
             ["livesync-flyouts"] = LiveSyncFlyouts,
             ["playback2d-livesync-hud"] = Playback2DLiveSyncHud,
@@ -4266,4 +4272,309 @@ public static class Variants
         Ready,
         Failed
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    //  Stats component library (v0.8.1). A board-shaped gallery rather than a grid of swatches:
+    //  what needs reviewing is whether the ramp reads at a glance down a REALISTIC column of
+    //  values, which a row of isolated samples cannot show. The values are the reference board's.
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+
+    private static Border StatsComponents()
+    {
+        string[] names = ["Rebecca", "Little Michael Jackson", "NzTWeber", "greskymujica", "aubbby"];
+        double[] rating = [11.96, -0.09, -0.62, -1.48, -2.82];
+        double[] hltv = [1.43, 1.06, 0.91, 0.86, 0.76];
+        double[] adr = [87, 92, 92, 80, 57];
+        double[] aim = [78, 68, 44, 55, 29];
+
+        // One scale per column, built the way the next phase's view model will build them.
+        StatScale ratingScale = StatScale.SignOf(-12, 12, 0.5);
+        StatScale hltvScale = StatScale.Banded(0.76, 1.43, 0.95, 1.10);
+        StatScale adrScale = StatScale.FromPeers(adr)! with { NeutralLow = 70, NeutralHigh = 90 };
+        StatScale aimScale = StatScale.Absolute(0, 100, 45, 65);
+
+        StackPanel board = new()
+        {
+            Spacing = 1
+        };
+        board.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            Children =
+            {
+                ColHeader("PLAYER", 168, false),
+                ColHeader("RATING", 92, true),
+                ColHeader("HLTV", 78, false),
+                ColHeader("ADR", 70, false),
+                ColHeader("AIM", 70, false),
+                ColHeader("UTIL", 64, false)
+            }
+        });
+
+        for (int i = 0; i < names.Length; i++)
+        {
+            board.Children.Add(new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = names[i], Width = 168, FontSize = 12, Foreground = Tok("TextBright"),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        TextTrimming = TextTrimming.CharacterEllipsis
+                    },
+                    Cell(rating[i], ratingScale, 92, "+0.00;-0.00", i == 0),
+                    Cell(hltv[i], hltvScale, 78, "0.00", false),
+                    Cell(adr[i], adrScale, 70, "0", i is 1 or 2),
+                    Cell(aim[i], aimScale, 70, "0", i == 0),
+                    Chip(aim[i] - 5, aimScale, 64)
+                }
+            });
+        }
+
+        StackPanel col = new()
+        {
+            Spacing = 8,
+            Margin = new Thickness(14, 10)
+        };
+        col.Children.Add(Section("SCOREBOARD CELLS - StatValue Bar + Chip, sign / banded / peer / absolute scales"));
+        col.Children.Add(new TeamBadge
+        {
+            Team = TeamBadge.TeamCt, Label = "My Team", Outcome = TeamOutcome.Win, Detail = "13 : 9",
+            HorizontalAlignment = HorizontalAlignment.Left
+        });
+        col.Children.Add(board);
+        col.Children.Add(new TeamBadge
+        {
+            Team = TeamBadge.TeamT, Label = "Enemy Team", Outcome = TeamOutcome.Loss, Detail = "9 : 13",
+            HorizontalAlignment = HorizontalAlignment.Left
+        });
+
+        col.Children.Add(Section("SegmentedBar - full-width strip and the in-cell quad"));
+        col.Children.Add(new SegmentedBar
+        {
+            Height = 26,
+            Segments =
+            [
+                new StatSegment(73, Tok("AccentInteractive"), "Flashes 28%"),
+                new StatSegment(63, Tok("StatPositiveSoft"), "Smokes 24%"),
+                new StatSegment(70, Tok("AccentCaution"), "HEs 27%"),
+                new StatSegment(55, Tok("StatNegative"), "Molotovs 21%")
+            ]
+        });
+        col.Children.Add(new SegmentedBar
+        {
+            Width = 150, Height = 14, Compact = true, FontSize = 9,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Segments =
+            [
+                new StatSegment(8, Tok("AccentInteractive"), "8"),
+                new StatSegment(11, Tok("StatPositiveSoft"), "11"),
+                new StatSegment(11, Tok("AccentCaution"), "11"),
+                new StatSegment(10, Tok("StatNegative"), "10")
+            ]
+        });
+
+        col.Children.Add(Section("StatTile + RingGauge"));
+        col.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 8,
+            Children =
+            {
+                new StatTile
+                {
+                    Label = "ADR", Value = 87, Scale = adrScale, Format = "0", IsHero = true
+                },
+                new StatTile
+                {
+                    Label = "K/D", Value = 1.75, Minimum = 0.4, Maximum = 1.8, NeutralLow = 0.95,
+                    NeutralHigh = 1.15, Caption = "+0.31"
+                },
+                new StatTile
+                {
+                    Label = "KAST", Value = 74, Minimum = 40, Maximum = 90, Format = "0"
+                },
+                new StatTile
+                {
+                    Label = "DEATHS", Value = 21, Minimum = 8, Maximum = 24,
+                    Polarity = StatPolarity.LowerIsBetter, Format = "0"
+                },
+                new RingGauge
+                {
+                    Value = 11.96, Scale = ratingScale, Format = "+0.0;-0.0;0", Caption = "1ST"
+                },
+                new RingGauge
+                {
+                    Value = 2.71, Scale = ratingScale, Format = "+0.0;-0.0;0", Caption = "2ND"
+                },
+                new RingGauge
+                {
+                    Value = -8.57, Scale = ratingScale, Format = "+0.0;-0.0;0", Caption = "10TH"
+                }
+            }
+        });
+
+        col.Children.Add(Section("Sparkline - Line / Bars / Dots, one series per round"));
+        col.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 14,
+            Children =
+            {
+                new Sparkline
+                {
+                    Width = 250, Values = [0, 2, 1, 3, 0, 1, 4, 2, 0, 1, 2, 3, 1, 0, 2]
+                },
+                new Sparkline
+                {
+                    Width = 250, Mode = SparklineMode.Bars,
+                    Values = [12, 80, 45, 130, 0, 66, 150, 90, 20, 40, 75, 110, 35, 0, 95]
+                },
+                new Sparkline
+                {
+                    Width = 250, Mode = SparklineMode.Dots,
+                    Values = [1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1]
+                }
+            }
+        });
+
+        return WrapInShell(col, 940, 620);
+    }
+
+    /// <summary>The ugly inputs, each labelled with what it is meant to degrade to.</summary>
+    private static Border StatsComponentsEdge()
+    {
+        StackPanel col = new()
+        {
+            Spacing = 6,
+            Margin = new Thickness(14, 10)
+        };
+        col.Children.Add(Section("DEGENERATE INPUTS - none of these may throw or invent data"));
+        col.Children.Add(EdgeRow("every peer equal (Min == Max)",
+            Cell(5, new StatScale(5, 5), 110, "0", false)));
+        col.Children.Add(EdgeRow("no value", Cell(null, new StatScale(0, 10), 110, "0", false)));
+        col.Children.Add(EdgeRow("NaN", Cell(double.NaN, new StatScale(0, 10), 110, "0", false)));
+        col.Children.Add(EdgeRow("6 digits in a 48px column",
+            Cell(123456.789, new StatScale(0, 200000), 48, "0.##", false)));
+        col.Children.Add(EdgeRow("negative zero", Cell(-0.0, new StatScale(-1, 1), 110, "0.##", false)));
+        col.Children.Add(EdgeRow("far outside the domain", Cell(9999, new StatScale(0, 10), 110, "0", false)));
+        col.Children.Add(EdgeRow("no segments", new SegmentedBar
+        {
+            Width = 200, Height = 18
+        }));
+        col.Children.Add(EdgeRow("labels wider than their slices", new SegmentedBar
+        {
+            Width = 60, Height = 14,
+            Segments =
+            [
+                new StatSegment(1, null, "wide"), new StatSegment(1, null, "wider"),
+                new StatSegment(1, null, "widest")
+            ]
+        }));
+        col.Children.Add(EdgeRow("empty series", new Sparkline
+        {
+            Width = 160, Height = 24, Values = []
+        }));
+        col.Children.Add(EdgeRow("one point", new Sparkline
+        {
+            Width = 160, Height = 24, Values = [7]
+        }));
+        col.Children.Add(EdgeRow("flat series", new Sparkline
+        {
+            Width = 160, Height = 24, Values = [3, 3, 3, 3, 3]
+        }));
+        col.Children.Add(EdgeRow("all-zero bars", new Sparkline
+        {
+            Width = 160, Height = 24, Mode = SparklineMode.Bars, Values = [0, 0, 0, 0, 0]
+        }));
+        col.Children.Add(EdgeRow("full ring / no value / thickness > radius", new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 8,
+            Children =
+            {
+                new RingGauge
+                {
+                    Value = 100, Minimum = 0, Maximum = 100, Format = "0", Caption = "full"
+                },
+                new RingGauge
+                {
+                    Value = null, Caption = "none"
+                },
+                new RingGauge
+                {
+                    Value = 50, Minimum = 0, Maximum = 100, Width = 16, Height = 16, Thickness = 24
+                }
+            }
+        }));
+        col.Children.Add(EdgeRow("neither side, no outcome", new TeamBadge
+        {
+            Team = 0, Label = "Spectators", HorizontalAlignment = HorizontalAlignment.Left
+        }));
+
+        return WrapInShell(col, 700, 560);
+    }
+
+    private static StackPanel EdgeRow(string label, Control sample) =>
+        new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 10,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = label, Width = 250, FontSize = 10, Foreground = Tok("TextDim"),
+                    VerticalAlignment = VerticalAlignment.Center
+                },
+                sample
+            }
+        };
+
+    private static StatValue Cell(double? value, StatScale scale, double width, string format, bool leader) =>
+        new()
+        {
+            Value = value, Scale = scale, Format = format, Width = width, Height = 19, IsLeader = leader,
+            Classes = { "tracked" }
+        };
+
+    private static StatValue Chip(double value, StatScale scale, double width) =>
+        new()
+        {
+            Value = value, Scale = scale, Format = "0", Width = width, Height = 19,
+            Classes = { "chip" }
+        };
+
+    /// <summary>A sortable leaf column header, built from the real Styles/Stats.axaml classes.</summary>
+    private static Button ColHeader(string text, double width, bool sorted)
+    {
+        Button b = new()
+        {
+            Width = width,
+            Classes = { "stat-col-header" },
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = text, Classes = { "col-label" }
+                    },
+                    new TextBlock
+                    {
+                        Text = "▼", Classes = { "stat-sort-caret" }
+                    }
+                }
+            }
+        };
+        if (sorted)
+        {
+            b.Classes.Add("sorted");
+        }
+
+        return b;
+    }
+
 }
