@@ -274,7 +274,7 @@ zero pixels. `ToBytes` now normalises by the framebuffer's declared format.
 
 Everything in section 5, plus `StatPresenter`. Seven types in
 `src/App/DemoViewer.NET/Controls/Stats/`, five new palette tokens in both variants,
-`Styles/Stats.axaml`, two `UiCapture` variants, and 26 tests.
+`Styles/Stats.axaml`, three `UiCapture` variants, a dev gallery inside the app, and 27 tests.
 
 **The library has one real call site.** `PlayerDetailsView` was migrated off its hand rolled geometry,
 which is what proves the components work in a live view rather than only against mock data:
@@ -313,3 +313,29 @@ a chart. It stays as an `ItemsControl`.
   prints `-0`.
 - The scoreboard itself is untouched. `StatsTabView` still uses `TextBlock.statsCell`, and no column in
   `ColumnCatalogue` has a `StatScale` yet. That is section 9's work and it is deliberately not started.
+- `StatTileItem` (a view-model record in `PlayerDetailsViewModel.cs`) and `StatTile` (the control) are
+  one letter apart and unrelated. The core tile strip still uses the record and the hand-rolled
+  `Border.pdTile` template. Rename one of them when that strip is adopted.
+
+### Previewing it: the dev gallery
+
+Four of the six controls have no call site in the app, so the only way to see them was a captured PNG.
+**Diagnostics tab → "Stats component gallery (design)"**, collapsed by default, adds a live one:
+sliders for `Value`/`Minimum`/`Maximum`/the neutral band/`StrongSentimentAt`, toggles for track, bar
+tint and the leader star, a polarity picker, and two presets (the reference HLTV column, and an
+absolute 0..100 rating).
+
+It reads no demo, so it is reachable from a cold start with nothing loaded. It rides the existing
+`tab.diagnostics` gate and needs no gate of its own, and it owns its view model rather than binding
+through `DiagnosticsTabViewModel`, so nothing in the diagnostics graph knows it exists.
+
+Two details worth keeping:
+
+- **A numeric readout sits under the sliders** (`Fraction`, `Sentiment`, and the named accent tier). The
+  colour is the thing under review, so it cannot also be the thing that tells you whether the scale is
+  doing what you asked.
+- **The column preview is the point of the panel.** Five fixed values redrawn through the live scale.
+  One cell tells you a colour; a column tells you whether it READS, which is the only question a
+  scoreboard actually asks. It is also where the section 9 threshold questions get answered.
+
+`UiCapture` renders the same panel under any theme id: `stats-gallery --theme dark --size 780x760`.

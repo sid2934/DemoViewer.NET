@@ -11,6 +11,8 @@ using Avalonia.Platform;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using DemoViewer.NET.Controls.Stats;
+using DemoViewer.NET.ViewModels.Diagnostics;
+using DemoViewer.NET.Views.Diagnostics;
 
 #endregion
 
@@ -215,6 +217,65 @@ public class StatsComponentRenderTests
             };
 
             await Assert.That(Avalonia.Automation.AutomationProperties.GetName(cell)).IsEqualTo("1.43");
+        });
+    }
+
+    /// <summary>
+    ///     The in-app dev gallery (Diagnostics tab) renders and its bindings resolve. Avalonia binding
+    ///     errors do not throw, so a renamed view-model property would otherwise ship a panel of empty
+    ///     boxes that nobody notices until someone opens it. The gallery is also the only place four of
+    ///     the six controls appear in the app at all.
+    /// </summary>
+    [Test]
+    public async Task DevGallery_RendersAndResolvesItsBindings()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            StatsGalleryView gallery = new();
+            await Assert.That(gallery.DataContext).IsTypeOf<StatsGalleryViewModel>();
+
+            ThemeVariant? original = Application.Current?.RequestedThemeVariant;
+            try
+            {
+                // Pinned to Dark, because the colour assertion below names Dark token values and the
+                // headless Default variant resolves to LIGHT. Left at Default this passes or fails on
+                // which variant the harness happened to pick, which is not a test.
+                if (Application.Current is { } app)
+                {
+                    app.RequestedThemeVariant = ThemeVariant.Dark;
+                }
+
+                Window window = BuildWindow(new ScrollViewer
+                {
+                    Content = gallery
+                });
+                window.RequestedThemeVariant = ThemeVariant.Dark;
+                WriteableBitmap? frame = Render(window);
+                await Assert.That(frame).IsNotNull();
+
+                string outPath = Path.Combine(HeadlessSession.ArtifactDir, "stats-gallery.png");
+                frame!.Save(outPath);
+                Console.WriteLine($"[stats-gallery] {outPath}");
+
+                // The gallery drives every control off one scale, so the ramp has to reach the frame
+                // here too: that is the whole reason the panel exists.
+                byte[] pixels = ToBytes(frame);
+                await Assert.That(CountPixels(pixels, 0x4CAF50)).IsGreaterThan(0);
+            }
+            finally
+            {
+                if (Application.Current is { } app)
+                {
+                    app.RequestedThemeVariant = original;
+                }
+            }
+
+            // Driving the scale must move the readouts, or the sliders are decoration.
+            StatsGalleryViewModel vm = (StatsGalleryViewModel)gallery.DataContext!;
+            string before = vm.TierText;
+            vm.Value = vm.NeutralLow - ((vm.NeutralLow - vm.Minimum) / 2);
+            await Assert.That(vm.TierText).IsNotEqualTo(before);
+            await Assert.That(vm.TierText).Contains("bad");
         });
     }
 

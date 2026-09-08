@@ -52,6 +52,7 @@ using DemoViewer.NET.Views.LiveSync;
 using DemoViewer.NET.Views.MatchOverview;
 using DemoViewer.NET.Views.RuleWorkbench;
 using DemoViewer.NET.Views.Settings;
+using DemoViewer.NET.Views.Diagnostics;
 using DemoViewer.NET.Views.Setup;
 using DemoViewer.NET.Views.Tutorial;
 using Microsoft.Extensions.DependencyInjection;
@@ -159,6 +160,9 @@ public static class Variants
             // the ramp is the first thing a bad retint breaks.
             ["stats-components"] = StatsComponents,
             ["stats-components-edge"] = StatsComponentsEdge,
+            // The in-app dev gallery itself (Diagnostics tab). Renders the real view + its real VM, so
+            // this catches a broken binding in the panel, not just in the controls it previews.
+            ["stats-gallery"] = StatsGallery,
             ["livesync-chips"] = LiveSyncChips,
             ["livesync-flyouts"] = LiveSyncFlyouts,
             ["playback2d-livesync-hud"] = Playback2DLiveSyncHud,
@@ -4576,5 +4580,13 @@ public static class Variants
 
         return b;
     }
+
+
+    /// <summary>The Diagnostics tab's dev-only component gallery, as the app builds it.</summary>
+    private static Border StatsGallery() => WrapInShell(new ScrollViewer
+    {
+        Padding = new Thickness(14, 10),
+        Content = new StatsGalleryView()
+    }, 780, 760);
 
 }

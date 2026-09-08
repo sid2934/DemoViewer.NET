@@ -1016,6 +1016,11 @@ dependency survey that ruled out every charting library, and the open questions 
 | `StatTile` | Templated KPI tile; the number is a nested `StatValue`. | `Label`, `Caption`, `IsHero` (`:hero`). |
 | `TeamBadge` | Templated team header with a WIN/LOSS pill. | `Team` (CS2 wire: 2 = T, 3 = CT), `Label`, `Outcome`, `Detail`; pseudo-classes `:ct` `:t` `:win` `:loss` `:draw`. |
 
+**Previewing them.** Four of the six have no product call site yet, so the Diagnostics tab carries a
+collapsed **"Stats component gallery (design)"** panel: every control, live, driven by sliders, reading
+no demo and reachable from a cold start. It rides the `tab.diagnostics` gate and owns its own view
+model. `UiCapture` variants: `stats-components`, `stats-components-edge`, `stats-gallery`.
+
 **Invariants worth not breaking:**
 - **Bar length and colour sentiment are separate channels.** `Min`/`Max` drive the bar;
   `NeutralLow`/`NeutralHigh` carve a dead zone out of the colour only. A single min/max/value triple
