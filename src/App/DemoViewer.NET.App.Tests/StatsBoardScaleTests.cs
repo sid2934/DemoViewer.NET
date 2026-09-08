@@ -51,6 +51,15 @@ public class StatsBoardScaleTests
 
     private static readonly string[] _columns = ["TotalK", "TotalD", "TotalA", "ADR", "KAST%", "HLTV", "KD"];
 
+    /// <summary>
+    ///     Round-win columns, appended per team so <c>ComputeTeamScores</c> has something to sum. They
+    ///     live in the RoundWins group and so never appear under the default Core category; they exist to
+    ///     drive the scoreline, not to be looked at.
+    /// </summary>
+    private static readonly string[] _scoreColumns = ["CTW", "TW"];
+
+    private static readonly string[] _expectedPodium = ["Alice", "Foxtrot", "Bravo"];
+
     // ── Catalogue wiring ──────────────────────────────────────────────────────
 
     /// <summary>
@@ -215,6 +224,96 @@ public class StatsBoardScaleTests
         await Assert.That(Cell(vm, "Alice", "ADR").Scale).IsEqualTo(before);
     }
 
+    // ── Team outcome ──────────────────────────────────────────────────────────
+
+    [Test]
+    public async Task Outcome_IsDerivedFromTheScoreline()
+    {
+        StatsTabViewModel vm = BuildVm(13, 9);
+
+        TeamSection ct = vm.TeamSections.Single(t => t.IsCt);
+        TeamSection t = vm.TeamSections.Single(x => !x.IsCt);
+
+        await Assert.That(ct.Score).IsEqualTo(13);
+        await Assert.That(ct.Outcome).IsEqualTo(TeamOutcome.Win);
+        await Assert.That(t.Outcome).IsEqualTo(TeamOutcome.Loss);
+    }
+
+    /// <summary>
+    ///     The gate that matters. A demo cut at the buzzer can lose the winner's final round, leaving a
+    ///     scoreline that reads as a tie. Showing DRAW on a match somebody won is worse than showing
+    ///     nothing, so an implausible total must yield no pill at all.
+    /// </summary>
+    [Test]
+    public async Task Outcome_IsWithheldWhenTheScorelineIsImplausible()
+    {
+        StatsTabViewModel vm = BuildVm(12, 12);
+
+        foreach (TeamSection section in vm.TeamSections)
+        {
+            await Assert.That(section.Score).IsEqualTo(12);
+            await Assert.That(section.Outcome).IsEqualTo(TeamOutcome.None);
+        }
+    }
+
+    [Test]
+    public async Task Outcome_AllowsARealOvertimeDraw()
+    {
+        StatsTabViewModel vm = BuildVm(15, 15);
+
+        foreach (TeamSection section in vm.TeamSections)
+        {
+            await Assert.That(section.Outcome).IsEqualTo(TeamOutcome.Draw);
+        }
+    }
+
+    /// <summary>
+    ///     Sides swap at half, so a bare "CT" beside a TEAM total is the pairing Match Overview was
+    ///     rewritten to eliminate. The label has to say which side the team FINISHED on.
+    /// </summary>
+    [Test]
+    public async Task TeamLabel_NamesTheSideTheTeamEndedOn()
+    {
+        StatsTabViewModel vm = BuildVm();
+
+        await Assert.That(vm.TeamSections.Single(t => t.IsCt).TeamLabel).IsEqualTo("ENDED CT");
+        await Assert.That(vm.TeamSections.Single(t => !t.IsCt).TeamLabel).IsEqualTo("ENDED T");
+    }
+
+    // ── Podium ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     Top three by rating, ACROSS both teams. Every other ordering in the app partitions by side
+    ///     first; this one must not, because "who carried this match" is not a per-team question.
+    /// </summary>
+    [Test]
+    public async Task Podium_RanksAcrossBothTeams()
+    {
+        StatsTabViewModel vm = BuildVm();
+
+        await Assert.That(vm.HasPodium).IsTrue();
+        await Assert.That(vm.Podium.Count).IsEqualTo(3);
+        await Assert.That(vm.Podium.Select(e => e.Name)).IsEquivalentTo(_expectedPodium);
+        await Assert.That(vm.Podium[0].Rank).IsEqualTo(1);
+        await Assert.That(vm.Podium[0].RankLabel).IsEqualTo("1ST");
+
+        // Alice is CT, Foxtrot is T: the strip crosses the team boundary.
+        await Assert.That(vm.Podium[0].IsCt).IsTrue();
+        await Assert.That(vm.Podium[1].IsCt).IsFalse();
+    }
+
+    /// <summary>The podium is about the match, so sorting a column must not reorder it.</summary>
+    [Test]
+    public async Task Podium_DoesNotFollowTheTableSort()
+    {
+        StatsTabViewModel vm = BuildVm();
+        string[] before = vm.Podium.Select(e => e.Name).ToArray();
+
+        vm.SortByColumnCommand.Execute(vm.Columns.Single(c => c.Label == "TotalD"));
+
+        await Assert.That(vm.Podium.Select(e => e.Name)).IsEquivalentTo(before);
+    }
+
     // ── Render ────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -302,16 +401,17 @@ public class StatsBoardScaleTests
         return vm.GameRows.Single(r => r.PlayerName == player).Cells[index];
     }
 
-    private static StatsTabViewModel BuildVm()
+    private static StatsTabViewModel BuildVm(int ctRoundWins = 13, int tRoundWins = 9)
     {
         StatsTabViewModel vm = new(null, () => "/demos/match.dem");
-        (EvaluationResult result, ParsedDemo demo) = BuildScenario();
+        (EvaluationResult result, ParsedDemo demo) = BuildScenario(ctRoundWins, tRoundWins);
         vm.Update(result, demo);
         return vm;
     }
 
     /// <summary>Mirrors the fixture shape in <see cref="StatsTabTests" />, widened to ten players.</summary>
-    private static (EvaluationResult Result, ParsedDemo Demo) BuildScenario()
+    private static (EvaluationResult Result, ParsedDemo Demo) BuildScenario(
+        int ctRoundWins, int tRoundWins)
     {
         StubNode roundNode = new("RoundNumber");
         List<StateNode> tracked = [roundNode];
@@ -323,7 +423,7 @@ public class StatsBoardScaleTests
             List<PerPlayerColumnAssignment> assignments = [];
             List<int> indices = [];
             List<StateNode> nodes = [];
-            foreach (string column in _columns)
+            foreach (string column in _columns.Concat(_scoreColumns))
             {
                 StubNode node = new($"{_roster[p].Name}_{column}");
                 indices.Add(tracked.Count);
@@ -345,6 +445,11 @@ public class StatsBoardScaleTests
             {
                 vec[colIdx[p][c]] = Snap(_roster[p].Values[c]);
             }
+
+            // CTW + TW is what ComputeTeamScores sums, and it must agree across every row of a team.
+            bool isCt = _roster[p].Team == 3;
+            vec[colIdx[p][_columns.Length]] = Snap(isCt ? ctRoundWins : 0);
+            vec[colIdx[p][_columns.Length + 1]] = Snap(isCt ? 0 : tRoundWins);
         }
 
         EvaluationResult result = new(

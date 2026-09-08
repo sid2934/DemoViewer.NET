@@ -189,6 +189,12 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     /// <summary>Sort glyph for the player header column.</summary>
     public string PlayerSortGlyph => !IsSortedByPlayer ? "" : _sortDescending ? " ▼" : " ▲";
 
+    /// <summary>The match's top three by rating, for the podium strip. Empty when no rating column.</summary>
+    public IReadOnlyList<PodiumEntry> Podium { get; private set; } = [];
+
+    /// <summary>Whether the podium strip has anything to show.</summary>
+    public bool HasPodium => Podium.Count > 0;
+
     /// <summary>CT/T scoreboard sections with per-team totals and derived score.</summary>
     public IReadOnlyList<TeamSection> TeamSections { get; private set; } = [];
 
@@ -733,6 +739,9 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
 
         GameRows = rows;
         TeamSections = BuildTeamSections(rows, _visibleGameColumnOrder, _teamScoreBySort);
+        Podium = BuildPodium(GameTable.Rows);
+        OnPropertyChanged(nameof(Podium));
+        OnPropertyChanged(nameof(HasPodium));
         OnPropertyChanged(nameof(GameRows));
         OnPropertyChanged(nameof(TeamSections));
         OnPropertyChanged(nameof(CurrentRows));
@@ -768,10 +777,39 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
             string side = members[0].TeamLabel is { Length: > 0 } label ? label : "—";
             int? score = scoreBySort.GetValueOrDefault(group.Key);
 
-            sections.Add(new TeamSection(side, isCt, score, members, BuildTotalsRow(members, order)));
+            sections.Add(new TeamSection(side, isCt, score, members, BuildTotalsRow(members, order))
+            {
+                Outcome = OutcomeFor(group.Key, scoreBySort)
+            });
         }
 
         return sections;
+    }
+
+    /// <summary>
+    ///     Win / loss / draw for one team, or <see cref="TeamOutcome.None" /> when the scoreline cannot
+    ///     carry the claim.
+    ///     <para>
+    ///         <b>Gated on a plausible winning score.</b> A demo cut at the buzzer can lose the winner's
+    ///         final round, and the recorded scoreline then reads as a tie. Announcing a draw on a match
+    ///         somebody won is worse than announcing nothing, so an implausible total yields no pill at
+    ///         all. 13 is regulation, 15 a drawn overtime, 16 an overtime win.
+    ///     </para>
+    /// </summary>
+    private static TeamOutcome OutcomeFor(int teamSort, IReadOnlyDictionary<int, int?> scoreBySort)
+    {
+        if (teamSort is not (0 or 1)
+            || scoreBySort.GetValueOrDefault(0) is not { } ct
+            || scoreBySort.GetValueOrDefault(1) is not { } t
+            || Math.Max(ct, t) is not (13 or 15 or 16))
+        {
+            return TeamOutcome.None;
+        }
+
+        (int mine, int theirs) = teamSort == 0 ? (ct, t) : (t, ct);
+        return mine > theirs ? TeamOutcome.Win
+            : mine < theirs ? TeamOutcome.Loss
+            : TeamOutcome.Draw;
     }
 
     /// <summary>Per-team round-win score from the full game table's CTW+TW values (unanimous or null).</summary>
@@ -939,6 +977,48 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
             .ToList();
         OnPropertyChanged(nameof(RoundRows));
         OnPropertyChanged(nameof(CurrentRows));
+    }
+
+    /// <summary>
+    ///     The match's three best players by rating, across both teams.
+    ///     <para>
+    ///         Cross-team on purpose, which makes it the only ordering in the app that does not partition
+    ///         by side first. "Who carried this match" is not a per-team question.
+    ///     </para>
+    ///     <para>
+    ///         Built from the full table rather than the visible rows, so it neither moves when the user
+    ///         sorts a column nor disappears when a category chip hides the rating column. Empty when the
+    ///         loaded rules produce no rating at all, which is the honest result: the strip is about one
+    ///         metric and without it there is nothing to rank.
+    ///     </para>
+    /// </summary>
+    private static List<PodiumEntry> BuildPodium(IReadOnlyList<MetricRow> rows)
+    {
+        const string ratingColumn = "HLTV";
+        StatScale? scale = ColumnCatalogue.Resolve(ratingColumn).Scale?.Resolve(
+            rows.Select(r => new StatCell(r.Values.GetValueOrDefault(ratingColumn)).Numeric)
+                .Where(v => v is not null)
+                .Select(v => v!.Value)
+                .ToList());
+
+        List<PodiumEntry> podium = [];
+        int rank = 1;
+        foreach (MetricRow row in rows
+                     .Select(r => (Row: r, Rating: new StatCell(r.Values.GetValueOrDefault(ratingColumn)).Numeric))
+                     .Where(x => x.Rating is not null)
+                     .OrderByDescending(x => x.Rating!.Value)
+                     .Take(3)
+                     .Select(x => x.Row))
+        {
+            double rating = new StatCell(row.Values.GetValueOrDefault(ratingColumn)).Numeric!.Value;
+            int team = row.Dimensions.GetValueOrDefault("team") is { } t
+                ? Convert.ToInt32(t, CultureInfo.InvariantCulture)
+                : 0;
+            podium.Add(new PodiumEntry(rank++,
+                row.Dimensions.GetValueOrDefault("player_name")?.ToString() ?? "?", team, rating, scale));
+        }
+
+        return podium;
     }
 
     /// <summary>
@@ -1348,8 +1428,61 @@ public sealed record TeamSection(
     IReadOnlyList<StatsRow> Rows,
     StatsRow Totals)
 {
+    /// <summary>Win, loss or draw. <see cref="TeamOutcome.None" /> whenever the score cannot be trusted.</summary>
+    public TeamOutcome Outcome { get; init; } = TeamOutcome.None;
+
+    /// <summary>
+    ///     The team's name, phrased the way the Match Overview page phrases it.
+    ///     <para>
+    ///         <b>"ENDED CT", not "CT".</b> Teams swap sides at half, so a bare side name next to a TEAM
+    ///         total is the pairing that page was rewritten to eliminate: on one reference demo the team
+    ///         that ended CT totalled 3 while the CT SIDE won 15 of 16 rounds. Naming the side a team
+    ///         finished on is the honest thing a demo can say without clan names.
+    ///     </para>
+    /// </summary>
+    public string TeamLabel => SideLabel switch
+    {
+        "CT" => "ENDED CT",
+        "T" => "ENDED T",
+        _ => "SPECTATORS"
+    };
+
+    /// <summary>The CS2 wire team value, for controls that take one. 3 = CT, 2 = T.</summary>
+    public int Team => SideLabel switch
+    {
+        "CT" => TeamBadge.TeamCt,
+        "T" => TeamBadge.TeamT,
+        _ => 0
+    };
+
+    /// <summary>Round total as text, empty when it could not be derived.</summary>
+    public string ScoreText => Score is { } s ? s.ToString(CultureInfo.InvariantCulture) : "";
+
     /// <summary>"CT — 13" or just "CT" when the score couldn't be derived reliably.</summary>
     public string Header => Score is { } s ? $"{SideLabel}   {s}" : SideLabel;
+}
+
+/// <summary>
+///     One entry in the podium strip: the match's top players by rating, across both teams.
+///     <para>
+///         <see cref="Rating" /> is the HLTV figure itself, not a delta. The reference board shows a
+///         delta against its own baseline; ours has no such baseline, and inventing one to make the
+///         number look like theirs would be making it up.
+///     </para>
+/// </summary>
+public sealed record PodiumEntry(int Rank, string Name, int Team, double Rating, StatScale? Scale)
+{
+    /// <summary>"1ST" / "2ND" / "3RD".</summary>
+    public string RankLabel => Rank switch
+    {
+        1 => "1ST",
+        2 => "2ND",
+        3 => "3RD",
+        _ => string.Create(CultureInfo.InvariantCulture, $"{Rank}TH")
+    };
+
+    /// <summary>Side colour hook, matching the board's CT-blue / T-amber convention.</summary>
+    public bool IsCt => Team == TeamBadge.TeamCt;
 }
 
 /// <summary>

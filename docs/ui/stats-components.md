@@ -335,8 +335,7 @@ a chart. It stays as an `ItemsControl`.
   made a set of all zero rounds render as half height columns that read as real data.
 - `DisplayText` folds negative zero to zero. A differential column landing exactly on nothing otherwise
   prints `-0`.
-- The scoreboard itself is untouched. `StatsTabView` still uses `TextBlock.statsCell`, and no column in
-  `ColumnCatalogue` has a `StatScale` yet. That is section 9's work and it is deliberately not started.
+- ~~The scoreboard itself is untouched.~~ Done; see section 11.
 - `StatTileItem` (a view-model record in `PlayerDetailsViewModel.cs`) and `StatTile` (the control) are
   one letter apart and unrelated. The core tile strip still uses the record and the hand-rolled
   `Border.pdTile` template. Rename one of them when that strip is adopted.
@@ -363,3 +362,88 @@ Two details worth keeping:
   scoreboard actually asks. It is also where the section 9 threshold questions get answered.
 
 `UiCapture` renders the same panel under any theme id: `stats-gallery --theme dark --size 780x760`.
+
+---
+
+## 11. The redesign (v0.8.1)
+
+Scope was **restructured, not rebuilt**: the table engine, the `MetricTable` data layer and settings
+persistence were all left alone. The per-column gear from the reference is deferred; it is a settings
+surface with a saved-layout migration story attached, and it is not what makes a board readable.
+
+### Which columns are scaled, and which deliberately are not
+
+The benchmark research split the metrics in a way that inverts the intuitive pairing. A metric whose
+population mean is **pinned by the structure of the game** can carry an absolute band, because the
+anchor never drifts with lobby skill: every kill is exactly one death, so aggregate K/D is exactly
+1.00; every opening duel has exactly one winner, so the mean is exactly 50%. A **per-opportunity
+efficiency** metric cannot, because it conflates the player's skill with the lobby's.
+
+| Column | Treatment | Why |
+|---|---|---|
+| `HLTV` | peer bar, colour banded 0.95-1.05, extent 0.40-1.80 | Pinned. See the caveat below. |
+| `ADR` | peer bar, colour banded 70-82, extent 40-120 | Pinned. Band centred on the arithmetic floor, not the quoted figure. |
+| `KAST%` | peer bar, colour banded 65-73 | Clusters tightly even though a round can yield 0-10 events. |
+| `KD`, `KPR` | peer bar, absolute colour | Pinned by identity. |
+| `TotalK/D/A`, `EnemyDmg`, `EFlash`, `TotalFK/FD` | peer bar, peer colour, 50% dead zone | No meaningful benchmark. The dead zone matters: without one a ten-player column tints five of them. |
+| `TeamDmg`, `SelfDmg` | penalty (lower is better, anything above zero is bad) | Replaces the flat `Emphasis.Negative`. |
+| `Duel%` | banded, **gated** on `TotalFK + TotalFD` >= 8 | Pinned at exactly 50% by definition, so it means nothing at low volume: two duels won of two reads 100%. |
+| `AvgBlind` | peer bar, colour banded 2.25-2.70 | Rank-dependent, so this band is softer than the pinned ones. |
+| **`HS%`** | **bar, no tint** | Leetify structurally excludes AWP shots from their headshot metric, and measured correlation with production is weak (R = 0.30). No rank-segmented distribution is published, so any cut point would be invented. |
+| **`Surv%`** | **bar, no tint** | Anti-correlated with aggression. High survival + low ADR is passivity; low + high is a healthy entry fragger. One band cannot say that. |
+| **`FK+/-`** | **bar, no tint** | A signed differential; the sign is the whole story and the bar carries it. |
+
+**Two numbers worth not losing.** The "ADR 60-75 is average" figure every guide repeats is
+*arithmetically impossible* as a match mean: with DPR around 0.68 the floor is 680 damage per round
+from kills alone, so the real mean is 72-80 at any rank. And our `HLTV` column implements the 2.0
+reverse-engineered formula, whose 1.00 is anchored to **professional** play; HLTV themselves
+recalibrated to 2.1 because the CS2 MR12 average had drifted to ~1.06. The 0.95-1.05 band may
+therefore sit slightly low for matchmaking demos. **Validate it against real demos** in the dev
+gallery before treating it as settled.
+
+### Layout
+
+- **Podium strip**, top three by rating, **across both teams**. That makes it the only ordering in the
+  app that does not partition by side first, which is correct: "who carried this match" is not a
+  per-team question. It is a strip rather than three cards because the reference fills its cards with a
+  portrait and agent render, and this app has no avatar pipeline at all (no HTTP client outside the
+  update service, no Steam Web API, no image cache, no rank data in the parser). Three tall cards would
+  be three portrait-shaped holes. The ring shows the **rating itself, not a delta**: the reference's
+  `+11.96` is a delta against their own baseline and we have none to subtract.
+- **Team headers are `TeamBadge`**, labelled `ENDED CT` / `ENDED T`. **Not `CT`.** Teams swap sides at
+  half, so a bare side name beside a *team* total is exactly the pairing the Match Overview page was
+  rewritten to eliminate: on one reference demo the team that ended CT totalled 3 while the CT *side*
+  won 15 of 16 rounds.
+- **WIN/LOSS is gated** on a plausible winning total (13, 15 or 16). A demo cut at the buzzer can lose
+  the winner's final round and report a false tie; showing DRAW on a match somebody won is worse than
+  showing nothing.
+- **Category rail restyled** from filled pills to underlined tabs. A row of filled pills competes with
+  the board's own bars for attention, and that rail is navigation, not data.
+
+### Implementation notes worth keeping
+
+- **The scale shape lives on `ColumnMeta`; the concrete min/max cannot.** `ColumnMeta` instances are
+  shared singletons handed to the match table, the round table, the details overlay and the totals row,
+  and a peer domain is per-view. Resolved scales ride on the cell.
+- **Peer scales are computed before any cell exists**, in `RebuildGameRows`, and must stay there:
+  `BuildTeamSections` copies rows with `with`, and the copies share their `Cells` instance with the
+  originals, so nothing can be re-stamped afterwards.
+- **Totals rows get no scale.** They are not in `GameRows` so they cannot contaminate a peer min/max,
+  but handing them the players' scale would clamp their bar to full.
+- **`StatScale` gained a separate colour extent.** Before, a peer-domain scale ramped its tint between
+  the *peer* bounds, so 92 ADR read strong in a weak lobby and mild in a strong one. An absolute
+  benchmark that moves with the lobby is not a benchmark.
+- **Bars anchor to the text's edge.** Right-aligned numbers over left-growing bars drift away from their
+  own bar exactly when it is shortest.
+- **Static initialiser ordering is load-bearing.** The scale specs must be declared above
+  `_byKey = BuildCatalogue()`. Declared below, C# leaves them null while the catalogue reads them, every
+  column silently gets no scale, and the board renders as if none of this existed.
+  `Catalogue_CarriesTheScaleSpecs` guards it.
+
+### Still not done
+
+- Per-column gear / persisted column selection.
+- The `Rounds` view has peer scales (its peer group is the players in that round) but no podium or team
+  badge; it is a flat table by design.
+- `Highlights`, `Vision` and keyed extra tables have no `ColumnMeta` at all and are unscaled.
+- `StatTileItem` (view-model record) vs `StatTile` (control) are still one letter apart.

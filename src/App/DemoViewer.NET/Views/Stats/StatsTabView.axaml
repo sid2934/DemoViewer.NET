@@ -76,7 +76,8 @@
          column set is dynamic (follows the loaded rules), so header and cells are ItemsControls
          sharing one fixed column width instead of a fixed-AXAML Grid. -->
     <Border Background="{DynamicResource PanelBg}">
-        <Grid RowDefinitions="Auto,Auto,Auto,*">
+        <!-- Rows: view switch | context bar | category rail | podium | body. -->
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,*">
 
             <!-- ── Primary rail: segmented view switch + power-user table picker ── -->
             <Border Grid.Row="0"
@@ -185,7 +186,7 @@
                     Background="{DynamicResource PanelHeaderBg}"
                     BorderBrush="{DynamicResource BorderSubtle}"
                     BorderThickness="0 0 0 1"
-                    Padding="14 2"
+                    Padding="10 0"
                     IsVisible="{Binding IsTableView}">
                 <ScrollViewer HorizontalScrollBarVisibility="Auto"
                               VerticalScrollBarVisibility="Disabled">
@@ -210,7 +211,7 @@
 
             <!-- ── Extra table (F2/F3): generic renderer for any picked outputs:/keyed table —
                      dimension columns then value columns, cells preformatted by the VM ── -->
-            <ScrollViewer Grid.Row="3"
+            <ScrollViewer Grid.Row="4"
                           IsVisible="{Binding IsExtraTableView}"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Disabled">
@@ -264,7 +265,7 @@
             <!-- ── Table (one horizontal scroll owns header + rows so they stay aligned;
                      rows scroll vertically inside) ──────────────────────────── -->
             <!-- ── Highlights: the chain-satisfaction log (achievements view) ── -->
-            <ScrollViewer Grid.Row="3"
+            <ScrollViewer Grid.Row="4"
                           IsVisible="{Binding IsHighlightsView}"
                           HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">
@@ -292,7 +293,7 @@
 
             <!-- ══ 3D visibility view (F4): per-player LOS table; the directed pairs
                      table ships in the export alongside it ══ -->
-            <Grid Grid.Row="3"
+            <Grid Grid.Row="4"
                   RowDefinitions="Auto,*"
                   IsVisible="{Binding IsVisibilityView}"
                   Margin="14 6">
@@ -347,7 +348,44 @@
 
             <!-- ── Scoreboard / Rounds: one horizontal scroll owns header + rows (alignment);
                      Scoreboard renders CT/T team sections with totals, Rounds a flat round view ── -->
-            <ScrollViewer Grid.Row="3"
+            <!-- ── Podium: the match's top three by rating, across BOTH teams ──────────────
+                 A strip rather than three cards. The reference fills its cards with a portrait and
+                 agent art; this app has no avatar pipeline (no HTTP client, no Steam Web API, no
+                 image cache), so three tall cards would be three portrait-shaped holes. The ring
+                 shows the HLTV rating ITSELF, not a delta: the reference's +11.96 is a delta against
+                 their own baseline, and we have no such baseline to subtract. -->
+            <Border Grid.Row="3"
+                    Background="{DynamicResource PanelBg}"
+                    BorderBrush="{DynamicResource BorderSubtle}"
+                    BorderThickness="0 0 0 1"
+                    Padding="14 6"
+                    IsVisible="{Binding HasPodium}">
+                <ItemsControl ItemsSource="{Binding Podium}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="22" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="stats:PodiumEntry">
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding RankLabel}" Classes="podiumRank"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Text="●" Classes="statsBullet" FontSize="9"
+                                           Classes.ct="{Binding IsCt}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Name}" Classes="podiumName"
+                                           VerticalAlignment="Center" />
+                                <statsCtl:RingGauge Value="{Binding Rating}"
+                                                    Scale="{Binding Scale}"
+                                                    Format="0.00"
+                                                    Width="46" Height="46" FontSize="12" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+
+            <ScrollViewer Grid.Row="4"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Disabled"
                           IsVisible="{Binding IsTableVisible}">
@@ -408,10 +446,19 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="stats:TeamSection">
                                         <StackPanel Margin="0 0 0 8">
-                                            <Border Classes="teamHeader" Classes.ct="{Binding IsCt}">
-                                                <TextBlock Text="{Binding Header}" Classes="teamHeaderText"
-                                                           Classes.ct="{Binding IsCt}" />
-                                            </Border>
+                                            <!-- "ENDED CT", not "CT". Teams swap sides at half, so a
+                                                 bare side name beside a TEAM total is the pairing the
+                                                 Match Overview page was rewritten to eliminate. The
+                                                 WIN/LOSS pill is absent unless the scoreline is
+                                                 plausible: a buzzer-truncated demo can report a false
+                                                 tie, and claiming a draw on a match somebody won is
+                                                 worse than claiming nothing. -->
+                                            <statsCtl:TeamBadge Team="{Binding Team}"
+                                                                Label="{Binding TeamLabel}"
+                                                                Outcome="{Binding Outcome}"
+                                                                Detail="{Binding ScoreText}"
+                                                                HorizontalAlignment="Left"
+                                                                Margin="0 2" />
                                             <ItemsControl ItemsSource="{Binding Rows}"
                                                           ItemTemplate="{StaticResource StatsRowTemplate}" />
                                             <ContentControl Content="{Binding Totals}"
@@ -431,7 +478,7 @@
             </ScrollViewer>
 
             <!-- empty state -->
-            <TextBlock Grid.Row="3"
+            <TextBlock Grid.Row="4"
                        Text="{Binding StatusMessage}"
                        IsVisible="{Binding !HasStats}"
                        HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -442,7 +489,7 @@
                      tab so the scoreboard underneath is fully occluded and non-interactive while
                      its state (sort/category/scroll) stays frozen. Inline overlay, never a Window
                      (WASM parity). Esc closes; opened from a row double-tap / context menu. ── -->
-            <Border Grid.Row="0" Grid.RowSpan="4"
+            <Border Grid.Row="0" Grid.RowSpan="5"
                     x:Name="PlayerDetailsHost"
                     Background="{DynamicResource ShellBg}"
                     IsVisible="{Binding IsPlayerDetailsOpen}"
@@ -587,22 +634,40 @@
         <!-- Category chips: visually distinct PILLS — bordered, rounded, hover
              feedback; the selected chip fills with the interactive accent. One weight lighter than
              the view rail so the sub-rail still reads as secondary navigation. -->
-        <Style Selector="Button.statscat">
+        <!-- Podium strip. -->
+        <Style Selector="TextBlock.podiumRank">
             <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
             <Setter Property="FontSize" Value="10" />
-            <Setter Property="Padding" Value="9 2" />
-            <Setter Property="CornerRadius" Value="9" />
-            <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
+        </Style>
+        <Style Selector="TextBlock.podiumName">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBright}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="MaxWidth" Value="150" />
+        </Style>
+
+        <!-- Category sub-navigation. Underlined tabs rather than the filled pills these used to be:
+             a row of filled pills competes with the board's own bars and chips for attention, and
+             this rail is navigation, not data. The selected tab carries an accent underline and
+             brighter text; nothing else is filled. -->
+        <Style Selector="Button.statscat">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Padding" Value="10 5" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0 0 0 2" />
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
             <Setter Property="Cursor" Value="Hand" />
         </Style>
         <Style Selector="Button.statscat:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource PrimaryButtonHover}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextMid}" />
         </Style>
         <Style Selector="Button.statscat.selected">
-            <Setter Property="Background" Value="{DynamicResource AccentInteractive}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
             <Setter Property="Foreground" Value="{DynamicResource TextBright}" />
             <Setter Property="FontWeight" Value="SemiBold" />
