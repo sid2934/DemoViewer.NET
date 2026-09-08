@@ -221,6 +221,47 @@
         <Setter Property="BaselineBrush" Value="{DynamicResource BorderSubtle}" />
     </Style>
 
+    <!-- == DivergingBar - won versus lost about a break-even line ============================== -->
+    <Style Selector="stats|DivergingBar">
+        <Setter Property="Height" Value="22" />
+        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="NegativeBrush" Value="{DynamicResource StatNegative}" />
+        <Setter Property="PositiveBrush" Value="{DynamicResource StatPositive}" />
+        <Setter Property="AxisBrush" Value="{DynamicResource BorderStrong}" />
+    </Style>
+
+    <!-- == PipStrip - a small count as marks rather than a number ============================== -->
+    <Style Selector="stats|PipStrip">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontFeatures" Value="tnum" />
+        <Setter Property="PipBrush" Value="{DynamicResource AccentInteractive}" />
+        <Setter Property="EmptyBrush" Value="{DynamicResource BorderStrong}" />
+    </Style>
+    <!-- The rarest tier of a multi-kill column earns the attention colour. -->
+    <Style Selector="stats|PipStrip.rare">
+        <Setter Property="PipBrush" Value="{DynamicResource AccentAmber}" />
+    </Style>
+    <Style Selector="stats|PipStrip.good">
+        <Setter Property="PipBrush" Value="{DynamicResource StatPositive}" />
+    </Style>
+
+    <!-- == Slot palettes for composition bars =================================================
+         A view model names a colour by SLOT and never holds one, so these stay themable like every
+         other token in the app. The category class picks which palette a bar reads. -->
+    <Style Selector="stats|SegmentedBar.utility">
+        <Setter Property="Slot0Brush" Value="{DynamicResource AccentInteractive}" />
+        <Setter Property="Slot1Brush" Value="{DynamicResource StatPositiveSoft}" />
+        <Setter Property="Slot2Brush" Value="{DynamicResource AccentCaution}" />
+        <Setter Property="Slot3Brush" Value="{DynamicResource StatNegative}" />
+    </Style>
+    <Style Selector="stats|SegmentedBar.weapons">
+        <Setter Property="Slot0Brush" Value="{DynamicResource AccentInteractive}" />
+        <Setter Property="Slot1Brush" Value="{DynamicResource StatPositive}" />
+        <Setter Property="Slot2Brush" Value="{DynamicResource AccentCaution}" />
+        <Setter Property="Slot3Brush" Value="{DynamicResource StatPositiveSoft}" />
+        <Setter Property="Slot4Brush" Value="{DynamicResource AccentHighlight}" />
+        <Setter Property="Slot5Brush" Value="{DynamicResource TextDim}" />
+    </Style>
     <!-- ── RingGauge — one headline number on a circular track ───────────────────────────────────── -->
     <Style Selector="stats|RingGauge">
         <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />

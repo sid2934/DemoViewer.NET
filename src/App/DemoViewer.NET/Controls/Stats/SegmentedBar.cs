@@ -14,9 +14,17 @@ namespace DemoViewer.NET.Controls.Stats;
 ///     One slice of a <see cref="SegmentedBar" />: how much, what colour, and what to write on it.
 /// </summary>
 /// <param name="Value">Share of the whole. Non-finite and negative values are ignored.</param>
-/// <param name="Brush">Slice fill. Null falls back to the bar's <see cref="SegmentedBar.FillBrush" />.</param>
+/// <param name="Brush">
+///     Slice fill. Null falls back to the bar's slot palette (see <paramref name="Slot" />), and then to
+///     <see cref="SegmentedBar.FillBrush" />.
+/// </param>
 /// <param name="Label">Text drawn on the slice when it is wide enough. Null draws nothing.</param>
-public sealed record StatSegment(double Value, IBrush? Brush = null, string? Label = null);
+/// <param name="Slot">
+///     Index into the bar's slot palette, 0-5. This is how a view model names a colour without holding
+///     one: the meaning ("flashes", "rifle kills") is the view model's, the pigment is the theme's.
+///     Negative means no slot.
+/// </param>
+public sealed record StatSegment(double Value, IBrush? Brush = null, string? Label = null, int Slot = -1);
 
 /// <summary>
 ///     A stacked proportion bar: a whole split into labelled parts, each sized by its share. Serves both
@@ -58,6 +66,43 @@ public class SegmentedBar : TemplatedControl
     public static readonly StyledProperty<IBrush?> LabelBrushProperty =
         AvaloniaProperty.Register<SegmentedBar, IBrush?>(nameof(LabelBrush));
 
+    /// <summary>
+    ///     A whole that this bar is a part of. When set above <see cref="Total" />, the bar fills only
+    ///     its share of the available width instead of stretching to fill it.
+    ///     <para>
+    ///         This is what lets a column of these bars be compared. Without it every bar is full width
+    ///         and only the internal split differs, so a player who threw fifty grenades and one who
+    ///         threw five draw the same size bar. With it, bar LENGTH is volume and the split is the mix,
+    ///         which is two facts from one shape.
+    ///     </para>
+    /// </summary>
+    public static readonly StyledProperty<double> MaxTotalProperty =
+        AvaloniaProperty.Register<SegmentedBar, double>(nameof(MaxTotal));
+
+    /// <summary>Slot-palette entry 0. Fed a token from <c>Styles/Stats.axaml</c>, never held in code.</summary>
+    public static readonly StyledProperty<IBrush?> Slot0BrushProperty =
+        AvaloniaProperty.Register<SegmentedBar, IBrush?>(nameof(Slot0Brush));
+
+    /// <summary>Slot-palette entry 1.</summary>
+    public static readonly StyledProperty<IBrush?> Slot1BrushProperty =
+        AvaloniaProperty.Register<SegmentedBar, IBrush?>(nameof(Slot1Brush));
+
+    /// <summary>Slot-palette entry 2.</summary>
+    public static readonly StyledProperty<IBrush?> Slot2BrushProperty =
+        AvaloniaProperty.Register<SegmentedBar, IBrush?>(nameof(Slot2Brush));
+
+    /// <summary>Slot-palette entry 3.</summary>
+    public static readonly StyledProperty<IBrush?> Slot3BrushProperty =
+        AvaloniaProperty.Register<SegmentedBar, IBrush?>(nameof(Slot3Brush));
+
+    /// <summary>Slot-palette entry 4.</summary>
+    public static readonly StyledProperty<IBrush?> Slot4BrushProperty =
+        AvaloniaProperty.Register<SegmentedBar, IBrush?>(nameof(Slot4Brush));
+
+    /// <summary>Slot-palette entry 5.</summary>
+    public static readonly StyledProperty<IBrush?> Slot5BrushProperty =
+        AvaloniaProperty.Register<SegmentedBar, IBrush?>(nameof(Slot5Brush));
+
     private const double CompactGap = 1.5;
     private const double CompactRadius = 2;
 
@@ -68,7 +113,9 @@ public class SegmentedBar : TemplatedControl
     {
         AffectsRender<SegmentedBar>(SegmentsProperty, CompactProperty, ShowLabelsProperty, GapProperty,
             FillBrushProperty, TrackBrushProperty, LabelBrushProperty, CornerRadiusProperty,
-            ForegroundProperty, FontSizeProperty, FontFamilyProperty);
+            ForegroundProperty, FontSizeProperty, FontFamilyProperty, MaxTotalProperty,
+            Slot0BrushProperty, Slot1BrushProperty, Slot2BrushProperty, Slot3BrushProperty,
+            Slot4BrushProperty, Slot5BrushProperty);
     }
 
     /// <inheritdoc cref="SegmentsProperty" />
@@ -119,6 +166,68 @@ public class SegmentedBar : TemplatedControl
         get => GetValue(LabelBrushProperty);
         set => SetValue(LabelBrushProperty, value);
     }
+
+    /// <inheritdoc cref="MaxTotalProperty" />
+    public double MaxTotal
+    {
+        get => GetValue(MaxTotalProperty);
+        set => SetValue(MaxTotalProperty, value);
+    }
+
+    /// <inheritdoc cref="Slot0BrushProperty" />
+    public IBrush? Slot0Brush
+    {
+        get => GetValue(Slot0BrushProperty);
+        set => SetValue(Slot0BrushProperty, value);
+    }
+
+    /// <inheritdoc cref="Slot1BrushProperty" />
+    public IBrush? Slot1Brush
+    {
+        get => GetValue(Slot1BrushProperty);
+        set => SetValue(Slot1BrushProperty, value);
+    }
+
+    /// <inheritdoc cref="Slot2BrushProperty" />
+    public IBrush? Slot2Brush
+    {
+        get => GetValue(Slot2BrushProperty);
+        set => SetValue(Slot2BrushProperty, value);
+    }
+
+    /// <inheritdoc cref="Slot3BrushProperty" />
+    public IBrush? Slot3Brush
+    {
+        get => GetValue(Slot3BrushProperty);
+        set => SetValue(Slot3BrushProperty, value);
+    }
+
+    /// <inheritdoc cref="Slot4BrushProperty" />
+    public IBrush? Slot4Brush
+    {
+        get => GetValue(Slot4BrushProperty);
+        set => SetValue(Slot4BrushProperty, value);
+    }
+
+    /// <inheritdoc cref="Slot5BrushProperty" />
+    public IBrush? Slot5Brush
+    {
+        get => GetValue(Slot5BrushProperty);
+        set => SetValue(Slot5BrushProperty, value);
+    }
+
+    /// <summary>The brush a segment resolves to: its own, then its slot, then the flat fill.</summary>
+    private IBrush? BrushFor(StatSegment segment) =>
+        segment.Brush ?? segment.Slot switch
+        {
+            0 => Slot0Brush,
+            1 => Slot1Brush,
+            2 => Slot2Brush,
+            3 => Slot3Brush,
+            4 => Slot4Brush,
+            5 => Slot5Brush,
+            _ => null
+        } ?? FillBrush;
 
     /// <summary>Sum of the finite, positive slice values. Zero means there is nothing to draw.</summary>
     public double Total
@@ -174,6 +283,10 @@ public class SegmentedBar : TemplatedControl
         }
 
         double gap = Compact ? CompactGap : Math.Max(0, Gap);
+
+        // A shared whole turns bar LENGTH into volume. Without it every bar is full width and only the
+        // split differs, so fifty grenades and five draw the same size.
+        double share = MaxTotal > 0 ? Math.Clamp(total / MaxTotal, 0, 1) : 1;
         int drawn = 0;
         foreach (StatSegment s in segments)
         {
@@ -183,7 +296,7 @@ public class SegmentedBar : TemplatedControl
             }
         }
 
-        double available = Math.Max(0, content.Width - (gap * Math.Max(0, drawn - 1)));
+        double available = Math.Max(0, (content.Width * share) - (gap * Math.Max(0, drawn - 1)));
         double x = content.X;
         foreach (StatSegment s in segments)
         {
@@ -194,7 +307,7 @@ public class SegmentedBar : TemplatedControl
 
             double w = available * (s.Value / total);
             Rect slice = new(x, content.Y, w, content.Height);
-            IBrush? fill = s.Brush ?? FillBrush;
+            IBrush? fill = BrushFor(s);
             if (fill is not null)
             {
                 context.FillRectangle(fill, slice, (float)radius);

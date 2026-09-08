@@ -60,6 +60,44 @@ public class StatsBoardScaleTests
 
     private static readonly string[] _expectedPodium = ["Alice", "Foxtrot", "Bravo"];
 
+    /// <summary>
+    ///     Columns the non-table category boards read. Values are derived from the roster index so the
+    ///     spread is deterministic and varied: someone tops each board, someone bottoms it, and the
+    ///     duel board gets both a positive and a negative net plus a low-volume row.
+    /// </summary>
+    private static readonly string[] _boardColumns =
+    [
+        "Flash", "Smokes", "HE", "Molly", "EFlash", "AvgBlind",
+        "TotalFK", "TotalFD",
+        "2K", "3K", "4K", "5K",
+        "Rifle", "AWP", "SMG", "Pistol", "Knife"
+    ];
+
+    private static double BoardValue(string column, int i) => column switch
+    {
+        "Flash" => 14 - i,
+        "Smokes" => 6 + (i % 4),
+        "HE" => 5 + (i % 3),
+        "Molly" => 3 + (i % 2),
+        "EFlash" => 18 - i,
+        "AvgBlind" => 3.1 - (i * 0.12),
+        // Falls from 9 to 0 while deaths climb from 2 to 11, so the board shows a clear crossover.
+        // Index 7 is deliberately a near-abstainer: three duels cannot support a rate, and the board
+        // has to be seen dimming one.
+        "TotalFK" => i == 7 ? 2 : Math.Max(0, 9 - i),
+        "TotalFD" => i == 7 ? 1 : 2 + i,
+        "2K" => Math.Max(0, 6 - (i / 2)),
+        "3K" => Math.Max(0, 3 - (i / 3)),
+        "4K" => i == 0 ? 2 : i == 4 ? 1 : 0,
+        "5K" => i == 0 ? 1 : 0,
+        "Rifle" => 15 - i,
+        "AWP" => i < 2 ? 9 - (i * 3) : 0,
+        "SMG" => i % 3,
+        "Pistol" => 2 + (i % 4),
+        "Knife" => i == 3 ? 1 : 0,
+        _ => 0
+    };
+
     // ── Catalogue wiring ──────────────────────────────────────────────────────
 
     /// <summary>
@@ -314,6 +352,148 @@ public class StatsBoardScaleTests
         await Assert.That(vm.Podium.Select(e => e.Name)).IsEquivalentTo(before);
     }
 
+    // ── Non-table category boards ─────────────────────────────────────────────
+
+    [Test]
+    public async Task Layout_IsChosenPerCategory()
+    {
+        await Assert.That(CategoryBoard.LayoutFor(StatGroup.Core)).IsEqualTo(CategoryLayout.Table);
+        await Assert.That(CategoryBoard.LayoutFor(StatGroup.Utility)).IsEqualTo(CategoryLayout.Composition);
+        await Assert.That(CategoryBoard.LayoutFor(StatGroup.Weapons)).IsEqualTo(CategoryLayout.Composition);
+        await Assert.That(CategoryBoard.LayoutFor(StatGroup.OpeningDuels)).IsEqualTo(CategoryLayout.Diverging);
+        await Assert.That(CategoryBoard.LayoutFor(StatGroup.MultiKill)).IsEqualTo(CategoryLayout.Pips);
+        await Assert.That(CategoryBoard.LayoutFor(StatGroup.Damage)).IsEqualTo(CategoryLayout.Table);
+    }
+
+    /// <summary>
+    ///     Composition bars are only comparable if every row shares one maximum. Per-row scaling would
+    ///     draw the player who threw fifty grenades and the one who threw five at the same size, which
+    ///     is the whole failure the form exists to avoid.
+    /// </summary>
+    [Test]
+    public async Task Composition_SharesOneScaleAcrossTheLobby()
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.Utility;
+
+        await Assert.That(vm.IsBoardLayout).IsTrue();
+        await Assert.That(vm.IsCompositionBoard).IsTrue();
+
+        CompositionRow[] rows = vm.BoardSections
+            .SelectMany(s => s.Rows).Cast<CompositionRow>().ToArray();
+        await Assert.That(rows.Length).IsEqualTo(10);
+
+        double max = rows.Max(r => r.Total);
+        foreach (CompositionRow row in rows)
+        {
+            await Assert.That(row.MaxTotal).IsEqualTo(max);
+            await Assert.That(row.IsUtility).IsTrue();
+        }
+
+        // Sorted by volume, so the first row is the one whose bar fills. Asserted on the value rather
+        // than on a name: which player throws the most is a property of the fixture data, and pinning
+        // the name would make this test fail for a reason that has nothing to do with the board.
+        await Assert.That(rows[0].Total).IsEqualTo(max);
+        await Assert.That(rows[0].Total).IsGreaterThanOrEqualTo(rows[1].Total);
+    }
+
+    [Test]
+    public async Task Composition_SwitchesPaletteForWeapons()
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.Weapons;
+
+        CompositionRow row = vm.BoardSections.SelectMany(s => s.Rows).Cast<CompositionRow>().First();
+        await Assert.That(row.IsUtility).IsFalse();
+        await Assert.That(row.IsWeapons).IsTrue();
+    }
+
+    /// <summary>
+    ///     The duel board's arms share one half-scale, and the rate is flagged when too few duels back
+    ///     it. That flag is the point of the form: a bare rate hides volume, and volume is what makes
+    ///     an opening-duel rate mean anything.
+    /// </summary>
+    [Test]
+    public async Task Duels_ShareAScale_AndFlagThinVolume()
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.OpeningDuels;
+
+        await Assert.That(vm.IsDuelBoard).IsTrue();
+
+        DuelRow[] rows = vm.BoardSections.SelectMany(s => s.Rows).Cast<DuelRow>().ToArray();
+        await Assert.That(rows.Length).IsEqualTo(10);
+
+        double extent = rows[0].Extent;
+        foreach (DuelRow row in rows)
+        {
+            await Assert.That(row.Extent).IsEqualTo(extent);
+            await Assert.That(row.LowVolume).IsEqualTo(row.Won + row.Lost < 8);
+        }
+
+        // Sorted by net, so the board opens with whoever won their duels.
+        await Assert.That(rows[0].Won).IsGreaterThan(rows[0].Lost);
+        await Assert.That(rows[^1].Won).IsLessThan(rows[^1].Lost);
+    }
+
+    [Test]
+    public async Task Pips_CountEventsAndRankBusiestFirst()
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.MultiKill;
+
+        await Assert.That(vm.IsPipBoard).IsTrue();
+
+        PipsRow[] rows = vm.BoardSections.SelectMany(s => s.Rows).Cast<PipsRow>().ToArray();
+        await Assert.That(rows[0].PlayerName).IsEqualTo("Alice");
+        await Assert.That(rows[0].Groups.Single(g => g.Label == "ACE").Count).IsEqualTo(1);
+        await Assert.That(rows[0].Groups.Single(g => g.Label == "ACE").IsRare).IsTrue();
+        await Assert.That(rows[0].Groups.Single(g => g.Label == "2K").IsGood).IsFalse();
+    }
+
+    /// <summary>A board whose columns this evaluation never produced falls back to the table.</summary>
+    [Test]
+    public async Task Board_FallsBackToTheTable_WhenItsColumnsAreAbsent()
+    {
+        IReadOnlyList<BoardSection> sections = CategoryBoard.Build(
+            [], [], StatGroup.Utility, new Dictionary<int, int?>(), _ => TeamOutcome.None);
+
+        await Assert.That(sections.Count).IsEqualTo(0);
+    }
+
+    /// <summary>Switching back to a table category must put the column table back.</summary>
+    [Test]
+    public async Task Category_TogglesBetweenBoardAndTable()
+    {
+        StatsTabViewModel vm = BuildVm();
+
+        await Assert.That(vm.IsColumnTable).IsTrue();
+        await Assert.That(vm.IsBoardLayout).IsFalse();
+
+        vm.SelectedCategory = StatGroup.Utility;
+        await Assert.That(vm.IsBoardLayout).IsTrue();
+        await Assert.That(vm.IsColumnTable).IsFalse();
+
+        vm.SelectedCategory = StatGroup.Core;
+        await Assert.That(vm.IsBoardLayout).IsFalse();
+        await Assert.That(vm.IsColumnTable).IsTrue();
+    }
+
+    /// <summary>The Core block no longer rides along on a specialist page.</summary>
+    [Test]
+    public async Task CategoryPage_ShowsOnlyItsOwnColumns()
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.Rating;
+
+        foreach (StatColumn column in vm.Columns)
+        {
+            await Assert.That(ColumnCatalogue.Resolve(column.Label).Group).IsEqualTo(StatGroup.Rating);
+        }
+
+        await Assert.That(vm.Columns.Any(c => c.Label == "TotalK")).IsFalse();
+    }
+
     // ── Render ────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -373,6 +553,60 @@ public class StatsBoardScaleTests
         });
     }
 
+    [Test]
+    [MethodDataSource(nameof(BoardCases))]
+    public async Task Board_Renders(StatGroup category, string name)
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            ThemeVariant? original = Application.Current?.RequestedThemeVariant;
+            try
+            {
+                if (Application.Current is { } app)
+                {
+                    app.RequestedThemeVariant = ThemeVariant.Dark;
+                }
+
+                StatsTabViewModel vm = BuildVm();
+                vm.SelectedCategory = category;
+                await Assert.That(vm.IsBoardLayout).IsTrue();
+
+                Window window = new()
+                {
+                    Width = 1280, Height = 620,
+                    Content = new StatsTabView { DataContext = vm },
+                    RequestedThemeVariant = ThemeVariant.Dark
+                };
+                window.Show();
+                Dispatcher.UIThread.RunJobs();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                Dispatcher.UIThread.RunJobs();
+
+                WriteableBitmap? frame = window.CaptureRenderedFrame();
+                await Assert.That(frame).IsNotNull();
+
+                string outPath = Path.Combine(HeadlessSession.ArtifactDir, $"stats-board-{name}.png");
+                frame!.Save(outPath);
+                Console.WriteLine($"[stats-board-{name}] {outPath}");
+            }
+            finally
+            {
+                if (Application.Current is { } app)
+                {
+                    app.RequestedThemeVariant = original;
+                }
+            }
+        });
+    }
+
+    public static IEnumerable<(StatGroup, string)> BoardCases()
+    {
+        yield return (StatGroup.Utility, "utility");
+        yield return (StatGroup.Weapons, "weapons");
+        yield return (StatGroup.OpeningDuels, "duels");
+        yield return (StatGroup.MultiKill, "multikill");
+    }
+
     // ── Fixture ───────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -423,7 +657,7 @@ public class StatsBoardScaleTests
             List<PerPlayerColumnAssignment> assignments = [];
             List<int> indices = [];
             List<StateNode> nodes = [];
-            foreach (string column in _columns.Concat(_scoreColumns))
+            foreach (string column in _columns.Concat(_scoreColumns).Concat(_boardColumns))
             {
                 StubNode node = new($"{_roster[p].Name}_{column}");
                 indices.Add(tracked.Count);
@@ -450,6 +684,12 @@ public class StatsBoardScaleTests
             bool isCt = _roster[p].Team == 3;
             vec[colIdx[p][_columns.Length]] = Snap(isCt ? ctRoundWins : 0);
             vec[colIdx[p][_columns.Length + 1]] = Snap(isCt ? 0 : tRoundWins);
+
+            for (int b = 0; b < _boardColumns.Length; b++)
+            {
+                vec[colIdx[p][_columns.Length + _scoreColumns.Length + b]] =
+                    Snap(BoardValue(_boardColumns[b], p));
+            }
         }
 
         EvaluationResult result = new(

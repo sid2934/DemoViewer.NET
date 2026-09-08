@@ -189,6 +189,55 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     /// <summary>Sort glyph for the player header column.</summary>
     public string PlayerSortGlyph => !IsSortedByPlayer ? "" : _sortDescending ? " ▼" : " ▲";
 
+    /// <summary>
+    ///     The non-table board for the selected category, team-sectioned. Empty when the category is a
+    ///     table or when the columns its layout needs are not in this evaluation's output.
+    /// </summary>
+    public IReadOnlyList<BoardSection> BoardSections { get; private set; } = [];
+
+    /// <summary>Colour key for a composition board. Empty for every other layout.</summary>
+    public IReadOnlyList<StatSegment> BoardLegend { get; private set; } = [];
+
+    /// <summary>Whether the board has a colour key to show.</summary>
+    public bool HasBoardLegend => BoardLegend.Count > 0;
+
+    /// <summary>Which shape the selected category asks for.</summary>
+    public CategoryLayout ActiveLayout => CategoryBoard.LayoutFor(SelectedCategory);
+
+    /// <summary>True when the scoreboard is showing a non-table board instead of the column table.</summary>
+    public bool IsBoardLayout => IsMatchView && IsTableVisible && BoardSections.Count > 0;
+
+    /// <summary>True when the column table is the right thing to show.</summary>
+    public bool IsColumnTable => IsTableVisible && !IsBoardLayout;
+
+    /// <summary>Composition boards draw a stacked bar per player.</summary>
+    public bool IsCompositionBoard => IsBoardLayout && ActiveLayout == CategoryLayout.Composition;
+
+    /// <summary>Utility gets its own slot palette; weapons get another.</summary>
+    public bool IsUtilityBoard => IsCompositionBoard && SelectedCategory == StatGroup.Utility;
+
+    /// <summary>Duel boards draw a diverging bar per player.</summary>
+    public bool IsDuelBoard => IsBoardLayout && ActiveLayout == CategoryLayout.Diverging;
+
+    /// <summary>Pip boards draw one mark per event.</summary>
+    public bool IsPipBoard => IsBoardLayout && ActiveLayout == CategoryLayout.Pips;
+
+    /// <summary>
+    ///     One line explaining how to read the board. These forms are less conventional than a table,
+    ///     and a shape nobody can read is worse than the table it replaced.
+    /// </summary>
+    public string BoardCaption => ActiveLayout switch
+    {
+        CategoryLayout.Composition when SelectedCategory == StatGroup.Utility =>
+            "Bar length is how much was thrown; the split is what. Widest bar threw the most.",
+        CategoryLayout.Composition =>
+            "Bar length is total kills; the split is by weapon class.",
+        CategoryLayout.Diverging =>
+            "Opening deaths left of the line, opening kills right. Length is the count, not the rate.",
+        CategoryLayout.Pips => "One mark per round.",
+        _ => ""
+    };
+
     /// <summary>The match's top three by rating, for the podium strip. Empty when no rating column.</summary>
     public IReadOnlyList<PodiumEntry> Podium { get; private set; } = [];
 
@@ -389,6 +438,22 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         RebuildRoundRows();
     }
 
+    /// <summary>Re-announces every derived layout flag the view switches on.</summary>
+    private void NotifyLayout()
+    {
+        OnPropertyChanged(nameof(BoardSections));
+        OnPropertyChanged(nameof(ActiveLayout));
+        OnPropertyChanged(nameof(IsBoardLayout));
+        OnPropertyChanged(nameof(IsColumnTable));
+        OnPropertyChanged(nameof(IsCompositionBoard));
+        OnPropertyChanged(nameof(IsUtilityBoard));
+        OnPropertyChanged(nameof(IsDuelBoard));
+        OnPropertyChanged(nameof(IsPipBoard));
+        OnPropertyChanged(nameof(BoardCaption));
+        OnPropertyChanged(nameof(BoardLegend));
+        OnPropertyChanged(nameof(HasBoardLegend));
+    }
+
     /// <summary>Selects a category chip.</summary>
     [RelayCommand]
     private void SelectCategory(CategoryChip chip) => SelectedCategory = chip.Group;
@@ -413,10 +478,19 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Categories));
     }
 
-    /// <summary>The category-filtered projection: Core anchor ∪ the selected group, catalogue order.</summary>
+    /// <summary>
+    ///     The category-filtered projection: just the selected group, in catalogue order.
+    ///     <para>
+    ///         <b>The Core block is no longer anchored into every page.</b> It used to ride along so a
+    ///         specialist page still had K/D/A/ADR/KAST/Rating for context, but that is six columns of
+    ///         the same information on every page, pushing the columns the page actually exists for off
+    ///         to the right. A page called Utility should be about utility; the player's name is the only
+    ///         context it needs, and Overview is one click away.
+    ///     </para>
+    /// </summary>
     private List<string> VisibleColumns(List<string> fullOrder) =>
         fullOrder
-            .Where(c => ColumnCatalogue.Resolve(c).Group is var g && (g == StatGroup.Core || g == SelectedCategory))
+            .Where(c => ColumnCatalogue.Resolve(c).Group == SelectedCategory)
             .ToList();
 
     /// <summary>Steps the round browser to the previous live round.</summary>
@@ -742,17 +816,36 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         Podium = BuildPodium(GameTable.Rows);
         OnPropertyChanged(nameof(Podium));
         OnPropertyChanged(nameof(HasPodium));
+
+        // Built from the FULL column set, not the visible one: a category board asks for the columns
+        // its own layout needs, and the category filter has already narrowed the visible list to the
+        // same group anyway.
+        BoardSections = CategoryBoard.Build(GameTable.Rows, _gameColumnOrder, SelectedCategory,
+            _teamScoreBySort, sort => OutcomeFor(sort, _teamScoreBySort));
+        BoardLegend = BoardSections.Count > 0
+            ? CategoryBoard.Legend(_gameColumnOrder, SelectedCategory)
+            : [];
+        NotifyLayout();
         OnPropertyChanged(nameof(GameRows));
         OnPropertyChanged(nameof(TeamSections));
         OnPropertyChanged(nameof(CurrentRows));
     }
 
-    /// <summary>The scoreboard convention: kills descending when a kills column exists, else name.</summary>
+    /// <summary>
+    ///     The scoreboard convention: kills descending when a kills column exists.
+    ///     <para>
+    ///         Now that a category page no longer carries the Core block, most pages have no kills column
+    ///         at all, and falling through to a name sort would open every specialist page in alphabetical
+    ///         order. The page's FIRST column is the one it is named after, so that becomes the key.
+    ///     </para>
+    /// </summary>
     private static (string? Key, bool Descending) DefaultSort(List<string> visibleOrder)
     {
         string? kills = visibleOrder.FirstOrDefault(c => string.Equals(c, "Kills", StringComparison.OrdinalIgnoreCase))
                         ?? visibleOrder.FirstOrDefault(c => string.Equals(c, "TotalK", StringComparison.OrdinalIgnoreCase));
-        return (kills, kills is not null);
+        return kills is not null
+            ? (kills, true)
+            : (visibleOrder.FirstOrDefault(), visibleOrder.Count > 0);
     }
 
     /// <summary>

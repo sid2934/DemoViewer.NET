@@ -474,3 +474,65 @@ page.
 
 **One style deleted:** `TextBlock.statsGroupBand` had no consumers left, having been suppressed when the
 category chips took over naming the group.
+
+---
+
+## 13. Category boards: when a table is the wrong shape (v0.8.1)
+
+Two changes, one small and one structural.
+
+### The Core block no longer rides along
+
+`VisibleColumns` used to return `Core union SelectedCategory`, so K/D/A/ADR/KAST/Rating appeared on every
+page. Six columns of the same context on a page called Utility, pushing the columns the page exists for
+off to the right. A specialist page now shows only its own group; the player's name is the context it
+needs, and Overview is one click away.
+
+That changes the default sort, because most pages no longer have a kills column: `DefaultSort` now falls
+through to the page's FIRST column rather than to the player name, so a page opens ranked by the thing
+it is named after.
+
+### Some groups are not lists
+
+Three of the groups are not a set of independent numbers at all, and a table makes the reader
+reassemble them:
+
+| Group | What the data actually is | Form |
+|---|---|---|
+| Utility, Weapons | A **composition**: what, and how much | One stacked bar per player. Bar LENGTH is volume on a scale shared across the lobby; the split is the mix. |
+| Opening Duels | A **contest**: won against lost, out of attempts | Losses left of a break-even line, wins right, both on one shared half-scale. |
+| Multi-kills, Objectives | Small **ordinal counts**, usually 0-3 | One mark per event. |
+
+Everything else stays a table, which is the right form for a set of unrelated numbers.
+
+**Why the composition bar needs a shared maximum.** Without one, every bar is full width and only the
+internal split differs, so a player who threw fifty grenades and one who threw five draw the same bar.
+`SegmentedBar.MaxTotal` turns bar length into volume, which means one shape now carries two facts.
+
+**Why the diverging bar is the answer to the opening-duel problem.** The benchmark research established
+that an opening-duel win rate is pinned at exactly 50% by definition and therefore says nothing without
+attempt volume: two duels won of two reads 100%. The bar shows the counts, so volume is visible as
+length, and the rate is dimmed below the eight-duel gate rather than hidden. The number is real; the
+conclusion someone would draw from it is not.
+
+**Why pips.** For a column that is usually 0 and occasionally 3, a numeric column is mostly whitespace,
+and zero and one look nearly identical while scanning. Marks make the count a length. Past twelve the
+strip gives up and writes the number, because a row of forty dots is worse than "40".
+
+### Two rules these boards keep
+
+- **The whole lobby stays on screen, still sectioned by team.** Only the form of the middle column
+  changes; this is the same page, not a different one.
+- **No view model holds a colour.** A composition row names its colour by palette SLOT, and
+  `Styles/Stats.axaml` maps slots to tokens per category (`.utility`, `.weapons`). The colour key is
+  itself a `SegmentedBar` reading the same palette, so a legend cannot disagree with the bars it
+  explains.
+
+### Known gaps
+
+- Round Wins is a contest too (CT won/lost, T won/lost) and would suit a pair of diverging bars, but it
+  is two contests per player and the row shape is not settled. Still a table.
+- Damage has an accuracy ratio inside it (`HitFoe / Shots`) that no column expresses; a hit-rate form
+  would need the engine to emit the ratio or the projector to compute it.
+- The boards are scoreboard-only. The Rounds view stays a table, which is right: a single round has no
+  volume to compare.

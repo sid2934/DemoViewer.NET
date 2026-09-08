@@ -384,7 +384,7 @@
                  A table with no container reads as part of the chrome; a card reads as content. -->
             <Border Grid.Row="3"
                     Classes="boardCard"
-                    IsVisible="{Binding IsTableVisible}">
+                    IsVisible="{Binding IsColumnTable}">
             <ScrollViewer HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Disabled">
                 <Grid RowDefinitions="Auto,*">
@@ -474,6 +474,165 @@
                     </ScrollViewer>
                 </Grid>
             </ScrollViewer>
+            </Border>
+
+            <!-- ══ Non-table category boards ═══════════════════════════════════════════════════
+                 Some groups of columns are not a list of numbers, they are one shape counted several
+                 ways, and a table makes the reader reassemble it. Utility and Weapons are a
+                 COMPOSITION (what, and how much); Opening Duels is a CONTEST (won against lost, out of
+                 attempts); Multi-kills and Objectives are small ORDINAL counts where a numeric column
+                 is mostly whitespace and zero looks like one.
+
+                 Every board keeps the whole lobby on screen and keeps the team sectioning, so it is
+                 still the same page: only the form of the middle column changes. -->
+            <Border Grid.Row="3"
+                    Classes="boardCard"
+                    IsVisible="{Binding IsBoardLayout}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="16 12">
+
+                        <!-- These forms are less conventional than a table, and a shape nobody can
+                             read is worse than the table it replaced. -->
+                        <DockPanel Margin="0 0 0 12">
+                            <!-- The key IS a SegmentedBar, so it cannot disagree with the bars it
+                                 explains: same control, same slot palette, equal-width segments. -->
+                            <statsCtl:SegmentedBar DockPanel.Dock="Right"
+                                                   Segments="{Binding BoardLegend}"
+                                                   IsVisible="{Binding HasBoardLegend}"
+                                                   Classes.utility="{Binding IsUtilityBoard}"
+                                                   Classes.weapons="{Binding !IsUtilityBoard}"
+                                                   Width="330" Height="20" Gap="2" FontSize="10"
+                                                   VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding BoardCaption}" Classes="boardCaption"
+                                       Margin="0" VerticalAlignment="Center" />
+                        </DockPanel>
+
+                        <ItemsControl ItemsSource="{Binding BoardSections}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="stats:BoardSection">
+                                    <StackPanel Margin="0 0 0 16">
+                                        <statsCtl:TeamBadge Team="{Binding Team}"
+                                                            Label="{Binding TeamLabel}"
+                                                            Outcome="{Binding Outcome}"
+                                                            Detail="{Binding ScoreText}"
+                                                            HorizontalAlignment="Left"
+                                                            Margin="0 0 0 6" />
+                                        <ItemsControl ItemsSource="{Binding Rows}">
+                                            <ItemsControl.DataTemplates>
+
+                                                <!-- Composition: bar LENGTH is volume (shared scale
+                                                     across the lobby), the split is the mix. -->
+                                                <DataTemplate x:DataType="stats:CompositionRow">
+                                                    <Grid ColumnDefinitions="234,*,54" Margin="0 5"
+                                                          Classes="boardRow">
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal"
+                                                                    Spacing="8" VerticalAlignment="Center">
+                                                            <TextBlock Text="●" FontSize="9"
+                                                                       Classes="statsBullet"
+                                                                       Classes.ct="{Binding IsCt}"
+                                                                       VerticalAlignment="Center" />
+                                                            <StackPanel VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding PlayerName}"
+                                                                           Classes="statsPlayer" />
+                                                                <TextBlock Text="{Binding Detail}"
+                                                                           Classes="boardDetail" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <statsCtl:SegmentedBar Grid.Column="1"
+                                                                               Segments="{Binding Segments}"
+                                                                               MaxTotal="{Binding MaxTotal}"
+                                                                               Classes.utility="{Binding IsUtility}"
+                                                                               Classes.weapons="{Binding IsWeapons}"
+                                                                               Height="24" Gap="2"
+                                                                               VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="2"
+                                                                   Text="{Binding TotalText}"
+                                                                   Classes="boardTotal" />
+                                                    </Grid>
+                                                </DataTemplate>
+
+                                                <!-- Diverging: losses left of the line, wins right,
+                                                     both on one shared half-scale. The rate is shown
+                                                     but flagged when too few duels back it. -->
+                                                <DataTemplate x:DataType="stats:DuelRow">
+                                                    <Grid ColumnDefinitions="234,*,46,64" Margin="0 5"
+                                                          Classes="boardRow">
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal"
+                                                                    Spacing="8" VerticalAlignment="Center">
+                                                            <TextBlock Text="●" FontSize="9"
+                                                                       Classes="statsBullet"
+                                                                       Classes.ct="{Binding IsCt}"
+                                                                       VerticalAlignment="Center" />
+                                                            <StackPanel VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding PlayerName}"
+                                                                           Classes="statsPlayer" />
+                                                                <TextBlock Text="{Binding VolumeText}"
+                                                                           Classes="boardDetail" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <statsCtl:DivergingBar Grid.Column="1"
+                                                                               Negative="{Binding Lost}"
+                                                                               Positive="{Binding Won}"
+                                                                               Extent="{Binding Extent}"
+                                                                               VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="2"
+                                                                   Text="{Binding NetText}"
+                                                                   Classes="boardTotal" />
+                                                        <TextBlock Grid.Column="3"
+                                                                   Text="{Binding RateText}"
+                                                                   Classes="boardRate"
+                                                                   Classes.unreliable="{Binding LowVolume}"
+                                                                   ToolTip.Tip="Opening-duel win rate. Below eight duels this is not a meaningful number, and is dimmed." />
+                                                    </Grid>
+                                                </DataTemplate>
+
+                                                <!-- Pips: one mark per round. -->
+                                                <DataTemplate x:DataType="stats:PipsRow">
+                                                    <Grid ColumnDefinitions="234,*" Margin="0 5"
+                                                          Classes="boardRow">
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal"
+                                                                    Spacing="8" VerticalAlignment="Center">
+                                                            <TextBlock Text="●" FontSize="9"
+                                                                       Classes="statsBullet"
+                                                                       Classes.ct="{Binding IsCt}"
+                                                                       VerticalAlignment="Center" />
+                                                            <TextBlock Text="{Binding PlayerName}"
+                                                                       Classes="statsPlayer"
+                                                                       VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                        <ItemsControl Grid.Column="1"
+                                                                      ItemsSource="{Binding Groups}"
+                                                                      VerticalAlignment="Center">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <StackPanel Orientation="Horizontal" />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="stats:PipGroup">
+                                                                    <StackPanel Width="92" Spacing="2">
+                                                                        <TextBlock Text="{Binding Label}"
+                                                                                   Classes="boardPipLabel" />
+                                                                        <statsCtl:PipStrip
+                                                                            Count="{Binding Count}"
+                                                                            Classes.good="{Binding IsGood}"
+                                                                            Classes.rare="{Binding IsRare}" />
+                                                                    </StackPanel>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </Grid>
+                                                </DataTemplate>
+
+                                            </ItemsControl.DataTemplates>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
             </Border>
 
             <!-- empty state -->
@@ -643,6 +802,49 @@
         <!-- Category chips: visually distinct PILLS — bordered, rounded, hover
              feedback; the selected chip fills with the interactive accent. One weight lighter than
              the view rail so the sub-rail still reads as secondary navigation. -->
+        <!-- Non-table category boards. -->
+        <Style Selector="TextBlock.boardCaption">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+            <Setter Property="Margin" Value="0 0 0 12" />
+        </Style>
+        <Style Selector="Grid.boardRow">
+            <Setter Property="MinHeight" Value="34" />
+        </Style>
+        <Style Selector="TextBlock.boardDetail">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style Selector="TextBlock.boardTotal">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontFeatures" Value="tnum" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBright}" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="10 0 0 0" />
+        </Style>
+        <Style Selector="TextBlock.boardRate">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontFeatures" Value="tnum" />
+            <Setter Property="Foreground" Value="{DynamicResource TextEntityFieldVal}" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="10 0 0 0" />
+        </Style>
+        <!-- A rate the volume cannot support is dimmed rather than hidden: the number is real, the
+             conclusion people would draw from it is not. -->
+        <Style Selector="TextBlock.boardRate.unreliable">
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+            <Setter Property="FontStyle" Value="Italic" />
+        </Style>
+        <Style Selector="TextBlock.boardPipLabel">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
+        </Style>
+
         <!-- Podium strip. -->
         <Style Selector="TextBlock.podiumRank">
             <Setter Property="FontSize" Value="11" />
