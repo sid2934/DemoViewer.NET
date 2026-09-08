@@ -169,6 +169,7 @@ public class StatValue : StatPresenter
                                              || change.Property == FontWeightProperty
                                              || change.Property == FontStyleProperty
                                              || change.Property == ForegroundProperty
+                                             || change.Property == FontFeaturesProperty
                                              || change.Property == LeaderBrushProperty)
         {
             _formatted = null;
@@ -314,9 +315,23 @@ public class StatValue : StatPresenter
             return null;
         }
 
-        return _formatted ??= new FormattedText(display, CultureInfo.CurrentCulture,
+        if (_formatted is not null)
+        {
+            return _formatted;
+        }
+
+        _formatted = new FormattedText(display, CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight, new Typeface(FontFamily, FontStyle, FontWeight), FontSize,
             Foreground);
+        // Inherited from TemplatedControl, and the one that matters is `tnum`. The board runs in the
+        // proportional UI face, and without tabular figures a column of numbers stops lining up under
+        // itself, which is exactly the comparison a scoreboard exists to support.
+        if (FontFeatures is { Count: > 0 } features)
+        {
+            _formatted.SetFontFeatures(features);
+        }
+
+        return _formatted;
     }
 
     private FormattedText BuildStar() =>

@@ -447,3 +447,30 @@ gallery before treating it as settled.
   badge; it is a flat table by design.
 - `Highlights`, `Vision` and keyed extra tables have no `ColumnMeta` at all and are unscaled.
 - `StatTileItem` (view-model record) vs `StatTile` (control) are still one letter apart.
+
+---
+
+## 12. Visual pass (v0.8.1)
+
+The board worked but read as a terminal. The specific causes, in order of how much they mattered:
+
+| Was | Now | Why |
+|---|---|---|
+| Monospace 10-11px everywhere, including player names and section labels | The app's proportional face, with **`tnum` on every number** | The reason a stats board can be monospace is column alignment. Tabular figures give that back without spending the rest of the page on it. `TemplatedControl` already carries `FontFeatures`, and `FormattedText.SetFontFeatures` reaches the drawn cells. |
+| 21px rows with zebra striping | 32px rows, no zebra, hairline separators and a hover fill | Zebra is a workaround for rows too tight to track across. It also fought the cell bars, which are themselves a background fill; two competing backgrounds per row is one too many. |
+| Three chrome bands above the data | One toolbar plus the category tabs | View switch, status and export were three bars of similar weight and none read as primary. Merging recovers about 40px. |
+| Table drawn directly on the panel | Table on its own raised card | A table with no container reads as chrome. A card reads as content. |
+| Bars filling the full row height | Bars inset 6px vertically | Full-height fills made every cell read as a button, and a grid of buttons is louder than the numbers it exists to support. |
+| Header gutter 10px, cell gutter 14px | Both 14px | Every column label sat four pixels off its own numbers. |
+| Italic totals row | Same size, semibold, dim | Italic reads as an aside; the totals line is a summary. |
+
+The player-details overlay got the same treatment. It renders **inside** the Stats tab, so leaving it
+monospace would have dropped the reader back into the old look the moment they opened a player.
+
+**Two things kept the monospace face on purpose.** The Highlights chain tag (`clutch_1v3`) is an engine
+identifier the user can type into a ruleset, not prose, and a code-like thing should look like one. The
+`.mono` design-system class is untouched everywhere else in the app; this pass was scoped to the Stats
+page.
+
+**One style deleted:** `TextBlock.statsGroupBand` had no consumers left, having been suppressed when the
+category chips took over naming the group.

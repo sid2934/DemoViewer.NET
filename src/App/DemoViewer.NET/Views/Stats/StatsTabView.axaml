@@ -33,7 +33,7 @@
                     </ContextMenu>
                 </Border.ContextMenu>
                 <StackPanel Orientation="Horizontal">
-                    <StackPanel Orientation="Horizontal" Width="170">
+                    <StackPanel Orientation="Horizontal" Width="200">
                         <TextBlock Text="{Binding Bullet}" Width="16" FontSize="9"
                                    VerticalAlignment="Center"
                                    Classes="statsBullet"
@@ -76,92 +76,87 @@
          column set is dynamic (follows the loaded rules), so header and cells are ItemsControls
          sharing one fixed column width instead of a fixed-AXAML Grid. -->
     <Border Background="{DynamicResource PanelBg}">
-        <!-- Rows: view switch | context bar | category rail | podium | body. -->
-        <Grid RowDefinitions="Auto,Auto,Auto,Auto,*">
+        <!-- Rows: toolbar | category rail | podium | body. -->
+        <Grid RowDefinitions="Auto,Auto,Auto,*">
 
-            <!-- ── Primary rail: segmented view switch + power-user table picker ── -->
+            <!-- ── Toolbar: view switch, per-view context, status and export, in ONE band ──
+                 This used to be two stacked bars. Three bands of similar weight sat above the data
+                 (view switch, context, category tabs) and none of them read as the primary one.
+                 Collapsing the first two recovers about 40px and leaves a single primary nav. -->
             <Border Grid.Row="0"
                     Background="{DynamicResource PanelHeaderBg}"
                     BorderBrush="{DynamicResource BorderSubtle}"
                     BorderThickness="0 0 0 1"
-                    Padding="14 5">
-                <StackPanel Orientation="Horizontal" Spacing="4">
-                    <ToggleButton Content="Scoreboard"
-                                  IsChecked="{Binding IsMatchView, Mode=OneWay}"
-                                  Command="{Binding ShowMatchViewCommand}"
-                                  Classes="statsview"
-                                  ToolTip.Tip="End-of-match scoreboard (one row per player)" />
-                    <ToggleButton Content="Rounds"
-                                  IsChecked="{Binding IsRoundView, Mode=TwoWay}"
-                                  Classes="statsview"
-                                  ToolTip.Tip="Per-round breakdown" />
-                    <ToggleButton Content="Highlights"
-                                  IsChecked="{Binding IsHighlightsView, Mode=TwoWay}"
-                                  Classes="statsview"
-                                  ToolTip.Tip="Chain satisfactions — multi-kills, clutches, and any user-defined achievement chains" />
-                    <ToggleButton Content="Vision"
-                                  IsChecked="{Binding IsVisibilityView, Mode=TwoWay}"
-                                  IsVisible="{Binding HasVisibilityStats}"
-                                  Classes="statsview"
-                                  ToolTip.Tip="3D line-of-sight stats — time exposed to / could see enemies (recomputed LOS, not the spotted bit)" />
+                    Padding="16 9">
+                <DockPanel LastChildFill="True">
 
-                    <!-- Power-user overflow: any declared outputs:/keyed table this evaluation produced. -->
-                    <ComboBox ItemsSource="{Binding ExtraTables}"
-                              SelectedItem="{Binding SelectedExtraTable, Mode=TwoWay}"
-                              IsVisible="{Binding HasExtraTables}"
-                              PlaceholderText="More ⌄"
-                              MinWidth="110" Margin="10 0 0 0"
-                              FontFamily="Consolas,Menlo,monospace" FontSize="11"
-                              ToolTip.Tip="Declared outputs and keyed breakdowns (e.g. per-weapon kills)">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="output:MetricTable">
-                                <TextBlock Text="{Binding Name}"
-                                           FontFamily="Consolas,Menlo,monospace" FontSize="11" />
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-                </StackPanel>
-            </Border>
-
-            <!-- ── Context bar: only what the active view needs, export lives quietly right ── -->
-            <Border Grid.Row="1"
-                    Background="{DynamicResource PanelHeaderBg}"
-                    BorderBrush="{DynamicResource BorderSubtle}"
-                    BorderThickness="0 0 0 1"
-                    Padding="14 3">
-                <DockPanel>
-                    <!-- right: export -->
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
-                        <Button Content="⧉ CSV"
+                    <!-- Export sits quietly at the far right: it is an action on the page, not part
+                         of navigating it. -->
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6"
+                                VerticalAlignment="Center">
+                        <Button Content="Export CSV"
                                 Click="OnExportCsvClick"
                                 IsEnabled="{Binding HasStats}"
                                 Classes="statsexport"
                                 ToolTip.Tip="Export every stats table as CSV to a folder" />
-                        <Button Content="⧉ JSON"
+                        <Button Content="JSON"
                                 Click="OnExportJsonClick"
                                 IsEnabled="{Binding HasStats}"
                                 Classes="statsexport"
                                 ToolTip.Tip="Export every stats table as JSON to a folder" />
                     </StackPanel>
 
-                    <!-- left: per-view context -->
-                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <!-- Rounds: ◄ N ► stepper -->
-                        <StackPanel Orientation="Horizontal" Spacing="2"
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <ToggleButton Content="Scoreboard"
+                                      IsChecked="{Binding IsMatchView, Mode=OneWay}"
+                                      Command="{Binding ShowMatchViewCommand}"
+                                      Classes="statsview"
+                                      ToolTip.Tip="End-of-match scoreboard (one row per player)" />
+                        <ToggleButton Content="Rounds"
+                                      IsChecked="{Binding IsRoundView, Mode=TwoWay}"
+                                      Classes="statsview"
+                                      ToolTip.Tip="Per-round breakdown" />
+                        <ToggleButton Content="Highlights"
+                                      IsChecked="{Binding IsHighlightsView, Mode=TwoWay}"
+                                      Classes="statsview"
+                                      ToolTip.Tip="Chain satisfactions: multi-kills, clutches, and any user-defined achievement chains" />
+                        <ToggleButton Content="Vision"
+                                      IsChecked="{Binding IsVisibilityView, Mode=TwoWay}"
+                                      IsVisible="{Binding HasVisibilityStats}"
+                                      Classes="statsview"
+                                      ToolTip.Tip="3D line-of-sight stats: time exposed to / could see enemies (recomputed LOS, not the spotted bit)" />
+
+                        <!-- Power-user overflow: any declared outputs:/keyed table this evaluation produced. -->
+                        <ComboBox ItemsSource="{Binding ExtraTables}"
+                                  SelectedItem="{Binding SelectedExtraTable, Mode=TwoWay}"
+                                  IsVisible="{Binding HasExtraTables}"
+                                  PlaceholderText="More"
+                                  MinWidth="110" Margin="6 0 0 0" FontSize="12"
+                                  ToolTip.Tip="Declared outputs and keyed breakdowns (e.g. per-weapon kills)">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="output:MetricTable">
+                                    <TextBlock Text="{Binding Name}" FontSize="12" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+
+                        <Rectangle Classes="divider" Width="1" Height="18" Margin="8 0" />
+
+                        <!-- Rounds: round stepper -->
+                        <StackPanel Orientation="Horizontal" Spacing="3"
                                     IsVisible="{Binding IsRoundView}">
-                            <Button Content="◄" Command="{Binding PrevRoundCommand}"
+                            <Button Content="&#x25C0;" Command="{Binding PrevRoundCommand}"
                                     Classes="statsexport" ToolTip.Tip="Previous round" />
                             <ComboBox ItemsSource="{Binding Rounds}"
                                       SelectedItem="{Binding SelectedRound, Mode=TwoWay}"
-                                      MinWidth="70"
-                                      FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                      MinWidth="72" FontSize="12"
                                       ToolTip.Tip="Round number" />
-                            <Button Content="►" Command="{Binding NextRoundCommand}"
+                            <Button Content="&#x25B6;" Command="{Binding NextRoundCommand}"
                                     Classes="statsexport" ToolTip.Tip="Next round" />
                         </StackPanel>
 
                         <!-- Vision: one-time compute action + busy -->
-                        <Button Content="Compute visibility…"
+                        <Button Content="Compute visibility"
                                 Command="{Binding ComputeVisibilityCommand}"
                                 IsVisible="{Binding CanComputeVisibility}"
                                 IsEnabled="{Binding !IsComputingVisibility}"
@@ -169,12 +164,12 @@
                                 ToolTip.Tip="One-time 3D line-of-sight replay over the whole demo (a few seconds); adds the visibility tables to the view and the export" />
                         <ProgressBar IsIndeterminate="True"
                                      IsVisible="{Binding IsComputingVisibility}"
-                                     Width="90" Height="10"
+                                     Width="90" Height="4"
                                      VerticalAlignment="Center" />
 
                         <TextBlock Text="{Binding StatusMessage}"
-                                   FontFamily="Consolas,Menlo,monospace" FontSize="11"
-                                   Foreground="{DynamicResource TextDimGray}"
+                                   Classes="statsStatus" MaxWidth="420"
+                                   TextTrimming="CharacterEllipsis"
                                    VerticalAlignment="Center" />
                     </StackPanel>
                 </DockPanel>
@@ -182,7 +177,7 @@
 
             <!-- ── Category sub-rail: one chip per StatGroup in the active view;
                      visible columns = Core anchor ∪ selected group. Table views only. ── -->
-            <Border Grid.Row="2"
+            <Border Grid.Row="1"
                     Background="{DynamicResource PanelHeaderBg}"
                     BorderBrush="{DynamicResource BorderSubtle}"
                     BorderThickness="0 0 0 1"
@@ -211,7 +206,7 @@
 
             <!-- ── Extra table (F2/F3): generic renderer for any picked outputs:/keyed table —
                      dimension columns then value columns, cells preformatted by the VM ── -->
-            <ScrollViewer Grid.Row="4"
+            <ScrollViewer Grid.Row="3"
                           IsVisible="{Binding IsExtraTableView}"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Disabled">
@@ -265,7 +260,7 @@
             <!-- ── Table (one horizontal scroll owns header + rows so they stay aligned;
                      rows scroll vertically inside) ──────────────────────────── -->
             <!-- ── Highlights: the chain-satisfaction log (achievements view) ── -->
-            <ScrollViewer Grid.Row="4"
+            <ScrollViewer Grid.Row="3"
                           IsVisible="{Binding IsHighlightsView}"
                           HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">
@@ -293,7 +288,7 @@
 
             <!-- ══ 3D visibility view (F4): per-player LOS table; the directed pairs
                      table ships in the export alongside it ══ -->
-            <Grid Grid.Row="4"
+            <Grid Grid.Row="3"
                   RowDefinitions="Auto,*"
                   IsVisible="{Binding IsVisibilityView}"
                   Margin="14 6">
@@ -354,11 +349,11 @@
                  image cache), so three tall cards would be three portrait-shaped holes. The ring
                  shows the HLTV rating ITSELF, not a delta: the reference's +11.96 is a delta against
                  their own baseline, and we have no such baseline to subtract. -->
-            <Border Grid.Row="3"
+            <Border Grid.Row="2"
                     Background="{DynamicResource PanelBg}"
                     BorderBrush="{DynamicResource BorderSubtle}"
                     BorderThickness="0 0 0 1"
-                    Padding="14 6"
+                    Padding="16 10"
                     IsVisible="{Binding HasPodium}">
                 <ItemsControl ItemsSource="{Binding Podium}">
                     <ItemsControl.ItemsPanel>
@@ -385,20 +380,23 @@
                 </ItemsControl>
             </Border>
 
-            <ScrollViewer Grid.Row="4"
-                          HorizontalScrollBarVisibility="Auto"
-                          VerticalScrollBarVisibility="Disabled"
-                          IsVisible="{Binding IsTableVisible}">
+            <!-- The board sits on its own raised surface rather than directly on the panel.
+                 A table with no container reads as part of the chrome; a card reads as content. -->
+            <Border Grid.Row="3"
+                    Classes="boardCard"
+                    IsVisible="{Binding IsTableVisible}">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Disabled">
                 <Grid RowDefinitions="Auto,*">
 
                     <!-- header: sortable player column + per-column two-line header
                          (group band label over friendly name + sort glyph) -->
                     <Border Grid.Row="0"
-                            Background="{DynamicResource PanelHeaderBg}"
-                            BorderBrush="{DynamicResource BorderStrong}"
+                            Background="Transparent"
+                            BorderBrush="{DynamicResource BorderSubtle}"
                             BorderThickness="0 0 0 1">
-                        <StackPanel Orientation="Horizontal" Margin="10 0">
-                            <Button Width="170"
+                        <StackPanel Orientation="Horizontal" Margin="16 0">
+                            <Button Width="200"
                                     Command="{Binding SortByPlayerCommand}"
                                     Classes="statsHeadBtn" VerticalAlignment="Bottom"
                                     ToolTip.Tip="Sort by player name">
@@ -424,7 +422,7 @@
                                             <!-- Group-band label suppressed — the category chip
                                                  already names the group. -->
                                             <StackPanel Orientation="Horizontal" Spacing="1"
-                                                        HorizontalAlignment="Right" Margin="0 0 10 0">
+                                                        HorizontalAlignment="Right" Margin="0 0 14 0">
                                                 <TextBlock Text="{Binding Display}" Classes="statsHeadText" />
                                                 <TextBlock Text="{Binding SortGlyph}" Classes="statsHeadGlyph" />
                                             </StackPanel>
@@ -439,7 +437,7 @@
                     <ScrollViewer Grid.Row="1"
                                   HorizontalScrollBarVisibility="Disabled"
                                   VerticalScrollBarVisibility="Auto">
-                        <Panel Margin="10 2">
+                        <Panel Margin="16 6">
                             <!-- Scoreboard: CT/T sections, zebra rows, per-team totals -->
                             <ItemsControl ItemsSource="{Binding TeamSections}"
                                           IsVisible="{Binding IsMatchView}">
@@ -476,20 +474,21 @@
                     </ScrollViewer>
                 </Grid>
             </ScrollViewer>
+            </Border>
 
             <!-- empty state -->
-            <TextBlock Grid.Row="4"
+            <TextBlock Grid.Row="3"
                        Text="{Binding StatusMessage}"
                        IsVisible="{Binding !HasStats}"
                        HorizontalAlignment="Center" VerticalAlignment="Center"
-                       FontFamily="Consolas,Menlo,monospace" FontSize="12"
+                       FontSize="13"
                        Foreground="{DynamicResource TextDimGray}" />
 
             <!-- ── Player-details overlay (docs/ui/player-details-ux-design.md): spans the whole
                      tab so the scoreboard underneath is fully occluded and non-interactive while
                      its state (sort/category/scroll) stays frozen. Inline overlay, never a Window
                      (WASM parity). Esc closes; opened from a row double-tap / context menu. ── -->
-            <Border Grid.Row="0" Grid.RowSpan="5"
+            <Border Grid.Row="0" Grid.RowSpan="4"
                     x:Name="PlayerDetailsHost"
                     Background="{DynamicResource ShellBg}"
                     IsVisible="{Binding IsPlayerDetailsOpen}"
@@ -503,34 +502,46 @@
     </Border>
 
     <UserControl.Styles>
+        <!--
+            v0.8.1 visual pass. The page was monospace at 10-11px throughout, including player names
+            and section labels, on 21px zebra-striped rows with no surface separation. That reads as a
+            terminal. It now runs in the app's proportional UI face with `tnum` on every number, so the
+            columns still line up on the digit while names and labels become legible at a glance.
+        -->
         <Style Selector="TextBlock.statsHead">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="9" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style Selector="TextBlock.statsHeadText">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextLabelAlt}" />
+        </Style>
+        <!-- Toolbar status line: present but never competing with the navigation beside it. -->
+        <Style Selector="TextBlock.statsStatus">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextDimGray}" />
+        </Style>
+        <!-- The board's own surface. Raised off the panel, so the table reads as content rather
+             than as more chrome. -->
+        <Style Selector="Border.boardCard">
+            <Setter Property="Background" Value="{DynamicResource CardBg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Margin" Value="14 10 14 14" />
+            <Setter Property="ClipToBounds" Value="True" />
         </Style>
         <Style Selector="TextBlock.statsHeadGlyph">
             <Setter Property="FontSize" Value="9" />
             <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
         </Style>
-        <!-- Thin group-band label over the first column of each group (Combat / Damage / …). -->
-        <Style Selector="TextBlock.statsGroupBand">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="8" />
-            <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
-            <Setter Property="Margin" Value="0 0 0 1" />
-        </Style>
         <Style Selector="Button.statsHeadBtn">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="0 3" />
+            <Setter Property="Padding" Value="0 10" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalAlignment" Value="Bottom" />
             <Setter Property="Cursor" Value="Hand" />
@@ -538,9 +549,12 @@
         <Style Selector="Button.statsHeadBtn.sorted TextBlock.statsHeadText">
             <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
         </Style>
+        <!-- The plain-text cell, still used by the keyed extra tables, Highlights and Vision, which
+             hold pre-formatted strings and have no scale to draw. Tabular figures here too, or the
+             numeric ones among them stop lining up. -->
         <Style Selector="TextBlock.statsCell">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontFeatures" Value="tnum" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
             <Setter Property="Foreground" Value="{DynamicResource TextEntityFieldVal}" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -555,9 +569,14 @@
              serves the extra-table / highlights / vision lists, which hold pre-formatted strings and
              have no scale to draw. Padding is the column gutter, and the bar respects it. -->
         <Style Selector="statsCtl|StatValue.statsCell">
-            <Setter Property="Padding" Value="0 0 10 0" />
+            <Setter Property="Padding" Value="0 6 14 6" />
             <Setter Property="VerticalAlignment" Value="Stretch" />
-            <Setter Property="MinHeight" Value="17" />
+            <Setter Property="MinHeight" Value="26" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="CornerRadius" Value="3" />
+            <!-- Tabular figures. The board runs in the proportional UI face now, and without tnum a
+                 column of numbers stops lining up under itself. -->
+            <Setter Property="FontFeatures" Value="tnum" />
         </Style>
         <!-- Emphasis fallback for columns with no scale. StatValue paints no foreground when its
              sentiment is neutral, so setting Foreground here is enough and the two never fight.
@@ -579,56 +598,46 @@
         </Style>
         <!-- Player identity reads in the UI font, not monospace. -->
         <Style Selector="TextBlock.statsPlayer">
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="14" />
             <Setter Property="Foreground" Value="{DynamicResource TextBright}" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
+        <!-- Totals read as a quiet summary line, not as an italic aside. -->
         <Style Selector="TextBlock.statsPlayer.totals">
-            <Setter Property="Foreground" Value="{DynamicResource TextDimGray}" />
-            <Setter Property="FontStyle" Value="Italic" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
         </Style>
-        <!-- Row chrome: zebra stripes, hover highlight, totals separator. -->
+        <!-- Row chrome. Zebra striping is GONE: it was a workaround for rows too tight to track
+             across, and at 32px with a hairline separator the eye does not need a second cue. It also
+             fought the cell bars, which are themselves a background fill. -->
         <Style Selector="Border.statsRow">
-            <Setter Property="Padding" Value="0 2" />
+            <Setter Property="Padding" Value="0 3" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="0 0 0 1" />
+        </Style>
+        <!-- Kept as a no-op so IsAlt stays bound and the zebra can be reinstated by value alone. -->
+        <Style Selector="Border.statsRow.alt">
             <Setter Property="Background" Value="Transparent" />
         </Style>
-        <!-- Zebra alt-row: value-identical to the PanelHeaderBg token, reused. -->
-        <Style Selector="Border.statsRow.alt">
-            <Setter Property="Background" Value="{DynamicResource PanelHeaderBg}" />
-        </Style>
         <Style Selector="Border.statsRow:pointerover">
-            <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
         </Style>
         <Style Selector="Border.statsRow.totals">
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}" />
             <Setter Property="BorderThickness" Value="0 1 0 0" />
-            <Setter Property="Margin" Value="0 2 0 0" />
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Margin" Value="0 4 0 0" />
         </Style>
-        <!-- Team section header: side badge strip, CT blue / T amber accent. -->
-        <Style Selector="Border.teamHeader">
-            <Setter Property="Background" Value="{DynamicResource PanelHeaderBg}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentAmber}" />
-            <Setter Property="BorderThickness" Value="2 0 0 0" />
-            <Setter Property="Padding" Value="8 3" />
-            <Setter Property="Margin" Value="0 2" />
-        </Style>
-        <Style Selector="Border.teamHeader.ct">
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
-        </Style>
-        <Style Selector="TextBlock.teamHeaderText">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource AccentAmber}" />
-        </Style>
-        <Style Selector="TextBlock.teamHeaderText.ct">
-            <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
-        </Style>
+        <!-- The teamHeader / teamHeaderText styles are gone with the markup that used them: the
+             section header is a stats:TeamBadge now, and its colours live in Styles/Stats.axaml. -->
         <Style Selector="ToggleButton.statsview, Button.statsexport">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Padding" Value="8 2" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="12 5" />
+            <Setter Property="CornerRadius" Value="6" />
             <Setter Property="Cursor" Value="Hand" />
         </Style>
         <!-- Category chips: visually distinct PILLS — bordered, rounded, hover
@@ -636,16 +645,15 @@
              the view rail so the sub-rail still reads as secondary navigation. -->
         <!-- Podium strip. -->
         <Style Selector="TextBlock.podiumRank">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
         </Style>
         <Style Selector="TextBlock.podiumName">
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontSize" Value="15" />
             <Setter Property="Foreground" Value="{DynamicResource TextBright}" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-            <Setter Property="MaxWidth" Value="150" />
+            <Setter Property="MaxWidth" Value="170" />
         </Style>
 
         <!-- Category sub-navigation. Underlined tabs rather than the filled pills these used to be:
@@ -653,9 +661,8 @@
              this rail is navigation, not data. The selected tab carries an accent underline and
              brighter text; nothing else is filled. -->
         <Style Selector="Button.statscat">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Padding" Value="10 5" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="12 7" />
             <Setter Property="CornerRadius" Value="0" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
