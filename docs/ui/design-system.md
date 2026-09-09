@@ -244,6 +244,7 @@ Use the **dim** end for labels/metadata, the **bright** end for primary values. 
 | `StatNegative` | `#DC5A52` | Strong-bad tier. Deliberately calmer than `AccentError`: a bad stat is a judgement, not a fault. |
 | `StatBarTrack` | `#16162E` | Unfilled part of an in-cell stat bar. |
 | `StatBarFill` | `#33335E` | Filled part. **Neutral by design**, never tinted by sentiment. |
+| `StatSlot0`-`StatSlot5` | see catalogue | The composition bars' **categorical** palette. A different job to the ramp: "which thing", not "how good". Not borrowed accents, so a monochrome theme cannot collapse them into one hue. |
 | `PrimaryButtonHover` | `#252548` | Primary-button hover. |
 
 ### Hex legend swatches (semi-transparent, `BinaryPane`)

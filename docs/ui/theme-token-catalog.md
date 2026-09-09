@@ -68,7 +68,7 @@ dotnet run --project src/App/DemoViewer.NET.UiCapture -- settings --theme egirl
 `--theme` accepts any registry id; a drop-in is re-scanned each run (set `DEMOVIEWER_CONFIG_DIR` to author
 against a scratch folder).
 
-## Token namespace (219 tokens)
+## Token namespace (225 tokens)
 
 Dark is the canonical base; the Dark/Light reference values below are what an omitted token inherits. High-
 impact families for a new theme: **surfaces** (Shell/Panel/Card/Frame/Hex/Primary), the **Text ramp**,
@@ -268,7 +268,7 @@ Tuning tokens for the map-name-hash accent generator. `MapAccentNeutral` is the 
 | `MapAccentNeutral` | `#404068` | `#B0B0C8` |
 | `MapAccentRef` | `#B85353` | `#853535` |
 
-### Stat: `Stat*` (6)
+### Stat: `Stat*` (12)
 
 The stat heat ramp and the in-cell bar, used by the stats component library
 (`Controls/Stats/`, see [stats-components.md](./stats-components.md)).
@@ -293,6 +293,37 @@ a judgement, not a fault, so it is a notch calmer. Stats cells used to borrow `A
 | `StatNegative` | `#DC5A52` | `#C0392B` | Strong bad. |
 | `StatBarTrack` | `#16162E` | `#E4E5EF` | Unfilled part of an in-cell bar. Steps **lighter** than the row on dark and **darker** on light. |
 | `StatBarFill` | `#33335E` | `#C7C9E0` | Filled part. Neutral by design, never tinted by sentiment. |
+
+**Retint the ramp whole, or not at all.** The four accent tiers are one decision. A theme that overrides
+`StatPositive` and inherits `StatPositiveSoft` puts its own vivid colour directly beside the base
+palette's muted one, which reads as a rendering fault rather than as a scale. Omitting the family
+entirely is fine; the base palette is coherent on its own.
+`ThemeRegistryTests.BuiltInThemes_RetintTheWholeStatRamp_OrNoneOfIt` enforces this on the shipped
+themes.
+
+#### The composition slot palette: `StatSlot0-5`
+
+A **categorical** scale, and the opposite job to the ramp above. The ramp answers "how good"; these
+answer "which thing". A sequential ramp ordered by value is exactly wrong for a set of unordered
+categories, so these are a family of their own rather than borrowed accents.
+
+They fill the stacked composition bars (utility mix, kills by weapon class). A view model names a
+colour by SLOT INDEX and never holds a brush, which is what keeps the whole palette inside the theme
+layer.
+
+| Token | Dark | Light |
+|---|---|---|
+| `StatSlot0` | `#5B8FF9` | `#7FA9F5` |
+| `StatSlot1` | `#5AD8A6` | `#6FD3AE` |
+| `StatSlot2` | `#F6BD16` | `#F3CE6B` |
+| `StatSlot3` | `#E8684A` | `#EE9B84` |
+| `StatSlot4` | `#9270CA` | `#B39BDB` |
+| `StatSlot5` | `#6DC8EC` | `#8FD6EE` |
+
+**Authoring note.** Keep these separable by **hue and by lightness**, and do not simply reuse the
+theme's accents. E-Girl did at first, and because its accent family is pink-dominant three of the four
+utility slots collapsed into the same hue. Light-variant values are *lighter* than Dark's rather than
+darker: these are fills that carry near-black `TextOnAccent` labels.
 
 ### Delta: `Delta*` (1)
 

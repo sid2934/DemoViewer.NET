@@ -213,9 +213,6 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     /// <summary>Composition boards draw a stacked bar per player.</summary>
     public bool IsCompositionBoard => IsBoardLayout && ActiveLayout == CategoryLayout.Composition;
 
-    /// <summary>Utility gets its own slot palette; weapons get another.</summary>
-    public bool IsUtilityBoard => IsCompositionBoard && SelectedCategory == StatGroup.Utility;
-
     /// <summary>Duel boards draw a diverging bar per player.</summary>
     public bool IsDuelBoard => IsBoardLayout && ActiveLayout == CategoryLayout.Diverging;
 
@@ -446,7 +443,6 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsBoardLayout));
         OnPropertyChanged(nameof(IsColumnTable));
         OnPropertyChanged(nameof(IsCompositionBoard));
-        OnPropertyChanged(nameof(IsUtilityBoard));
         OnPropertyChanged(nameof(IsDuelBoard));
         OnPropertyChanged(nameof(IsPipBoard));
         OnPropertyChanged(nameof(BoardCaption));

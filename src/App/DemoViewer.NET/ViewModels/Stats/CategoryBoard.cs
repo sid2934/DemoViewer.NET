@@ -55,12 +55,8 @@ public sealed record CompositionRow(
     IReadOnlyList<StatSegment> Segments,
     double Total,
     double MaxTotal,
-    string Detail,
-    bool IsUtility) : IBoardRow
+    string Detail) : IBoardRow
 {
-    /// <summary>Picks the weapon slot palette. Two bools, because a style class binds to one.</summary>
-    public bool IsWeapons => !IsUtility;
-
     /// <inheritdoc />
     public bool IsCt => Team == TeamBadge.TeamCt;
 
@@ -302,7 +298,7 @@ public static class CategoryBoard
             }
 
             built.Add(new CompositionRow(Name(row), TeamOf(row), segments, total, maxTotal,
-                isUtility ? UtilityDetail(row, have) : WeaponDetail(present, row), isUtility));
+                isUtility ? UtilityDetail(row, have) : WeaponDetail(present, row)));
         }
 
         return built.OrderByDescending(r => ((CompositionRow)r).Total).ToList();

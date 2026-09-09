@@ -1,5 +1,6 @@
 #region
 
+using System.Reflection;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -19,6 +20,41 @@ namespace DemoViewer.NET.AppTests;
 [Category("Integration")]
 public class ThemeRegistryTests
 {
+    /// <summary>
+    ///     The stat heat ramp: four accent tiers plus the two in-cell bar tokens. One family, one
+    ///     decision. See docs/ui/theme-token-catalog.md.
+    /// </summary>
+    private static readonly string[] _statRamp =
+    [
+        "StatPositive", "StatPositiveSoft", "StatNegativeSoft", "StatNegative",
+        "StatBarTrack", "StatBarFill"
+    ];
+
+    /// <summary>
+    ///     The embedded built-in theme files, parsed the same way <see cref="ThemeRegistry" /> parses
+    ///     them. Reads the assembly resources rather than the repository, so the test travels with the
+    ///     assembly and cannot drift from what actually ships.
+    /// </summary>
+    private static (string Name, IReadOnlyDictionary<string, Color> Tokens)[] BuiltInThemeFiles()
+    {
+        Assembly asm = typeof(ThemeRegistry).Assembly;
+        List<(string, IReadOnlyDictionary<string, Color>)> found = [];
+        foreach (string resource in asm.GetManifestResourceNames()
+                     .Where(n => n.Contains(".Themes.", StringComparison.Ordinal)
+                                 && n.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(n => n, StringComparer.Ordinal))
+        {
+            using Stream stream = asm.GetManifestResourceStream(resource)!;
+            using StreamReader reader = new(stream);
+            if (ThemeJson.TryParse(reader.ReadToEnd(), resource) is { } def)
+            {
+                found.Add((resource, def.Tokens));
+            }
+        }
+
+        return found.ToArray();
+    }
+
     [Test]
     public async Task CustomVariant_OverrideWins_AndOmittedTokensInheritBase()
     {
@@ -54,6 +90,55 @@ public class ThemeRegistryTests
                 registry.Uninstall(Application.Current!);
             }
         });
+    }
+
+    /// <summary>
+    ///     The whole stat heat ramp is one decision, so a theme retints all of it or none of it.
+    ///     <para>
+    ///         A HALF-retinted ramp is worse than an un-retinted one. High-Contrast overrode
+    ///         <c>StatPositive</c> to a neon green and inherited the default muted teal for
+    ///         <c>StatPositiveSoft</c>, which put a vivid strong-good tier directly beside a washed-out
+    ///         mild-good tier and read as a rendering fault rather than as a scale. Omitting the family
+    ///         entirely is fine; the base palette is coherent on its own.
+    ///     </para>
+    ///     <para>
+    ///         Asserted against the theme FILES rather than against resolved brushes, because the file is
+    ///         where the mistake gets made and a resolved value cannot tell an inherited token from one
+    ///         that happens to match.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task BuiltInThemes_RetintTheWholeStatRamp_OrNoneOfIt()
+    {
+        foreach ((string name, IReadOnlyDictionary<string, Color> tokens) in BuiltInThemeFiles())
+        {
+            string[] present = _statRamp.Where(tokens.ContainsKey).ToArray();
+            if (present.Length == 0)
+            {
+                continue;
+            }
+
+            string[] missing = _statRamp.Except(present, StringComparer.Ordinal).ToArray();
+            await Assert.That(missing).IsEmpty()
+                .Because($"{name} retints {present.Length} of the {_statRamp.Length} Stat ramp tokens; "
+                         + $"missing: {string.Join(", ", missing)}");
+        }
+    }
+
+    /// <summary>Both shipped alternates carry the ramp, so neither renders a scale it did not choose.</summary>
+    [Test]
+    public async Task BuiltInThemes_BothCarryTheStatRamp()
+    {
+        (string Name, IReadOnlyDictionary<string, Color> Tokens)[] files = BuiltInThemeFiles();
+
+        await Assert.That(files.Length).IsEqualTo(2);
+        foreach ((string name, IReadOnlyDictionary<string, Color> tokens) in files)
+        {
+            foreach (string key in _statRamp)
+            {
+                await Assert.That(tokens.ContainsKey(key)).IsTrue().Because($"{name} is missing {key}");
+            }
+        }
     }
 
     [Test]

@@ -143,6 +143,18 @@
                  substrate under the text, not as a second foreground. -->
             <SolidColorBrush x:Key="StatBarTrack" Color="#16162E" />
             <SolidColorBrush x:Key="StatBarFill" Color="#33335E" />
+            <!-- Composition-bar slot palette: a CATEGORICAL scale, not a sequential one. The heat ramp
+                 above answers "how good"; these answer "which thing", and the two have opposite jobs. A
+                 sequential ramp ordered by value is exactly wrong for a set of unordered categories, and
+                 borrowing the semantic accents for it (as this did at first) makes a monochrome theme
+                 collapse three slots into the same hue. Chosen to stay separable by hue AND by lightness.
+                 Six is the ceiling: past that a stacked bar stops being readable anyway. -->
+            <SolidColorBrush x:Key="StatSlot0" Color="#5B8FF9" />
+            <SolidColorBrush x:Key="StatSlot1" Color="#5AD8A6" />
+            <SolidColorBrush x:Key="StatSlot2" Color="#F6BD16" />
+            <SolidColorBrush x:Key="StatSlot3" Color="#E8684A" />
+            <SolidColorBrush x:Key="StatSlot4" Color="#9270CA" />
+            <SolidColorBrush x:Key="StatSlot5" Color="#6DC8EC" />
             <SolidColorBrush x:Key="PrimaryButtonHover" Color="#252548" />
             <SolidColorBrush x:Key="DeltaRowBg" Color="#25FFC107" />
 
@@ -519,6 +531,14 @@
                  where on dark both step lighter. Same role, opposite direction, like the hover tokens. -->
             <SolidColorBrush x:Key="StatBarTrack" Color="#E4E5EF" />
             <SolidColorBrush x:Key="StatBarFill" Color="#C7C9E0" />
+            <!-- Lightened rather than darkened: these are FILLS carrying near-black label text
+                 (TextOnAccent), so on light they want to stay pale enough for that text to read. -->
+            <SolidColorBrush x:Key="StatSlot0" Color="#7FA9F5" />
+            <SolidColorBrush x:Key="StatSlot1" Color="#6FD3AE" />
+            <SolidColorBrush x:Key="StatSlot2" Color="#F3CE6B" />
+            <SolidColorBrush x:Key="StatSlot3" Color="#EE9B84" />
+            <SolidColorBrush x:Key="StatSlot4" Color="#B39BDB" />
+            <SolidColorBrush x:Key="StatSlot5" Color="#8FD6EE" />
             <SolidColorBrush x:Key="PrimaryButtonHover" Color="#D0D0EE" />
             <!-- KEPT (unused in live markup; an amber tint reads as a warm wash on both dark and light rows). -->
             <SolidColorBrush x:Key="DeltaRowBg" Color="#25FFC107" />

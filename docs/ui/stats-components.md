@@ -1,4 +1,4 @@
-# Stats component library (v0.8.1)
+ # Stats component library (v0.8.1)
 
 Scope: the reusable UI primitives the overhauled Stats team view and player view will be built from.
 Sections 1 to 8 are the research pass that decided what to build, what to buy, and what each piece owes
@@ -576,3 +576,33 @@ add up to is already on the team badge, which is the right place for a team fact
 
 `ColumnCatalogue.IsPlayerFacing` is the seam. Any future group that describes the team rather than the
 player goes through it rather than being deleted.
+
+---
+
+## 15. Everything goes through the theme layer (v0.8.1)
+
+Audited after the boards landed. The mechanism was already sound and one thing was not.
+
+**Sound.** No stats surface holds a colour. The only construction of a brush in the whole feature is
+`StatValue`'s chip fill, and that is the cell's own accent token at reduced alpha, so it tracks the
+theme. Theme files are a free-form `{ key: "#RRGGBB" }` dictionary and `ThemeRegistry.RegisterCustom`
+iterates whatever the theme supplies, so a new token is retintable the moment it exists, with nothing
+to register.
+
+**Not sound: the built-in themes carried a half-retinted ramp.** High-Contrast and E-Girl both
+overrode `StatPositive` and inherited the other five, so a neon strong-good tier sat beside the base
+palette's muted mild-good. Both now carry the whole family, and a test enforces all-or-nothing on the
+shipped themes.
+
+**Not sound: the composition palette was borrowed accents.** The slots read `AccentInteractive`,
+`AccentCaution` and `StatNegative`, which meant a theme could not tune them independently and a
+monochrome theme could not tune them at all: under E-Girl three of the four utility slots collapsed
+into the pink family. They are now `StatSlot0`-`StatSlot5`, a categorical family of their own.
+
+That also let the two per-category style classes go. One palette serves every composition board,
+because a slot means "the first thing, the second thing", which is not category-specific.
+
+**Verified by rendering**, not by inspection: the column table and a composition board under every
+shipped theme, with an assertion that the ramp resolves to the theme's value rather than the base
+palette's. High-Contrast additionally drops the "calmer than an error" distinction the default palette
+keeps between `StatNegative` and `AccentError`; on that theme legibility outranks the nuance.

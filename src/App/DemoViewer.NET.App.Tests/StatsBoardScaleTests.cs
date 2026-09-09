@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Styling;
@@ -14,6 +15,7 @@ using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Controls.Stats;
+using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Stats;
 using DemoViewer.NET.Views.Stats;
 
@@ -400,7 +402,6 @@ public class StatsBoardScaleTests
         foreach (CompositionRow row in rows)
         {
             await Assert.That(row.MaxTotal).IsEqualTo(max);
-            await Assert.That(row.IsUtility).IsTrue();
         }
 
         // Sorted by volume, so the first row is the one whose bar fills. Asserted on the value rather
@@ -410,15 +411,33 @@ public class StatsBoardScaleTests
         await Assert.That(rows[0].Total).IsGreaterThanOrEqualTo(rows[1].Total);
     }
 
+    /// <summary>
+    ///     Segments name their colour by palette SLOT and never carry a brush. That is what keeps the
+    ///     categorical palette inside the theme layer: a view model that held a colour would be a colour
+    ///     no theme could reach.
+    /// </summary>
     [Test]
-    public async Task Composition_SwitchesPaletteForWeapons()
+    public async Task Composition_NamesColoursBySlot_NeverByBrush()
     {
         StatsTabViewModel vm = BuildVm();
-        vm.SelectedCategory = StatGroup.Weapons;
 
-        CompositionRow row = vm.BoardSections.SelectMany(s => s.Rows).Cast<CompositionRow>().First();
-        await Assert.That(row.IsUtility).IsFalse();
-        await Assert.That(row.IsWeapons).IsTrue();
+        foreach (StatGroup category in new[] { StatGroup.Utility, StatGroup.Weapons })
+        {
+            vm.SelectedCategory = category;
+            CompositionRow row = vm.BoardSections.SelectMany(x => x.Rows)
+                .Cast<CompositionRow>().First(r => r.Segments.Count > 1);
+
+            foreach (StatSegment segment in row.Segments)
+            {
+                await Assert.That(segment.Brush).IsNull().Because($"{category} segment holds a brush");
+                await Assert.That(segment.Slot).IsGreaterThanOrEqualTo(0);
+                await Assert.That(segment.Slot).IsLessThan(6);
+            }
+
+            // Distinct slots within a row, or two categories would share a colour on one bar.
+            int[] slots = row.Segments.Select(seg => seg.Slot).ToArray();
+            await Assert.That(slots.Distinct().Count()).IsEqualTo(slots.Length);
+        }
     }
 
     /// <summary>
@@ -696,6 +715,73 @@ public class StatsBoardScaleTests
                 }
             }
         });
+    }
+
+    /// <summary>
+    ///     The board under every shipped theme. Renders through a real <see cref="ThemeRegistry" /> so the
+    ///     custom variants resolve exactly as they do in the app, and asserts the ramp actually retints:
+    ///     a token the theme overrode must NOT still be painting its Dark default.
+    /// </summary>
+    [Test]
+    [MethodDataSource(nameof(ThemeCases))]
+    public async Task Board_RendersUnderEveryShippedTheme(string themeId, string expectedPositive)
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            ThemeVariant? original = Application.Current?.RequestedThemeVariant;
+            try
+            {
+                ThemeRegistry registry = new();
+                registry.Install(Application.Current!);
+                ThemeVariant variant = registry.VariantFor(themeId);
+                Application.Current!.RequestedThemeVariant = variant;
+
+                // The ramp resolves to the THEME's value, not the base palette's.
+                Application.Current.TryGetResource("StatPositive", variant, out object? positive);
+                await Assert.That((positive as ISolidColorBrush)?.Color)
+                    .IsEqualTo(Color.Parse(expectedPositive));
+
+                // The column table AND a composition board: the board pulls four separate tokens
+                // through the slot palette, which the table never touches.
+                foreach ((StatGroup category, string suffix) in
+                         new[] { (StatGroup.Core, "table"), (StatGroup.Utility, "utility") })
+                {
+                    StatsTabViewModel vm = BuildVm();
+                    vm.SelectedCategory = category;
+
+                    Window window = new()
+                    {
+                        Width = 1280, Height = 620,
+                        Content = new StatsTabView { DataContext = vm },
+                        RequestedThemeVariant = variant
+                    };
+                    window.Show();
+                    Dispatcher.UIThread.RunJobs();
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    Dispatcher.UIThread.RunJobs();
+
+                    WriteableBitmap? frame = window.CaptureRenderedFrame();
+                    await Assert.That(frame).IsNotNull();
+                    string outPath = Path.Combine(HeadlessSession.ArtifactDir,
+                        $"stats-theme-{themeId}-{suffix}.png");
+                    frame!.Save(outPath);
+                    Console.WriteLine($"[stats-theme-{themeId}-{suffix}] {outPath}");
+                }
+            }
+            finally
+            {
+                if (Application.Current is { } app)
+                {
+                    app.RequestedThemeVariant = original;
+                }
+            }
+        });
+    }
+
+    public static IEnumerable<(string, string)> ThemeCases()
+    {
+        yield return ("high-contrast", "#00E676");
+        yield return ("egirl", "#5AE0A0");
     }
 
     public static IEnumerable<(StatGroup, string)> BoardCases()

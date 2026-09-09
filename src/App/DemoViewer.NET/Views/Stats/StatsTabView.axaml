@@ -512,8 +512,6 @@
                             <statsCtl:SegmentedBar DockPanel.Dock="Right"
                                                    Segments="{Binding BoardLegend}"
                                                    IsVisible="{Binding HasBoardLegend}"
-                                                   Classes.utility="{Binding IsUtilityBoard}"
-                                                   Classes.weapons="{Binding !IsUtilityBoard}"
                                                    Width="330" Height="20" Gap="2" FontSize="10"
                                                    VerticalAlignment="Center" />
                             <TextBlock Text="{Binding BoardCaption}" Classes="boardCaption"
@@ -554,8 +552,6 @@
                                                         <statsCtl:SegmentedBar Grid.Column="1"
                                                                                Segments="{Binding Segments}"
                                                                                MaxTotal="{Binding MaxTotal}"
-                                                                               Classes.utility="{Binding IsUtility}"
-                                                                               Classes.weapons="{Binding IsWeapons}"
                                                                                Height="24" Gap="2"
                                                                                VerticalAlignment="Center" />
                                                         <TextBlock Grid.Column="2"
