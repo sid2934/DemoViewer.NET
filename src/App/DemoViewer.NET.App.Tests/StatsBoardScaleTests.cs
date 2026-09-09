@@ -72,6 +72,7 @@ public class StatsBoardScaleTests
     [
         "Flash", "Smokes", "HE", "Molly", "EFlash", "AvgBlind",
         "TotalFK", "TotalFD",
+        "TeamDmg", "SelfDmg",
         "2K", "3K", "4K", "5K",
         "Rifle", "AWP", "SMG", "Pistol", "Knife"
     ];
@@ -101,6 +102,11 @@ public class StatsBoardScaleTests
         // has to be seen dimming one.
         "TotalFK" => i == 7 ? 2 : Math.Max(0, 9 - i),
         "TotalFD" => i == 7 ? 1 : 2 + i,
+        // Penalty columns, shaped for the two ends of the leader-marker rule. Team damage is the
+        // ordinary case: almost nobody does any, so the good bound is where most of the lobby already
+        // sits. Self damage puts exactly two players on the bound, which IS a lead worth marking.
+        "TeamDmg" => i == 4 ? 63 : i == 9 ? 21 : 0,
+        "SelfDmg" => i < 2 ? 0 : 5 + i,
         "2K" => Math.Max(0, 6 - (i / 2)),
         "3K" => Math.Max(0, 3 - (i / 3)),
         "4K" => i == 0 ? 2 : i == 4 ? 1 : 0,
@@ -365,6 +371,170 @@ public class StatsBoardScaleTests
         vm.SortByColumnCommand.Execute(vm.Columns.Single(c => c.Label == "TotalD"));
 
         await Assert.That(vm.Podium.Select(e => e.Name)).IsEquivalentTo(before);
+    }
+
+    /// <summary>
+    ///     The podium ranks the SCOREBOARD, so it goes away with it. It is drawn in a band above the
+    ///     body rows rather than inside them, so gating it on content alone left "the match's top three"
+    ///     hanging over the highlights list, the vision table and the keyed extra tables, none of which
+    ///     it is ranking.
+    /// </summary>
+    [Test]
+    public async Task Podium_HidesOnTheViewsItDoesNotRank()
+    {
+        StatsTabViewModel vm = BuildVm();
+        await Assert.That(vm.IsPodiumVisible).IsTrue();
+
+        vm.IsHighlightsView = true;
+        await Assert.That(vm.HasPodium).IsTrue();
+        await Assert.That(vm.IsPodiumVisible).IsFalse();
+
+        vm.IsHighlightsView = false;
+        vm.IsVisibilityView = true;
+        await Assert.That(vm.IsPodiumVisible).IsFalse();
+
+        vm.IsVisibilityView = false;
+        await Assert.That(vm.IsPodiumVisible).IsTrue();
+
+        // Rounds keeps it, which is the behaviour it has always had. Pinned so that a later decision to
+        // drop it there is a deliberate one rather than a side effect of tidying this gate.
+        vm.IsRoundView = true;
+        await Assert.That(vm.IsPodiumVisible).IsTrue();
+    }
+
+    // ── Leader marker ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     A star has to mark a minority. On a penalty column the best value is also the ORDINARY one:
+    ///     eight of ten players did no team damage, so the domain's good end is zero and, on the bound
+    ///     test alone, eight rows won an award for doing nothing. Two players tied at the good end is a
+    ///     real lead and still stars.
+    /// </summary>
+    [Test]
+    public async Task Leader_MarksAMinority_NotEveryoneOnTheBound()
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.Damage;
+
+        // Eight of ten sit on zero. The scale still has a domain (two players did damage), so this is
+        // not the everyone-tied case the domain check already handles.
+        StatCell teamDmg = Cell(vm, "Alice", "TeamDmg");
+        await Assert.That(teamDmg.Numeric).IsEqualTo(0);
+        await Assert.That(teamDmg.Scale!.HasDomain).IsTrue();
+        await Assert.That(teamDmg.Scale.Min).IsEqualTo(0);
+        await Assert.That(teamDmg.IsLeader).IsFalse();
+
+        // Exactly two on the bound: both lead, both starred.
+        await Assert.That(Cell(vm, "Alice", "SelfDmg").IsLeader).IsTrue();
+        await Assert.That(Cell(vm, "Bravo", "SelfDmg").IsLeader).IsTrue();
+        await Assert.That(Cell(vm, "Juliet", "SelfDmg").IsLeader).IsFalse();
+    }
+
+    // ── Layout notifications ──────────────────────────────────────────────────
+
+    /// <summary>
+    ///     What one flag was worth EACH TIME it was announced, over the course of <paramref name="act" />.
+    ///     <para>
+    ///         <b>These tests subscribe to PropertyChanged, and that is the whole point.</b> Every layout
+    ///         flag is a computed getter, and a getter is always correct: read one after any of these
+    ///         transitions and it returns the right answer whether or not it was ever announced. A
+    ///         binding re-reads on the notification and on nothing else, so a missing announcement is
+    ///         invisible to a test that asserts on values. Both defects here shipped green for exactly
+    ///         that reason.
+    ///     </para>
+    ///     <para>
+    ///         The recorded VALUE matters, not just the name. Update() announces the layout flags from
+    ///         inside the row rebuild, which runs before it knows whether there were any rows, so a
+    ///         name-only recorder sees IsColumnTable announced and calls it covered while every
+    ///         announcement carried false. The invariant that catches that is the last thing the view
+    ///         was told equalling what is actually true when the dust settles.
+    ///     </para>
+    /// </summary>
+    private static List<bool> Announcements(StatsTabViewModel vm, string property, Func<bool> read,
+        Action act)
+    {
+        List<bool> seen = [];
+        void OnChanged(object? _, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (string.Equals(e.PropertyName, property, StringComparison.Ordinal))
+            {
+                seen.Add(read());
+            }
+        }
+
+        vm.PropertyChanged += OnChanged;
+        try
+        {
+            act();
+        }
+        finally
+        {
+            vm.PropertyChanged -= OnChanged;
+        }
+
+        return seen;
+    }
+
+    /// <summary>
+    ///     Loading a demo announces that the table is now showable. Update() rebuilds the rows BEFORE it
+    ///     knows whether there were any, so the layout flags are first announced while HasStats is still
+    ///     false. Without a second announcement the scoreboard binding latches hidden and the table
+    ///     never appears at all, for the whole session, on a page that is otherwise fully populated.
+    /// </summary>
+    [Test]
+    public async Task FirstLoad_AnnouncesThatTheTableCanShow()
+    {
+        StatsTabViewModel vm = new(null, () => "/demos/match.dem");
+        (EvaluationResult result, ParsedDemo demo) = BuildScenario(13, 9);
+
+        List<bool> seen = Announcements(vm, nameof(StatsTabViewModel.IsColumnTable),
+            () => vm.IsColumnTable, () => vm.Update(result, demo));
+
+        // The table IS showable, and the last thing the view heard has to say so. Announcing it while
+        // the rows were still being counted does not count: that announcement carried false.
+        await Assert.That(vm.IsColumnTable).IsTrue();
+        await Assert.That(seen).IsNotEmpty();
+        await Assert.That(seen[^1]).IsTrue();
+    }
+
+    /// <summary>
+    ///     Switching view mode announces the board flags too. A category board and the round table are
+    ///     drawn by different panels gated on different flags, so leaving IsCompositionBoard stale left
+    ///     the utility board painted over the rounds it does not describe.
+    /// </summary>
+    [Test]
+    [Arguments("Rounds")]
+    [Arguments("Highlights")]
+    [Arguments("Vision")]
+    public async Task ViewSwitch_AnnouncesTheBoardFlags(string target)
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.Utility;
+        await Assert.That(vm.IsCompositionBoard).IsTrue();
+
+        void Switch()
+        {
+            switch (target)
+            {
+                case "Rounds":
+                    vm.IsRoundView = true;
+                    break;
+                case "Highlights":
+                    vm.IsHighlightsView = true;
+                    break;
+                default:
+                    vm.IsVisibilityView = true;
+                    break;
+            }
+        }
+
+        List<bool> board = Announcements(vm, nameof(StatsTabViewModel.IsCompositionBoard),
+            () => vm.IsCompositionBoard, Switch);
+
+        // The utility board is gone, and the panel drawing it has to have been told so.
+        await Assert.That(vm.IsCompositionBoard).IsFalse();
+        await Assert.That(board).IsNotEmpty();
+        await Assert.That(board[^1]).IsFalse();
     }
 
     // ── Non-table category boards ─────────────────────────────────────────────

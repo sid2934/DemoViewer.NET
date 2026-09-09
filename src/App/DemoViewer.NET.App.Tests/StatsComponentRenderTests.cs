@@ -337,6 +337,144 @@ public class StatsComponentRenderTests
         });
     }
 
+    // ── What Render leaves behind ─────────────────────────────────────────────
+
+    /// <summary>
+    ///     Measuring after a constrained render must still report the text's NATURAL width.
+    ///     <para>
+    ///         Render and Measure share one cached <c>FormattedText</c>, and Render narrows it to the
+    ///         cell (MaxTextWidth, then a one-line trim) so a long value ellipses instead of wrapping.
+    ///         Reading Width back out of that same instance returns the ELLIPSED width, so every layout
+    ///         pass measures narrower than the last and the cell walks itself down toward the width of
+    ///         the ellipsis. The bug needs a second layout pass to show, which is why it survives an
+    ///         eyeball on a static screenshot.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task StatValue_MeasuringAfterARender_StillReportsTheNaturalWidth()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            const double hostWidth = 34;
+            StatValue cell = new()
+            {
+                Text = "1234.5678", FontSize = 13, Height = 20
+            };
+
+            // A fixed-width column, which is what every scoreboard cell lives in.
+            _ = CaptureControl(new Border
+            {
+                Width = hostWidth,
+                Child = cell
+            }, "stats-cell-measure-stability");
+
+            cell.InvalidateMeasure();
+            cell.Measure(Size.Infinity);
+            double natural = cell.DesiredSize.Width;
+
+            // Nine digits and a point cannot fit in 34px at 13pt: an unconstrained measure has to ask
+            // for more than the box it was just squeezed into.
+            await Assert.That(natural).IsGreaterThan(hostWidth);
+
+            // And it must be STABLE. A single pass that happens to be right is not the property here.
+            cell.InvalidateMeasure();
+            cell.Measure(Size.Infinity);
+            await Assert.That(cell.DesiredSize.Width).IsEqualTo(natural).Within(0.01);
+        });
+    }
+
+    /// <summary>
+    ///     A cell that loses its accent must lose the colour with it.
+    ///     <para>
+    ///         The brush is baked into the cached text, and Render only ever pushed a NON-null accent
+    ///         into it. So a cell that was green and then fell back into the neutral band (a re-sort, a
+    ///         rebuilt scale, a column whose colour gate closed) kept painting the judgement it no
+    ///         longer holds. Withdrawing a colour is as much a state as applying one.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task StatValue_WhenTheAccentIsWithdrawn_RepaintsWithoutIt()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            // Magenta, because no palette token is near it: any hit is this brush and nothing else.
+            const uint accentRgb = 0xFF00FF;
+            StatValue cell = new()
+            {
+                Mode = StatValueMode.Plain,
+                Value = 1.8, Minimum = 0, Maximum = 2, Format = "0.00",
+                FontSize = 22, Width = 90, Height = 32,
+                PositiveBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0x00, 0xFF)),
+                Foreground = Brushes.White
+            };
+
+            Window window = BuildWindow(cell);
+            WriteableBitmap accented = Render(window)!;
+            int before = FrameProbe.CountPixels(FrameProbe.ToBytes(accented), accentRgb);
+            await Assert.That(before).IsGreaterThan(0);
+
+            // The whole domain becomes the dead zone, so the same value is now judged neutral.
+            cell.NeutralLow = 0;
+            cell.NeutralHigh = 2;
+            await Assert.That(cell.Accent).IsNull();
+
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Dispatcher.UIThread.RunJobs();
+            WriteableBitmap plain = window.CaptureRenderedFrame()!;
+            plain.Save(Path.Combine(HeadlessSession.ArtifactDir, "stats-cell-accent-withdrawn.png"));
+
+            await Assert.That(FrameProbe.CountPixels(FrameProbe.ToBytes(plain), accentRgb)).IsEqualTo(0);
+        });
+    }
+
+    /// <summary>
+    ///     Two different counts must not paint identically.
+    ///     <para>
+    ///         The strip stopped drawing marks at the edge of its box, so in the 92px column it was
+    ///         given, nine, ten, eleven and twelve were all eight dots: four distinct facts rendered as
+    ///         one picture, with nothing on screen admitting that anything had been dropped. The cap it
+    ///         declares (MaxPips) was never the real limit; the arranged width was.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task PipStrip_TooNarrowForItsMarks_WritesTheNumberInstead()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            // Room for about four marks, well inside the declared cap of twelve.
+            byte[] nine = CaptureControl(Pips(9, 60), "stats-pips-narrow-9");
+            byte[] twelve = CaptureControl(Pips(12, 60), "stats-pips-narrow-12");
+
+            const uint ink = 0xFF00FF;
+            int nineInk = FrameProbe.CountPixels(nine, ink);
+            int twelveInk = FrameProbe.CountPixels(twelve, ink);
+
+            await Assert.That(nineInk).IsGreaterThan(0);
+            await Assert.That(twelveInk).IsGreaterThan(0);
+            await Assert.That(nineInk).IsNotEqualTo(twelveInk);
+
+            // Given the room, marks are still marks: more of them is more ink.
+            int five = FrameProbe.CountPixels(CaptureControl(Pips(5, 220), "stats-pips-wide-5"), ink);
+            int nineWide = FrameProbe.CountPixels(CaptureControl(Pips(9, 220), "stats-pips-wide-9"), ink);
+            await Assert.That(nineWide).IsGreaterThan(five);
+        });
+    }
+
+    /// <summary>A strip with an unmistakable ink colour, in a box of the given width.</summary>
+    private static Border Pips(int count, double width) =>
+        new()
+        {
+            Width = width,
+            Child = new PipStrip
+            {
+                Count = count,
+                Height = 18,
+                FontSize = 13,
+                PipBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0x00, 0xFF)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x00, 0xFF))
+            }
+        };
+
     // ── Fixtures ──────────────────────────────────────────────────────────────
 
     /// <summary>Every control in every mode, with values shaped like a real scoreboard column.</summary>

@@ -696,3 +696,90 @@ kept because each is a real option a future surface will want, each is exercised
 each is covered by a render test. That is the bar: an unused option earns its place by being reachable,
 demonstrated and tested. `StatDomain.Absolute` is kept on the same terms, as the natural counterpart to
 `Peer` for a metric whose bounds belong to the metric.
+
+---
+
+## 18. Review pass
+
+An independent review over the whole branch, after section 17. Nine findings, all real, all fixed.
+Grouped by what they have in common, because most of them turned out to be the same mistake.
+
+### Four bugs that a test reading a value cannot see
+
+The stats page decides what to draw from computed getters: `IsColumnTable`, `IsBoardLayout`,
+`IsCompositionBoard`. **A getter is always correct.** Read one at any point and it returns the right
+answer, whether or not anything was ever announced. A binding does not read the getter again; it reads
+it once, on the notification. So a missing `PropertyChanged` is invisible to every test that asserts on
+values, and both of the serious findings shipped green underneath a full suite.
+
+- **The scoreboard never appeared on first load.** `Update()` rebuilds the rows before it knows whether
+  there were any, so the layout flags are announced while `HasStats` is still false, and
+  `OnHasStatsChanged` never re-announced them. The table latched hidden for the whole session, on a
+  page that was otherwise fully populated: the toolbar, the category rail and the podium all drew.
+- **Switching Match to Rounds left the board behind.** None of the four view-mode handlers announced
+  the board flags, so the utility composition board stayed painted over the round table.
+- **The podium floated over views it does not rank.** Gated on content alone, so "the match's top
+  three" sat above the highlights list, the vision table and the keyed extra tables.
+- The fix in all three cases is the same shape: `NotifyLayout()` announces the whole derived set, and
+  **every place an INPUT of that set moves** calls it, not only the rebuild that happens to produce the
+  last of them. The inputs are `HasStats`, the four view-mode bools, `SelectedCategory` and
+  `BoardSections`, and each moves somewhere different.
+
+The tests for these subscribe to `PropertyChanged` and record **the value the flag carried each time it
+was announced**, not the names announced. The name alone is not enough: `Update()` does announce
+`IsColumnTable`, from inside the row rebuild, and every one of those announcements carried false. The
+invariant that catches it is *the last thing the view was told equals what is actually true*.
+
+Each was watched failing before the fix went in. Without that step a regression test is decoration.
+
+### A star that marked most of the column
+
+`IsLeader` was derived purely from the scale: sit on the good bound, get a star. On a penalty column
+the good bound is also the ordinary value. Eight of ten players did no team damage, so eight rows won
+an award for doing nothing.
+
+A cell cannot see this, because it cannot see how many of its neighbours are tied with it. The count is
+a fact about the **column**, so it is decided where the peers are already in hand, in
+`BuildColumnScales`, and carried into the cell on `ColumnScale.MarksLeader`. Which end is best still
+comes from the scale, so it cannot drift out of step with the bar.
+
+The rule is a **minority** one, not a uniqueness one: two players genuinely tied for top kills are both
+leading and both get the star; a floor most of the lobby sits on is not a lead at all.
+
+### Three drawing bugs, one cause
+
+All three are a cached `FormattedText` outliving the state it was built from.
+
+- **`StatValue` shrank itself.** `Render` narrows the cached text to the cell so a long value ellipses
+  instead of wrapping, and `MeasureOverride` then read `Width` back off that same instance. Each layout
+  pass measured narrower than the last. It needs a second pass to show, which is why a screenshot never
+  caught it. Measure clears the constraint before reading.
+- **A withdrawn accent kept painting.** `Render` only ever pushed a NON-null accent into the cached
+  text, so a cell that was green and then fell into the neutral band (a re-sort, a rebuilt scale, a
+  colour gate closing) kept the colour after the judgement was gone. Withdrawing a colour is as much a
+  state as applying one; the brush is now set unconditionally.
+- **`PipStrip` kept a stale brush** across a theme switch, because the cache dropped on `Foreground`
+  but the number is drawn with `PipBrush`.
+
+### The declared limit was not the real one
+
+`PipStrip.MaxPips` is 12 and the column is 92px, which holds eight marks. Nine, ten, eleven and twelve
+all rendered as the same eight dots, with nothing on screen admitting anything had been dropped. The
+render test pins the property directly: **two different counts must not paint identically.** Before the
+fix, nine and twelve both measured 170 ink pixels.
+
+The strip now falls back to writing the number whenever the marks do not fit the width it was actually
+given, not only when the count passes the cap it declares.
+
+### And one loose tooltip
+
+`Sparkline` set a per-point tip on move and never cleared it, so it survived the pointer leaving and
+survived the series being swapped for another player's.
+
+### Deliberately left alone
+
+The podium still shows over the **Rounds** table, which is what it has always done. It is built from the
+match table, so it holds still while the round below it changes; whether that reads as a match-level
+header or as a claim about the round on screen is a design question, not this defect. Pinned by a test
+so that changing it later is a decision rather than a side effect.
+

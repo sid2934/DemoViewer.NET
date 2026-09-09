@@ -354,7 +354,7 @@
                     BorderBrush="{DynamicResource BorderSubtle}"
                     BorderThickness="0 0 0 1"
                     Padding="16 10"
-                    IsVisible="{Binding HasPodium}">
+                    IsVisible="{Binding IsPodiumVisible}">
                 <ItemsControl ItemsSource="{Binding Podium}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>

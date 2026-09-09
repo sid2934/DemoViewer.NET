@@ -22,6 +22,9 @@ namespace DemoViewer.NET.Controls.Stats;
 ///     <para>
 ///         Past <see cref="MaxPips" /> the strip stops drawing marks and writes the number instead: a
 ///         row of forty dots is worse than "40", and the whole point was legibility at small counts.
+///         The same fallback fires when the marks simply do not FIT the width the strip was given,
+///         whatever <see cref="MaxPips" /> allows, because the alternative is dropping marks off the
+///         right edge and rendering nine, ten and twelve identically.
 ///     </para>
 /// </summary>
 public class PipStrip : TemplatedControl
@@ -101,7 +104,11 @@ public class PipStrip : TemplatedControl
         set => SetValue(PipGapProperty, value);
     }
 
-    /// <summary>True once the count is too large to draw and the number is written instead.</summary>
+    /// <summary>
+    ///     True once the count is too large to draw and the number is written instead. This is the
+    ///     DECLARED cap only; the arranged width can force the same fallback at a lower count, which
+    ///     <see cref="Render" /> decides once it knows how much room it actually got.
+    /// </summary>
     public bool IsOverflowing => Count > MaxPips;
 
     /// <inheritdoc />
@@ -109,7 +116,7 @@ public class PipStrip : TemplatedControl
     {
         double step = (PipRadius * 2) + PipGap;
         double width = IsOverflowing
-            ? BuildOverflow()?.Width ?? 0
+            ? BuildCountText().Width
             : Math.Max(1, Count) * step;
         return new Size(width + Padding.Left + Padding.Right,
             Math.Max(PipRadius * 2, FontSize) + Padding.Top + Padding.Bottom);
@@ -119,10 +126,23 @@ public class PipStrip : TemplatedControl
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+
+        // The number is cached with its glyphs, its metrics AND its brush baked in, so every input to
+        // any of the three has to drop it. PipBrush is in the list because that is what the number is
+        // drawn with (Foreground is only the fallback): without it a theme switch repaints every pip
+        // and leaves the overflow number in the old theme's colour.
         if (change.Property == CountProperty || change.Property == FontSizeProperty
-                                             || change.Property == ForegroundProperty)
+                                             || change.Property == ForegroundProperty
+                                             || change.Property == PipBrushProperty
+                                             || change.Property == FontFamilyProperty
+                                             || change.Property == FontWeightProperty
+                                             || change.Property == FontStyleProperty)
         {
             _overflow = null;
+        }
+
+        if (change.Property == CountProperty)
+        {
             AutomationProperties.SetName(this, Count.ToString(CultureInfo.InvariantCulture));
         }
     }
@@ -136,20 +156,22 @@ public class PipStrip : TemplatedControl
             return;
         }
 
-        if (IsOverflowing)
-        {
-            if (BuildOverflow() is { } text)
-            {
-                context.DrawText(text,
-                    new Point(content.X, content.Y + ((content.Height - text.Height) / 2)));
-            }
-
-            return;
-        }
-
         double r = Math.Max(1, PipRadius);
         double step = (r * 2) + Math.Max(0, PipGap);
         double cy = content.Y + (content.Height / 2);
+
+        // How many marks the ARRANGED width can hold: the first needs a diameter, each one after it a
+        // further step. Measure asked for enough room, but a fixed-width column does not have to grant
+        // it, and a strip that just stopped drawing at the edge reported nine, ten and twelve as the
+        // same eight dots. Falling back to the number keeps the count readable at any width.
+        int fits = (int)Math.Floor(((content.Width - (r * 2)) / step) + 1);
+        if (IsOverflowing || Count > fits)
+        {
+            FormattedText text = BuildCountText();
+            context.DrawText(text,
+                new Point(content.X, content.Y + ((content.Height - text.Height) / 2)));
+            return;
+        }
 
         // Zero draws a hollow placeholder rather than nothing, so an empty row still reads as a row
         // that was measured rather than one that failed to load.
@@ -170,23 +192,13 @@ public class PipStrip : TemplatedControl
 
         for (int i = 0; i < Count; i++)
         {
-            double cx = content.X + r + (i * step);
-            if (cx + r > content.Right)
-            {
-                break;
-            }
-
-            context.DrawEllipse(brush, null, new Point(cx, cy), r, r);
+            context.DrawEllipse(brush, null, new Point(content.X + r + (i * step), cy), r, r);
         }
     }
 
-    private FormattedText? BuildOverflow()
+    /// <summary>The count written as a number, for whichever of the two overflow paths took it.</summary>
+    private FormattedText BuildCountText()
     {
-        if (!IsOverflowing)
-        {
-            return null;
-        }
-
         return _overflow ??= new FormattedText(Count.ToString(CultureInfo.InvariantCulture),
             CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
             new Typeface(FontFamily, FontStyle, FontWeight), FontSize, PipBrush ?? Foreground);

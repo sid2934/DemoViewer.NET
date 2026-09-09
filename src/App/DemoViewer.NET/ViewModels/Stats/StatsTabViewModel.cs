@@ -238,8 +238,21 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     /// <summary>The match's top three by rating, for the podium strip. Empty when no rating column.</summary>
     public IReadOnlyList<PodiumEntry> Podium { get; private set; } = [];
 
-    /// <summary>Whether the podium strip has anything to show.</summary>
+    /// <summary>Whether the podium has anything to rank.</summary>
     public bool HasPodium => Podium.Count > 0;
+
+    /// <summary>
+    ///     Whether the podium band belongs on screen. It sits above the body rows, so gating it on
+    ///     content alone left "the match's top three" hanging over the Highlights list, the vision table
+    ///     and the keyed extra tables, none of which are the scoreboard it is ranking.
+    ///     <para>
+    ///         It DOES still show over the Rounds table, which is the behaviour it has always had. The
+    ///         strip is built from the match table, so it holds still while the round below it changes,
+    ///         and whether that reads as a match-level header or as a claim about the round on screen is
+    ///         a design question rather than this defect.
+    ///     </para>
+    /// </summary>
+    public bool IsPodiumVisible => HasPodium && IsTableVisible;
 
     /// <summary>CT/T scoreboard sections with per-team totals and derived score.</summary>
     public IReadOnlyList<TeamSection> TeamSections { get; private set; } = [];
@@ -435,9 +448,26 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         RebuildRoundRows();
     }
 
-    /// <summary>Re-announces every derived layout flag the view switches on.</summary>
+    /// <summary>
+    ///     Re-announces every flag the view switches layout on.
+    ///     <para>
+    ///         <b>Call this from every place any INPUT of those flags moves</b>, not only from the
+    ///         rebuild that happens to produce the last of them. They derive from <see cref="HasStats" />,
+    ///         the four view-mode bools, <see cref="SelectedCategory" /> and <see cref="BoardSections" />,
+    ///         and each of those changes somewhere different.
+    ///     </para>
+    ///     <para>
+    ///         Announced together because the failure is silent: a getter is always correct, so a stale
+    ///         flag shows up as a blank panel and never as a wrong value. That is exactly how the
+    ///         scoreboard shipped invisible on first load, with every test passing, because a test reads
+    ///         the getter and a binding reads the notification.
+    ///     </para>
+    /// </summary>
     private void NotifyLayout()
     {
+        OnPropertyChanged(nameof(IsTableView));
+        OnPropertyChanged(nameof(IsTableVisible));
+        OnPropertyChanged(nameof(IsMatchView));
         OnPropertyChanged(nameof(BoardSections));
         OnPropertyChanged(nameof(ActiveLayout));
         OnPropertyChanged(nameof(IsBoardLayout));
@@ -445,6 +475,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsCompositionBoard));
         OnPropertyChanged(nameof(IsDuelBoard));
         OnPropertyChanged(nameof(IsPipBoard));
+        OnPropertyChanged(nameof(IsPodiumVisible));
         OnPropertyChanged(nameof(BoardCaption));
         OnPropertyChanged(nameof(BoardLegend));
         OnPropertyChanged(nameof(HasBoardLegend));
@@ -520,9 +551,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
 
         OnPropertyChanged(nameof(CurrentRows));
         OnPropertyChanged(nameof(CurrentColumns));
-        OnPropertyChanged(nameof(IsTableView));
-        OnPropertyChanged(nameof(IsTableVisible));
-        OnPropertyChanged(nameof(IsMatchView));
+        NotifyLayout();
 
         // The selected category persists across Match↔Rounds only when the target view has
         // that chip; otherwise land on Overview. Rebuild the rail either way (chip sets differ).
@@ -558,15 +587,17 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
             IsExtraTableView = false;
         }
 
-        OnPropertyChanged(nameof(IsTableView));
-        OnPropertyChanged(nameof(IsTableVisible));
-        OnPropertyChanged(nameof(IsMatchView));
+        NotifyLayout();
     }
 
     partial void OnHasStatsChanged(bool value)
     {
-        OnPropertyChanged(nameof(IsTableVisible));
         OnPropertyChanged(nameof(CanComputeVisibility));
+
+        // Update() rebuilds the rows BEFORE it knows whether there were any, so the layout flags are
+        // first announced while this is still false. Without re-announcing here the table stays hidden
+        // for the whole session after the first demo load.
+        NotifyLayout();
     }
 
     partial void OnSelectedExtraTableChanged(MetricTable? value)
@@ -589,9 +620,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
             IsVisibilityView = false;
         }
 
-        OnPropertyChanged(nameof(IsTableView));
-        OnPropertyChanged(nameof(IsTableVisible));
-        OnPropertyChanged(nameof(IsMatchView));
+        NotifyLayout();
     }
 
     private void SetExtraTables(IReadOnlyList<MetricTable> tables)
@@ -793,7 +822,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         // Peers are the whole lobby, both teams: the interesting comparison on a scoreboard is
         // cross-team, and the rows arrive unfiltered here (the category chips filter COLUMNS, not rows).
         // Totals are not in this set at all; they are built afterwards inside BuildTeamSections.
-        Dictionary<string, StatScale?> scales =
+        Dictionary<string, ColumnScale> scales =
             BuildColumnScales(GameTable.Rows, _visibleGameColumnOrder);
 
         List<StatsRow> rows = GameTable.Rows
@@ -1053,7 +1082,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         List<MetricRow> roundRows = RoundTable.Rows
             .Where(r => Convert.ToInt32(r.Dimensions["round_number"], CultureInfo.InvariantCulture) == round)
             .ToList();
-        Dictionary<string, StatScale?> roundScales =
+        Dictionary<string, ColumnScale> roundScales =
             BuildColumnScales(roundRows, _visibleRoundColumnOrder);
 
         RoundRows = roundRows
@@ -1124,16 +1153,16 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     ///         contributes nothing and ends up with no scale, which renders as today's plain cell.
     ///     </para>
     /// </summary>
-    private static Dictionary<string, StatScale?> BuildColumnScales(
+    private static Dictionary<string, ColumnScale> BuildColumnScales(
         IReadOnlyList<MetricRow> rows, List<string> orderedColumns)
     {
-        Dictionary<string, StatScale?> scales = new(orderedColumns.Count, StringComparer.Ordinal);
+        Dictionary<string, ColumnScale> scales = new(orderedColumns.Count, StringComparer.Ordinal);
         List<double> peers = [];
         foreach (string column in orderedColumns)
         {
             if (ColumnCatalogue.Resolve(column).Scale is not { } spec)
             {
-                scales[column] = null;
+                scales[column] = default;
                 continue;
             }
 
@@ -1146,10 +1175,45 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
                 }
             }
 
-            scales[column] = spec.Resolve(peers);
+            StatScale? scale = spec.Resolve(peers);
+            scales[column] = new ColumnScale(scale, scale is not null && LeaderIsDistinctive(peers, scale));
         }
 
         return scales;
+    }
+
+    /// <summary>
+    ///     Whether a column's best value is held by few enough players to be worth starring.
+    ///     <para>
+    ///         The bound alone is not enough. On a penalty column the best value is also the ORDINARY
+    ///         one: nine players did no team damage, so the domain's good end is zero and nine rows
+    ///         qualify. A star on nine of ten rows marks nothing, and worse, it reads as an award for
+    ///         doing nothing.
+    ///     </para>
+    ///     <para>
+    ///         The test is therefore a minority one rather than a uniqueness one. Two players genuinely
+    ///         tied for top kills are both leading and both get the star; a floor that most of the lobby
+    ///         sits on is not a lead at all.
+    ///     </para>
+    /// </summary>
+    private static bool LeaderIsDistinctive(List<double> peers, StatScale scale)
+    {
+        if (!scale.HasDomain || peers.Count == 0)
+        {
+            return false;
+        }
+
+        double best = scale.Polarity == StatPolarity.LowerIsBetter ? scale.Min : scale.Max;
+        int holders = 0;
+        foreach (double peer in peers)
+        {
+            if (Math.Abs(peer - best) < 1e-9)
+            {
+                holders++;
+            }
+        }
+
+        return holders * 2 < peers.Count;
     }
 
     /// <summary>
@@ -1174,7 +1238,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     }
 
     private static StatsRow BuildRow(MetricRow row, List<string> orderedColumns,
-        IReadOnlyDictionary<string, StatScale?>? scales = null)
+        IReadOnlyDictionary<string, ColumnScale>? scales = null)
     {
         string player = row.Dimensions.GetValueOrDefault("player_name")?.ToString() ?? "?";
         int team = row.Dimensions.GetValueOrDefault("team") is { } t
@@ -1185,7 +1249,8 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         foreach (string column in orderedColumns)
         {
             ColumnMeta meta = ColumnCatalogue.Resolve(column);
-            StatScale? scale = scales?.GetValueOrDefault(column);
+            ColumnScale resolved = scales?.GetValueOrDefault(column) ?? default;
+            StatScale? scale = resolved.Scale;
 
             // A gated column keeps the bar and drops the judgement, which is why the polarity is
             // neutered rather than the scale being dropped outright.
@@ -1194,7 +1259,8 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
                 scale = scale with { Polarity = StatPolarity.Neutral };
             }
 
-            cells.Add(new StatCell(row.Values.GetValueOrDefault(column), meta, scale));
+            cells.Add(new StatCell(row.Values.GetValueOrDefault(column), meta, scale,
+                resolved.MarksLeader));
         }
 
         return new StatsRow(player, team, cells)
@@ -1261,9 +1327,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
             IsExtraTableView = false;
         }
 
-        OnPropertyChanged(nameof(IsTableView));
-        OnPropertyChanged(nameof(IsTableVisible));
-        OnPropertyChanged(nameof(IsMatchView));
+        NotifyLayout();
     }
 
     /// <summary>Called at the top of <see cref="Update" />: new evaluation → visibility resets.</summary>
@@ -1619,10 +1683,19 @@ public sealed record VisibilityRow(
 }
 
 /// <summary>
+///     A column's resolved scale together with the one fact about the column that a single cell cannot
+///     see: whether its best value is held by few enough players to be worth a leader star.
+/// </summary>
+/// <param name="Scale">The scale every cell in the column measures against; null for an unscaled column.</param>
+/// <param name="MarksLeader">Whether cells sitting on the good bound should draw the star.</param>
+internal readonly record struct ColumnScale(StatScale? Scale = null, bool MarksLeader = false);
+
+/// <summary>
 ///     One cell: the raw boxed value (for sorting) plus its display string and, when built for a
 ///     catalogued column, the presentation metadata (width, alignment, emphasis).
 /// </summary>
-public sealed record StatCell(object? Raw, ColumnMeta? Meta = null, StatScale? Scale = null)
+public sealed record StatCell(object? Raw, ColumnMeta? Meta = null, StatScale? Scale = null,
+    bool MarksLeader = false)
 {
     /// <summary>
     ///     The numeric value the bar and tint are computed from, or null when this cell holds no number.
@@ -1643,16 +1716,20 @@ public sealed record StatCell(object? Raw, ColumnMeta? Meta = null, StatScale? S
     public bool IsScaled => Scale is not null && Numeric is not null;
 
     /// <summary>
-    ///     True when this cell holds the best value in its column, for the leader marker. Derived from
-    ///     the scale rather than tracked separately: a peer domain's bound IS the best value, so the fact
-    ///     is already in hand and cannot drift out of step with the bar.
+    ///     True when this cell holds the best value in its column AND that lead is worth marking.
+    ///     <para>
+    ///         Which end is best comes from the scale, so it cannot drift out of step with the bar: a
+    ///         peer domain's bound IS the best value. Whether to mark it at all is a fact about the whole
+    ///         column, decided when the scale was built and carried in on <see cref="MarksLeader" />,
+    ///         because a cell cannot see how many of its neighbours are tied with it.
+    ///     </para>
     ///     <para>
     ///         A column where everyone tied has no domain and therefore no leader, which is correct: a
     ///         star on all ten rows marks nothing.
     ///     </para>
     /// </summary>
     public bool IsLeader =>
-        IsScaled && Scale!.HasDomain && Numeric is { } v && Scale.Polarity switch
+        MarksLeader && IsScaled && Scale!.HasDomain && Numeric is { } v && Scale.Polarity switch
         {
             StatPolarity.HigherIsBetter => Math.Abs(v - Scale.Max) < 1e-9,
             StatPolarity.LowerIsBetter => Math.Abs(v - Scale.Min) < 1e-9,

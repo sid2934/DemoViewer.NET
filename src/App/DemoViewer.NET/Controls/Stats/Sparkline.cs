@@ -255,10 +255,30 @@ public class Sparkline : TemplatedControl
         ToolTip.SetTip(this, index >= 0 && index < tips.Count ? tips[index] : null);
     }
 
+    /// <summary>
+    ///     Drops the per-point tip on the way out. Without this the tip set by the last point the
+    ///     pointer crossed stays attached to the control, so the next hover anywhere over the strip
+    ///     flashes the PREVIOUS round's numbers before the move handler replaces them.
+    /// </summary>
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        ToolTip.SetTip(this, null);
+    }
+
     /// <inheritdoc />
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+
+        // A tip names one point of the series that was showing when it was set. Swap the series (a
+        // different player in the details overlay) and it describes a round this strip no longer draws,
+        // so it goes with the data it belonged to.
+        if (change.Property == ValuesProperty || change.Property == PointTooltipsProperty)
+        {
+            ToolTip.SetTip(this, null);
+        }
+
         if (change.Property == ValuesProperty || change.Property == ModeProperty)
         {
             int count = Values?.Count ?? 0;

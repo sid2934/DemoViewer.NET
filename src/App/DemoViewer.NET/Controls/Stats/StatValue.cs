@@ -206,6 +206,16 @@ public class StatValue : StatPresenter
     protected override Size MeasureOverride(Size availableSize)
     {
         FormattedText? text = BuildText();
+
+        // Render CONSTRAINS this same cached instance (MaxTextWidth, then a one-line trim). Reading
+        // Width straight back would return the ELLIPSED width, and the cell would measure narrower on
+        // every pass until it had walked itself down to the width of the ellipsis. Clear the constraint
+        // first, so what is measured is the natural width, which is what measure is being asked for.
+        if (text is not null)
+        {
+            text.MaxTextWidth = double.PositiveInfinity;
+        }
+
         Thickness pad = Padding;
         double w = (text?.Width ?? 0) + pad.Left + pad.Right;
         double h = (text?.Height ?? FontSize) + pad.Top + pad.Bottom;
@@ -296,10 +306,11 @@ public class StatValue : StatPresenter
         // instead of ellipsed. Pinning one line is what turns the constraint into a trim.
         text.MaxLineCount = 1;
         text.Trimming = TextTrimming.CharacterEllipsis;
-        if (accent is not null)
-        {
-            text.SetForegroundBrush(accent);
-        }
+
+        // Unconditionally, the null case included. The brush is baked into the CACHED text, so a cell
+        // that was accented and then fell back into the neutral band (a re-sort, a new scale, a gated
+        // column) would otherwise keep painting the colour it had before the judgement was withdrawn.
+        text.SetForegroundBrush(accent ?? Foreground ?? Brushes.Transparent);
 
         context.DrawText(text, new Point(textArea.X, textArea.Y + ((textArea.Height - text.Height) / 2)));
 
