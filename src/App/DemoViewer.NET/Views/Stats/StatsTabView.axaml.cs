@@ -14,15 +14,29 @@ namespace DemoViewer.NET.Views.Stats;
 ///     Stats tab view. Code-behind exists only for the export folder pickers, which need the
 ///     visual-tree <see cref="TopLevel" /> that a ViewModel deliberately has no access to, and for
 ///     the player-details open gestures (double-tap is a routed event, not a bindable
-///     command; the context-menu item goes through the same guarded command). All table/sort logic
+///     command; the context-menu item goes through the same guarded command), and for keeping the
+///     sticky column header's horizontal offset in step with the rows beneath it. All table/sort logic
 ///     lives in <see cref="StatsTabViewModel" />.
 /// </summary>
 public partial class StatsTabView : UserControl
 {
-    /// <summary>Initializes the view.</summary>
+    /// <summary>Initializes the view and keeps the sticky column header aligned with the rows.</summary>
     public StatsTabView()
     {
         InitializeComponent();
+
+        // The header and the body are separate scrollers so that each gets a correctly-sized viewport
+        // (see the comment in the AXAML: nesting them parked the vertical scrollbar off-screen on any
+        // table wider than its card). Separate scrollers do not share an offset on their own, so the
+        // header is driven from the body here. One-way: the header's own bar is Hidden, so it can
+        // never be the thing that moved.
+        BodyScroll.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == ScrollViewer.OffsetProperty)
+            {
+                HeaderScroll.Offset = HeaderScroll.Offset.WithX(BodyScroll.Offset.X);
+            }
+        };
     }
 
     // ── Player-details open gestures ──────────────────────────────────────────

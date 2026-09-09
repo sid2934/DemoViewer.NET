@@ -21,7 +21,6 @@ public enum StatGroup
     Economy,
     MultiKill,
     RoundWins,
-    Survival,
     Other
 }
 
@@ -343,7 +342,10 @@ public static class ColumnCatalogue
             M("CTL", "CT Losses", StatGroup.RoundWins, "Rounds lost on the CT side", width: 78),
             M("TW", "T Wins", StatGroup.RoundWins, "Rounds won on the T side", width: 60),
             M("TL", "T Losses", StatGroup.RoundWins, "Rounds lost on the T side", width: 70),
-            M("Survived", "Rounds Survived", StatGroup.Survival, "Rounds survived", width: 110),
+            // Folded into Rating, next to Surv%. A category that can only ever hold one column is a
+            // tab that costs a click to show a single number.
+            M("Survived", "Rounds Survived", StatGroup.Rating, "Rounds survived", width: 110,
+                scale: _peerUp),
 
             // ── Rounds view (group:round columns), same treatment, kast.yaml labels ──
             M("Kills", "K", StatGroup.Core, "Kills this round"),
@@ -369,6 +371,19 @@ public static class ColumnCatalogue
 
         return byKey;
     }
+
+    /// <summary>
+    ///     Whether a group describes the PLAYER and so earns a page of its own.
+    ///     <para>
+    ///         <see cref="StatGroup.RoundWins" /> does not. CTW/CTL/TW/TL are properties of the TEAM,
+    ///         replicated onto every one of its player rows, so a per-player page of them shows five
+    ///         identical rows and invites a comparison that cannot exist. The columns stay in the
+    ///         catalogue because the engine emits them, the export carries them, and the team score is
+    ///         derived from them; they just are not a page. The score they add up to is already on the
+    ///         team badge.
+    ///     </para>
+    /// </summary>
+    public static bool IsPlayerFacing(StatGroup group) => group != StatGroup.RoundWins;
 
     /// <summary>
     ///     Resolves presentation metadata for an engine column label. Unknown labels (user-authored

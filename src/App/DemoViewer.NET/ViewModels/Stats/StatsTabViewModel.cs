@@ -464,6 +464,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         List<string> fullOrder = IsRoundView ? _roundColumnOrder : _gameColumnOrder;
         List<CategoryChip> chips = fullOrder
             .Select(c => ColumnCatalogue.Resolve(c).Group)
+            .Where(ColumnCatalogue.IsPlayerFacing)
             .Distinct()
             .OrderBy(g => g == StatGroup.Core ? -1 : (int)g)
             .Select(g => new CategoryChip(g, CategoryChip.LabelFor(g), g == SelectedCategory))
@@ -1442,7 +1443,6 @@ public sealed record CategoryChip(StatGroup Group, string Label, bool IsSelected
         StatGroup.OpeningDuels => "Opening",
         StatGroup.SpecialKills => "Special",
         StatGroup.MultiKill => "Multi-Kill",
-        StatGroup.RoundWins => "Round Wins",
         _ => group.ToString()
     };
 }

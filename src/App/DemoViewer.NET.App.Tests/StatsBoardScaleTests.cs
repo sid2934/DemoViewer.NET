@@ -9,6 +9,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Parser;
@@ -71,6 +72,18 @@ public class StatsBoardScaleTests
         "TotalFK", "TotalFD",
         "2K", "3K", "4K", "5K",
         "Rifle", "AWP", "SMG", "Pistol", "Knife"
+    ];
+
+    /// <summary>
+    ///     User-authored columns: not in the catalogue, so they fall through to StatGroup.Other and get
+    ///     the fallback width. Enough of them, wide enough, to overflow the table and exercise the
+    ///     horizontal scroll that Other is the page most likely to need.
+    /// </summary>
+    private static readonly string[] _otherColumns =
+    [
+        "custom_entry_success_rate", "custom_trade_window_ms", "custom_util_efficiency",
+        "custom_crosshair_placement", "custom_spray_control_index", "custom_economy_discipline",
+        "custom_rotation_speed", "custom_site_hold_rating"
     ];
 
     private static double BoardValue(string column, int i) => column switch
@@ -494,6 +507,93 @@ public class StatsBoardScaleTests
         await Assert.That(vm.Columns.Any(c => c.Label == "TotalK")).IsFalse();
     }
 
+    // ── Category rail ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     Round wins are a TEAM fact replicated onto every player row, so a per-player page of them
+    ///     would show five identical rows and invite a comparison that cannot exist. The columns stay in
+    ///     the catalogue (the engine emits them, the export carries them, the team score is derived from
+    ///     them); they just are not a page.
+    /// </summary>
+    [Test]
+    public async Task CategoryRail_ExcludesTeamScopedGroups()
+    {
+        StatsTabViewModel vm = BuildVm();
+
+        await Assert.That(ColumnCatalogue.IsPlayerFacing(StatGroup.RoundWins)).IsFalse();
+        await Assert.That(ColumnCatalogue.IsPlayerFacing(StatGroup.Utility)).IsTrue();
+        await Assert.That(vm.Categories.Any(c => c.Group == StatGroup.RoundWins)).IsFalse();
+
+        // Still catalogued, so the score derivation and the export keep working.
+        await Assert.That(ColumnCatalogue.Resolve("CTW").Group).IsEqualTo(StatGroup.RoundWins);
+        await Assert.That(vm.TeamSections.Single(t => t.IsCt).Score).IsEqualTo(13);
+    }
+
+    /// <summary>A category that can only ever hold one column is a tab that costs a click for one number.</summary>
+    [Test]
+    public async Task RoundsSurvived_LivesWithTheOtherRatingColumns()
+    {
+        await Assert.That(ColumnCatalogue.Resolve("Survived").Group).IsEqualTo(StatGroup.Rating);
+        await Assert.That(ColumnCatalogue.Resolve("Surv%").Group).IsEqualTo(StatGroup.Rating);
+    }
+
+    // ── Table scrolling ───────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     A table wider than its card must be reachable in BOTH directions.
+    ///     <para>
+    ///         This shipped broken. The body used to be a vertical scroller nested inside a horizontal
+    ///         one, and a nested scroller is laid out at the full CONTENT width rather than the viewport
+    ///         width, which parks its scrollbar permanently off-screen. The Other page had eight columns,
+    ///         five visible, and no way to reach the other three. The assertion that catches it is that
+    ///         the viewport must be SMALLER than the bounds: that gap is the space the scrollbars occupy,
+    ///         and it is zero when they have nowhere to live.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task WideTable_ScrollsInBothDirections()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            StatsTabViewModel vm = BuildVm();
+            vm.SelectedCategory = StatGroup.Other;
+
+            StatsTabView view = new()
+            {
+                DataContext = vm
+            };
+            Window window = new()
+            {
+                Width = 1280, Height = 620, Content = view
+            };
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Dispatcher.UIThread.RunJobs();
+
+            ScrollViewer body = view.GetVisualDescendants().OfType<ScrollViewer>()
+                .Single(sv => sv.Name == "BodyScroll");
+            ScrollViewer header = view.GetVisualDescendants().OfType<ScrollViewer>()
+                .Single(sv => sv.Name == "HeaderScroll");
+
+            // There is genuinely more content than viewport on both axes.
+            await Assert.That(body.Extent.Width).IsGreaterThan(body.Viewport.Width);
+            await Assert.That(body.Extent.Height).IsGreaterThan(body.Viewport.Height);
+
+            // Both scrollbars have somewhere on screen to live.
+            await Assert.That(body.Viewport.Width).IsLessThan(body.Bounds.Width);
+            await Assert.That(body.Viewport.Height).IsLessThan(body.Bounds.Height);
+
+            // The header spans the same content, so the columns can line up with the rows.
+            await Assert.That(header.Extent.Width).IsEqualTo(body.Extent.Width);
+
+            // And it follows the body when the body moves.
+            body.Offset = body.Offset.WithX(240);
+            Dispatcher.UIThread.RunJobs();
+            await Assert.That(header.Offset.X).IsEqualTo(body.Offset.X);
+        });
+    }
+
     // ── Render ────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -569,7 +669,6 @@ public class StatsBoardScaleTests
 
                 StatsTabViewModel vm = BuildVm();
                 vm.SelectedCategory = category;
-                await Assert.That(vm.IsBoardLayout).IsTrue();
 
                 Window window = new()
                 {
@@ -605,6 +704,7 @@ public class StatsBoardScaleTests
         yield return (StatGroup.Weapons, "weapons");
         yield return (StatGroup.OpeningDuels, "duels");
         yield return (StatGroup.MultiKill, "multikill");
+        yield return (StatGroup.Other, "other");
     }
 
     // ── Fixture ───────────────────────────────────────────────────────────────
@@ -657,7 +757,8 @@ public class StatsBoardScaleTests
             List<PerPlayerColumnAssignment> assignments = [];
             List<int> indices = [];
             List<StateNode> nodes = [];
-            foreach (string column in _columns.Concat(_scoreColumns).Concat(_boardColumns))
+            foreach (string column in _columns.Concat(_scoreColumns).Concat(_boardColumns)
+                         .Concat(_otherColumns))
             {
                 StubNode node = new($"{_roster[p].Name}_{column}");
                 indices.Add(tracked.Count);
@@ -689,6 +790,12 @@ public class StatsBoardScaleTests
             {
                 vec[colIdx[p][_columns.Length + _scoreColumns.Length + b]] =
                     Snap(BoardValue(_boardColumns[b], p));
+            }
+
+            int otherBase = _columns.Length + _scoreColumns.Length + _boardColumns.Length;
+            for (int o = 0; o < _otherColumns.Length; o++)
+            {
+                vec[colIdx[p][otherBase + o]] = Snap(10 + (p * 3) + o);
             }
         }
 

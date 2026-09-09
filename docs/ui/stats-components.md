@@ -530,9 +530,49 @@ strip gives up and writes the number, because a row of forty dots is worse than 
 
 ### Known gaps
 
-- Round Wins is a contest too (CT won/lost, T won/lost) and would suit a pair of diverging bars, but it
-  is two contests per player and the row shape is not settled. Still a table.
+- ~~Round Wins is a contest too~~ Round Wins is not a player page at all; see section 14.
 - Damage has an accuracy ratio inside it (`HitFoe / Shots`) that no column expresses; a hit-rate form
   would need the engine to emit the ratio or the projector to compute it.
 - The boards are scoreboard-only. The Rounds view stays a table, which is right: a single round has no
   volume to compare.
+
+---
+
+## 14. Three corrections (v0.8.1)
+
+### The table could not scroll sideways
+
+A table wider than its card was unreachable: the Other page showed five of its eight columns and no
+scrollbar in either direction.
+
+**Cause.** The body was a vertical `ScrollViewer` nested inside a horizontal one. A nested scroller is
+laid out at the full CONTENT width, not the viewport width, so on a 1880px-wide table it was 1880px
+wide and its vertical scrollbar sat at x=1880: permanently off-screen. The horizontal scroller reserved
+no space for its own bar either.
+
+**Fix.** The header and the body are now SIBLING scrollers inside a two-row grid, each with a correctly
+sized viewport, with the header's horizontal offset driven from the body's in code-behind. The header
+keeps its sticky behaviour and its own bar is `Hidden`, so it can never be the thing that moved.
+`AllowAutoHide` is off on the body: on a data table a scrollbar is functional chrome, not decoration,
+and an auto-hiding one is how the original bug stayed invisible.
+
+`WideTable_ScrollsInBothDirections` guards it. The assertion that actually catches the regression is
+that the **viewport must be smaller than the bounds** on both axes: that gap is the space the scrollbars
+occupy, and it is exactly zero when they have nowhere to live.
+
+### Survival is not a category
+
+It held one column, `Survived`. A category that can only ever hold one number is a tab that costs a
+click to show it. Folded into Rating, next to `Surv%`, and the `StatGroup` member is gone.
+
+### Round Wins is a team stat
+
+`CTW` / `CTL` / `TW` / `TL` are properties of the TEAM, replicated onto every one of its player rows. A
+per-player page of them shows five identical rows and invites a comparison that cannot exist.
+
+The group is no longer offered as a page. The columns stay in the catalogue on purpose: the engine emits
+them, the export carries them, and `ComputeTeamScores` derives the scoreline from them. The number they
+add up to is already on the team badge, which is the right place for a team fact.
+
+`ColumnCatalogue.IsPlayerFacing` is the seam. Any future group that describes the team rather than the
+player goes through it rather than being deleted.

@@ -385,13 +385,22 @@
             <Border Grid.Row="3"
                     Classes="boardCard"
                     IsVisible="{Binding IsColumnTable}">
-            <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                          VerticalScrollBarVisibility="Disabled">
-                <Grid RowDefinitions="Auto,*">
+            <!-- The header and the body are SIBLING scrollers whose horizontal offsets are synced
+                 in code-behind, not a vertical scroller nested inside a horizontal one.
 
-                    <!-- header: sortable player column + per-column two-line header
-                         (group band label over friendly name + sort glyph) -->
-                    <Border Grid.Row="0"
+                 Nested, the inner vertical scroller is laid out at the full CONTENT width (1880px on a
+                 wide category) rather than at the viewport width, which parks its scrollbar permanently
+                 off-screen: the Other page had eight columns, five visible, and no way to reach the
+                 rest. Siblings each get a correctly-sized viewport, so both scrollbars land where they
+                 belong and the column header still stays put while the rows scroll under it. -->
+            <Grid RowDefinitions="Auto,*">
+                <ScrollViewer Grid.Row="0"
+                              Name="HeaderScroll"
+                              HorizontalScrollBarVisibility="Hidden"
+                              VerticalScrollBarVisibility="Disabled">
+
+                    <!-- header: sortable player column + per-column header (name + sort glyph) -->
+                    <Border
                             Background="Transparent"
                             BorderBrush="{DynamicResource BorderSubtle}"
                             BorderThickness="0 0 0 1">
@@ -433,10 +442,14 @@
                         </StackPanel>
                     </Border>
 
+                </ScrollViewer>
+
                     <!-- rows -->
                     <ScrollViewer Grid.Row="1"
-                                  HorizontalScrollBarVisibility="Disabled"
-                                  VerticalScrollBarVisibility="Auto">
+                                  Name="BodyScroll"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto"
+                                  AllowAutoHide="False">
                         <Panel Margin="16 6">
                             <!-- Scoreboard: CT/T sections, zebra rows, per-team totals -->
                             <ItemsControl ItemsSource="{Binding TeamSections}"
@@ -473,7 +486,6 @@
                         </Panel>
                     </ScrollViewer>
                 </Grid>
-            </ScrollViewer>
             </Border>
 
             <!-- ══ Non-table category boards ═══════════════════════════════════════════════════
