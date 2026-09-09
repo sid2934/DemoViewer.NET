@@ -12,6 +12,12 @@ public enum StatGroup
     Core,
     Rating,
     Combat,
+
+    /// <summary>
+    ///     Aim quality (rules/aim_rating.rules.yaml). Sits after Combat because the ORDINAL is the
+    ///     chip rail's order, and these columns explain the Combat numbers rather than adding to them.
+    /// </summary>
+    Aim,
     Damage,
     OpeningDuels,
     Weapons,
@@ -242,6 +248,61 @@ public static class ColumnCatalogue
         new(StatDomain.Peer, ColourMin: 20, ColourMax: 80, NeutralLow: 47, NeutralHigh: 53,
             ColourGateColumns: ["TotalFK", "TotalFD"], ColourGateMinimum: 8);
 
+    // ── Aim scale shapes ──────────────────────────────────────────────────────
+    //
+    // Almost every aim column is a PER-OPPORTUNITY EFFICIENCY (hits per bullet, clean stops per
+    // attempt, degrees per contact), so by the rule above not one of them earns an absolute band. The
+    // reference data available is 50 player-match rows and five pro accounts, nowhere near enough to
+    // cut a percentile scale out of, so an invented band here would be a benchmark that looks
+    // authoritative and is not. They take a peer bar and a peer tint.
+    //
+    // What they do need is the volume gate _duelWin exists for. Every ratio in the aim ruleset guards
+    // its denominator with max(d, 1), which keeps the cell in the table but turns an unmeasured
+    // population into a confident 0.0, and leaves a three-shot sample tinting exactly as hard as a
+    // three-hundred-shot one. Below the gate a cell keeps its bar and loses its colour. A gate column
+    // missing from the evaluation sums to zero and so gates the whole column off, which is the safe
+    // direction: no tint beats a tint nobody can check.
+
+    /// <summary>
+    ///     The after-contact ratios (FB%, SAcc%, SprayAcc%), gated on the contact count. All three are
+    ///     measured only after a round's first enemy contact, so Spots is their shared population and a
+    ///     player the scanner never saw make contact has nothing at all behind their score.
+    /// </summary>
+    private static readonly StatScaleSpec _contactGatedUp =
+        new(StatDomain.Peer, ColourGateColumns: ["Spots"], ColourGateMinimum: 8);
+
+    /// <summary>Preaim: the same contact gate, but fewer degrees off the chest is better.</summary>
+    private static readonly StatScaleSpec _contactGatedDown =
+        new(StatDomain.Peer, StatPolarity.LowerIsBetter,
+            ColourGateColumns: ["Spots"], ColourGateMinimum: 8);
+
+    /// <summary>
+    ///     CS%, gated on its own denominator. A player who attempted three counter-strafes all match
+    ///     reads 100% and means nothing by it, which is why the ruleset also ships CSAll% over every
+    ///     bullet fired rather than shipping the rate alone.
+    /// </summary>
+    private static readonly StatScaleSpec _counterStrafeRate =
+        new(StatDomain.Peer, ColourGateColumns: ["CSAtt"], ColourGateMinimum: 20);
+
+    /// <summary>
+    ///     Spray residuals: a smaller absolute residual is better compensation, gated on the shots the
+    ///     residual could actually be measured on. That population is far thinner than the shot count
+    ///     suggests (aim punch decodes to implausible angles on some sources and those shots are
+    ///     rejected), and a mean absolute angle taken over one shot is not a rating.
+    /// </summary>
+    private static readonly StatScaleSpec _sprayResidual =
+        new(StatDomain.Peer, StatPolarity.LowerIsBetter,
+            ColourGateColumns: ["SprayN"], ColourGateMinimum: 20);
+
+    /// <summary>
+    ///     XPlace on the round board. Crosshair travel only exists on a round that had a contact, and a
+    ///     round without one reads 0.0, which is the shortest travel on the board and would tint as the
+    ///     cleanest flick in the match.
+    /// </summary>
+    private static readonly StatScaleSpec _roundContactGatedDown =
+        new(StatDomain.Peer, StatPolarity.LowerIsBetter,
+            ColourGateColumns: ["Spot"], ColourGateMinimum: 1);
+
     private static int _seq;
 
     // Declared in canonical board order (the _seq counter IS the order).
@@ -278,6 +339,38 @@ public static class ColumnCatalogue
             M("TradedD", "Traded Deaths", StatGroup.Combat, "Your deaths avenged by a teammate within the trade window", width: 98),
             M("Clutch", "Clutches Won", StatGroup.Combat, "1-vs-X situations won", Emphasis.Positive, width: 96),
             M("RapidKills", "Rapid Kills", StatGroup.Combat, "Kill streaks within a 10-second window", width: 82),
+
+            // ── Aim ──
+            //
+            // Board order is the order rules/aim_rating.rules.yaml shows these in, and every Key below is
+            // that file's `label:` byte for byte: an unregistered label still renders, but lands in Other
+            // with no bar, no tint and a blank totals cell. The three round-scoped aim columns (XPlace,
+            // Flick, Spot) are declared with the other round columns at the bottom of this array.
+            M("Acc%", "Acc %", StatGroup.Aim, "Enemy bullet hits per bullet fired (%)", agg: ColumnAggregate.Average, width: 64, scale: _peerUp),
+            // Bar, no tint, for the reason HS% already carries: a headshot share is a STYLE, not a
+            // ranking. An AWPer's body hits kill exactly as well as a rifler's heads. HSDmg% divides by
+            // ALL enemy damage on top of that, so a player putting half their output into grenades halves
+            // the column without one thing about their aim having changed.
+            M("HSAcc%", "HS Acc %", StatGroup.Aim, "Share of enemy bullet hits that landed on the head (%)", agg: ColumnAggregate.Average, width: 78, scale: _peerNoTint),
+            M("HSDmg%", "HS Dmg %", StatGroup.Aim, "Share of enemy damage dealt by headshots, with utility damage in the denominator (%)", agg: ColumnAggregate.Average, width: 80, scale: _peerNoTint),
+            M("CS%", "CS %", StatGroup.Aim, "Counter-strafes stopped clean, over the shots where one was attempted (%)", agg: ColumnAggregate.Average, width: 62, scale: _counterStrafeRate),
+            M("CSAll%", "CS All %", StatGroup.Aim, "Clean counter-strafes over every bullet fired, so a thin attempt count cannot flatter the rate (%)", agg: ColumnAggregate.Average, width: 76, scale: _peerUp),
+            // Lower is better, unlike the two columns above it. These are the shots the engine charged a
+            // movement penalty for. CSAll% + Linear% is the attempted share; the remainder was fired from
+            // a standstill, which is neither a success nor a failure and so is not on the board at all.
+            M("Linear%", "Linear %", StatGroup.Aim, "Bullets fired while still moving fast enough for the engine to charge movement inaccuracy (%)", agg: ColumnAggregate.Average, width: 76, scale: _peerDown),
+            M("FB%", "First Bullet %", StatGroup.Aim, "First bullet out of the barrel that landed, after first contact (%)", agg: ColumnAggregate.Average, width: 100, scale: _contactGatedUp),
+            M("Spray", "Spray Control", StatGroup.Aim, "Mean angular distance between a bullet and the first bullet of its spray: lower is tighter compensation", agg: ColumnAggregate.Average, width: 76, scale: _peerDown),
+            M("Preaim", "Preaim", StatGroup.Aim, "Mean degrees off the enemy's chest at first contact (lower is better)", agg: ColumnAggregate.Average, width: 70, scale: _contactGatedDown),
+            M("SAcc%", "Spotted Acc %", StatGroup.Aim, "Enemy bullet hits per bullet fired after first contact (%)", agg: ColumnAggregate.Average, width: 98, scale: _contactGatedUp),
+            M("SprayAcc%", "Spray Acc %", StatGroup.Aim, "Bullets after the first out of the barrel that landed, after first contact (%)", agg: ColumnAggregate.Average, width: 92, scale: _contactGatedUp),
+            // Population columns: bar, never tinted. Each is the denominator of a column above, and more
+            // attempts or more measurable sprays is more opportunity, not better play. A zero here is
+            // also the only thing on the board that separates an empty population from a real 0.0, which
+            // is what every max(d, 1) guard in the ruleset collapses the two into.
+            M("CSAtt", "CS Attempts", StatGroup.Aim, "Shots where a counter-strafe was attempted: the CS% denominator", width: 92, scale: _peerNoTint),
+            M("SprayN", "Spray Shots", StatGroup.Aim, "Shots whose spray residual could be measured: the SprayPitch and SprayYaw denominator", width: 88, scale: _peerNoTint),
+            M("Spots", "Spots", StatGroup.Aim, "First enemy contacts: the Preaim denominator, and the gate behind every after-contact column", width: 64, scale: _peerNoTint),
 
             // ── Damage ──
             M("EnemyDmg", "Enemy Dmg", StatGroup.Damage, "Total damage dealt to enemies (HP-capped)", width: 84, scale: _peerUp),
@@ -359,7 +452,22 @@ public static class ColumnCatalogue
             M("Flashed", "Enemies Flashed", StatGroup.Utility, "Enemies flashed this round", width: 110),
             M("FK", "Opening K", StatGroup.OpeningDuels, "Opening kill this round", width: 80),
             M("FD", "Opening D", StatGroup.OpeningDuels, "Opening death this round", width: 80),
-            M("DeagleHS", "Deagle HS", StatGroup.Weapons, "Desert Eagle headshot kills this round", width: 78)
+            M("DeagleHS", "Deagle HS", StatGroup.Weapons, "Desert Eagle headshot kills this round", width: 78),
+
+            // The round-scoped half of the aim ruleset. Both angle columns pair the round's FIRST contact
+            // with its first landed bullet, which is an approximation the ruleset states rather than a
+            // measurement, so Spot rides along: on a round with no contact their 0.0 is the empty state.
+            M("XPlace", "Crosshair Travel", StatGroup.Aim, "Degrees the crosshair travelled from first contact to the first landed bullet (lower is better)", agg: ColumnAggregate.Average, width: 112, scale: _roundContactGatedDown),
+            // Signed, so neither direction is the good one: positive overshot and had to be walked back,
+            // negative was dragged onto the target. Same treatment as FK+/-, where the sign is the story
+            // and the bar already carries it.
+            M("FlickErr", "Flick Error", StatGroup.Aim, "Crosshair travel minus the angle the contact demanded: positive overshot, negative undershot", agg: ColumnAggregate.Average, width: 84, scale: _peerNoTint),
+            M("XShots", "Travel Shots", StatGroup.Aim, "Landed shots paired to a contact inside the engagement window: the XPlace and FlickErr denominator", width: 92, scale: _peerNoTint),
+            M("TTS", "Time to Shoot", StatGroup.Aim, "Milliseconds from an enemy becoming visible to the first shot answering it: reaction without accuracy or fire rate mixed in", agg: ColumnAggregate.Average, width: 76, scale: _peerDown),
+            M("TTSn", "TTS Engagements", StatGroup.Aim, "Contacts answered by a shot: the TTS denominator", width: 96, scale: _peerNoTint),
+            M("TTD", "Time to Damage", StatGroup.Aim, "Milliseconds from an enemy becoming visible to the first bullet that damaged them. Quantised by fire rate, so partly a first-shot-accuracy measure", agg: ColumnAggregate.Average, width: 76, scale: _peerDown),
+            M("TTDn", "TTD Engagements", StatGroup.Aim, "Contacts answered by a landed bullet: the TTD denominator", width: 96, scale: _peerNoTint),
+            M("Spot", "Spot", StatGroup.Aim, "The player made first contact this round: the marker saying XPlace and Flick have a population", width: 56, scale: _peerNoTint)
         ];
 
         Dictionary<string, ColumnMeta> byKey = new(StringComparer.Ordinal);

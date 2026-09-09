@@ -13,6 +13,7 @@ using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Plugins;
 using CS2DemoKit.Analysis.Registry;
+using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.GameEvents;
@@ -718,7 +719,12 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         try
         {
-            (BuildResult build, RuleConfigLoadResult loadedRules) = BuildFromConfig(demo);
+            // Off-thread because loading a bake builds its BVH (hundreds of ms on a big map), and
+            // Build below runs on the UI thread. Null when the map has no bake or the load fails;
+            // the builder then simply does not emit enemy_spotted and the visibility-gated aim
+            // columns read zero, which is the same degraded shape as an unsupported demo source.
+            VisibilityEngine? visibility = await LoadVisibilityEngineAsync(demo, runToken);
+            (BuildResult build, RuleConfigLoadResult loadedRules) = BuildFromConfig(demo, visibility);
             RulesetExclusionReport.Report(DiagLog, build);
             // Diagnostics tab retention. The scanner is otherwise a discarded local
             // here; keep it (and the demo) so the Diagnostics profiling/re-run panels can read it for the session.
@@ -1221,7 +1227,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         return counts;
     }
 
-    private static (BuildResult Build, RuleConfigLoadResult Rules) BuildFromConfig(ParsedDemo demo)
+    private static (BuildResult Build, RuleConfigLoadResult Rules) BuildFromConfig(
+        ParsedDemo demo, VisibilityEngine? visibility)
     {
         string shippedDir = RuleSetLocator.ResolveShippedRulesDirectory();
         // The user overlay needs a writable filesystem; the WASM host has none worth provisioning.
@@ -1229,7 +1236,57 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             ? null
             : RuleSetLocator.EnsureUserRulesDirectory(shippedDir);
         RuleConfigLoadResult rules = YamlConfigLoader.LoadWithOverlay(shippedDir, userDir);
-        return (DemoAnalysis.Build(demo, rules.Rulesets), rules);
+
+        // The builder double-gates on this: the enemy_spotted event is synthesized only when an
+        // engine is present AND some ruleset subscribes to it, so handing it over unconditionally
+        // costs nothing for the rulesets that never ask.
+        AnalysisOptions options = new()
+        {
+            VisibilityEngine = visibility
+        };
+        return (DemoAnalysis.Build(demo, rules.Rulesets, options), rules);
+    }
+
+    /// <summary>
+    ///     Loads the baked collision geometry for this demo's map, off the UI thread.
+    ///     <para>
+    ///         Returns null whenever visibility cannot be computed, which is a normal outcome
+    ///         rather than a fault: not every map has a bake, and the browser host has no
+    ///         filesystem to find one on. The caller passes null straight through, the builder
+    ///         declines to synthesize <c>enemy_spotted</c>, and the visibility-gated aim columns
+    ///         read zero instead of the analysis failing.
+    ///     </para>
+    /// </summary>
+    private async Task<VisibilityEngine?> LoadVisibilityEngineAsync(
+        ParsedDemo demo, CancellationToken token)
+    {
+        if (OperatingSystem.IsBrowser())
+        {
+            return null;
+        }
+
+        string? trisPath = CollisionAssetLocator.FindCollisionTris(demo.MapName);
+        if (trisPath is null)
+        {
+            AppLog.VisibilityBakeMissing(DiagLog, demo.MapName);
+            return null;
+        }
+
+        try
+        {
+            return await Task.Run(() => VisibilityEngine.Load(trisPath), token);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+#pragma warning disable CA1031 // A malformed or unreadable bake degrades the aim columns; it must never fail the run.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            AppLog.OperationFailed(DiagLog, $"load collision bake for {demo.MapName}", ex);
+            return null;
+        }
     }
 
     // ── Filter population ────────────────────────────────────────────────

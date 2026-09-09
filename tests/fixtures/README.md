@@ -12,6 +12,7 @@ tests/fixtures/
 │   ├── ours.golden.json               Stat snapshot produced by AnalysisBench
 │   ├── leetify.golden.json            Stat snapshot converted from Leetify API JSON
 │   ├── expected.golden.json           Curated reference (see "Reliability posture" below)
+│   ├── aim.expected.golden.json       Aim-board pin (see "The aim board" below)
 │   └── entity-fields.ours.golden.json Per-tick entity-field snapshot (FuriaMirage only)
 ```
 
@@ -46,6 +47,45 @@ When hand-verification work happens, the file's `provider_version` field
 will move from `null` to something like `"hand-verified-2026-XX-XX-by-NAME"`,
 and the oracle-sunset clock starts.
 
+## The aim board
+
+`aim.expected.golden.json` pins the columns produced by `rules/aim_rating.rules.yaml`
+(accuracy, the counter-strafing triple, spray control, crosshair placement).
+It sits in the same posture as `expected.golden.json`: only the pin is
+committed, `ours` is derived by running the ruleset over the demo every time,
+and the comparison is at zero tolerance. The harness is
+`src/App/DemoViewer.NET.App.Tests/AimParity/`.
+
+Three things about it are specific to aim.
+
+**Leetify is a calibration reference here, not an assertion.** Their payload in
+`demos/benchmarks/<demo-id>.leetify.json` carries their own values for most of
+these columns, and `AimStatParityTests.OursVsLeetify_AimStatDivergenceReport`
+prints ours against theirs per player. It fires only on failures no
+definitional difference can excuse (a column reading zero against a reference
+of hundreds, a join that failed wholesale, counts that break their own
+nesting). Fitting a tolerance is the work that pin unblocks, not something the
+harness assumes.
+
+**The pin records a machine capability, not just a demo.** Its
+`provider_version` carries `visibility=on` or `visibility=off`. Tier 3 columns
+(preaim, spotted accuracy, spray accuracy) need a baked `collision.tris` for
+the map and read 0.0 rather than blank without one, so comparing a run without
+geometry against a pin taken with it would produce a wall of divergences on
+columns that are simply not being measured. The test skips on a mismatch
+rather than reporting it as drift. Of the five benchmark maps, `assets/` ships
+bakes for nuke, dust2 and ancient; mirage and inferno have none.
+
+**Spray control has no external reference at all.** Leetify declares
+`recoilShots` and `recoilShotsHit` and leaves both `null` in every row of all
+five demos (`shotsHitFoeHead` is present and zero everywhere, which for a
+head-hit numerator is the same thing).
+`AimStatParityTests.LeetifyReference_DeclaresAimFieldsItNeverPopulates`
+asserts that, so a payload which starts carrying them is a red test rather
+than a discovery nobody makes. Until then the SprayPitch and SprayYaw columns
+are validated against `SprayControlOracle`, an independent hand-written fold
+of the segmentation and residual rule, rather than against anyone's numbers.
+
 ## Refresh procedures
 
 | File | Refresh command |
@@ -53,6 +93,7 @@ and the oracle-sunset clock starts.
 | `ours.golden.json` | `dotnet run -c Release --project tools/AnalysisBench -- --suite` |
 | `leetify.golden.json` | Same; bench writes both as a side-effect. |
 | `expected.golden.json` | **Not auto-refreshable.** Manual edit when hand-verifying. |
+| `aim.expected.golden.json` | `PIN_EXPECTED_AIM=1` with the demo present, running `AimStatParityTests`. Deliberate, reviewed re-pin only. |
 | `entity-fields.ours.golden.json` | `dotnet run --project tools/DemoViewer.NET.EntityFieldDiff -- <demo> --write-snapshot` (requires the gitignored EntityFieldDiff tool + sibling demofile-net repo). |
 
 ## Schema versioning

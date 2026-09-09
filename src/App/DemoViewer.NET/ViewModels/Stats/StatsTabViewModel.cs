@@ -1500,6 +1500,10 @@ public sealed record CategoryChip(StatGroup Group, string Label, bool IsSelected
     public static string LabelFor(StatGroup group) => group switch
     {
         StatGroup.Core => "Overview",
+        // Spelled out rather than left to the fallback below. The rail label is a product decision and
+        // the enum member name is not: without an arm here, renaming the member (AimQuality, say)
+        // silently retitles a chip in the shipped UI.
+        StatGroup.Aim => "Aim",
         StatGroup.OpeningDuels => "Opening",
         StatGroup.SpecialKills => "Special",
         StatGroup.MultiKill => "Multi-Kill",

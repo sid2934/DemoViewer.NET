@@ -783,3 +783,57 @@ match table, so it holds still while the round below it changes; whether that re
 header or as a claim about the round on screen is a design question, not this defect. Pinned by a test
 so that changing it later is a decision rather than a side effect.
 
+## 19. The Aim category
+
+`rules/aim_rating.rules.yaml` ships 18 board columns, 15 game-scoped and 3 round-scoped. They are
+registered as `StatGroup.Aim`, declared after `Combat` because the enum **ordinal** is the chip rail's
+order and these columns explain the Combat numbers rather than adding to them. The `Key` of each
+`M(...)` entry is the ruleset's `label:` byte for byte: an unregistered label still renders, but lands
+in `Other` with no bar, no tint and a blank totals cell, which looks like a page nobody styled rather
+than like a wiring bug.
+
+### None of them carries an absolute band
+
+By the rule in section 11, an absolute colour band needs a mean that the structure of the game pins.
+Almost every aim column is a **per-opportunity efficiency** (hits per bullet, clean stops per attempt,
+degrees per contact), which has no such anchor, and the reference data available is 50 player-match
+rows and five pro accounts. That is nowhere near enough to cut a percentile scale out of, and a band
+invented from it would look exactly as authoritative on the board as the researched ones above it. Every
+aim column therefore takes a peer bar with a peer tint, and a test asserts that none of them has a
+`ColourMin` or `ColourMax`.
+
+### What they carry instead is a volume gate
+
+Every ratio in the ruleset guards its denominator with `max(d, 1)`, because in the rules engine a
+division by zero is null and a null drops out of the peer domain, the totals row and the podium. The
+guard keeps the cell in the table, but it also turns "nobody measured this" into a confident `0.0`, and
+it leaves a three-shot sample tinting exactly as hard as a three-hundred-shot one. So four columns copy
+the `Duel%` gate: below the bar the cell **keeps its bar and loses its colour**.
+
+| Gate | Minimum | Columns it protects |
+|---|---|---|
+| `CSAtt` | 20 | `CS%`. Three attempts all stopped reads 100% and means nothing, which is why the ruleset also ships `CSAll%` over every bullet. |
+| `SprayN` | 20 | `SprayPitch`, `SprayYaw`. Aim punch decodes to implausible angles on some sources and those shots are rejected, so this population is far thinner than the shot count suggests. |
+| `Spots` | 8 | `FB%`, `SAcc%`, `SprayAcc%`, `Preaim`. All four are measured only after a round's first enemy contact. |
+| `Spot` | 1 | `XPlace`. A round with no contact reads `0.0`, which is the shortest travel on the board. |
+
+A gate column missing from the evaluation sums to zero and so gates the whole column off. That is the
+safe direction: no tint beats a tint nobody can check.
+
+### Which direction is good
+
+| Column | Treatment | Why |
+|---|---|---|
+| `Acc%`, `CSAll%` | peer bar, peer colour | Efficiency over a denominator large enough not to need a gate. |
+| `Linear%` | **lower is better** | These are the bullets the engine charged a movement penalty for. `CSAll% + Linear%` is the attempted share; the remainder was fired from a standstill, which is neither a success nor a failure and is not on the board at all. |
+| `SprayPitch`, `SprayYaw`, `Preaim`, `XPlace` | **lower is better**, gated | Degrees off and degrees travelled. There is deliberately no combined spray column: pulling down against the climb and holding against the walk are independent motions, and their average puts a clean-pull wild-yaw sprayer and their mirror image on the same score. |
+| `FB%`, `SAcc%`, `SprayAcc%` | peer bar, peer colour, gated | After-contact efficiency. |
+| **`HSAcc%`, `HSDmg%`** | **bar, no tint** | The same call `HS%` already carries: a headshot share is a STYLE, not a ranking. An AWPer's body hits kill exactly as well as a rifler's heads. `HSDmg%` divides by ALL enemy damage on top of that, so a player who puts half their output into grenades halves the column with nothing about their aim having changed. |
+| **`Flick`** | **bar, no tint** | Signed, so neither direction is the good one: positive overshot and had to be walked back, negative was dragged on. `FK+/-`'s treatment, for `FK+/-`'s reason. |
+| **`CSAtt`, `SprayN`, `Spots`, `Spot`** | **bar, no tint** | Population columns. Each is the denominator of a column above, and more attempts or more measurable sprays is more opportunity, not better play. They are on the board because a zero here is the only thing separating an empty population from a real result, which is exactly what the `max(d, 1)` guards collapse together. |
+
+### Known gap
+
+The gate neuters the **tint**, not the leader star: `MarksLeader` is computed from the peer domain, so a
+starved row holding the extreme value still gets the star. That is `Duel%`'s behaviour today too, and it
+is left alone here rather than changed as a side effect of adding a category.

@@ -1,0 +1,516 @@
+# yaml-language-server: $schema=./cs2demokit-rules.schema.json
+#
+# The per-player aim board: one ruleset holding every aim-quality column the stats UI ranks
+# players on. Each column is a ratio or a mean over an explicitly named population, and the
+# population is as much of the metric as the number is: two tools that both call something
+# "counter-strafing %" and disagree by 30 points usually agree about the shots and disagree
+# about which shots were counted. Every denominator here is therefore spelled out, and where a
+# denominator can legitimately be argued two ways, BOTH ways ship as their own column
+# (CS% against CSAll%) so the choice is visible on the board instead of buried in this file.
+#
+# WHAT EACH TIER NEEDS FROM THE SOURCE. The columns degrade independently, so a demo that
+# supports one tier and not the next fills the tiers it can and reads zero in the rest, rather
+# than failing the run:
+#
+#   Tier 1 (Acc%, HSAcc%, HSDmg%) needs only weapon_fire + player_hurt, which every source
+#       carries. These are the columns to trust when the rest read zero.
+#   Tier 2 (CS%, CSAll%, Linear%, Spray) needs the shot enrichments that
+#       AimShotContextEdge writes off per-tick entity state (speed against the weapon's own
+#       0.34 * m_flMaxspeed line, recoil index, aim punch). Present on any demo whose pawns
+#       decode; the residual pair additionally needs the aim-punch column to decode to real
+#       degrees (see SPRAY RESIDUALS below).
+#   Tier 3 (Preaim, FB%, SAcc%, SprayAcc%, XPlace, Flick) needs the synthesized enemy_spotted
+#       event, which exists only when the analysis run is handed baked map geometry
+#       (AnalysisOptions.VisibilityEngine). Visibility has no wire signal to fall back on, so
+#       without geometry there are no spots at all. No call site in this app passes that option
+#       today, so as of writing EVERY Tier 3 column reads 0.0 on every demo. Spots (and Spot, on
+#       the round board) is how a reader sees that.
+#   FB%, SprayAcc% and XPlace additionally need bullet_damage (the shot_landed view) for their
+#       hit side. Trimmed GOTV sources routinely omit it; the demo this repo ships
+#       (assets/tour/sample-de_nuke.dem) carries 206 weapon_fire and zero bullet_damage.
+#
+# EMPTY POPULATIONS RENDER AS ZERO, NOT AS BLANK. Every ratio below guards its denominator with
+# max(d, 1), because in v2 a division by zero is null, and a null drops out of the peer domain,
+# the totals row and the podium instead of showing as a gap. The guard keeps the cell in the
+# table, but it also turns "nobody measured this" into a confident 0.0, which reads as PERFECT
+# spray control and as terrible counter-strafing. A computed column cannot opt out of this: it
+# lowers to a double-valued node, so unlike a flag or a capture it has no empty state to fall
+# back to, and an unmeasured engagement is a 0.0 exactly like a measured one. That is why CSAtt,
+# SprayN, Spots and Spot ship as columns of their own: they are the denominators, and a zero
+# beside a zero denominator is the only way a reader can tell an empty population from a score.
+#
+# THE TIME-TO-X LADDER IS NOT HERE, AND NOT BY OVERSIGHT. TTS, AimRx, TTD and TTK each measure
+# an interval from a spot to a wire event, and the two ends sit on different tick clocks:
+# `event.tick` resolves to the envelope's ServerTick, which for a parsed wire event is the
+# absolute server tick and for the synthesized enemy_spotted is the frame clock the entity scan
+# is driven on. Measured on the bundled sample, ServerStartTick is 20,457: one weapon_fire
+# reports frame tick 2,501 and event tick 22,957. Subtracting a spot tick from a shot tick
+# therefore yields the real interval plus about 320 seconds, on every row, always positive and
+# always plausible-looking. The language exposes no conversion (event.GameTick is not a catalog
+# field, and match.tick has no live lowering), so the ladder is deferred rather than shipped
+# wrong. It becomes authorable, with no change here beyond adding the stanzas, as soon as
+# EITHER the synthesized spot carries the wire clock (ServerTick = frameTick + ServerStartTick,
+# GameTick = frameTick, the convention every parsed event already follows) OR a shot-side
+# `enrich.shot.ticks_since_spot` lands, which is the better shape anyway because it also bounds
+# the pairing per engagement instead of per round.
+#
+# THE PAIRING BOUND THAT SAME DEFECT COSTS. XPlace and Flick pair the round's FIRST contact with
+# the round's FIRST landed shot after it. The honest bound would be "and no more than N ticks
+# apart", which is exactly the comparison the clock split makes impossible, so on a round where
+# a player spots someone early and lands their first bullet ten seconds later in an unrelated
+# duel, both columns measure that unrelated pair. They ship anyway because they are right on the
+# common case where the first contact IS the duel, and because the pairing is a stated
+# approximation rather than a constant offset like the ladder's. Read them as round-level
+# indicators, not as per-engagement measurements, until the bound lands, and read them against
+# the round board's Spot column: a round with Spot 0 had no contact and its 0.0 is the empty
+# state, not a perfect flick.
+#
+# COUNTER-STRAFING, THREE WAYS. counter_strafe_admitted is the attempt gate: a shot enters the
+# population only if the player exceeded the weapon's movement-inaccuracy threshold at some
+# sampled tick in the half second before firing. A player who never moved never attempted a
+# counter-strafe, and counting their shot as a success turns the metric into "how often did you
+# stand still".
+#   CS%     = clean / attempted. The skill question: when you had to stop, did you stop?
+#   CSAll%  = clean / all bullets. The same numerator over every shot, so a player who wins CS%
+#             by attempting three counter-strafes a match cannot hide behind it.
+#   Linear% = attempted but still moving. The shots the engine charged a movement penalty for.
+#             CSAll% + Linear% is the attempted share; the remainder is shots from a standstill,
+#             which is neither a success nor a failure.
+#
+# SPRAY IS ONE ANGULAR DISTANCE. Spray is the angle between where a bullet went and where the
+# run's first bullet went, aggregated as a mean. Not a pitch column and a yaw column: the
+# components only agree with the true distance for small deviations and diverge exactly where a
+# spray goes wrong, and a reader cannot combine two columns in their head. The per-shot pitch and
+# yaw stay on the event (enrich.shot.spray_residual_pitch / _yaw) because a 2D visualiser needs
+# the scatter, not the distance.
+#
+# IT IS MEASURED ON LANDED BULLETS, BY THE SERVER'S OWN SHOT DIRECTION. bullet_damage.ShootAng is
+# where the bullet actually left, punch already folded in (probed: ShootAng = eyeAngle + AimPunch,
+# so adding the punch again double-counts it). The entity aim-punch column cannot be used: probed
+# against that same event it reads a mean absolute 68.4 degrees against a true mean of 1.3, with a
+# constant 272.6 "velocity" on every shot, so it does not decode to degrees at all.
+#   The consequence is a split of duties. The fired arm sees every trigger pull and owns spray
+#   SEGMENTATION; the landed arm owns MEASUREMENT and keeps its own anchor, so it never advances
+#   the run. SprayN is the surviving population and is thinner than the shot count, because only
+#   landed bullets after the run's first one qualify. A Spray computed off one shot is not a
+#   rating: read it against SprayN or not at all.
+#
+#   Known distortion: a spray TRANSFER (switching targets mid-run) is a large, legitimate angular
+#   distance that inflates the mean. enrich.shot.spray_victims can separate them if that becomes
+#   worth doing.
+#
+# HSDmg% READS ITS DENOMINATOR LITERALLY. The numerator is bullet damage on hitgroup 1; the
+# denominator is ALL enemy damage, utility included. A player who does half their damage with
+# grenades therefore scores about half the HSDmg% of an identical rifler. That is the literal
+# reading of "head damage over total enemy damage" and it is the intended one: this column
+# answers what share of a player's output came off headshots, not what share of their bullets
+# did. HSAcc% is the bullets-only question.
+#
+# ACCURACY COUNTS HITS OFF player_hurt, EXCEPT WHERE IT CANNOT. Acc%, HSAcc% and SAcc% count hits
+# as damage_dealt instances (one per bullet per victim), which every source carries and which
+# reconciles with player_stats' ShotsHitFoe bucket for bucket. FB% and SprayAcc% cannot: only the
+# shot_landed view carries the first-bullet split on the hit side, so their numerators come from
+# bullet_damage while their denominators come from weapon_fire. On a source carrying both, the
+# two hit definitions agree; on a source carrying only one, FB% and SprayAcc% read zero while
+# Acc% still reports. Do not compare FB% against Acc% across sources.
+ruleset: aim_rating
+title: Aim Rating
+summary: Per-player aim quality, per game (accuracy, counter-strafing, spray control, crosshair placement).
+for: each_player
+
+params:
+  # Ticks from a contact within which a landed shot still counts as THAT engagement. 320 at
+  # 64 tick is 5 seconds, the same window HLTV and CS Demo Manager use for a trade, and generous
+  # next to a real duel: measured time-to-damage is 434-591 ms for pros and about 664 ms in
+  # matchmaking, so this truncates almost nothing real while cutting the cross-duel pairings that
+  # made the crosshair columns meaningless.
+  engagement_max_ticks: { type: int, default: 320, min: 32, max: 1280 }
+
+stats:
+  # ── Tier 1: shots and hits (weapon_fire + player_hurt only) ────────────────────────────────
+
+  # The denominator of every accuracy column. Gated on round.active and matched on the bullet
+  # facet exactly as player_stats' total_shots_fired is, so the two rulesets resolve to one
+  # shared node and can never disagree about how many shots a player took.
+  bullet_shots:
+    count: shot
+    match: { bullet: true }
+    while: round.active
+    per: match
+
+  # Hits, as damage instances. A bullet that penetrates into a second player is two instances, so
+  # Acc% can in principle exceed 100 on a wallbang-heavy round. Left uncorrected because the wire
+  # carries no bullet identity to collapse the instances by, and because collapsing them any other
+  # way (by tick, say) would silently drop genuine double hits. This is also the definition
+  # player_stats' ShotsHitFoe uses, so the two boards agree with each other.
+  enemy_hits:
+    count: damage_dealt
+    match: { enemy: true, bullet: true }
+    per: match
+
+  enemy_head_hits:
+    count: damage_dealt
+    match: { enemy: true, bullet: true, hitgroup: 1 }   # hitgroup 1 is the head
+    per: match
+
+  # Capped at the victim's remaining health, matching player_stats' TotalEnemyDmg, so overkill on
+  # the last bullet cannot inflate either side of HSDmg%.
+  enemy_damage:
+    sum: enrich.hurt.capped_damage
+    on: damage_dealt
+    match: { enemy: true }
+    per: match
+
+  enemy_head_damage:
+    sum: enrich.hurt.capped_damage
+    on: damage_dealt
+    match: { enemy: true, bullet: true, hitgroup: 1 }
+    per: match
+
+  # ── Tier 2: the shot enrichments (movement, first bullet, spray residuals) ─────────────────
+
+  # The counter-strafe attempt population: shots from a player who was moving fast enough to be
+  # charged movement inaccuracy at some point in the lookback window.
+  cs_attempts:
+    count: shot
+    match: { bullet: true, counter_strafe_admitted: true }
+    while: round.active
+    per: match
+
+  cs_clean:
+    count: shot
+    match: { bullet: true, counter_strafe_admitted: true, counter_strafe_good: true }
+    while: round.active
+    per: match
+
+  # Attempted and still moving: the complement of cs_clean inside cs_attempts, kept as its own
+  # node rather than derived as (cs_attempts - cs_clean) so both are counted off the same facets
+  # and a later change to either facet cannot quietly make them stop summing.
+  moving_shots:
+    count: shot
+    match: { bullet: true, counter_strafe_admitted: true, counter_strafe_good: false }
+    while: round.active
+    per: match
+
+  # Spray control. The residual is the gap between where the shot actually went (view angle plus
+  # the engine's recoil scale times aim punch) and where the recoil pattern says it should have
+  # gone, so a smaller absolute residual is better compensation. Summed as absolute values: a
+  # signed mean cancels a player who overshoots as often as they undershoot down to zero, and
+  # that is the one player this column must not flatter.
+  spray_error_sum:
+    sum: abs(enrich.shot.spray_residual_deg)
+    on: shot_landed
+    match: { spray_residual_measured: true }
+    while: round.active
+    per: match
+
+  spray_residual_shots:
+    count: shot_landed
+    match: { spray_residual_measured: true }
+    while: round.active
+    per: match
+
+  # ── Tier 3: the enemy_spotted contact gate ────────────────────────────────────────────────
+
+  # Latches at the player's first contact of the round and holds for the rest of it. This is a
+  # LATCH, not a level: the scanner emits rising edges, so "an enemy is visible right now" is not
+  # something a rule can read. Every column gated on this therefore means "after first contact",
+  # which over-counts a player who spots someone early and then fights elsewhere. Gated on
+  # round.active so a warmup or freeze-time sighting cannot open the gate for a whole round.
+  enemy_seen_round:
+    flag: true
+    on: enemy_spotted
+    while: round.active
+    per: round
+
+  contact_shots:
+    count: shot
+    match: { bullet: true }
+    while: enemy_seen_round
+    per: match
+
+  contact_hits:
+    count: damage_dealt
+    match: { enemy: true, bullet: true }
+    while: enemy_seen_round
+    per: match
+
+  # First-bullet accuracy: the tap, the opening shot of a burst, the AWP. Denominator from
+  # weapon_fire, numerator from bullet_damage (see the header note on the two hit definitions).
+  first_bullet_shots:
+    count: shot
+    match: { bullet: true, first_bullet: true }
+    while: enemy_seen_round
+    per: match
+
+  first_bullet_hits:
+    count: shot_landed
+    match: { first_bullet: true }
+    while: enemy_seen_round
+    per: match
+
+  # Everything that is not the first bullet out of the barrel is inside a spray, which is the
+  # engine's own definition (recoil index is zero only on the first shot) rather than a tick-gap
+  # heuristic layered on top of it.
+  spray_shots_fired:
+    count: shot
+    match: { bullet: true, first_bullet: false }
+    while: enemy_seen_round
+    per: match
+
+  spray_hits:
+    count: shot_landed
+    match: { first_bullet: false }
+    while: enemy_seen_round
+    per: match
+
+  # Preaim: how far off the crosshair was at the instant an enemy became visible. Restricted to
+  # first contacts, because a re-peek of an enemy already being fought is a different
+  # measurement, and mixing the two flatters a player who holds one angle over one who rotates.
+  first_contacts:
+    count: enemy_spotted
+    match: { first_contact: true }
+    while: round.active
+    per: match
+
+  # The abs() is a widening, not a sign fix: the angle is already non-negative. A sum lowers to
+  # `running + <selector>`, the running total is a double, and the compiler's numeric coercion
+  # pairs int with float and int with double but not double with float, so summing a float wire
+  # field raw throws "the binary operator Add is not defined for the types Double and Single" at
+  # materialization. abs() routes the operand through ToDouble and the add is double + double.
+  first_contact_angle_sum:
+    sum: abs(event.AngleToChestDeg)
+    on: enemy_spotted
+    match: { first_contact: true }
+    while: round.active
+    per: match
+
+  # The round-board twin of first_contacts, and the population marker for XPlace and Flick. Zero
+  # or one by construction (first_contact fires once per round per viewer), so a round showing 0
+  # is a round where those two columns have nothing behind their 0.0.
+  round_contacts:
+    count: enemy_spotted
+    match: { first_contact: true }
+    while: round.active
+    per: round
+
+  # ── Tier 3: crosshair travel, measured PER ENGAGEMENT ─────────────────────────────────────
+  #
+  # These read two enrichments the engine computes on the shot itself. They replaced five captures
+  # that pinned the round's FIRST contact against the round's FIRST landed shot, with no bound
+  # between them: on a round holding two duels that measured the angle between unrelated instants
+  # and put 142 degrees in a column whose real ceiling is about 20. A capture cannot express the
+  # pairing that is actually wanted, because keep: first pins the round's opening contact and
+  # keep: last settles to its final one, and neither is the contact a given shot answered. The
+  # engine can: it latches the last spot per viewer and measures from there.
+  #
+  # Both are gated on travel >= 0, which is the sentinel test for "this shot had a contact behind
+  # it", and on the engagement window. travel_shots is the shared denominator and ships as its own
+  # column so an empty population is visible rather than reading as a score of zero.
+
+  # ── Tier 3: the timing ladder ─────────────────────────────────────────────────────────────
+  #
+  # Both measure the interval from a contact to the FIRST shot that answered it, which is what
+  # enrich.shot.is_first_after_spot gates. Averaging every shot after a contact instead measures
+  # the spray: thirty bullets contribute thirty intervals, twenty-nine of them the trigger-hold
+  # duration rather than the reaction.
+  #
+  # TTS fires on weapon_fire so it counts the shot whether or not it connected; TTD fires on
+  # bullet_damage so it counts the first one that did. TTS is the cleaner reaction measure (it
+  # strips out accuracy and fire-rate quantisation) but it rewards panic-firing, so read it beside
+  # FB%. Their denominators ship as columns for the usual reason: an unmeasured engagement and a
+  # fast one both render as a small number otherwise.
+  #
+  # MEAN, NOT MEDIAN. Leetify reports the median and it is the better statistic here, because
+  # prefires and wallbangs with prior information produce absurdly low outliers. v2 has no median
+  # kind (the closed set is flag/count/sum/capture/compute/tally/streak/bucket/rate/burst), and a
+  # capture list cannot be reduced by an expression, so this is a documented divergence rather
+  # than a choice. The engagement window bounds the upper tail; nothing bounds the lower one.
+
+  tts_shots:
+    count: shot
+    match: { is_first_after_spot: true, ticks_since_spot: "<= 320", bullet: true }
+    while: round.active
+    per: match
+
+  tts_ticks:
+    sum: enrich.shot.ticks_since_spot
+    on: shot
+    match: { is_first_after_spot: true, ticks_since_spot: "<= 320", bullet: true }
+    while: round.active
+    per: match
+
+  ttd_shots:
+    count: shot_landed
+    match: { is_first_after_spot: true, ticks_since_spot: "<= 320" }
+    while: round.active
+    per: match
+
+  ttd_ticks:
+    sum: enrich.shot.ticks_since_spot
+    on: shot_landed
+    match: { is_first_after_spot: true, ticks_since_spot: "<= 320" }
+    while: round.active
+    per: match
+
+  travel_shots:
+    count: shot_landed
+    match: { travel_from_spot_deg: ">= 0", ticks_since_spot: "<= 320" }
+    while: round.active
+    per: match
+
+  # abs() is the documented widening for a float selector (see first_contact_angle_sum); the value
+  # is already non-negative so it changes nothing else.
+  travel_sum:
+    sum: abs(enrich.shot.travel_from_spot_deg)
+    on: shot_landed
+    match: { travel_from_spot_deg: ">= 0", ticks_since_spot: "<= 320" }
+    while: round.active
+    per: match
+
+  # min() rather than abs() for the SAME widening, because flick error is signed: a negative value
+  # is an undershoot and abs() would fold it onto the overshoots, turning a two-sided calibration
+  # measure into a one-sided magnitude. 360 is above every real value (travel is at most 180), so
+  # the clamp never fires.
+  flick_error_sum:
+    sum: min(enrich.shot.flick_error_deg, 360.0)
+    on: shot_landed
+    match: { travel_from_spot_deg: ">= 0", ticks_since_spot: "<= 320" }
+    while: round.active
+    per: match
+
+  # ── Computed columns ──────────────────────────────────────────────────────────────────────
+  #
+  # Every ratio guards its denominator with max(d, 1). The guard is not cosmetic: an unguarded
+  # zero denominator is null in v2, and a null column drops out of the peer domain and the totals
+  # row rather than showing as a gap.
+
+  accuracy_pct:
+    compute: "enemy_hits / max(bullet_shots, 1) * 100"
+    per: match
+    format: F1
+
+  hs_accuracy_pct:
+    compute: "enemy_head_hits / max(enemy_hits, 1) * 100"
+    per: match
+    format: F1
+
+  hs_damage_pct:
+    compute: "enemy_head_damage / max(enemy_damage, 1) * 100"
+    per: match
+    format: F1
+
+  counter_strafe_pct:
+    compute: "cs_clean / max(cs_attempts, 1) * 100"
+    per: match
+    format: F1
+
+  counter_strafe_all_pct:
+    compute: "cs_clean / max(bullet_shots, 1) * 100"
+    per: match
+    format: F1
+
+  linear_movement_pct:
+    compute: "moving_shots / max(bullet_shots, 1) * 100"
+    per: match
+    format: F1
+
+  first_bullet_pct:
+    compute: "first_bullet_hits / max(first_bullet_shots, 1) * 100"
+    per: match
+    format: F1
+
+  # Mean absolute residual in degrees, so lower is better, unlike every percentage on this board.
+  spotted_accuracy_pct:
+    compute: "contact_hits / max(contact_shots, 1) * 100"
+    per: match
+    format: F1
+
+  spray_accuracy_pct:
+    compute: "spray_hits / max(spray_shots_fired, 1) * 100"
+    per: match
+    format: F1
+
+  # Mean degrees off the target's chest at first contact. Lower is better.
+  preaim_deg:
+    compute: "first_contact_angle_sum / max(first_contacts, 1)"
+    per: match
+    format: F1
+
+  # Crosshair travel from first contact to the first landed bullet, in degrees, as the wrapped yaw
+  # travel plus the pitch travel. That is an L1 distance rather than a great-circle one because
+  # the closed function set has no trigonometry, so a diagonal correction reads up to about 1.4x
+  # its true angle; the bias is monotone, which keeps players comparable to each other on one
+  # board even though the absolute number is not a true angle. The yaw term takes the short way
+  # round the circle, or a player who crosses the 180 degree seam scores a 350 degree flick for a
+  # 10 degree correction.
+  # 15.625 ms per tick. CS2 removed the -tickrate launch option and every competitive server runs
+  # 64 tick, so the constant is the rate rather than a default; a demo at another rate would scale
+  # these two and nothing else.
+  time_to_shoot_ms:
+    compute: "tts_ticks / max(tts_shots, 1) * 15.625"
+    per: match
+    format: F0
+
+  time_to_damage_ms:
+    compute: "ttd_ticks / max(ttd_shots, 1) * 15.625"
+    per: match
+    format: F0
+
+  # ONE number, not a pitch and a yaw. The components only agree with the true angular distance
+  # for small deviations and diverge exactly where a spray goes wrong, and a reader cannot combine
+  # two columns in their head anyway. The per-shot components stay on the event for a visualiser.
+  spray_error_deg:
+    compute: "spray_error_sum / max(spray_residual_shots, 1)"
+    per: match
+    format: F2
+
+  crosshair_travel_deg:
+    compute: "travel_sum / max(travel_shots, 1)"
+    per: match
+    format: F1
+
+  # Signed flick error: how much further the crosshair travelled than the contact demanded.
+  # Positive is an overshoot that had to be walked back, negative is an undershoot dragged onto
+  # the target (or a target that walked into the crosshair), zero is one clean correction. It
+  # compares an L1 travel against a true 3D angle, so it inherits crosshair_travel_deg's positive
+  # bias: read the sign and the ordering, not the magnitude.
+  #
+  # KEEP THIS DECLARED AFTER crosshair_travel_deg. Both are round-end computes, each lowered to
+  # its own recompute edge, and those edges run in registration order, which is the order the
+  # stats appear in this file. Move this one above its input and it reads the PREVIOUS round's
+  # travel: still a plausible number, one round stale, with nothing to flag it.
+  flick_error_avg:
+    compute: "flick_error_sum / max(travel_shots, 1)"
+    per: match
+    format: F1
+
+show:
+  scoreboard:
+    # ── game group: the match-scoped board ──
+    - { stat: accuracy_pct,           label: "Acc%",      group: game }
+    - { stat: hs_accuracy_pct,        label: "HSAcc%",    group: game }
+    - { stat: hs_damage_pct,          label: "HSDmg%",    group: game }
+    - { stat: counter_strafe_pct,     label: "CS%",       group: game }
+    - { stat: counter_strafe_all_pct, label: "CSAll%",    group: game }
+    - { stat: linear_movement_pct,    label: "Linear%",   group: game }
+    - { stat: first_bullet_pct,       label: "FB%",       group: game }
+    - { stat: spray_error_deg,        label: Spray,       group: game }
+    - { stat: preaim_deg,             label: Preaim,      group: game }
+    - { stat: spotted_accuracy_pct,   label: "SAcc%",     group: game }
+    - { stat: spray_accuracy_pct,     label: "SprayAcc%", group: game }
+    # Population columns. Not decoration: each is the denominator of a column above, and a zero
+    # here is what tells a reader that the 0.0 beside it is an empty population and not a score.
+    # See the header.
+    - { stat: cs_attempts,            label: CSAtt,       group: game }
+    - { stat: spray_residual_shots,   label: SprayN,      group: game }
+    - { stat: first_contacts,         label: Spots,       group: game }
+    # ── round group: the per-round engagement columns ──
+    - { stat: crosshair_travel_deg,   label: XPlace,      group: game }
+    - { stat: flick_error_avg,        label: FlickErr,    group: game }
+    - { stat: travel_shots,           label: XShots,      group: game }
+    - { stat: time_to_shoot_ms,       label: TTS,         group: game }
+    - { stat: tts_shots,              label: TTSn,        group: game }
+    - { stat: time_to_damage_ms,      label: TTD,         group: game }
+    - { stat: ttd_shots,              label: TTDn,        group: game }
+    - { stat: round_contacts,         label: Spot,        group: round }

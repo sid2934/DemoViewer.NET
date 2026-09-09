@@ -15,6 +15,7 @@ using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.GoldenStats;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Output;
+using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
@@ -156,6 +157,18 @@ if (suiteMode)
     Console.WriteLine($"\n{"═══"} Suite Complete {"═".PadRight(58, '═')}");
     Console.WriteLine($"  Passed: {passed}  Skipped: {skipped}  Failed: {failed}");
     Console.WriteLine($"  Reports: {Path.GetFullPath(suiteReportDir)}/");
+    // An EMPTY suite is a failure, not a pass. demos/**/*.dem is gitignored, so a fresh checkout or
+    // a CI runner has zero cases and every earlier line here reads exactly like a clean run: no
+    // failures, no skips, a report directory. Exiting 0 makes "the benchmark suite passed" and
+    // "there was nothing to benchmark" indistinguishable, which is how a perf gate silently stops
+    // gating.
+    if (testSuite.Length == 0)
+    {
+        Console.Error.WriteLine($"[FAIL] no .dem files in {benchDir}: the suite ran zero cases.");
+        Console.Error.WriteLine("       Place demos there, or use --list-suite to inspect without running.");
+        return 1;
+    }
+
     return failed > 0 ? 1 : 0;
 }
 
@@ -366,7 +379,21 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
         // DemoAnalysis.Build supplies the default registries, including the entity-provider
         // registries that make RuleChainBuilder construct the EntityChangeScanner — so the
         // benchmark drives the same entity-tracking hot path as the app.
-        buildResult = DemoAnalysis.Build(demo, loaded.Rulesets);
+        //
+        // The collision bake is loaded here for the same reason. Without it the builder declines
+        // to synthesize enemy_spotted, every visibility-gated aim stat reads zero, and the
+        // benchmark would measure a materially cheaper graph than the app actually runs. Null when
+        // the map has no bake, which is a real and common shape rather than a failure.
+        string? benchTris = CollisionAssetLocator.FindCollisionTris(demo.MapName);
+        VisibilityEngine? benchVisibility = benchTris is null ? null : VisibilityEngine.Load(benchTris);
+        Console.WriteLine(benchVisibility is null
+            ? $"Visibility: no collision bake for {demo.MapName} (visibility-gated stats stay empty)"
+            : $"Visibility: bake loaded for {demo.MapName}");
+
+        buildResult = DemoAnalysis.Build(demo, loaded.Rulesets, new AnalysisOptions
+        {
+            VisibilityEngine = benchVisibility
+        });
     }
 
     TimeSpan buildElapsed = Stopwatch.GetElapsedTime(buildStart);
@@ -1440,6 +1467,7 @@ static ReportEntityProfile? BuildEntityProfileReport(EntityProfilingSnapshot pro
     }
 
     return new ReportEntityProfile(
+        Ms(sprof.PrecomputeTicks),
         Ms(sprof.SeekTicks),
         Ms(sprof.ProviderPollTicks),
         Ms(sprof.ProjectileScanTicks),
@@ -1448,6 +1476,7 @@ static ReportEntityProfile? BuildEntityProfileReport(EntityProfilingSnapshot pro
         Ms(prof.FieldPathTicks),
         Ms(prof.FieldValueTicks),
         Ms(prof.DescriptorBuildTicks),
+        sprof.PrecomputeAlloc,
         sprof.SeekAlloc,
         sprof.ProviderPollAlloc,
         sprof.ProjectileScanAlloc,
@@ -1514,14 +1543,33 @@ internal sealed record GcReport(int Gen0, int Gen1, int Gen2, int EvalGen0, int 
 /// <summary>
 ///     Entity-decode sub-phase timings (all milliseconds) captured when a profiled run ran
 ///     (<see cref="CS2DemoKit.Parser.Profiling.Enabled" />). Null in the report when no profiled run captured data.
-///     Intervals nest:
-///     <c>
-///         ScannerSeekMs ⊇ PacketEntitiesMs ⊇ (FieldPathMs + FieldValueMs +
-///         DescriptorBuildMs)
-///     </c>
-///     .
+///     <para>
+///         This is TWO disjoint cost centres, not one tree. The per-frame tree nests:
+///         <c>ScannerSeekMs ⊇ PacketEntitiesMs ⊇ (FieldPathMs + FieldValueMs + DescriptorBuildMs)</c>,
+///         each level plus an unattributed remainder. <see cref="PrecomputeMs" /> sits OUTSIDE that tree and
+///         does not double-count against it: <c>PrecomputeParallelDigests</c> decodes the whole entity stream
+///         up front on worker threads, and every worker owns its own <c>EntityStateLayer</c> (hence its own
+///         <c>EntityTracker</c> and entity set), so worker decode never lands in the accumulators this record
+///         reads, which come from the scanner's single main-thread tracker.
+///     </para>
+///     <para>
+///         The failure mode that motivates carrying precompute in the JSON at all: once the precompute path
+///         runs, the eval loop consumes a per-frame digest instead of driving the layer, so the seek tree
+///         collapses toward zero (the tracker snapshot may even report Enabled=false) and a regression in the
+///         parallel decode is invisible in every other field here. Precompute is roughly 70% of eval
+///         wall-time, so a report without it watches the wrong 30%. Both cost centres sit inside
+///         <c>ReportPerformance.EvalMs</c>: the library nests its <c>analysis.precompute</c> span under
+///         <c>analysis.eval</c>.
+///     </para>
+///     <para>
+///         Do NOT baseline against the <c>bench-reports/*.json</c> committed before this field existed. Those
+///         runs used a ruleset with <c>edge_count</c> 9, i.e. a near-empty rule graph, so their eval and
+///         precompute numbers measure almost no rule work and will read as a false regression against any
+///         real ruleset. Take a fresh baseline first.
+///     </para>
 /// </summary>
 internal sealed record ReportEntityProfile(
+    double PrecomputeMs,
     double ScannerSeekMs,
     double ProviderPollMs,
     double ProjectileScanMs,
@@ -1530,6 +1578,7 @@ internal sealed record ReportEntityProfile(
     double FieldPathMs,
     double FieldValueMs,
     double DescriptorBuildMs,
+    long PrecomputeAllocBytes,
     long ScannerSeekAllocBytes,
     long ProviderPollAllocBytes,
     long ProjectileScanAllocBytes,

@@ -94,4 +94,30 @@ internal static partial class AppLog
         Message = "Ruleset '{rulesetId}' was excluded from the analysis graph and none of its stats "
                   + "or highlights can fire: {diagnostics}")]
     public static partial void RulesetExcluded(ILogger logger, string rulesetId, string diagnostics);
+
+    /// <summary>
+    ///     No baked collision geometry for the loaded demo's map, so per-tick visibility cannot be
+    ///     computed and the visibility-gated aim columns (preaim, spotted accuracy, the timing
+    ///     ladder) will be empty.
+    ///     <para>
+    ///         Informational, not a fault: bakes ship per map and the set is deliberately partial.
+    ///         It is logged because an empty column is otherwise indistinguishable from a player who
+    ///         genuinely never engaged, which is the same failure shape the capability probe exists
+    ///         to make visible.
+    ///     </para>
+    /// </summary>
+    [LoggerMessage(EventId = 14, Level = LogLevel.Information,
+        Message = "No collision bake for map '{map}'; visibility-gated aim stats will be empty.")]
+    public static partial void VisibilityBakeMissing(ILogger logger, string map);
+
+    /// <summary>
+    ///     An icon key a view asked for and the bake does not contain. Fired ONCE per distinct key by
+    ///     <c>IconCatalogue</c>, so a key hit every frame costs one line. The view has already fallen back
+    ///     to text and is still usable — this is how the fallback stops being silent.
+    /// </summary>
+    /// <param name="logger">The logger.</param>
+    /// <param name="key">The namespace-qualified key.</param>
+    [LoggerMessage(EventId = 13, Level = LogLevel.Warning,
+        Message = "Icon key not in the bake, falling back to text: {key}")]
+    public static partial void IconKeyMissing(this ILogger logger, string key);
 }

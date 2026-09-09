@@ -5,6 +5,7 @@ using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
@@ -36,7 +37,19 @@ public class StatsRealDemoRenderProbe
         // Post Rulesets v2 cutover the shipped scoreboard stats are v2 rulesets (in .Rulesets),
         // so build through the v2 overload: otherwise the rendered scoreboard is empty.
         RuleConfigLoadResult loaded = YamlConfigLoader.TryLoadDirectory(RuleSetLocator.ResolveShippedRulesDirectory());
-        BuildResult build = DemoAnalysis.Build(demo, loaded.Rulesets);
+        // Mirror the app: AnalysisViewModel hands the build a loaded collision bake, and without it
+        // the builder declines to synthesize enemy_spotted. A probe that skipped it would capture
+        // preaim, spotted accuracy and the timing ladder as a confident column of zeros, which is
+        // exactly the shape a reader would mistake for a working board.
+        string? tris = CollisionAssetLocator.FindCollisionTris(demo.MapName);
+        VisibilityEngine? visibility = tris is null ? null : VisibilityEngine.Load(tris);
+        Console.WriteLine(visibility is null
+            ? $"[capture] no collision bake for {demo.MapName}; visibility columns will be empty"
+            : $"[capture] collision bake loaded for {demo.MapName}");
+        BuildResult build = DemoAnalysis.Build(demo, loaded.Rulesets, new AnalysisOptions
+        {
+            VisibilityEngine = visibility
+        });
         AnalysisRun run = DemoAnalysis.Evaluate(demo, build);
 
         await HeadlessSession.RunOnUi(async () =>
@@ -62,6 +75,20 @@ public class StatsRealDemoRenderProbe
 
             WriteableBitmap? board = window.CaptureRenderedFrame();
             board!.Save(Path.Combine(HeadlessSession.ArtifactDir, "real-scoreboard.png"));
+
+            // The Aim board on the match table. Captured because the aim family is the widest
+            // category the catalogue carries and every column in it is new: a column that resolves
+            // to StatGroup.Other, or one whose scale field was declared below _byKey and silently
+            // came back null, renders as a plausible table rather than as an error.
+            vm.SelectedCategory = StatGroup.Aim;
+            Dispatcher.UIThread.RunJobs();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Dispatcher.UIThread.RunJobs();
+            WriteableBitmap? aim = window.CaptureRenderedFrame();
+            aim!.Save(Path.Combine(HeadlessSession.ArtifactDir, "real-aim.png"));
+            Console.WriteLine($"[capture] {HeadlessSession.ArtifactDir}/real-aim.png cols={vm.Columns.Count}");
+            vm.SelectedCategory = StatGroup.Core;
+            Dispatcher.UIThread.RunJobs();
 
             vm.IsRoundView = true;
             vm.SelectedRound = vm.Rounds.Count > 5 ? vm.Rounds[5] : vm.Rounds[0];

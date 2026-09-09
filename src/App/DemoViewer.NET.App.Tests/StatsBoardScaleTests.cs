@@ -15,9 +15,11 @@ using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Controls.Stats;
+using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Stats;
 using DemoViewer.NET.Views.Stats;
+using TUnit.Core.Exceptions;
 
 #endregion
 
@@ -89,6 +91,55 @@ public class StatsBoardScaleTests
         "custom_rotation_speed", "custom_site_hold_rating"
     ];
 
+    /// <summary>
+    ///     The aim board (rules/aim_rating.rules.yaml), in that file's show order. Declared game-scoped
+    ///     here even though XPlace, Flick and Spot ship as round columns: this fixture carries one
+    ///     snapshot vector rather than a round timeline, and what these tests pin is the scale wiring,
+    ///     which is per column and identical either way.
+    /// </summary>
+    private static readonly string[] _aimColumns =
+    [
+        "Acc%", "HSAcc%", "HSDmg%", "CS%", "CSAll%", "Linear%", "FB%",
+        "Spray", "Preaim", "SAcc%", "SprayAcc%",
+        "CSAtt", "SprayN", "Spots",
+        "XPlace", "FlickErr", "XShots",
+        "TTS", "TTSn", "TTD", "TTDn", "Spot"
+    ];
+
+    /// <summary>
+    ///     Aim values, shaped so each volume gate has exactly one row that trips it and no other. Three
+    ///     different players are starved, one per gate, because a single starved row would prove the
+    ///     gates fire without proving they are wired to the right denominators.
+    ///     <para>
+    ///         Juliet (9) attempted four counter-strafes and stopped all four, which is the two-duels-won-
+    ///         of-two failure in a different column. India (8) has three measurable sprays and the
+    ///         tightest residual on the board. Echo (4) was seen making contact twice and tops every
+    ///         after-contact ratio. All three must keep their bar and lose their tint.
+    ///     </para>
+    /// </summary>
+    private static double AimValue(string column, int i) => column switch
+    {
+        "Acc%" => 34 - (i * 2),
+        "HSAcc%" => 22 + ((i % 5) * 3),
+        "HSDmg%" => 30 + ((i % 4) * 5),
+        "CS%" => i == 9 ? 100 : 78 - (i * 4),
+        "CSAll%" => 41 - (i * 2),
+        "Linear%" => 8 + (i * 2),
+        "FB%" => i == 4 ? 56 : 44 - (i * 3),
+        "SprayPitch" => i == 8 ? 0.6 : 1.0 + (i * 0.35),
+        "SprayYaw" => i == 8 ? 0.8 : 1.0 + (i * 0.3),
+        "Preaim" => i == 4 ? 2.5 : 3.0 + (i * 0.9),
+        "SAcc%" => i == 4 ? 52 : 38 - (i * 2),
+        "SprayAcc%" => i == 4 ? 40 : 26 - (i * 1.5),
+        "CSAtt" => i == 9 ? 4 : 62 - (i * 3),
+        "SprayN" => i == 8 ? 3 : 44 - (i * 2),
+        "Spots" => i == 4 ? 2 : 18 - i,
+        "XPlace" => i == 6 ? 0 : 12 + (i * 1.5),
+        "FlickErr" => (i * 2.0) - 7,
+        "Spot" => i == 6 ? 0 : 1,
+        _ => 0
+    };
+
     private static double BoardValue(string column, int i) => column switch
     {
         "Flash" => 14 - i,
@@ -150,6 +201,240 @@ public class StatsBoardScaleTests
         StatScaleSpec duel = ColumnCatalogue.Resolve("Duel%").Scale!;
         await Assert.That(duel.ColourGateMinimum).IsEqualTo(8);
         await Assert.That(duel.ColourGateColumns).IsNotNull();
+    }
+
+    // ── Aim board ──────────────────────────────────────────────────
+
+    /// <summary>
+    ///     Every aim column is catalogued, and every one of them carries a scale. Same failure mode as
+    ///     the test above and worth its own case because the aim specs are a second batch of static
+    ///     fields: declared below <c>_byKey</c> they are all null when the catalogue is built, and the
+    ///     whole aim page then renders as bare text with no bar and no tint, which looks like a page
+    ///     that was simply never styled rather than like a bug.
+    /// </summary>
+    [Test]
+    public async Task Catalogue_CarriesTheAimColumns()
+    {
+        foreach (string column in _aimColumns)
+        {
+            ColumnMeta meta = ColumnCatalogue.Resolve(column);
+            await Assert.That(meta.Group).IsEqualTo(StatGroup.Aim)
+                .Because($"{column} is not registered, so it lands in Other with no bar and no tint");
+            await Assert.That(meta.Scale).IsNotNull().Because($"{column} has no scale");
+        }
+    }
+
+    /// <summary>
+    ///     The catalogue Key has to match the ruleset label BYTE FOR BYTE, so this reads the labels out
+    ///     of the shipped YAML rather than out of the fixture array above. A typo in either place is
+    ///     otherwise invisible: the column still renders, it just quietly lands in Other.
+    /// </summary>
+    [Test]
+    public async Task AimColumns_MatchTheShippedRulesetLabels()
+    {
+        string[] labels = AimRulesetLabels();
+        await Assert.That(labels).IsNotEmpty();
+
+        foreach (string label in labels)
+        {
+            await Assert.That(ColumnCatalogue.Resolve(label).Group).IsEqualTo(StatGroup.Aim)
+                .Because($"the ruleset shows '{label}' and the catalogue does not register it");
+        }
+
+        // And nothing in the fixture has drifted away from the file it stands in for.
+        await Assert.That(_aimColumns).IsEquivalentTo(labels);
+    }
+
+    /// <summary>
+    ///     Aim is a chip of its own, and it sits between Combat and Damage. The rail orders by enum
+    ///     ORDINAL, so the position is decided by where the member was declared and by nothing else;
+    ///     pinned here because moving the member is a one-character change with a visible consequence.
+    /// </summary>
+    [Test]
+    public async Task CategoryRail_CarriesTheAimChip_AfterCombat()
+    {
+        StatsTabViewModel vm = BuildVm();
+
+        CategoryChip aim = vm.Categories.Single(c => c.Group == StatGroup.Aim);
+        await Assert.That(aim.Label).IsEqualTo("Aim");
+
+        int combat = vm.Categories.ToList().FindIndex(c => c.Group == StatGroup.Combat);
+        int aimIndex = vm.Categories.ToList().FindIndex(c => c.Group == StatGroup.Aim);
+        int damage = vm.Categories.ToList().FindIndex(c => c.Group == StatGroup.Damage);
+        await Assert.That(aimIndex).IsGreaterThan(combat);
+        await Assert.That(aimIndex).IsLessThan(damage);
+
+        // Fifteen columns is a table, not a board.
+        await Assert.That(CategoryBoard.LayoutFor(StatGroup.Aim)).IsEqualTo(CategoryLayout.Table);
+    }
+
+    /// <summary>
+    ///     The aim page is the ruleset's board order, top to bottom. The catalogue's declaration order
+    ///     IS the board order, so a column inserted in the wrong place silently reshuffles the page.
+    /// </summary>
+    [Test]
+    public async Task AimPage_ShowsTheRulesetOrder()
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.Aim;
+
+        await Assert.That(vm.IsColumnTable).IsTrue();
+        await Assert.That(vm.Columns.Select(c => c.Label)).IsEquivalentTo(_aimColumns);
+    }
+
+    /// <summary>
+    ///     Three volume gates, one starved row each. The gate neuters the tint and keeps the bar, so a
+    ///     four-attempt 100% still shows how it compares and stops claiming to be the best play in the
+    ///     lobby. Every ratio on this board guards its denominator with <c>max(d, 1)</c>, which turns an
+    ///     unmeasured population into a confident zero, so without these gates the emptiest rows would
+    ///     be the ones painted hardest.
+    /// </summary>
+    [Test]
+    [Arguments("CS%", "Juliet", "CSAtt")]
+    [Arguments("SprayPitch", "India", "SprayN")]
+    [Arguments("FB%", "Echo", "Spots")]
+    [Arguments("SAcc%", "Echo", "Spots")]
+    [Arguments("SprayAcc%", "Echo", "Spots")]
+    [Arguments("Preaim", "Echo", "Spots")]
+    [Arguments("XPlace", "Golf", "Spot")]
+    public async Task ThinAimSample_KeepsItsBar_AndLosesItsTint(string column, string starved, string gate)
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.Aim;
+
+        StatScaleSpec spec = ColumnCatalogue.Resolve(column).Scale!;
+        await Assert.That(spec.ColourGateColumns).IsEquivalentTo(new[] { gate });
+
+        StatCell thin = Cell(vm, starved, column);
+        await Assert.That(thin.Scale).IsNotNull().Because("the bar survives the gate");
+        await Assert.That(thin.Scale!.Polarity).IsEqualTo(StatPolarity.Neutral);
+        await Assert.That(thin.Scale.Sentiment(thin.Numeric!.Value)).IsEqualTo(0);
+
+        // A row with the volume behind it still gets judged, or the gate would just be the column off.
+        StatCell alice = Cell(vm, "Alice", column);
+        await Assert.That(alice.Scale!.Polarity).IsNotEqualTo(StatPolarity.Neutral);
+    }
+
+    /// <summary>
+    ///     Degrees off, degrees travelled and penalised bullets all read the other way round from the
+    ///     percentages beside them. Getting one of these backwards produces a page that looks finished
+    ///     and rewards the worst row on it.
+    /// </summary>
+    [Test]
+    [Arguments("Linear%", "Alice", "Juliet")]
+    [Arguments("SprayPitch", "Alice", "Juliet")]
+    [Arguments("SprayYaw", "Alice", "Juliet")]
+    [Arguments("Preaim", "Alice", "Juliet")]
+    public async Task LowerIsBetterAimColumn_TintsTheSmallValueGood(string column, string best, string worst)
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.Aim;
+
+        StatCell good = Cell(vm, best, column);
+        StatCell bad = Cell(vm, worst, column);
+        double small = good.Numeric!.Value;
+        double large = bad.Numeric!.Value;
+
+        await Assert.That(small).IsLessThan(large);
+        await Assert.That(good.Scale!.Sentiment(small)).IsGreaterThan(0);
+        await Assert.That(bad.Scale!.Sentiment(large)).IsLessThan(0);
+    }
+
+    /// <summary>
+    ///     The columns this board deliberately refuses to judge, and why each one is on the list.
+    ///     <para>
+    ///         The population columns are denominators: more counter-strafe attempts is more moving, more
+    ///         measurable sprays is more surviving aim-punch decode, more contacts is more fighting. None
+    ///         of that is better play, and tinting it says it is. They are on the board because a zero
+    ///         beside a zero score is the only thing separating an empty population from a real result.
+    ///     </para>
+    ///     <para>
+    ///         The two headshot shares are a STYLE, exactly as HS% already is: an AWPer's body hits kill
+    ///         as well as a rifler's heads, and HSDmg% divides by all enemy damage, so a player who
+    ///         throws grenades scores lower with no change to their aim. Flick is signed, so neither
+    ///         direction is the good one and the bar carries the sign, which is FK+/-'s treatment.
+    ///     </para>
+    /// </summary>
+    [Test]
+    [Arguments("CSAtt")]
+    [Arguments("SprayN")]
+    [Arguments("Spots")]
+    [Arguments("Spot")]
+    [Arguments("HSAcc%")]
+    [Arguments("HSDmg%")]
+    [Arguments("FlickErr")]
+    public async Task UnjudgedAimColumn_KeepsABarAndNoTint(string column)
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.Aim;
+
+        await Assert.That(ColumnCatalogue.Resolve(column).Scale!.Polarity)
+            .IsEqualTo(StatPolarity.Neutral);
+
+        StatCell cell = Cell(vm, "Alice", column);
+        await Assert.That(cell.Scale).IsNotNull();
+        await Assert.That(cell.Scale!.Sentiment(cell.Numeric!.Value)).IsEqualTo(0);
+    }
+
+    /// <summary>
+    ///     No aim column carries an absolute colour band. The available reference data is 50
+    ///     player-match rows and five pro accounts, which cannot define a percentile scale, and a
+    ///     per-opportunity efficiency has no structurally pinned mean to hang one off anyway. A band
+    ///     invented here would look exactly as authoritative as the researched ones above it.
+    /// </summary>
+    [Test]
+    public async Task AimColumns_CarryNoInventedBenchmark()
+    {
+        foreach (string column in _aimColumns)
+        {
+            StatScaleSpec spec = ColumnCatalogue.Resolve(column).Scale!;
+            await Assert.That(spec.Domain).IsEqualTo(StatDomain.Peer);
+            await Assert.That(spec.ColourMin).IsNull().Because($"{column} invented a benchmark");
+            await Assert.That(spec.ColourMax).IsNull().Because($"{column} invented a benchmark");
+        }
+    }
+
+    /// <summary>
+    ///     The <c>label:</c> values from the shipped ruleset's <c>show: scoreboard:</c> block, in file
+    ///     order. Read line by line rather than through a YAML parser because the assertion is about the
+    ///     exact bytes between <c>label:</c> and the next comma, which is what the catalogue Key must
+    ///     equal ordinally.
+    /// </summary>
+    private static string[] AimRulesetLabels()
+    {
+        string? root = DemoTestHelper.FindRepoRoot();
+        if (root is null)
+        {
+            throw new SkipTestException("repo root not found from the test bin");
+        }
+
+        string path = Path.Combine(root, "rules", "aim_rating.rules.yaml");
+        if (!File.Exists(path))
+        {
+            throw new SkipTestException($"the aim ruleset is missing at {path}");
+        }
+
+        List<string> labels = [];
+        foreach (string raw in File.ReadLines(path))
+        {
+            string line = raw.Trim();
+            if (!line.StartsWith("- {", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            int start = line.IndexOf("label:", StringComparison.Ordinal);
+            if (start < 0)
+            {
+                continue;
+            }
+
+            start += "label:".Length;
+            int end = line.IndexOf(',', start);
+            labels.Add(line[start..end].Trim().Trim('"'));
+        }
+
+        return [.. labels];
     }
 
     // ── The hybrid contract ───────────────────────────────────────────────────
@@ -957,6 +1242,7 @@ public class StatsBoardScaleTests
     public static IEnumerable<(StatGroup, string)> BoardCases()
     {
         yield return (StatGroup.Utility, "utility");
+        yield return (StatGroup.Aim, "aim");
         yield return (StatGroup.Weapons, "weapons");
         yield return (StatGroup.OpeningDuels, "duels");
         yield return (StatGroup.MultiKill, "multikill");
@@ -1014,7 +1300,7 @@ public class StatsBoardScaleTests
             List<int> indices = [];
             List<StateNode> nodes = [];
             foreach (string column in _columns.Concat(_scoreColumns).Concat(_boardColumns)
-                         .Concat(_otherColumns))
+                         .Concat(_otherColumns).Concat(_aimColumns))
             {
                 StubNode node = new($"{_roster[p].Name}_{column}");
                 indices.Add(tracked.Count);
@@ -1052,6 +1338,12 @@ public class StatsBoardScaleTests
             for (int o = 0; o < _otherColumns.Length; o++)
             {
                 vec[colIdx[p][otherBase + o]] = Snap(10 + (p * 3) + o);
+            }
+
+            int aimBase = otherBase + _otherColumns.Length;
+            for (int a = 0; a < _aimColumns.Length; a++)
+            {
+                vec[colIdx[p][aimBase + a]] = Snap(AimValue(_aimColumns[a], p));
             }
         }
 
