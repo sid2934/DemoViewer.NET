@@ -9,6 +9,25 @@ using Avalonia.Media.Immutable;
 
 namespace DemoViewer.NET.Controls.Stats;
 
+/// <summary>Which edge a <see cref="StatValue" />'s bar grows from.</summary>
+public enum StatBarAlignment
+{
+    /// <summary>
+    ///     Follow the text. A right-aligned number gets a right-anchored bar, so the value always sits
+    ///     on its own fill instead of drifting away from it when the bar is short.
+    /// </summary>
+    Auto,
+
+    /// <summary>Always grow from the left edge, whatever the text does.</summary>
+    Left,
+
+    /// <summary>Grow outward from the centre.</summary>
+    Center,
+
+    /// <summary>Always grow from the right edge.</summary>
+    Right
+}
+
 /// <summary>How a <see cref="StatValue" /> presents its number.</summary>
 public enum StatValueMode
 {
@@ -58,6 +77,21 @@ public class StatValue : StatPresenter
     public static readonly StyledProperty<TextAlignment> TextAlignmentProperty =
         AvaloniaProperty.Register<StatValue, TextAlignment>(nameof(TextAlignment), TextAlignment.Right);
 
+    /// <summary>
+    ///     Which edge the fill grows from. <see cref="StatBarAlignment.Auto" /> follows
+    ///     <see cref="TextAlignment" />.
+    ///     <para>
+    ///         Configurable rather than fixed because the trade is genuine and surface-dependent. A
+    ///         LEFT-anchored fill shares one baseline down the column, so lengths compare the way a bar
+    ///         chart's do. A RIGHT-anchored fill keeps every number sitting on its own fill, which a
+    ///         left-anchored one does not once the bar is shorter than the gap to the right-aligned text.
+    ///         Auto picks the second because the board right-aligns its numbers; a surface that
+    ///         left-aligns gets the first for free.
+    ///     </para>
+    /// </summary>
+    public static readonly StyledProperty<StatBarAlignment> BarAlignmentProperty =
+        AvaloniaProperty.Register<StatValue, StatBarAlignment>(nameof(BarAlignment));
+
     /// <summary>The unfilled part of the bar (<c>StatBarTrack</c>). Null draws no track.</summary>
     public static readonly StyledProperty<IBrush?> BarTrackBrushProperty =
         AvaloniaProperty.Register<StatValue, IBrush?>(nameof(BarTrackBrush));
@@ -85,6 +119,7 @@ public class StatValue : StatPresenter
     static StatValue()
     {
         AffectsRender<StatValue>(ModeProperty, IsLeaderProperty, TintBarProperty, TextAlignmentProperty,
+            BarAlignmentProperty,
             BarTrackBrushProperty, BarFillBrushProperty, LeaderBrushProperty, BackgroundProperty,
             CornerRadiusProperty);
         AffectsMeasure<StatValue>(ValueProperty, TextProperty, FormatProperty, IsLeaderProperty,
@@ -118,6 +153,25 @@ public class StatValue : StatPresenter
         get => GetValue(TextAlignmentProperty);
         set => SetValue(TextAlignmentProperty, value);
     }
+
+    /// <inheritdoc cref="BarAlignmentProperty" />
+    public StatBarAlignment BarAlignment
+    {
+        get => GetValue(BarAlignmentProperty);
+        set => SetValue(BarAlignmentProperty, value);
+    }
+
+    /// <summary>The anchor actually in force, with <see cref="StatBarAlignment.Auto" /> resolved.</summary>
+    public StatBarAlignment EffectiveBarAlignment => BarAlignment switch
+    {
+        StatBarAlignment.Auto => TextAlignment switch
+        {
+            TextAlignment.Left => StatBarAlignment.Left,
+            TextAlignment.Center => StatBarAlignment.Center,
+            _ => StatBarAlignment.Right
+        },
+        var explicitly => explicitly
+    };
 
     /// <inheritdoc cref="BarTrackBrushProperty" />
     public IBrush? BarTrackBrush
@@ -203,7 +257,11 @@ public class StatValue : StatPresenter
 
         switch (Mode)
         {
-            case StatValueMode.Bar when Value.HasValue:
+            // A usable DOMAIN, not just a value. A cell with a number but no scale (a totals row, an
+            // uncatalogued column) would otherwise draw a full-width track with nothing in it, which
+            // reads as a measured zero rather than as "not measured". Same for a column where every
+            // player tied: there is no comparison to draw.
+            case StatValueMode.Bar when Value.HasValue && EffectiveScale.HasDomain:
                 DrawBar(context, content, Fraction, accent);
                 break;
             case StatValueMode.Chip when text is not null:
@@ -245,13 +303,15 @@ public class StatValue : StatPresenter
     }
 
     /// <summary>
-    ///     Draws the bar, anchored to the same edge the text is.
+    ///     Draws the track, then the fill, anchored per <see cref="BarAlignment" />.
     ///     <para>
-    ///         The anchor follows <see cref="TextAlignment" /> rather than always growing from the left,
-    ///         because a right-aligned number over a left-growing bar drifts away from its own bar exactly
-    ///         when the bar is shortest, and a value sitting in empty space next to a stub of colour reads
-    ///         as two unrelated things. Sharing an edge keeps them one object. Bar LENGTH is the signal;
-    ///         which side it hangs from carries no meaning, so it is free to follow the text.
+    ///         The track is what makes a fill legible: without a full-width reference the eye has nothing
+    ///         to measure the fill against, and a half-filled bar is indistinguishable from a full bar in
+    ///         a narrower cell.
+    ///     </para>
+    ///     <para>
+    ///         Bar LENGTH is the signal; which side it hangs from carries no meaning, so the anchor is
+    ///         free to follow the text and is configurable when it should not.
     ///     </para>
     /// </summary>
     private void DrawBar(DrawingContext context, Rect content, double fraction, IBrush? accent)
@@ -274,10 +334,10 @@ public class StatValue : StatPresenter
         }
 
         double width = Math.Max(1, content.Width * fraction);
-        Rect filled = TextAlignment switch
+        Rect filled = EffectiveBarAlignment switch
         {
-            TextAlignment.Right => content.WithX(content.Right - width).WithWidth(width),
-            TextAlignment.Center => content.WithX(content.X + ((content.Width - width) / 2)).WithWidth(width),
+            StatBarAlignment.Right => content.WithX(content.Right - width).WithWidth(width),
+            StatBarAlignment.Center => content.WithX(content.X + ((content.Width - width) / 2)).WithWidth(width),
             _ => content.WithWidth(width)
         };
 

@@ -141,7 +141,10 @@
                  carries good/bad on the number, and tinting the bar too turns a fifteen-column board into a
                  heat map. Both sit between the row backgrounds and BorderSubtle so a bar reads as a quiet
                  substrate under the text, not as a second foreground. -->
-            <SolidColorBrush x:Key="StatBarTrack" Color="#16162E" />
+            <!-- Measured against CardBg (#171726), which is what the board's table sits on, NOT
+                 against PanelBg. At the original #16162E this was contrast 1.00 on the card: exactly
+                 invisible, so the track was there and doing nothing. -->
+            <SolidColorBrush x:Key="StatBarTrack" Color="#212140" />
             <SolidColorBrush x:Key="StatBarFill" Color="#33335E" />
             <!-- Composition-bar slot palette: a CATEGORICAL scale, not a sequential one. The heat ramp
                  above answers "how good"; these answer "which thing", and the two have opposite jobs. A

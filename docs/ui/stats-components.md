@@ -606,3 +606,44 @@ because a slot means "the first thing, the second thing", which is not category-
 shipped theme, with an assertion that the ramp resolves to the theme's value rather than the base
 palette's. High-Contrast additionally drops the "calmer than an error" distinction the default palette
 keeps between `StatNegative` and `AccentError`; on that theme legibility outranks the nuance.
+
+---
+
+## 16. The bar reads properly now (v0.8.1)
+
+### The track is on by default
+
+A fill with nothing behind it cannot be read. Half of a wide cell and all of a narrow one draw the same
+box, and the eye has no reference to measure against. It was opt-in on the theory that a row of tracks
+would look like a grid of boxes; at this weight it reads as the axis it is.
+
+**It would not have worked even when switched on.** `StatBarTrack` was authored against `PanelBg`, and
+the board's table moved onto a `CardBg` card in the visual pass. On that surface the Dark value was
+contrast **1.00**: not subtle, invisible. Retuned to `#212140` (1.14 on the card, and still 1.31 apart
+from the fill so the two stay distinguishable). E-Girl had the same problem at 1.02 and got the same
+treatment. **Measure a track against `CardBg`.**
+
+### A track made a second bug visible
+
+The totals row carries numbers but no scale, so it drew a full-width track with nothing in it: a
+measured zero, which is not what "not on a scale" means. Uncatalogued columns were in the same state.
+The bar now requires a usable DOMAIN rather than merely a value, so those cells draw no bar at all.
+`StatValue_WithNoDomain_DrawsNoTrackEither` pins it.
+
+That test counts **magenta**, not white, because the headless harness resolves to the Light variant and
+a white-on-white count returns the whole canvas and passes either way.
+
+### The fill anchor is configurable
+
+`BarAlignment` = `Auto` (default) / `Left` / `Center` / `Right`. `Auto` follows `TextAlignment`.
+
+The trade is real and surface-dependent, which is why it is a property rather than a decision:
+
+- **Left-anchored** shares one baseline down the column, so lengths compare the way a bar chart's do.
+- **Right-anchored** keeps every number sitting on its own fill. A left-anchored fill under a
+  right-aligned number separates from it exactly when the bar is shortest, and a value floating beside a
+  stub of colour reads as two unrelated things.
+
+`Auto` picks right on the board because the board right-aligns its numbers. A surface that left-aligns
+gets the left-anchored reading for free. The dev gallery drives it from a picker, so the two can be
+compared on real data rather than argued about.

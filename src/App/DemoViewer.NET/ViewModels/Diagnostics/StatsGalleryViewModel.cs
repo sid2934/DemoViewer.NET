@@ -13,7 +13,9 @@ namespace DemoViewer.NET.ViewModels.Diagnostics;
 /// <param name="Value">The raw number, held constant while the scale is dragged around it.</param>
 /// <param name="Scale">The scale currently in force.</param>
 /// <param name="IsLeader">Whether this cell is the column's best value under the current polarity.</param>
-public sealed record GalleryCell(double Value, StatScale Scale, bool IsLeader);
+/// <param name="BarAlignment">Which edge the fill grows from, so the trade can be seen both ways.</param>
+public sealed record GalleryCell(double Value, StatScale Scale, bool IsLeader,
+    StatBarAlignment BarAlignment);
 
 /// <summary>
 ///     Drives the Diagnostics tab's component gallery: a dev-only surface for the
@@ -37,6 +39,9 @@ public sealed partial class StatsGalleryViewModel : ObservableObject
     private static readonly double[] _columnValues = [1.43, 1.06, 0.91, 0.86, 0.76];
 
     private static readonly string[] _polarityNames = ["Higher is better", "Lower is better", "Neutral"];
+
+    private static readonly string[] _barAlignmentNames =
+        ["Bar: auto (follows text)", "Bar: left", "Bar: centre", "Bar: right"];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Scale), nameof(ColumnCells), nameof(FractionText),
@@ -74,6 +79,10 @@ public sealed partial class StatsGalleryViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _showTrack = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BarAlignment), nameof(ColumnCells))]
+    private int _barAlignmentIndex;
 
     [ObservableProperty]
     private bool _tintBar;
@@ -114,6 +123,12 @@ public sealed partial class StatsGalleryViewModel : ObservableObject
     /// <summary>The three polarity choices, for the combo. Static: the list never varies by instance.</summary>
     public static IReadOnlyList<string> PolarityNames => _polarityNames;
 
+    /// <summary>Fill-anchor choices, for the combo.</summary>
+    public static IReadOnlyList<string> BarAlignmentNames => _barAlignmentNames;
+
+    /// <summary>The selected fill anchor.</summary>
+    public StatBarAlignment BarAlignment => (StatBarAlignment)Math.Clamp(BarAlignmentIndex, 0, 3);
+
     /// <summary>The selected polarity as the enum the controls take.</summary>
     public StatPolarity Polarity => (StatPolarity)Math.Clamp(PolarityIndex, 0, 2);
 
@@ -138,7 +153,7 @@ public sealed partial class StatsGalleryViewModel : ObservableObject
                 : _columnValues.Max();
             return _columnValues
                 .Select(v => new GalleryCell(v, scale,
-                    Polarity != StatPolarity.Neutral && Math.Abs(v - best) < 1e-9))
+                    Polarity != StatPolarity.Neutral && Math.Abs(v - best) < 1e-9, BarAlignment))
                 .ToList();
         }
     }

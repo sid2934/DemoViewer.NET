@@ -206,6 +206,40 @@ public class StatsComponentRenderTests
         });
     }
 
+    /// <summary>
+    ///     A cell with a number but no usable domain draws NO bar, not an empty one.
+    ///     <para>
+    ///         The track is on by default now, and a track with nothing in it reads as a measured zero.
+    ///         Totals rows and uncatalogued columns are both in that state, and neither is zero: they are
+    ///         simply not on a scale.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task StatValue_WithNoDomain_DrawsNoTrackEither()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            StatValue unscaled = new()
+            {
+                Value = 85, Width = 90, Height = 24,
+                BarTrackBrush = Brushes.Magenta, BarFillBrush = Brushes.Magenta
+            };
+            StatValue scaled = new()
+            {
+                Value = 85, Minimum = 0, Maximum = 100, Width = 90, Height = 24,
+                BarTrackBrush = Brushes.Magenta, BarFillBrush = Brushes.Magenta
+            };
+
+            byte[] bare = CaptureControl(unscaled, "stats-cell-untracked");
+            byte[] withBar = CaptureControl(scaled, "stats-cell-tracked");
+
+            // Magenta because it cannot collide with the harness background, which resolves to LIGHT
+            // here: counting white would count the whole canvas and pass either way.
+            await Assert.That(CountPixels(bare, 0xFF00FF)).IsEqualTo(0);
+            await Assert.That(CountPixels(withBar, 0xFF00FF)).IsGreaterThan(500);
+        });
+    }
+
     [Test]
     public async Task StatValue_PublishesItsValueToAutomation()
     {

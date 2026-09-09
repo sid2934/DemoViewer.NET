@@ -291,7 +291,7 @@ a judgement, not a fault, so it is a notch calmer. Stats cells used to borrow `A
 | `StatPositiveSoft` | `#5FA894` | `#2A6E64` | Mild good (teal). |
 | `StatNegativeSoft` | `#D98A3F` | `#9A5A0C` | Mild bad (amber). |
 | `StatNegative` | `#DC5A52` | `#C0392B` | Strong bad. |
-| `StatBarTrack` | `#16162E` | `#E4E5EF` | Unfilled part of an in-cell bar. Steps **lighter** than the row on dark and **darker** on light. |
+| `StatBarTrack` | `#212140` | `#E4E5EF` | Unfilled part of an in-cell bar. Steps **lighter** than the surface on dark and **darker** on light. Measure it against **`CardBg`**, not `PanelBg`: the board's table sits on a card, and the original value was contrast 1.00 there, i.e. invisible. |
 | `StatBarFill` | `#33335E` | `#C7C9E0` | Filled part. Neutral by design, never tinted by sentiment. |
 
 **Retint the ramp whole, or not at all.** The four accent tiers are one decision. A theme that overrides

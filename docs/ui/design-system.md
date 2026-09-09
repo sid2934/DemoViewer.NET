@@ -1010,7 +1010,7 @@ dependency survey that ruled out every charting library, and the open questions 
 |---|---|---|
 | `StatScale` | Pure record, **no Avalonia reference**, so it unit-tests without a render harness. Maps a raw value onto two channels. | `Fraction(v)` → 0..1 bar, `Sentiment(v)` → -1..+1 colour. Factories: `Absolute` `FromPeers` `Banded` `SignOf` `Penalty`. |
 | `StatPresenter` | Abstract base holding the value, the scale and the four accent brushes. The sentiment→brush rule lives here **once**. | `Value` `Scale` (or `Minimum`/`Maximum`/`Polarity`/`NeutralLow`/`NeutralHigh`), `Accent`, `Fraction`, `Sentiment`, `StrongSentimentAt`. |
-| `StatValue` | The workhorse cell: number over a bar, in a chip, or plain. | `Mode` = `Bar`/`Chip`/`Plain`, `IsLeader`, `TintBar`, `TextAlignment`, `BarTrackBrush`, `BarFillBrush`. |
+| `StatValue` | The workhorse cell: number over a bar, in a chip, or plain. | `Mode` = `Bar`/`Chip`/`Plain`, `IsLeader`, `TintBar`, `TextAlignment`, `BarAlignment` = `Auto`/`Left`/`Center`/`Right`, `BarTrackBrush`, `BarFillBrush`. |
 | `SegmentedBar` | Stacked proportion bar, both densities. | `Segments` (`StatSegment(Value, Brush, Label)`), `Compact`, `ShowLabels`, `Gap`. |
 | `Sparkline` | Per-round micro chart. | `Values`, `Mode` = `Line`/`Bars`/`Dots`, `PointTooltips`, `IndexAt(point)`, `Baseline`. |
 | `RingGauge` | One headline number on a circular track. | `Thickness`, `Caption`, `TrackBrush`. |
@@ -1072,7 +1072,7 @@ Each class was rendered + read this pass (variant in the last column; see §7).
 | `Border.badge` | Border | Small rounded count/status pill (pair a `.mono` child in `TextChainBadge`). | `ChainSummaryBadgeBg` | `chrome` |
 | `Rectangle.divider` | Rectangle | Hairline rule (color only; set Width/Height per use). `.divider.strong` = heavier. | `BorderSubtle`/`BorderStrong` | `primitives`, `chrome` |
 | `Ellipse.dot` | Ellipse | StatusChip status dot (CSVG §3.1). State→token via `.stateOff/Working/Good/Degraded/Error`; `.hollow` = ring (Stroke); `.pulsing` = opacity animation. Consumer sets Width/Height. | `TextDim`/`AccentInteractive`/`StatPositive`/`AccentCaution`/`AccentError` | `livesync-chips`, `livesync-flyouts` |
-| `stats\|StatValue.tracked` | StatValue | Adds the empty-bar track. **Off by default**: a whole row of tracks draws a grid of boxes behind the numbers. | `StatBarTrack` | `stats-components` |
+| `stats\|StatValue.untracked` | StatValue | Drops the empty-bar track, which is **on by default**. For a one-off bar with no column to compare against. | `StatBarTrack` | `stats-components` |
 | `stats\|StatValue.chip` | StatValue | The utility table's rating pill: centred, padded, tinted by its own sentiment. | ramp tokens | `stats-components` |
 | `stats\|SegmentedBar.compact` | SegmentedBar | In-cell density: four counts in one table column. | — | `stats-components` |
 | `Button.stat-col-header` | Button | Sortable leaf column header; `.sorted` switches label + caret to the interactive accent. | `PanelHeaderHover`, `AccentInteractive` | `stats-components` |

@@ -176,14 +176,17 @@
         <Setter Property="NegativeSoftBrush" Value="{DynamicResource StatNegativeSoft}" />
         <Setter Property="NegativeBrush" Value="{DynamicResource StatNegative}" />
         <Setter Property="BarFillBrush" Value="{DynamicResource StatBarFill}" />
+        <!-- The empty track is ON by default. A fill with no full-width reference behind it cannot be
+             read: half of a wide cell and all of a narrow one draw the same box, and the eye has nothing
+             to measure against. It was opt-in at first on the theory that a row of tracks would read as
+             a grid of boxes; at this weight it reads as the axis it is. -->
+        <Setter Property="BarTrackBrush" Value="{DynamicResource StatBarTrack}" />
         <Setter Property="LeaderBrush" Value="{DynamicResource AccentAmber}" />
     </Style>
 
-    <!-- `.tracked` adds the empty-bar track. Off by default: a full row of tracks draws a grid of boxes
-         behind the numbers, which is heavier than the reference and only earns its keep where a column's
-         bars are short enough that the axis is hard to read. -->
-    <Style Selector="stats|StatValue.tracked">
-        <Setter Property="BarTrackBrush" Value="{DynamicResource StatBarTrack}" />
+    <!-- `.untracked` drops the track again, for a one-off bar with no column to compare against. -->
+    <Style Selector="stats|StatValue.untracked">
+        <Setter Property="BarTrackBrush" Value="{x:Null}" />
     </Style>
 
     <!-- `.chip` is the utility table's rating pill: centred, padded, tinted by its own sentiment. -->

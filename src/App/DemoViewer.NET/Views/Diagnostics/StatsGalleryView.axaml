@@ -91,6 +91,10 @@
             <ComboBox ItemsSource="{x:Static vm:StatsGalleryViewModel.PolarityNames}"
                       SelectedIndex="{Binding PolarityIndex, Mode=TwoWay}"
                       MinWidth="132" FontSize="11" />
+            <ComboBox ItemsSource="{x:Static vm:StatsGalleryViewModel.BarAlignmentNames}"
+                      SelectedIndex="{Binding BarAlignmentIndex, Mode=TwoWay}"
+                      MinWidth="168" FontSize="11"
+                      ToolTip.Tip="Which edge the fill grows from. Left shares one baseline down the column; right keeps every number sitting on its own fill." />
             <CheckBox Content="track" IsChecked="{Binding ShowTrack, Mode=TwoWay}" FontSize="11" />
             <CheckBox Content="tint bar" IsChecked="{Binding TintBar, Mode=TwoWay}" FontSize="11" />
             <CheckBox Content="leader" IsChecked="{Binding ShowLeader, Mode=TwoWay}" FontSize="11" />
@@ -117,7 +121,8 @@
                                 StrongSentimentAt="{Binding StrongSentimentAt}"
                                 IsLeader="{Binding ShowLeader}"
                                 TintBar="{Binding TintBar}"
-                                Classes.tracked="{Binding ShowTrack}" />
+                                BarAlignment="{Binding BarAlignment}"
+                                Classes.untracked="{Binding !ShowTrack}" />
             <statsCtl:StatValue Width="90" Height="20" Classes="chip"
                                 Value="{Binding Value}" Scale="{Binding Scale}"
                                 StrongSentimentAt="{Binding StrongSentimentAt}" />
@@ -134,7 +139,7 @@
                     <statsCtl:StatValue Width="150" Height="19" Format="0.00"
                                         Value="{Binding Value}" Scale="{Binding Scale}"
                                         IsLeader="{Binding IsLeader}"
-                                        Classes="tracked" />
+                                        BarAlignment="{Binding BarAlignment}" />
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
