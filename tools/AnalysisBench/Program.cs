@@ -81,6 +81,17 @@ bool enableTimeline = flags.Contains("--timeline");
 // before/after comparison for the memory-mapped-buffer work. See MemoryMappedDemoSource's ownership
 // contract: the mapping is disposed as soon as the bytes are no longer needed.
 bool useMmap = flags.Contains("--mmap");
+// --ray-counters: turn on the visibility path's ray budget counters (VisibilityCounters, off by
+// default in the library). Process-wide, set before any run like Profiling.Enabled; RunBench resets
+// them before eval and snapshots them after, so --suite reports each demo on its own. Per-ray
+// Stopwatch brackets add a few percent to the raycasting, so eval_ms from a counted run is not the
+// baseline number; take that from a run without the flag.
+bool enableRayCounters = flags.Contains("--ray-counters");
+if (enableRayCounters)
+{
+    VisibilityCounters.Enabled = true;
+}
+
 bool enableProfile = flags.Contains("--profile");
 if (enableProfile)
 {
@@ -185,6 +196,7 @@ if (positional.Length == 0)
     Console.Error.WriteLine("  --bare               Run Evaluate() without snapshots (measures pure eval cost)");
     Console.Error.WriteLine("  --no-golden          Skip writing tests/fixtures golden files (use for verification runs)");
     Console.Error.WriteLine("  --mmap               Memory-map the .dem instead of File.ReadAllBytes (keeps the file bytes off the managed heap)");
+    Console.Error.WriteLine("  --ray-counters       Count rays cast / frustum-rejected pairs on the visibility path and time the raycasting");
     Console.Error.WriteLine("  --round-debug        Detailed per-round event trace");
     Console.Error.WriteLine("  --report=<path>      Write JSON report to file");
     Console.Error.WriteLine("  --export=csv|json    Export per-(player,round) stats as a MetricTable (requires snapshot mode)");
@@ -407,6 +419,9 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     // tracking included) allocates. GC gen-counts alone can't distinguish a churny short-lived
     // path from a frugal one with the same collection cadence.
     long evalAllocBefore = GC.GetAllocatedBytesForCurrentThread();
+    // Ray budget counters: zeroed here so a --suite run reports each demo alone. No-op unless
+    // --ray-counters turned them on (they are off by default in the library).
+    VisibilityCounters.Reset();
     long evalStart = Stopwatch.GetTimestamp();
 
     int messageCount = 0, playerCount = 0, timelineEvents = 0;
@@ -517,6 +532,7 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
 
     TimeSpan evalElapsed = Stopwatch.GetElapsedTime(evalStart);
     long evalAllocBytes = GC.GetAllocatedBytesForCurrentThread() - evalAllocBefore;
+    VisibilityCountersSnapshot rays = VisibilityCounters.Snapshot();
     int gc0After = GC.CollectionCount(0), gc1After = GC.CollectionCount(1), gc2After = GC.CollectionCount(2);
 
     // ── Summary ────────────────────────────────────────────────────────────
@@ -559,6 +575,7 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     ScannerProfilingSnapshot sprof = buildResult.EntityScanner?.GetProfilingSnapshot() ?? default;
     PrintParseProfile(ParseProfilingSnapshot.Read());
     PrintEntityProfile(prof, sprof);
+    PrintRayCounters(rays, evalElapsed, VisibilityCounters.Enabled);
 
     if (listener is not null)
     {
@@ -622,7 +639,8 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
                     gc1After - evalGc1,
                     evalAllocBytes
                 ),
-                BuildEntityProfileReport(prof, sprof)
+                BuildEntityProfileReport(prof, sprof),
+                BuildRayReport(rays, evalElapsed, VisibilityCounters.Enabled)
             ),
             playerReports
         );
@@ -1491,6 +1509,79 @@ static ReportEntityProfile? BuildEntityProfileReport(EntityProfilingSnapshot pro
         prof.DescriptorBuilds);
 }
 
+// ── Visibility ray budget ─────────────────────────────────────────────────
+
+// The measured ray budget behind the aim-rating visibility path. Every figure comes from
+// VisibilityCounters, which the library leaves off unless --ray-counters set it; without the flag
+// this prints one line saying so. "Frustum-rejected pairs" are directed enemy pairs with no body
+// anchor inside the viewer's frustum: a frustum-first gate would cast nothing for them, and the
+// rays the current code spends on them are the ones such a gate removes outright.
+static void PrintRayCounters(VisibilityCountersSnapshot rays, TimeSpan evalElapsed, bool enabled)
+{
+    Console.WriteLine();
+    Console.WriteLine("─── Visibility Ray Budget ───────────────────────────────");
+    if (!enabled)
+    {
+        Console.WriteLine("  (no data — rerun with --ray-counters to enable)");
+        return;
+    }
+
+    if (rays.PairsEvaluated == 0)
+    {
+        Console.WriteLine("  no directed pairs evaluated (no collision bake, or no rule subscribed to enemy_spotted)");
+        return;
+    }
+
+    static double Pct(long part, long whole)
+    {
+        return whole > 0 ? part * 100.0 / whole : 0.0;
+    }
+
+    double evalMs = evalElapsed.TotalMilliseconds;
+    double raysPerSec = rays.RayMs > 0 ? rays.RaysCast / (rays.RayMs / 1000.0) : 0.0;
+    Console.WriteLine($"  Sampled ticks:              {rays.SampledTicks,12:N0}");
+    Console.WriteLine($"  Directed enemy pairs:       {rays.PairsEvaluated,12:N0}   ({(double)rays.PairsEvaluated / Math.Max(1, rays.SampledTicks):F1} per sampled tick)");
+    Console.WriteLine($"    frustum-rejected (0 anchors in FOV): {rays.PairsNoAnchorInFrustum,12:N0}   {Pct(rays.PairsNoAnchorInFrustum, rays.PairsEvaluated),5:F1}% of pairs");
+    Console.WriteLine($"    exposed:                  {rays.PairsExposed,12:N0}   {Pct(rays.PairsExposed, rays.PairsEvaluated),5:F1}%");
+    Console.WriteLine($"    could-see:                {rays.PairsCouldSee,12:N0}   {Pct(rays.PairsCouldSee, rays.PairsEvaluated),5:F1}%");
+    Console.WriteLine($"  Anchors in FOV:             {rays.AnchorsInFrustum,12:N0}   of {rays.AnchorsTotal:N0} ({Pct(rays.AnchorsInFrustum, rays.AnchorsTotal):F1}%)");
+    Console.WriteLine($"  Rays cast:                  {rays.RaysCast,12:N0}   ({(double)rays.RaysCast / rays.PairsEvaluated:F2} per pair; {rays.RaysSkippedByEarlyExit:N0} anchors skipped by early exit)");
+    Console.WriteLine($"    clear (no occluder):      {rays.RaysClear,12:N0}   {Pct(rays.RaysClear, rays.RaysCast),5:F1}%");
+    Console.WriteLine($"    anchor outside FOV:       {rays.RaysCastOutsideFrustum,12:N0}   {Pct(rays.RaysCastOutsideFrustum, rays.RaysCast),5:F1}%   (per-anchor frustum gate would skip these)");
+    Console.WriteLine($"    on frustum-rejected pairs:{rays.RaysCastOnFrustumRejectedPairs,12:N0}   {Pct(rays.RaysCastOnFrustumRejectedPairs, rays.RaysCast),5:F1}%   (per-pair frustum gate would skip these)");
+    Console.WriteLine($"  Raycast wall-clock:         {rays.RayMs,12:F1} ms   {Pct((long)rays.RayMs, (long)evalMs),5:F1}% of eval   ({raysPerSec / 1e6:F2} MRay/s, single thread)");
+    Console.WriteLine($"  Transition-scan wall-clock: {rays.SampleMs,12:F1} ms   {Pct((long)rays.SampleMs, (long)evalMs),5:F1}% of eval   (raycasts + frustum + anchors + crosshair test)");
+}
+
+// Null (omitted from the JSON) when the counters were not enabled for this run.
+static ReportVisibilityRays? BuildRayReport(VisibilityCountersSnapshot rays, TimeSpan evalElapsed, bool enabled)
+{
+    if (!enabled)
+    {
+        return null;
+    }
+
+    double evalMs = evalElapsed.TotalMilliseconds;
+    return new ReportVisibilityRays(
+        rays.SampledTicks,
+        rays.PairsEvaluated,
+        rays.PairsNoAnchorInFrustum,
+        rays.PairsExposed,
+        rays.PairsCouldSee,
+        rays.AnchorsTotal,
+        rays.AnchorsInFrustum,
+        rays.RaysCast,
+        rays.RaysClear,
+        rays.RaysCastOutsideFrustum,
+        rays.RaysCastOnFrustumRejectedPairs,
+        rays.RaysSkippedByEarlyExit,
+        Math.Round(rays.RayMs, 2),
+        Math.Round(rays.SampleMs, 2),
+        evalMs > 0 ? Math.Round(rays.RayMs / evalMs, 4) : 0.0,
+        evalMs > 0 ? Math.Round(rays.SampleMs / evalMs, 4) : 0.0,
+        rays.RayMs > 0 ? Math.Round(rays.RaysCast / (rays.RayMs / 1000.0)) : 0.0);
+}
+
 // ── Report Records ─────────────────────────────────────────────────────────
 
 internal sealed record TestCase(string Id, string DemoPath, string? LeetifyJson);
@@ -1536,7 +1627,8 @@ internal sealed record ReportPerformance(
     int MaterializedPlayers,
     int TimelineEvents,
     GcReport Gc,
-    ReportEntityProfile? EntityProfile = null);
+    ReportEntityProfile? EntityProfile = null,
+    ReportVisibilityRays? VisibilityRays = null);
 
 internal sealed record GcReport(int Gen0, int Gen1, int Gen2, int EvalGen0, int EvalGen1, long AllocBytes);
 
@@ -1593,6 +1685,31 @@ internal sealed record ReportEntityProfile(
     int DescriptorBuilds);
 
 internal sealed record PlayerReport(string Name, int Slot, int Team, int TemplateIndex, Dictionary<string, object?> Stats);
+
+/// <summary>
+///     The visibility path's measured ray budget for one run, from <c>VisibilityCounters</c>. Present
+///     only on runs made with <c>--ray-counters</c>. <see cref="RayShareOfEval" /> is raycast
+///     wall-clock over <c>ReportPerformance.EvalMs</c>; the raycasting runs single-threaded on the
+///     eval thread, so that share is the ceiling on what a faster traversal can take off eval.
+/// </summary>
+internal sealed record ReportVisibilityRays(
+    long SampledTicks,
+    long DirectedPairs,
+    long PairsFrustumRejected,
+    long PairsExposed,
+    long PairsCouldSee,
+    long AnchorsTotal,
+    long AnchorsInFrustum,
+    long RaysCast,
+    long RaysClear,
+    long RaysCastOutsideFrustum,
+    long RaysCastOnFrustumRejectedPairs,
+    long RaysSkippedByEarlyExit,
+    double RayMs,
+    double TransitionScanMs,
+    double RayShareOfEval,
+    double TransitionScanShareOfEval,
+    double RaysPerSecond);
 
 internal static class JsonOpts
 {
