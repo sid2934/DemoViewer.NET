@@ -386,6 +386,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         ClosePlayerDetails();
 
         _visibilityDemo = null;
+        _sprays.Clear();
         _collisionTrisPath = null;
         VisibilityPlayersTable = null;
         VisibilityPairsTable = null;
@@ -1330,6 +1331,38 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         NotifyLayout();
     }
 
+    // Sampled sprays, cached per origin because the two modes cost very different amounts and a
+    // drilldown re-opens constantly. Cleared with the demo, not with the player: the model covers
+    // everyone, so paging through players must not resample.
+    private readonly Dictionary<SprayOrigin, SprayModel> _sprays = [];
+
+    /// <summary>
+    ///     The demo behind the current tables, or null before the first evaluation. Shared with the
+    ///     spray sampler and the visibility replay, which is why closing the tab clears it: without
+    ///     that, a standalone close pins the whole demo.
+    /// </summary>
+    internal ParsedDemo? LoadedDemo => _visibilityDemo;
+
+    /// <summary>
+    ///     Samples this demo's sprays, once per origin, off the UI thread.
+    /// </summary>
+    /// <param name="demo">The demo to sample.</param>
+    /// <param name="origin">What per-shot offsets are measured from.</param>
+    internal async Task<SprayModel> SpraysAsync(ParsedDemo demo, SprayOrigin origin)
+    {
+        if (_sprays.TryGetValue(origin, out SprayModel? cached))
+        {
+            return cached;
+        }
+
+        // TargetCentre replays entity state to place each victim, so it is emphatically not a UI
+        // thread job. FirstBullet is only an event walk, but it goes the same way rather than
+        // branching: one path is one behaviour to reason about.
+        SprayModel model = await Task.Run(() => SpraySampler.Sample(demo, origin));
+        _sprays[origin] = model;
+        return model;
+    }
+
     /// <summary>Called at the top of <see cref="Update" />: new evaluation → visibility resets.</summary>
     private void ResetVisibilityForNewEvaluation(ParsedDemo demo)
     {
@@ -1338,6 +1371,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         _visibilityCts = null;
 
         _visibilityDemo = demo;
+        _sprays.Clear();
         _collisionTrisPath = _collisionResolver(demo.MapName);
         VisibilityPlayersTable = null;
         VisibilityPairsTable = null;

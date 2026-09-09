@@ -55,6 +55,7 @@ public class AimPunchOracleProbe
         double sumAbsOracle = 0;
         double sumAbsDelta = 0;
         double worst = 0;
+        Dictionary<int, List<(double X, double Y)>> byIndex = [];
 
         for (int i = 0; i < demo.Frames.Count; i++)
         {
@@ -95,6 +96,15 @@ public class AimPunchOracleProbe
                                       + $"oracleY={shot.AimPunchY,8:F3} velX={vel?.X,8:F3} tickBase={tb} tick={frame.ServerTick}");
                 }
 
+                int ri = (int)Math.Round(shot.RecoilIndex);
+                if (!byIndex.TryGetValue(ri, out List<(double X, double Y)>? bucket))
+                {
+                    bucket = [];
+                    byIndex[ri] = bucket;
+                }
+
+                bucket.Add((shot.AimPunchX, shot.AimPunchY));
+
                 compared++;
                 sumAbsColumn += Math.Abs(columnPitch);
                 sumAbsOracle += Math.Abs(shot.AimPunchX);
@@ -105,6 +115,16 @@ public class AimPunchOracleProbe
                     agreed++;
                 }
             }
+        }
+
+        // Is the punch CUMULATIVE along the spray? If AimPunch at recoil index n is the pattern
+        // offset rather than the per-shot kick, the ideal pattern is directly readable off the wire
+        // and needs neither the PRNG nor entity state.
+        Console.WriteLine("[idx] recoil  n   meanPunchX  meanPunchY");
+        foreach (int idx in byIndex.Keys.OrderBy(k => k).Take(14))
+        {
+            List<(double X, double Y)> v = byIndex[idx];
+            Console.WriteLine($"[idx] {idx,6} {v.Count,3} {v.Average(t => t.X),11:F3} {v.Average(t => t.Y),11:F3}");
         }
 
         Console.WriteLine($"[punch] field={resolved ?? "NONE"} compared={compared}");

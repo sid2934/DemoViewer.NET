@@ -39,20 +39,19 @@
 # SprayN, Spots and Spot ship as columns of their own: they are the denominators, and a zero
 # beside a zero denominator is the only way a reader can tell an empty population from a score.
 #
-# THE TIME-TO-X LADDER IS NOT HERE, AND NOT BY OVERSIGHT. TTS, AimRx, TTD and TTK each measure
-# an interval from a spot to a wire event, and the two ends sit on different tick clocks:
-# `event.tick` resolves to the envelope's ServerTick, which for a parsed wire event is the
-# absolute server tick and for the synthesized enemy_spotted is the frame clock the entity scan
-# is driven on. Measured on the bundled sample, ServerStartTick is 20,457: one weapon_fire
-# reports frame tick 2,501 and event tick 22,957. Subtracting a spot tick from a shot tick
-# therefore yields the real interval plus about 320 seconds, on every row, always positive and
-# always plausible-looking. The language exposes no conversion (event.GameTick is not a catalog
-# field, and match.tick has no live lowering), so the ladder is deferred rather than shipped
-# wrong. It becomes authorable, with no change here beyond adding the stanzas, as soon as
-# EITHER the synthesized spot carries the wire clock (ServerTick = frameTick + ServerStartTick,
-# GameTick = frameTick, the convention every parsed event already follows) OR a shot-side
-# `enrich.shot.ticks_since_spot` lands, which is the better shape anyway because it also bounds
-# the pairing per engagement instead of per round.
+# THE TIME-TO-X LADDER SHIPS ON ENRICHMENTS, NOT ON `event.tick`. TTS, AimRx, TTD and TTK each
+# measure an interval from a contact to a wire event, and authoring that in the expression
+# language directly does not work: `event.tick` resolves to the envelope's ServerTick, which is
+# the absolute server-boot tick, while the synthesized enemy_spotted is stamped on the frame
+# clock the entity scan is driven on. Measured on the bundled sample, ServerStartTick is 20,457
+# and one weapon_fire reports frame tick 2,501 against event tick 22,957, so a subtraction across
+# the two returns the real interval plus about 320 seconds: always positive, always plausible.
+#
+# The engine closes the gap instead, and the ladder reads only enrichments that were differenced
+# on ONE clock inside the edge that emitted them: enrich.shot.ticks_since_spot,
+# enrich.shot.ticks_since_on_target and enrich.kill.ticks_since_spot. That is the better shape
+# regardless of the clock question, because a shot-side interval also bounds the pairing per
+# engagement rather than per round. Do not reach for `event.tick` to extend this family.
 #
 # THE PAIRING BOUND THAT SAME DEFECT COSTS. XPlace and Flick pair the round's FIRST contact with
 # the round's FIRST landed shot after it. The honest bound would be "and no more than N ticks
@@ -327,6 +326,44 @@ stats:
   # capture list cannot be reduced by an expression, so this is a documented divergence rather
   # than a choice. The engagement window bounds the upper tail; nothing bounds the lower one.
 
+  # AimRx: from the crosshair ARRIVING on an enemy to the shot. TTS contains the turn onto the
+  # target as well, so the pair separates aim travel from what happens once the crosshair is already
+  # there. The acquisition test is range-corrected in the scanner (a player subtends about 3 degrees
+  # of half-width at 300 units and 0.6 at 1500), so a fixed tolerance is not what decides it.
+  #
+  # Expect this to be SMALL and to compress hard: the meta-analysis behind this family found
+  # processing speed did not separate high-ranked non-professionals from amateurs at all
+  # (g = 0.027, p = .935). Read it as a diagnostic, not a ranking.
+  aimrx_shots:
+    count: shot
+    match: { is_first_after_on_target: true, ticks_since_on_target: "<= 320", bullet: true }
+    while: round.active
+    per: match
+
+  aimrx_ticks:
+    sum: enrich.shot.ticks_since_on_target
+    on: shot
+    match: { is_first_after_on_target: true, ticks_since_on_target: "<= 320", bullet: true }
+    while: round.active
+    per: match
+
+  # TTK: contact to the kill. Weakest of the ladder by some distance (scope.gg's own rifle
+  # benchmarks span only about 170 ms across the entire FACEIT ladder) and it confounds aim with
+  # damage output and armour, so it ships beside its denominator and without a colour judgement.
+  # Note TTK < TTD is possible: they average over different engagement subsets.
+  ttk_kills:
+    count: kill
+    match: { enemy: true, ticks_since_spot: "<= 640" }
+    while: round.active
+    per: match
+
+  ttk_ticks:
+    sum: enrich.kill.ticks_since_spot
+    on: kill
+    match: { enemy: true, ticks_since_spot: "<= 640" }
+    while: round.active
+    per: match
+
   tts_shots:
     count: shot
     match: { is_first_after_spot: true, ticks_since_spot: "<= 320", bullet: true }
@@ -446,7 +483,17 @@ stats:
   # 10 degree correction.
   # 15.625 ms per tick. CS2 removed the -tickrate launch option and every competitive server runs
   # 64 tick, so the constant is the rate rather than a default; a demo at another rate would scale
-  # these two and nothing else.
+  # these four and nothing else.
+  aimed_reaction_ms:
+    compute: "aimrx_ticks / max(aimrx_shots, 1) * 15.625"
+    per: match
+    format: F0
+
+  time_to_kill_ms:
+    compute: "ttk_ticks / max(ttk_kills, 1) * 15.625"
+    per: match
+    format: F0
+
   time_to_shoot_ms:
     compute: "tts_ticks / max(tts_shots, 1) * 15.625"
     per: match
@@ -513,4 +560,8 @@ show:
     - { stat: tts_shots,              label: TTSn,        group: game }
     - { stat: time_to_damage_ms,      label: TTD,         group: game }
     - { stat: ttd_shots,              label: TTDn,        group: game }
+    - { stat: aimed_reaction_ms,      label: AimRx,       group: game }
+    - { stat: aimrx_shots,            label: AimRxn,      group: game }
+    - { stat: time_to_kill_ms,        label: TTK,         group: game }
+    - { stat: ttk_kills,              label: TTKn,        group: game }
     - { stat: round_contacts,         label: Spot,        group: round }

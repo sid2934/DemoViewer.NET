@@ -103,7 +103,8 @@ public class StatsBoardScaleTests
         "Spray", "Preaim", "SAcc%", "SprayAcc%",
         "CSAtt", "SprayN", "Spots",
         "XPlace", "FlickErr", "XShots",
-        "TTS", "TTSn", "TTD", "TTDn", "Spot"
+        "TTS", "TTSn", "TTD", "TTDn",
+        "AimRx", "AimRxn", "TTK", "TTKn", "Spot"
     ];
 
     /// <summary>
@@ -126,8 +127,7 @@ public class StatsBoardScaleTests
         "CSAll%" => 41 - (i * 2),
         "Linear%" => 8 + (i * 2),
         "FB%" => i == 4 ? 56 : 44 - (i * 3),
-        "SprayPitch" => i == 8 ? 0.6 : 1.0 + (i * 0.35),
-        "SprayYaw" => i == 8 ? 0.8 : 1.0 + (i * 0.3),
+        "Spray" => i == 8 ? 0.6 : 1.0 + (i * 0.35),
         "Preaim" => i == 4 ? 2.5 : 3.0 + (i * 0.9),
         "SAcc%" => i == 4 ? 52 : 38 - (i * 2),
         "SprayAcc%" => i == 4 ? 40 : 26 - (i * 1.5),
@@ -136,7 +136,24 @@ public class StatsBoardScaleTests
         "Spots" => i == 4 ? 2 : 18 - i,
         "XPlace" => i == 6 ? 0 : 12 + (i * 1.5),
         "FlickErr" => (i * 2.0) - 7,
+        // Hotel (7) is the fourth starved row, one per gate: a 96 ms aimed reaction, the fastest on
+        // the board by 100 ms, off exactly two acquisitions.
+        "AimRx" => i == 7 ? 96 : 280 - (i * 9),
+        "AimRxn" => i == 7 ? 2 : 34 - i,
         "Spot" => i == 6 ? 0 : 1,
+        // Golf (6) starves crosshair travel: a 0.0 degree travel is the cleanest flick on the board
+        // and would tint hardest, off two shots.
+        "XShots" => i == 6 ? 2 : 30 - i,
+        // Hotel (7) starves the rest of the ladder the same way it starves AimRx, each on its OWN
+        // denominator: the gates are deliberately not shared, so each needs its own thin row.
+        "TTS" => i == 7 ? 300 : 470 - (i * 8),
+        "TTSn" => i == 7 ? 3 : 40 - i,
+        "TTD" => i == 7 ? 380 : 620 - (i * 10),
+        "TTDn" => i == 7 ? 3 : 36 - i,
+        // TTK ships untinted, so it carries no gate and needs no starved row; it is here so the
+        // board renders the whole ladder rather than a column of zeroes.
+        "TTK" => 900 - (i * 20),
+        "TTKn" => 14 - (i % 5),
         _ => 0
     };
 
@@ -182,9 +199,13 @@ public class StatsBoardScaleTests
     [Test]
     public async Task Catalogue_CarriesTheScaleSpecs()
     {
-        foreach (string column in _columns)
+        // Every board column, not just the Core seven: a StatScaleSpec declared BELOW _byKey reads
+        // null and the column silently loses its scale, and sweeping only _columns meant the whole
+        // Aim board could regress that way without this test noticing.
+        foreach (string column in _columns.Concat(_aimColumns))
         {
-            await Assert.That(ColumnCatalogue.Resolve(column).Scale).IsNotNull();
+            await Assert.That(ColumnCatalogue.Resolve(column).Scale).IsNotNull()
+                .Because($"{column} must resolve a scale; a null one means it was declared below _byKey");
         }
 
         // An absolute-colour column must carry its benchmark, not merely a polarity.
@@ -283,7 +304,7 @@ public class StatsBoardScaleTests
     }
 
     /// <summary>
-    ///     Three volume gates, one starved row each. The gate neuters the tint and keeps the bar, so a
+    ///     Four volume gates, one starved row each. The gate neuters the tint and keeps the bar, so a
     ///     four-attempt 100% still shows how it compares and stops claiming to be the best play in the
     ///     lobby. Every ratio on this board guards its denominator with <c>max(d, 1)</c>, which turns an
     ///     unmeasured population into a confident zero, so without these gates the emptiest rows would
@@ -291,12 +312,15 @@ public class StatsBoardScaleTests
     /// </summary>
     [Test]
     [Arguments("CS%", "Juliet", "CSAtt")]
-    [Arguments("SprayPitch", "India", "SprayN")]
+    [Arguments("Spray", "India", "SprayN")]
     [Arguments("FB%", "Echo", "Spots")]
     [Arguments("SAcc%", "Echo", "Spots")]
     [Arguments("SprayAcc%", "Echo", "Spots")]
     [Arguments("Preaim", "Echo", "Spots")]
-    [Arguments("XPlace", "Golf", "Spot")]
+    [Arguments("XPlace", "Golf", "XShots")]
+    [Arguments("AimRx", "Hotel", "AimRxn")]
+    [Arguments("TTS", "Hotel", "TTSn")]
+    [Arguments("TTD", "Hotel", "TTDn")]
     public async Task ThinAimSample_KeepsItsBar_AndLosesItsTint(string column, string starved, string gate)
     {
         StatsTabViewModel vm = BuildVm();
@@ -322,8 +346,7 @@ public class StatsBoardScaleTests
     /// </summary>
     [Test]
     [Arguments("Linear%", "Alice", "Juliet")]
-    [Arguments("SprayPitch", "Alice", "Juliet")]
-    [Arguments("SprayYaw", "Alice", "Juliet")]
+    [Arguments("Spray", "Alice", "Juliet")]
     [Arguments("Preaim", "Alice", "Juliet")]
     public async Task LowerIsBetterAimColumn_TintsTheSmallValueGood(string column, string best, string worst)
     {

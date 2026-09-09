@@ -70,12 +70,16 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
         Parent = parent;
         Weapons = new WeaponBreakdownViewModel(parent);
         Vision = new VisionViewModel(parent);
+        Spray = new SprayViewModel(parent);
         Parent.PropertyChanged += OnParentPropertyChanged;
         SetSlot(slot);
     }
 
     /// <summary>The owning Stats tab: close command, visibility compute/busy, table access.</summary>
     public StatsTabViewModel Parent { get; }
+
+    /// <summary>Per-weapon spray shapes for this player.</summary>
+    public SprayViewModel Spray { get; }
 
     /// <summary>The open player's slot (the join key into every table).</summary>
     public int PlayerSlot { get; private set; } = -1;
@@ -285,6 +289,7 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
         RebuildIdentity(gameRow);
         RebuildForm();
         Weapons.SetSlot(PlayerSlot);
+        Spray.SetSlot(PlayerSlot);
         RebuildAchievements();
         RebuildDuels(gameRow, gameColumns);
         RebuildClutch(gameRow, gameColumns);

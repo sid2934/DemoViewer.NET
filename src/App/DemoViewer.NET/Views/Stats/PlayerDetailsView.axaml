@@ -359,6 +359,46 @@
                                        IsVisible="{Binding !HasAchievements}" Classes="pdEmpty" />
                         </StackPanel>
                     </Border>
+                    <!-- Spray shapes: the weapon's recoil pattern as a reference trace, with this
+                         player's own bullets over it. Sits beside the weapon breakdown because it
+                         answers the same question one level deeper: not how much a gun did, but
+                         what the player's hand did with it. -->
+                    <Border Classes="pdCard" Grid.ColumnSpan="2">
+                        <StackPanel Spacing="8">
+                            <DockPanel>
+                                <CheckBox DockPanel.Dock="Right" Content="Track target"
+                                          IsChecked="{Binding Spray.TrackTarget}"
+                                          ToolTip.Tip="Measure every bullet from the enemy's centre instead of from the spray's first bullet, so the plot shows tracking as well as recoil control." />
+                                <TextBlock Text="Spray" Classes="pdCardHeader" />
+                            </DockPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="8"
+                                        IsVisible="{Binding Spray.HasData}">
+                                <ComboBox ItemsSource="{Binding Spray.Weapons}"
+                                          SelectedItem="{Binding Spray.SelectedWeapon}"
+                                          MinWidth="140" />
+                                <ComboBox ItemsSource="{Binding Spray.Runs}"
+                                          SelectedItem="{Binding Spray.SelectedRun}"
+                                          DisplayMemberBinding="{Binding Label}"
+                                          MinWidth="130" />
+                                <ProgressBar IsIndeterminate="True" Width="80" Height="4"
+                                             VerticalAlignment="Center"
+                                             IsVisible="{Binding Spray.IsBusy}" />
+                            </StackPanel>
+
+                            <statsCtl:SprayPlot Height="300" Width="300"
+                                                HorizontalAlignment="Left"
+                                                IsVisible="{Binding Spray.HasData}"
+                                                Pattern="{Binding Spray.Pattern}"
+                                                Shots="{Binding Spray.Shots}"
+                                                PatternBrush="{DynamicResource TextDim}"
+                                                ShotBrush="{DynamicResource AccentBrush}"
+                                                AxisBrush="{DynamicResource DividerBrush}" />
+
+                            <TextBlock Text="{Binding Spray.UnavailableMessage}"
+                                       IsVisible="{Binding !Spray.HasData}" Classes="pdEmpty" />
+                        </StackPanel>
+                    </Border>
                 </Grid>
 
                 <!-- ═══ Rounds sub-section: P-10 round-by-round table ═══ -->

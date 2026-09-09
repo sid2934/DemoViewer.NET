@@ -285,23 +285,59 @@ public static class ColumnCatalogue
         new(StatDomain.Peer, ColourGateColumns: ["CSAtt"], ColourGateMinimum: 20);
 
     /// <summary>
-    ///     Spray residuals: a smaller absolute residual is better compensation, gated on the shots the
-    ///     residual could actually be measured on. That population is far thinner than the shot count
-    ///     suggests (aim punch decodes to implausible angles on some sources and those shots are
-    ///     rejected), and a mean absolute angle taken over one shot is not a rating.
+    ///     Spray control: a smaller angular distance from the run's first bullet is tighter
+    ///     compensation, gated on the bullets it could be measured over. That population is thinner
+    ///     than the shot count suggests, because only LANDED bullets after a run's first one qualify
+    ///     and bullet_damage does not fire for misses. A mean angle over one bullet is not a rating.
     /// </summary>
     private static readonly StatScaleSpec _sprayResidual =
         new(StatDomain.Peer, StatPolarity.LowerIsBetter,
             ColourGateColumns: ["SprayN"], ColourGateMinimum: 20);
 
     /// <summary>
-    ///     XPlace on the round board. Crosshair travel only exists on a round that had a contact, and a
-    ///     round without one reads 0.0, which is the shortest travel on the board and would tint as the
-    ///     cleanest flick in the match.
+    ///     AimRx, gated on its own denominator. An aimed reaction only exists on an engagement where
+    ///     the crosshair was seen arriving on the target, and the ruleset guards that denominator with
+    ///     max(d, 1), so a player with none reads 0 ms: the fastest reaction on the board, under a
+    ///     lower-is-better tint, off nothing at all. Declared HERE, above _byKey, for the reason the
+    ///     comment at the top of this block gives.
     /// </summary>
-    private static readonly StatScaleSpec _roundContactGatedDown =
+    private static readonly StatScaleSpec _acquisitionGatedDown =
         new(StatDomain.Peer, StatPolarity.LowerIsBetter,
-            ColourGateColumns: ["Spot"], ColourGateMinimum: 1);
+            ColourGateColumns: ["AimRxn"], ColourGateMinimum: 8);
+
+    /// <summary>
+    ///     XPlace, gated on its own denominator. Crosshair travel only exists on an engagement that had
+    ///     a contact, and a player without one reads 0.0, which is the shortest travel on the board and
+    ///     would tint as the cleanest flick in the match.
+    ///     <para>
+    ///         Gated on XShots, NOT on Spot. Spot is per-round and XPlace is per-match, and
+    ///         ClearsColourGate reads its gate columns off the SAME MetricRow, so a match-scoped row
+    ///         carries no Spot at all: the gate summed to 0 and neutered the column outright. XShots is
+    ///         the shared denominator the ruleset names for exactly this family, on the same scope.
+    ///     </para>
+    /// </summary>
+    private static readonly StatScaleSpec _travelGatedDown =
+        new(StatDomain.Peer, StatPolarity.LowerIsBetter,
+            ColourGateColumns: ["XShots"], ColourGateMinimum: 8);
+
+    /// <summary>
+    ///     TTS, gated on its own denominator for the same reason as <see cref="_acquisitionGatedDown" />:
+    ///     it guards that denominator with max(d, 1), so a player the ruleset found no engagement for
+    ///     reads 0 ms and tints as the fastest on the board off no data at all.
+    ///     <para>
+    ///         One gate column, not the ladder's two. ClearsColourGate SUMS its gate columns, so a
+    ///         shared [TTSn, TTDn] gate would let a player's damage volume clear their shot column and
+    ///         the other way round, which is exactly the thin sample the gate exists to catch.
+    ///     </para>
+    /// </summary>
+    private static readonly StatScaleSpec _shootGatedDown =
+        new(StatDomain.Peer, StatPolarity.LowerIsBetter,
+            ColourGateColumns: ["TTSn"], ColourGateMinimum: 8);
+
+    /// <summary>TTD, gated on its own denominator. See <see cref="_shootGatedDown" />.</summary>
+    private static readonly StatScaleSpec _damageGatedDown =
+        new(StatDomain.Peer, StatPolarity.LowerIsBetter,
+            ColourGateColumns: ["TTDn"], ColourGateMinimum: 8);
 
     private static int _seq;
 
@@ -360,7 +396,7 @@ public static class ColumnCatalogue
             // a standstill, which is neither a success nor a failure and so is not on the board at all.
             M("Linear%", "Linear %", StatGroup.Aim, "Bullets fired while still moving fast enough for the engine to charge movement inaccuracy (%)", agg: ColumnAggregate.Average, width: 76, scale: _peerDown),
             M("FB%", "First Bullet %", StatGroup.Aim, "First bullet out of the barrel that landed, after first contact (%)", agg: ColumnAggregate.Average, width: 100, scale: _contactGatedUp),
-            M("Spray", "Spray Control", StatGroup.Aim, "Mean angular distance between a bullet and the first bullet of its spray: lower is tighter compensation", agg: ColumnAggregate.Average, width: 76, scale: _peerDown),
+            M("Spray", "Spray Control", StatGroup.Aim, "Mean angular distance between a bullet and the first bullet of its spray: lower is tighter compensation", agg: ColumnAggregate.Average, width: 76, scale: _sprayResidual),
             M("Preaim", "Preaim", StatGroup.Aim, "Mean degrees off the enemy's chest at first contact (lower is better)", agg: ColumnAggregate.Average, width: 70, scale: _contactGatedDown),
             M("SAcc%", "Spotted Acc %", StatGroup.Aim, "Enemy bullet hits per bullet fired after first contact (%)", agg: ColumnAggregate.Average, width: 98, scale: _contactGatedUp),
             M("SprayAcc%", "Spray Acc %", StatGroup.Aim, "Bullets after the first out of the barrel that landed, after first contact (%)", agg: ColumnAggregate.Average, width: 92, scale: _contactGatedUp),
@@ -457,16 +493,20 @@ public static class ColumnCatalogue
             // The round-scoped half of the aim ruleset. Both angle columns pair the round's FIRST contact
             // with its first landed bullet, which is an approximation the ruleset states rather than a
             // measurement, so Spot rides along: on a round with no contact their 0.0 is the empty state.
-            M("XPlace", "Crosshair Travel", StatGroup.Aim, "Degrees the crosshair travelled from first contact to the first landed bullet (lower is better)", agg: ColumnAggregate.Average, width: 112, scale: _roundContactGatedDown),
+            M("XPlace", "Crosshair Travel", StatGroup.Aim, "Degrees the crosshair travelled from first contact to the first landed bullet (lower is better)", agg: ColumnAggregate.Average, width: 112, scale: _travelGatedDown),
             // Signed, so neither direction is the good one: positive overshot and had to be walked back,
             // negative was dragged onto the target. Same treatment as FK+/-, where the sign is the story
             // and the bar already carries it.
             M("FlickErr", "Flick Error", StatGroup.Aim, "Crosshair travel minus the angle the contact demanded: positive overshot, negative undershot", agg: ColumnAggregate.Average, width: 84, scale: _peerNoTint),
             M("XShots", "Travel Shots", StatGroup.Aim, "Landed shots paired to a contact inside the engagement window: the XPlace and FlickErr denominator", width: 92, scale: _peerNoTint),
-            M("TTS", "Time to Shoot", StatGroup.Aim, "Milliseconds from an enemy becoming visible to the first shot answering it: reaction without accuracy or fire rate mixed in", agg: ColumnAggregate.Average, width: 76, scale: _peerDown),
+            M("TTS", "Time to Shoot", StatGroup.Aim, "Milliseconds from an enemy becoming visible to the first shot answering it: reaction without accuracy or fire rate mixed in", agg: ColumnAggregate.Average, width: 76, scale: _shootGatedDown),
             M("TTSn", "TTS Engagements", StatGroup.Aim, "Contacts answered by a shot: the TTS denominator", width: 96, scale: _peerNoTint),
-            M("TTD", "Time to Damage", StatGroup.Aim, "Milliseconds from an enemy becoming visible to the first bullet that damaged them. Quantised by fire rate, so partly a first-shot-accuracy measure", agg: ColumnAggregate.Average, width: 76, scale: _peerDown),
+            M("TTD", "Time to Damage", StatGroup.Aim, "Milliseconds from an enemy becoming visible to the first bullet that damaged them. Quantised by fire rate, so partly a first-shot-accuracy measure", agg: ColumnAggregate.Average, width: 76, scale: _damageGatedDown),
             M("TTDn", "TTD Engagements", StatGroup.Aim, "Contacts answered by a landed bullet: the TTD denominator", width: 96, scale: _peerNoTint),
+            M("AimRx", "Aimed Reaction", StatGroup.Aim, "Milliseconds from the crosshair arriving on an enemy to the shot: reaction with the aim travel taken out", agg: ColumnAggregate.Average, width: 84, scale: _acquisitionGatedDown),
+            M("AimRxn", "AimRx Engagements", StatGroup.Aim, "Acquisitions answered by a shot: the AimRx denominator", width: 104, scale: _peerNoTint),
+            M("TTK", "Time to Kill", StatGroup.Aim, "Milliseconds from an enemy becoming visible to killing them. Confounds aim with damage output and armour, and can read BELOW TTD because the two average over different engagements", agg: ColumnAggregate.Average, width: 76, scale: _peerNoTint),
+            M("TTKn", "TTK Engagements", StatGroup.Aim, "Contacts that ended in a kill: the TTK denominator", width: 96, scale: _peerNoTint),
             M("Spot", "Spot", StatGroup.Aim, "The player made first contact this round: the marker saying XPlace and Flick have a population", width: 56, scale: _peerNoTint)
         ];
 
