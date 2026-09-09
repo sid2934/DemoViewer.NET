@@ -1010,7 +1010,7 @@ dependency survey that ruled out every charting library, and the open questions 
 |---|---|---|
 | `StatScale` | Pure record, **no Avalonia reference**, so it unit-tests without a render harness. Maps a raw value onto two channels. | `Fraction(v)` → 0..1 bar, `Sentiment(v)` → -1..+1 colour. Factories: `Absolute` `FromPeers` `Banded` `SignOf` `Penalty`. |
 | `StatPresenter` | Abstract base holding the value, the scale and the four accent brushes. The sentiment→brush rule lives here **once**. | `Value` `Scale` (or `Minimum`/`Maximum`/`Polarity`/`NeutralLow`/`NeutralHigh`), `Accent`, `Fraction`, `Sentiment`, `StrongSentimentAt`. |
-| `StatValue` | The workhorse cell: number over a bar, in a chip, or plain. | `Mode` = `Bar`/`Chip`/`Plain`, `IsLeader`, `TintBar`, `TextAlignment`, `BarAlignment` = `Auto`/`Left`/`Center`/`Right`, `BarTrackBrush`, `BarFillBrush`. |
+| `StatValue` | The workhorse cell: number over a bar, in a chip, or plain. | `Mode` = `Bar`/`Chip`/`Plain`, `IsLeader`, `TintBar`, `TextAlignment`, `BarAlignment` = `Left` (default)/`Center`/`Right`/`Auto`, `BarTrackBrush`, `BarFillBrush`. |
 | `SegmentedBar` | Stacked proportion bar, both densities. | `Segments` (`StatSegment(Value, Brush, Label)`), `Compact`, `ShowLabels`, `Gap`. |
 | `Sparkline` | Per-round micro chart. | `Values`, `Mode` = `Line`/`Bars`/`Dots`, `PointTooltips`, `IndexAt(point)`, `Baseline`. |
 | `RingGauge` | One headline number on a circular track. | `Thickness`, `Caption`, `TrackBrush`. |

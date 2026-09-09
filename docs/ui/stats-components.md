@@ -633,17 +633,19 @@ The bar now requires a usable DOMAIN rather than merely a value, so those cells 
 That test counts **magenta**, not white, because the headless harness resolves to the Light variant and
 a white-on-white count returns the whole canvas and passes either way.
 
-### The fill anchor is configurable
+### The fill anchors left
 
-`BarAlignment` = `Auto` (default) / `Left` / `Center` / `Right`. `Auto` follows `TextAlignment`.
+`BarAlignment` = `Left` (default) / `Center` / `Right` / `Auto`, where `Auto` follows `TextAlignment`.
 
-The trade is real and surface-dependent, which is why it is a property rather than a decision:
+**Left, because every fill then starts from the same place.** That shared origin is what lets lengths be
+compared down a column the way a bar chart's are. Anchoring to the right gives each row its own origin,
+so the eye has to re-find it on every line.
 
-- **Left-anchored** shares one baseline down the column, so lengths compare the way a bar chart's do.
-- **Right-anchored** keeps every number sitting on its own fill. A left-anchored fill under a
-  right-aligned number separates from it exactly when the bar is shortest, and a value floating beside a
-  stub of colour reads as two unrelated things.
+The objection to left was real for as long as there was no track: a right-aligned number over a
+left-growing fill separates from it exactly when the fill is shortest, leaving a value floating beside a
+stub of colour. **The track removed it.** With a full-width track behind the number, the value always
+sits on something and the fill is read against the track rather than against the number. Turning the
+track on is what made left-anchoring the better default, so the two changes are one change.
 
-`Auto` picks right on the board because the board right-aligns its numbers. A surface that left-aligns
-gets the left-anchored reading for free. The dev gallery drives it from a picker, so the two can be
-compared on real data rather than argued about.
+`Auto` stays for a surface with no track to hold the number together. The dev gallery drives the choice
+from a picker, so it can be judged on real data rather than argued about.

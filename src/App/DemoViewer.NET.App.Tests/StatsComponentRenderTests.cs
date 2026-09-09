@@ -240,6 +240,30 @@ public class StatsComponentRenderTests
         });
     }
 
+    /// <summary>
+    ///     The fill anchors LEFT by default, and that is a decision rather than the enum's zero value.
+    ///     A shared origin is what lets fills be compared down a column; anchoring right gives every row
+    ///     its own origin. <c>Auto</c> stays available for a surface with no track to hold the number.
+    /// </summary>
+    [Test]
+    public async Task StatValue_AnchorsItsFillLeftByDefault()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            StatValue cell = new()
+            {
+                Value = 5, Minimum = 0, Maximum = 10, TextAlignment = TextAlignment.Right
+            };
+
+            await Assert.That(cell.BarAlignment).IsEqualTo(StatBarAlignment.Left);
+            await Assert.That(cell.EffectiveBarAlignment).IsEqualTo(StatBarAlignment.Left);
+
+            // Auto still follows the text, so the escape hatch works.
+            cell.BarAlignment = StatBarAlignment.Auto;
+            await Assert.That(cell.EffectiveBarAlignment).IsEqualTo(StatBarAlignment.Right);
+        });
+    }
+
     [Test]
     public async Task StatValue_PublishesItsValueToAutomation()
     {

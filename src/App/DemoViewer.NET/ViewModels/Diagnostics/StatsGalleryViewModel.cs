@@ -82,7 +82,7 @@ public sealed partial class StatsGalleryViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BarAlignment), nameof(ColumnCells))]
-    private int _barAlignmentIndex;
+    private int _barAlignmentIndex = 1;
 
     [ObservableProperty]
     private bool _tintBar;

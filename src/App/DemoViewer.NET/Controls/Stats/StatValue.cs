@@ -13,8 +13,8 @@ namespace DemoViewer.NET.Controls.Stats;
 public enum StatBarAlignment
 {
     /// <summary>
-    ///     Follow the text. A right-aligned number gets a right-anchored bar, so the value always sits
-    ///     on its own fill instead of drifting away from it when the bar is short.
+    ///     Follow the text: a right-aligned number gets a right-anchored fill. Worth choosing where
+    ///     there is no track behind the number to keep the two connected.
     /// </summary>
     Auto,
 
@@ -78,19 +78,27 @@ public class StatValue : StatPresenter
         AvaloniaProperty.Register<StatValue, TextAlignment>(nameof(TextAlignment), TextAlignment.Right);
 
     /// <summary>
-    ///     Which edge the fill grows from. <see cref="StatBarAlignment.Auto" /> follows
-    ///     <see cref="TextAlignment" />.
+    ///     Which edge the fill grows from. Defaults to <see cref="StatBarAlignment.Left" />.
     ///     <para>
-    ///         Configurable rather than fixed because the trade is genuine and surface-dependent. A
-    ///         LEFT-anchored fill shares one baseline down the column, so lengths compare the way a bar
-    ///         chart's do. A RIGHT-anchored fill keeps every number sitting on its own fill, which a
-    ///         left-anchored one does not once the bar is shorter than the gap to the right-aligned text.
-    ///         Auto picks the second because the board right-aligns its numbers; a surface that
-    ///         left-aligns gets the first for free.
+    ///         <b>Left, because every fill then starts from the same place.</b> That is what lets lengths
+    ///         be compared down a column the way a bar chart's are; anchoring to the right gives each row
+    ///         its own origin and the eye has to re-find it on every line.
+    ///     </para>
+    ///     <para>
+    ///         The objection to left used to be real: a right-aligned number over a left-growing fill
+    ///         separates from it exactly when the fill is shortest, leaving a value floating beside a stub
+    ///         of colour. The TRACK removed it. With a full-width track behind the number, the value
+    ///         always sits on something and the fill is read against the track rather than against the
+    ///         number. Turning the track on is what made left-anchoring the better default.
+    ///     </para>
+    ///     <para>
+    ///         <see cref="StatBarAlignment.Auto" /> remains for surfaces that want the fill to share the
+    ///         text's edge.
     ///     </para>
     /// </summary>
     public static readonly StyledProperty<StatBarAlignment> BarAlignmentProperty =
-        AvaloniaProperty.Register<StatValue, StatBarAlignment>(nameof(BarAlignment));
+        AvaloniaProperty.Register<StatValue, StatBarAlignment>(
+            nameof(BarAlignment), StatBarAlignment.Left);
 
     /// <summary>The unfilled part of the bar (<c>StatBarTrack</c>). Null draws no track.</summary>
     public static readonly StyledProperty<IBrush?> BarTrackBrushProperty =
@@ -310,8 +318,8 @@ public class StatValue : StatPresenter
     ///         a narrower cell.
     ///     </para>
     ///     <para>
-    ///         Bar LENGTH is the signal; which side it hangs from carries no meaning, so the anchor is
-    ///         free to follow the text and is configurable when it should not.
+    ///         Bar LENGTH is the signal, so the anchor carries no meaning of its own. It defaults to the
+    ///         left because a shared origin is what makes lengths comparable down a column.
     ///     </para>
     /// </summary>
     private void DrawBar(DrawingContext context, Rect content, double fraction, IBrush? accent)
