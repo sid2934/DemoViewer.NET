@@ -4292,7 +4292,8 @@ public static class Variants
         double[] aim = [78, 68, 44, 55, 29];
 
         // One scale per column, built the way the next phase's view model will build them.
-        StatScale ratingScale = StatScale.SignOf(-12, 12, 0.5);
+        // Banded on a dead zone straddling zero: small movements either way are not worth tinting.
+        StatScale ratingScale = StatScale.Banded(-12, 12, -0.5, 0.5);
         StatScale hltvScale = StatScale.Banded(0.76, 1.43, 0.95, 1.10);
         StatScale adrScale = StatScale.FromPeers(adr)! with { NeutralLow = 70, NeutralHigh = 90 };
         StatScale aimScale = StatScale.Absolute(0, 100, 45, 65);

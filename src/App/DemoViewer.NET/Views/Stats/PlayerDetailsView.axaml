@@ -108,14 +108,16 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="stats:StatTileItem">
-                            <Border Classes="pdTile" Classes.hero="{Binding IsHero}"
-                                    ToolTip.Tip="{Binding Tooltip}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding Value}" Classes="pdTileValue"
-                                               Classes.hero="{Binding IsHero}" />
-                                    <TextBlock Text="{Binding Label}" Classes="pdTileLabel" />
-                                </StackPanel>
-                            </Border>
+                            <!-- The shared control, not a local restatement of it. The tile now colours
+                                 itself off the same scale the board uses, so a number that is good on
+                                 the scoreboard is good here too. Text carries the board's own
+                                 formatting; the control only draws. -->
+                            <statsCtl:StatTile Text="{Binding Value}"
+                                               Value="{Binding Numeric}"
+                                               Scale="{Binding Scale}"
+                                               Label="{Binding Label}"
+                                               IsHero="{Binding IsHero}"
+                                               ToolTip.Tip="{Binding Tooltip}" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -520,34 +522,6 @@
         </Style>
         <Style Selector="TextBlock.pdBullet.ct">
             <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
-        </Style>
-        <!-- StatTile -->
-        <Style Selector="Border.pdTile">
-            <Setter Property="Background" Value="{DynamicResource CardBg}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="14 8" />
-            <Setter Property="MinWidth" Value="76" />
-        </Style>
-        <Style Selector="Border.pdTile.hero">
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
-        </Style>
-        <Style Selector="TextBlock.pdTileValue">
-            <Setter Property="FontFeatures" Value="tnum" />
-            <Setter Property="FontSize" Value="20" />
-            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
-            <Setter Property="TextAlignment" Value="Right" />
-        </Style>
-        <Style Selector="TextBlock.pdTileValue.hero">
-            <Setter Property="FontSize" Value="25" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource TextCardHeader}" />
-        </Style>
-        <Style Selector="TextBlock.pdTileLabel">
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
-            <Setter Property="TextAlignment" Value="Right" />
         </Style>
         <!-- key/value rows -->
         <Style Selector="TextBlock.pdKvLabel">

@@ -127,7 +127,8 @@ public class StatScaleTests
     [Test]
     public async Task Sentiment_BandOnDomainEdge_SaturatesInsteadOfDividingByZero()
     {
-        StatScale penalty = StatScale.Penalty(50);
+        // A penalty column: anything above zero is bad, so the band sits on the domain's own edge.
+        StatScale penalty = StatScale.Banded(0, 50, 0, 0, StatPolarity.LowerIsBetter);
 
         await Assert.That(penalty.Sentiment(0)).IsEqualTo(0);
         await Assert.That(penalty.Sentiment(50)).IsEqualTo(-1);
@@ -197,10 +198,11 @@ public class StatScaleTests
         await Assert.That(scale.Sentiment(0.90)).IsLessThan(0);
     }
 
+    /// <summary>A rating delta: tinted by direction, with small movements either way left alone.</summary>
     [Test]
-    public async Task SignOf_TintsByDirectionWithADeadZoneAtZero()
+    public async Task Banded_AroundZero_LeavesSmallMovementsAlone()
     {
-        StatScale scale = StatScale.SignOf(-12, 12, 0.5);
+        StatScale scale = StatScale.Banded(-12, 12, -0.5, 0.5);
 
         await Assert.That(scale.Sentiment(0)).IsEqualTo(0);
         await Assert.That(scale.Sentiment(0.4)).IsEqualTo(0);

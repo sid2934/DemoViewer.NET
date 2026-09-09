@@ -140,7 +140,7 @@ Loaded by `App.axaml` **after** `FluentTheme` (so these are additive layers, nev
 | `Styles/Cards.axaml` | Reusable card/flyout **surfaces**. | `Border.card` `Border.card-flyout` |
 | `Styles/Tables.axaml` | List/tabular primitives. | `ListBox.data-list` `ListBox.card-grid` `TextBlock.col-label` |
 | `Styles/Chrome.axaml` | Shell/section furniture. | `Border.sectionHeader` `TextBlock.sectionLabel` `TextBlock.group-label` `Border.badge` `Rectangle.divider` |
-| `Styles/Stats.axaml` | The stats component library's theme layer (v0.8.1): default property values for the four drawn controls, `ControlTheme`s for the two templated ones, and the table-furniture classes. | `stats\|StatValue` (+`.tracked` `.chip`) `stats\|SegmentedBar` (+`.compact`) `stats\|Sparkline` `stats\|RingGauge` · `Button.stat-col-header` `TextBlock.stat-sort-caret` `Border.stat-group-header` `TextBlock.stat-group-label` |
+| `Styles/Stats.axaml` | The stats component library's theme layer (v0.8.1): default property values for the four drawn controls, `ControlTheme`s for the two templated ones, and the table-furniture classes. | `stats\|StatValue` (+`.untracked` `.chip`) `stats\|SegmentedBar` (+`.compact`) `stats\|Sparkline` `stats\|RingGauge` `stats\|DivergingBar` `stats\|PipStrip` (+`.good` `.rare`) · `Button.stat-col-header` `TextBlock.stat-sort-caret` `Border.stat-group-header` `TextBlock.stat-group-label` |
 
 **Design decision (P1.3):** these are **additive style classes**, NOT template-replacing
 `ControlTheme`s. A full `<ControlTheme TargetType="Button">` would swap the Fluent template globally and
@@ -1016,6 +1016,8 @@ dependency survey that ruled out every charting library, and the open questions 
 | `RingGauge` | One headline number on a circular track. | `Thickness`, `Caption`, `TrackBrush`. |
 | `StatTile` | Templated KPI tile; the number is a nested `StatValue`. | `Label`, `Caption`, `IsHero` (`:hero`). |
 | `TeamBadge` | Templated team header with a WIN/LOSS pill. | `Team` (CS2 wire: 2 = T, 3 = CT), `Label`, `Outcome`, `Detail`; pseudo-classes `:ct` `:t` `:win` `:loss` `:draw`. |
+| `DivergingBar` | Won against lost about a break-even line. Replaces the four columns a duel record usually gets with one shape carrying all four. | `Negative`, `Positive`, `Extent` (the shared half-scale; without it each row self-scales and stops being comparable), `BarHeight`. |
+| `PipStrip` | A small count as one mark per event, for magnitudes where a numeric column is mostly whitespace. | `Count`, `MaxPips` (past it the number is written instead), `PipRadius`, `PipGap`, `EmptyBrush`. |
 
 **Previewing them.** Four of the six have no product call site yet, so the Diagnostics tab carries a
 collapsed **"Stats component gallery (design)"** panel: every control, live, driven by sliders, reading

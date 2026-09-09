@@ -25,15 +25,15 @@
              reimplemented here: the tile inherits it. The nested control picks up its accent brushes from
              the app-wide stats|StatValue style below, so nothing is passed down but the data. -->
         <ControlTheme x:Key="{x:Type stats:StatTile}" TargetType="stats:StatTile">
-            <Setter Property="MinWidth" Value="74" />
+            <Setter Property="MinWidth" Value="76" />
             <Setter Property="Template">
                 <ControlTemplate>
                     <Border Name="PART_Root"
                             Background="{DynamicResource CardBg}"
                             BorderBrush="{DynamicResource BorderSubtle}"
                             BorderThickness="1"
-                            CornerRadius="3"
-                            Padding="10 5">
+                            CornerRadius="8"
+                            Padding="14 8">
                         <StackPanel>
                             <stats:StatValue Name="PART_Value"
                                              Value="{TemplateBinding Value}"
@@ -49,20 +49,20 @@
                                              Mode="Plain"
                                              TextAlignment="Left"
                                              Padding="0"
-                                             FontSize="15"
-                                             Height="20"
+                                             FontSize="20"
+                                             Height="26"
+                                             FontFeatures="tnum"
                                              Foreground="{DynamicResource TextCardHeader}" />
                             <TextBlock Name="PART_Label"
                                        Text="{TemplateBinding Label}"
-                                       FontFamily="Consolas,Menlo,monospace"
-                                       FontSize="9"
+                                       FontSize="11"
                                        Foreground="{DynamicResource TextLabel}"
                                        TextTrimming="CharacterEllipsis" />
                             <TextBlock Name="PART_Caption"
                                        Text="{TemplateBinding Caption}"
-                                       FontFamily="Consolas,Menlo,monospace"
-                                       FontSize="9"
-                                       Margin="0 1 0 0"
+                                       FontSize="11"
+                                       FontFeatures="tnum"
+                                       Margin="0 2 0 0"
                                        Foreground="{DynamicResource TextDim}"
                                        TextTrimming="CharacterEllipsis"
                                        IsVisible="{TemplateBinding Caption,
@@ -75,12 +75,12 @@
             <!-- The lead metric of the strip: a brighter surface and a larger number, so one tile in a row
                  of eight reads first. Matches the pdTile.hero it replaces. -->
             <Style Selector="^:hero /template/ Border#PART_Root">
-                <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
             </Style>
             <Style Selector="^:hero /template/ stats|StatValue#PART_Value">
-                <Setter Property="FontSize" Value="19" />
-                <Setter Property="Height" Value="25" />
+                <Setter Property="FontSize" Value="25" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="FontWeight" Value="SemiBold" />
             </Style>
         </ControlTheme>
 

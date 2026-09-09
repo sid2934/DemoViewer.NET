@@ -653,11 +653,11 @@ public class StatsBoardScaleTests
                 frame!.Save(outPath);
                 Console.WriteLine($"[stats-board] {outPath}");
 
-                byte[] pixels = ToBytes(frame);
+                byte[] pixels = FrameProbe.ToBytes(frame);
                 foreach ((string token, uint hex) in
                          new[] { ("StatPositive", 0x4CAF50u), ("StatNegative", 0xDC5A52u) })
                 {
-                    int hits = CountPixels(pixels, hex);
+                    int hits = FrameProbe.CountPixels(pixels, hex);
                     Console.WriteLine($"[stats-board] {token} hits={hits}");
                     await Assert.That(hits).IsGreaterThan(0);
                 }
@@ -904,44 +904,7 @@ public class StatsBoardScaleTests
     private static NodeSnapshot Snap(double value) =>
         new(true, value.ToString("0.##", CultureInfo.InvariantCulture), (float)value);
 
-    private static byte[] ToBytes(WriteableBitmap bmp)
-    {
-        PixelSize size = bmp.PixelSize;
-        byte[] buffer = new byte[size.Width * size.Height * 4];
-        PixelFormat? format;
-        using (ILockedFramebuffer fb = bmp.Lock())
-        {
-            Marshal.Copy(fb.Address, buffer, 0, buffer.Length);
-            format = fb.Format;
-        }
 
-        if (format == PixelFormat.Rgba8888)
-        {
-            for (int i = 0; i + 3 < buffer.Length; i += 4)
-            {
-                (buffer[i], buffer[i + 2]) = (buffer[i + 2], buffer[i]);
-            }
-        }
-
-        return buffer;
-    }
-
-    private static int CountPixels(byte[] buffer, uint rgb, int tolerance = 20)
-    {
-        int wantR = (byte)(rgb >> 16), wantG = (byte)(rgb >> 8), wantB = (byte)rgb;
-        int hits = 0;
-        for (int i = 0; i + 3 < buffer.Length; i += 4)
-        {
-            if (Math.Abs(buffer[i] - wantB) <= tolerance
-                && Math.Abs(buffer[i + 1] - wantG) <= tolerance
-                && Math.Abs(buffer[i + 2] - wantR) <= tolerance)
-            {
-                hits++;
-            }
-        }
-
-        return hits;
-    }
 
     private sealed class StubNode(string name) : StateNode
     {

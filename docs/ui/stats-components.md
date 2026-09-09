@@ -126,8 +126,11 @@ Factories cover the shapes actually needed:
 | `StatScale.Absolute(0, 100, neutral: 45..65)` | Aim, Utility Rating: fixed domain. |
 | `StatScale.FromPeers(values, polarity)` | Rating, ADR, K/D: bar relative to the other players on screen. |
 | `StatScale.Banded(peerMin, peerMax, low, high)` | HLTV Rating: peer bar, colour banded around 1.00. |
-| `StatScale.SignOf(zero, spread)` | Rating deltas: colour by sign with a dead zone at zero. |
-| `StatScale.Penalty(max)` | Team damage, self damage: `LowerIsBetter`, anything above zero is bad. Replaces today's `Emphasis.Negative`. |
+| `StatScale.Hybrid(peers, colourMin, colourMax, …)` | The fully separated shape: bar from the peers, colour entirely from fixed benchmarks. |
+
+(`SignOf` and `Penalty` were also drafted here. Both turned out to be `Banded` spelled differently, and
+neither survived the refinement pass once `StatScaleSpec` became how a column declares a scale. A rating
+delta is `Banded(min, max, -dz, +dz)`; a penalty is `Banded(0, max, 0, 0, LowerIsBetter)`.)
 
 Peer scales are computed **per column across the rows currently on screen**, which means the view model
 recomputes them whenever the row set or the category filter changes. That wiring is next phase work;
@@ -337,8 +340,8 @@ a chart. It stays as an `ItemsControl`.
   prints `-0`.
 - ~~The scoreboard itself is untouched.~~ Done; see section 11.
 - `StatTileItem` (a view-model record in `PlayerDetailsViewModel.cs`) and `StatTile` (the control) are
-  one letter apart and unrelated. The core tile strip still uses the record and the hand-rolled
-  `Border.pdTile` template. Rename one of them when that strip is adopted.
+  one letter apart. Resolved in section 17: the strip uses the control now, so the record is the
+  control's item type and the names are related rather than colliding.
 
 ### Previewing it: the dev gallery
 
@@ -446,7 +449,7 @@ gallery before treating it as settled.
 - The `Rounds` view has peer scales (its peer group is the players in that round) but no podium or team
   badge; it is a flat table by design.
 - `Highlights`, `Vision` and keyed extra tables have no `ColumnMeta` at all and are unscaled.
-- `StatTileItem` (view-model record) vs `StatTile` (control) are still one letter apart.
+- ~~`StatTileItem` vs `StatTile`~~ resolved in section 17.
 
 ---
 
@@ -649,3 +652,47 @@ track on is what made left-anchoring the better default, so the two changes are 
 
 `Auto` stays for a surface with no track to hold the number together. The dev gallery drives the choice
 from a picker, so it can be judged on real data rather than argued about.
+
+---
+
+## 17. Refinement pass (v0.8.1)
+
+Three things the feature had accumulated, found by asking what it had added that nothing used.
+
+### One way to build a scale
+
+`StatScale` had grown five factories that **no application code called**. Every scale the app builds
+goes through `StatScaleSpec.Resolve`, and `Resolve` restated by hand what the factories already did.
+Two spellings of one operation, with only tests keeping half of them alive.
+
+`Resolve` now calls `Absolute`, `Hybrid`, `FromPeers` and `Banded`. `SignOf` and `Penalty` are gone:
+both were `Banded` in disguise, and neither had a caller. `Hybrid`'s neutral band relaxed to optional so
+`Resolve` could hand its own straight through.
+
+### `StatTile` had no product consumer
+
+It existed, was styled, was rendered in the gallery, and nothing in the app used it, while
+`PlayerDetailsView` hand-rolled the same thing as `Border.pdTile` plus two text styles. That is also
+what made `StatTileItem` and `StatTile` read as a name clash: they were unrelated types with nearly the
+same name.
+
+The core strip uses the control now. Three local styles retired, and the tiles gained the board's colour
+language: each tile resolves the same `StatScaleSpec` its column declares, **against the whole lobby**,
+because "was that good" on a scoreboard always means "compared to the other nine".
+
+The record is that control's item type now, so the names are related rather than colliding.
+
+### The channel-order trap had two copies
+
+`ToBytes` and `CountPixels` were duplicated across two test files, including the comment explaining that
+the headless framebuffer is RGBA. That comment is worth exactly one copy: it is the kind of thing that
+costs an afternoon once, and a second copy is a second thing to drift.
+`FrameProbe` holds both.
+
+### Deliberately kept, though the app does not use them
+
+`StatValue.TintBar`, `StatValueMode.Chip` and the `.untracked` class have no product call site. They are
+kept because each is a real option a future surface will want, each is exercised by the dev gallery, and
+each is covered by a render test. That is the bar: an unused option earns its place by being reachable,
+demonstrated and tested. `StatDomain.Absolute` is kept on the same terms, as the natural counterpart to
+`Peer` for a metric whose bounds belong to the metric.

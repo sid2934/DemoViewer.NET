@@ -200,7 +200,7 @@ public sealed record StatScale(
     /// <param name="neutralHigh">Upper edge of the untinted band.</param>
     /// <param name="polarity">Which direction is good.</param>
     public static StatScale Hybrid(IEnumerable<double> peers, double colourMin, double colourMax,
-        double neutralLow, double neutralHigh,
+        double? neutralLow = null, double? neutralHigh = null,
         StatPolarity polarity = StatPolarity.HigherIsBetter)
     {
         StatScale? bar = FromPeers(peers, polarity);
@@ -211,17 +211,4 @@ public sealed record StatScale(
             colourMin, colourMax);
     }
 
-    /// <summary>
-    ///     Colour by sign with a dead zone straddling <paramref name="zero" />: a rating delta where
-    ///     small movements either way are not worth tinting.
-    /// </summary>
-    public static StatScale SignOf(double min, double max, double deadZone = 0, double zero = 0) =>
-        new(min, max, StatPolarity.HigherIsBetter, zero - Math.Abs(deadZone), zero + Math.Abs(deadZone));
-
-    /// <summary>
-    ///     Anything above zero is bad and nothing is ever good: team damage, self damage. Replaces the
-    ///     flat <c>Emphasis.Negative</c> accent with a ramp that also says how bad.
-    /// </summary>
-    public static StatScale Penalty(double max) =>
-        new(0, max, StatPolarity.LowerIsBetter, 0, 0);
 }

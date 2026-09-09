@@ -113,32 +113,31 @@ public sealed record StatScaleSpec(
         if (Domain == StatDomain.Absolute)
         {
             return ColourMin is { } aMin && ColourMax is { } aMax && aMax > aMin
-                ? new StatScale(aMin, aMax, Polarity, NeutralLow, NeutralHigh)
+                ? StatScale.Absolute(aMin, aMax, NeutralLow, NeutralHigh, Polarity)
                 : null;
         }
 
-        StatScale? bar = StatScale.FromPeers(peers, Polarity);
-
-        // Absolute colour: the bar may be degenerate and the tint still stands.
+        // Absolute colour over a peer bar. Handed the peers rather than a computed bar because a
+        // degenerate peer set still leaves a fully-formed colour scale, and Hybrid knows that.
         if (ColourMin is { } cMin && ColourMax is { } cMax && cMax > cMin)
         {
-            return new StatScale(bar?.Min ?? 0, bar?.Max ?? 0, Polarity, NeutralLow, NeutralHigh,
-                cMin, cMax);
+            return StatScale.Hybrid(peers, cMin, cMax, NeutralLow, NeutralHigh, Polarity);
         }
 
-        // Peer colour: no peers, nothing to say.
-        if (bar is null)
+        // Peer colour: with no peers there is nothing to say.
+        if (StatScale.FromPeers(peers, Polarity) is not { } bar)
         {
             return null;
         }
 
-        // The dead zone is expressed as a fraction of the observed range because the range is not known
-        // until here. Zero width would tint half the column.
+        // The dead zone is a FRACTION of the observed range, because the range is not known until here.
+        // Zero width would tint half the column, which is the heat-map failure the ramp exists to avoid.
         double dz = Math.Clamp(PeerDeadZone, 0, 1);
         double span = bar.Max - bar.Min;
-        double low = bar.Min + ((0.5 - (dz / 2)) * span);
-        double high = bar.Min + ((0.5 + (dz / 2)) * span);
-        return bar with { NeutralLow = low, NeutralHigh = high };
+        return StatScale.Banded(bar.Min, bar.Max,
+            bar.Min + ((0.5 - (dz / 2)) * span),
+            bar.Min + ((0.5 + (dz / 2)) * span),
+            Polarity);
     }
 }
 

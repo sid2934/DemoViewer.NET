@@ -62,11 +62,11 @@ public class StatsComponentRenderTests
 
                 string outPath = Path.Combine(HeadlessSession.ArtifactDir, "stats-components.png");
                 frame!.Save(outPath);
-                byte[] pixels = ToBytes(frame);
+                byte[] pixels = FrameProbe.ToBytes(frame);
 
                 foreach ((string token, uint hex) in DarkRamp)
                 {
-                    int hits = CountPixels(pixels, hex);
+                    int hits = FrameProbe.CountPixels(pixels, hex);
                     Console.WriteLine($"[stats-components] {token} #{hex:X6} hits={hits}");
                     await Assert.That(hits).IsGreaterThan(0);
                 }
@@ -235,8 +235,8 @@ public class StatsComponentRenderTests
 
             // Magenta because it cannot collide with the harness background, which resolves to LIGHT
             // here: counting white would count the whole canvas and pass either way.
-            await Assert.That(CountPixels(bare, 0xFF00FF)).IsEqualTo(0);
-            await Assert.That(CountPixels(withBar, 0xFF00FF)).IsGreaterThan(500);
+            await Assert.That(FrameProbe.CountPixels(bare, 0xFF00FF)).IsEqualTo(0);
+            await Assert.That(FrameProbe.CountPixels(withBar, 0xFF00FF)).IsGreaterThan(500);
         });
     }
 
@@ -317,8 +317,8 @@ public class StatsComponentRenderTests
 
                 // The gallery drives every control off one scale, so the ramp has to reach the frame
                 // here too: that is the whole reason the panel exists.
-                byte[] pixels = ToBytes(frame);
-                await Assert.That(CountPixels(pixels, 0x4CAF50)).IsGreaterThan(0);
+                byte[] pixels = FrameProbe.ToBytes(frame);
+                await Assert.That(FrameProbe.CountPixels(pixels, 0x4CAF50)).IsGreaterThan(0);
             }
             finally
             {
@@ -580,7 +580,7 @@ public class StatsComponentRenderTests
         window.RequestedThemeVariant = variant;
         WriteableBitmap frame = Render(window)!;
         frame.Save(Path.Combine(HeadlessSession.ArtifactDir, $"{name}.png"));
-        return ToBytes(frame);
+        return FrameProbe.ToBytes(frame);
     }
 
     private static byte[] CaptureControl(Control control, string name)
@@ -588,7 +588,7 @@ public class StatsComponentRenderTests
         Window window = BuildWindow(control);
         WriteableBitmap frame = Render(window)!;
         frame.Save(Path.Combine(HeadlessSession.ArtifactDir, $"{name}.png"));
-        return ToBytes(frame);
+        return FrameProbe.ToBytes(frame);
     }
 
     private static Window BuildWindow(Control content) =>
@@ -612,33 +612,6 @@ public class StatsComponentRenderTests
         return window.CaptureRenderedFrame();
     }
 
-    /// <summary>
-    ///     The frame as bytes, NORMALISED to B,G,R,A order whatever the platform framebuffer declares.
-    ///     Worth the extra step: the headless Skia surface hands back RGBA here, and a colour assertion
-    ///     that assumes BGRA still passes for any colour whose red and blue happen to be close (#4CAF50
-    ///     is, #5FA894 is not), so the swap fails silently on exactly one of the four ramp tokens.
-    /// </summary>
-    private static byte[] ToBytes(WriteableBitmap bmp)
-    {
-        PixelSize size = bmp.PixelSize;
-        byte[] buffer = new byte[size.Width * size.Height * 4];
-        PixelFormat? format;
-        using (ILockedFramebuffer fb = bmp.Lock())
-        {
-            Marshal.Copy(fb.Address, buffer, 0, buffer.Length);
-            format = fb.Format;
-        }
-
-        if (format == PixelFormat.Rgba8888)
-        {
-            for (int i = 0; i + 3 < buffer.Length; i += 4)
-            {
-                (buffer[i], buffer[i + 2]) = (buffer[i + 2], buffer[i]);
-            }
-        }
-
-        return buffer;
-    }
 
     /// <summary>
     ///     The Dark values of the four heat-ramp tokens, as they are authored in DarkPalette.axaml. Pinned
@@ -653,27 +626,5 @@ public class StatsComponentRenderTests
         ("StatNegative", 0xDC5A52)
     ];
 
-    /// <summary>
-    ///     Counts pixels near one RGB value in a BGRA frame. Near, not exact: 11px anti-aliased glyphs
-    ///     and a 3px round-capped arc leave few fully-covered pixels at the pure token value. The
-    ///     tolerance is well inside the smallest gap between the four ramp entries, so a hit for one tier
-    ///     can never be a near-miss of another.
-    /// </summary>
-    private static int CountPixels(byte[] buffer, uint rgb, int tolerance = 20)
-    {
-        int wantR = (byte)(rgb >> 16), wantG = (byte)(rgb >> 8), wantB = (byte)rgb;
-        int hits = 0;
-        for (int i = 0; i + 3 < buffer.Length; i += 4)
-        {
-            if (Math.Abs(buffer[i] - wantB) <= tolerance
-                && Math.Abs(buffer[i + 1] - wantG) <= tolerance
-                && Math.Abs(buffer[i + 2] - wantR) <= tolerance)
-            {
-                hits++;
-            }
-        }
-
-        return hits;
-    }
 
 }

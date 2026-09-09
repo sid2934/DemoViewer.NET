@@ -6,6 +6,7 @@ using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Output;
+using DemoViewer.NET.Controls.Stats;
 
 #endregion
 
@@ -310,6 +311,7 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
         List<StatTileItem> tiles = [];
         if (gameRow is not null && Parent.GameTable is { } table)
         {
+            List<double> peers = [];
             foreach ((string key, bool hero) in _coreTileKeys)
             {
                 if (!table.ValueColumns.Contains(key))
@@ -318,8 +320,28 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
                 }
 
                 ColumnMeta meta = ColumnCatalogue.Resolve(key);
-                string display = new StatCell(gameRow.Values.GetValueOrDefault(key)).Display;
-                tiles.Add(new StatTileItem(meta.Display, display.Length == 0 ? "–" : display, hero, meta.Tooltip));
+                StatCell cell = new(gameRow.Values.GetValueOrDefault(key));
+                string display = cell.Display;
+
+                // The same shape the board resolves, over the same peer group: every player in the
+                // table, so a tile reads against the lobby rather than against itself.
+                StatScale? scale = null;
+                if (meta.Scale is { } spec)
+                {
+                    peers.Clear();
+                    foreach (MetricRow row in table.Rows)
+                    {
+                        if (new StatCell(row.Values.GetValueOrDefault(key)).Numeric is { } v)
+                        {
+                            peers.Add(v);
+                        }
+                    }
+
+                    scale = spec.Resolve(peers);
+                }
+
+                tiles.Add(new StatTileItem(meta.Display, display.Length == 0 ? "–" : display, hero,
+                    meta.Tooltip, cell.Numeric, scale));
             }
         }
 
@@ -945,8 +967,22 @@ public sealed class VisionViewModel : ObservableObject
         (share * 100).ToString("0.#", CultureInfo.InvariantCulture) + " %";
 }
 
-/// <summary>One core-strip tile: big value over a small label.</summary>
-public sealed record StatTileItem(string Label, string Value, bool IsHero, string Tooltip);
+/// <summary>
+///     One core-strip tile: the value as the board formatted it, plus the number and the scale behind
+///     it so the tile can colour itself the same way a board cell does.
+///     <para>
+///         The scale is measured against the WHOLE LOBBY, not against this player's own rounds. The
+///         question a core tile answers is "was that good", and on a board that is always a comparison
+///         with the other nine players.
+///     </para>
+/// </summary>
+public sealed record StatTileItem(
+    string Label,
+    string Value,
+    bool IsHero,
+    string Tooltip,
+    double? Numeric = null,
+    StatScale? Scale = null);
 
 /// <summary>
 ///     One labelled share bar: label, the raw value and the domain it is measured against, and the
