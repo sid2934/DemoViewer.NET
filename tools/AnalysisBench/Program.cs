@@ -1547,6 +1547,8 @@ static void PrintRayCounters(VisibilityCountersSnapshot rays, TimeSpan evalElaps
     Console.WriteLine($"  Anchors in FOV:             {rays.AnchorsInFrustum,12:N0}   of {rays.AnchorsTotal:N0} ({Pct(rays.AnchorsInFrustum, rays.AnchorsTotal):F1}%)");
     Console.WriteLine($"  Rays cast:                  {rays.RaysCast,12:N0}   ({(double)rays.RaysCast / rays.PairsEvaluated:F2} per pair; {rays.RaysSkippedByEarlyExit:N0} anchors skipped by early exit)");
     Console.WriteLine($"    clear (no occluder):      {rays.RaysClear,12:N0}   {Pct(rays.RaysClear, rays.RaysCast),5:F1}%");
+    Console.WriteLine($"    decided by occluder hint: {rays.RaysShortCircuited,12:N0}   {Pct(rays.RaysShortCircuited, rays.RaysCast),5:F1}% of rays cast   ({Pct(rays.RaysShortCircuited, rays.RaysCast - rays.RaysClear):F1}% of occluded; no BVH traversal)");
+    Console.WriteLine($"  Anchors skipped by gate:    {rays.RaysSkippedByGate,12:N0}   {Pct(rays.RaysSkippedByGate, rays.AnchorsTotal),5:F1}% of anchors   ({rays.RaysSkippedBySmoke:N0} behind smoke, the rest outside the frustum)");
     Console.WriteLine($"    anchor outside FOV:       {rays.RaysCastOutsideFrustum,12:N0}   {Pct(rays.RaysCastOutsideFrustum, rays.RaysCast),5:F1}%   (per-anchor frustum gate would skip these)");
     Console.WriteLine($"    on frustum-rejected pairs:{rays.RaysCastOnFrustumRejectedPairs,12:N0}   {Pct(rays.RaysCastOnFrustumRejectedPairs, rays.RaysCast),5:F1}%   (per-pair frustum gate would skip these)");
     Console.WriteLine($"  Raycast wall-clock:         {rays.RayMs,12:F1} ms   {Pct((long)rays.RayMs, (long)evalMs),5:F1}% of eval   ({raysPerSec / 1e6:F2} MRay/s, single thread)");
@@ -1579,7 +1581,10 @@ static ReportVisibilityRays? BuildRayReport(VisibilityCountersSnapshot rays, Tim
         Math.Round(rays.SampleMs, 2),
         evalMs > 0 ? Math.Round(rays.RayMs / evalMs, 4) : 0.0,
         evalMs > 0 ? Math.Round(rays.SampleMs / evalMs, 4) : 0.0,
-        rays.RayMs > 0 ? Math.Round(rays.RaysCast / (rays.RayMs / 1000.0)) : 0.0);
+        rays.RayMs > 0 ? Math.Round(rays.RaysCast / (rays.RayMs / 1000.0)) : 0.0,
+        rays.RaysSkippedByGate,
+        rays.RaysSkippedBySmoke,
+        rays.RaysShortCircuited);
 }
 
 // ── Report Records ─────────────────────────────────────────────────────────
@@ -1691,6 +1696,23 @@ internal sealed record PlayerReport(string Name, int Slot, int Team, int Templat
 ///     only on runs made with <c>--ray-counters</c>. <see cref="RayShareOfEval" /> is raycast
 ///     wall-clock over <c>ReportPerformance.EvalMs</c>; the raycasting runs single-threaded on the
 ///     eval thread, so that share is the ceiling on what a faster traversal can take off eval.
+///     <para>
+///         <see cref="RaysSkippedByGate" /> and <see cref="RaysSkippedBySmoke" /> arrived with the
+///         engine's ray gating (0.11.0-aim15). From that version every anchor is cast, gate-skipped or
+///         early-exit-skipped exactly once, so <c>RaysCast + RaysSkippedByGate + RaysSkippedByEarlyExit
+///         == AnchorsTotal</c>. Reports written before it have no gate fields and a wider
+///         <see cref="RaysSkippedByEarlyExit" /> (it then also covered the out-of-frustum anchors of an
+///         exposed pair, which the gate now books); compare the two eras on <see cref="PairsCouldSee" />
+///         and the players block, not on the skip columns.
+///     </para>
+///     <para>
+///         <see cref="RaysShortCircuited" /> arrived with the last-occluder hint (0.11.0-aim16): of the
+///         rays cast, those decided by the triangle that blocked the same sightline last sample, without
+///         a BVH traversal. A short-circuited ray still counts in <see cref="RaysCast" /> and its time in
+///         <see cref="RayMs" />, so the ray tallies are comparable with aim15 and the saving shows in
+///         <see cref="RayMs" />. <c>RaysShortCircuited / RaysCast</c> is the hit rate the batch-precompute
+///         decision hangs on; reports before aim16 have no such field.
+///     </para>
 /// </summary>
 internal sealed record ReportVisibilityRays(
     long SampledTicks,
@@ -1709,7 +1731,10 @@ internal sealed record ReportVisibilityRays(
     double TransitionScanMs,
     double RayShareOfEval,
     double TransitionScanShareOfEval,
-    double RaysPerSecond);
+    double RaysPerSecond,
+    long RaysSkippedByGate,
+    long RaysSkippedBySmoke,
+    long RaysShortCircuited);
 
 internal static class JsonOpts
 {

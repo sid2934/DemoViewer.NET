@@ -11,6 +11,7 @@ using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Controls.Stats;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -1407,9 +1408,10 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
 
         try
         {
-            IReadOnlyList<MetricTable> tables = await Task.Run(() =>
+            IReadOnlyList<MetricTable> tables = await Task.Run(async () =>
             {
-                VisibilityEngine engine = VisibilityEngine.Load(trisPath);
+                // The analysis run has usually built this engine already; the cache hands it back.
+                VisibilityEngine engine = await VisibilityEngineCache.Shared.GetOrLoadAsync(trisPath, token);
                 token.ThrowIfCancellationRequested();
                 // Bundles are selected by map NAME, so a report says nothing about WHICH bake it
                 // raycast unless the manifest sitting next to the just-loaded blob is attached

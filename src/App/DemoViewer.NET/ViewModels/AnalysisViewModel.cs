@@ -1274,7 +1274,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         try
         {
-            return await Task.Run(() => VisibilityEngine.Load(trisPath), token);
+            // Shared with the Stats replay and the Playback2D overlay: one build per bake per process.
+            return await VisibilityEngineCache.Shared.GetOrLoadAsync(trisPath, token);
         }
         catch (OperationCanceledException)
         {
