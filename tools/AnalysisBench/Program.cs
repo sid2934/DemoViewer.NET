@@ -374,6 +374,11 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
 
 
     // ── Build ──────────────────────────────────────────────────────────────
+    // Ray budget counters: zeroed before the BUILD phase, not before eval, so a --suite run reports
+    // each demo alone AND the collision bake loaded during build still lands in this demo's numbers.
+    // Zeroing after the load instead silently discarded it, which is how the bake timing read zero on
+    // its first run.
+    VisibilityCounters.Reset();
     long buildStart = Stopwatch.GetTimestamp();
     BuildResult buildResult;
     using (AnalysisDiagnostics.ActivitySource.StartActivity("build"))
@@ -419,9 +424,6 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     // tracking included) allocates. GC gen-counts alone can't distinguish a churny short-lived
     // path from a frugal one with the same collection cadence.
     long evalAllocBefore = GC.GetAllocatedBytesForCurrentThread();
-    // Ray budget counters: zeroed here so a --suite run reports each demo alone. No-op unless
-    // --ray-counters turned them on (they are off by default in the library).
-    VisibilityCounters.Reset();
     long evalStart = Stopwatch.GetTimestamp();
 
     int messageCount = 0, playerCount = 0, timelineEvents = 0;
@@ -1520,9 +1522,25 @@ static void PrintRayCounters(VisibilityCountersSnapshot rays, TimeSpan evalElaps
 {
     Console.WriteLine();
     Console.WriteLine("─── Visibility Ray Budget ───────────────────────────────");
+
+    // Printed before the ray-counter gate on purpose. Bake loading rides Profiling.Enabled, not
+    // VisibilityCounters.Enabled, because it costs one Stopwatch pair per map rather than per ray, so
+    // a --profile run without --ray-counters still accounts for it. On the biggest bake this is about
+    // 0.9 s against a 2.3 s eval, which is too large a line item to leave off a profile.
+    if (rays.BakesLoaded > 0)
+    {
+        Console.WriteLine(
+            $"  Collision bakes loaded:     {rays.BakesLoaded,12:N0}   {rays.BakeTriangles:N0} triangles");
+        Console.WriteLine(
+            $"    read from disk:           {rays.BakeLoadMs,12:F1} ms");
+        Console.WriteLine(
+            $"    BVH build:                {rays.BvhBuildMs,12:F1} ms"
+            + $"   ({(rays.BakeLoadMs + rays.BvhBuildMs) / Math.Max(evalElapsed.TotalMilliseconds, 1) * 100:F1}% of eval, once per map)");
+    }
+
     if (!enabled)
     {
-        Console.WriteLine("  (no data — rerun with --ray-counters to enable)");
+        Console.WriteLine("  (no ray data — rerun with --ray-counters to enable)");
         return;
     }
 
@@ -1558,7 +1576,7 @@ static void PrintRayCounters(VisibilityCountersSnapshot rays, TimeSpan evalElaps
 // Null (omitted from the JSON) when the counters were not enabled for this run.
 static ReportVisibilityRays? BuildRayReport(VisibilityCountersSnapshot rays, TimeSpan evalElapsed, bool enabled)
 {
-    if (!enabled)
+    if (!enabled && rays.BakesLoaded == 0)
     {
         return null;
     }
@@ -1584,7 +1602,11 @@ static ReportVisibilityRays? BuildRayReport(VisibilityCountersSnapshot rays, Tim
         rays.RayMs > 0 ? Math.Round(rays.RaysCast / (rays.RayMs / 1000.0)) : 0.0,
         rays.RaysSkippedByGate,
         rays.RaysSkippedBySmoke,
-        rays.RaysShortCircuited);
+        rays.RaysShortCircuited,
+        Math.Round(rays.BakeLoadMs, 2),
+        Math.Round(rays.BvhBuildMs, 2),
+        rays.BakeTriangles,
+        rays.BakesLoaded);
 }
 
 // ── Report Records ─────────────────────────────────────────────────────────
@@ -1734,7 +1756,11 @@ internal sealed record ReportVisibilityRays(
     double RaysPerSecond,
     long RaysSkippedByGate,
     long RaysSkippedBySmoke,
-    long RaysShortCircuited);
+    long RaysShortCircuited,
+    double BakeLoadMs = 0,
+    double BvhBuildMs = 0,
+    long BakeTriangles = 0,
+    long BakesLoaded = 0);
 
 internal static class JsonOpts
 {
