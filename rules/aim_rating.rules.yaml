@@ -344,11 +344,11 @@ stats:
   # FB%. Their denominators ship as columns for the usual reason: an unmeasured engagement and a
   # fast one both render as a small number otherwise.
   #
-  # MEAN, NOT MEDIAN. Leetify reports the median and it is the better statistic here, because
-  # prefires and wallbangs with prior information produce absurdly low outliers. v2 has no median
-  # kind (the closed set is flag/count/sum/capture/compute/tally/streak/bucket/rate/burst), and a
-  # capture list cannot be reduced by an expression, so this is a documented divergence rather
-  # than a choice. The engagement window bounds the upper tail; nothing bounds the lower one.
+  # MEAN, NOT MEDIAN. The median is the better statistic here, because prefires and wallbangs with
+  # prior information produce absurdly low outliers. v2 has no median kind (the closed set is
+  # flag/count/sum/capture/compute/tally/streak/bucket/rate/burst), and a capture list cannot be
+  # reduced by an expression, so the mean is a documented limitation rather than a choice. The
+  # engagement window bounds the upper tail; nothing bounds the lower one.
 
   # AimRx: from the crosshair ARRIVING on an enemy to the shot. TTS contains the turn onto the
   # target as well, so the pair separates aim travel from what happens once the crosshair is already

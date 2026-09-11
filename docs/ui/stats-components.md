@@ -6,9 +6,9 @@ its caller. **Section 10 records what actually shipped**, including where the bu
 plan. This document does **not** redesign the Stats screens; that is the next phase, and it can assume
 everything here already exists.
 
-Reference for the visual target: Leetify's match scoreboard and its utility breakdown table. What is
-worth taking from them is not the styling, it is the **encoding**: a number carries two channels at
-once (a colour that says good or bad, a bar length that says how far from the pack), and a third
+Reference for the visual target: a dense match scoreboard with a utility breakdown table. What is
+worth taking from that shape is not the styling, it is the **encoding**: a number carries two channels
+at once (a colour that says good or bad, a bar length that says how far from the pack), and a third
 channel, position in the table, stays free for sorting.
 
 ---
@@ -164,10 +164,10 @@ Proposed home: `src/App/DemoViewer.NET/Controls/Stats/`. Six controls, one scale
 - No column visibility gear per column (the reference has one). That is a settings surface, not a
   component, and it depends on where per demo view state gets persisted.
 - No avatar, rank badge or agent art. Those are asset pipeline questions, not components.
-- **No composite ratings.** The reference's Aim Rating and Utility Rating are Leetify's own models. This
-  engine has no equivalent column in `ColumnCatalogue`. The components must therefore not assume a
-  `0..100` domain exists; `StatScale.Absolute` is available for when such a metric is added, and nothing
-  more is implied.
+- **No composite ratings.** The reference's Aim Rating and Utility Rating are a third party's own
+  models. This engine has no equivalent column in `ColumnCatalogue`. The components must therefore not
+  assume a `0..100` domain exists; `StatScale.Absolute` is available for when such a metric is added,
+  and nothing more is implied.
 
 ---
 
@@ -392,7 +392,7 @@ efficiency** metric cannot, because it conflates the player's skill with the lob
 | `TeamDmg`, `SelfDmg` | penalty (lower is better, anything above zero is bad) | Replaces the flat `Emphasis.Negative`. |
 | `Duel%` | banded, **gated** on `TotalFK + TotalFD` >= 8 | Pinned at exactly 50% by definition, so it means nothing at low volume: two duels won of two reads 100%. |
 | `AvgBlind` | peer bar, colour banded 2.25-2.70 | Rank-dependent, so this band is softer than the pinned ones. |
-| **`HS%`** | **bar, no tint** | Leetify structurally excludes AWP shots from their headshot metric, and measured correlation with production is weak (R = 0.30). No rank-segmented distribution is published, so any cut point would be invented. |
+| **`HS%`** | **bar, no tint** | Measured correlation with production is weak (R = 0.30), and no rank-segmented distribution is published, so any cut point would be invented. |
 | **`Surv%`** | **bar, no tint** | Anti-correlated with aggression. High survival + low ADR is passivity; low + high is a healthy entry fragger. One band cannot say that. |
 | **`FK+/-`** | **bar, no tint** | A signed differential; the sign is the whole story and the bar carries it. |
 

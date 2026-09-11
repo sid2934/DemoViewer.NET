@@ -25,7 +25,6 @@ using CS2DemoKit.Parser.GameEvents;
 
 // ── Test Suite ──────────────────────────────────────────────────────────────
 // Discovered from demos/benchmarks/: any .dem file is a benchmark entry.
-// If a matching <id>.leetify.json exists alongside it, stats comparison runs too.
 
 string benchDir = Path.Combine(FindRepoRoot(), "demos", "benchmarks");
 TestCase[] testSuite = DiscoverTestSuite(benchDir);
@@ -106,22 +105,20 @@ if (listSuite)
     {
         Console.WriteLine($"No .dem files found in {benchDir}");
         Console.WriteLine("Place demo files there to add them to the benchmark suite.");
-        Console.WriteLine("Add a matching <id>.leetify.json for correctness comparison.");
         return 0;
     }
 
     Console.WriteLine($"Benchmark directory: {benchDir}");
-    Console.WriteLine($"{"ID",-50} {"Size",8} {"Leetify",8}");
+    Console.WriteLine($"{"ID",-50} {"Size",8}");
     Console.WriteLine(new string('─', 70));
     foreach (TestCase tc in testSuite)
     {
         FileInfo fi = new(tc.DemoPath);
         string size = $"{fi.Length / 1024.0 / 1024.0:F0} MB";
-        string refStatus = tc.LeetifyJson is not null ? "yes" : "-";
-        Console.WriteLine($"  {tc.Id,-48} {size,8} {refStatus,8}");
+        Console.WriteLine($"  {tc.Id,-48} {size,8}");
     }
 
-    Console.WriteLine($"\n  {testSuite.Length} demo(s), {testSuite.Count(t => t.LeetifyJson is not null)} with reference data");
+    Console.WriteLine($"\n  {testSuite.Length} demo(s)");
     return 0;
 }
 
@@ -146,7 +143,7 @@ if (suiteMode)
         string reportFile = Path.Combine(suiteReportDir, $"{tc.Id}_{timestamp}.json");
         try
         {
-            int result = RunBench(tc.DemoPath, rulesDir, reportFile, tc.LeetifyJson, enableTrace, false,
+            int result = RunBench(tc.DemoPath, rulesDir, reportFile, enableTrace, false,
                 noGolden: noGolden, enableCounters: enableCounters, enableTimeline: enableTimeline,
                 useMmap: useMmap);
             if (result == 0)
@@ -225,7 +222,6 @@ if (positional.Length == 0)
     // rules-dir), so the convention-matching form is `--export=csv [--out=<path>]`.
     string? exportFormat = namedArgs.GetValueOrDefault("--export");
     string? exportOut = namedArgs.GetValueOrDefault("--out");
-    string? leetifyJson = null;
 
     // Fail fast on a bad --export value, BEFORE the full parse+eval, so a typo doesn't waste a run.
     if (exportFormat is not null
@@ -234,14 +230,6 @@ if (positional.Length == 0)
     {
         Console.Error.WriteLine($"Unknown --export format '{exportFormat}'. Expected 'csv' or 'json'.");
         return 1;
-    }
-
-    // Check if this demo is in the test suite and has a reference file
-    string fullDemoPath = Path.GetFullPath(demoPath);
-    TestCase? suiteMatch = testSuite.FirstOrDefault(tc => Path.GetFullPath(tc.DemoPath) == fullDemoPath);
-    if (suiteMatch is not null)
-    {
-        leetifyJson = suiteMatch.LeetifyJson;
     }
 
     if (roundDebug)
@@ -262,14 +250,14 @@ if (positional.Length == 0)
         return 0;
     }
 
-    return RunBench(demoPath, rulesDir, reportPath, leetifyJson, enableTrace, bareMode, stateTraceArg, noGolden,
+    return RunBench(demoPath, rulesDir, reportPath, enableTrace, bareMode, stateTraceArg, noGolden,
         enableCounters, enableTimeline, exportFormat, exportOut, useMmap);
 }
 
 // ── Core Bench ─────────────────────────────────────────────────────────────
 
 static int RunBench(string demoPath, string rulesDir, string? reportPath,
-    string? leetifyJsonPath, bool enableTrace, bool bareMode, string? stateTraceArg = null, bool noGolden = false,
+    bool enableTrace, bool bareMode, string? stateTraceArg = null, bool noGolden = false,
     bool enableCounters = false, bool enableTimeline = false, string? exportFormat = null, string? exportOut = null,
     bool useMmap = false)
 {
@@ -283,11 +271,6 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     if (reportPath is not null)
     {
         Console.WriteLine($"Report: {reportPath}");
-    }
-
-    if (leetifyJsonPath is not null && File.Exists(leetifyJsonPath))
-    {
-        Console.WriteLine($"Ref:    {leetifyJsonPath}");
     }
 
     Console.WriteLine();
@@ -656,8 +639,7 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     // ── Golden-stats files (fixtures consumed by parity tests) ───────────
     // Always written when playerReports are available, so a single `--suite`
     // run refreshes every provider's golden file. The bench is the canonical
-    // producer for `ours`; leetify files are converted from the existing
-    // <id>.leetify.json caches under demos/benchmarks/.
+    // producer for `ours`.
     if (!noGolden && playerReports.Count > 0)
     {
         WriteGoldenStatsFiles(demoPath, sha256, demo, playerReports);
@@ -672,169 +654,7 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
         WriteRoundExport(exportFormat, exportOut, demoPath, evalResult, demo, bareMode);
     }
 
-    // ── Leetify Comparison ───────────────────────────────────────────────
-    if (leetifyJsonPath is not null && File.Exists(leetifyJsonPath) && playerReports.Count > 0)
-    {
-        CompareWithLeetify(leetifyJsonPath, playerReports);
-    }
-
     return 0;
-}
-
-// ── Leetify Comparison ────────────────────────────────────────────────────
-
-static void CompareWithLeetify(string leetifyPath, List<PlayerReport> players)
-{
-    using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(leetifyPath));
-    JsonElement root = doc.RootElement;
-    if (!root.TryGetProperty("playerStats", out JsonElement playerStats))
-    {
-        return;
-    }
-
-    Dictionary<string, JsonElement> leetifyByName = new(StringComparer.OrdinalIgnoreCase);
-    foreach (JsonElement p in playerStats.EnumerateArray())
-    {
-        if (p.TryGetProperty("name", out JsonElement name))
-        {
-            leetifyByName[name.GetString()!] = p;
-        }
-    }
-
-    (string OurKey, string LeetifyKey, double Scale, string Fmt)[] statMappings = new (string OurKey, string LeetifyKey, double Scale, string Fmt)[]
-    {
-        ("TotalK", "totalKills", 1, "F0"), ("TotalD", "totalDeaths", 1, "F0"), ("TotalA", "totalAssists", 1, "F0"), ("EnemyDmg", "totalDamage", 1, "F0"), ("ADR", "dpr", 1, "F1"), ("HS%", "hsp", 100, "F0"), ("KD", "kdRatio", 1, "F2"), ("KAST%", "kast", 100, "F0"), ("HLTV", "hltvRating", 1, "F2"), ("2K", "multi2k", 1, "F0"), ("3K", "multi3k", 1, "F0"), ("4K", "multi4k", 1, "F0"),
-        ("5K", "multi5k", 1, "F0"), ("Survived", "roundsSurvived", 1, "F0"), ("TrdK", "tradeKillsSucceeded", 1, "F0"),
-        // CTW/TW: detect team mapping (demo team numbers may be swapped vs Leetify)
-        ("CTW", "_ctw_auto", 1, "F0"), ("TW", "_tw_auto", 1, "F0"), ("HitFoe", "shotsHitFoe", 1, "F0"), ("Shots", "shotsFired", 1, "F0")
-    };
-
-    Console.WriteLine();
-    Console.WriteLine("─── Leetify Comparison ─────────────────────────────────");
-
-    int matched = 0, mismatched = 0, skipped = 0;
-    List<(string Player, string Stat, double Ours, double Leetify, double Delta)> deltas = new();
-
-    // Auto-detect CTW/TW team mapping by checking first player
-    bool ctwSwapped = false;
-    PlayerReport? firstPlayer = players.FirstOrDefault(p => p.Team is 2 or 3);
-    if (firstPlayer is not null && leetifyByName.TryGetValue(firstPlayer.Name, out JsonElement firstLeet))
-    {
-        double ourCtw = firstPlayer.Stats.TryGetValue("CTW", out object? cv) && cv is int ci ? ci : 0;
-        double ourTw = firstPlayer.Stats.TryGetValue("TW", out object? tv) && tv is int ti ? ti : 0;
-        double leetCtw = firstLeet.TryGetProperty("ctRoundsWon", out JsonElement lc) ? lc.GetDouble() : 0;
-        double leetTw = firstLeet.TryGetProperty("tRoundsWon", out JsonElement lt) ? lt.GetDouble() : 0;
-        double directError = Math.Abs(ourCtw - leetCtw) + Math.Abs(ourTw - leetTw);
-        double swappedError = Math.Abs(ourCtw - leetTw) + Math.Abs(ourTw - leetCtw);
-        ctwSwapped = swappedError < directError;
-    }
-
-    foreach (PlayerReport player in players.Where(p => p.Team is 2 or 3))
-    {
-        if (!leetifyByName.TryGetValue(player.Name, out JsonElement leetifyPlayer))
-        {
-            skipped++;
-            continue;
-        }
-
-        foreach ((string ourKey, string leetKey, double scale, string fmt) in statMappings)
-        {
-            string resolvedLeetKey = leetKey;
-            if (leetKey == "_ctw_auto")
-            {
-                resolvedLeetKey = ctwSwapped ? "tRoundsWon" : "ctRoundsWon";
-            }
-            else if (leetKey == "_tw_auto")
-            {
-                resolvedLeetKey = ctwSwapped ? "ctRoundsWon" : "tRoundsWon";
-            }
-
-            if (!player.Stats.TryGetValue(ourKey, out object? ourVal) || ourVal is null)
-            {
-                continue;
-            }
-
-            if (!leetifyPlayer.TryGetProperty(resolvedLeetKey, out JsonElement leetVal))
-            {
-                continue;
-            }
-
-            double ours = ourVal switch
-            {
-                int i => i,
-                double d => d,
-                string s when double.TryParse(s, CultureInfo.InvariantCulture, out double sd) => sd,
-                _ => double.NaN
-            };
-            if (double.IsNaN(ours))
-            {
-                continue;
-            }
-
-            double leetify = leetVal.ValueKind == JsonValueKind.Number ? leetVal.GetDouble() * scale : double.NaN;
-            if (double.IsNaN(leetify))
-            {
-                continue;
-            }
-
-            double delta = ours - leetify;
-            if (Math.Abs(delta) < 0.01)
-            {
-                matched++;
-            }
-            else
-            {
-                mismatched++;
-                deltas.Add((player.Name, ourKey, ours, leetify, delta));
-            }
-        }
-    }
-
-    if (deltas.Count > 0)
-    {
-        int nameWidth = Math.Max(6, deltas.Max(d => d.Player.Length) + 1);
-        Console.WriteLine($"  {"Player".PadRight(nameWidth)} {"Stat",-10} {"Ours",10} {"Leetify",10} {"Delta",10}");
-        Console.WriteLine($"  {"".PadRight(nameWidth, '-')} {"".PadRight(10, '-')} {"".PadRight(10, '-')} {"".PadRight(10, '-')} {"".PadRight(10, '-')}");
-        foreach ((string player, string stat, double ours, double leetify, double delta) in deltas.OrderBy(d => d.Player).ThenBy(d => d.Stat))
-        {
-            string sign = delta > 0 ? "+" : "";
-            Console.WriteLine($"  {player.PadRight(nameWidth)} {stat,-10} {ours,10:F2} {leetify,10:F2} {sign + delta.ToString("F2", CultureInfo.InvariantCulture),10}");
-        }
-    }
-
-    Console.WriteLine();
-    Console.WriteLine($"  Matched: {matched}  Mismatched: {mismatched}  Skipped: {skipped} players");
-    if (matched + mismatched > 0)
-    {
-        Console.WriteLine($"  Accuracy: {(double)matched / (matched + mismatched) * 100:F1}%");
-    }
-
-    // ── Per-stat mismatch summary ────────────────────────────────────────────
-    // The flat matched/mismatched count buries WHICH stats account for the
-    // divergence. This breakdown shows the distribution so per-stat tolerance
-    // tightening (or parser work) can be prioritised by impact.
-    if (deltas.Count > 0)
-    {
-        var byStat = deltas
-            .GroupBy(d => d.Stat)
-            .Select(g => new
-            {
-                Stat = g.Key,
-                Count = g.Count(),
-                MeanDelta = g.Average(d => d.Delta),
-                MaxAbs = g.Max(d => Math.Abs(d.Delta))
-            })
-            .OrderByDescending(s => s.Count)
-            .ToList();
-
-        Console.WriteLine();
-        Console.WriteLine("  Per-stat mismatch breakdown:");
-        Console.WriteLine($"    {"Stat",-12} {"Count",5} {"MeanΔ",10} {"MaxAbsΔ",10}");
-        foreach (var s in byStat)
-        {
-            Console.WriteLine($"    {s.Stat,-12} {s.Count,5} {s.MeanDelta,10:F3} {s.MaxAbs,10:F3}");
-        }
-    }
 }
 
 // ── Golden-stats producer ─────────────────────────────────────────────────
@@ -843,10 +663,6 @@ static void CompareWithLeetify(string leetifyPath, List<PlayerReport> players)
 // tests/fixtures/<demo-id>/. One file per provider:
 //
 //   tests/fixtures/<demo-id>/ours.golden.json     — produced from this run.
-//
-// leetify.golden.json is no longer written: CS2DemoKit.Analysis 0.9.1 retired the converter that
-// produced it. The live Leetify comparison above is unaffected — it parses the raw cached JSON
-// itself and never used the package.
 //
 // The directory pattern (rather than a flat layout) anticipates additional
 // providers — `hltv.golden.json`, `expected.golden.json` — without renaming
@@ -1370,8 +1186,7 @@ static TestCase[] DiscoverTestSuite(string benchDir)
         .Select(demoPath =>
         {
             string id = Path.GetFileNameWithoutExtension(demoPath);
-            string leetifyPath = Path.Combine(benchDir, $"{id}.leetify.json");
-            return new TestCase(id, demoPath, File.Exists(leetifyPath) ? leetifyPath : null);
+            return new TestCase(id, demoPath);
         })
         .ToArray();
 }
@@ -1611,7 +1426,7 @@ static ReportVisibilityRays? BuildRayReport(VisibilityCountersSnapshot rays, Tim
 
 // ── Report Records ─────────────────────────────────────────────────────────
 
-internal sealed record TestCase(string Id, string DemoPath, string? LeetifyJson);
+internal sealed record TestCase(string Id, string DemoPath);
 
 internal sealed record BenchReport(ReportMetadata Metadata, ReportPerformance Performance, List<PlayerReport> Players);
 

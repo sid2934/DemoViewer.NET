@@ -121,16 +121,16 @@ The Browser/WASM target must degrade gracefully and explicitly.
 
 ### 1.1 Competitive landscape (researched 2026-08)
 
-| Feature | CS:DM | Leetify | Scope.gg | Noesis | Refrag | csstats | Allstar | CS2/CSTV |
-|---|---|---|---|---|---|---|---|---|
-| 2D scrubbing replay | ✔ free | ✔ paid | ✔ ~paid | ✔ paid | ✔ paid | ✖/~ | ✖ | ✖ (3D) |
-| Multi-level map | ~ (opacity overlay) | ✖ | ✖ | ✖ | ✖ | ✖ | n/a | n/a |
-| Drawing in replay | ✔ pen/eraser | ✖ | ✖ (separate board) | ✖ | ✔ best-in-class | ✖ | ✖ | ✖ |
-| Time-anchored drawings | ✖ | ✖ | ✖ | ✖ | ~ (per-round notes) | ✖ | ✖ | ✖ |
-| **2D-view video export** | ✖ | ✖ | ✖ | ✖ | ✖ | ✖ | ✖ | ✖ |
-| Round/event timeline | ✔ | ✔ | ✔ | ✔ + filters | ✔ + markers | ~ | n/a | ✔ slider |
-| Follow-player cam (2D) | ✖ | ✖ | ✖ | ✖ | ✖ | ✖ | n/a | ✔ (3D) |
-| Fully free | ✔ | ✖ | ~ | ✖ | ✖ | ✔ | ~ | ✔ |
+| Feature | CS:DM | Scope.gg | Noesis | Refrag | csstats | Allstar | CS2/CSTV |
+|---|---|---|---|---|---|---|---|
+| 2D scrubbing replay | ✔ free | ✔ ~paid | ✔ paid | ✔ paid | ✖/~ | ✖ | ✖ (3D) |
+| Multi-level map | ~ (opacity overlay) | ✖ | ✖ | ✖ | ✖ | n/a | n/a |
+| Drawing in replay | ✔ pen/eraser | ✖ (separate board) | ✖ | ✔ best-in-class | ✖ | ✖ | ✖ |
+| Time-anchored drawings | ✖ | ✖ | ✖ | ~ (per-round notes) | ✖ | ✖ | ✖ |
+| **2D-view video export** | ✖ | ✖ | ✖ | ✖ | ✖ | ✖ | ✖ |
+| Round/event timeline | ✔ | ✔ | ✔ + filters | ✔ + markers | ~ | n/a | ✔ slider |
+| Follow-player cam (2D) | ✖ | ✖ | ✖ | ✖ | ✖ | n/a | ✔ (3D) |
+| Fully free | ✔ | ~ | ✖ | ✖ | ✔ | ~ | ✔ |
 
 Three wide-open differentiators nobody in the market has:
 

@@ -147,8 +147,8 @@ review overturns them.
    `--budget-scale` (env `DV2D_BUDGET_SCALE`) multiplies the time budgets so a slow CI runner can
    gate without re-writing the design's numbers. The ubuntu CI lane starts at `2.0` with a TODO to
    tighten once a baseline exists. The allocation budget is **never** scaled (0 is 0).
-10. **CI fixture corpus must be demo-free.** No `.dem` is committed (`demos/` is gitignored except
-    `demos/benchmarks/*.leetify.json`), so every CI-run fixture is a serialized `SceneFixture` JSON
+10. **CI fixture corpus must be demo-free.** No `.dem` is committed (`demos/**/*.dem` is
+    gitignored), so every CI-run fixture is a serialized `SceneFixture` JSON
     plus committed `assets/<map>/` art. `--demo` paths in CI are forbidden; `dv2d` prints a warning
     and CI never passes them.
 11. **`--layers` takes stable layer ids** (`ISceneLayer.Id`, §5.2), comma-separated; `--exclude-layers`

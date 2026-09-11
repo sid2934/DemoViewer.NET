@@ -577,8 +577,8 @@ public class RuleWorkbenchModuleTests
     /// <summary>
     ///     The data model reconciles with a real evaluation of the shipped rulesets on whichever demo
     ///     <see cref="DemoTestHelper.RequireDemo()" /> resolves (the first <c>.dem</c> under
-    ///     <c>demos/benchmarks/</c> on a developer machine; the named reference demo is not staged, only
-    ///     its Leetify sidecar is): every declared stat/highlight is a target, at least one fired, and a
+    ///     <c>demos/benchmarks/</c> on a developer machine; the named reference demo is not staged):
+    ///     every declared stat/highlight is a target, at least one fired, and a
     ///     fired target's fires match its count and carry real ticks. This is the correctness anchor (the
     ///     applied-fire slice is ground-truth from the same run the results board projects from).
     /// </summary>

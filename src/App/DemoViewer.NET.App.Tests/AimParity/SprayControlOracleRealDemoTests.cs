@@ -139,9 +139,9 @@ public class SprayControlOracleRealDemoTests
         {
             // A source whose schema the aim providers do not resolve against produces no columns at
             // all, so there is nothing to sit beside the oracle. Skipped rather than failed BECAUSE
-            // this arm runs on whichever demo the machine happens to have: on a source with no
-            // Leetify partner a hard red says nothing the message does not, and the benchmark
-            // parity cases let the same exception fail, which is where it means something.
+            // this arm runs on whichever demo the machine happens to have: a hard red here says
+            // nothing the message does not, and the benchmark parity cases let the same exception
+            // fail, which is where it means something.
             throw new SkipTestException(drift.Message);
         }
 

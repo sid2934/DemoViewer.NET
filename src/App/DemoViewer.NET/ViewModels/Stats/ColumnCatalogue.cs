@@ -233,9 +233,8 @@ public static class ColumnCatalogue
     // conflates the player's skill with the lobby's.
     //
     // Three columns are deliberately given a bar and NO tint. That is not an oversight:
-    //   HS%    Leetify structurally excludes AWP shots from their headshot metric, and the measured
-    //          correlation with actual production is weak (R = 0.30). Nobody publishes a rank-segmented
-    //          distribution, so any cut point here would be invented.
+    //   HS%    The measured correlation with actual production is weak (R = 0.30), and nobody
+    //          publishes a rank-segmented distribution, so any cut point here would be invented.
     //   Surv%  High survival is anti-correlated with aggression. High survival + low ADR is passivity;
     //          low survival + high ADR is a healthy entry fragger. One band cannot say that.
     //   FK+/-  A signed differential whose sign is already the whole story; the bar carries it.

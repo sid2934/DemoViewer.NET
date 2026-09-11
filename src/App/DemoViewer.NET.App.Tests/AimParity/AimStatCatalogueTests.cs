@@ -41,7 +41,7 @@ public class AimStatCatalogueTests
             .Select(stat => doc.Id + "." + stat.Id)
             .ToHashSet(StringComparer.Ordinal);
 
-        string[] missing = AimStatCatalogue.Produced()
+        string[] missing = AimStatCatalogue.Stats
             .Where(stat => !declared.Contains(stat.RuleId))
             .Select(stat => $"{stat.Canonical} -> {stat.RuleId}")
             .ToArray();

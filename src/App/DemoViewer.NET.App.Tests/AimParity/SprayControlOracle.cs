@@ -10,13 +10,10 @@ namespace DemoViewer.NET.AppTests.AimParity;
 ///     An independent hand-written fold of the spray-control rule, written from the specification
 ///     rather than from the engine's code, and used as that metric's oracle.
 ///     <para>
-///         <b>Why spray control needs one at all.</b> Every other aim column has an external
-///         reference: Leetify publishes accuracy, the counter-strafing triple, preaim, spray
-///         accuracy. Spray control does not. Their payload declares <c>recoilShots</c> and
-///         <c>recoilShotsHit</c>, which is exactly the pair a comparison would use, and both are
-///         <c>null</c> in every row of all five benchmark demos. Schema-present is not
-///         data-populated, so the choice is an oracle or nothing, and nothing is how a metric ends
-///         up shipping a mean over a population of seven shots without anyone noticing.
+///         <b>Why spray control needs one at all.</b> No public tool publishes a spray-residual
+///         column, so there is nothing to compare the shipped number against: the choice is an
+///         oracle or nothing, and nothing is how a metric ends up shipping a mean over a population
+///         of seven shots without anyone noticing.
 ///     </para>
 ///     <para>
 ///         <b>What the rule is.</b> A spray is a maximal run over which the recoil index never

@@ -44,6 +44,34 @@ public static class LiveAimStats
     public const string RulesetRelativePath = "rules/aim_rating.rules.yaml";
 
     /// <summary>
+    ///     The benchmark demo ids the aim harness runs over: every fixture directory under
+    ///     <c>tests/fixtures/</c> that carries a curated <c>expected.golden.json</c>. The fixture,
+    ///     not the demo, is what defines the set, because the demos themselves are gitignored and
+    ///     enumerating what happens to be on this machine would make the case list vary by checkout.
+    /// </summary>
+    /// <returns>The demo ids, sorted, or empty when the fixture tree is absent.</returns>
+    public static IReadOnlyList<string> BenchmarkDemoIds()
+    {
+        if (DemoTestHelper.FindRepoRoot() is not { } root)
+        {
+            return [];
+        }
+
+        string fixtures = Path.Combine(root, "tests", "fixtures");
+        if (!Directory.Exists(fixtures))
+        {
+            return [];
+        }
+
+        return Directory.EnumerateDirectories(fixtures)
+            .Where(dir => File.Exists(Path.Combine(dir, "expected.golden.json")))
+            .Select(Path.GetFileName)
+            .OfType<string>()
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>
     ///     Parses the demo for <paramref name="demoId" />, evaluates the aim ruleset over it and
     ///     returns the per-player numbers.
     /// </summary>
@@ -62,7 +90,7 @@ public static class LiveAimStats
 
     /// <summary>
     ///     Evaluates the aim ruleset over an already-parsed demo. Split out so a caller holding a
-    ///     demo for another reason (the counter-strafe fit runs its own fold over the same frames)
+    ///     demo for another reason (the counter-strafe oracle runs its own fold over the same frames)
     ///     does not pay for a second multi-gigabyte parse.
     /// </summary>
     /// <param name="demoFileName">The bare filename, stamped into the pinned document.</param>
@@ -110,11 +138,11 @@ public static class LiveAimStats
         {
             if (string.IsNullOrEmpty(player.PlayerName))
             {
-                continue; // Nameless rows cannot be joined to any reference, ours or Leetify's.
+                continue; // Nameless rows cannot be joined to the pinned fixture.
             }
 
             Dictionary<string, double?> stats = new(StringComparer.Ordinal);
-            foreach (AimStatDefinition stat in AimStatCatalogue.Produced())
+            foreach (AimStatDefinition stat in AimStatCatalogue.Stats)
             {
                 stats[stat.Canonical] = ReadStat(player, stat.RuleId);
             }
@@ -209,7 +237,7 @@ public static class LiveAimStats
 }
 
 /// <summary>One player's aim numbers from a live run, keyed by canonical stat name.</summary>
-/// <param name="Name">Display name, the join key against Leetify and against the pinned fixture.</param>
+/// <param name="Name">Display name, the join key against the pinned fixture.</param>
 /// <param name="Slot">Player slot, for diagnostics.</param>
 /// <param name="Team">Team number as the demo reports it.</param>
 /// <param name="Stats">Canonical stat name to value; <c>null</c> means the node never activated.</param>

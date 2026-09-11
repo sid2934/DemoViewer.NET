@@ -19,11 +19,9 @@ namespace DemoViewer.NET.AppTests.AimParity;
 ///         <b>Why this exists.</b> The gate admits a shot into the counter-strafing denominator when
 ///         the shooter exceeded <c>0.34 * m_flMaxspeed</c> at some sampled tick inside a lookback
 ///         window before firing. That window is the whole metric: it is the free parameter that sets
-///         the denominator, Leetify never published theirs, and their own numbers say the population
-///         is far narrower than all shots (108 admitted against 307 fired on the first benchmark
-///         demo, about 35 percent; 22 to 29 percent across the five). The engine ships one window as
-///         a compile-time constant, so a test that only reads the engine's output can compare
-///         exactly one candidate. This fold produces the whole curve from a single pass.
+///         the denominator, and the engine ships it as a compile-time constant, so a test that only
+///         reads the engine's output can examine exactly one candidate. This fold produces the whole
+///         curve from a single pass.
 ///     </para>
 ///     <para>
 ///         <b>How one pass gives every window.</b> Peak speed over a window is monotone in the
@@ -40,9 +38,9 @@ namespace DemoViewer.NET.AppTests.AimParity;
 ///         a controller. Both reconstruct position through
 ///         <see cref="PositionUtil.CellToWorld" /> and difference it the same way (same maximum
 ///         sample gap, same teleport cap, same repeat-tick rule), so the two agree wherever the
-///         liveness gates agree. <c>CounterStrafeWindowFitTests</c> pins that agreement at the
+///         liveness gates agree. <c>CounterStrafeAdmissionFoldTests</c> pins that agreement at the
 ///         shipped window before it trusts the curve at any other one: an oracle nobody checked
-///         against the thing it is calibrating is just a second opinion.
+///         against the thing it describes is just a second opinion.
 ///     </para>
 /// </summary>
 public static class CounterStrafeAdmissionFold
@@ -51,7 +49,7 @@ public static class CounterStrafeAdmissionFold
     ///     Largest gap, in ticks, a position delta may be differenced across. A wider gap means the
     ///     pawn was absent from the sample set in between (dead, dormant, or the demo paused), and
     ///     the straight line across that hole is not a speed. Mirrors the engine's own default;
-    ///     <c>CounterStrafeWindowFitTests</c> pins the pair together.
+    ///     <c>CounterStrafeAdmissionFoldTests</c> pins the pair together.
     /// </summary>
     public const int MaxSpeedSampleGapTicks = 8;
 
@@ -154,9 +152,9 @@ public static class CounterStrafeAdmissionFold
                         continue;
                     case WeaponFireEvent fire:
                         // The same gate the ruleset applies: bullets only, live rounds only. A
-                        // grenade or a knife carries no movement penalty and Leetify does not count
-                        // one either, so admitting it would widen the denominator on both sides of
-                        // the fit and quietly flatten the curve it is fitted on.
+                        // grenade or a knife carries no movement penalty at all, so admitting one
+                        // would widen the denominator with shots the metric says nothing about and
+                        // quietly flatten the curve.
                         if (!WeaponClassification.IsBulletWeapon(fire.Weapon) || fire.UserId < 0)
                         {
                             continue;
@@ -197,7 +195,7 @@ public static class CounterStrafeAdmissionFold
     {
         // No readable movement cap means no threshold, and the engine drops such a shot from the
         // denominator rather than admitting it on zeros that read as a perfectly still player. The
-        // fold has to make the same call or its denominator is not theirs.
+        // fold has to make the same call or its denominator is not the engine's.
         if (!maxSpeedPreFrame.TryGetValue(slot, out float maxSpeed) || maxSpeed <= 0f
             || !histories.TryGetValue(slot, out SlotSpeedHistory? history))
         {
@@ -452,8 +450,7 @@ public sealed record AdmissionFoldResult(
 
     /// <summary>
     ///     Clean counter-strafe counts per player name at one candidate window: admitted, and taken
-    ///     from a standstill. This is the numerator Leetify calls
-    ///     <c>counterStrafingShotsGood</c>.
+    ///     from a standstill. This is the <c>cs_clean</c> numerator.
     /// </summary>
     /// <param name="windowTicks">The candidate window, in ticks.</param>
     /// <returns>Player name to clean count.</returns>

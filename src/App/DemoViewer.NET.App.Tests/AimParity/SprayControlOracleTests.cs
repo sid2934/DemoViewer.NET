@@ -12,9 +12,9 @@ namespace DemoViewer.NET.AppTests.AimParity;
 ///     expected numbers.
 ///     <para>
 ///         These are the assertions that make the oracle worth being an oracle. Spray control has no
-///         external reference at all (Leetify declares <c>recoilShots</c> and never populates it), so
-///         the only thing standing between the shipped Spray column and a number nobody checked is
-///         a second implementation plus a set of cases that pin what it should do.
+///         external reference at all, so the only thing standing between the shipped Spray column and
+///         a number nobody checked is a second implementation plus a set of cases that pin what it
+///         should do.
 ///         Written from the rule as specified, not from the engine's code path.
 ///     </para>
 ///     <para>
