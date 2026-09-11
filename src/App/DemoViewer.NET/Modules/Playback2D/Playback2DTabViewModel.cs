@@ -295,8 +295,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // The ITimelineData adapter over _context. Nulled on deactivation so the context isn't retained.
     private ModuleTimelineData? _timelineData;
 
-    // 3D line-of-sight engine for the current map (BVH over baked collision), lazily built off-thread the
-    // first time the Vision overlay is enabled. Null until ready / when the map has no baked collision.
+    // 3D line-of-sight engine for the current map (BVH over baked collision), lazily resolved off-thread
+    // from the shared cache the first time the Vision overlay is enabled. Null until ready / when the map
+    // has no baked collision.
     private bool _visionEngineLoading;
     private string? _visionEngineMap;
 
@@ -2016,9 +2017,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         Dispatcher.UIThread.Post(previous.Dispose, DispatcherPriority.Background);
     }
 
-    // Builds the current map's line-of-sight BVH off the UI thread (build is ~0.5s), the first time it's
-    // needed. No-op unless the Vision overlay is on and the map has baked collision. Applies only if the map
-    // is still current when the build finishes (the user may have switched maps meanwhile).
+    // Resolves the current map's line-of-sight BVH off the UI thread, the first time it's needed. No-op
+    // unless the Vision overlay is on and the map has baked collision. Applies only if the map is still
+    // current when the engine lands (the user may have switched maps meanwhile).
+    //
+    // Through VisibilityEngineCache.Shared, never VisibilityEngine.Load: the analysis run and the Stats
+    // replay want the same engine for the same map, and a build is up to a second on de_ancient. A map
+    // either of them already built costs this tab nothing, and a concurrent ask joins their build
+    // instead of starting a second one.
     private void EnsureVisionEngine()
     {
         if (!ShowVision || _visionEngineLoading)
@@ -2035,12 +2041,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         _visionEngineMap = map;
         _visionEngineLoading = true;
-        Task.Run(() =>
+        Task.Run(async () =>
         {
             VisibilityEngine? engine = null;
             try
             {
-                engine = VisibilityEngine.Load(trisPath);
+                engine = await VisibilityEngineCache.Shared.GetOrLoadAsync(trisPath).ConfigureAwait(false);
             }
             catch
             {
@@ -2060,8 +2066,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     /// <summary>
-    ///     Test seam: builds the vision engine synchronously on the calling thread (bypassing the off-thread
-    ///     async load, which is fragile to pump under headless Avalonia). Production uses <see cref="EnsureVisionEngine" />.
+    ///     Test seam: resolves the vision engine synchronously on the calling thread (bypassing the
+    ///     off-thread load, which is fragile to pump under headless Avalonia). Same cache as
+    ///     <see cref="EnsureVisionEngine" />, so it hands back the instance every other consumer holds;
+    ///     it blocks the caller for a build only when nothing has built this map yet.
     /// </summary>
     internal void LoadVisionEngineSyncForTest()
     {
@@ -2074,7 +2082,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _visionEngineMap = LoadedMapNameForTest;
         try
         {
-            VisionEngine = VisibilityEngine.Load(trisPath);
+            VisionEngine = VisibilityEngineCache.Shared.GetOrLoad(trisPath);
         }
         catch
         {

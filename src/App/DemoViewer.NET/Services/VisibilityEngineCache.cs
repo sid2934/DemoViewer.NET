@@ -128,9 +128,12 @@ public sealed class VisibilityEngineCache
     }
 
     /// <summary>
-    ///     Synchronous <see cref="GetOrLoadAsync" /> for callers already off the UI thread (the
-    ///     <c>Task.Run</c> body the Playback2D overlay builds its engine in, a test seam). Blocks the
-    ///     calling thread for the whole build, so it must never be called from the dispatcher.
+    ///     Synchronous <see cref="GetOrLoadAsync" /> for a caller that is prepared to block (the
+    ///     Playback2D overlay's synchronous test seam, and the UiCapture variant that drives it from
+    ///     whatever thread it is on; the production path awaits the async form from a pool thread).
+    ///     Blocks the calling thread for the whole build. It cannot deadlock the dispatcher, because
+    ///     every await inside the cache is <c>ConfigureAwait(false)</c>, but a UI thread that calls it
+    ///     is frozen for up to a second, which is why no production path does.
     /// </summary>
     public VisibilityEngine GetOrLoad(string trisPath)
     {

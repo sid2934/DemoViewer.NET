@@ -1,0 +1,246 @@
+{
+  "schemaVersion": "playback2d-scene/1",
+  "time": {
+    "tick": 34001,
+    "frameIndex": 40959,
+    "demoSeconds": 3433.296875,
+    "deltaSeconds": 0.015625,
+    "isDiscontinuity": false
+  },
+  "camera": {
+    "viewWidth": 900,
+    "viewHeight": 900,
+    "centerX": -278.414794921875,
+    "centerY": -982.0623264312744,
+    "baseScale": 0.27622854945168257,
+    "zoom": 1,
+    "panX": 0,
+    "panY": 0
+  },
+  "size": {
+    "width": 900,
+    "height": 900
+  },
+  "mapName": "de_mirage",
+  "frame": {
+    "time": {
+      "tick": 34001,
+      "frameIndex": 40959,
+      "demoSeconds": 3433.296875,
+      "deltaSeconds": 0.015625,
+      "isDiscontinuity": false
+    },
+    "markers": [
+      {
+        "slot": 1,
+        "team": 2,
+        "worldX": 1216,
+        "worldY": -16,
+        "worldZ": -163.96875,
+        "yawDegrees": -166.29112,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "YE",
+        "isAlive": true,
+        "pitchDegrees": -44.00917,
+        "duckAmount": 0,
+        "steamId": 76561198134401925
+      },
+      {
+        "slot": 5,
+        "team": 2,
+        "worldX": 1136.3248,
+        "worldY": -74.19751,
+        "worldZ": -164.44025,
+        "yawDegrees": -88.15601,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "MO",
+        "isAlive": true,
+        "pitchDegrees": 5.543976,
+        "duckAmount": 0,
+        "steamId": 76561198200982290
+      },
+      {
+        "slot": 6,
+        "team": 2,
+        "worldX": 1136.6113,
+        "worldY": 21.81297,
+        "worldZ": -164.78137,
+        "yawDegrees": -87.205696,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "FA",
+        "isAlive": true,
+        "pitchDegrees": 7.8013306,
+        "duckAmount": 0,
+        "steamId": 76561197960690195
+      },
+      {
+        "slot": 7,
+        "team": 2,
+        "worldX": 1216,
+        "worldY": -307,
+        "worldZ": -164.81482,
+        "yawDegrees": -172.6347,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "KS",
+        "isAlive": true,
+        "pitchDegrees": -49.500275,
+        "duckAmount": 0,
+        "steamId": 76561198058500492
+      },
+      {
+        "slot": 9,
+        "team": 2,
+        "worldX": 1220.3441,
+        "worldY": -123.31024,
+        "worldZ": -163.96875,
+        "yawDegrees": -81.46191,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "YU",
+        "isAlive": true,
+        "pitchDegrees": 1.9524841,
+        "duckAmount": 0,
+        "steamId": 76561198164970560
+      },
+      {
+        "slot": 10,
+        "team": 3,
+        "worldX": -1718.991,
+        "worldY": -1885.8474,
+        "worldZ": -267.6317,
+        "yawDegrees": 84.31595,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "ME",
+        "isAlive": true,
+        "pitchDegrees": 4.210846,
+        "duckAmount": 0,
+        "steamId": 76561197973140692
+      },
+      {
+        "slot": 11,
+        "team": 3,
+        "worldX": -1774.4248,
+        "worldY": -1965.9149,
+        "worldZ": -264.49213,
+        "yawDegrees": 81.122375,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "RO",
+        "isAlive": true,
+        "pitchDegrees": 3.1541138,
+        "duckAmount": 0,
+        "steamId": 76561197991272318
+      },
+      {
+        "slot": 12,
+        "team": 3,
+        "worldX": -1777.1737,
+        "worldY": -1810.1313,
+        "worldZ": -263.96875,
+        "yawDegrees": -51.61136,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "AP",
+        "isAlive": true,
+        "pitchDegrees": 5.8409424,
+        "duckAmount": 0,
+        "steamId": 76561197989744167
+      },
+      {
+        "slot": 13,
+        "team": 3,
+        "worldX": -1656.522,
+        "worldY": -1985.9376,
+        "worldZ": -267.24463,
+        "yawDegrees": -47.271423,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "FL",
+        "isAlive": true,
+        "pitchDegrees": 14.058044,
+        "duckAmount": 0,
+        "steamId": 76561197978835160
+      },
+      {
+        "slot": 14,
+        "team": 3,
+        "worldX": -1654.1693,
+        "worldY": -1789.9622,
+        "worldZ": -266.86816,
+        "yawDegrees": 80.05188,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "ZY",
+        "isAlive": true,
+        "pitchDegrees": 4.8841095,
+        "duckAmount": 0,
+        "steamId": 76561198113666193
+      }
+    ],
+    "areaEffects": [],
+    "trails": [],
+    "killFeed": [],
+    "gameInfo": {
+      "phase": "Live",
+      "bombState": "\u2014",
+      "roundNumber": 6,
+      "roundsPlayed": 5,
+      "roundSeconds": 114.859375,
+      "roundTime": "1:55",
+      "bombTicking": false,
+      "defuseInProgress": false,
+      "defuseKitNote": "\u2014",
+      "defuseSeconds": "NaN",
+      "defuseTime": "\u2014",
+      "tScore": 1,
+      "ctScore": 4
+    },
+    "map": {
+      "mapName": "de_mirage",
+      "networkedBounds": {
+        "minX": -2824,
+        "minY": -2842,
+        "maxX": 1524.1195068359375,
+        "maxY": 1136.90673828125
+      },
+      "observedBounds": {
+        "minX": -1777.1737060546875,
+        "minY": -1985.9376220703125,
+        "maxX": 1220.3441162109375,
+        "maxY": 21.812969207763672
+      },
+      "sectionHeights": [
+        -313.52679443359375,
+        -80,
+        80,
+        120
+      ],
+      "radars": [
+        {
+          "name": "de_mirage.png",
+          "bounds": {
+            "minX": -3230,
+            "minY": -3407,
+            "maxX": 1890,
+            "maxY": 1713
+          },
+          "minZ": -100000,
+          "maxZ": 100000
+        }
+      ]
+    },
+    "vision": {
+      "isAvailable": false,
+      "cones": [],
+      "sightlines": []
+    },
+    "followSlot": -1
+  },
+  "sourceDemoId": "furia-vs-vitality-m1-mirage.dem",
+  "notes": "Captured from the pre-v2 Playback2DViewport at frame 40959, CameraMode.Fit. The v2 compositor must re-render this to match the paired golden."
+}

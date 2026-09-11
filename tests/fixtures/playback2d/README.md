@@ -102,8 +102,10 @@ describe the same world state.
 | `nuke-multilevel.scene.json` | **Pending, permanently as things stand.** The pre-v2 parity pair: its golden came from the control's own `DrawingContext` under the Light palette, and `GoldenParityTests` judges it on a delta distribution. Two further goldens are rendered *from this one scene* by `LevelGoldenTests` and listed under their own names: `nuke-multilevel-upper` (SingleLayout, top floor) and `nuke-multilevel-noradar` (floors bound, no radar art). |
 
 **Pre-v2 captures**: `prev2-*`, written by `Playback2DGoldenCaptureTests` from a real demo through
-headless Avalonia. They exist only on a machine with the relevant demo staged and are **not** listed
-in the manifest, so `GoldenCorpusTests` exempts the prefix. The prefix exists because two of these
+headless Avalonia. `prev2-mirage-roundstart` is committed (captured from `furia-vs-vitality-m1-mirage.dem`,
+a pro GOTV demo staged under `demos/pro/` on developer machines, so its test skips on CI); the others
+exist only on a machine with the relevant demo staged. None is listed in the manifest, so
+`GoldenCorpusTests` exempts the prefix. The prefix exists because two of these
 captures used to be named `duel-mirage-b` and `fitmap-mirage-eco` (the names of two hand-authored
 640x360 fixtures) and overwrote both scene files on any machine that had the demos.
 
