@@ -783,14 +783,44 @@ match table, so it holds still while the round below it changes; whether that re
 header or as a claim about the round on screen is a design question, not this defect. Pinned by a test
 so that changing it later is a decision rather than a side effect.
 
-## 19. The Aim category
+## 19. The Aim categories
 
-`rules/aim_rating.rules.yaml` ships 26 board columns, 25 game-scoped and 1 round-scoped (`Spot`).
-They are registered as `StatGroup.Aim`, declared after `Combat` because the enum **ordinal** is the chip rail's
-order and these columns explain the Combat numbers rather than adding to them. The `Key` of each
-`M(...)` entry is the ruleset's `label:` byte for byte: an unregistered label still renders, but lands
-in `Other` with no bar, no tint and a blank totals cell, which looks like a page nobody styled rather
-than like a wiring bug.
+`rules/aim_rating.rules.yaml` ships 26 columns, 25 game-scoped and 1 round-scoped (`Spot`). They were
+one chip, and twenty-six columns did not fit the board, so they are now two chips and eight tooltips:
+
+| Chip | `StatGroup` | Columns |
+|---|---|---|
+| **Accuracy** | `Accuracy` | `Acc%`, `HSAcc%`, `HSDmg%`, `CS%`, `CSAll%`, `Linear%`, `FB%`, `SAcc%`, `SprayAcc%`, and `Spot` on the round board. How often a bullet found its target. |
+| **Aim Quality** | `AimQuality` | `Spray`, `Preaim`, `XPlace`, `FlickErr`, `TTS`, `TTD`, `AimRx`, `TTK`. Degrees and milliseconds: how good the aim itself was. |
+| (none) | hidden | `CSAtt`, `SprayN`, `Spots`, `XShots`, `TTSn`, `TTDn`, `AimRxn`, `TTKn`. The populations, read in the tooltip of the cell each one qualifies (next section). |
+
+The seam is the unit, because a reader comparing percentages is asking a different question from one
+comparing reaction times, and it lands ten against eight rather than thirteen against four. Both members
+are declared after `Combat` because the enum **ordinal** is the chip rail's order and these columns
+explain the Combat numbers rather than adding to them; both have a `CategoryChip.LabelFor` arm, because
+a group without one ships as its raw enum name. The `Key` of each `M(...)` entry is the ruleset's
+`label:` byte for byte: an unregistered label still renders, but lands in `Other` with no bar, no tint
+and a blank totals cell, which looks like a page nobody styled rather than like a wiring bug.
+
+### The denominators read in the tooltip, beside the value they qualify
+
+The eight population columns exist so a thin sample is visible. As columns they sat three to the right
+of the value they qualified, on a board that did not fit, and a reader could not connect the two. They
+are now `ColumnMeta.Hidden`: still in the table, still exported, still read by the colour gates, never a
+column. The metric each one gates names it as its `Denominator`, and the cell's tooltip reads the two as
+one phrase: `384 ms over 47 engagements`, `2.5° over 2 contacts`, `0.6° over 3 shots`. The preposition
+is part of the claim. `over` says the value is the mean, or the share, of that many, and the three
+after-contact rates (`FB%`, `SAcc%`, `SprayAcc%`) do not get it: the ruleset divides them by shot counts
+it does not export, and `Spots` is only the gate that guards them, so they read `56% after 2 contacts`.
+No fraction of two contacts is 56%, and a phrase that said `over` would send a reader looking for one.
+A count of one drops the plural, a column with no denominator shows no tip at all, and the totals row
+pools the team's sample: its rate is the mean over the summed count, each member weighted by its own
+count, so a member the ruleset's `max(d, 1)` guard scored `0.0` off a count of `0` adds nothing to either
+the figure or the population the phrase lends it.
+
+The gate is unaffected, and a test watches it: `ClearsColourGate` reads its gate labels off the
+`MetricRow`, not off the visible cells, so a gate whose column left the board still trips. A gate that
+silently read 0 would neuter every tint on the page, which is the `XPlace` bug in a new coat.
 
 ### None of them carries an absolute band
 
@@ -841,7 +871,7 @@ per-match and read against `XShots`.
 | **`HSAcc%`, `HSDmg%`** | **bar, no tint** | The same call `HS%` already carries: a headshot share is a STYLE, not a ranking. An AWPer's body hits kill exactly as well as a rifler's heads. `HSDmg%` divides by ALL enemy damage on top of that, so a player who puts half their output into grenades halves the column with nothing about their aim having changed. |
 | **`FlickErr`** | **bar, no tint** | Signed, so neither direction is the good one: positive overshot and had to be walked back, negative was dragged on. `FK+/-`'s treatment, for `FK+/-`'s reason. |
 | **`TTK`** | **bar, no tint** | Contact to the kill. It confounds aim with damage output and armour, scope.gg's own rifle benchmarks span only about 170 ms across the whole FACEIT ladder, and it can read BELOW `TTD` because the two average over different engagements: `TTK` counts only the contacts that ended in a kill, measured from the killer's LAST contact, which a fresh peek re-latches right before the kill, while `TTD` counts every contact answered by a landed bullet. The wider 640-tick window only admits slower kills and cannot pull `TTK` down. Ranked, never judged. |
-| **`CSAtt`, `SprayN`, `Spots`, `XShots`, `TTSn`, `TTDn`, `AimRxn`, `TTKn`, `Spot`** | **bar, no tint** | Population columns. Each is the denominator of a column above, and more attempts or more measurable sprays is more opportunity, not better play. They are on the board because a zero here is the only thing separating an empty population from a real result, which is exactly what the `max(d, 1)` guards collapse together. |
+| **`Spot`** | **bar, no tint** | A population: a first contact is more fighting, not better play, and tinting it says it is. The only aim cell on the round board. The eight match-scoped populations are no longer columns at all; each reads in the tooltip of the cell it qualifies, where a zero beside the value is still the only thing separating an empty population from a real result, which is exactly what the `max(d, 1)` guards collapse together. |
 
 ### One spray column, not two
 

@@ -201,8 +201,10 @@ public class StatsBoardScaleTests
     {
         // Every board column, not just the Core seven: a StatScaleSpec declared BELOW _byKey reads
         // null and the column silently loses its scale, and sweeping only _columns meant the whole
-        // Aim board could regress that way without this test noticing.
-        foreach (string column in _columns.Concat(_aimColumns))
+        // aim board could regress that way without this test noticing. BOTH aim chips are named here,
+        // plus the hidden denominators, so a spec that only one half lost still fails by name.
+        foreach (string column in _columns.Concat(_accuracyColumns).Concat(_aimQualityColumns)
+                     .Concat(_denominatorColumns))
         {
             await Assert.That(ColumnCatalogue.Resolve(column).Scale).IsNotNull()
                 .Because($"{column} must resolve a scale; a null one means it was declared below _byKey");
@@ -227,21 +229,70 @@ public class StatsBoardScaleTests
     // ── Aim board ──────────────────────────────────────────────────
 
     /// <summary>
-    ///     Every aim column is catalogued, and every one of them carries a scale. Same failure mode as
-    ///     the test above and worth its own case because the aim specs are a second batch of static
-    ///     fields: declared below <c>_byKey</c> they are all null when the catalogue is built, and the
-    ///     whole aim page then renders as bare text with no bar and no tint, which looks like a page
-    ///     that was simply never styled rather than like a bug.
+    ///     The two chips the aim ruleset splits across, each in the ruleset's own order. Twenty-six
+    ///     columns did not fit one board, and the seam the metrics already had is the unit: percentages
+    ///     say how often a bullet landed, degrees and milliseconds say how good the aim itself was.
+    /// </summary>
+    private static readonly string[] _accuracyColumns =
+    [
+        "Acc%", "HSAcc%", "HSDmg%", "CS%", "CSAll%", "Linear%", "FB%", "SAcc%", "SprayAcc%", "Spot"
+    ];
+
+    private static readonly string[] _aimQualityColumns =
+    [
+        "Spray", "Preaim", "XPlace", "FlickErr", "TTS", "TTD", "AimRx", "TTK"
+    ];
+
+    /// <summary>
+    ///     The populations. Still emitted, exported and read by the gates, but no longer columns: each
+    ///     reads in the tooltip of the cell it qualifies.
+    /// </summary>
+    private static readonly string[] _denominatorColumns =
+    [
+        "CSAtt", "SprayN", "Spots", "XShots", "TTSn", "TTDn", "AimRxn", "TTKn"
+    ];
+
+    /// <summary>
+    ///     Every aim column is catalogued under one of the two aim chips or as a hidden denominator, and
+    ///     every one of them carries a scale. Same failure mode as the test above and worth its own case
+    ///     because the aim specs are a second batch of static fields: declared below <c>_byKey</c> they
+    ///     are all null when the catalogue is built, and the whole page then renders as bare text.
+    ///     <para>
+    ///         BOTH chips are swept by name. A column that drifted to Other, or to the wrong half, still
+    ///         renders as a plausible page, so membership is pinned column by column.
+    ///     </para>
     /// </summary>
     [Test]
-    public async Task Catalogue_CarriesTheAimColumns()
+    public async Task Catalogue_CarriesTheAimColumns_UnderBothChips()
     {
-        foreach (string column in _aimColumns)
+        // Sorted on both sides: IsEquivalentTo matches order, and a partition has none.
+        await Assert.That(_accuracyColumns.Concat(_aimQualityColumns).Concat(_denominatorColumns)
+                .OrderBy(c => c, StringComparer.Ordinal).ToArray())
+            .IsEquivalentTo(_aimColumns.OrderBy(c => c, StringComparer.Ordinal).ToArray())
+            .Because("the two chips and the denominators must partition the ruleset");
+
+        foreach (string column in _accuracyColumns)
         {
             ColumnMeta meta = ColumnCatalogue.Resolve(column);
-            await Assert.That(meta.Group).IsEqualTo(StatGroup.Aim)
-                .Because($"{column} is not registered, so it lands in Other with no bar and no tint");
+            await Assert.That(meta.Group).IsEqualTo(StatGroup.Accuracy)
+                .Because($"{column} is a hit rate and belongs under Accuracy");
+            await Assert.That(meta.Hidden).IsFalse();
             await Assert.That(meta.Scale).IsNotNull().Because($"{column} has no scale");
+        }
+
+        foreach (string column in _aimQualityColumns)
+        {
+            ColumnMeta meta = ColumnCatalogue.Resolve(column);
+            await Assert.That(meta.Group).IsEqualTo(StatGroup.AimQuality)
+                .Because($"{column} is degrees or milliseconds and belongs under Aim Quality");
+            await Assert.That(meta.Hidden).IsFalse();
+            await Assert.That(meta.Scale).IsNotNull().Because($"{column} has no scale");
+        }
+
+        foreach (string column in _denominatorColumns)
+        {
+            await Assert.That(ColumnCatalogue.Resolve(column).Hidden).IsTrue()
+                .Because($"{column} is a population and belongs in a tooltip, not a column");
         }
     }
 
@@ -258,7 +309,8 @@ public class StatsBoardScaleTests
 
         foreach (string label in labels)
         {
-            await Assert.That(ColumnCatalogue.Resolve(label).Group).IsEqualTo(StatGroup.Aim)
+            StatGroup group = ColumnCatalogue.Resolve(label).Group;
+            await Assert.That(group == StatGroup.Accuracy || group == StatGroup.AimQuality).IsTrue()
                 .Because($"the ruleset shows '{label}' and the catalogue does not register it");
         }
 
@@ -267,40 +319,201 @@ public class StatsBoardScaleTests
     }
 
     /// <summary>
-    ///     Aim is a chip of its own, and it sits between Combat and Damage. The rail orders by enum
-    ///     ORDINAL, so the position is decided by where the member was declared and by nothing else;
-    ///     pinned here because moving the member is a one-character change with a visible consequence.
+    ///     Two aim chips, Accuracy then Aim Quality, between Combat and Damage. The rail orders by enum
+    ///     ORDINAL, so the position is decided by where the members were declared and by nothing else;
+    ///     pinned here because moving a member is a one-line change with a visible consequence. The
+    ///     labels are pinned too: a group without a LabelFor arm ships as its raw enum name.
     /// </summary>
     [Test]
-    public async Task CategoryRail_CarriesTheAimChip_AfterCombat()
+    public async Task CategoryRail_CarriesBothAimChips_BetweenCombatAndDamage()
     {
         StatsTabViewModel vm = BuildVm();
+        List<CategoryChip> chips = vm.Categories.ToList();
 
-        CategoryChip aim = vm.Categories.Single(c => c.Group == StatGroup.Aim);
-        await Assert.That(aim.Label).IsEqualTo("Aim");
+        await Assert.That(chips.Single(c => c.Group == StatGroup.Accuracy).Label).IsEqualTo("Accuracy");
+        await Assert.That(chips.Single(c => c.Group == StatGroup.AimQuality).Label).IsEqualTo("Aim Quality");
 
-        int combat = vm.Categories.ToList().FindIndex(c => c.Group == StatGroup.Combat);
-        int aimIndex = vm.Categories.ToList().FindIndex(c => c.Group == StatGroup.Aim);
-        int damage = vm.Categories.ToList().FindIndex(c => c.Group == StatGroup.Damage);
-        await Assert.That(aimIndex).IsGreaterThan(combat);
-        await Assert.That(aimIndex).IsLessThan(damage);
+        int combat = chips.FindIndex(c => c.Group == StatGroup.Combat);
+        int accuracy = chips.FindIndex(c => c.Group == StatGroup.Accuracy);
+        int quality = chips.FindIndex(c => c.Group == StatGroup.AimQuality);
+        int damage = chips.FindIndex(c => c.Group == StatGroup.Damage);
+        await Assert.That(accuracy).IsGreaterThan(combat);
+        await Assert.That(quality).IsEqualTo(accuracy + 1);
+        await Assert.That(quality).IsLessThan(damage);
 
-        // Fifteen columns is a table, not a board.
-        await Assert.That(CategoryBoard.LayoutFor(StatGroup.Aim)).IsEqualTo(CategoryLayout.Table);
+        // Ten and eight columns are tables, not boards.
+        await Assert.That(CategoryBoard.LayoutFor(StatGroup.Accuracy)).IsEqualTo(CategoryLayout.Table);
+        await Assert.That(CategoryBoard.LayoutFor(StatGroup.AimQuality)).IsEqualTo(CategoryLayout.Table);
     }
 
     /// <summary>
-    ///     The aim page is the ruleset's board order, top to bottom. The catalogue's declaration order
-    ///     IS the board order, so a column inserted in the wrong place silently reshuffles the page.
+    ///     Each aim chip shows its half in the ruleset's board order, top to bottom. The catalogue's
+    ///     declaration order IS the board order, so a column inserted in the wrong place silently
+    ///     reshuffles the page.
     /// </summary>
     [Test]
-    public async Task AimPage_ShowsTheRulesetOrder()
+    [Arguments(StatGroup.Accuracy)]
+    [Arguments(StatGroup.AimQuality)]
+    public async Task AimChip_ShowsItsHalf_InRulesetOrder(StatGroup chip)
     {
         StatsTabViewModel vm = BuildVm();
-        vm.SelectedCategory = StatGroup.Aim;
+        vm.SelectedCategory = chip;
+        string[] expected = chip == StatGroup.Accuracy ? _accuracyColumns : _aimQualityColumns;
 
         await Assert.That(vm.IsColumnTable).IsTrue();
-        await Assert.That(vm.Columns.Select(c => c.Label)).IsEquivalentTo(_aimColumns);
+        await Assert.That(vm.Columns.Select(c => c.Label)).IsEquivalentTo(expected);
+    }
+
+    /// <summary>
+    ///     The eight population columns are off the board under both chips and still in the table, where
+    ///     the gates and the export read them. <see cref="ThinAimSample_KeepsItsBar_AndLosesItsTint" /> is
+    ///     the other half of this proof: every gate still trips with its denominator no longer a column,
+    ///     because <c>ClearsColourGate</c> reads the MetricRow and not the cells.
+    /// </summary>
+    [Test]
+    public async Task Denominators_LeaveTheBoard_AndStayInTheTable()
+    {
+        StatsTabViewModel vm = BuildVm();
+        foreach (StatGroup chip in new[] { StatGroup.Accuracy, StatGroup.AimQuality })
+        {
+            vm.SelectedCategory = chip;
+            foreach (string denominator in _denominatorColumns)
+            {
+                await Assert.That(vm.Columns.Select(c => c.Label)).DoesNotContain(denominator)
+                    .Because($"{denominator} is a population and reads in a tooltip, not a column");
+            }
+        }
+
+        foreach (string denominator in _denominatorColumns)
+        {
+            await Assert.That(vm.GameTable!.ValueColumns).Contains(denominator)
+                .Because("hidden is not deleted: the gate and the export still read it");
+        }
+    }
+
+    /// <summary>
+    ///     The count sits next to the value it qualifies, as one phrase, in the cell's tooltip. A
+    ///     denominator a reader cannot connect to its metric has been deleted, not moved, so the phrase is
+    ///     pinned word for word, and the rows pinned are the starved ones: they are exactly the cells a
+    ///     reader hovers to ask why the tint is missing.
+    ///     <para>
+    ///         Two prepositions, on purpose. "over" is a claim of division: TTS is the mean of 3
+    ///         engagements, Preaim the mean of 2 contacts, CS% the share of 4 attempts. FB%, SAcc% and
+    ///         SprayAcc% are NOT fractions of their contacts (rules/aim_rating.rules.yaml divides them by
+    ///         first_bullet_shots, contact_shots and spray_shots_fired, none of which is exported), so
+    ///         the contact count is the gate the ruleset guards them with and reads "after": no fraction
+    ///         of 2 contacts is 56%, and a phrase that said "over" would send a reader looking for one.
+    ///     </para>
+    /// </summary>
+    [Test]
+    [Arguments("TTS", "Hotel", "300 ms over 3 engagements")]
+    [Arguments("TTS", "Alice", "470 ms over 40 engagements")]
+    [Arguments("TTD", "Hotel", "380 ms over 3 engagements")]
+    [Arguments("AimRx", "Hotel", "96 ms over 2 acquisitions")]
+    [Arguments("TTK", "Alice", "900 ms over 14 kills")]
+    [Arguments("XPlace", "Golf", "0° over 2 shots")]
+    [Arguments("FlickErr", "Alice", "-7° over 30 shots")]
+    [Arguments("Preaim", "Echo", "2.5° over 2 contacts")]
+    [Arguments("FB%", "Echo", "56% after 2 contacts")]
+    [Arguments("SAcc%", "Echo", "52% after 2 contacts")]
+    [Arguments("SprayAcc%", "Echo", "40% after 2 contacts")]
+    [Arguments("CS%", "Juliet", "100% over 4 attempts")]
+    [Arguments("Spray", "India", "0.6° over 3 shots")]
+    public async Task GatedAimCell_ReadsItsDenominator_InTheTooltip(string column, string player, string expected)
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = ColumnCatalogue.Resolve(column).Group;
+
+        await Assert.That(Cell(vm, player, column).Tooltip).IsEqualTo(expected);
+    }
+
+    /// <summary>
+    ///     A column with no denominator shows no tip at all, not an empty one, and a count of one reads
+    ///     as one: "over 1 engagements" is the kind of phrase that tells a reader nobody looked.
+    /// </summary>
+    [Test]
+    public async Task UngatedAimCell_HasNoTooltip_AndACountOfOneReadsSingular()
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.Accuracy;
+        await Assert.That(Cell(vm, "Alice", "Acc%").Tooltip).IsNull();
+
+        StatCell one = new(300.0, ColumnCatalogue.Resolve("TTS"))
+        {
+            Denominator = 1
+        };
+        await Assert.That(one.Tooltip).IsEqualTo("300 ms over 1 engagement");
+    }
+
+    /// <summary>
+    ///     The totals row pools the team's sample, so its rate is the mean over the summed count, not the
+    ///     mean of five means. The two differ here only in the second decimal, because the fixture's
+    ///     counts are nearly equal; the test below is the one with the gap.
+    /// </summary>
+    [Test]
+    public async Task TotalsRow_PoolsTheDenominator()
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.AimQuality;
+        int index = vm.Columns.Single(c => c.Label == "TTS").Index;
+        TeamSection ct = vm.TeamSections.Single(s => s.IsCt);
+
+        // Alice to Echo: 470, 462, 454, 446 and 438 ms over 40, 39, 38, 37 and 36 engagements.
+        // (470*40 + 462*39 + 454*38 + 446*37 + 438*36) / 190 = 86340 / 190 = 454.42; the mean of
+        // the five means is 454 flat.
+        await Assert.That(ct.Totals.Cells[index].Tooltip).IsEqualTo("454.42 ms over 190 engagements");
+    }
+
+    /// <summary>
+    ///     A member with no sample contributes nothing to the team's rate. The ruleset guards every
+    ///     ratio with <c>max(d, 1)</c>, so an unmeasured member is a confident 0.0 beside a count of 0:
+    ///     averaged with equal weight it drags the team mean by a third while adding nothing to the
+    ///     pooled count, and the tooltip then lends the figure a population it was never measured over.
+    ///     Weighting by the counts makes the phrase true: 400 ms over 20 engagements IS 400 ms.
+    /// </summary>
+    [Test]
+    public async Task TotalsRow_GivesAnUnmeasuredMember_NoWeight()
+    {
+        ColumnMeta tts = ColumnCatalogue.Resolve("TTS");
+        List<StatsRow> members =
+        [
+            new("Alice", 3, [new StatCell(400.0, tts) { Denominator = 10 }]),
+            new("Bravo", 3, [new StatCell(400.0, tts) { Denominator = 10 }]),
+            new("Charlie", 3, [new StatCell(0.0, tts) { Denominator = 0 }])
+        ];
+
+        StatsRow totals = StatsTabViewModel.BuildTotalsRow(members, ["TTS"]);
+
+        await Assert.That(totals.Cells[0].Tooltip).IsEqualTo("400 ms over 20 engagements")
+            .Because("a 0 ms row off 0 engagements is an empty population, not a fast one");
+    }
+
+    /// <summary>
+    ///     Every count a tooltip reads is a catalogued hidden column. The count is looked up on the
+    ///     MetricRow by the Denominator's key, and a key that no longer matches a ruleset label does not
+    ///     throw: the cell quietly shows no tip, which is the eight columns deleted for real this time.
+    ///     Sweeping the catalogue rather than the aim list means a denominator added to any future column
+    ///     is held to the same rule. The chip is deliberately not asserted: Spots gates three Accuracy
+    ///     rates and divides Preaim on Aim Quality, and can only be catalogued under one of them.
+    /// </summary>
+    [Test]
+    public async Task EveryDenominator_ResolvesToAHiddenColumn()
+    {
+        int seen = 0;
+        foreach (ColumnMeta meta in ColumnCatalogue.All)
+        {
+            if (meta.Denominator is not { } over)
+            {
+                continue;
+            }
+
+            seen++;
+            ColumnMeta count = ColumnCatalogue.Resolve(over.Key);
+            await Assert.That(count.Hidden).IsTrue()
+                .Because($"{meta.Key} reads {over.Key}, which must be a catalogued hidden column and not a stray label");
+        }
+
+        await Assert.That(seen).IsEqualTo(12).Because("twelve aim columns read a count in their tooltip");
     }
 
     /// <summary>
@@ -309,6 +522,11 @@ public class StatsBoardScaleTests
     ///     lobby. Every ratio on this board guards its denominator with <c>max(d, 1)</c>, which turns an
     ///     unmeasured population into a confident zero, so without these gates the emptiest rows would
     ///     be the ones painted hardest.
+    ///     <para>
+    ///         The gate column is no longer on the board. It still trips, because ClearsColourGate reads
+    ///         the MetricRow and not the visible cells; a gate that silently read 0 would neuter every
+    ///         tint on this page, which is the XPlace bug in a new coat.
+    ///     </para>
     /// </summary>
     [Test]
     [Arguments("CS%", "Juliet", "CSAtt")]
@@ -324,7 +542,7 @@ public class StatsBoardScaleTests
     public async Task ThinAimSample_KeepsItsBar_AndLosesItsTint(string column, string starved, string gate)
     {
         StatsTabViewModel vm = BuildVm();
-        vm.SelectedCategory = StatGroup.Aim;
+        vm.SelectedCategory = ColumnCatalogue.Resolve(column).Group;
 
         StatScaleSpec spec = ColumnCatalogue.Resolve(column).Scale!;
         await Assert.That(spec.ColourGateColumns).IsEquivalentTo(new[] { gate });
@@ -351,7 +569,7 @@ public class StatsBoardScaleTests
     public async Task LowerIsBetterAimColumn_TintsTheSmallValueGood(string column, string best, string worst)
     {
         StatsTabViewModel vm = BuildVm();
-        vm.SelectedCategory = StatGroup.Aim;
+        vm.SelectedCategory = ColumnCatalogue.Resolve(column).Group;
 
         StatCell good = Cell(vm, best, column);
         StatCell bad = Cell(vm, worst, column);
@@ -366,10 +584,9 @@ public class StatsBoardScaleTests
     /// <summary>
     ///     The columns this board deliberately refuses to judge, and why each one is on the list.
     ///     <para>
-    ///         The population columns are denominators: more counter-strafe attempts is more moving, more
-    ///         measurable sprays is more surviving aim-punch decode, more contacts is more fighting. None
-    ///         of that is better play, and tinting it says it is. They are on the board because a zero
-    ///         beside a zero score is the only thing separating an empty population from a real result.
+    ///         Spot is a population: a first contact is more fighting, not better play, and tinting it
+    ///         says it is. The match-scoped populations are no longer columns at all; each reads in the
+    ///         tooltip of the cell it qualifies (GatedAimCell_ReadsItsDenominator_InTheTooltip).
     ///     </para>
     ///     <para>
     ///         The two headshot shares are a STYLE, exactly as HS% already is: an AWPer's body hits kill
@@ -379,9 +596,6 @@ public class StatsBoardScaleTests
     ///     </para>
     /// </summary>
     [Test]
-    [Arguments("CSAtt")]
-    [Arguments("SprayN")]
-    [Arguments("Spots")]
     [Arguments("Spot")]
     [Arguments("HSAcc%")]
     [Arguments("HSDmg%")]
@@ -389,7 +603,7 @@ public class StatsBoardScaleTests
     public async Task UnjudgedAimColumn_KeepsABarAndNoTint(string column)
     {
         StatsTabViewModel vm = BuildVm();
-        vm.SelectedCategory = StatGroup.Aim;
+        vm.SelectedCategory = ColumnCatalogue.Resolve(column).Group;
 
         await Assert.That(ColumnCatalogue.Resolve(column).Scale!.Polarity)
             .IsEqualTo(StatPolarity.Neutral);
@@ -1265,7 +1479,8 @@ public class StatsBoardScaleTests
     public static IEnumerable<(StatGroup, string)> BoardCases()
     {
         yield return (StatGroup.Utility, "utility");
-        yield return (StatGroup.Aim, "aim");
+        yield return (StatGroup.Accuracy, "accuracy");
+        yield return (StatGroup.AimQuality, "aim-quality");
         yield return (StatGroup.Weapons, "weapons");
         yield return (StatGroup.OpeningDuels, "duels");
         yield return (StatGroup.MultiKill, "multikill");

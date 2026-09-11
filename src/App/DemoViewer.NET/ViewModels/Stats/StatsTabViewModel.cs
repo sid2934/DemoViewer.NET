@@ -491,8 +491,12 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     private void RebuildCategories()
     {
         List<string> fullOrder = IsRoundView ? _roundColumnOrder : _gameColumnOrder;
+        // Hidden columns carry a group but never a chip: a group whose every column is a denominator
+        // would otherwise be a chip that opens on an empty table.
         List<CategoryChip> chips = fullOrder
-            .Select(c => ColumnCatalogue.Resolve(c).Group)
+            .Select(ColumnCatalogue.Resolve)
+            .Where(m => !m.Hidden)
+            .Select(m => m.Group)
             .Where(ColumnCatalogue.IsPlayerFacing)
             .Distinct()
             .OrderBy(g => g == StatGroup.Core ? -1 : (int)g)
@@ -520,7 +524,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     /// </summary>
     private List<string> VisibleColumns(List<string> fullOrder) =>
         fullOrder
-            .Where(c => ColumnCatalogue.Resolve(c).Group == SelectedCategory)
+            .Where(c => ColumnCatalogue.ShowsUnder(c, SelectedCategory))
             .ToList();
 
     /// <summary>Steps the round browser to the previous live round.</summary>
@@ -559,7 +563,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         // that chip; otherwise land on Overview. Rebuild the rail either way (chip sets differ).
         List<string> targetOrder = value ? _roundColumnOrder : _gameColumnOrder;
         if (SelectedCategory != StatGroup.Core
-            && !targetOrder.Any(c => ColumnCatalogue.Resolve(c).Group == SelectedCategory))
+            && !targetOrder.Any(c => ColumnCatalogue.ShowsUnder(c, SelectedCategory)))
         {
             SelectedCategory = StatGroup.Core; // triggers the rebuilds via its changed handler
         }
@@ -965,7 +969,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>Per-team totals row: counts sum, rates average, everything else blank.</summary>
-    private static StatsRow BuildTotalsRow(List<StatsRow> members, List<string> order)
+    internal static StatsRow BuildTotalsRow(List<StatsRow> members, List<string> order)
     {
         List<StatCell> cells = new(order.Count);
         for (int i = 0; i < order.Count; i++)
@@ -984,7 +988,38 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
                 _ => null
             };
 
-            cells.Add(new StatCell(total, meta));
+            // The team's sample is the members' samples pooled, so a rate with a denominator is the
+            // mean over the summed count and not the mean of the members' means: "454 ms over 190
+            // engagements" has to BE 454 ms over those 190. The two part company exactly where it
+            // matters. The ruleset guards every ratio with max(d, 1), so a member nobody measured is a
+            // confident 0.0 beside a count of 0; with equal weights it drags the team's figure while
+            // adding nothing to the count the phrase then lends it, and weighted it adds nothing to
+            // either. For the three after-contact rates the count is the gate, not the divisor (the
+            // shot counts are not exported), so it is the nearest weight the row carries, and the
+            // phrase they read under claims no division.
+            double? over = null;
+            if (meta.Denominator is not null)
+            {
+                List<(double Rate, double Count)> samples = members
+                    .Select(r => r.Cells[i])
+                    .Where(c => c.Numeric is not null && c.Denominator is not null)
+                    .Select(c => (Rate: c.Numeric!.Value, Count: c.Denominator!.Value))
+                    .ToList();
+                if (samples.Count > 0)
+                {
+                    double pooled = samples.Sum(s => s.Count);
+                    over = pooled;
+                    if (meta.Aggregate == ColumnAggregate.Average && pooled > 0)
+                    {
+                        total = Math.Round(samples.Sum(s => s.Rate * s.Count) / pooled, 2);
+                    }
+                }
+            }
+
+            cells.Add(new StatCell(total, meta)
+            {
+                Denominator = over
+            });
         }
 
         return new StatsRow("team", 0, cells)
@@ -1261,8 +1296,17 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
                 scale = scale with { Polarity = StatPolarity.Neutral };
             }
 
+            // The count is read off the same MetricRow the gate reads, not off a cell: the denominator
+            // is not a column any more, and the row still carries it.
+            double? over = meta.Denominator is { } denominator
+                ? new StatCell(row.Values.GetValueOrDefault(denominator.Key)).Numeric
+                : null;
+
             cells.Add(new StatCell(row.Values.GetValueOrDefault(column), meta, scale,
-                resolved.MarksLeader));
+                resolved.MarksLeader)
+            {
+                Denominator = over
+            });
         }
 
         return new StatsRow(player, team, cells)
@@ -1537,9 +1581,10 @@ public sealed record CategoryChip(StatGroup Group, string Label, bool IsSelected
     {
         StatGroup.Core => "Overview",
         // Spelled out rather than left to the fallback below. The rail label is a product decision and
-        // the enum member name is not: without an arm here, renaming the member (AimQuality, say)
-        // silently retitles a chip in the shipped UI.
-        StatGroup.Aim => "Aim",
+        // the enum member name is not: without an arm here, renaming a member silently retitles a chip
+        // in the shipped UI, and a new member ships as its raw enum name.
+        StatGroup.Accuracy => "Accuracy",
+        StatGroup.AimQuality => "Aim Quality",
         StatGroup.OpeningDuels => "Opening",
         StatGroup.SpecialKills => "Special",
         StatGroup.MultiKill => "Multi-Kill",
@@ -1737,6 +1782,36 @@ internal readonly record struct ColumnScale(StatScale? Scale = null, bool MarksL
 public sealed record StatCell(object? Raw, ColumnMeta? Meta = null, StatScale? Scale = null,
     bool MarksLeader = false)
 {
+    /// <summary>
+    ///     The sample behind a per-opportunity value: the count the catalogue names as this column's
+    ///     <see cref="Stats.Denominator" />, read off the same row. Null for every other cell.
+    /// </summary>
+    public double? Denominator { get; init; }
+
+    /// <summary>
+    ///     "384 ms over 47 engagements": the value next to the count that qualifies it. The count used to
+    ///     be a column of its own; it exists so a thin sample is visible, and it is only visible if it
+    ///     reads beside the value it thins. The preposition comes from the catalogue, because "over"
+    ///     claims a division and three of these counts are gates, not divisors: those read "56% after 2
+    ///     contacts". Null when the column has no denominator, so the cell shows no tip at all rather
+    ///     than an empty one.
+    /// </summary>
+    public string? Tooltip
+    {
+        get
+        {
+            if (Meta?.Denominator is not { } over || Denominator is not { } count || Numeric is null)
+            {
+                return null;
+            }
+
+            string noun = Math.Abs(count - 1) < 1e-9 && over.Noun.EndsWith('s')
+                ? over.Noun[..^1]
+                : over.Noun;
+            return $"{Display}{over.Unit} {over.Preposition} {count.ToString("0.##", CultureInfo.InvariantCulture)} {noun}";
+        }
+    }
+
     /// <summary>
     ///     The numeric value the bar and tint are computed from, or null when this cell holds no number.
     ///     Bools are excluded deliberately: four per-round columns (<c>HasKAST</c>, <c>FK</c>, <c>FD</c>,

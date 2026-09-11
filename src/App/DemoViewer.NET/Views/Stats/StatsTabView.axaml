@@ -62,7 +62,8 @@
                                                     TextAlignment="{Binding Alignment}"
                                                     Classes="statsCell"
                                                     Classes.pos="{Binding IsPositive}"
-                                                    Classes.neg="{Binding IsNegative}" />
+                                                    Classes.neg="{Binding IsNegative}"
+                                                    ToolTip.Tip="{Binding Tooltip}" />
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

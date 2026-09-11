@@ -76,17 +76,25 @@ public class StatsRealDemoRenderProbe
             WriteableBitmap? board = window.CaptureRenderedFrame();
             board!.Save(Path.Combine(HeadlessSession.ArtifactDir, "real-scoreboard.png"));
 
-            // The Aim board on the match table. Captured because the aim family is the widest
-            // category the catalogue carries and every column in it is new: a column that resolves
-            // to StatGroup.Other, or one whose scale field was declared below _byKey and silently
-            // came back null, renders as a plausible table rather than as an error.
-            vm.SelectedCategory = StatGroup.Aim;
-            Dispatcher.UIThread.RunJobs();
-            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-            Dispatcher.UIThread.RunJobs();
-            WriteableBitmap? aim = window.CaptureRenderedFrame();
-            aim!.Save(Path.Combine(HeadlessSession.ArtifactDir, "real-aim.png"));
-            Console.WriteLine($"[capture] {HeadlessSession.ArtifactDir}/real-aim.png cols={vm.Columns.Count}");
+            // The two aim boards on the match table. Captured because the aim family is the widest
+            // the catalogue carries and every column in it is new: a column that resolves to
+            // StatGroup.Other, or one whose scale field was declared below _byKey and silently came
+            // back null, renders as a plausible table rather than as an error.
+            foreach ((StatGroup chip, string file) in new[]
+                     {
+                         (StatGroup.Accuracy, "real-accuracy.png"),
+                         (StatGroup.AimQuality, "real-aim-quality.png")
+                     })
+            {
+                vm.SelectedCategory = chip;
+                Dispatcher.UIThread.RunJobs();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                Dispatcher.UIThread.RunJobs();
+                WriteableBitmap? aim = window.CaptureRenderedFrame();
+                aim!.Save(Path.Combine(HeadlessSession.ArtifactDir, file));
+                Console.WriteLine($"[capture] {HeadlessSession.ArtifactDir}/{file} cols={vm.Columns.Count}");
+            }
+
             vm.SelectedCategory = StatGroup.Core;
             Dispatcher.UIThread.RunJobs();
 
