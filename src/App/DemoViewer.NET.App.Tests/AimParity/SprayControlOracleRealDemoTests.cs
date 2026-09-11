@@ -11,23 +11,26 @@ namespace DemoViewer.NET.AppTests.AimParity;
 
 /// <summary>
 ///     The spray-control oracle against a real demo, folded from <c>bullet_damage</c>, which carries
-///     the shooter's view angle, aim punch and recoil index on the wire.
+///     the shooter's shot direction, aim punch and recoil index on the wire.
 ///     <para>
-///         <b>Why this arm and not the shipped one.</b> The board's SprayPitch and SprayYaw columns
-///         are computed on the FIRED stream (<c>weapon_fire</c> plus per-tick entity reads), because
-///         a shot that missed is still a spray-control measurement. That stream's inputs live inside
-///         the evaluator and are not reachable from a test without re-hosting the digest. The LANDED
-///         stream carries the same four quantities as plain event fields, so folding it gives a
-///         genuinely independent spray-control number over a real match with no engine involvement
-///         at all. It is a subset of the shipped population, not a replica of it, which is why the
-///         engine's own columns are printed beside it as context rather than asserted against it.
+///         <b>Which arm this is.</b> The shipped Spray column is measured on the LANDED arm too
+///         (<c>on: shot_landed</c> in rules/aim_rating.rules.yaml): the engine's fired arm owns run
+///         SEGMENTATION off per-tick entity reads that a test cannot reach without re-hosting the
+///         digest, and the landed arm measures each landed bullet's 3D angle from the run's first
+///         landed one. This fold sees that same landed stream as plain event fields, so it is a
+///         genuinely independent number over a real match with no engine involvement. It is NOT a
+///         replica of the shipped population: the oracle segments on the landed bullets alone, and a
+///         miss inside a spray can open a run here that the engine keeps as one, which is why the
+///         shipped columns are printed beside it rather than asserted against it.
 ///     </para>
 ///     <para>
-///         <b>What is asserted.</b> Only the invariants any correct implementation must satisfy: the
-///         anchor of every run is outside the measured population, the measured population never
-///         exceeds the non-anchor shots, and no mean escapes the range an angle can occupy. Those
-///         hold on any demo, which is what makes this runnable on the two Valve matchmaking demos
-///         that carry <c>bullet_damage</c> even though neither has a Leetify partner.
+///         <b>What is asserted.</b> The invariants any correct fold must satisfy (the anchor of every
+///         run is outside the measured population, the population never exceeds the non-anchor
+///         shots, no mean escapes the range an angle can occupy), and that the shipped column is
+///         WIRED: on a demo carrying <c>bullet_damage</c>, some player has a measured SprayN and a
+///         non-zero Spray. That second assertion is what makes the side-by-side a test: it read a
+///         stat id the ruleset no longer declared for a while, and printed 0.00 under a plausible
+///         header on every player.
 ///     </para>
 ///     <para>
 ///         <b>The bundled sample cannot run this.</b> <c>assets/tour/sample-de_nuke.dem</c> carries
@@ -35,12 +38,15 @@ namespace DemoViewer.NET.AppTests.AimParity;
 ///         reporting green over an empty fold.
 ///     </para>
 ///     <para>
-///         <b>Measured on the two matchmaking demos.</b> The fold produces mean absolute residuals
-///         of 0.3 to 6.9 degrees of pitch over measured populations of 11 to 42 shots per player,
-///         which is the magnitude spray compensation should have. Their aim punch therefore decodes
-///         to real angles, unlike the bundled GOTV sample where the components cluster near -94 and
-///         +89. The shipped columns cannot be compared against it on those two demos: see
-///         <see cref="AimSchemaDriftException" />.
+///         <b>Measured on demos/benchmarks/match730_003769462952671838367_0003107139_392.dem.</b>
+///         The fold measures 7 to 19 landed bullets per player at a mean angle of 0.4 to 3.2 degrees,
+///         the magnitude spray compensation should have. Where the engine's SprayN equals the
+///         oracle's population the two means agree to the printed digit (7 shots, 1.27 against 1.27),
+///         which says the shipped column and the oracle fold the same quantity. Where SprayN exceeds
+///         it, Spray runs far above the oracle (26 against 19 shots, 22.86 against 0.41 degrees): the
+///         extra bullets are measured against an anchor the oracle had already retired on a tick gap,
+///         which is the engine's fired-arm segmentation keeping a run open across what the landed
+///         stream reads as two. That gap is what this table is for; it is reported here, not fixed.
 ///     </para>
 /// </summary>
 [Category("RealDemo")]
@@ -105,15 +111,15 @@ public class SprayControlOracleRealDemoTests
     }
 
     /// <summary>
-    ///     Prints the oracle's landed-arm numbers beside the engine's fired-arm columns. Context,
-    ///     not an assertion: the two measure different populations by design (see the class
-    ///     summary), so a gap between them is information about coverage rather than a defect. It
-    ///     earns its place because it is the only place the two ever appear side by side, and a
-    ///     shipped SprayN far below the landed measured count is the shape a decode regression
-    ///     takes.
+    ///     Prints the oracle's numbers beside the shipped Spray and SprayN, and asserts the shipped
+    ///     column is wired. The two means are context, not an assertion against each other: they
+    ///     segment differently by design (see the class summary), so a gap between them is
+    ///     information about segmentation rather than a defect. What IS asserted is that the shipped
+    ///     column produced a population and a non-zero mean on a demo that carries the event it
+    ///     reads, and that no shipped mean escapes the range an angle can occupy.
     /// </summary>
     [Test]
-    public async Task ShippedSprayColumns_AreReportedBesideTheOracle()
+    public async Task ShippedSprayColumn_IsWired_AndReportedBesideTheOracle()
     {
         string demoPath = DemoTestHelper.RequireDemo();
         ParsedDemo demo = DemoTestHelper.GetOrParse(demoPath);
@@ -139,20 +145,42 @@ public class SprayControlOracleRealDemoTests
             throw new SkipTestException(drift.Message);
         }
 
-        Console.WriteLine("── spray control: oracle (landed arm) against the shipped columns (fired arm) ──");
-        Console.WriteLine($"   {"player",-24}{"oracleN",8}{"SprayN",8}{"oraclePitch",13}{"SprayPitch",12}");
+        Console.WriteLine("── spray control: oracle (landed fold) against the shipped columns (landed arm, fired segmentation) ──");
+        Console.WriteLine(
+            $"   {"player",-24}{"oracleN",8}{"SprayN",8}{"oracleAngle",13}{"Spray",8}{"oraclePitch",13}{"oracleYaw",11}");
         int compared = 0;
+        int wired = 0;
+        List<string> violations = [];
         foreach ((string name, AimPlayerRow player) in run.Players.OrderBy(pair => pair.Value.Slot))
         {
             SprayPlayerResult? theirs = oracle.TryGetValue(player.Slot, out SprayPlayerResult? found) ? found : null;
+            double shippedN = player.Read("spray_residual_shots") ?? 0;
+            double shippedSpray = player.Read("spray_error_deg") ?? 0;
             Console.WriteLine(
-                $"   {name,-24}{theirs?.MeasuredShots ?? 0,8}{player.Read("spray_residual_shots") ?? 0,8:F0}"
-                + $"{theirs?.MeanPitchError ?? 0,13:F2}{player.Read("spray_pitch_error") ?? 0,12:F2}");
+                $"   {name,-24}{theirs?.MeasuredShots ?? 0,8}{shippedN,8:F0}"
+                + $"{theirs?.MeanAngleError ?? 0,13:F2}{shippedSpray,8:F2}"
+                + $"{theirs?.MeanPitchError ?? 0,13:F2}{theirs?.MeanYawError ?? 0,11:F2}");
             compared++;
+
+            if (shippedN > 0 && shippedSpray > 0)
+            {
+                wired++;
+            }
+
+            if (shippedSpray is < 0 or > 180)
+            {
+                violations.Add($"{name}: Spray {shippedSpray:F2} is outside the range an angle can occupy");
+            }
         }
+
+        violations.ForEach(Console.WriteLine);
 
         await Assert.That(compared).IsGreaterThan(0)
             .Because("a report over no players says nothing about either arm");
+        await Assert.That(violations).IsEmpty();
+        await Assert.That(wired).IsGreaterThan(0)
+            .Because("this demo carries bullet_damage, so a Spray of 0.0 over an empty SprayN on EVERY player means "
+                     + "the column reads a stat the ruleset does not declare, or an arm that never fires");
     }
 
     /// <summary>

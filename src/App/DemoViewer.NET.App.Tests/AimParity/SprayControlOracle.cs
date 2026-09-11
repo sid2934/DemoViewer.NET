@@ -22,11 +22,15 @@ namespace DemoViewer.NET.AppTests.AimParity;
 ///         <b>What the rule is.</b> A spray is a maximal run over which the recoil index never
 ///         decays, which is the engine's own segmentation rather than the "three or more shots"
 ///         convention the analytics sites use. The first shot of a run is its anchor and has no
-///         residual by construction. Every later shot's residual is its effective aim (view angle
-///         plus the engine's recoil scale times the aim punch) minus the anchor's, with yaw taken
-///         the short way round the circle. A shot whose aim punch does not decode to a physically
-///         possible punch is UNMEASURED, not zero: zero is indistinguishable from perfect control,
-///         which is the one reading this metric must never invent.
+///         residual by construction. Every later shot carries two residuals over that one run. The
+///         fired-arm pair is its effective aim (view angle plus the engine's recoil scale times the
+///         aim punch) minus the anchor's, as pitch and yaw with yaw taken the short way round the
+///         circle. The landed-arm angle, which is the rule the shipped Spray column uses, is the 3D
+///         angle between the shot's raw direction and the anchor's with no punch folded in, because
+///         <c>bullet_damage</c>'s <c>ShootAng</c> already carries it. A shot whose aim punch does
+///         not decode to a physically possible punch is UNMEASURED, not zero: zero is
+///         indistinguishable from perfect control, which is the one reading this metric must never
+///         invent.
 ///     </para>
 ///     <para>
 ///         <b>Deliberately duplicated constants.</b> The five thresholds below are copies of the
@@ -104,6 +108,13 @@ public static class SprayControlOracle
             double effectiveYaw = haveAim ? shot.EyeYaw!.Value + (WeaponRecoilScale * punchYaw!.Value) : 0.0;
 
             bool opensRun = Advance(state, shot.Tick, shot.RecoilIndex, effectivePitch, effectiveYaw, haveAim);
+            if (opensRun)
+            {
+                // The landed-arm residual anchors on the raw shot direction, punch and all: ShootAng
+                // already has the punch folded in, and adding it again would double-count it.
+                state.AnchorEyePitch = shot.EyePitch ?? 0.0;
+                state.AnchorEyeYaw = shot.EyeYaw ?? 0.0;
+            }
 
             Tally tally = tallies[shot.Slot];
             tally.Shots++;
@@ -120,6 +131,8 @@ public static class SprayControlOracle
                 tally.Measured++;
                 tally.PitchErrorSum += Math.Abs(effectivePitch - state.AnchorPitch);
                 tally.YawErrorSum += Math.Abs(WrapDegrees(effectiveYaw - state.AnchorYaw));
+                tally.AngleErrorSum += AngleDeltaDegrees(
+                    state.AnchorEyePitch, state.AnchorEyeYaw, shot.EyePitch!.Value, shot.EyeYaw!.Value);
             }
         }
 
@@ -127,7 +140,7 @@ public static class SprayControlOracle
         foreach ((int slot, Tally tally) in tallies)
         {
             results[slot] = new SprayPlayerResult(
-                tally.Shots, tally.Runs, tally.Measured, tally.PitchErrorSum, tally.YawErrorSum);
+                tally.Shots, tally.Runs, tally.Measured, tally.PitchErrorSum, tally.YawErrorSum, tally.AngleErrorSum);
         }
 
         return results;
@@ -151,6 +164,37 @@ public static class SprayControlOracle
         // arrives as 358 and would fail any magnitude test taken on the raw value.
         double normalised = WrapDegrees(value);
         return Math.Abs(normalised) <= MaxPlausibleAimPunchDegrees ? normalised : null;
+    }
+
+    /// <summary>
+    ///     3D angular distance in degrees between two view directions given as pitch/yaw pairs, the
+    ///     rule the shipped Spray column aggregates. Both are converted to unit vectors and the
+    ///     delta is <c>acos(dot)</c>, so yaw wraparound needs no special case. A deliberate copy of
+    ///     the engine's <c>ShotEnrichmentEdge.AngleDeltaDegrees</c>, for the reason the constants
+    ///     above are copies.
+    /// </summary>
+    /// <param name="pitchA">First pitch, degrees.</param>
+    /// <param name="yawA">First yaw, degrees.</param>
+    /// <param name="pitchB">Second pitch, degrees.</param>
+    /// <param name="yawB">Second yaw, degrees.</param>
+    /// <returns>The angle between the two directions, in [0, 180].</returns>
+    public static double AngleDeltaDegrees(double pitchA, double yawA, double pitchB, double yawB)
+    {
+        const double toRad = Math.PI / 180.0;
+        double pa = pitchA * toRad;
+        double ya = yawA * toRad;
+        double pb = pitchB * toRad;
+        double yb = yawB * toRad;
+
+        double xa = Math.Cos(pa) * Math.Cos(ya);
+        double ya2 = Math.Cos(pa) * Math.Sin(ya);
+        double za = -Math.Sin(pa);
+        double xb = Math.Cos(pb) * Math.Cos(yb);
+        double yb2 = Math.Cos(pb) * Math.Sin(yb);
+        double zb = -Math.Sin(pb);
+
+        double dot = Math.Clamp((xa * xb) + (ya2 * yb2) + (za * zb), -1.0, 1.0);
+        return Math.Acos(dot) / toRad;
     }
 
     /// <summary>Wraps an angle in degrees to (-180, 180].</summary>
@@ -221,6 +265,8 @@ public static class SprayControlOracle
 
     private sealed class RunState
     {
+        internal double AnchorEyePitch;
+        internal double AnchorEyeYaw;
         internal double AnchorPitch;
         internal double AnchorYaw;
         internal bool HasAnchor;
@@ -238,12 +284,15 @@ public static class SprayControlOracle
             LastRecoil = 0f;
             AnchorPitch = 0;
             AnchorYaw = 0;
+            AnchorEyePitch = 0;
+            AnchorEyeYaw = 0;
             HasAnchor = false;
         }
     }
 
     private sealed class Tally
     {
+        internal double AngleErrorSum;
         internal int Measured;
         internal double PitchErrorSum;
         internal int Runs;
@@ -288,13 +337,21 @@ public readonly record struct OracleShot(
 /// </param>
 /// <param name="PitchErrorSum">Sum of absolute pitch residuals, in degrees.</param>
 /// <param name="YawErrorSum">Sum of absolute wrapped yaw residuals, in degrees.</param>
+/// <param name="AngleErrorSum">
+///     Sum of the 3D angles between each measured shot's raw direction and its anchor's, in
+///     degrees: the landed-arm rule, over the same population as the two components.
+/// </param>
 public sealed record SprayPlayerResult(
     int Shots,
     int Runs,
     int MeasuredShots,
     double PitchErrorSum,
-    double YawErrorSum)
+    double YawErrorSum,
+    double AngleErrorSum)
 {
+    /// <summary>Mean 3D angle from the anchor in degrees, or 0 over an empty population.</summary>
+    public double MeanAngleError => MeasuredShots > 0 ? AngleErrorSum / MeasuredShots : 0.0;
+
     /// <summary>Mean absolute pitch residual in degrees, or 0 over an empty population.</summary>
     public double MeanPitchError => MeasuredShots > 0 ? PitchErrorSum / MeasuredShots : 0.0;
 
@@ -305,5 +362,5 @@ public sealed record SprayPlayerResult(
     /// <returns>The line.</returns>
     public string Render() => string.Create(
         CultureInfo.InvariantCulture,
-        $"shots={Shots,5} runs={Runs,5} measured={MeasuredShots,5} pitch={MeanPitchError,7:F2} yaw={MeanYawError,7:F2}");
+        $"shots={Shots,5} runs={Runs,5} measured={MeasuredShots,5} pitch={MeanPitchError,7:F2} yaw={MeanYawError,7:F2} angle={MeanAngleError,7:F2}");
 }

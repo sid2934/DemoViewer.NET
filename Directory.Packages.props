@@ -77,7 +77,7 @@
             the other two transitively; the explicit references below are for the projects that
             use the parser without the engine.
 
-            CURRENTLY ON A LOCAL PRERELEASE, NOT nuget.org. 0.11.0-aim21 is packed by hand from a
+            CURRENTLY ON A LOCAL PRERELEASE, NOT nuget.org. 0.11.0-aim22 is packed by hand from a
             working-tree CS2DemoKit checkout into the "local" feed that nuget.config adds, so the
             aim-shot-context engine work can be consumed here before it ships. The "-aim1" tag is
             deliberate: a published build will never carry it, so this pin cannot be mistaken for a
@@ -87,9 +87,9 @@
             Repointing at a published version is a plain edit of the three lines below; the local
             source in nuget.config can then go.
         -->
-        <PackageVersion Include="CS2DemoKit.Parser" Version="0.11.0-aim21"/>
-        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.11.0-aim21"/>
-        <PackageVersion Include="CS2DemoKit.Analysis.Rules" Version="0.11.0-aim21"/>
+        <PackageVersion Include="CS2DemoKit.Parser" Version="0.11.0-aim22"/>
+        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.11.0-aim22"/>
+        <PackageVersion Include="CS2DemoKit.Analysis.Rules" Version="0.11.0-aim22"/>
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
         <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15"/>
         <!-- 3.29.5+ required by Cs2VideoGenerator.Core, and comfortably above the >= 3.27.0 floor

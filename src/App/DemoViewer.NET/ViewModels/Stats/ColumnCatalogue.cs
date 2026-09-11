@@ -380,8 +380,8 @@ public static class ColumnCatalogue
             //
             // Board order is the order rules/aim_rating.rules.yaml shows these in, and every Key below is
             // that file's `label:` byte for byte: an unregistered label still renders, but lands in Other
-            // with no bar, no tint and a blank totals cell. The three round-scoped aim columns (XPlace,
-            // Flick, Spot) are declared with the other round columns at the bottom of this array.
+            // with no bar, no tint and a blank totals cell. The per-engagement columns and the one
+            // round-scoped aim column (Spot) are declared at the bottom of this array.
             M("Acc%", "Acc %", StatGroup.Aim, "Enemy bullet hits per bullet fired (%)", agg: ColumnAggregate.Average, width: 64, scale: _peerUp),
             // Bar, no tint, for the reason HS% already carries: a headshot share is a STYLE, not a
             // ranking. An AWPer's body hits kill exactly as well as a rifler's heads. HSDmg% divides by
@@ -405,7 +405,7 @@ public static class ColumnCatalogue
             // also the only thing on the board that separates an empty population from a real 0.0, which
             // is what every max(d, 1) guard in the ruleset collapses the two into.
             M("CSAtt", "CS Attempts", StatGroup.Aim, "Shots where a counter-strafe was attempted: the CS% denominator", width: 92, scale: _peerNoTint),
-            M("SprayN", "Spray Shots", StatGroup.Aim, "Shots whose spray residual could be measured: the SprayPitch and SprayYaw denominator", width: 88, scale: _peerNoTint),
+            M("SprayN", "Spray Shots", StatGroup.Aim, "Shots whose spray residual could be measured: the Spray denominator", width: 88, scale: _peerNoTint),
             M("Spots", "Spots", StatGroup.Aim, "First enemy contacts: the Preaim denominator, and the gate behind every after-contact column", width: 64, scale: _peerNoTint),
 
             // ── Damage ──
@@ -507,7 +507,7 @@ public static class ColumnCatalogue
             M("AimRxn", "AimRx Engagements", StatGroup.Aim, "Acquisitions answered by a shot: the AimRx denominator", width: 104, scale: _peerNoTint),
             M("TTK", "Time to Kill", StatGroup.Aim, "Milliseconds from an enemy becoming visible to killing them. Confounds aim with damage output and armour, and can read BELOW TTD because the two average over different engagements", agg: ColumnAggregate.Average, width: 76, scale: _peerNoTint),
             M("TTKn", "TTK Engagements", StatGroup.Aim, "Contacts that ended in a kill: the TTK denominator", width: 96, scale: _peerNoTint),
-            M("Spot", "Spot", StatGroup.Aim, "The player made first contact this round: the marker saying XPlace and Flick have a population", width: 56, scale: _peerNoTint)
+            M("Spot", "Spot", StatGroup.Aim, "The player made first contact this round: the round-board twin of Spots, and the only aim cell on the round board", width: 56, scale: _peerNoTint)
         ];
 
         Dictionary<string, ColumnMeta> byKey = new(StringComparer.Ordinal);

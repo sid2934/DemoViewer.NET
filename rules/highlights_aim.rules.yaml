@@ -134,7 +134,15 @@ highlights:
 
 show:
   scoreboard:
-    - { stat: no_scope.count,           label: NoScope,      group: game }
+    # Every column here is a ROUND count (the highlight's match-scoped .count), not a kill count,
+    # and each needs a label of its own: the shipped rulesets union their columns into one game
+    # table keyed by nothing but the label, and player_stats already owns NoScope (total no-scope
+    # kills, any scoped weapon), WB and Smoke on that board. A label shared with player_stats is
+    # not a second column; the ruleset materialized later (use: dependency order, which is
+    # file-name order among rulesets that do not use: one another) overwrites the cell,
+    # silently. The Rnds suffix follows player_stats' own DeagleHSRnds, another highlight
+    # .count on the board.
+    - { stat: no_scope.count,           label: NoScopeRnds,  group: game }
     - { stat: jumping_no_scope.count,   label: JumpNoScope,  group: game }
     - { stat: jumpshot_kill.count,      label: Jumpshot,     group: game }
     - { stat: wallbang_kill.count,      label: Wallbang,     group: game }

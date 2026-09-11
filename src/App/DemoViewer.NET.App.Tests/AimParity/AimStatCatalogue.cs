@@ -167,13 +167,10 @@ public static class AimStatCatalogue
             AimTier.ShotEnrichment, AimComparisonMode.NoReference,
             "spray-control population; recoilShots is declared by Leetify and null in every row"),
 
-        new("spray_pitch_error", "aim_rating.spray_pitch_error", null, 1.0,
+        new("spray_error_deg", "aim_rating.spray_error_deg", null, 1.0,
             AimTier.ShotEnrichment, AimComparisonMode.NoReference,
-            "mean absolute pitch residual in degrees; oracle is SprayControlOracle, not Leetify"),
-
-        new("spray_yaw_error", "aim_rating.spray_yaw_error", null, 1.0,
-            AimTier.ShotEnrichment, AimComparisonMode.NoReference,
-            "mean absolute yaw residual in degrees; oracle is SprayControlOracle, not Leetify"),
+            "mean 3D angle from the run's first landed bullet, in degrees; measured on the landed "
+            + "arm, so it also needs bullet_damage; SprayControlOracle prints beside it, Leetify has nothing"),
 
         // ── Tier 3: the enemy_spotted contact gate ────────────────────────────────────────────
         new("contact_shots", "aim_rating.contact_shots", "shotsFiredEnemySpotted", 1.0,
@@ -203,8 +200,9 @@ public static class AimStatCatalogue
         // ── Reported, not computed ────────────────────────────────────────────────────────────
         new("time_to_damage_s", "", "reactionTime", 1.0,
             AimTier.Visibility, AimComparisonMode.NotImplemented,
-            "the time-to-X ladder is deferred: event.tick and the synthesized spot sit on "
-            + "different clocks, which biases every interval by the demo start tick")
+            "the ladder ships as aim_rating.time_to_damage_ms and its siblings, but no by-value "
+            + "comparison is wired: Leetify's population and unit for reactionTime are unverified, "
+            + "and ours is a mean over contacts answered inside a 320-tick window")
     ];
 
     /// <summary>Every row that has a Leetify counterpart worth comparing by value.</summary>

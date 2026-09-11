@@ -82,9 +82,20 @@ five demos (`shotsHitFoeHead` is present and zero everywhere, which for a
 head-hit numerator is the same thing).
 `AimStatParityTests.LeetifyReference_DeclaresAimFieldsItNeverPopulates`
 asserts that, so a payload which starts carrying them is a red test rather
-than a discovery nobody makes. Until then the SprayPitch and SprayYaw columns
-are validated against `SprayControlOracle`, an independent hand-written fold
-of the segmentation and residual rule, rather than against anyone's numbers.
+than a discovery nobody makes. Until then the `Spray` column has no
+reference at all, and what `SprayControlOracle` gives it is narrower than
+validation. The oracle is an independent hand-written fold of the spray
+SEGMENTATION rule (`SprayControlOracleTests` pins every branch of it), and
+of two residuals over that segmentation: the fired-arm rule (view angle plus
+recoil scale times punch, as pitch and yaw components) and the landed-arm
+rule the shipped column uses (the 3D angle between a bullet's raw `ShootAng`
+and the run's first landed bullet, `MeanAngleError`).
+`SprayControlOracleRealDemoTests` asserts the oracle's invariants and that
+the shipped column is WIRED (a measured `SprayN` with a non-zero `Spray` on a
+demo that carries `bullet_damage`), and prints the oracle's angle beside the
+shipped one. It does NOT assert the shipped mean against the oracle's: the
+engine segments runs on the fired stream and the oracle on the landed one,
+so the two populations differ wherever a miss sits inside a spray.
 
 ## Refresh procedures
 

@@ -93,7 +93,7 @@ public class StatsBoardScaleTests
 
     /// <summary>
     ///     The aim board (rules/aim_rating.rules.yaml), in that file's show order. Declared game-scoped
-    ///     here even though XPlace, Flick and Spot ship as round columns: this fixture carries one
+    ///     here even though Spot ships as a round column: this fixture carries one
     ///     snapshot vector rather than a round timeline, and what these tests pin is the scale wiring,
     ///     which is per column and identical either way.
     /// </summary>
@@ -374,7 +374,7 @@ public class StatsBoardScaleTests
     ///     <para>
     ///         The two headshot shares are a STYLE, exactly as HS% already is: an AWPer's body hits kill
     ///         as well as a rifler's heads, and HSDmg% divides by all enemy damage, so a player who
-    ///         throws grenades scores lower with no change to their aim. Flick is signed, so neither
+    ///         throws grenades scores lower with no change to their aim. FlickErr is signed, so neither
     ///         direction is the good one and the bar carries the sign, which is FK+/-'s treatment.
     ///     </para>
     /// </summary>

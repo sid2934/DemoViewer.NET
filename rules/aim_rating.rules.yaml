@@ -16,15 +16,18 @@
 #       carries. These are the columns to trust when the rest read zero.
 #   Tier 2 (CS%, CSAll%, Linear%, Spray) needs the shot enrichments that
 #       AimShotContextEdge writes off per-tick entity state (speed against the weapon's own
-#       0.34 * m_flMaxspeed line, recoil index, aim punch). Present on any demo whose pawns
-#       decode; the residual pair additionally needs the aim-punch column to decode to real
-#       degrees (see SPRAY RESIDUALS below).
-#   Tier 3 (Preaim, FB%, SAcc%, SprayAcc%, XPlace, Flick) needs the synthesized enemy_spotted
-#       event, which exists only when the analysis run is handed baked map geometry
-#       (AnalysisOptions.VisibilityEngine). Visibility has no wire signal to fall back on, so
-#       without geometry there are no spots at all. No call site in this app passes that option
-#       today, so as of writing EVERY Tier 3 column reads 0.0 on every demo. Spots (and Spot, on
-#       the round board) is how a reader sees that.
+#       0.34 * m_flMaxspeed line, recoil index). Present on any demo whose pawns decode. Spray
+#       additionally needs bullet_damage, because it is measured on the LANDED arm from the
+#       server's own shot direction (see SPRAY IS ONE ANGULAR DISTANCE below); on a source
+#       without bullet_damage, SprayN reads 0 and Spray reads 0.0.
+#   Tier 3 (Preaim, FB%, SAcc%, SprayAcc%, XPlace, FlickErr, TTS, TTD, AimRx, TTK) needs the
+#       synthesized enemy_spotted event, which exists only when the analysis run is handed baked
+#       map geometry (AnalysisOptions.VisibilityEngine). Visibility has no wire signal to fall
+#       back on, so without geometry there are no spots at all. The app hands the engine over
+#       whenever CollisionAssetLocator finds a baked collision.tris for the map
+#       (AnalysisViewModel.LoadVisibilityEngineAsync), and only some maps ship one, so on the
+#       rest EVERY Tier 3 column reads 0.0. Spots (and Spot, on the round board) is how a reader
+#       sees that.
 #   FB%, SprayAcc% and XPlace additionally need bullet_damage (the shot_landed view) for their
 #       hit side. Trimmed GOTV sources routinely omit it; the demo this repo ships
 #       (assets/tour/sample-de_nuke.dem) carries 206 weapon_fire and zero bullet_damage.
@@ -35,9 +38,10 @@
 # table, but it also turns "nobody measured this" into a confident 0.0, which reads as PERFECT
 # spray control and as terrible counter-strafing. A computed column cannot opt out of this: it
 # lowers to a double-valued node, so unlike a flag or a capture it has no empty state to fall
-# back to, and an unmeasured engagement is a 0.0 exactly like a measured one. That is why CSAtt,
-# SprayN, Spots and Spot ship as columns of their own: they are the denominators, and a zero
-# beside a zero denominator is the only way a reader can tell an empty population from a score.
+# back to, and an unmeasured engagement is a 0.0 exactly like a measured one. That is why every
+# denominator ships as a column of its own (CSAtt, SprayN, Spots, XShots, TTSn, TTDn, AimRxn,
+# TTKn, and Spot on the round board): a zero beside a zero denominator is the only way a reader
+# can tell an empty population from a score.
 #
 # THE TIME-TO-X LADDER SHIPS ON ENRICHMENTS, NOT ON `event.tick`. TTS, AimRx, TTD and TTK each
 # measure an interval from a contact to a wire event, and authoring that in the expression
@@ -53,16 +57,16 @@
 # regardless of the clock question, because a shot-side interval also bounds the pairing per
 # engagement rather than per round. Do not reach for `event.tick` to extend this family.
 #
-# THE PAIRING BOUND THAT SAME DEFECT COSTS. XPlace and Flick pair the round's FIRST contact with
-# the round's FIRST landed shot after it. The honest bound would be "and no more than N ticks
-# apart", which is exactly the comparison the clock split makes impossible, so on a round where
-# a player spots someone early and lands their first bullet ten seconds later in an unrelated
-# duel, both columns measure that unrelated pair. They ship anyway because they are right on the
-# common case where the first contact IS the duel, and because the pairing is a stated
-# approximation rather than a constant offset like the ladder's. Read them as round-level
-# indicators, not as per-engagement measurements, until the bound lands, and read them against
-# the round board's Spot column: a round with Spot 0 had no contact and its 0.0 is the empty
-# state, not a perfect flick.
+# CROSSHAIR TRAVEL IS PAIRED THE SAME WAY. XPlace and FlickErr read enrich.shot.travel_from_spot_deg
+# and enrich.shot.flick_error_deg, which the landed arm differences on that one clock against the
+# player's LAST contact, so a fresh contact re-latches the anchor, and the ticks_since_spot <= 320
+# bound on travel_shots cuts the stale pairings that the old unbounded first-contact pairing
+# admitted. Every landed bullet inside the window contributes, not only the first, so the two
+# columns average over bullets rather than over engagements; XShots is that population and the
+# gate the board tints them behind. Both are per: match. Spot, on the round board, is neither
+# their gate nor their marker: it is the round-scoped twin of Spots, 0 or 1 per round, and it says
+# whether the player had a first contact that round at all, which on a demo with no baked
+# geometry is what separates "no Tier 3 this round" from a score.
 #
 # COUNTER-STRAFING, THREE WAYS. counter_strafe_admitted is the attempt gate: a shot enters the
 # population only if the player exceeded the weapon's movement-inaccuracy threshold at some
@@ -117,13 +121,31 @@ title: Aim Rating
 summary: Per-player aim quality, per game (accuracy, counter-strafing, spray control, crosshair placement).
 for: each_player
 
-params:
-  # Ticks from a contact within which a landed shot still counts as THAT engagement. 320 at
-  # 64 tick is 5 seconds, the same window HLTV and CS Demo Manager use for a trade, and generous
-  # next to a real duel: measured time-to-damage is 434-591 ms for pros and about 664 ms in
-  # matchmaking, so this truncates almost nothing real while cutting the cross-duel pairings that
-  # made the crosshair columns meaningless.
-  engagement_max_ticks: { type: int, default: 320, min: 32, max: 1280 }
+# ── The engagement window ─────────────────────────────────────────────────────────────────────
+#
+# Every Tier 3 stat bounds how long after a contact a shot, a landed bullet or a kill still counts
+# as answering THAT contact. The bound is written as a literal on each match: line, and on purpose:
+# a match: comparison is parsed as one operator and one scalar literal (UnaryTestParser) and
+# lowered as that literal (MatchLowering), with no params path at all. params.<name> is inlined
+# only where the resolver parses an expression (where:, while:, when:, compute:, a sum's or a
+# bucket's selectors, a define: body) and in a tally threshold's min:. This file used to
+# declare an engagement_max_ticks param for these bounds that nothing could read; a knob that
+# exists and does nothing is worse than no knob, because the next reader tunes it and sees no
+# change. If the bound ever needs to be tunable, the parser has to learn params first.
+#
+# 320 ticks, the bound for a first shot, a first landed bullet, an acquisition and a crosshair
+# travel: 5 seconds at 64 tick, the same window HLTV and CS Demo Manager use for a trade, and
+# generous next to a real duel. Measured time-to-damage is 434-591 ms for pros and about 664 ms
+# in matchmaking, so this truncates almost nothing real while cutting the cross-duel pairings that
+# made the crosshair columns meaningless. The engine also latches the LAST spot per viewer, so a
+# fresh contact restarts the clock; the bound only bites when the newest contact is itself stale.
+#
+# 640 ticks, the bound for a kill (TTK), and it is not the same quantity. Every other rung ends at
+# the FIRST event after contact, which is over well inside 5 seconds or it is not a reaction at
+# all. A kill ends when the LAST bullet lands, after a possible re-peek or a retreat and return,
+# and a duel that takes 6 to 9 seconds is still one duel, not a cross-duel pairing. Ten seconds
+# keeps those and still cuts the round-long stalks the shorter window exists to exclude. The two
+# numbers are two decisions, which is the other reason a single knob was never the right shape.
 
 stats:
   # ── Tier 1: shots and hits (weapon_fire + player_hurt only) ────────────────────────────────
@@ -191,11 +213,12 @@ stats:
     while: round.active
     per: match
 
-  # Spray control. The residual is the gap between where the shot actually went (view angle plus
-  # the engine's recoil scale times aim punch) and where the recoil pattern says it should have
-  # gone, so a smaller absolute residual is better compensation. Summed as absolute values: a
-  # signed mean cancels a player who overshoots as often as they undershoot down to zero, and
-  # that is the one player this column must not flatter.
+  # Spray control. The residual is the 3D angle between where this bullet left (bullet_damage's
+  # ShootAng, the server's own shot direction with the punch already folded in) and where the
+  # run's first LANDED bullet left, so a smaller residual is better compensation: perfect control
+  # holds every bullet on the anchor. It is on shot_landed, not shot, because only the landed
+  # arm's aim is trustworthy (see SPRAY IS ONE ANGULAR DISTANCE in the header). abs() is the
+  # documented widening for a float selector; the angle is already non-negative.
   spray_error_sum:
     sum: abs(enrich.shot.spray_residual_deg)
     on: shot_landed
@@ -284,9 +307,10 @@ stats:
     while: round.active
     per: match
 
-  # The round-board twin of first_contacts, and the population marker for XPlace and Flick. Zero
-  # or one by construction (first_contact fires once per round per viewer), so a round showing 0
-  # is a round where those two columns have nothing behind their 0.0.
+  # The round-board twin of first_contacts. Zero or one by construction (first_contact fires once
+  # per round per viewer), so a round showing 0 is a round with no contact and no Tier 3 activity
+  # at all. It marks nothing on its own board: every other Tier 3 column is per: match, so there
+  # is no per-round cell for it to gate, and XPlace and FlickErr read against XShots instead.
   round_contacts:
     count: enemy_spotted
     match: { first_contact: true }
@@ -351,6 +375,9 @@ stats:
   # benchmarks span only about 170 ms across the entire FACEIT ladder) and it confounds aim with
   # damage output and armour, so it ships beside its denominator and without a colour judgement.
   # Note TTK < TTD is possible: they average over different engagement subsets.
+  #
+  # 640, not the ladder's 320: a kill is the LAST bullet of an engagement, not the first event
+  # after contact. See "The engagement window" at the top of the file.
   ttk_kills:
     count: kill
     match: { enemy: true, ticks_since_spot: "<= 640" }
@@ -457,7 +484,6 @@ stats:
     per: match
     format: F1
 
-  # Mean absolute residual in degrees, so lower is better, unlike every percentage on this board.
   spotted_accuracy_pct:
     compute: "contact_hits / max(contact_shots, 1) * 100"
     per: match
@@ -504,6 +530,8 @@ stats:
     per: match
     format: F0
 
+  # Mean absolute residual in degrees, so lower is better, unlike every percentage on this board.
+  #
   # ONE number, not a pitch and a yaw. The components only agree with the true angular distance
   # for small deviations and diverge exactly where a spray goes wrong, and a reader cannot combine
   # two columns in their head anyway. The per-shot components stay on the event for a visualiser.
@@ -552,7 +580,7 @@ show:
     - { stat: cs_attempts,            label: CSAtt,       group: game }
     - { stat: spray_residual_shots,   label: SprayN,      group: game }
     - { stat: first_contacts,         label: Spots,       group: game }
-    # ── round group: the per-round engagement columns ──
+    # ── game group, continued: the per-engagement columns, then the one round-board column ──
     - { stat: crosshair_travel_deg,   label: XPlace,      group: game }
     - { stat: flick_error_avg,        label: FlickErr,    group: game }
     - { stat: travel_shots,           label: XShots,      group: game }

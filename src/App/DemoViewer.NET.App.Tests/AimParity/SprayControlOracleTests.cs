@@ -13,8 +13,8 @@ namespace DemoViewer.NET.AppTests.AimParity;
 ///     <para>
 ///         These are the assertions that make the oracle worth being an oracle. Spray control has no
 ///         external reference at all (Leetify declares <c>recoilShots</c> and never populates it), so
-///         the only thing standing between the shipped SprayPitch/SprayYaw columns and a number
-///         nobody checked is a second implementation plus a set of cases that pin what it should do.
+///         the only thing standing between the shipped Spray column and a number nobody checked is
+///         a second implementation plus a set of cases that pin what it should do.
 ///         Written from the rule as specified, not from the engine's code path.
 ///     </para>
 ///     <para>
@@ -200,6 +200,26 @@ public class SprayControlOracleTests
         {
             await Assert.That(result.MeasuredShots).IsEqualTo(1);
             await Assert.That(result.MeanPitchError).IsEqualTo(0.0).Within(1e-9);
+        }
+    }
+
+    /// <summary>
+    ///     The landed-arm angle reads the raw shot direction and ignores the punch, because ShootAng
+    ///     already carries it. The same two shots that give the fired-arm pair a residual of zero
+    ///     (the view moved 4 degrees to cancel a 2 degree kick) are 4 degrees apart as directions.
+    /// </summary>
+    [Test]
+    public async Task AngleError_MeasuresTheRawDirection_AndIgnoresThePunch()
+    {
+        SprayPlayerResult result = FoldOne(
+            Shot(100, recoil: 0f, pitch: 0f, punchPitch: 0f),
+            Shot(108, recoil: 1f, pitch: -4f, punchPitch: 2f));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(result.MeasuredShots).IsEqualTo(1);
+            await Assert.That(result.MeanPitchError).IsEqualTo(0.0).Within(1e-9);
+            await Assert.That(result.MeanAngleError).IsEqualTo(4.0).Within(1e-6);
         }
     }
 

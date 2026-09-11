@@ -785,8 +785,8 @@ so that changing it later is a decision rather than a side effect.
 
 ## 19. The Aim category
 
-`rules/aim_rating.rules.yaml` ships 18 board columns, 15 game-scoped and 3 round-scoped. They are
-registered as `StatGroup.Aim`, declared after `Combat` because the enum **ordinal** is the chip rail's
+`rules/aim_rating.rules.yaml` ships 26 board columns, 25 game-scoped and 1 round-scoped (`Spot`).
+They are registered as `StatGroup.Aim`, declared after `Combat` because the enum **ordinal** is the chip rail's
 order and these columns explain the Combat numbers rather than adding to them. The `Key` of each
 `M(...)` entry is the ruleset's `label:` byte for byte: an unregistered label still renders, but lands
 in `Other` with no bar, no tint and a blank totals cell, which looks like a page nobody styled rather
@@ -807,18 +807,27 @@ aim column therefore takes a peer bar with a peer tint, and a test asserts that 
 Every ratio in the ruleset guards its denominator with `max(d, 1)`, because in the rules engine a
 division by zero is null and a null drops out of the peer domain, the totals row and the podium. The
 guard keeps the cell in the table, but it also turns "nobody measured this" into a confident `0.0`, and
-it leaves a three-shot sample tinting exactly as hard as a three-hundred-shot one. So four columns copy
-the `Duel%` gate: below the bar the cell **keeps its bar and loses its colour**.
+it leaves a three-shot sample tinting exactly as hard as a three-hundred-shot one. So every column
+measured per engagement or per spray copies the `Duel%` gate: below the bar the cell **keeps its bar and
+loses its colour**.
 
 | Gate | Minimum | Columns it protects |
 |---|---|---|
 | `CSAtt` | 20 | `CS%`. Three attempts all stopped reads 100% and means nothing, which is why the ruleset also ships `CSAll%` over every bullet. |
-| `SprayN` | 20 | `SprayPitch`, `SprayYaw`. Aim punch decodes to implausible angles on some sources and those shots are rejected, so this population is far thinner than the shot count suggests. |
+| `SprayN` | 20 | `Spray`. Only LANDED bullets after a run's first one qualify and `bullet_damage` does not fire for misses, so this population is far thinner than the shot count suggests. A mean angle over one bullet is not a rating. |
 | `Spots` | 8 | `FB%`, `SAcc%`, `SprayAcc%`, `Preaim`. All four are measured only after a round's first enemy contact. |
-| `Spot` | 1 | `XPlace`. A round with no contact reads `0.0`, which is the shortest travel on the board. |
+| `XShots` | 8 | `XPlace`. Crosshair travel only exists on an engagement that had a contact, and a player without one reads `0.0`, the shortest travel on the board. Gated on `XShots`, NOT on `Spot`: `Spot` is per-round and `XPlace` is per-match, and `ClearsColourGate` reads its gate columns off the same `MetricRow`, so a match-scoped row carries no `Spot` at all and the gate would sum to zero and neuter the column outright. |
+| `TTSn` | 8 | `TTS`. The ruleset guards the denominator with `max(d, 1)`, so a player with no measured engagement reads 0 ms: the fastest reaction on the board, off nothing. |
+| `TTDn` | 8 | `TTD`. Same shape as `TTS`. One gate column each, not a shared `[TTSn, TTDn]`: the gate SUMS its columns, so a shared pair would let a player's damage volume clear their shot column and the other way round, which is exactly the thin sample the gate exists to catch. |
+| `AimRxn` | 8 | `AimRx`. Same shape again: an aimed reaction only exists where the crosshair was seen arriving on the target. |
 
 A gate column missing from the evaluation sums to zero and so gates the whole column off. That is the
 safe direction: no tint beats a tint nobody can check.
+
+`TTK` and `TTKn` carry no gate because `TTK` is never tinted (next table), and `Spot` is not a gate at
+all any more: it is the round-board twin of `Spots`, 0 or 1 per round, saying whether the player had a
+first contact that round. There is no per-round aim cell for it to mark: `XPlace` and `FlickErr` are
+per-match and read against `XShots`.
 
 ### Which direction is good
 
@@ -826,11 +835,32 @@ safe direction: no tint beats a tint nobody can check.
 |---|---|---|
 | `Acc%`, `CSAll%` | peer bar, peer colour | Efficiency over a denominator large enough not to need a gate. |
 | `Linear%` | **lower is better** | These are the bullets the engine charged a movement penalty for. `CSAll% + Linear%` is the attempted share; the remainder was fired from a standstill, which is neither a success nor a failure and is not on the board at all. |
-| `SprayPitch`, `SprayYaw`, `Preaim`, `XPlace` | **lower is better**, gated | Degrees off and degrees travelled. There is deliberately no combined spray column: pulling down against the climb and holding against the walk are independent motions, and their average puts a clean-pull wild-yaw sprayer and their mirror image on the same score. |
+| `Spray`, `Preaim`, `XPlace` | **lower is better**, gated | Degrees off and degrees travelled. |
+| `TTS`, `TTD`, `AimRx` | **lower is better**, gated | Milliseconds from a contact to the first shot, the first landed bullet, and (for `AimRx`) from the crosshair arriving on the target to the shot. Means, not medians, because the rules engine has no median kind; the engagement window bounds the upper tail and nothing bounds the lower one. |
 | `FB%`, `SAcc%`, `SprayAcc%` | peer bar, peer colour, gated | After-contact efficiency. |
 | **`HSAcc%`, `HSDmg%`** | **bar, no tint** | The same call `HS%` already carries: a headshot share is a STYLE, not a ranking. An AWPer's body hits kill exactly as well as a rifler's heads. `HSDmg%` divides by ALL enemy damage on top of that, so a player who puts half their output into grenades halves the column with nothing about their aim having changed. |
-| **`Flick`** | **bar, no tint** | Signed, so neither direction is the good one: positive overshot and had to be walked back, negative was dragged on. `FK+/-`'s treatment, for `FK+/-`'s reason. |
-| **`CSAtt`, `SprayN`, `Spots`, `Spot`** | **bar, no tint** | Population columns. Each is the denominator of a column above, and more attempts or more measurable sprays is more opportunity, not better play. They are on the board because a zero here is the only thing separating an empty population from a real result, which is exactly what the `max(d, 1)` guards collapse together. |
+| **`FlickErr`** | **bar, no tint** | Signed, so neither direction is the good one: positive overshot and had to be walked back, negative was dragged on. `FK+/-`'s treatment, for `FK+/-`'s reason. |
+| **`TTK`** | **bar, no tint** | Contact to the kill. It confounds aim with damage output and armour, scope.gg's own rifle benchmarks span only about 170 ms across the whole FACEIT ladder, and it can read BELOW `TTD` because the two average over different engagements: `TTK` counts only the contacts that ended in a kill, measured from the killer's LAST contact, which a fresh peek re-latches right before the kill, while `TTD` counts every contact answered by a landed bullet. The wider 640-tick window only admits slower kills and cannot pull `TTK` down. Ranked, never judged. |
+| **`CSAtt`, `SprayN`, `Spots`, `XShots`, `TTSn`, `TTDn`, `AimRxn`, `TTKn`, `Spot`** | **bar, no tint** | Population columns. Each is the denominator of a column above, and more attempts or more measurable sprays is more opportunity, not better play. They are on the board because a zero here is the only thing separating an empty population from a real result, which is exactly what the `max(d, 1)` guards collapse together. |
+
+### One spray column, not two
+
+The first cut of this board shipped `SprayPitch` and `SprayYaw` and deliberately no combined column. The
+argument was that pulling down against the climb and holding against the walk are independent motions,
+so averaging them scores a clean-pull wild-yaw sprayer and their mirror image the same, and a reader
+who wants to know WHICH motion is wrong needs the two numbers apart.
+
+That was overridden, and the tradeoff was seen rather than missed. The pitch and yaw residuals only
+agree with the true angular distance for small deviations and diverge exactly where a spray goes wrong,
+which is where the column has to be right; and a reader cannot combine two columns in their head, so two
+columns that are each slightly wrong at the extremes gave nobody the number they wanted. `Spray` is
+now one number, the mean angular distance between a bullet and the first bullet of its run, and it is
+correct at the extremes. The mirror-image objection still stands against it: `Spray` says how far off,
+not which way. The per-shot pitch and yaw components stay on the event
+(`enrich.shot.spray_residual_pitch` / `_yaw`) for exactly that reason, and the spray drilldown in the
+player details overlay answers the WHICH question with a pitch/yaw scatter of its own, recomputed from
+raw `bullet_damage` by `SpraySampler` rather than read off those enrichments, so the question moved off
+the board rather than being dropped.
 
 ### Known gap
 
