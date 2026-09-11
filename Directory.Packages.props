@@ -87,9 +87,9 @@
             Repointing at a published version is a plain edit of the three lines below; the local
             source in nuget.config can then go.
         -->
-        <PackageVersion Include="CS2DemoKit.Parser" Version="0.11.0-aim17"/>
-        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.11.0-aim17"/>
-        <PackageVersion Include="CS2DemoKit.Analysis.Rules" Version="0.11.0-aim17"/>
+        <PackageVersion Include="CS2DemoKit.Parser" Version="0.11.0-aim19"/>
+        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.11.0-aim19"/>
+        <PackageVersion Include="CS2DemoKit.Analysis.Rules" Version="0.11.0-aim19"/>
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
         <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15"/>
         <!-- 3.29.5+ required by Cs2VideoGenerator.Core, and comfortably above the >= 3.27.0 floor
