@@ -234,7 +234,7 @@ public class StatsComponentRenderTests
             byte[] withBar = CaptureControl(scaled, "stats-cell-tracked");
 
             // Magenta because it cannot collide with the harness background, which resolves to LIGHT
-            // here: counting white would count the whole canvas and pass either way.
+            // here; Gallery_PaintsEveryTierOfTheHeatRamp has the note on why a white count proves nothing.
             await Assert.That(FrameProbe.CountPixels(bare, 0xFF00FF)).IsEqualTo(0);
             await Assert.That(FrameProbe.CountPixels(withBar, 0xFF00FF)).IsGreaterThan(500);
         });

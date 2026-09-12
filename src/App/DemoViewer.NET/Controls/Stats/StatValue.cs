@@ -46,9 +46,8 @@ public enum StatValueMode
 ///     that says how far from the pack. The workhorse of the stats surfaces; every scoreboard cell, every
 ///     rating pill and every tile value is one of these.
 ///     <para>
-///         <b>The bar is never polarity-inverted.</b> A deaths column draws its longest bar for the most
-///         deaths, because a big number over a short bar reads as a rendering fault. Judgement is carried
-///         entirely by the text colour. See <see cref="StatScale" />.
+///         <b>The bar is never polarity-inverted.</b> Judgement is carried entirely by the text colour;
+///         the reasoning is on <see cref="StatScale.Fraction" />.
 ///     </para>
 ///     <para>
 ///         The bar always grows from the left edge while the text aligns per

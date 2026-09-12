@@ -2,9 +2,9 @@
 
 Scope: the reusable UI primitives the overhauled Stats team view and player view will be built from.
 Sections 1 to 8 are the research pass that decided what to build, what to buy, and what each piece owes
-its caller. **Section 10 records what actually shipped**, including where the build diverged from the
-plan. This document does **not** redesign the Stats screens; that is the next phase, and it can assume
-everything here already exists.
+its caller. **Section 10 is the library as built**, including where it departs from that research. This
+document does **not** redesign the Stats screens; that is the next phase, and it can assume everything
+here already exists.
 
 Reference for the visual target: a dense match scoreboard with a utility breakdown table. What is
 worth taking from that shape is not the styling, it is the **encoding**: a number carries two channels
@@ -61,7 +61,7 @@ Relevant existing state, all in `src/App/DemoViewer.NET`:
 | `Views/Stats/StatsTabView.axaml` | `TextBlock.statsCell` with `.pos`/`.neg` classes; `StatsRowTemplate`. | Cell template becomes the new control. Row chrome stays. |
 | `Views/Stats/PlayerDetailsView.axaml` | Hand rolled per round strips: a `Polyline` in a `Canvas` for kills, an `ItemsControl` of `Rectangle` for damage, a dot strip for KAST, `Rectangle.pdHistBar` for multi kills. | **Absorb.** One `Sparkline` with three modes replaces three of the four; the multi-kill histogram is the exception, see 10. |
 | `ViewModels/Stats/PlayerDetailsViewModel.cs` | `FormBar(int Round, double Height, string Tooltip)`, `BarRowItem(..., double BarWidth, ...)`, `HistBarItem(..., double Height, ...)`. | **Delete the pixel maths.** These records carry **computed pixel heights and widths** in a view model. Normalisation is layout, it belongs in the control, and today it cannot react to a resize. Done for `FormBar` and `BarRowItem`; `HistBarItem` kept, see 10. |
-| `Styles/DarkPalette.axaml` | 214 tokens per variant (219 after this work), `Dark` plus a designed `Light`, retintable by user themes. `Stat*` family currently holds exactly one token, `StatPositive`. Negative stat cells borrow `AccentError`. | **Extend `Stat*`.** Borrowing an *error* colour for a *stat* meaning is a live semantic overload worth splitting. |
+| `Styles/DarkPalette.axaml` | 214 tokens per variant (219 once the stats palette landed), `Dark` plus a designed `Light`, retintable by user themes. `Stat*` family currently holds exactly one token, `StatPositive`. Negative stat cells borrow `AccentError`. | **Extend `Stat*`.** Borrowing an *error* colour for a *stat* meaning is a live semantic overload worth splitting. |
 | `Controls/` | 14 shared controls, flat, no subfolders. `SpotlightScrim.cs` is the precedent for a custom `Render(DrawingContext)` control. | New work went in `Controls/Stats/`, the first subfolder. |
 | `DemoViewer.NET.UiCapture` | 60+ named variants, renders any control to PNG headless under any theme id. | The review loop for every component here. |
 | `DemoViewer.NET.App.Tests` | Render smoke tests (`[Category("Render")]`, render then count non background pixels) plus plain unit tests. | Both tiers apply: scale maths is unit testable with no Avalonia at all. |
@@ -129,7 +129,7 @@ Factories cover the shapes actually needed:
 | `StatScale.Hybrid(peers, colourMin, colourMax, …)` | The fully separated shape: bar from the peers, colour entirely from fixed benchmarks. |
 
 (`SignOf` and `Penalty` were also drafted here. Both turned out to be `Banded` spelled differently, and
-neither survived the refinement pass once `StatScaleSpec` became how a column declares a scale. A rating
+neither survived once `StatScaleSpec` became how a column declares a scale. A rating
 delta is `Banded(min, max, -dz, +dz)`; a penalty is `Banded(0, max, 0, 0, LowerIsBetter)`.)
 
 Peer scales are computed **per column across the rows currently on screen**, which means the view model
@@ -234,7 +234,7 @@ geometry to draw.
 
 ## 8. Verification
 
-Three tiers, all of which already existed in the repo:
+None of this needed a new harness. All three tiers already existed:
 
 1. **Unit, no Avalonia.** `StatScaleTests`, 21 cases: clamping, dead zone, polarity inversion, one-sided
    bands, swapped band edges, and every degenerate range (`Min == Max`, empty peer set, `NaN`, a band
@@ -299,9 +299,9 @@ later.
 
 ## 10. What shipped
 
-Everything in section 5, plus `StatPresenter`. Seven types in
-`src/App/DemoViewer.NET/Controls/Stats/`, five new palette tokens in both variants,
-`Styles/Stats.axaml`, three `UiCapture` variants, a dev gallery inside the app, and 27 tests.
+Everything in section 5, plus `StatPresenter`. The types live in
+`src/App/DemoViewer.NET/Controls/Stats/`, the new palette tokens are in both variants, the table chrome
+is in `Styles/Stats.axaml`, and there are `UiCapture` variants plus a dev gallery inside the app.
 
 **The library has one real call site.** `PlayerDetailsView` was migrated off its hand rolled geometry,
 which is what proves the components work in a live view rather than only against mock data:
@@ -338,10 +338,9 @@ a chart. It stays as an `ItemsControl`.
   made a set of all zero rounds render as half height columns that read as real data.
 - `DisplayText` folds negative zero to zero. A differential column landing exactly on nothing otherwise
   prints `-0`.
-- ~~The scoreboard itself is untouched.~~ Done; see section 11.
 - `StatTileItem` (a view-model record in `PlayerDetailsViewModel.cs`) and `StatTile` (the control) are
-  one letter apart. Resolved in section 17: the strip uses the control now, so the record is the
-  control's item type and the names are related rather than colliding.
+  one letter apart. The strip uses the control now, so the record is the control's item type and the
+  names are related rather than colliding.
 
 ### Previewing it: the dev gallery
 
@@ -354,8 +353,6 @@ absolute 0..100 rating).
 It reads no demo, so it is reachable from a cold start with nothing loaded. It rides the existing
 `tab.diagnostics` gate and needs no gate of its own, and it owns its view model rather than binding
 through `DiagnosticsTabViewModel`, so nothing in the diagnostics graph knows it exists.
-
-Two details worth keeping:
 
 - **A numeric readout sits under the sliders** (`Fraction`, `Sentiment`, and the named accent tier). The
   colour is the thing under review, so it cannot also be the thing that tells you whether the scale is
@@ -376,11 +373,11 @@ surface with a saved-layout migration story attached, and it is not what makes a
 
 ### Which columns are scaled, and which deliberately are not
 
-The benchmark research split the metrics in a way that inverts the intuitive pairing. A metric whose
-population mean is **pinned by the structure of the game** can carry an absolute band, because the
-anchor never drifts with lobby skill: every kill is exactly one death, so aggregate K/D is exactly
-1.00; every opening duel has exactly one winner, so the mean is exactly 50%. A **per-opportunity
-efficiency** metric cannot, because it conflates the player's skill with the lobby's.
+The benchmark research split the metrics in a way that inverts the intuitive pairing. Where the game's
+own structure pins the mean, the anchor never drifts with lobby skill and an absolute band works: every
+kill is exactly one death, so aggregate K/D is exactly 1.00; every opening duel has exactly one winner,
+so the mean is exactly 50%. A per-opportunity efficiency metric has no such anchor — it conflates the
+player's skill with the lobby's.
 
 | Column | Treatment | Why |
 |---|---|---|
@@ -396,11 +393,11 @@ efficiency** metric cannot, because it conflates the player's skill with the lob
 | **`Surv%`** | **bar, no tint** | Anti-correlated with aggression. High survival + low ADR is passivity; low + high is a healthy entry fragger. One band cannot say that. |
 | **`FK+/-`** | **bar, no tint** | A signed differential; the sign is the whole story and the bar carries it. |
 
-**Two numbers worth not losing.** The "ADR 60-75 is average" figure every guide repeats is
-*arithmetically impossible* as a match mean: with DPR around 0.68 the floor is 680 damage per round
-from kills alone, so the real mean is 72-80 at any rank. And our `HLTV` column implements the 2.0
-reverse-engineered formula, whose 1.00 is anchored to **professional** play; HLTV themselves
-recalibrated to 2.1 because the CS2 MR12 average had drifted to ~1.06. The 0.95-1.05 band may
+The "ADR 60-75 is average" figure every guide repeats is *arithmetically impossible* as a match mean:
+with DPR around 0.68 the floor is 680 damage per round from kills alone, so the real mean is 72-80 at
+any rank. Our `HLTV` column implements the 2.0 reverse-engineered formula, whose 1.00 is anchored to
+**professional** play; HLTV themselves recalibrated to 2.1 because the CS2 MR12 average had drifted to
+~1.06. The 0.95-1.05 band may
 therefore sit slightly low for matchmaking demos. **Validate it against real demos** in the dev
 gallery before treating it as settled.
 
@@ -437,7 +434,8 @@ gallery before treating it as settled.
   the *peer* bounds, so 92 ADR read strong in a weak lobby and mild in a strong one. An absolute
   benchmark that moves with the lobby is not a benchmark.
 - **Bars anchor to the text's edge.** Right-aligned numbers over left-growing bars drift away from their
-  own bar exactly when it is shortest.
+  own bar exactly when it is shortest. Superseded in section 16: the anchor is a property now and
+  defaults to `Left`.
 - **Static initialiser ordering is load-bearing.** The scale specs must be declared above
   `_byKey = BuildCatalogue()`. Declared below, C# leaves them null while the catalogue reads them, every
   column silently gets no scale, and the board renders as if none of this existed.
@@ -449,7 +447,6 @@ gallery before treating it as settled.
 - The `Rounds` view has peer scales (its peer group is the players in that round) but no podium or team
   badge; it is a flat table by design.
 - `Highlights`, `Vision` and keyed extra tables have no `ColumnMeta` at all and are unscaled.
-- ~~`StatTileItem` vs `StatTile`~~ resolved in section 17.
 
 ---
 
@@ -470,10 +467,9 @@ The board worked but read as a terminal. The specific causes, in order of how mu
 The player-details overlay got the same treatment. It renders **inside** the Stats tab, so leaving it
 monospace would have dropped the reader back into the old look the moment they opened a player.
 
-**Two things kept the monospace face on purpose.** The Highlights chain tag (`clutch_1v3`) is an engine
-identifier the user can type into a ruleset, not prose, and a code-like thing should look like one. The
-`.mono` design-system class is untouched everywhere else in the app; this pass was scoped to the Stats
-page.
+**The Highlights chain tag keeps the monospace face on purpose.** `clutch_1v3` is an engine identifier
+the user can type into a ruleset, not prose, and a code-like thing should look like one. The `.mono`
+design-system class is untouched everywhere else in the app; this pass was scoped to the Stats page.
 
 **One style deleted:** `TextBlock.statsGroupBand` had no consumers left, having been suppressed when the
 category chips took over naming the group.
@@ -512,17 +508,16 @@ Everything else stays a table, which is the right form for a set of unrelated nu
 internal split differs, so a player who threw fifty grenades and one who threw five draw the same bar.
 `SegmentedBar.MaxTotal` turns bar length into volume, which means one shape now carries two facts.
 
-**Why the diverging bar is the answer to the opening-duel problem.** The benchmark research established
-that an opening-duel win rate is pinned at exactly 50% by definition and therefore says nothing without
-attempt volume: two duels won of two reads 100%. The bar shows the counts, so volume is visible as
-length, and the rate is dimmed below the eight-duel gate rather than hidden. The number is real; the
+**Why the diverging bar is the answer to the opening-duel problem.** An opening-duel win rate is pinned
+at exactly 50% by definition, so it says nothing without attempt volume. The bar shows the counts, so
+volume is visible as length, and the rate is dimmed below the eight-duel gate rather than hidden. The number is real; the
 conclusion someone would draw from it is not.
 
 **Why pips.** For a column that is usually 0 and occasionally 3, a numeric column is mostly whitespace,
 and zero and one look nearly identical while scanning. Marks make the count a length. Past twelve the
 strip gives up and writes the number, because a row of forty dots is worse than "40".
 
-### Two rules these boards keep
+### Rules these boards keep
 
 - **The whole lobby stays on screen, still sectioned by team.** Only the form of the middle column
   changes; this is the same page, not a different one.
@@ -533,7 +528,8 @@ strip gives up and writes the number, because a row of forty dots is worse than 
 
 ### Known gaps
 
-- ~~Round Wins is a contest too~~ Round Wins is not a player page at all; see section 14.
+- Round Wins looks like a contest, but it is not a player page at all: `CTW`/`CTL`/`TW`/`TL` are team
+  facts replicated onto every player row.
 - Damage has an accuracy ratio inside it (`HitFoe / Shots`) that no column expresses; a hit-rate form
   would need the engine to emit the ratio or the projector to compute it.
 - The boards are scoreboard-only. The Rounds view stays a table, which is right: a single round has no
@@ -541,7 +537,7 @@ strip gives up and writes the number, because a row of forty dots is worse than 
 
 ---
 
-## 14. Three corrections (v0.8.1)
+## 14. Corrections (v0.8.1)
 
 ### The table could not scroll sideways
 
@@ -633,31 +629,25 @@ measured zero, which is not what "not on a scale" means. Uncatalogued columns we
 The bar now requires a usable DOMAIN rather than merely a value, so those cells draw no bar at all.
 `StatValue_WithNoDomain_DrawsNoTrackEither` pins it.
 
-That test counts **magenta**, not white, because the headless harness resolves to the Light variant and
-a white-on-white count returns the whole canvas and passes either way.
+That test counts **magenta**, not white: the headless harness resolves to the Light variant.
 
 ### The fill anchors left
 
 `BarAlignment` = `Left` (default) / `Center` / `Right` / `Auto`, where `Auto` follows `TextAlignment`.
 
-**Left, because every fill then starts from the same place.** That shared origin is what lets lengths be
-compared down a column the way a bar chart's are. Anchoring to the right gives each row its own origin,
-so the eye has to re-find it on every line.
-
-The objection to left was real for as long as there was no track: a right-aligned number over a
-left-growing fill separates from it exactly when the fill is shortest, leaving a value floating beside a
-stub of colour. **The track removed it.** With a full-width track behind the number, the value always
-sits on something and the fill is read against the track rather than against the number. Turning the
-track on is what made left-anchoring the better default, so the two changes are one change.
+Left by default, because a shared origin is what makes lengths comparable down a column. The objection
+to that — a right-aligned number separating from its own fill exactly when the fill is shortest — only
+held while there was no track, so turning the track on and changing the default are one change. The
+argument is written out on `StatValue.BarAlignmentProperty`.
 
 `Auto` stays for a surface with no track to hold the number together. The dev gallery drives the choice
 from a picker, so it can be judged on real data rather than argued about.
 
 ---
 
-## 17. Refinement pass (v0.8.1)
+## 17. One way to build a scale (v0.8.1)
 
-Three things the feature had accumulated, found by asking what it had added that nothing used.
+Found by asking what the feature had added that nothing used.
 
 ### One way to build a scale
 
@@ -684,10 +674,9 @@ The record is that control's item type now, so the names are related rather than
 
 ### The channel-order trap had two copies
 
-`ToBytes` and `CountPixels` were duplicated across two test files, including the comment explaining that
-the headless framebuffer is RGBA. That comment is worth exactly one copy: it is the kind of thing that
-costs an afternoon once, and a second copy is a second thing to drift.
-`FrameProbe` holds both.
+`ToBytes` and `CountPixels` were duplicated across two test files, along with the RGBA framebuffer
+comment from section 8. A fact that costs an afternoon once is worth exactly one copy, and a second
+copy is a second thing to drift. `FrameProbe` holds both now.
 
 ### Deliberately kept, though the app does not use them
 
@@ -699,18 +688,18 @@ demonstrated and tested. `StatDomain.Absolute` is kept on the same terms, as the
 
 ---
 
-## 18. Review pass
+## 18. Defects the tests could not see
 
-An independent review over the whole branch, after section 17. Nine findings, all real, all fixed.
-Grouped by what they have in common, because most of them turned out to be the same mistake.
+These all share a cause. They are grouped by what they
+have in common, because most of them are the same mistake.
 
-### Four bugs that a test reading a value cannot see
+### Bugs a value assertion cannot see
 
 The stats page decides what to draw from computed getters: `IsColumnTable`, `IsBoardLayout`,
 `IsCompositionBoard`. **A getter is always correct.** Read one at any point and it returns the right
 answer, whether or not anything was ever announced. A binding does not read the getter again; it reads
 it once, on the notification. So a missing `PropertyChanged` is invisible to every test that asserts on
-values, and both of the serious findings shipped green underneath a full suite.
+values: the suite stays green over a page that never draws.
 
 - **The scoreboard never appeared on first load.** `Update()` rebuilds the rows before it knows whether
   there were any, so the layout flags are announced while `HasStats` is still false, and
@@ -730,7 +719,7 @@ was announced**, not the names announced. The name alone is not enough: `Update(
 `IsColumnTable`, from inside the row rebuild, and every one of those announcements carried false. The
 invariant that catches it is *the last thing the view was told equals what is actually true*.
 
-Each was watched failing before the fix went in. Without that step a regression test is decoration.
+A regression test nobody has watched fail is decoration.
 
 ### A star that marked most of the column
 
@@ -746,7 +735,7 @@ comes from the scale, so it cannot drift out of step with the bar.
 The rule is a **minority** one, not a uniqueness one: two players genuinely tied for top kills are both
 leading and both get the star; a floor most of the lobby sits on is not a lead at all.
 
-### Three drawing bugs, one cause
+### Stale cached text
 
 All three are a cached `FormattedText` outliving the state it was built from.
 
@@ -846,9 +835,9 @@ loses its colour**.
 | `CSAtt` | 20 | `CS%`. Three attempts all stopped reads 100% and means nothing, which is why the ruleset also ships `CSAll%` over every bullet. |
 | `SprayN` | 20 | `Spray`. Only LANDED bullets after a run's first one qualify and `bullet_damage` does not fire for misses, so this population is far thinner than the shot count suggests. A mean angle over one bullet is not a rating. |
 | `Spots` | 8 | `FB%`, `SAcc%`, `SprayAcc%`, `Preaim`. All four are measured only after a round's first enemy contact. |
-| `XShots` | 8 | `XPlace`. Crosshair travel only exists on an engagement that had a contact, and a player without one reads `0.0`, the shortest travel on the board. Gated on `XShots`, NOT on `Spot`: `Spot` is per-round and `XPlace` is per-match, and `ClearsColourGate` reads its gate columns off the same `MetricRow`, so a match-scoped row carries no `Spot` at all and the gate would sum to zero and neuter the column outright. |
-| `TTSn` | 8 | `TTS`. The ruleset guards the denominator with `max(d, 1)`, so a player with no measured engagement reads 0 ms: the fastest reaction on the board, off nothing. |
-| `TTDn` | 8 | `TTD`. Same shape as `TTS`. One gate column each, not a shared `[TTSn, TTDn]`: the gate SUMS its columns, so a shared pair would let a player's damage volume clear their shot column and the other way round, which is exactly the thin sample the gate exists to catch. |
+| `XShots` | 8 | `XPlace`. Crosshair travel only exists on an engagement that had a contact, and a player without one reads `0.0`, the shortest travel on the board. Gated on `XShots`, NOT on `Spot`, which is per-round against a per-match column and would sum to zero. |
+| `TTSn` | 8 | `TTS`. A player with no measured engagement reads 0 ms: the fastest reaction on the board, off nothing. |
+| `TTDn` | 8 | `TTD`. Same shape as `TTS`. One gate column each, not a shared `[TTSn, TTDn]`: the gate SUMS its columns, so a shared pair would let one thin population ride on the other's volume. |
 | `AimRxn` | 8 | `AimRx`. Same shape again: an aimed reaction only exists where the crosshair was seen arriving on the target. |
 
 A gate column missing from the evaluation sums to zero and so gates the whole column off. That is the

@@ -3,7 +3,8 @@
 **For:** the CS2DemoKit team
 **From:** DemoViewer.NET, v0.8.1 aim-rating workstream
 **Against:** CS2DemoKit v0.10.0
-**Status:** specification. Nothing here is implemented.
+**Status:** implemented. `VisibilityTransitionScanner`, `AimVantageScanner` and the eye/punch angle
+providers all landed engine-side, and DemoViewer.NET consumes the package that ships them.
 
 DemoViewer.NET is adding a family of 18 aim-quality statistics (counter-strafing, spray control,
 crosshair placement, the time-to-X ladder). Most of them need per-tick entity state the engine does
@@ -156,9 +157,10 @@ ruleset is loaded.
 
 ### 5.2 `VisibilityTransitionScanner`
 
-The capability that does not exist today. `VisibilityAnalyzer.Analyze` computes per-tick pairwise
-visibility and then **throws the booleans away**, accumulating only seconds. There is no rising-edge
-detection and nothing in `Report` carries a tick.
+The capability this document was written to request; none of it was in v0.10.0.
+`VisibilityAnalyzer.Analyze` computes per-tick pairwise visibility and then **throws the booleans
+away**, accumulating only seconds. There is no rising-edge detection and nothing in `Report` carries
+a tick.
 
 Requested: detect `false -> true` transitions per directed (viewer, target) enemy pair and synthesize an
 event carrying:
@@ -279,10 +281,11 @@ Reproduce with `src/App/DemoViewer.NET.App.Tests/AimPunchOracleProbe.cs`, which 
 `bullet_damage` in a demo and prints the comparison. It is `[Category("RealDemo")]` and needs
 `DEMO_PATH`.
 
-**We are not blocked on it.** `bullet_damage.ShootAng` already carries the resolved shot direction
-with the punch folded in, so spray control is computed from that instead. But the column is exposed
-to rules as `player.punch_pitch` / `player.punch_yaw` and will silently produce nonsense for anyone
-who reads it, so it wants either a decode fix or removal.
+**We were not blocked on it.** `bullet_damage.ShootAng` already carries the resolved shot direction
+with the punch folded in, so spray control is computed from that instead. The column itself no longer
+lies: the engine's `AimPunchSchema` detector picks whichever field family the demo actually carries,
+and a guard returns null when what it found is not physically a punch, so `player.punch_pitch` /
+`player.punch_yaw` read empty on a demo like this one rather than reading 266 degrees.
 
 **One related finding worth having regardless:** `ShootAng = eyeAngle + AimPunch`, verified per shot
 on the same demo. That identity makes the real per-shot recoil recoverable as

@@ -1296,9 +1296,9 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    ///     Whether this row has earned a tint on a gated column. Opening-duel win rate is the case: it is
-    ///     pinned at 50% by definition, so two duels won of two reads 100% and says nothing. A row below
-    ///     the gate keeps its bar and loses its colour, rather than vanishing from the column.
+    ///     Whether this row has earned a tint on a gated column. Below the gate a row keeps its bar and
+    ///     loses its colour, rather than vanishing from the column. Which columns gate, and on what, is
+    ///     on the specs in <see cref="ColumnCatalogue" />.
     /// </summary>
     private static bool ClearsColourGate(MetricRow row, StatScaleSpec spec)
     {

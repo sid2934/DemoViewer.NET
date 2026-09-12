@@ -193,8 +193,8 @@ public class StatsBoardScaleTests
     ///     The specs actually reach the catalogue. This exists because the failure mode when they do not
     ///     is SILENT: C# runs static field initializers in declaration order, so a spec declared below
     ///     <c>_byKey</c> is still null while <c>BuildCatalogue()</c> reads it. Every column then quietly
-    ///     gets no scale and the board renders exactly as it did before the feature landed. That is
-    ///     precisely what happened during this work, and nothing but this test would have said so.
+    ///     gets no scale and the board renders exactly as it did before the feature landed: numbers all
+    ///     correct, bars all gone, nothing thrown. Only a spec-by-spec sweep of the catalogue notices.
     /// </summary>
     [Test]
     public async Task Catalogue_CarriesTheScaleSpecs()
@@ -614,10 +614,8 @@ public class StatsBoardScaleTests
     }
 
     /// <summary>
-    ///     No aim column carries an absolute colour band. The available reference data is 50
-    ///     player-match rows and five pro accounts, which cannot define a percentile scale, and a
-    ///     per-opportunity efficiency has no structurally pinned mean to hang one off anyway. A band
-    ///     invented here would look exactly as authoritative as the researched ones above it.
+    ///     No aim column carries an absolute colour band. The bar a band has to clear, and why none of
+    ///     these columns clears it, is on the aim scale shapes in <see cref="ColumnCatalogue" />.
     /// </summary>
     [Test]
     public async Task AimColumns_CarryNoInventedBenchmark()
@@ -715,8 +713,8 @@ public class StatsBoardScaleTests
     }
 
     /// <summary>
-    ///     A deaths column draws its longest bar for the MOST deaths and tints it bad. Getting this
-    ///     backwards produces a board that looks fine and reads inverted.
+    ///     <see cref="StatScale.Fraction" />'s asymmetry, checked end to end through the board. Getting
+    ///     it backwards produces a board that looks fine and reads inverted.
     /// </summary>
     [Test]
     public async Task LowerIsBetterColumn_KeepsTheBarAndFlipsTheTint()
@@ -821,9 +819,8 @@ public class StatsBoardScaleTests
     }
 
     /// <summary>
-    ///     The gate that matters. A demo cut at the buzzer can lose the winner's final round, leaving a
-    ///     scoreline that reads as a tie. Showing DRAW on a match somebody won is worse than showing
-    ///     nothing, so an implausible total must yield no pill at all.
+    ///     The gate that matters: an implausible scoreline yields no pill at all rather than a DRAW. The
+    ///     reason is on the outcome gate in <see cref="StatsTabViewModel" />.
     /// </summary>
     [Test]
     public async Task Outcome_IsWithheldWhenTheScorelineIsImplausible()
@@ -961,8 +958,8 @@ public class StatsBoardScaleTests
     ///         flag is a computed getter, and a getter is always correct: read one after any of these
     ///         transitions and it returns the right answer whether or not it was ever announced. A
     ///         binding re-reads on the notification and on nothing else, so a missing announcement is
-    ///         invisible to a test that asserts on values. Both defects here shipped green for exactly
-    ///         that reason.
+    ///         invisible to a test that asserts on values: the assertion calls the getter, the getter is
+    ///         right, and the screen stays stale. Only the subscription can tell those two apart.
     ///     </para>
     ///     <para>
     ///         The recorded VALUE matters, not just the name. Update() announces the layout flags from
@@ -1240,7 +1237,10 @@ public class StatsBoardScaleTests
         await Assert.That(vm.TeamSections.Single(t => t.IsCt).Score).IsEqualTo(13);
     }
 
-    /// <summary>A category that can only ever hold one column is a tab that costs a click for one number.</summary>
+    /// <summary>
+    ///     Survived sits with the rating columns instead of owning a one-column tab, per
+    ///     <see cref="ColumnCatalogue" />.
+    /// </summary>
     [Test]
     public async Task RoundsSurvived_LivesWithTheOtherRatingColumns()
     {
@@ -1253,12 +1253,12 @@ public class StatsBoardScaleTests
     /// <summary>
     ///     A table wider than its card must be reachable in BOTH directions.
     ///     <para>
-    ///         This shipped broken. The body used to be a vertical scroller nested inside a horizontal
-    ///         one, and a nested scroller is laid out at the full CONTENT width rather than the viewport
-    ///         width, which parks its scrollbar permanently off-screen. The Other page had eight columns,
-    ///         five visible, and no way to reach the other three. The assertion that catches it is that
-    ///         the viewport must be SMALLER than the bounds: that gap is the space the scrollbars occupy,
-    ///         and it is zero when they have nowhere to live.
+    ///         The trap is nesting. A vertical scroller inside a horizontal one is laid out at the full
+    ///         CONTENT width rather than the viewport width, which parks its scrollbar permanently
+    ///         off-screen. The Other page has eight columns with five visible, so the last three become
+    ///         unreachable and nothing on screen says so. The assertion that catches it is that the
+    ///         viewport must be SMALLER than the bounds: that gap is the space the scrollbars occupy, and
+    ///         it is zero when they have nowhere to live.
     ///     </para>
     /// </summary>
     [Test]

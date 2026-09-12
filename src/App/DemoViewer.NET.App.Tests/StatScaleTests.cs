@@ -50,8 +50,8 @@ public class StatScaleTests
     }
 
     /// <summary>
-    ///     The load-bearing asymmetry: polarity moves the colour and leaves the bar alone. A deaths column
-    ///     draws its longest bar for the most deaths; only the tint says that is bad.
+    ///     The load-bearing asymmetry: polarity moves the colour and leaves the bar alone, as
+    ///     <see cref="StatScale.Fraction" /> spells out.
     /// </summary>
     [Test]
     public async Task Fraction_IsNeverInvertedByPolarity()
