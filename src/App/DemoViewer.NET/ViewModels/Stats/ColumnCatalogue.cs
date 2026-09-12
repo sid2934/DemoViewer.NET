@@ -208,7 +208,8 @@ public sealed record ColumnMeta(
     double Width = 60,
     StatScaleSpec? Scale = null,
     bool Hidden = false,
-    Denominator? Denominator = null);
+    Denominator? Denominator = null,
+    bool RequiresVisibility = false);
 
 /// <summary>
 ///     The app-side single source of truth for how shipped stat columns present (display name,
@@ -381,10 +382,15 @@ public static class ColumnCatalogue
     // Declared in canonical board order (the _seq counter IS the order).
     private static readonly Dictionary<string, ColumnMeta> _byKey = BuildCatalogue();
 
+    // `sight: true` marks a column that only exists if the run had line-of-sight geometry to work
+    // with. It is not cosmetic: without it those columns read a hard 0 that is indistinguishable
+    // from a measured 0, which is exactly how a map shipped with no collision bake looked like a
+    // player with no reaction time.
     private static ColumnMeta M(string key, string display, StatGroup group, string tooltip,
         Emphasis emphasis = Emphasis.None, ColumnAggregate agg = ColumnAggregate.Sum, double width = 60,
-        StatScaleSpec? scale = null, bool hidden = false, Denominator? over = null) =>
-        new(key, display, group, _seq++, true, emphasis, agg, tooltip, width, scale, hidden, over);
+        StatScaleSpec? scale = null, bool hidden = false, Denominator? over = null, bool sight = false) =>
+        new(key, display, group, _seq++, true, emphasis, agg, tooltip, width, scale, hidden, over,
+            sight);
 
     private static Dictionary<string, ColumnMeta> BuildCatalogue()
     {
@@ -439,11 +445,11 @@ public static class ColumnCatalogue
             // movement penalty for. CSAll% + Linear% is the attempted share; the remainder was fired from
             // a standstill, which is neither a success nor a failure and so is not on the board at all.
             M("Linear%", "Linear %", StatGroup.Accuracy, "Bullets fired while still moving fast enough for the engine to charge movement inaccuracy (%)", agg: ColumnAggregate.Average, width: 76, scale: _peerDown),
-            M("FB%", "First Bullet %", StatGroup.Accuracy, "First bullet out of the barrel that landed, after first contact (%). Hover a cell for the contacts behind it", agg: ColumnAggregate.Average, width: 100, scale: _contactGatedUp, over: new("Spots", "contacts", "%", "after")),
+            M("FB%", "First Bullet %", StatGroup.Accuracy, "First bullet out of the barrel that landed, after first contact (%). Hover a cell for the contacts behind it", agg: ColumnAggregate.Average, width: 100, scale: _contactGatedUp, over: new("Spots", "contacts", "%", "after"), sight: true),
             M("Spray", "Spray Control", StatGroup.AimQuality, "Mean angular distance between a bullet and the first bullet of its spray: lower is tighter compensation. Hover a cell for the shots behind it", agg: ColumnAggregate.Average, width: 76, scale: _sprayResidual, over: new("SprayN", "shots", "°")),
-            M("Preaim", "Preaim", StatGroup.AimQuality, "Mean degrees off the enemy's chest at first contact (lower is better). Hover a cell for the contacts behind it", agg: ColumnAggregate.Average, width: 70, scale: _contactGatedDown, over: new("Spots", "contacts", "°")),
-            M("SAcc%", "Spotted Acc %", StatGroup.Accuracy, "Enemy bullet hits per bullet fired after first contact (%). Hover a cell for the contacts behind it", agg: ColumnAggregate.Average, width: 98, scale: _contactGatedUp, over: new("Spots", "contacts", "%", "after")),
-            M("SprayAcc%", "Spray Acc %", StatGroup.Accuracy, "Bullets after the first out of the barrel that landed, after first contact (%). Hover a cell for the contacts behind it", agg: ColumnAggregate.Average, width: 92, scale: _contactGatedUp, over: new("Spots", "contacts", "%", "after")),
+            M("Preaim", "Preaim", StatGroup.AimQuality, "Mean degrees off the enemy's chest at first contact (lower is better). Hover a cell for the contacts behind it", agg: ColumnAggregate.Average, width: 70, scale: _contactGatedDown, over: new("Spots", "contacts", "°"), sight: true),
+            M("SAcc%", "Spotted Acc %", StatGroup.Accuracy, "Enemy bullet hits per bullet fired after first contact (%). Hover a cell for the contacts behind it", agg: ColumnAggregate.Average, width: 98, scale: _contactGatedUp, over: new("Spots", "contacts", "%", "after"), sight: true),
+            M("SprayAcc%", "Spray Acc %", StatGroup.Accuracy, "Bullets after the first out of the barrel that landed, after first contact (%). Hover a cell for the contacts behind it", agg: ColumnAggregate.Average, width: 92, scale: _contactGatedUp, over: new("Spots", "contacts", "%", "after"), sight: true),
             // Populations: hidden. Each is the denominator of a column above and reads in that column's
             // cell tooltip, beside the value it qualifies, which is the only place a thin sample is
             // visible: three columns to the right, on a board that did not fit, nobody connected the
@@ -452,7 +458,7 @@ public static class ColumnCatalogue
             // stays so the catalogue tests sweep every ruleset label the same way.
             M("CSAtt", "CS Attempts", StatGroup.Accuracy, "Shots where a counter-strafe was attempted: the CS% denominator", width: 92, scale: _peerNoTint, hidden: true),
             M("SprayN", "Spray Shots", StatGroup.AimQuality, "Shots whose spray residual could be measured: the Spray denominator", width: 88, scale: _peerNoTint, hidden: true),
-            M("Spots", "Spots", StatGroup.Accuracy, "First enemy contacts: the Preaim denominator, and the gate behind every after-contact column", width: 64, scale: _peerNoTint, hidden: true),
+            M("Spots", "Spots", StatGroup.Accuracy, "First enemy contacts: the Preaim denominator, and the gate behind every after-contact column", width: 64, scale: _peerNoTint, hidden: true, sight: true),
 
             // ── Damage ──
             M("EnemyDmg", "Enemy Dmg", StatGroup.Damage, "Total damage dealt to enemies (HP-capped)", width: 84, scale: _peerUp),
@@ -539,21 +545,21 @@ public static class ColumnCatalogue
             // The round-scoped half of the aim ruleset. Both angle columns pair the round's FIRST contact
             // with its first landed bullet, which is an approximation the ruleset states rather than a
             // measurement, so Spot rides along: on a round with no contact their 0.0 is the empty state.
-            M("XPlace", "Crosshair Travel", StatGroup.AimQuality, "Degrees the crosshair travelled from first contact to the first landed bullet (lower is better). Hover a cell for the shots behind it", agg: ColumnAggregate.Average, width: 112, scale: _travelGatedDown, over: new("XShots", "shots", "°")),
+            M("XPlace", "Crosshair Travel", StatGroup.AimQuality, "Degrees the crosshair travelled from first contact to the first landed bullet (lower is better). Hover a cell for the shots behind it", agg: ColumnAggregate.Average, width: 112, scale: _travelGatedDown, over: new("XShots", "shots", "°"), sight: true),
             // Signed, so neither direction is the good one: positive overshot and had to be walked back,
             // negative was dragged onto the target. Same treatment as FK+/-, where the sign is the story
             // and the bar already carries it.
-            M("FlickErr", "Flick Error", StatGroup.AimQuality, "Crosshair travel minus the angle the contact demanded: positive overshot, negative undershot. Hover a cell for the shots behind it", agg: ColumnAggregate.Average, width: 84, scale: _peerNoTint, over: new("XShots", "shots", "°")),
-            M("XShots", "Travel Shots", StatGroup.AimQuality, "Landed shots paired to a contact inside the engagement window: the XPlace and FlickErr denominator", width: 92, scale: _peerNoTint, hidden: true),
-            M("TTS", "Time to Shoot", StatGroup.AimQuality, "Milliseconds from an enemy becoming visible to the first shot answering it: reaction without accuracy or fire rate mixed in. Hover a cell for the engagements behind it", agg: ColumnAggregate.Average, width: 96, scale: _shootGatedDown, over: new("TTSn", "engagements", " ms")),
-            M("TTSn", "TTS Engagements", StatGroup.AimQuality, "Contacts answered by a shot: the TTS denominator", width: 96, scale: _peerNoTint, hidden: true),
-            M("TTD", "Time to Damage", StatGroup.AimQuality, "Milliseconds from an enemy becoming visible to the first bullet that damaged them. Quantised by fire rate, so partly a first-shot-accuracy measure. Hover a cell for the engagements behind it", agg: ColumnAggregate.Average, width: 104, scale: _damageGatedDown, over: new("TTDn", "engagements", " ms")),
-            M("TTDn", "TTD Engagements", StatGroup.AimQuality, "Contacts answered by a landed bullet: the TTD denominator", width: 96, scale: _peerNoTint, hidden: true),
-            M("AimRx", "Aimed Reaction", StatGroup.AimQuality, "Milliseconds from the crosshair arriving on an enemy to the shot: reaction with the aim travel taken out. Hover a cell for the acquisitions behind it", agg: ColumnAggregate.Average, width: 100, scale: _acquisitionGatedDown, over: new("AimRxn", "acquisitions", " ms")),
-            M("AimRxn", "AimRx Engagements", StatGroup.AimQuality, "Acquisitions answered by a shot: the AimRx denominator", width: 104, scale: _peerNoTint, hidden: true),
-            M("TTK", "Time to Kill", StatGroup.AimQuality, "Milliseconds from an enemy becoming visible to killing them. Confounds aim with damage output and armour, and can read BELOW TTD because the two average over different engagements. Hover a cell for the kills behind it", agg: ColumnAggregate.Average, width: 88, scale: _peerNoTint, over: new("TTKn", "kills", " ms")),
-            M("TTKn", "TTK Engagements", StatGroup.AimQuality, "Contacts that ended in a kill: the TTK denominator", width: 96, scale: _peerNoTint, hidden: true),
-            M("Spot", "Spot", StatGroup.Accuracy, "The player made first contact this round: the round-board twin of Spots, and the only aim cell on the round board", width: 56, scale: _peerNoTint)
+            M("FlickErr", "Flick Error", StatGroup.AimQuality, "Crosshair travel minus the angle the contact demanded: positive overshot, negative undershot. Hover a cell for the shots behind it", agg: ColumnAggregate.Average, width: 84, scale: _peerNoTint, over: new("XShots", "shots", "°"), sight: true),
+            M("XShots", "Travel Shots", StatGroup.AimQuality, "Landed shots paired to a contact inside the engagement window: the XPlace and FlickErr denominator", width: 92, scale: _peerNoTint, hidden: true, sight: true),
+            M("TTS", "Time to Shoot", StatGroup.AimQuality, "Milliseconds from an enemy becoming visible to the first shot answering it: reaction without accuracy or fire rate mixed in. Hover a cell for the engagements behind it", agg: ColumnAggregate.Average, width: 96, scale: _shootGatedDown, over: new("TTSn", "engagements", " ms"), sight: true),
+            M("TTSn", "TTS Engagements", StatGroup.AimQuality, "Contacts answered by a shot: the TTS denominator", width: 96, scale: _peerNoTint, hidden: true, sight: true),
+            M("TTD", "Time to Damage", StatGroup.AimQuality, "Milliseconds from an enemy becoming visible to the first bullet that damaged them. Quantised by fire rate, so partly a first-shot-accuracy measure. Hover a cell for the engagements behind it", agg: ColumnAggregate.Average, width: 104, scale: _damageGatedDown, over: new("TTDn", "engagements", " ms"), sight: true),
+            M("TTDn", "TTD Engagements", StatGroup.AimQuality, "Contacts answered by a landed bullet: the TTD denominator", width: 96, scale: _peerNoTint, hidden: true, sight: true),
+            M("AimRx", "Aimed Reaction", StatGroup.AimQuality, "Milliseconds from the crosshair arriving on an enemy to the shot: reaction with the aim travel taken out. Hover a cell for the acquisitions behind it", agg: ColumnAggregate.Average, width: 100, scale: _acquisitionGatedDown, over: new("AimRxn", "acquisitions", " ms"), sight: true),
+            M("AimRxn", "AimRx Engagements", StatGroup.AimQuality, "Acquisitions answered by a shot: the AimRx denominator", width: 104, scale: _peerNoTint, hidden: true, sight: true),
+            M("TTK", "Time to Kill", StatGroup.AimQuality, "Milliseconds from an enemy becoming visible to killing them. Confounds aim with damage output and armour, and can read BELOW TTD because the two average over different engagements. Hover a cell for the kills behind it", agg: ColumnAggregate.Average, width: 88, scale: _peerNoTint, over: new("TTKn", "kills", " ms"), sight: true),
+            M("TTKn", "TTK Engagements", StatGroup.AimQuality, "Contacts that ended in a kill: the TTK denominator", width: 96, scale: _peerNoTint, hidden: true, sight: true),
+            M("Spot", "Spot", StatGroup.Accuracy, "The player made first contact this round: the round-board twin of Spots, and the only aim cell on the round board", width: 56, scale: _peerNoTint, sight: true)
         ];
 
         Dictionary<string, ColumnMeta> byKey = new(StringComparer.Ordinal);
@@ -585,6 +591,25 @@ public static class ColumnCatalogue
     /// </summary>
     public static bool ShowsUnder(string key, StatGroup group) =>
         Resolve(key) is { Hidden: false } meta && meta.Group == group;
+
+    /// <summary>
+    ///     True when this column can only be computed from a line-of-sight pass, so a run with no
+    ///     collision geometry produces a meaningless 0 for it rather than a measurement.
+    /// </summary>
+    public static bool RequiresVisibility(string key) => Resolve(key).RequiresVisibility;
+
+    /// <summary>
+    ///     The hidden count that says whether the line-of-sight pass produced anything at all: first
+    ///     enemy contacts. It is the denominator or the colour gate of most of the columns marked
+    ///     <see cref="ColumnMeta.RequiresVisibility" />, so when it is zero for every player on the
+    ///     board none of them has a measurement to show.
+    ///     <para>
+    ///         Reading the data beats asking whether a bake file exists: it is equally true of a map
+    ///         with no bake, a bake that failed to load, and a demo source whose events cannot support
+    ///         the pass, and those all deserve the same "no data" treatment.
+    ///     </para>
+    /// </summary>
+    public const string VisibilityAnchorColumn = "Spots";
 
     /// <summary>
     ///     Every catalogued column, for the tests that hold the whole catalogue to one rule rather than

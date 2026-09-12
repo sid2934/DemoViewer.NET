@@ -1515,17 +1515,182 @@ public class StatsBoardScaleTests
         return vm.GameRows.Single(r => r.PlayerName == player).Cells[index];
     }
 
-    private static StatsTabViewModel BuildVm(int ctRoundWins = 13, int tRoundWins = 9)
+    // -- No line-of-sight data: "no data" must not look like a measurement ------------------------
+    //
+    // The bug these pin: de_mirage ships no collision.tris, the projector emitted 0 for all seventeen
+    // line-of-sight columns, and the board rendered them as real values. Seven of the eight columns on
+    // the Aim Quality page read 0, which looks like ten players with a 0 ms reaction time rather than a
+    // missing asset. Watched failing before the fix: every assertion below reported 0 where it now
+    // expects no value.
+
+    /// <summary>
+    ///     Every column the catalogue marks as line-of-sight reads "no data" when the pass produced
+    ///     none, and the columns that do not depend on it are untouched.
+    /// </summary>
+    [Test]
+    [Arguments("Preaim")]
+    [Arguments("XPlace")]
+    [Arguments("FlickErr")]
+    [Arguments("TTS")]
+    [Arguments("TTD")]
+    [Arguments("AimRx")]
+    [Arguments("TTK")]
+    public async Task NoSightData_SightColumnReadsNoData(string column)
+    {
+        StatsTabViewModel vm = BuildVm(sightless: true);
+        vm.SelectedCategory = ColumnCatalogue.Resolve(column).Group;
+
+        StatCell cell = Cell(vm, _roster[0].Name, column);
+
+        await Assert.That(cell.Unavailable).IsTrue();
+        await Assert.That(cell.Raw).IsNull();
+        await Assert.That(cell.Numeric).IsNull();
+        await Assert.That(cell.Display).IsEqualTo("–");
+        // A null cannot be tinted, ranked or starred, which is the point: a column of zeros used to
+        // define its own peer domain and hand somebody a leader star for having no data.
+        await Assert.That(cell.IsScaled).IsFalse();
+        await Assert.That(cell.IsLeader).IsFalse();
+    }
+
+    /// <summary>
+    ///     Spray is measured from the shots themselves and needs no geometry, so it keeps its value on
+    ///     the same board. Without this the fix could pass by blanking the whole page.
+    /// </summary>
+    [Test]
+    [Arguments("Spray")]
+    [Arguments("Acc%")]
+    [Arguments("CS%")]
+    [Arguments("Linear%")]
+    public async Task NoSightData_LeavesTheShotOnlyColumnsAlone(string column)
+    {
+        StatsTabViewModel vm = BuildVm(sightless: true);
+        vm.SelectedCategory = ColumnCatalogue.Resolve(column).Group;
+
+        StatCell cell = Cell(vm, _roster[0].Name, column);
+
+        await Assert.That(cell.Unavailable).IsFalse();
+        await Assert.That(cell.Numeric).IsEqualTo(AimValue(column, 0));
+    }
+
+    /// <summary>
+    ///     The board says why, naming the map and the columns. The old message named the visibility
+    ///     replay button instead, and lived in a toolbar slot that trimmed it.
+    /// </summary>
+    [Test]
+    public async Task NoSightData_ExplainsItselfOnTheBoard()
+    {
+        StatsTabViewModel vm = BuildVm(sightless: true);
+
+        await Assert.That(vm.SightUnavailable).IsTrue();
+        await Assert.That(vm.HasSightNotice).IsTrue();
+        await Assert.That(vm.SightNotice).Contains("de_test");
+        await Assert.That(vm.SightNotice).Contains("Time to Shoot");
+    }
+
+    /// <summary>
+    ///     The control: a run that DID produce contacts marks nothing unavailable and raises no notice.
+    ///     A fix that fired on every demo would be worse than the bug.
+    /// </summary>
+    [Test]
+    public async Task WithSightData_NothingIsUnavailableAndNoNoticeIsRaised()
+    {
+        StatsTabViewModel vm = BuildVm();
+
+        await Assert.That(vm.SightUnavailable).IsFalse();
+        await Assert.That(vm.HasSightNotice).IsFalse();
+        await Assert.That(vm.SightNotice).IsEqualTo("");
+
+        foreach (StatGroup group in new[] { StatGroup.Accuracy, StatGroup.AimQuality })
+        {
+            vm.SelectedCategory = group;
+            foreach (StatsRow row in vm.GameRows)
+            {
+                foreach (StatCell cell in row.Cells)
+                {
+                    await Assert.That(cell.Unavailable).IsFalse();
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     The board's own counts outrank the bake file. This fixture's map has no geometry anywhere on
+    ///     disk, yet its anchor count is positive for every player, so the data demonstrably exists and
+    ///     nothing may be blanked. Checking the file first would blank a full board of real values.
+    /// </summary>
+    [Test]
+    public async Task PositiveAnchorCount_OutranksAMissingBakeFile()
+    {
+        StatsTabViewModel vm = BuildVm();
+
+        await Assert.That(vm.GameTable!.ValueColumns).Contains(ColumnCatalogue.VisibilityAnchorColumn);
+        await Assert.That(vm.CanComputeVisibility).IsFalse(); // no bake resolves for de_test
+        await Assert.That(vm.SightUnavailable).IsFalse();
+
+        // Spots is a hidden denominator, so read a visible column that depends on it instead.
+        vm.SelectedCategory = StatGroup.AimQuality;
+        StatCell tts = Cell(vm, _roster[0].Name, "TTS");
+        await Assert.That(tts.Unavailable).IsFalse();
+        await Assert.That(tts.Numeric).IsEqualTo(AimValue("TTS", 0));
+    }
+
+    /// <summary>
+    ///     The notice reaches the screen. A view-model property the XAML cannot find fails silently in
+    ///     Avalonia, so a band bound to a misspelled name would simply never appear and every assertion
+    ///     on the view model would still pass. This mounts the real view and looks for the text.
+    /// </summary>
+    [Test]
+    public async Task NoSightData_NoticeBandIsRendered()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            StatsTabViewModel vm = BuildVm(sightless: true);
+            vm.SelectedCategory = StatGroup.AimQuality;
+
+            StatsTabView view = new()
+            {
+                DataContext = vm
+            };
+            Window window = new()
+            {
+                Width = 1280, Height = 620, Content = view
+            };
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Dispatcher.UIThread.RunJobs();
+
+            TextBlock[] shown = view.GetVisualDescendants().OfType<TextBlock>()
+                .Where(t => t.IsVisible && t.Text is { } text && text.Contains("Time to Shoot",
+                    StringComparison.Ordinal))
+                .ToArray();
+            await Assert.That(shown).IsNotEmpty()
+                .Because("the board notice explaining the blank columns has to be on screen");
+            await Assert.That(shown[0].Text).Contains("de_test");
+
+            // Kept as an artifact: the band over a board of dashes is the whole behaviour in one frame.
+            if (window.CaptureRenderedFrame() is { } frame)
+            {
+                string outPath = Path.Combine(HeadlessSession.ArtifactDir, "stats-no-sight-data.png");
+                using FileStream file = File.Create(outPath);
+                frame.Save(file);
+                Console.WriteLine($"[stats-no-sight-data] {outPath}");
+            }
+        });
+    }
+
+    private static StatsTabViewModel BuildVm(int ctRoundWins = 13, int tRoundWins = 9,
+        bool sightless = false)
     {
         StatsTabViewModel vm = new(null, () => "/demos/match.dem");
-        (EvaluationResult result, ParsedDemo demo) = BuildScenario(ctRoundWins, tRoundWins);
+        (EvaluationResult result, ParsedDemo demo) = BuildScenario(ctRoundWins, tRoundWins, sightless);
         vm.Update(result, demo);
         return vm;
     }
 
     /// <summary>Mirrors the fixture shape in <see cref="StatsTabTests" />, widened to ten players.</summary>
     private static (EvaluationResult Result, ParsedDemo Demo) BuildScenario(
-        int ctRoundWins, int tRoundWins)
+        int ctRoundWins, int tRoundWins, bool sightless = false)
     {
         StubNode roundNode = new("RoundNumber");
         List<StateNode> tracked = [roundNode];
@@ -1581,7 +1746,10 @@ public class StatsBoardScaleTests
             int aimBase = otherBase + _otherColumns.Length;
             for (int a = 0; a < _aimColumns.Length; a++)
             {
-                vec[colIdx[p][aimBase + a]] = Snap(AimValue(_aimColumns[a], p));
+                // A map with no collision bake does not omit the line-of-sight columns; the projector
+                // emits a hard 0 for every one of them, denominators included. That is the shape.
+                bool blind = sightless && ColumnCatalogue.RequiresVisibility(_aimColumns[a]);
+                vec[colIdx[p][aimBase + a]] = Snap(blind ? 0 : AimValue(_aimColumns[a], p));
             }
         }
 

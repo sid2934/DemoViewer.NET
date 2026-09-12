@@ -365,6 +365,31 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     /// </summary>
     public bool CanComputeVisibility => HasStats && _collisionTrisPath is not null;
 
+    /// <summary>
+    ///     True when this run produced no line-of-sight data, so every column the catalogue marks
+    ///     <see cref="ColumnMeta.RequiresVisibility" /> reads "no data" instead of the projector's 0.
+    ///     <para>
+    ///         Decided from the projected rows where they can say, and from the bake file only where
+    ///         they cannot: a map with no bake, a bake that failed to load and a demo source that cannot
+    ///         support the pass all produce the same empty board and all deserve the same treatment.
+    ///         Seventeen columns depend on that pass, and on a map with no bake seven of the eight on
+    ///         the Aim Quality board read a hard zero, which is how a missing asset came to look like
+    ///         ten players with superhuman reactions.
+    ///     </para>
+    /// </summary>
+    public bool SightUnavailable { get; private set; }
+
+    /// <summary>
+    ///     The board-level explanation shown when <see cref="SightUnavailable" /> leaves columns with no
+    ///     data, or empty when every column has something behind it. It sits over the table rather than
+    ///     in the toolbar because it is about the cells, and the toolbar line beside the visibility
+    ///     button was read as being about that button.
+    /// </summary>
+    public string SightNotice { get; private set; } = "";
+
+    /// <summary>Whether <see cref="SightNotice" /> has anything to say.</summary>
+    public bool HasSightNotice => SightNotice.Length > 0;
+
     /// <summary>Per-player visibility rows (team-grouped), populated by the compute action.</summary>
     public IReadOnlyList<VisibilityRow> VisibilityRows { get; private set; } = [];
 
@@ -389,6 +414,8 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         _visibilityDemo = null;
         _sprays.Clear();
         _collisionTrisPath = null;
+        SightUnavailable = false;
+        SightNotice = "";
         VisibilityPlayersTable = null;
         VisibilityPairsTable = null;
         VisibilityRows = [];
@@ -719,11 +746,23 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         RebuildRoundRows();
 
         HasStats = GameRows.Count > 0;
-        StatusMessage = !HasStats
-            ? "Analysis produced no per-player stats for this demo."
-            : CanComputeVisibility
-                ? ""
-                : $"No collision bake for {demo.MapName} — visibility stats unavailable.";
+        // The old message here named the visibility REPLAY, which is the button beside it, and so read
+        // as "that feature is switched off" rather than "seventeen columns on the board in front of you
+        // have no data". It also only fired when the bake file was absent, never when a present bake
+        // produced nothing. The explanation now goes in a band over the board itself, where the zeros
+        // were, and the toolbar line is left for the toolbar's own business.
+        StatusMessage = HasStats ? "" : "Analysis produced no per-player stats for this demo.";
+        SightNotice = !HasStats || !SightUnavailable
+            ? ""
+            : _collisionTrisPath is null
+                ? $"No collision geometry is shipped for {demo.MapName}, so the line-of-sight columns "
+                  + "have nothing to measure on this demo: Preaim, Crosshair Travel, Time to Shoot, Time "
+                  + "to Damage, Aimed Reaction, Time to Kill, and the accuracies counted after first "
+                  + "contact. They read as no data rather than zero."
+                : "The line-of-sight pass found no enemy contacts in this demo, so the columns that "
+                  + "depend on it read as no data rather than zero.";
+        OnPropertyChanged(nameof(SightNotice));
+        OnPropertyChanged(nameof(HasSightNotice));
     }
 
     // ── Sorting ───────────────────────────────────────────────────────────────
@@ -808,6 +847,9 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
             return;
         }
 
+        SightUnavailable = SightIsUnavailable(GameTable);
+        OnPropertyChanged(nameof(SightUnavailable));
+
         _visibleGameColumnOrder = VisibleColumns(_gameColumnOrder);
 
         // Key-based sort with survival: keep the key if it's still visible under this category,
@@ -832,7 +874,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
             BuildColumnScales(GameTable.Rows, _visibleGameColumnOrder);
 
         List<StatsRow> rows = GameTable.Rows
-            .Select(r => BuildRow(r, _visibleGameColumnOrder, scales))
+            .Select(r => BuildRow(r, _visibleGameColumnOrder, scales, SightUnavailable))
             .ToList();
 
         rows.Sort((a, b) =>
@@ -1123,7 +1165,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
             BuildColumnScales(roundRows, _visibleRoundColumnOrder);
 
         RoundRows = roundRows
-            .Select(r => BuildRow(r, _visibleRoundColumnOrder, roundScales))
+            .Select(r => BuildRow(r, _visibleRoundColumnOrder, roundScales, SightUnavailable))
             .OrderBy(r => r.TeamSort)
             .ThenBy(r => r.PlayerName, StringComparer.OrdinalIgnoreCase)
             .Select((r, i) => r with
@@ -1274,8 +1316,52 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         return total >= spec.ColourGateMinimum;
     }
 
+    /// <summary>
+    ///     Whether this run has any line-of-sight data behind the columns that need it.
+    ///     <para>
+    ///         Two sources of evidence, in order. The board's own anchor count is preferred whenever the
+    ///         table carries it, because it is the only one that is true of all three ways the pass can
+    ///         come up empty: no bake for the map, a bake that failed to load, and a demo source whose
+    ///         events cannot support the pass. Zero contacts for every player on the board means no
+    ///         player has a measurement, whatever the reason.
+    ///     </para>
+    ///     <para>
+    ///         A table that never declared the anchor column cannot answer, and then the bake file is
+    ///         asked instead: with no geometry on disk this app cannot have computed a sight line, so the
+    ///         columns are unavailable by construction. Asking the file FIRST would be wrong, because a
+    ///         board whose counts are positive demonstrably has the data whether or not a bake can be
+    ///         resolved from here.
+    ///     </para>
+    /// </summary>
+    private bool SightIsUnavailable(MetricTable table)
+    {
+        if (!table.ValueColumns.Contains(ColumnCatalogue.VisibilityAnchorColumn, StringComparer.Ordinal))
+        {
+            return _collisionTrisPath is null;
+        }
+
+        foreach (MetricRow row in table.Rows)
+        {
+            object? anchor = row.Values.GetValueOrDefault(ColumnCatalogue.VisibilityAnchorColumn);
+            if (new StatCell(anchor).Numeric is > 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Projects one <see cref="MetricRow" /> into the board's cells, in the given column order.
+    ///     <para>
+    ///         <c>sightUnavailable</c> blanks every column the catalogue marks
+    ///         <see cref="ColumnMeta.RequiresVisibility" />, instead of letting the projector's 0 reach
+    ///         the board dressed as a measurement.
+    ///     </para>
+    /// </summary>
     private static StatsRow BuildRow(MetricRow row, List<string> orderedColumns,
-        IReadOnlyDictionary<string, ColumnScale>? scales = null)
+        IReadOnlyDictionary<string, ColumnScale>? scales = null, bool sightUnavailable = false)
     {
         string player = row.Dimensions.GetValueOrDefault("player_name")?.ToString() ?? "?";
         int team = row.Dimensions.GetValueOrDefault("team") is { } t
@@ -1302,10 +1388,15 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
                 ? new StatCell(row.Values.GetValueOrDefault(denominator.Key)).Numeric
                 : null;
 
-            cells.Add(new StatCell(row.Values.GetValueOrDefault(column), meta, scale,
+            // A column with nothing behind it carries a null rather than the projector's 0, so it drops
+            // out of the peer domain, the leader mark and the sort instead of anchoring all three at
+            // zero. Its denominator goes with it: "0 ms over 0 engagements" is not a qualification.
+            bool unavailable = sightUnavailable && meta.RequiresVisibility;
+            cells.Add(new StatCell(unavailable ? null : row.Values.GetValueOrDefault(column), meta, scale,
                 resolved.MarksLeader)
             {
-                Denominator = over
+                Denominator = unavailable ? null : over,
+                Unavailable = unavailable
             });
         }
 
@@ -1789,6 +1880,19 @@ public sealed record StatCell(object? Raw, ColumnMeta? Meta = null, StatScale? S
     public double? Denominator { get; init; }
 
     /// <summary>
+    ///     True when this column could not be computed for this demo AT ALL, as opposed to computing
+    ///     to zero. Set for the <see cref="ColumnCatalogue.RequiresVisibility" /> columns on a run that
+    ///     had no line-of-sight geometry, where the projector still emits a 0 per player.
+    ///     <para>
+    ///         The distinction is the whole point: a 0 in <c>TTS</c> reads as an impossibly fast
+    ///         reaction, and ten of them read as a broken board rather than a missing asset. Such a cell
+    ///         carries a null <see cref="Raw" />, so it also drops out of peer domains, leader marks and
+    ///         sorting instead of dragging every one of them to zero.
+    ///     </para>
+    /// </summary>
+    public bool Unavailable { get; init; }
+
+    /// <summary>
     ///     "384 ms over 47 engagements": the value next to the count that qualifies it. The count used to
     ///     be a column of its own; it exists so a thin sample is visible, and it is only visible if it
     ///     reads beside the value it thins. The preposition comes from the catalogue, because "over"
@@ -1800,6 +1904,11 @@ public sealed record StatCell(object? Raw, ColumnMeta? Meta = null, StatScale? S
     {
         get
         {
+            if (Unavailable)
+            {
+                return "No line-of-sight data for this demo's map, so this column has nothing to measure.";
+            }
+
             if (Meta?.Denominator is not { } over || Denominator is not { } count || Numeric is null)
             {
                 return null;
@@ -1851,10 +1960,14 @@ public sealed record StatCell(object? Raw, ColumnMeta? Meta = null, StatScale? S
             _ => false
         };
 
-    /// <summary>Invariant, compact rendering (doubles to 2 decimals; null → empty).</summary>
+    /// <summary>
+    ///     Invariant, compact rendering (doubles to 2 decimals). An absent value renders empty; an
+    ///     <see cref="Unavailable" /> one renders a dash, so "this demo cannot measure it" is
+    ///     visibly different from both a blank and a zero.
+    /// </summary>
     public string Display => Raw switch
     {
-        null => "",
+        null => Unavailable ? "–" : "",
         double d => d.ToString("0.##", CultureInfo.InvariantCulture),
         bool b => b ? "✓" : "",
         _ => Convert.ToString(Raw, CultureInfo.InvariantCulture) ?? ""

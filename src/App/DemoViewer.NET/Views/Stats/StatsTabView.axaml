@@ -178,32 +178,49 @@
 
             <!-- ── Category sub-rail: one chip per StatGroup in the active view;
                      visible columns = Core anchor ∪ selected group. Table views only. ── -->
-            <Border Grid.Row="1"
-                    Background="{DynamicResource PanelHeaderBg}"
-                    BorderBrush="{DynamicResource BorderSubtle}"
-                    BorderThickness="0 0 0 1"
-                    Padding="10 0"
-                    IsVisible="{Binding IsTableView}">
-                <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Disabled">
-                    <ItemsControl ItemsSource="{Binding Categories}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" Spacing="2" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="stats:CategoryChip">
-                                <Button Content="{Binding Label}"
-                                        Command="{Binding $parent[ItemsControl].((stats:StatsTabViewModel)DataContext).SelectCategoryCommand}"
-                                        CommandParameter="{Binding}"
-                                        Classes="statscat"
-                                        Classes.selected="{Binding IsSelected}" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-            </Border>
+            <StackPanel Grid.Row="1">
+                <Border Background="{DynamicResource PanelHeaderBg}"
+                        BorderBrush="{DynamicResource BorderSubtle}"
+                        BorderThickness="0 0 0 1"
+                        Padding="10 0"
+                        IsVisible="{Binding IsTableView}">
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding Categories}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="2" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="stats:CategoryChip">
+                                    <Button Content="{Binding Label}"
+                                            Command="{Binding $parent[ItemsControl].((stats:StatsTabViewModel)DataContext).SelectCategoryCommand}"
+                                            CommandParameter="{Binding}"
+                                            Classes="statscat"
+                                            Classes.selected="{Binding IsSelected}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+
+                <!-- Board-level "these cells have no data" band. It sits directly over the table, because
+                     that is where the zeros were: seventeen columns come from the line-of-sight pass, and
+                     on a map with no collision geometry seven of the eight on the Aim Quality board read a
+                     hard 0 that looked exactly like a measurement. Wraps rather than trims, since the
+                     sentence naming the affected columns is the whole value of it. -->
+                <Border Background="{DynamicResource PanelBg}"
+                        BorderBrush="{DynamicResource AccentAmber}"
+                        BorderThickness="0 0 0 1"
+                        Padding="12 7"
+                        IsVisible="{Binding HasSightNotice}">
+                    <TextBlock Text="{Binding SightNotice}"
+                               TextWrapping="Wrap"
+                               FontSize="12"
+                               Foreground="{DynamicResource TextMid}" />
+                </Border>
+            </StackPanel>
 
             <!-- ── Extra table (F2/F3): generic renderer for any picked outputs:/keyed table —
                      dimension columns then value columns, cells preformatted by the VM ── -->

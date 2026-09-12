@@ -64,7 +64,13 @@ public class StatsVisibilityTests
         await Assert.That(vm.StatusMessage).IsEqualTo("");
     }
 
-    /// <summary>No bake → action gated off, one info line explains why (F4 acceptance).</summary>
+    /// <summary>
+    ///     No bake: the compute action is gated off and the board explains why. The explanation used to
+    ///     sit in the toolbar StatusMessage beside that button, which is why it read as being about the
+    ///     button rather than about the columns; it now lives in the board notice. This fixture declares
+    ///     no anchor count at all, so it also pins the fallback: with nothing in the data to judge by,
+    ///     the missing bake file is the answer.
+    /// </summary>
     [Test]
     public async Task Update_WithoutBake_HidesComputeAction_AndExplains()
     {
@@ -73,7 +79,9 @@ public class StatsVisibilityTests
 
         await Assert.That(vm.HasStats).IsTrue();
         await Assert.That(vm.CanComputeVisibility).IsFalse();
-        await Assert.That(vm.StatusMessage).Contains("No collision bake for de_unbaked");
+        await Assert.That(vm.SightUnavailable).IsTrue();
+        await Assert.That(vm.HasSightNotice).IsTrue();
+        await Assert.That(vm.SightNotice).Contains("de_unbaked");
     }
 
     /// <summary>The visibility view toggle is mutually exclusive with the other three views.</summary>
