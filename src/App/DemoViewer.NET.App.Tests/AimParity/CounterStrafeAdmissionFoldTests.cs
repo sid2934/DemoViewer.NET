@@ -30,10 +30,12 @@ namespace DemoViewer.NET.AppTests.AimParity;
 ///         just a second opinion.
 ///     </para>
 ///     <para>
-///         <b>The window is not fitted.</b> 0.5 s is the engine's shipped value and this class
-///         asserts nothing about whether it is the right one; see the remark on
-///         <see cref="AimShotContextEdge.CounterStrafeLookbackSeconds" /> for what that number
-///         currently rests on.
+///         <b>The window is derived, and this class does not check the derivation.</b> It comes
+///         from CS2's ground friction (see
+///         <see cref="AimShotContextEdge.CounterStrafeLookbackSeconds" />, and the engine's own
+///         <c>CounterStrafeWindowDerivationTests</c> for the proof); what this class does is
+///         reproduce the engine's counts at whatever the shipped window is, and expose the rest of
+///         the curve so a future candidate can be read against our own data.
 ///     </para>
 /// </summary>
 [Category("RealDemo")]
@@ -112,6 +114,71 @@ public class CounterStrafeAdmissionFoldTests
         int shippedTicks = fold.TicksFor(AimShotContextEdge.CounterStrafeLookbackSeconds);
         IReadOnlyDictionary<string, int> admitted = fold.AdmittedByName(shippedTicks);
         IReadOnlyDictionary<string, int> shots = fold.ShotsByName();
+
+        List<string> divergences = [];
+        int compared = 0;
+        foreach ((string name, AimPlayerRow player) in run.Players)
+        {
+            if (player.Read("cs_attempts") is not { } engine)
+            {
+                continue;
+            }
+
+            int ours = admitted.GetValueOrDefault(name);
+            int denominator = shots.GetValueOrDefault(name);
+            compared++;
+
+            double allowed = Math.Max(FoldAgreementFloor, denominator * FoldAgreementShareOfShots);
+            double delta = Math.Abs(ours - engine);
+            Console.WriteLine(
+                $"   {name,-24} engine={engine,6:F0} fold={ours,6} shots={denominator,6} delta={delta,6:F0}");
+            if (delta > allowed)
+            {
+                divergences.Add(
+                    $"{name}: engine admitted {engine:F0}, the fold admitted {ours} of {denominator} shots "
+                    + $"at the same {shippedTicks}-tick window (allowed {allowed:F1})");
+            }
+        }
+
+        divergences.ForEach(Console.WriteLine);
+
+        await Assert.That(compared).IsGreaterThan(0)
+            .Because("an agreement check that compared no player validates nothing");
+        await Assert.That(divergences).IsEmpty()
+            .Because("the fold must reproduce the engine at the shipped window before its curve is "
+                     + "trusted at any other one");
+    }
+
+    /// <summary>
+    ///     The same agreement check as <see cref="Fold_AgreesWithTheEngine_AtTheShippedWindow" />, on
+    ///     whatever demo this machine has rather than on the fixture corpus.
+    ///     <para>
+    ///         It exists because the fixture corpus and the demos a working checkout actually carries
+    ///         are different sets: the fixture ids come from <c>tests/fixtures/</c>, whose
+    ///         <c>.dem</c> files are gitignored, so on most machines the per-fixture case list skips
+    ///         in full and the agreement between the fold and the engine goes unchecked at the shipped
+    ///         window. This one runs wherever any demo is present, which means the window is pinned by
+    ///         a test rather than by someone having compared two logs by hand.
+    ///     </para>
+    ///     <para>
+    ///         Same tolerance and same comparison as the fixture version; the demo is parsed once and
+    ///         handed to both sides.
+    ///     </para>
+    /// </summary>
+    /// <returns>A task.</returns>
+    [Test]
+    public async Task Fold_AgreesWithTheEngine_OnAnyAvailableDemo()
+    {
+        string demoPath = DemoTestHelper.RequireDemo();
+        ParsedDemo demo = DemoTestHelper.GetOrParse(demoPath);
+        AdmissionFoldResult fold = CounterStrafeAdmissionFold.Fold(demo, SweepMaxTicks);
+        AimRunResult run = LiveAimStats.Derive(Path.GetFileName(demoPath), demoPath, demo);
+
+        int shippedTicks = fold.TicksFor(AimShotContextEdge.CounterStrafeLookbackSeconds);
+        IReadOnlyDictionary<string, int> admitted = fold.AdmittedByName(shippedTicks);
+        IReadOnlyDictionary<string, int> shots = fold.ShotsByName();
+
+        Console.WriteLine($"-- fold vs engine at {shippedTicks} ticks: {Path.GetFileName(demoPath)} --");
 
         List<string> divergences = [];
         int compared = 0;

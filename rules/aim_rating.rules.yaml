@@ -70,13 +70,25 @@
 #
 # COUNTER-STRAFING, THREE WAYS. counter_strafe_admitted is the attempt gate: a shot enters the
 # population only if the player exceeded the weapon's movement-inaccuracy threshold at some
-# sampled tick in the half second before firing. A player who never moved never attempted a
-# counter-strafe, and counting their shot as a success turns the metric into "how often did you
-# stand still".
+# sampled tick inside the deceleration window before firing. A player who never moved never
+# attempted a counter-strafe, and counting their shot as a success turns the metric into "how
+# often did you stand still".
+#
+# The window is 13 ticks at 64-tick (26 at 128), derived rather than chosen. What it bounds is the
+# GAP between the last sample above the line and the shot, not the length of the deceleration that
+# got the player there, which happened earlier and falls outside the window at any width. The gap
+# that has to fit is the rest of the stop: a player who has just dropped below the line is still
+# carrying velocity, and friction with no input is the slowest that velocity can die, so the time
+# CS2's own friction needs to carry a player from the line to rest is the widest gap a genuine stop
+# can produce. See AimShotContextEdge.CounterStrafeLookbackSeconds. It used to be a half second,
+# which admitted shots taken long after the player had already come to rest and raised CS% without
+# anyone counter-strafing better.
 #   CS%     = clean / attempted. The skill question: when you had to stop, did you stop?
 #   CSAll%  = clean / all bullets. The same numerator over every shot, so a player who wins CS%
 #             by attempting three counter-strafes a match cannot hide behind it.
-#   Linear% = attempted but still moving. The shots the engine charged a movement penalty for.
+#   Linear% = attempted but still moving. Its count does not move with the window: a shot a
+#             narrower window would not admit was at or below the line on its own tick, and on the
+#             fired arm that is exactly the "clean" test, so widening only ever adds clean shots.
 #             CSAll% + Linear% is the attempted share; the remainder is shots from a standstill,
 #             which is neither a success nor a failure.
 #

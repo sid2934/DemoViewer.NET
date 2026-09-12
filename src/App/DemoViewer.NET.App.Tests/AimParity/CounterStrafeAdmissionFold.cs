@@ -18,10 +18,11 @@ namespace DemoViewer.NET.AppTests.AimParity;
 ///     <para>
 ///         <b>Why this exists.</b> The gate admits a shot into the counter-strafing denominator when
 ///         the shooter exceeded <c>0.34 * m_flMaxspeed</c> at some sampled tick inside a lookback
-///         window before firing. That window is the whole metric: it is the free parameter that sets
-///         the denominator, and the engine ships it as a compile-time constant, so a test that only
-///         reads the engine's output can examine exactly one candidate. This fold produces the whole
-///         curve from a single pass.
+///         window before firing. That window is the whole metric: it sets the denominator, and the
+///         engine ships one value for it, so a test that only reads the engine's output can examine
+///         exactly one candidate. This fold produces the whole curve from a single pass, which is
+///         what showed the curve has no knee to fit to and sent the window to a physical derivation
+///         instead.
 ///     </para>
 ///     <para>
 ///         <b>How one pass gives every window.</b> Peak speed over a window is monotone in the
@@ -396,8 +397,16 @@ public sealed record AdmissionShot(
     /// <summary>
     ///     Whether the shot was taken from a standstill by the engine's own line: the speed AT the
     ///     shot was below the threshold. Independent of admission, which asks whether the player was
-    ///     moving in the window BEFORE it. A clean counter-strafe is both, and the two facets
-    ///     pulling in opposite directions is what makes the window a fit rather than a free choice.
+    ///     moving in the window BEFORE it. A clean counter-strafe is both.
+    ///     <para>
+    ///         <b>This is the speed comparison only.</b> The engine's <c>CounterStrafeGood</c> prefers
+    ///         the server's own movement penalty where the event carries one and falls back to this
+    ///         comparison; the fired arm never carries one, which is why reproducing the fired-arm
+    ///         counters needs only the fallback. It also means the fold's count of NOT-clean shots is
+    ///         window-invariant by this record's own construction, so agreement with the engine on
+    ///         that count confirms the two agree and is not independent evidence about the window:
+    ///         the engine's own run is what carries that claim.
+    ///     </para>
     /// </summary>
     public bool CleanAtShot => HasMovementSample && SpeedAtShot < Threshold;
 
