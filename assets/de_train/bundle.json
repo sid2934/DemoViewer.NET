@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "mapName": "de_train",
+  "mapVersion": "fb6b318b",
+  "bakerVersion": "0.3\u002Bvrf19.2.6339",
+  "transform": {
+    "posX": -2308,
+    "posY": 2078,
+    "scale": 4.082077,
+    "rotate": 0,
+    "zoom": 1,
+    "imageSize": 1024
+  },
+  "bounds": {
+    "minX": -2308,
+    "minY": -2102.046848,
+    "maxX": 1872.046848,
+    "maxY": 2078
+  },
+  "floors": [
+    {
+      "minZ": -100000,
+      "maxZ": -48
+    },
+    {
+      "minZ": -48,
+      "maxZ": 100000
+    }
+  ],
+  "radarLayers": [
+    {
+      "minZ": -50,
+      "maxZ": 20000,
+      "image": "de_train.png"
+    },
+    {
+      "minZ": -5000,
+      "maxZ": -50,
+      "image": "de_train_lower.png"
+    }
+  ],
+  "radarImages": [
+    "de_train.png",
+    "de_train_lower.png"
+  ],
+  "collisionMesh": {
+    "file": "collision.tris",
+    "triangleCount": 1574210,
+    "minX": -3608,
+    "minY": -2996,
+    "minZ": -568,
+    "maxX": 3840,
+    "maxY": 3984,
+    "maxZ": 808
+  }
+}

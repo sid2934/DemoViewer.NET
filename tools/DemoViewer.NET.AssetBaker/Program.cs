@@ -20,10 +20,19 @@ bool diag = args.Contains("--diag");
 string[] maps = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
 if (maps.Length == 0)
 {
+    // A map earns a place here by being bakeable AND demoed. Bakeable is a hard filter, not a
+    // preference: the bake needs resource/overviews/<map>.txt and a <map>_radar_psd.vtex_c, both of
+    // which live in pak01_dir.vpk, and six maps this CS2 build ships (de_boulder, de_debris,
+    // de_eldorado, de_fachwerk, de_poseidon, cs_shelter) have NEITHER, in pak01 or in their own
+    // vpk, so they cannot be baked from an install at all. Of the twelve that can, cs_italy and
+    // cs_office are left out as casual hostage maps: italy alone would add 45 MiB of collision soup
+    // for a map that does not appear in competitive demos. de_dogtown is not here because the map
+    // is gone from the game entirely; only its econ map tokens survive in pak01, so a dogtown demo
+    // can never get geometry and shows the board's no-data notice instead.
     maps =
     [
         "de_nuke", "de_dust2", "de_mirage", "de_inferno", "de_anubis",
-        "de_ancient", "de_overpass", "de_vertigo", "de_cache"
+        "de_ancient", "de_overpass", "de_vertigo", "de_train", "de_cache"
     ];
 }
 
