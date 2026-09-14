@@ -23,6 +23,10 @@
         <Project Path="src/App/DemoViewer.NET.Browser/DemoViewer.NET.Browser.csproj"/>
         <Project Path="src/App/DemoViewer.NET.App.Tests/DemoViewer.NET.App.Tests.csproj"/>
     </Folder>
+    <Folder Name="/src/GameIcons/">
+        <Project Path="src/GameIcons/DemoViewer.NET.GameIcons/DemoViewer.NET.GameIcons.csproj"/>
+        <Project Path="src/GameIcons/DemoViewer.NET.GameIcons.Tests/DemoViewer.NET.GameIcons.Tests.csproj"/>
+    </Folder>
     <Folder Name="/src/Playback2D/">
         <Project Path="src/Playback2D/DemoViewer.NET.Playback2D.Core/DemoViewer.NET.Playback2D.Core.csproj"/>
         <Project

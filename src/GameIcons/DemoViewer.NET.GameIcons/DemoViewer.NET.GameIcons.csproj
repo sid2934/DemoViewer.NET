@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The baked CS2 iconography, and the only way the rest of the solution reaches it.
+
+      DELIBERATELY DEPENDENCY-FREE. It hands back bytes and streams and nothing else: no Avalonia (the
+      Playback2D suites assert their process loads no Avalonia assembly, and this sits in their graph),
+      no SkiaSharp (the app is pinned to 2.88.x and the baker owns 3.x — a shared asset library must not
+      have an opinion), no serializer contract (the manifest is read with JsonDocument, so the Browser
+      build can trim freely).
+
+      EMBEDDED, not copied next to the exe like the map bundles. Map assets are per-map, large, and
+      filesystem-probed by MapAssetLoader; that path does not exist on WASM. Icons are small, universal
+      and needed by every target including Browser, so they ride inside the assembly.
+    -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!--
+          Baked by the AssetBaker's icons mode (see its README line in Program.cs), committed under
+          assets/icons/ next to the map bundles, and embedded from there. One copy on disk, one copy in
+          the build; the manifest travels with the PNGs it describes so they cannot disagree.
+
+          LogicalName is normalised to forward slashes so the resource names do not depend on which OS
+          ran the build — otherwise a Windows build and a Linux build would embed different names and
+          any golden that touches an icon would flip.
+        -->
+        <IconAsset Include="$(MSBuildThisFileDirectory)..\..\..\assets\icons\**\*.png"/>
+        <IconAsset Include="$(MSBuildThisFileDirectory)..\..\..\assets\icons\icons.json"/>
+        <EmbeddedResource Include="@(IconAsset)"
+                          LogicalName="icons/$([System.String]::Copy('%(RecursiveDir)').Replace('\','/'))%(Filename)%(Extension)"/>
+    </ItemGroup>
+
+    <!--
+      A missing bake must fail HERE, not three layers away at runtime. Without this the build happily
+      produces an assembly with no icons in it and the app throws from IconCatalogue's static
+      constructor the first time anything draws one - in the App, or in CI, far from the cause.
+    -->
+    <Target Name="EnsureIconsAreBaked" BeforeTargets="BeforeBuild">
+        <Error Condition="!Exists('$(MSBuildThisFileDirectory)../../../assets/icons/icons.json')"
+               Text="assets/icons/icons.json is missing - the CS2 icon bake has not been run. Run: dotnet run --project tools/DemoViewer.NET.AssetBaker -r win-x64 -- --icons"/>
+    </Target>
+
+</Project>
