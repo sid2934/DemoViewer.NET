@@ -3,8 +3,9 @@
 **For:** the CS2DemoKit team
 **From:** DemoViewer.NET, v0.8.1 aim-rating workstream
 **Against:** CS2DemoKit v0.10.0
-**Status:** implemented. `VisibilityTransitionScanner`, `AimVantageScanner` and the eye/punch angle
-providers all landed engine-side, and DemoViewer.NET consumes the package that ships them.
+**Status:** implemented, and released in CS2DemoKit 0.11.0. `VisibilityTransitionScanner`,
+`AimVantageScanner` and the eye/punch angle providers all landed engine-side, and DemoViewer.NET
+pins that release.
 
 DemoViewer.NET is adding a family of 18 aim-quality statistics (counter-strafing, spray control,
 crosshair placement, the time-to-X ladder). Most of them need per-tick entity state the engine does

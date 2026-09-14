@@ -1535,7 +1535,7 @@ internal sealed record PlayerReport(string Name, int Slot, int Team, int Templat
 ///     eval thread, so that share is the ceiling on what a faster traversal can take off eval.
 ///     <para>
 ///         <see cref="RaysSkippedByGate" /> and <see cref="RaysSkippedBySmoke" /> arrived with the
-///         engine's ray gating (0.11.0-aim15). From that version every anchor is cast, gate-skipped or
+///         engine's ray gating (0.11.0). From that version every anchor is cast, gate-skipped or
 ///         early-exit-skipped exactly once, so <c>RaysCast + RaysSkippedByGate + RaysSkippedByEarlyExit
 ///         == AnchorsTotal</c>. Reports written before it have no gate fields and a wider
 ///         <see cref="RaysSkippedByEarlyExit" /> (it then also covered the out-of-frustum anchors of an
@@ -1543,12 +1543,13 @@ internal sealed record PlayerReport(string Name, int Slot, int Team, int Templat
 ///         and the players block, not on the skip columns.
 ///     </para>
 ///     <para>
-///         <see cref="RaysShortCircuited" /> arrived with the last-occluder hint (0.11.0-aim16): of the
+///         <see cref="RaysShortCircuited" /> arrived with the last-occluder hint (also 0.11.0): of the
 ///         rays cast, those decided by the triangle that blocked the same sightline last sample, without
 ///         a BVH traversal. A short-circuited ray still counts in <see cref="RaysCast" /> and its time in
-///         <see cref="RayMs" />, so the ray tallies are comparable with aim15 and the saving shows in
-///         <see cref="RayMs" />. <c>RaysShortCircuited / RaysCast</c> is the hit rate the batch-precompute
-///         decision hangs on; reports before aim16 have no such field.
+///         <see cref="RayMs" />, so the ray tallies are comparable with the pre-hint era and the
+///         saving shows in <see cref="RayMs" />. <c>RaysShortCircuited / RaysCast</c> is the hit rate
+///         the batch-precompute decision hangs on; reports written against 0.10.0 have no such
+///         field.
 ///     </para>
 /// </summary>
 internal sealed record ReportVisibilityRays(

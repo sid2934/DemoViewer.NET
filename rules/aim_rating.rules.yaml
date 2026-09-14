@@ -372,14 +372,14 @@ stats:
   # (g = 0.027, p = .935). Read it as a diagnostic, not a ranking.
   aimrx_shots:
     count: shot
-    match: { is_first_after_on_target: true, ticks_since_on_target: "<= 320", bullet: true }
+    match: { first_after_on_target: true, ticks_since_on_target: "<= 320", bullet: true }
     while: round.active
     per: match
 
   aimrx_ticks:
     sum: enrich.shot.ticks_since_on_target
     on: shot
-    match: { is_first_after_on_target: true, ticks_since_on_target: "<= 320", bullet: true }
+    match: { first_after_on_target: true, ticks_since_on_target: "<= 320", bullet: true }
     while: round.active
     per: match
 
@@ -405,27 +405,27 @@ stats:
 
   tts_shots:
     count: shot
-    match: { is_first_after_spot: true, ticks_since_spot: "<= 320", bullet: true }
+    match: { first_after_spot: true, ticks_since_spot: "<= 320", bullet: true }
     while: round.active
     per: match
 
   tts_ticks:
     sum: enrich.shot.ticks_since_spot
     on: shot
-    match: { is_first_after_spot: true, ticks_since_spot: "<= 320", bullet: true }
+    match: { first_after_spot: true, ticks_since_spot: "<= 320", bullet: true }
     while: round.active
     per: match
 
   ttd_shots:
     count: shot_landed
-    match: { is_first_after_spot: true, ticks_since_spot: "<= 320" }
+    match: { first_after_spot: true, ticks_since_spot: "<= 320" }
     while: round.active
     per: match
 
   ttd_ticks:
     sum: enrich.shot.ticks_since_spot
     on: shot_landed
-    match: { is_first_after_spot: true, ticks_since_spot: "<= 320" }
+    match: { first_after_spot: true, ticks_since_spot: "<= 320" }
     while: round.active
     per: match
 

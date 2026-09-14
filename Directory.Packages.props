@@ -77,19 +77,18 @@
             the other two transitively; the explicit references below are for the projects that
             use the parser without the engine.
 
-            CURRENTLY ON A LOCAL PRERELEASE, NOT nuget.org. 0.11.0-aim29 is packed by hand from a
-            working-tree CS2DemoKit checkout into the "local" feed that nuget.config adds, so the
-            aim-shot-context engine work can be consumed here before it ships. The "-aim1" tag is
-            deliberate: a published build will never carry it, so this pin cannot be mistaken for a
-            release and always sorts above the 0.10.0 it replaced. Restoring on a machine without
-            that feed fails with NU1102 rather than silently falling back to 0.10.0.
-
-            Repointing at a published version is a plain edit of the three lines below; the local
-            source in nuget.config can then go.
+            0.11.0 carries the aim-shot-context engine work this app's Aim boards read: the new
+            per-player providers, the visibility rising edge and the per-shot context. It also
+            breaks things 0.10.0 allowed. The ones that reach a consumer are a wider
+            CatalogEnrichment and CatalogProvider, a Sentinels map on EnrichmentInfrastructure
+            that is required rather than defaulted, and two ruleset errors that are now hard: a
+            scoreboard label collision, and an ungated sentinel aggregate. The second is the one
+            to watch on a bump, because the resolver returns nothing once it has any diagnostic,
+            so one bad aggregate discards every stat in that file rather than just its own.
         -->
-        <PackageVersion Include="CS2DemoKit.Parser" Version="0.11.0-aim29"/>
-        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.11.0-aim29"/>
-        <PackageVersion Include="CS2DemoKit.Analysis.Rules" Version="0.11.0-aim29"/>
+        <PackageVersion Include="CS2DemoKit.Parser" Version="0.11.0"/>
+        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.11.0"/>
+        <PackageVersion Include="CS2DemoKit.Analysis.Rules" Version="0.11.0"/>
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
         <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15"/>
         <!-- 3.29.5+ required by Cs2VideoGenerator.Core, and comfortably above the >= 3.27.0 floor
