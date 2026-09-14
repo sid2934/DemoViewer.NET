@@ -150,11 +150,11 @@ Proposed home: `src/App/DemoViewer.NET/Controls/Stats/`. Six controls, one scale
 |---|---|---|---|
 | 0 | **`StatPresenter`** | Abstract `TemplatedControl`. Holds `Value`, the scale properties, the four accent brushes, `Accent`/`Fraction`/`Sentiment`, and the automation name. | Added during the build, not in the plan. `StatValue`, `RingGauge` and `StatTile` all need the same twelve properties and the same sentiment-to-brush rule; three copies of it is exactly the near-duplicate the design system warns against. |
 | 1 | **`StatValue`** | Custom drawn `Control`. `Value`, `Minimum`, `Maximum`, `Polarity`, `NeutralLow/High` (or one `Scale`), `Text` override, `Mode` = `Bar`/`Chip`/`Plain`, `IsLeader`, `TintBar`. | The workhorse. Every scoreboard cell, plus the utility table's rating pills, plus the tiles' values. |
-| 2 | **`SegmentedBar`** | Custom drawn. `ItemsSource` of `(double Value, IBrush Brush, string Label)`, `Compact` bool, `ShowLabels`. | The `28%/24%/27%/21%` strip and the in-cell `8 11 11 10` quad. |
+| 2 | **`SegmentedBar`** | Custom drawn. `Segments` of `StatSegment(double Value, IBrush? Brush, string? Label, int Slot)`, `Compact` bool, `ShowLabels`, `Gap`, and `MaxTotal` (§13's shared maximum, which is what makes bar length mean volume). | The `28%/24%/27%/21%` strip and the in-cell `8 11 11 10` quad. |
 | 3 | **`Sparkline`** | Custom drawn. `Values`, `Mode` = `Line`/`Bars`/`Dots`, `Baseline`, `PointTooltips`, `IndexAt(point)`, own normalisation, resize aware. | Three hand rolled strips in `PlayerDetailsView` and the pixel maths in `FormBar`. `PointTooltips`/`IndexAt` were added during the build: the damage strip is a deep link, and a drawn control has no per-point visual for a tooltip or a click to land on. |
 | 4 | **`RingGauge`** | Custom drawn. `Value`, `Scale`, `Thickness`, `Caption`. | The podium `+11.96` badge; any single headline number. |
-| 5 | **`StatTile`** | Small templated control. `Label`, `Value`, `Delta`, `Scale`, `IsHero`. | Promotes the `pdTile`/`pdTileValue`/`pdTileLabel` style trio in `PlayerDetailsView` into a real thing with sentiment colouring. |
-| 6 | **`TeamBadge`** | Small templated control. `Team` (CT/T), `Label`, `Outcome` (Win/Loss/None). | The `My Team [WIN]` / `Enemy Team [LOSS]` section header, and the CT/T bullet, both currently inline. |
+| 5 | **`StatTile`** | Small templated control. `Label`, `Value`, `Caption`, `Scale`, `IsHero`. | Promotes the `pdTile`/`pdTileValue`/`pdTileLabel` style trio in `PlayerDetailsView` into a real thing with sentiment colouring. |
+| 6 | **`TeamBadge`** | Small templated control. `Team` (CS2 wire: `2` = T, `3` = CT), `Label`, `Outcome` (`None`/`Win`/`Loss`/`Draw`), `Detail`. | The `My Team [WIN]` / `Enemy Team [LOSS]` section header, and the CT/T bullet, both currently inline. |
 | - | `StatScale` + `StatPolarity` | Records, no Avalonia | §4. |
 | - | `Styles/Stats.axaml` | Style classes | Column header with sort caret, spanning group header, table row chrome. Style classes, not controls: they are setter collections, and the design system explicitly warns against forking near duplicate controls. |
 
@@ -168,6 +168,17 @@ Proposed home: `src/App/DemoViewer.NET/Controls/Stats/`. Six controls, one scale
   models. This engine has no equivalent column in `ColumnCatalogue`. The components must therefore not
   assume a `0..100` domain exists; `StatScale.Absolute` is available for when such a metric is added,
   and nothing more is implied.
+
+**Added after this phase (v0.8.1)**
+
+Three more controls joined the directory, with the category boards (§13) and the spray drilldown
+(§19). Listed here so the inventory stays the one place to look; the library is nine controls now.
+
+| # | Component | Shape | Replaces / enables |
+|---|---|---|---|
+| 7 | **`DivergingBar`** | Drawn. `Negative`, `Positive`, `Extent`, `NegativeBrush`/`PositiveBrush`/`AxisBrush`, `BarHeight` (14). | The four columns an opening-duel record usually gets — won, lost, net, rate — as one shape: the arms are the two counts, their difference is the imbalance, the total ink is the volume. `Extent` is the half-scale shared down the column; left unset each bar scales to its own larger arm and the comparison is gone. A non-zero arm never draws thinner than 2px, so a count of one stays visible. |
+| 8 | **`PipStrip`** | Drawn. `Count`, `MaxPips` (12), `PipBrush`, `EmptyBrush`, `PipRadius` (3.5), `PipGap` (4). | The multi-kill and objective counts: usually 0, occasionally 3. Past `MaxPips` — or whenever the marks do not FIT the width the strip was given, whatever `MaxPips` allows — it writes the number instead, because dropping marks off the right edge renders nine, ten and twelve identically. |
+| 9 | **`SprayPlot`** | Drawn. `Pattern`, `Shots`, `PatternBrush`, `ShotBrush`, `AxisBrush`, `DotRadius` (2.5). | The spray drilldown in the player-details overlay (§19). The weapon's recoil pattern is drawn first and faint as a reference; the player's own bullets go over it. Both series are dots joined shot to shot, because the SHAPE of the path is what a reader takes from a spray, not the individual points, and both share one scale computed over both so the traces are comparable by construction. Axes are degrees and pitch is **not** flipped: Source pitch is positive down and screen Y grows down, so the conventions already agree and a flip would draw every pattern upside down. `bullet_damage` fires only for bullets that hit, so a run is the landed subsequence of a trigger pull and its path can jump; the gap IS the misses, and drawing through it is the honest rendering, where interpolating would invent bullets. |
 
 ---
 
@@ -299,7 +310,7 @@ later.
 
 ## 10. What shipped
 
-Everything in section 5, plus `StatPresenter`. The types live in
+Everything in section 5's original inventory, plus `StatPresenter`. The types live in
 `src/App/DemoViewer.NET/Controls/Stats/`, the new palette tokens are in both variants, the table chrome
 is in `Styles/Stats.axaml`, and there are `UiCapture` variants plus a dev gallery inside the app.
 
@@ -344,7 +355,9 @@ a chart. It stays as an `ItemsControl`.
 
 ### Previewing it: the dev gallery
 
-Four of the six controls have no call site in the app, so the only way to see them was a captured PNG.
+Four of the six controls had no call site in the app when this was written, so the only way to see them
+was a captured PNG. (All nine have one now — §17 covers the last of them — and the gallery has become
+the place their EDGES are judged rather than the only place they exist.)
 **Diagnostics tab → "Stats component gallery (design)"**, collapsed by default, adds a live one:
 sliders for `Value`/`Minimum`/`Maximum`/the neutral band/`StrongSentimentAt`, toggles for track, bar
 tint and the leader star, a polarity picker, and two presets (the reference HLTV column, and an
@@ -881,8 +894,13 @@ player details overlay answers the WHICH question with a pitch/yaw scatter of it
 raw `bullet_damage` by `SpraySampler` rather than read off those enrichments, so the question moved off
 the board rather than being dropped.
 
-### Known gap
+### What the gate actually takes away
 
-The gate neuters the **tint**, not the leader star: `MarksLeader` is computed from the peer domain, so a
-starved row holding the extreme value still gets the star. That is `Duel%`'s behaviour today too, and it
-is left alone here rather than changed as a side effect of adding a category.
+Both channels, not just the tint. `BuildRow` rewrites a starved row's scale to `Polarity = Neutral`, and
+`StatCell.IsLeader` answers `false` for a neutral polarity, so the row loses the star along with the
+colour. `Duel%` behaves the same way, for the same reason.
+
+The residue is in the other direction, and it is small. `MarksLeader` and the peer domain are computed
+over **every** row, gated or not, so a column whose extreme value is held only by starved rows shows no
+star at all rather than starring the best row that did clear the gate. That is the conservative failure:
+a lead nobody has earned is not awarded to the runner-up.

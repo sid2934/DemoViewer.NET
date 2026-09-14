@@ -24,10 +24,10 @@
 #       synthesized enemy_spotted event, which exists only when the analysis run is handed baked
 #       map geometry (AnalysisOptions.VisibilityEngine). Visibility has no wire signal to fall
 #       back on, so without geometry there are no spots at all. The app hands the engine over
-#       whenever CollisionAssetLocator finds a baked collision.tris for the map
-#       (AnalysisViewModel.LoadVisibilityEngineAsync), and only some maps ship one, so on the
-#       rest EVERY Tier 3 column reads 0.0. Spots (and Spot, on the round board) is how a reader
-#       sees that.
+#       whenever CollisionSoup.Find resolves a baked collision.tris.gz (the shipped form) or a
+#       plain collision.tris for the map (AnalysisViewModel.LoadVisibilityEngineAsync), and only
+#       some maps ship one, so on the rest EVERY Tier 3 column reads 0.0. Spots (and Spot, on the
+#       round board) is how a reader sees that.
 #   FB%, SprayAcc% and XPlace additionally need bullet_damage (the shot_landed view) for their
 #       hit side. Trimmed GOTV sources routinely omit it; the demo this repo ships
 #       (assets/tour/sample-de_nuke.dem) carries 206 weapon_fire and zero bullet_damage.

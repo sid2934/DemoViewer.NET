@@ -18,7 +18,7 @@ tests/fixtures/
 ## Reliability posture: what each file means
 
 The two stat-side providers (`ours`, `expected`) are NOT equally
-trustworthy. Tests in `StatParityTests` treat them differently:
+trustworthy, and any test that reads them has to treat them differently:
 
 | Provider | Source | Trust level today |
 |---|---|---|
@@ -34,12 +34,16 @@ Today's seed files carry only the stats a cross-check agreed on, which is a
 narrow set of objective per-match counts (kills, deaths, assists, multi-kills,
 rounds survived, trade kills, round wins). They serve two interim purposes:
 
-1. **Parser regression detection:** if ours produces a different value
-   for a stat the seed has, the test fails. That catches our parser
-   drifting from its own past output, even without a human in the loop.
-2. **Infrastructure proof:** the schema, the loader, the parity-test
-   shape all exist and work. Replacing seeded values with hand-verified
-   values is a content swap, no code change required.
+1. **Parser regression detection:** once a test reads them, a value ours
+   produces that differs from the seed is a failure. That catches our parser
+   drifting from its own past output, even without a human in the loop. **No
+   stat-side parity test exists yet**: today `expected.golden.json` is read
+   only for its presence, which is what marks a fixture directory as a
+   benchmark demo for the aim harness (`LiveAimStats.BenchmarkDemoIds`).
+2. **Infrastructure proof:** the schema, the loader and the serializer all
+   exist and work, and the aim board (below) already runs the full pin-and-
+   compare shape over them. Replacing seeded values with hand-verified values
+   is a content swap, no code change required.
 
 When hand-verification work happens, the file's `provider_version` field
 will move from `null` to something like `"hand-verified-2026-XX-XX-by-NAME"`.
@@ -56,23 +60,29 @@ and the comparison is at zero tolerance. The harness is
 Two things about it are specific to aim.
 
 **The pin records a machine capability, not just a demo.** Its
-`provider_version` carries `visibility=on` or `visibility=off`. Tier 3 columns
-(preaim, spotted accuracy, spray accuracy) need a baked `collision.tris` for
-the map and read 0.0 rather than blank without one, so comparing a run without
-geometry against a pin taken with it would produce a wall of divergences on
-columns that are simply not being measured. The test skips on a mismatch
-rather than reporting it as drift. Of the five benchmark maps, `assets/` ships
-bakes for nuke, dust2 and ancient; mirage and inferno have none.
+`provider_version` carries `aim-v1;visibility=on` or `...=off`. Tier 3 columns
+(preaim, spotted accuracy, spray accuracy) need the map's baked collision soup
+and read 0.0 rather than blank without one, so comparing a run without geometry
+against a pin taken with it would produce a wall of divergences on columns that
+are simply not being measured. The test skips on a mismatch rather than
+reporting it as drift. All ten maps under `assets/` now ship a soup, so the flag
+reads `on` across the benchmark set; `assets/` carries it as `collision.tris.gz`
+and only `DemoViewer.NET.Services.CollisionSoup` resolves that name, which is
+what the aim harness calls. A map outside the shipped ten still has none.
 
 **Spray control has no external reference at all.** No public tool publishes a
 spray-residual column, so the `Spray` column has nothing to be compared
 against, and what `SprayControlOracle` gives it is narrower than
 validation. The oracle is an independent hand-written fold of the spray
 SEGMENTATION rule (`SprayControlOracleTests` pins every branch of it), and
-of two residuals over that segmentation: the fired-arm rule (view angle plus
-recoil scale times punch, as pitch and yaw components) and the landed-arm
-rule the shipped column uses (the 3D angle between a bullet's raw `ShootAng`
-and the run's first landed bullet, `MeanAngleError`).
+of one residual over that segmentation, reported three ways: the pitch and
+yaw components, and the 3D angle the shipped column uses
+(`MeanAngleError`). All three measure `bullet_damage.ShootAng` against the
+run's first landed bullet and none of them touches the aim punch, because
+`ShootAng` is `eyeAngle + AimPunch` already; the punch reaches the fold
+only as the gate deciding whether a shot is measurable at all.
+Reconstructing an effective aim from a raw view angle and the punch column
+is the FIRED arm's job and happens engine-side.
 `SprayControlOracleRealDemoTests` asserts the oracle's invariants and that
 the shipped column is WIRED (a measured `SprayN` with a non-zero `Spray` on a
 demo that carries `bullet_damage`), and prints the oracle's angle beside the
@@ -103,7 +113,9 @@ when a v2 actually exists.
   gitignored. Provisioning them is deferred work; until then, fixture
   refreshes are a maintainer activity (the maintainer has the demos
   locally).
-- **Per-stat tolerances.** Lives in `StatParityTests.Tolerances`.
-- **Cross-provider mappings.** Each provider's converter (in
-  `src/Analysis/.../GoldenStats/`) owns its own mapping from raw input
-  to the canonical schema.
+- **Per-stat tolerances.** There are none to keep: the aim board compares at
+  zero tolerance, and the stat-side files have no comparer yet.
+- **Cross-provider mappings.** Each provider's converter owns its own mapping
+  from raw input to the canonical schema. They moved out with the analysis
+  engine and now live in the `CS2DemoKit.Analysis` package, under
+  `CS2DemoKit.Analysis.GoldenStats`.

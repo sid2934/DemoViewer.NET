@@ -242,7 +242,7 @@ Use the **dim** end for labels/metadata, the **bright** end for primary values. 
 | `StatPositiveSoft` | `#5FA894` | Mild-good tier of the ramp (teal). |
 | `StatNegativeSoft` | `#D98A3F` | Mild-bad tier (amber, **not** a desaturated red: the two bad tiers must differ in lightness too). |
 | `StatNegative` | `#DC5A52` | Strong-bad tier. Deliberately calmer than `AccentError`: a bad stat is a judgement, not a fault. |
-| `StatBarTrack` | `#16162E` | Unfilled part of an in-cell stat bar. |
+| `StatBarTrack` | `#212140` | Unfilled part of an in-cell stat bar. Lifted off the old `#16162E`, which sat at contrast 1.00 against `CardBg` and drew no track at all. |
 | `StatBarFill` | `#33335E` | Filled part. **Neutral by design**, never tinted by sentiment. |
 | `StatSlot0`-`StatSlot5` | see catalogue | The composition bars' **categorical** palette. A different job to the ramp: "which thing", not "how good". Not borrowed accents, so a monochrome theme cannot collapse them into one hue. |
 | `PrimaryButtonHover` | `#252548` | Primary-button hover. |
@@ -1002,13 +1002,14 @@ for every audience; first-run + skippable.
 <a id="stats-components"></a>
 ### Stats component library (`Controls/Stats/`, v0.8.1)
 
-Six controls plus a scale model, built for the Stats team and player views. Full rationale, the
+Nine controls plus a scale model and the abstract presenter they share, built for the Stats team and
+player views. Full rationale, the
 dependency survey that ruled out every charting library, and the open questions are in
 [`stats-components.md`](./stats-components.md); this is the contract.
 
 | Type | What it is | Key API |
 |---|---|---|
-| `StatScale` | Pure record, **no Avalonia reference**, so it unit-tests without a render harness. Maps a raw value onto two channels. | `Fraction(v)` → 0..1 bar, `Sentiment(v)` → -1..+1 colour. Factories: `Absolute` `FromPeers` `Banded` `SignOf` `Penalty`. |
+| `StatScale` | Pure record, **no Avalonia reference**, so it unit-tests without a render harness. Maps a raw value onto two channels. | `Fraction(v)` → 0..1 bar, `Sentiment(v)` → -1..+1 colour. Factories: `Absolute` `FromPeers` `Banded` `Hybrid` — the four `StatScaleSpec.Resolve` calls. (`SignOf` and `Penalty` were both `Banded` in disguise with no caller, and are gone.) |
 | `StatPresenter` | Abstract base holding the value, the scale and the four accent brushes. The sentiment→brush rule lives here **once**. | `Value` `Scale` (or `Minimum`/`Maximum`/`Polarity`/`NeutralLow`/`NeutralHigh`), `Accent`, `Fraction`, `Sentiment`, `StrongSentimentAt`. |
 | `StatValue` | The workhorse cell: number over a bar, in a chip, or plain. | `Mode` = `Bar`/`Chip`/`Plain`, `IsLeader`, `TintBar`, `TextAlignment`, `BarAlignment` = `Left` (default)/`Center`/`Right`/`Auto`, `BarTrackBrush`, `BarFillBrush`. |
 | `SegmentedBar` | Stacked proportion bar, both densities. | `Segments` (`StatSegment(Value, Brush, Label)`), `Compact`, `ShowLabels`, `Gap`. |
@@ -1018,9 +1019,11 @@ dependency survey that ruled out every charting library, and the open questions 
 | `TeamBadge` | Templated team header with a WIN/LOSS pill. | `Team` (CS2 wire: 2 = T, 3 = CT), `Label`, `Outcome`, `Detail`; pseudo-classes `:ct` `:t` `:win` `:loss` `:draw`. |
 | `DivergingBar` | Won against lost about a break-even line. Replaces the four columns a duel record usually gets with one shape carrying all four. | `Negative`, `Positive`, `Extent` (the shared half-scale; without it each row self-scales and stops being comparable), `BarHeight`. |
 | `PipStrip` | A small count as one mark per event, for magnitudes where a numeric column is mostly whitespace. | `Count`, `MaxPips` (past it the number is written instead), `PipRadius`, `PipGap`, `EmptyBrush`. |
+| `SprayPlot` | One spray run as a 2D trace in degrees: the weapon's recoil pattern underneath as a faint reference, the player's own landed bullets over it. Pitch is deliberately **not** flipped (Source pitch is positive down and so is screen Y), and both series share one scale computed over both, so the shapes are comparable rather than each self-normalised. Gaps in the trace are the misses and are drawn as gaps. | `Pattern`, `Shots`, `PatternBrush`, `ShotBrush`, `AxisBrush`, `DotRadius`. |
 
-**Previewing them.** Four of the six have no product call site yet, so the Diagnostics tab carries a
-collapsed **"Stats component gallery (design)"** panel: every control, live, driven by sliders, reading
+**Previewing them.** All nine have a product call site now, so the gallery is no longer the only way to
+see one — it is where the EDGE of each lives. The Diagnostics tab carries a collapsed
+**"Stats component gallery (design)"** panel: every control, live, driven by sliders, reading
 no demo and reachable from a cold start. It rides the `tab.diagnostics` gate and owns its own view
 model. `UiCapture` variants: `stats-components`, `stats-components-edge`, `stats-gallery`.
 
