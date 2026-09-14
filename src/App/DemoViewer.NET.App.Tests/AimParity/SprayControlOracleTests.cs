@@ -159,10 +159,12 @@ public class SprayControlOracleTests
 
     /// <summary>
     ///     An aim punch that does not decode to a physically possible angle leaves the residual
-    ///     UNMEASURED rather than several hundred degrees wide, and unmeasured rather than zero:
-    ///     zero would read as perfect spray control. Probed on the bundled GOTV sample the punch
-    ///     components cluster near -94 and +89 degrees, so this is the common case on a real demo,
-    ///     not a defensive branch.
+    ///     UNMEASURED rather than zero: zero would read as perfect spray control. The punch is the
+    ///     only input with a physical bound to test against, which is what keeps it in the fold
+    ///     now that no arm adds it to an angle: it is the gate that stops a residual folded out of
+    ///     columns that did not decode from entering the population. Probed on the bundled GOTV
+    ///     sample the punch components cluster near -94 and +89 degrees, so this is the common case
+    ///     on a real demo, not a defensive branch.
     /// </summary>
     [Test]
     public async Task ImplausibleAimPunch_LeavesTheRunUnmeasured()
@@ -183,33 +185,37 @@ public class SprayControlOracleTests
     }
 
     /// <summary>
-    ///     A small punch survives the plausibility gate and is folded in at the engine's recoil
-    ///     scale, so the residual is a deviation of EFFECTIVE aim rather than of view angle. Without
-    ///     the scale a player who compensates perfectly would score a residual equal to the kick.
+    ///     A plausible punch admits the shot to the population and does nothing else to it. Every
+    ///     angle the fold sees is a ShootAng with the kick already in it, so two bullets that left
+    ///     along the same line score zero however far apart their punches are. This is the case a
+    ///     fold that re-applied the recoil scale gets wrong: it would report 4 degrees of spray on
+    ///     a pair of bullets that went to the same place.
     /// </summary>
     [Test]
-    public async Task PlausiblePunch_IsFoldedInAtTheRecoilScale()
+    public async Task PlausiblePunch_AdmitsTheShot_WithoutMovingIt()
     {
-        // Anchor effective pitch: 0 + 2*0 = 0. Second shot: -4 + 2*2 = 0, so a player whose view
-        // moved 4 degrees to cancel a 2 degree kick has a residual of zero, not of 4.
+        // Both bullets left along pitch 0. The second took a 2 degree kick that the shooter pulled
+        // back out, which is what "the punch is already in ShootAng" looks like in the stream.
         SprayPlayerResult result = FoldOne(
             Shot(100, recoil: 0f, pitch: 0f, punchPitch: 0f),
-            Shot(108, recoil: 1f, pitch: -4f, punchPitch: 2f));
+            Shot(108, recoil: 1f, pitch: 0f, punchPitch: 2f));
 
         using (Assert.Multiple())
         {
             await Assert.That(result.MeasuredShots).IsEqualTo(1);
             await Assert.That(result.MeanPitchError).IsEqualTo(0.0).Within(1e-9);
+            await Assert.That(result.MeanAngleError).IsEqualTo(0.0).Within(1e-9);
         }
     }
 
     /// <summary>
-    ///     The landed-arm angle reads the raw shot direction and ignores the punch, because ShootAng
-    ///     already carries it. The same two shots that give the fired-arm pair a residual of zero
-    ///     (the view moved 4 degrees to cancel a 2 degree kick) are 4 degrees apart as directions.
+    ///     The components and the 3D angle are one residual read two ways, so on a deviation that
+    ///     is pure pitch they agree exactly. They have not always: the components used to add the
+    ///     recoil scale to a direction that already carried the punch, which scored this pair at
+    ///     zero on pitch while the angle read the 4 degrees that were actually there.
     /// </summary>
     [Test]
-    public async Task AngleError_MeasuresTheRawDirection_AndIgnoresThePunch()
+    public async Task AngleError_AndTheComponents_MeasureOneResidual()
     {
         SprayPlayerResult result = FoldOne(
             Shot(100, recoil: 0f, pitch: 0f, punchPitch: 0f),
@@ -218,7 +224,7 @@ public class SprayControlOracleTests
         using (Assert.Multiple())
         {
             await Assert.That(result.MeasuredShots).IsEqualTo(1);
-            await Assert.That(result.MeanPitchError).IsEqualTo(0.0).Within(1e-9);
+            await Assert.That(result.MeanPitchError).IsEqualTo(4.0).Within(1e-9);
             await Assert.That(result.MeanAngleError).IsEqualTo(4.0).Within(1e-6);
         }
     }
@@ -311,6 +317,9 @@ public class SprayControlOracleTests
     private static SprayPlayerResult FoldOne(params OracleShot[] shots) =>
         SprayControlOracle.Fold(shots)[Shooter];
 
+    // pitch and yaw here are SHOT directions, the bullet_damage.ShootAng the oracle folds, not view
+    // angles: the punch is already inside them, which is why no case above expects the fold to add
+    // it back.
     private static OracleShot Shot(
         int tick,
         float? recoil = 0f,

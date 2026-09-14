@@ -93,8 +93,9 @@ public class SprayControlOracleRealDemoTests
                     + "anchors, which counts an anchor into its own population");
             }
 
-            // A residual is a difference of two angles, each of them a view angle plus twice a
-            // punch the plausibility gate bounds. Anything outside this is not an angle.
+            // A residual is a difference of two shot directions as the event networks them, which
+            // no pair of angles can push past a full turn in pitch, or past half of one in yaw once
+            // the yaw is wrapped. Anything outside that is not an angle.
             if (result.MeanPitchError is < 0 or > 360 || result.MeanYawError is < 0 or > 180)
             {
                 violations.Add(
@@ -186,7 +187,9 @@ public class SprayControlOracleRealDemoTests
     /// <summary>
     ///     Turns the demo's <c>bullet_damage</c> stream into oracle shots. The four angular
     ///     quantities arrive as event fields here, which is what makes this fold independent of the
-    ///     entity-decode path the shipped columns run on.
+    ///     entity-decode path the shipped columns run on. <c>ShootAng</c> goes in as the resolved
+    ///     shot direction <see cref="OracleShot.ShotPitch" /> asks for and <c>AimPunch</c> as the
+    ///     plausibility gate alone, so nothing downstream folds the kick in a second time.
     /// </summary>
     private static List<OracleShot> LandedShots(ParsedDemo demo)
     {

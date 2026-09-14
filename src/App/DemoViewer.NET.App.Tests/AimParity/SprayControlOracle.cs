@@ -19,15 +19,21 @@ namespace DemoViewer.NET.AppTests.AimParity;
 ///         <b>What the rule is.</b> A spray is a maximal run over which the recoil index never
 ///         decays, which is the engine's own segmentation rather than the "three or more shots"
 ///         convention the analytics sites use. The first shot of a run is its anchor and has no
-///         residual by construction. Every later shot carries two residuals over that one run. The
-///         fired-arm pair is its effective aim (view angle plus the engine's recoil scale times the
-///         aim punch) minus the anchor's, as pitch and yaw with yaw taken the short way round the
-///         circle. The landed-arm angle, which is the rule the shipped Spray column uses, is the 3D
-///         angle between the shot's raw direction and the anchor's with no punch folded in, because
-///         <c>bullet_damage</c>'s <c>ShootAng</c> already carries it. A shot whose aim punch does
-///         not decode to a physically possible punch is UNMEASURED, not zero: zero is
-///         indistinguishable from perfect control, which is the one reading this metric must never
-///         invent.
+///         residual by construction. Every later shot carries one residual against that anchor,
+///         reported three ways: the pitch and yaw components, with yaw taken the short way round
+///         the circle, and the 3D angle between the two directions, which is the rule the shipped
+///         Spray column uses. A shot whose aim punch does not decode to a physically possible punch
+///         is UNMEASURED, not zero: zero is indistinguishable from perfect control, which is the
+///         one reading this metric must never invent.
+///     </para>
+///     <para>
+///         <b>What it folds is shot directions, not view angles.</b> Every angular input is a
+///         RESOLVED shot direction, <c>bullet_damage</c>'s <c>ShootAng</c>, probed per shot as
+///         <c>eyeAngle + AimPunch</c>, so no arm of this fold adds the punch to it. The aim punch
+///         reaches the fold only as the plausibility gate deciding whether a shot is measured at
+///         all. Rebuilding an effective aim out of a raw view angle and the entity punch column is
+///         the FIRED arm's job and lives engine-side; doing it here, on top of a direction that
+///         already carries the kick, counts that kick three times over.
 ///     </para>
 ///     <para>
 ///         <b>Deliberately duplicated constants.</b> The five thresholds below are copies of the
@@ -62,7 +68,13 @@ public static class SprayControlOracle
     /// <summary>Float-noise tolerance on the recoil-monotonicity test.</summary>
     public const float SprayRecoilEpsilon = 0.25f;
 
-    /// <summary>What the engine multiplies the aim-punch angle by when resolving where a bullet goes.</summary>
+    /// <summary>
+    ///     What the engine multiplies the aim-punch angle by when it reconstructs a shot direction
+    ///     from a raw view angle and the entity punch column. That reconstruction is the FIRED
+    ///     arm's, and this fold never performs it, because every angle it is handed is already a
+    ///     resolved <c>ShootAng</c>. The copy stays because <c>SprayControlOracleTests</c> pins it
+    ///     against the engine's, which is drift cover the fold itself no longer needs.
+    /// </summary>
     public const double WeaponRecoilScale = 2.0;
 
     /// <summary>
@@ -96,22 +108,18 @@ public static class SprayControlOracle
                 state.Round = shot.Round;
             }
 
+            // The punch is a GATE here and never a term. What it decides is whether this shot's aim
+            // telemetry decoded at all, which is what keeps the components and the angle over one
+            // population; the direction it would otherwise be added to already carries it.
             double? punchPitch = PlausiblePunch(shot.PunchPitch);
             double? punchYaw = PlausiblePunch(shot.PunchYaw);
-            bool haveAim = shot.EyePitch.HasValue && shot.EyeYaw.HasValue
-                                                  && punchPitch.HasValue && punchYaw.HasValue;
+            bool haveAim = shot.ShotPitch.HasValue && shot.ShotYaw.HasValue
+                                                   && punchPitch.HasValue && punchYaw.HasValue;
 
-            double effectivePitch = haveAim ? shot.EyePitch!.Value + (WeaponRecoilScale * punchPitch!.Value) : 0.0;
-            double effectiveYaw = haveAim ? shot.EyeYaw!.Value + (WeaponRecoilScale * punchYaw!.Value) : 0.0;
+            double shotPitch = haveAim ? shot.ShotPitch!.Value : 0.0;
+            double shotYaw = haveAim ? shot.ShotYaw!.Value : 0.0;
 
-            bool opensRun = Advance(state, shot.Tick, shot.RecoilIndex, effectivePitch, effectiveYaw, haveAim);
-            if (opensRun)
-            {
-                // The landed-arm residual anchors on the raw shot direction, punch and all: ShootAng
-                // already has the punch folded in, and adding it again would double-count it.
-                state.AnchorEyePitch = shot.EyePitch ?? 0.0;
-                state.AnchorEyeYaw = shot.EyeYaw ?? 0.0;
-            }
+            bool opensRun = Advance(state, shot.Tick, shot.RecoilIndex, shotPitch, shotYaw, haveAim);
 
             Tally tally = tallies[shot.Slot];
             tally.Shots++;
@@ -126,10 +134,9 @@ public static class SprayControlOracle
             if (haveAim && state.HasAnchor && !opensRun)
             {
                 tally.Measured++;
-                tally.PitchErrorSum += Math.Abs(effectivePitch - state.AnchorPitch);
-                tally.YawErrorSum += Math.Abs(WrapDegrees(effectiveYaw - state.AnchorYaw));
-                tally.AngleErrorSum += AngleDeltaDegrees(
-                    state.AnchorEyePitch, state.AnchorEyeYaw, shot.EyePitch!.Value, shot.EyeYaw!.Value);
+                tally.PitchErrorSum += Math.Abs(shotPitch - state.AnchorPitch);
+                tally.YawErrorSum += Math.Abs(WrapDegrees(shotYaw - state.AnchorYaw));
+                tally.AngleErrorSum += AngleDeltaDegrees(state.AnchorPitch, state.AnchorYaw, shotPitch, shotYaw);
             }
         }
 
@@ -216,7 +223,7 @@ public static class SprayControlOracle
     // they share one pre-frame snapshot, so their recoil readings are identical and only the gap
     // bound could separate them, and separating them would restart the run mid-spray.
     private static bool Advance(
-        RunState state, int tick, float? recoil, double effectivePitch, double effectiveYaw, bool haveAim)
+        RunState state, int tick, float? recoil, double shotPitch, double shotYaw, bool haveAim)
     {
         int gap = tick - state.LastShotTick;
         int gapBound = state.RunGapBoundTicks > 0 ? state.RunGapBoundTicks : SprayOpenGapTicks;
@@ -246,8 +253,8 @@ public static class SprayControlOracle
         {
             state.ShotsInRun = 1;
             state.RunGapBoundTicks = 0;
-            state.AnchorPitch = effectivePitch;
-            state.AnchorYaw = effectiveYaw;
+            state.AnchorPitch = shotPitch;
+            state.AnchorYaw = shotYaw;
             state.HasAnchor = haveAim;
         }
 
@@ -262,8 +269,9 @@ public static class SprayControlOracle
 
     private sealed class RunState
     {
-        internal double AnchorEyePitch;
-        internal double AnchorEyeYaw;
+        // One anchor serves every residual. The components and the 3D angle are the same deviation
+        // from the same shot direction, and a second anchor beside this one is what once let the
+        // two of them mean different things.
         internal double AnchorPitch;
         internal double AnchorYaw;
         internal bool HasAnchor;
@@ -281,8 +289,6 @@ public static class SprayControlOracle
             LastRecoil = 0f;
             AnchorPitch = 0;
             AnchorYaw = 0;
-            AnchorEyePitch = 0;
-            AnchorEyeYaw = 0;
             HasAnchor = false;
         }
     }
@@ -307,17 +313,25 @@ public static class SprayControlOracle
 /// <param name="Round">Round ordinal; a change resets the shooter's run.</param>
 /// <param name="Tick">The tick the shot dispatched on.</param>
 /// <param name="RecoilIndex">The weapon's recoil index, or <c>null</c> when the column was unreadable.</param>
-/// <param name="EyePitch">View pitch in degrees.</param>
-/// <param name="EyeYaw">View yaw in degrees.</param>
-/// <param name="PunchPitch">Aim-punch pitch as networked, before wrapping or the plausibility gate.</param>
-/// <param name="PunchYaw">Aim-punch yaw as networked.</param>
+/// <param name="ShotPitch">
+///     Pitch of the RESOLVED shot direction in degrees, the kick already in it:
+///     <c>bullet_damage</c>'s <c>ShootAngX</c>, which is <c>eyeAngle + AimPunch</c>. NOT a view
+///     angle. A raw <c>m_angEyeAngles</c> passed here leaves every residual short by the kick, and
+///     a fold that adds the punch back on top of a <c>ShootAng</c> counts that kick three times.
+/// </param>
+/// <param name="ShotYaw">Yaw of that same resolved direction, in degrees: <c>ShootAngY</c>.</param>
+/// <param name="PunchPitch">
+///     Aim-punch pitch as networked, before wrapping or the plausibility gate. Read only to decide
+///     whether the shot is measurable, never to adjust <see cref="ShotPitch" />.
+/// </param>
+/// <param name="PunchYaw">Aim-punch yaw as networked, read on the same terms.</param>
 public readonly record struct OracleShot(
     int Slot,
     int Round,
     int Tick,
     float? RecoilIndex,
-    float? EyePitch,
-    float? EyeYaw,
+    float? ShotPitch,
+    float? ShotYaw,
     float? PunchPitch,
     float? PunchYaw);
 
@@ -329,14 +343,15 @@ public readonly record struct OracleShot(
 /// </param>
 /// <param name="MeasuredShots">
 ///     Shots with a residual: not an anchor, and with a plausible aim punch on both axes. The
-///     denominator of both means, and the population marker a reader needs to tell a score from an
-///     empty set.
+///     denominator of all three means, and the population marker a reader needs to tell a score
+///     from an empty set.
 /// </param>
-/// <param name="PitchErrorSum">Sum of absolute pitch residuals, in degrees.</param>
-/// <param name="YawErrorSum">Sum of absolute wrapped yaw residuals, in degrees.</param>
+/// <param name="PitchErrorSum">Sum of absolute pitch residuals between shot directions, in degrees.</param>
+/// <param name="YawErrorSum">Sum of absolute wrapped yaw residuals between the same directions, in degrees.</param>
 /// <param name="AngleErrorSum">
-///     Sum of the 3D angles between each measured shot's raw direction and its anchor's, in
-///     degrees: the landed-arm rule, over the same population as the two components.
+///     Sum of the 3D angles between each measured shot's direction and its anchor's, in degrees:
+///     the rule the shipped column aggregates, over the anchor and the population the two
+///     components use.
 /// </param>
 public sealed record SprayPlayerResult(
     int Shots,

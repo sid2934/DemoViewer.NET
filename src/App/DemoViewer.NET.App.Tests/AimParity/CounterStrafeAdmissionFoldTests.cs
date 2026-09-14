@@ -37,8 +37,16 @@ namespace DemoViewer.NET.AppTests.AimParity;
 ///         reproduce the engine's counts at whatever the shipped window is, and expose the rest of
 ///         the curve so a future candidate can be read against our own data.
 ///     </para>
+///     <para>
+///         <b>The demo tag sits on the methods, not the class.</b> Three of the four cases resolve a
+///         <c>.dem</c> and carry <c>Category("RealDemo")</c> individually;
+///         <see cref="FoldConstants_MatchTheEngine" /> reads two constants and needs nothing, so it
+///         stays uncategorised and therefore runs in every tier. A class-level tag held it out of
+///         the in-flight tiers, which is the gap <c>ShippedRulesetResolveTests</c> was written to
+///         close: a duplicated constant drifting from the engine's is exactly what an in-flight run
+///         should catch, and it costs nothing to check.
+///     </para>
 /// </summary>
-[Category("RealDemo")]
 [NotInParallel]
 public class CounterStrafeAdmissionFoldTests
 {
@@ -105,6 +113,7 @@ public class CounterStrafeAdmissionFoldTests
     /// </summary>
     /// <param name="demoId">The fixture directory name.</param>
     [Test]
+    [Category("RealDemo")]
     [MethodDataSource(nameof(DemoIds))]
     public async Task Fold_AgreesWithTheEngine_AtTheShippedWindow(string demoId)
     {
@@ -167,6 +176,7 @@ public class CounterStrafeAdmissionFoldTests
     /// </summary>
     /// <returns>A task.</returns>
     [Test]
+    [Category("RealDemo")]
     public async Task Fold_AgreesWithTheEngine_OnAnyAvailableDemo()
     {
         string demoPath = DemoTestHelper.RequireDemo();
@@ -225,6 +235,7 @@ public class CounterStrafeAdmissionFoldTests
     ///     </para>
     /// </summary>
     [Test]
+    [Category("RealDemo")]
     public async Task WindowSweep_RunsOnAnyAvailableDemo_AndReportsTheAdmittedShare()
     {
         string demoPath = DemoTestHelper.RequireDemo();
@@ -280,7 +291,7 @@ public class CounterStrafeAdmissionFoldTests
     {
         if (Math.Abs(actual - expected) > 1e-6)
         {
-            drift.Add($"{what}: the fold uses {expected}, the engine uses {actual}");
+            drift.Add($"{what}: the fold uses {actual}, the engine uses {expected}");
         }
     }
 

@@ -7,6 +7,7 @@ using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
 using CS2OpenSchema.Events;
 using DemoViewer.NET.TestSupport;
+using TUnit.Core.Exceptions;
 
 #endregion
 
@@ -24,11 +25,22 @@ namespace DemoViewer.NET.AppTests;
 ///         the divergence is what any integration has to reproduce.
 ///     </para>
 ///     <para>
-///         Diagnostic, not an assertion: it prints and passes. It exists because the alternative was
-///         guessing a spring constant and shipping a smooth, believable, wrong number.
+///         Mostly diagnostic: the comparison itself is printed rather than asserted, because what it
+///         measures is a property of the demo's schema vintage and not of our code. It exists because
+///         the alternative was guessing a spring constant and shipping a smooth, believable, wrong
+///         number, and <c>docs/handoff/cs2demokit-aim-providers.md</c> §8 names this file as the way
+///         to reproduce the finding.
+///     </para>
+///     <para>
+///         <b>What it does assert</b> is that it measured anything at all. A full entity replay that
+///         resolves no punch field, or resolves no attacker pawn, prints <c>compared=0</c> and used
+///         to pass on <c>Frames.Count &gt; 0</c> — a green run over a probe that had quietly stopped
+///         probing. Either of those is a real regression in the field paths or in pawn resolution,
+///         so on a demo that carries <c>bullet_damage</c> an empty population is now a red.
 ///     </para>
 /// </summary>
 [Category("RealDemo")]
+[Category("Probe")]
 [NotInParallel]
 public class AimPunchOracleProbe
 {
@@ -49,6 +61,7 @@ public class AimPunchOracleProbe
         EntityStateLayer layer = new(demo.Frames);
         string? resolved = null;
 
+        int landed = 0;
         int compared = 0;
         int agreed = 0;
         double sumAbsColumn = 0;
@@ -67,6 +80,9 @@ public class AimPunchOracleProbe
                     continue;
                 }
 
+                // Counted before anything can drop the shot, so the assertions below can tell "this
+                // demo has no oracle" apart from "the oracle is here and we failed to read it".
+                landed++;
                 layer.SeekToTick(frame.ServerTick);
                 EntityState? pawn = PawnLookup.ResolvePawn(layer.Tracker, shot.Attacker);
                 if (pawn is null)
@@ -127,7 +143,7 @@ public class AimPunchOracleProbe
             Console.WriteLine($"[idx] {idx,6} {v.Count,3} {v.Average(t => t.X),11:F3} {v.Average(t => t.Y),11:F3}");
         }
 
-        Console.WriteLine($"[punch] field={resolved ?? "NONE"} compared={compared}");
+        Console.WriteLine($"[punch] field={resolved ?? "NONE"} landed={landed} compared={compared}");
         if (compared > 0)
         {
             Console.WriteLine($"[punch] mean |column| = {sumAbsColumn / compared:F3} deg");
@@ -137,7 +153,20 @@ public class AimPunchOracleProbe
                               + $"({100.0 * agreed / compared:F1}%)");
         }
 
-        await Assert.That(demo.Frames.Count).IsGreaterThan(0);
+        if (landed == 0)
+        {
+            throw new SkipTestException(
+                "This demo carries no bullet_damage, so there is no server-resolved punch to compare "
+                + "against. The trimmed GOTV sources routinely omit it; the Valve matchmaking demos "
+                + "carry it.");
+        }
+
+        await Assert.That(resolved).IsNotNull()
+            .Because("neither punch field path resolved on any shooting pawn, so a whole entity "
+                     + "replay produced no comparison at all");
+        await Assert.That(compared).IsGreaterThan(0)
+            .Because($"{landed} landed bullets carry a server punch and none of them reached the "
+                     + "comparison, so the attacker pawns are not resolving");
     }
 
     private static double Wrap(double degrees)
