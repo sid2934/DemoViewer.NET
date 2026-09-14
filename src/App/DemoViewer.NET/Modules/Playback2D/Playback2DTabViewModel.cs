@@ -2032,8 +2032,11 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             return;
         }
 
-        string? trisPath = MapAsset?.CollisionTrisPath;
+        // Through CollisionSoup, not straight off the bundle: the bundle walk-up cannot see the
+        // CS2DEMOKIT_COLLISION_DIR override that Stats and the analysis run honour, and a path only
+        // one of them can produce is a second cache key for one map.
         string? map = LoadedMapNameForTest;
+        string? trisPath = CollisionSoup.Resolve(map, MapAsset?.CollisionTrisPath);
         if (trisPath is null || map is null || string.Equals(_visionEngineMap, map, StringComparison.Ordinal))
         {
             return; // no collision for this map, or already loaded/loading for it
@@ -2060,7 +2063,14 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                 {
                     VisionEngine = engine;
                     FrameUpdated?.Invoke();
+                    return;
                 }
+
+                // The map changed while this build ran, so EnsureMapAsset's call was turned away by
+                // the in-flight guard above and nothing else calls back in: without this retry the
+                // overlay stays off for the new map until the user toggles it or switches maps
+                // again. Safe to re-enter here because the guard is clear and we are on the UI thread.
+                EnsureVisionEngine();
             });
         });
     }
@@ -2073,7 +2083,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// </summary>
     internal void LoadVisionEngineSyncForTest()
     {
-        string? trisPath = MapAsset?.CollisionTrisPath;
+        string? trisPath = CollisionSoup.Resolve(LoadedMapNameForTest, MapAsset?.CollisionTrisPath);
         if (trisPath is null || LoadedMapNameForTest is null)
         {
             return;

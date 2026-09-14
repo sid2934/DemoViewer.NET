@@ -10,7 +10,7 @@ using ValveResourceFormat.ResourceTypes;
 #endregion
 
 const int SchemaVersion = 1;
-const string BakerVersion = "0.1+vrf19.2.6339";
+const string BakerVersion = "0.3+vrf19.2.6339";
 
 // ── args: <map> [<map>...] [--diag] ──
 // With no map args, bake the full shipping set (the Active Duty / commonly-demoed pool). Each
@@ -126,9 +126,9 @@ void BakeMap(string map)
     // 5b. world collision → triangle soup (collision.tris) for 3D line-of-sight. Optional: a map without
     //     extractable physics still bakes its 2D assets. See the design notes in git history.
     CollisionMeshRef? collision = null;
+    const string TrisName = "collision.tris";
     try
     {
-        const string TrisName = "collision.tris";
         CollisionMesh.Result cm = CollisionMesh.Extract(vpk, map, Path.Combine(outDir, TrisName));
         crc.Append(File.ReadAllBytes(Path.Combine(outDir, TrisName)));
         // The CRC above is over the UNCOMPRESSED bytes on purpose: mapVersion identifies the geometry
@@ -145,6 +145,22 @@ void BakeMap(string map)
     catch (Exception ex)
     {
         Console.WriteLine($"  collision: (skipped — {ex.GetType().Name}: {ex.Message})");
+
+        // Take the partial output with it. A plain .tris left behind by a compression that threw
+        // outlives the failure: the bundle written below says there is no mesh, so Playback2D draws
+        // no cones, while the Stats board resolves through CollisionSoup, which probes the plain
+        // name FIRST and hands it a soup. That split between the two surfaces is the thing the
+        // gzip migration set out to remove. A half-written .gz goes too, since it inflates to a
+        // truncation error rather than to an honest absence.
+        try
+        {
+            File.Delete(Path.Combine(outDir, TrisName));
+            File.Delete(Path.Combine(outDir, TrisName + ".gz"));
+        }
+        catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException)
+        {
+            Console.WriteLine($"  collision: partial output left in {outDir} — {cleanup.Message}");
+        }
     }
 
     // 6. version = CRC32 over source bytes (radar + nav + collision) + overview txt

@@ -71,6 +71,28 @@ public static class CollisionSoup
     }
 
     /// <summary>
+    ///     The bake every surface must agree on for a map: this resolver's answer when it has one,
+    ///     and only otherwise whatever path a loaded bundle named.
+    ///     <para>
+    ///         Stats and the analysis run reach a bake through <see cref="Find" />, which honours the
+    ///         <c>CS2DEMOKIT_COLLISION_DIR</c> override. The Playback2D overlay reaches it through its
+    ///         map bundle, and <see cref="MapAssetBundleReader" /> has no override branch at all, so
+    ///         with that variable set the two named different files: two engines built for one map,
+    ///         both of <c>VisibilityEngineCache</c>'s slots spent on it, and — if the override points
+    ///         at different geometry — a Stats board and a vision overlay disagreeing about what can
+    ///         be seen. Nothing in the repo sets the variable, which is exactly why no test caught it.
+    ///         Routing the overlay through here is what makes "one map, one engine" a property of the
+    ///         code rather than of the default configuration.
+    ///     </para>
+    /// </summary>
+    /// <param name="mapName">Map to resolve, e.g. <c>de_mirage</c>.</param>
+    /// <param name="bundlePath">The bake a loaded bundle names, or null when no bundle is loaded.</param>
+    public static string? Resolve(string? mapName, string? bundlePath)
+    {
+        return Find(mapName) ?? bundlePath;
+    }
+
+    /// <summary>
     ///     Builds the visibility engine from a bake, inflating it on the way through when the path
     ///     names a compressed one. Drop-in for <see cref="VisibilityEngine.Load" />.
     /// </summary>

@@ -10,7 +10,8 @@ namespace DemoViewer.NET.Services;
 ///     Per-process cache of built <see cref="VisibilityEngine" />s, keyed by the bake file's identity.
 ///     Three consumers (the analysis run, the Stats visibility replay and the Playback2D vision
 ///     overlay) each want the engine for the same map; without this every one of them re-reads the
-///     <c>collision.tris</c> (7 to 35 MB) and rebuilds the BVH (up to a second on de_ancient).
+///     <c>collision.tris.gz</c> (0.8 to 21 MB on disk, 4.8 to 98 MB inflated) and rebuilds the BVH,
+///     which is hundreds of ms on the larger maps.
 ///     <para>
 ///         Consumers that ask concurrently get the SAME instance and may query it at the same time.
 ///         That is sound only because <see cref="VisibilityEngine" /> is immutable after construction
@@ -20,18 +21,28 @@ namespace DemoViewer.NET.Services;
 ///     </para>
 ///     <para>
 ///         <b>Lifetime policy: a strong LRU with a fixed entry cap, DEFAULT <see cref="DefaultCapacity" />.</b>
-///         A built engine retains 14 to 75 MB, so a never-evicting map would leak several hundred
-///         MB over a session that browses a few maps. Weak references were rejected because the
-///         engine is exactly the kind of object the GC reclaims between the analysis run and the
-///         Stats click that wants it next, which would make the hit rate a coin toss; tying the
-///         lifetime to a demo close was rejected because the whole point is that the NEXT demo on
-///         the same map pays nothing. Only BUILT entries count against the cap and only built
-///         entries are evicted: an entry whose build is in flight is never dropped, so two asks for
-///         one bake always share one build. Settled-state retention is therefore <c>Capacity</c>
-///         times the largest bake (2 x 75 MB with today's assets); while builds are in flight the
-///         ceiling is <c>Capacity</c> plus one engine per distinct bake being built, which is at
-///         most one per consumer. An evicted engine that a view model still holds lives on through
-///         that reference alone, so eviction never invalidates a caller's copy.
+///         A built engine costs about 75 bytes per triangle — the only two figures ever measured,
+///         14 MB for de_nuke's 192 k triangles and 75 MB for de_ancient's 968 k, both sit inside
+///         3 percent of that rate — so today's ten bakes span 10 MB on de_mirage to 205 MB on
+///         de_inferno, and a never-evicting map would retain about 700 MB over a session that
+///         browsed all ten. Weak references were rejected because the engine is exactly the kind of
+///         object the GC reclaims between the analysis run and the Stats click that wants it next,
+///         which would make the hit rate a coin toss; tying the lifetime to a demo close was
+///         rejected because the whole point is that the NEXT demo on the same map pays nothing.
+///         Only BUILT entries count against the cap and only built entries are evicted: an entry
+///         whose build is in flight is never dropped, so two asks for one bake always share one
+///         build. Settled-state retention is therefore the <c>Capacity</c> largest bakes a session
+///         actually touches, worst case de_inferno plus de_cache at about 330 MB; while builds are
+///         in flight the ceiling is that plus one engine per distinct bake being built, which is at
+///         most one per consumer, so about 570 MB with all three starting a different large map at
+///         once. Both moved a long way when de_inferno joined the pack at 2.7 M triangles, 2.8 times
+///         de_ancient: the figures this policy was originally argued from were 151 MB and 377 MB,
+///         and de_ancient was then the largest bake there was. The cap is still 2, because the bound
+///         is what keeps ten maps in a session costing two engines rather than ten, and
+///         capacity 1 would buy back only the second-largest bake while turning the
+///         alternating-between-two-demos shape into a rebuild per switch. An evicted engine that a
+///         view model still holds lives on through that reference alone, so eviction never
+///         invalidates a caller's copy.
 ///     </para>
 ///     <para>
 ///         The key is full path plus file length plus last-write time, so a re-baked asset at the
@@ -48,7 +59,9 @@ public sealed class VisibilityEngineCache
 {
     /// <summary>
     ///     Entries kept alive by default. Two covers the common shapes without thrash: one demo with
-    ///     three consumers on one map, or a user alternating between two demos on two maps.
+    ///     three consumers on one map, or a user alternating between two demos on two maps. What two
+    ///     entries actually retain is on the type's remarks and it moved a long way when de_inferno
+    ///     landed; two is still the call, because the second shape is the one the cap exists for.
     /// </summary>
     public const int DefaultCapacity = 2;
 

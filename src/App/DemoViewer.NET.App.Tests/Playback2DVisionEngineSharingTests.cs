@@ -14,11 +14,12 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The Playback2D vision overlay is the third consumer of <see cref="VisibilityEngineCache.Shared" />.
 ///     It used to call <see cref="VisibilityEngine.Load" /> itself, so opening the 2D tab on a map the
-///     analysis run or the Stats replay had already built rebuilt the whole BVH (up to a second on
-///     de_ancient) into a second instance. Real bake, de_nuke, resolved the way each consumer resolves
-///     it: the Stats side through <see cref="CollisionAssetLocator" />, the overlay through its map
-///     bundle. Sharing is only real if the two name the same file, so the test asks through one and
-///     reads through the other. Skips, saying what is missing, without the assets.
+///     analysis run or the Stats replay had already built rebuilt the whole BVH (hundreds of ms on the
+///     larger maps) into a second instance. Real bake, de_nuke, resolved the way each consumer resolves
+///     it: the Stats side through <see cref="CollisionSoup.Find" />, the overlay through
+///     <see cref="CollisionSoup.Resolve" />, which falls back to its map bundle. Sharing is only real if
+///     the two name the same file, so the test asks through one and reads through the other. Skips,
+///     saying what is missing, without the assets.
 /// </summary>
 [NotInParallel]
 public sealed class Playback2DVisionEngineSharingTests

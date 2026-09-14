@@ -5,6 +5,7 @@ using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Stats;
 
@@ -104,10 +105,13 @@ public class SprayDrilldownTests
         string rulesDir = RuleSetLocator.ResolveShippedRulesDirectory();
         RuleConfigLoadResult loaded = YamlConfigLoader.TryLoadDirectory(rulesDir);
 
-        string? tris = CollisionAssetLocator.FindCollisionTris(demo.MapName);
+        // Through CollisionSoup, not the engine locator: the pack ships the bake gzipped and the
+        // locator only knows the uncompressed name, so asking it directly resolves nothing.
+        string? tris = CollisionSoup.Find(demo.MapName);
+        VisibilityEngine? vision = tris is null ? null : CollisionSoup.Load(tris);
         BuildResult build = DemoAnalysis.Build(demo, loaded.Rulesets, new AnalysisOptions
         {
-            VisibilityEngine = tris is null ? null : VisibilityEngine.Load(tris)
+            VisibilityEngine = vision
         });
 
         AnalysisRun run = DemoAnalysis.Evaluate(demo, build, new AnalysisOptions());

@@ -7,6 +7,7 @@ using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -34,8 +35,9 @@ namespace DemoViewer.NET.AppTests.AimParity;
 ///         <b>Visibility is a capability, not a default.</b> Tier 3 needs baked map geometry, and
 ///         without it every Tier 3 column reads 0.0 rather than blank, which looks like a terrible
 ///         score instead of an absent measurement. <see cref="AimRunResult.VisibilityAvailable" />
-///         is how a caller tells those apart, and the two maps in the benchmark set with no
-///         committed bake (mirage, inferno) are why it is a flag rather than an assumption.
+///         is how a caller tells those apart. Every map the pack ships now carries a bake, so on the
+///         benchmark set the flag reads true; it stays a flag rather than an assumption because a
+///         demo on a map outside that pack, or a checkout with no <c>assets/</c>, still has none.
 ///     </para>
 /// </summary>
 public static class LiveAimStats
@@ -184,31 +186,22 @@ public static class LiveAimStats
     }
 
     /// <summary>
-    ///     Locates a baked <c>collision.tris</c> for a map, preferring the committed bundle under
-    ///     <c>assets/</c> over the baker's own output tree, or <c>null</c> when neither has one.
-    ///     Only some maps ship a bake, so this returning null is a normal state and not an error.
+    ///     Locates a map's baked collision soup, compressed or plain, or <c>null</c> when neither
+    ///     tree carries one. A map without a bake is a normal state and not an error.
+    ///     <para>
+    ///         Delegates to <see cref="CollisionSoup.Find" /> rather than composing the path, for
+    ///         the reason the app's own resolver exists: the shipped pack carries
+    ///         <c>collision.tris.gz</c>, so a probe that asks for the uncompressed name alone comes
+    ///         back empty on every map, the run proceeds with no visibility engine, and every Tier 3
+    ///         column reads a confident 0.0 that is indistinguishable from a terrible score.
+    ///     </para>
     /// </summary>
     /// <param name="mapName">The map, for example <c>de_nuke</c>.</param>
     /// <returns>The path, or <c>null</c>.</returns>
-    public static string? FindCollisionBake(string? mapName)
-    {
-        if (string.IsNullOrEmpty(mapName) || DemoTestHelper.FindRepoRoot() is not { } root)
-        {
-            return null;
-        }
-
-        string committed = Path.Combine(root, "assets", mapName, "collision.tris");
-        if (File.Exists(committed))
-        {
-            return committed;
-        }
-
-        string baked = Path.Combine(root, "cs2-assets", "baked", mapName, "collision.tris");
-        return File.Exists(baked) ? baked : null;
-    }
+    public static string? FindCollisionBake(string? mapName) => CollisionSoup.Find(mapName);
 
     private static VisibilityEngine? TryLoadCollision(string? mapName) =>
-        FindCollisionBake(mapName) is { } path ? VisibilityEngine.Load(path) : null;
+        FindCollisionBake(mapName) is { } path ? CollisionSoup.Load(path) : null;
 
     private static string RulesetPath()
     {

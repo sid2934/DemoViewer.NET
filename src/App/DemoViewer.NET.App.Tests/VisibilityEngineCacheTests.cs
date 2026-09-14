@@ -14,10 +14,18 @@ namespace DemoViewer.NET.AppTests;
 ///     asks; a re-baked file is a miss on length alone and on write time alone; the LRU cap bounds
 ///     retention and never evicts a build in flight; an evicted engine is unreachable once its
 ///     holders drop it; a failed build is not cached; a waiter's cancellation, even one signalled
-///     before the ask, does not abandon the build. No real bake is read: the loader is a counting
+///     before the ask, does not abandon the build; and the collision override resolves to one path
+///     for both surfaces, so they land on one key. No real bake is read: the loader is a counting
 ///     stand-in over a one-triangle mesh, and the keyed files are temp files whose only job is to
 ///     have a length and a write time.
+///     <para>
+///         The override case mutates <c>CS2DEMOKIT_COLLISION_DIR</c>, which is process-wide, so
+///         <c>[NotInParallel]</c> + save/restore — and it points the variable at a map name no bundle
+///         ships, so even a resolver call that slipped past both guards still misses it and falls
+///         through to the assets walk-up.
+///     </para>
 /// </summary>
+[NotInParallel]
 public sealed class VisibilityEngineCacheTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), $"dv-viscache-{Guid.NewGuid():N}");
@@ -170,6 +178,58 @@ public sealed class VisibilityEngineCacheTests : IDisposable
         await Assert.That(upper).IsSameReferenceAs(lower);
         await Assert.That(cache.Builds).IsEqualTo(1);
         await Assert.That(cache.Count).IsEqualTo(1);
+    }
+
+    /// <summary>
+    ///     One map must be ONE key, whatever the configuration. Stats and the analysis run resolve a
+    ///     bake through <see cref="CollisionSoup.Find" />, which honours <c>CS2DEMOKIT_COLLISION_DIR</c>;
+    ///     the Playback2D overlay used to take its map bundle's path outright, and the bundle walk-up
+    ///     has no override branch, so with the variable set the two named different files and the cache
+    ///     spent both its slots on one map's geometry. Nothing in the repo sets the variable, so only a
+    ///     test that sets it can hold the invariant.
+    ///     <para>
+    ///         The override directory is this test's own temp fixture under a map name no bundle ships,
+    ///         so a test running beside it still resolves de_mirage and de_nuke off the assets walk-up.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task CollisionOverride_ResolvesOnePathForBothSurfaces_SoTheyShareOneKey()
+    {
+        const string map = "de_viscache_fixture";
+        string overrideDir = Path.Combine(_dir, "override");
+        Directory.CreateDirectory(Path.Combine(overrideDir, map));
+        string overridden = Path.Combine(overrideDir, map, "collision.tris" + CollisionSoup.CompressedSuffix);
+        File.WriteAllBytes(overridden, new byte[64]);
+
+        // Stands in for what a loaded bundle names: a different directory entirely, which is exactly
+        // the disagreement an override used to produce.
+        string fromBundle = WriteBake("bundle-collision.tris.gz", 64);
+
+        string? previous = Environment.GetEnvironmentVariable(CollisionAssetLocator.EnvVar);
+        Environment.SetEnvironmentVariable(CollisionAssetLocator.EnvVar, overrideDir);
+        try
+        {
+            string? stats = CollisionSoup.Find(map);
+            string? overlay = CollisionSoup.Resolve(map, fromBundle);
+
+            await Assert.That(stats).IsEqualTo(overridden)
+                .Because("the override directory holds the only bake for this map");
+            await Assert.That(overlay).IsEqualTo(stats)
+                .Because("the overlay must not keep its bundle's path when the override names another");
+
+            // The consequence the cache actually sees: one identity, one build, one slot.
+            VisibilityEngineCache cache = new(loader: _ => OneTriangle());
+            VisibilityEngine viaStats = await cache.GetOrLoadAsync(stats!);
+            VisibilityEngine viaOverlay = await cache.GetOrLoadAsync(overlay!);
+
+            await Assert.That(viaOverlay).IsSameReferenceAs(viaStats);
+            await Assert.That(cache.Builds).IsEqualTo(1);
+            await Assert.That(cache.Count).IsEqualTo(1);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(CollisionAssetLocator.EnvVar, previous);
+        }
     }
 
     [Test]

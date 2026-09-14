@@ -9,6 +9,7 @@ using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Stats;
 using DemoViewer.NET.Views.Stats;
@@ -40,9 +41,11 @@ public class StatsRealDemoRenderProbe
         // Mirror the app: AnalysisViewModel hands the build a loaded collision bake, and without it
         // the builder declines to synthesize enemy_spotted. A probe that skipped it would capture
         // preaim, spotted accuracy and the timing ladder as a confident column of zeros, which is
-        // exactly the shape a reader would mistake for a working board.
-        string? tris = CollisionAssetLocator.FindCollisionTris(demo.MapName);
-        VisibilityEngine? visibility = tris is null ? null : VisibilityEngine.Load(tris);
+        // exactly the shape a reader would mistake for a working board. Through CollisionSoup for
+        // the same reason the app goes through it: the pack ships the bake gzipped, and the
+        // engine's own locator only knows the uncompressed name.
+        string? tris = CollisionSoup.Find(demo.MapName);
+        VisibilityEngine? visibility = tris is null ? null : CollisionSoup.Load(tris);
         Console.WriteLine(visibility is null
             ? $"[capture] no collision bake for {demo.MapName}; visibility columns will be empty"
             : $"[capture] collision bake loaded for {demo.MapName}");

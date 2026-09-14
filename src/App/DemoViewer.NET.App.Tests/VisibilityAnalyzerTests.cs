@@ -5,6 +5,7 @@ using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -54,7 +55,10 @@ public class VisibilityAnalyzerTests
 
     private static (VisibilityEngine Engine, ParsedDemo Demo)? LoadCore(string map)
     {
-        string? tris = FindBaked(map, "collision.tris");
+        // CollisionSoup rather than a hand-composed path: the shipped pack carries the bake gzipped,
+        // and a probe for the uncompressed name alone returns null on every map, which this method
+        // reports as "no geometry" and the whole class then skips over.
+        string? tris = CollisionSoup.Find(map);
         if (tris is null)
         {
             return null;
@@ -76,7 +80,7 @@ public class VisibilityAnalyzerTests
             return null;
         }
 
-        VisibilityEngine engine = VisibilityEngine.Load(tris);
+        VisibilityEngine engine = CollisionSoup.Load(tris);
         ParsedDemo demo = DemoParser.Parse(File.ReadAllBytes(demoPath).AsMemory());
         return (engine, demo);
     }
@@ -554,22 +558,5 @@ public class VisibilityAnalyzerTests
         // ramp/hole/vents, are the visible minority). A floor-occlusion bug would drive this toward 0%.
         await Assert.That(crossFloorPairs).IsGreaterThan(30);
         await Assert.That(rate).IsGreaterThan(0.6);
-    }
-
-    private static string? FindBaked(string mapName, string file)
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            string candidate = Path.Combine(dir.FullName, "cs2-assets", "baked", mapName, file);
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        return null;
     }
 }
