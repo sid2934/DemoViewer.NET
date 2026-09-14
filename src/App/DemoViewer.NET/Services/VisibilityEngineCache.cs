@@ -61,7 +61,8 @@ public sealed class VisibilityEngineCache
     private long _hits;
 
     /// <summary>
-    ///     Creates a cache. <paramref name="loader" /> defaults to <see cref="VisibilityEngine.Load" />;
+    ///     Creates a cache. <paramref name="loader" /> defaults to <see cref="CollisionSoup.Load" />, which
+    ///     inflates a compressed bake on the way through;
     ///     tests substitute a counting loader over a synthetic mesh.
     /// </summary>
     /// <param name="capacity">Strong entries to keep; clamped to at least 1.</param>
@@ -69,7 +70,7 @@ public sealed class VisibilityEngineCache
     public VisibilityEngineCache(int capacity = DefaultCapacity, Func<string, VisibilityEngine>? loader = null)
     {
         _capacity = Math.Max(1, capacity);
-        _loader = loader ?? VisibilityEngine.Load;
+        _loader = loader ?? CollisionSoup.Load;
     }
 
     /// <summary>The process-wide instance every view model shares.</summary>

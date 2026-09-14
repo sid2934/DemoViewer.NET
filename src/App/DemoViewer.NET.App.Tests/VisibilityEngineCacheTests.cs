@@ -399,11 +399,11 @@ public sealed class VisibilityEngineCacheTests : IDisposable
     [Test]
     public async Task DefaultLoader_BuildsARealBake_OnceForTwoAsks()
     {
-        string? tris = CollisionAssetLocator.FindCollisionTris("de_nuke");
+        string? tris = CollisionSoup.Find("de_nuke");
         if (tris is null)
         {
             throw new SkipTestException(
-                $"no de_nuke collision.tris: set {CollisionAssetLocator.EnvVar} to the assets directory");
+                $"no de_nuke bake: set {CollisionAssetLocator.EnvVar} to the assets directory");
         }
 
         VisibilityEngineCache cache = new();

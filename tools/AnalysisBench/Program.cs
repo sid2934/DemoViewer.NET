@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Services;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Diagnostics.Tracing;
@@ -384,8 +385,8 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
         // to synthesize enemy_spotted, every visibility-gated aim stat reads zero, and the
         // benchmark would measure a materially cheaper graph than the app actually runs. Null when
         // the map has no bake, which is a real and common shape rather than a failure.
-        string? benchTris = CollisionAssetLocator.FindCollisionTris(demo.MapName);
-        VisibilityEngine? benchVisibility = benchTris is null ? null : VisibilityEngine.Load(benchTris);
+        string? benchTris = CollisionSoup.Find(demo.MapName);
+        VisibilityEngine? benchVisibility = benchTris is null ? null : CollisionSoup.Load(benchTris);
         Console.WriteLine(benchVisibility is null
             ? $"Visibility: no collision bake for {demo.MapName} (visibility-gated stats stay empty)"
             : $"Visibility: bake loaded for {demo.MapName}");

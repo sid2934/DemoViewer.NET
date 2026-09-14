@@ -148,9 +148,9 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     /// </param>
     /// <param name="demoPathAccessor">Reads the loaded demo's path (match_id dimension source).</param>
     /// <param name="collisionResolver">
-    ///     Maps a map name to its baked <c>collision.tris</c> path, or null when the map has no bake
+    ///     Maps a map name to its baked collision path, compressed or plain, or null when there is no bake
     ///     (gates the visibility compute action). Defaults to
-    ///     <see cref="CollisionAssetLocator.FindCollisionTris" />; injectable for tests.
+    ///     <see cref="CollisionSoup.Find" />; injectable for tests.
     /// </param>
     /// <param name="visibilityOptions">
     ///     Optional <see cref="VisibilityAnalyzer.Options" /> (frame window / stride / FOV) for the
@@ -162,7 +162,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         VisibilityAnalyzer.Options? visibilityOptions = null)
     {
         _demoPathAccessor = demoPathAccessor;
-        _collisionResolver = collisionResolver ?? CollisionAssetLocator.FindCollisionTris;
+        _collisionResolver = collisionResolver ?? CollisionSoup.Find;
         _visibilityOptions = visibilityOptions;
         if (analysis is not null)
         {

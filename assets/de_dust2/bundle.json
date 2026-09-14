@@ -34,7 +34,7 @@
     "de_dust2.png"
   ],
   "collisionMesh": {
-    "file": "collision.tris",
+    "file": "collision.tris.gz",
     "triangleCount": 435649,
     "minX": -4736,
     "minY": -2496,

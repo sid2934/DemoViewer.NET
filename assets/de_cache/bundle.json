@@ -34,7 +34,7 @@
     "de_cache.png"
   ],
   "collisionMesh": {
-    "file": "collision.tris",
+    "file": "collision.tris.gz",
     "triangleCount": 1632062,
     "minX": -2398,
     "minY": -2624,

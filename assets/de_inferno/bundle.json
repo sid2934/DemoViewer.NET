@@ -34,7 +34,7 @@
     "de_inferno.png"
   ],
   "collisionMesh": {
-    "file": "collision.tris",
+    "file": "collision.tris.gz",
     "triangleCount": 2733603,
     "minX": -3552,
     "minY": -2872,

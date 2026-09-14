@@ -8,6 +8,10 @@
         <ServerGarbageCollection>true</ServerGarbageCollection>
     </PropertyGroup>
     <ItemGroup>
+        <!-- Shared by SOURCE rather than duplicated: the bench has to resolve and inflate a bake the
+             same way the app does, and a second copy of the probe order is how the two drift apart.
+             A ProjectReference would drag Avalonia into a console bench, so it is not an option. -->
+        <Compile Include="../../src/App/DemoViewer.NET/Services/CollisionSoup.cs" Link="CollisionSoup.cs"/>
         <PackageReference Include="CS2DemoKit.Parser"/>
         <PackageReference Include="CS2DemoKit.Analysis"/>
     </ItemGroup>

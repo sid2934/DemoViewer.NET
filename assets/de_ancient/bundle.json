@@ -34,7 +34,7 @@
     "de_ancient.png"
   ],
   "collisionMesh": {
-    "file": "collision.tris",
+    "file": "collision.tris.gz",
     "triangleCount": 967742,
     "minX": -4151.30859375,
     "minY": -4134.0009765625,

@@ -34,7 +34,7 @@
     "de_mirage.png"
   ],
   "collisionMesh": {
-    "file": "collision.tris",
+    "file": "collision.tris.gz",
     "triangleCount": 133131,
     "minX": -4096,
     "minY": -3864,

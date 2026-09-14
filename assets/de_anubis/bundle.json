@@ -34,7 +34,7 @@
     "de_anubis.png"
   ],
   "collisionMesh": {
-    "file": "collision.tris",
+    "file": "collision.tris.gz",
     "triangleCount": 699166,
     "minX": -3202.5048828125,
     "minY": -3456,

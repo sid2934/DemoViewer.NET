@@ -44,7 +44,7 @@
     "de_train_lower.png"
   ],
   "collisionMesh": {
-    "file": "collision.tris",
+    "file": "collision.tris.gz",
     "triangleCount": 1574210,
     "minX": -3608,
     "minY": -2996,

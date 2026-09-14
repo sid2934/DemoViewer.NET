@@ -131,10 +131,16 @@ void BakeMap(string map)
         const string TrisName = "collision.tris";
         CollisionMesh.Result cm = CollisionMesh.Extract(vpk, map, Path.Combine(outDir, TrisName));
         crc.Append(File.ReadAllBytes(Path.Combine(outDir, TrisName)));
+        // The CRC above is over the UNCOMPRESSED bytes on purpose: mapVersion identifies the geometry
+        // and not the container it ships in, so compressing must not restamp every bundle and trip the
+        // golden stale-assets guard. That is why this runs after the CRC rather than inside Extract.
+        string gzName = TrisName + ".gz";
+        long gzLen = CollisionMesh.CompressAndReplace(
+            Path.Combine(outDir, TrisName), Path.Combine(outDir, gzName));
         collision = new CollisionMeshRef(
-            TrisName, cm.TriangleCount,
+            gzName, cm.TriangleCount,
             cm.Min.X, cm.Min.Y, cm.Min.Z, cm.Max.X, cm.Max.Y, cm.Max.Z);
-        Console.WriteLine(cm.Diagnostic);
+        Console.WriteLine($"{cm.Diagnostic}  gz {gzLen / 1024.0 / 1024.0:F1} MiB");
     }
     catch (Exception ex)
     {

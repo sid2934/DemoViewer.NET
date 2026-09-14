@@ -1265,7 +1265,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             return null;
         }
 
-        string? trisPath = CollisionAssetLocator.FindCollisionTris(demo.MapName);
+        string? trisPath = CollisionSoup.Find(demo.MapName);
         if (trisPath is null)
         {
             AppLog.VisibilityBakeMissing(DiagLog, demo.MapName);
