@@ -400,7 +400,15 @@
                                                         IsVisible="{Binding HasScore}"
                                                         Background="{DynamicResource LibraryCardBadgeBg}"
                                                         CornerRadius="4" Padding="6 1">
+                                                    <!-- Which number is which side was encoded by COLOUR ALONE,
+                                             on a card whose own comment below insists state be
+                                             text-carried. The side marks fix that; if the icons ever
+                                             go missing the badge degrades to exactly what it was. -->
                                                     <StackPanel Orientation="Horizontal" Spacing="3">
+                                                        <controls:GameIcon Key="ui/ct_logo" IconHeight="10"
+                                                                           Foreground="{DynamicResource LibraryCardScoreCt}"
+                                                                           VerticalAlignment="Center"
+                                                                           ToolTip.Tip="Counter-Terrorists" />
                                                         <TextBlock Text="{Binding CtScore}"
                                                                    Foreground="{DynamicResource LibraryCardScoreCt}"
                                                                    FontWeight="Bold" FontSize="13" />
@@ -410,6 +418,10 @@
                                                         <TextBlock Text="{Binding TScore}"
                                                                    Foreground="{DynamicResource LibraryCardScoreT}"
                                                                    FontWeight="Bold" FontSize="13" />
+                                                        <controls:GameIcon Key="ui/t_logo" IconHeight="10"
+                                                                           Foreground="{DynamicResource LibraryCardScoreT}"
+                                                                           VerticalAlignment="Center"
+                                                                           ToolTip.Tip="Terrorists" />
                                                     </StackPanel>
                                                 </Border>
 
@@ -473,6 +485,11 @@
                                                     Classes.busyDot="{Binding IsIndexing}"
                                                     Classes.failedDot="{Binding IsFailed}"
                                                     theming:MapAccent.Key="{Binding MapName}" />
+                                            <!-- CS2's own map icon. The card view paints a full baked radar
+                                             behind itself; this row had no map visual at all. A community
+                                             map simply leaves the slot empty — the name is right beside it. -->
+                                            <controls:GameIcon Key="{Binding MapName, StringFormat='map/{0}'}"
+                                                               IconHeight="14" VerticalAlignment="Center" />
                                             <TextBlock Text="{Binding MapDisplay}" Classes="listCell"
                                                        Foreground="{DynamicResource TextValue}" />
                                         </StackPanel>

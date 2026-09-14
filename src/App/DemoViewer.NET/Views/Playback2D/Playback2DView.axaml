@@ -335,33 +335,46 @@
                                         <Run Text="+" Foreground="{DynamicResource Pb2dTextDim}" />
                                         <Run Text="{Binding Assister}" />
                                     </TextBlock>
-                                    <TextBlock Text="⚡" Foreground="{DynamicResource Pb2dFlashAssist}" FontSize="10"
-                                               VerticalAlignment="Center"
-                                               IsVisible="{Binding AssistedFlash}" ToolTip.Tip="flash assist" />
-                                    <TextBlock Text="{Binding Weapon}" Foreground="{DynamicResource Pb2dPositive}"
-                                               FontFamily="Consolas,Menlo,monospace" FontSize="11"
-                                               VerticalAlignment="Center" />
-                                    <TextBlock Text="HS" Foreground="{DynamicResource Pb2dHeadshot}" FontSize="10"
-                                               FontWeight="Bold"
-                                               VerticalAlignment="Center" IsVisible="{Binding Headshot}"
-                                               ToolTip.Tip="headshot" />
-                                    <TextBlock Text="WB" Foreground="{DynamicResource Pb2dWallbang}" FontSize="10"
-                                               FontWeight="Bold"
-                                               VerticalAlignment="Center" IsVisible="{Binding Penetrated}"
-                                               ToolTip.Tip="wallbang (penetration)" />
-                                    <TextBlock Text="NS" Foreground="{DynamicResource Pb2dNoScope}" FontSize="10"
-                                               FontWeight="Bold"
-                                               VerticalAlignment="Center" IsVisible="{Binding NoScope}"
-                                               ToolTip.Tip="no-scope" />
-                                    <TextBlock Text="≈" Foreground="{DynamicResource Pb2dTextMid}" FontSize="12"
-                                               VerticalAlignment="Center"
-                                               IsVisible="{Binding ThroughSmoke}" ToolTip.Tip="through smoke" />
-                                    <TextBlock Text="✱" Foreground="{DynamicResource Pb2dGlyphBlind}" FontSize="11"
-                                               VerticalAlignment="Center"
-                                               IsVisible="{Binding AttackerBlind}" ToolTip.Tip="killer was blind" />
-                                    <TextBlock Text="↑" Foreground="{DynamicResource Pb2dTextBright}" FontSize="11"
-                                               VerticalAlignment="Center"
-                                               IsVisible="{Binding AttackerInAir}" ToolTip.Tip="killer airborne" />
+                                    <controls:GameIcon Key="equipment/flashbang_assist" Fallback="⚡"
+                                                       IconHeight="12" FontSize="10"
+                                                       Foreground="{DynamicResource Pb2dFlashAssist}"
+                                                       VerticalAlignment="Center"
+                                                       IsVisible="{Binding AssistedFlash}"
+                                                       ToolTip.Tip="flash assist" />
+                                    <!-- CS2's own weapon artwork, tinted to the feed's palette, with the
+                                         weapon's own name as the fallback. One element: the catalogue
+                                         decides whether this key is missing (draw the name) or blank
+                                         (draw nothing — an environment death has no weapon). -->
+                                    <controls:GameIcon
+                                            Key="{Binding Weapon, Converter={x:Static controls:WeaponIconKey.Key}}"
+                                            Fallback="{Binding Weapon}" IconHeight="13"
+                                            FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                            Foreground="{DynamicResource Pb2dPositive}"
+                                            VerticalAlignment="Center" ToolTip.Tip="{Binding Weapon}" />
+                                    <controls:GameIcon Key="modifier/headshot" IconHeight="12"
+                                                       Foreground="{DynamicResource Pb2dHeadshot}"
+                                                       VerticalAlignment="Center" IsVisible="{Binding Headshot}"
+                                                       ToolTip.Tip="headshot" />
+                                    <controls:GameIcon Key="modifier/penetrate" IconHeight="12"
+                                                       Foreground="{DynamicResource Pb2dWallbang}"
+                                                       VerticalAlignment="Center" IsVisible="{Binding Penetrated}"
+                                                       ToolTip.Tip="wallbang (penetration)" />
+                                    <controls:GameIcon Key="modifier/noscope" IconHeight="12"
+                                                       Foreground="{DynamicResource Pb2dNoScope}"
+                                                       VerticalAlignment="Center" IsVisible="{Binding NoScope}"
+                                                       ToolTip.Tip="no-scope" />
+                                    <controls:GameIcon Key="modifier/smoke" IconHeight="12"
+                                                       Foreground="{DynamicResource Pb2dTextMid}"
+                                                       VerticalAlignment="Center" IsVisible="{Binding ThroughSmoke}"
+                                                       ToolTip.Tip="through smoke" />
+                                    <controls:GameIcon Key="modifier/blind" IconHeight="12"
+                                                       Foreground="{DynamicResource Pb2dGlyphBlind}"
+                                                       VerticalAlignment="Center" IsVisible="{Binding AttackerBlind}"
+                                                       ToolTip.Tip="killer was blind" />
+                                    <controls:GameIcon Key="modifier/inair" IconHeight="12"
+                                                       Foreground="{DynamicResource Pb2dTextBright}"
+                                                       VerticalAlignment="Center" IsVisible="{Binding AttackerInAir}"
+                                                       ToolTip.Tip="killer airborne" />
                                     <TextBlock Text="→" Foreground="{DynamicResource Pb2dTextDim}" FontSize="11"
                                                VerticalAlignment="Center" />
                                     <TextBlock Text="{Binding Victim}"
