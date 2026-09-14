@@ -467,6 +467,13 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
     need arises; a permissive MIT Avalonia icon pack (e.g. `Projektanker.Icons.Avalonia`) is only worth the
     dep policy if a repo-wide icon system is adopted, not for the NavStrip, which ships **text-forward**
     (chevrons + the `TargetSummary` word) by deliberate, self-documenting preference.
+  - <a id="game-icon-scope"></a>**A repo-wide icon system was NOT adopted, and the CS2 icon set is not
+    one.** `docs/ui/game-icons.md` describes a baked set of CS2's own artwork (weapons, kill modifiers,
+    round objects, sides, ranks, maps) reached through a `GameIcon` control. Its scope is **game
+    vocabulary only** — things Valve drew because the game means them. It does not reopen the decision
+    above: the NavStrip and the command palette stay text-forward, and stat column headers stay words.
+    Every adopted site keeps a text `Fallback`, which is the same preference expressed one layer down —
+    the text is the substrate, the icon is the enhancement.
 
 <a id="timelinecontrol"></a>
 ### TimelineControl: the 2D playback timeline (Playback2D v2, phase A1)
