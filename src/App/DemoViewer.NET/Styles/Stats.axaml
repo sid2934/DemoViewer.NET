@@ -6,13 +6,14 @@
     <!--
         Stats.axaml — the stats component library's theme layer (v0.8.1).
 
-        The six controls in Controls/Stats/ hold no brush in code. Every colour they use arrives here as
+        The nine controls in Controls/Stats/ hold no brush in code. Every colour they use arrives here as
         a {DynamicResource} token, so a theme switch re-resolves it and AffectsRender repaints. That is
         the whole contract; a control that paints a hard-coded colour is a bug.
 
-        Four of the six draw themselves (StatValue, SegmentedBar, Sparkline, RingGauge) and so need only
-        default property values, set by a plain Style. The two that are layout and text (StatTile,
-        TeamBadge) are templated and get a ControlTheme in Styles.Resources below.
+        Seven of the nine draw themselves (StatValue, SegmentedBar, Sparkline, DivergingBar, PipStrip,
+        RingGauge, SprayPlot) and so need only default property values, set by a plain Style. The two that
+        are layout and text (StatTile, TeamBadge) are templated and get a ControlTheme in
+        Styles.Resources below.
 
         See docs/ui/stats-components.md for what each component is for, and docs/ui/design-system.md for
         the contracts.
@@ -271,6 +272,19 @@
         <Setter Property="PositiveSoftBrush" Value="{DynamicResource StatPositiveSoft}" />
         <Setter Property="NegativeSoftBrush" Value="{DynamicResource StatNegativeSoft}" />
         <Setter Property="NegativeBrush" Value="{DynamicResource StatNegative}" />
+    </Style>
+
+    <!-- ── SprayPlot — one spray over the weapon's reference pattern ──────────────────────────────
+         Same division as Sparkline, which is the structural analogue: the data trace takes the
+         interactive accent, the frame behind it takes the subtle border, and the reference pattern
+         sits in the dimmest text token so the player's own bullets read on top of it.
+         Defaulted HERE rather than at the call site, which is how the mistake was possible: Avalonia
+         resolves a missing {DynamicResource} silently, so two mistyped token names left the control on
+         its code-held fallback colours in every theme with nothing to report it. -->
+    <Style Selector="stats|SprayPlot">
+        <Setter Property="PatternBrush" Value="{DynamicResource TextDim}" />
+        <Setter Property="ShotBrush" Value="{DynamicResource AccentInteractive}" />
+        <Setter Property="AxisBrush" Value="{DynamicResource BorderSubtle}" />
     </Style>
 
     <!-- ══ Table furniture: style classes, not controls ════════════════════════════════════════════

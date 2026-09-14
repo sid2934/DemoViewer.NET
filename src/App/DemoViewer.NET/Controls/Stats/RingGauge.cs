@@ -44,8 +44,13 @@ public class RingGauge : StatPresenter
 
     static RingGauge()
     {
+        // The gauge sizes itself from the style (54x54) and has no MeasureOverride, so every one of
+        // these is a render input and none of them is a layout one — the font properties included.
+        // StatPresenter covers the value and the accent brushes; what is left is the typeface the two
+        // labels are built from and the Padding the ring is inset by.
         AffectsRender<RingGauge>(ThicknessProperty, CaptionProperty, TrackBrushProperty,
-            CaptionBrushProperty, BackgroundProperty);
+            CaptionBrushProperty, BackgroundProperty, ForegroundProperty, FontFamilyProperty,
+            FontSizeProperty, FontWeightProperty, FontStyleProperty, PaddingProperty);
     }
 
     /// <inheritdoc cref="ThicknessProperty" />

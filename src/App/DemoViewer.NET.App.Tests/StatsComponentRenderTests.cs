@@ -10,9 +10,12 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using DemoViewer.NET.Controls.Stats;
 using DemoViewer.NET.ViewModels.Diagnostics;
+using DemoViewer.NET.ViewModels.Stats;
 using DemoViewer.NET.Views.Diagnostics;
+using DemoViewer.NET.Views.Stats;
 
 #endregion
 
@@ -24,11 +27,11 @@ namespace DemoViewer.NET.AppTests;
 ///     be unit tested: that each control actually paints, that it paints DIFFERENTLY under Dark and
 ///     Light, and that the inputs which would throw in a naive implementation do not.
 ///     <para>
-///         The theme assertion is the load-bearing one. These six controls draw with
-///         <c>DrawingContext</c> and hold no brush in code, so every colour arrives as a styled property
-///         fed by <c>{DynamicResource}</c> from <c>Styles/Stats.axaml</c>. If one of them ever caches a
-///         brush or resolves a token statically, Dark and Light stop differing and this test is what
-///         says so.
+///         The theme assertion is the load-bearing one. Seven of the nine controls draw with
+///         <c>DrawingContext</c> and none of the nine holds a brush in code, so every colour arrives as a
+///         styled property fed by <c>{DynamicResource}</c> from <c>Styles/Stats.axaml</c>. If one of them
+///         ever caches a brush or resolves a token statically, Dark and Light stop differing and this
+///         test is what says so.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -281,8 +284,8 @@ public class StatsComponentRenderTests
     /// <summary>
     ///     The in-app dev gallery (Diagnostics tab) renders and its bindings resolve. Avalonia binding
     ///     errors do not throw, so a renamed view-model property would otherwise ship a panel of empty
-    ///     boxes that nobody notices until someone opens it. The gallery is also the only place four of
-    ///     the six controls appear in the app at all.
+    ///     boxes that nobody notices until someone opens it. Every control has a product call site now,
+    ///     but the gallery is still the only place they are all on one screen under one scale.
     /// </summary>
     [Test]
     public async Task DevGallery_RendersAndResolvesItsBindings()
@@ -475,6 +478,173 @@ public class StatsComponentRenderTests
             }
         };
 
+    /// <summary>
+    ///     Both arms reach the frame, each in its own colour, and both measured against the shared
+    ///     extent rather than against each other.
+    ///     <para>
+    ///         <see cref="DivergingBar" /> was the one control neither fixture held, so nothing said
+    ///         whether it painted at all. It is also the control that replaced four numeric columns with
+    ///         one shape, which makes "it painted, and the longer count is the longer arm" the entire
+    ///         claim it makes.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task DivergingBar_PaintsAnArmPerSide_AgainstTheSharedExtent()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            // Pure green and pure magenta: nothing in either palette is within reach of either, so a
+            // hit is this bar's arm and not the chrome behind it.
+            const uint won = 0x00FF00;
+            const uint lost = 0xFF00FF;
+
+            byte[] both = CaptureControl(Duels(9, 5), "stats-duel-both-arms");
+            int wonInk = FrameProbe.CountPixels(both, won);
+            int lostInk = FrameProbe.CountPixels(both, lost);
+            await Assert.That(wonInk).IsGreaterThan(0);
+            await Assert.That(lostInk).IsGreaterThan(0);
+            await Assert.That(wonInk).IsGreaterThan(lostInk);
+
+            // A clean sweep draws the one arm it has and nothing on the other side of the line.
+            byte[] sweep = CaptureControl(Duels(6, 0), "stats-duel-one-arm");
+            await Assert.That(FrameProbe.CountPixels(sweep, won)).IsGreaterThan(0);
+            await Assert.That(FrameProbe.CountPixels(sweep, lost)).IsEqualTo(0);
+
+            // A player who fought no opening duels still occupies a row on a live column scale: the
+            // break-even line and nothing else, not a bar of some default length.
+            byte[] none = CaptureControl(Duels(0, 0), "stats-duel-no-duels");
+            await Assert.That(FrameProbe.CountPixels(none, won)).IsEqualTo(0);
+            await Assert.That(FrameProbe.CountPixels(none, lost)).IsEqualTo(0);
+        });
+    }
+
+    /// <summary>A duel bar in unmistakable colours, on the shared extent a real column would pass it.</summary>
+    private static DivergingBar Duels(double positive, double negative) =>
+        new()
+        {
+            Positive = positive, Negative = negative, Extent = 12,
+            Width = 220, Height = 22,
+            PositiveBrush = new SolidColorBrush(Color.FromRgb(0x00, 0xFF, 0x00)),
+            NegativeBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0x00, 0xFF))
+        };
+
+    /// <summary>
+    ///     One unusable bullet must not take the whole plot with it.
+    ///     <para>
+    ///         Both series share ONE scale computed over both, so a non-finite sample reaching
+    ///         <c>extent</c> flows into <c>scale</c> and from there into every projected point of BOTH
+    ///         traces: one bad bullet and the reference pattern disappears with it. A blank square reads
+    ///         as "no spray recorded for this weapon", which is a different answer and a wrong one.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task SprayPlot_WithANonFiniteSample_DrawsEveryOtherOne()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            const uint shot = 0xFF00FF;
+            SprayPatternPoint[] pattern =
+            [
+                new(0, 0f, 0f, 8), new(1, 0.4f, -1.2f, 8), new(2, 0.9f, -2.6f, 8),
+                new(3, 1.7f, -4.1f, 8)
+            ];
+            SpraySample[] landed =
+            [
+                new(0, 0, 0.1f, -0.2f), new(1, 1, 0.5f, -1.4f), new(2, 2, 1.1f, -2.9f)
+            ];
+            SpraySample[] poisoned = [.. landed, new SpraySample(3, 3, float.NaN, float.NaN)];
+
+            byte[] clean = CaptureControl(Spray(pattern, landed), "stats-spray-clean");
+            byte[] withNaN = CaptureControl(Spray(pattern, poisoned), "stats-spray-nan");
+
+            int ink = FrameProbe.CountPixels(clean, shot);
+            await Assert.That(ink).IsGreaterThan(0);
+
+            // The NaN bullet cannot be drawn, but nothing else changes: same scale, same pattern, same
+            // three bullets. Identical ink is the assertion, not merely "some ink survived".
+            await Assert.That(FrameProbe.CountPixels(withNaN, shot)).IsEqualTo(ink);
+        });
+    }
+
+    /// <summary>A plot in an unmistakable ink colour, sized as the player-details card sizes it.</summary>
+    private static SprayPlot Spray(
+        IReadOnlyList<SprayPatternPoint> pattern, IReadOnlyList<SpraySample> shots) =>
+        new()
+        {
+            Width = 300, Height = 300,
+            Pattern = pattern,
+            Shots = shots,
+            PatternBrush = new SolidColorBrush(Color.FromRgb(0x00, 0x80, 0x80)),
+            ShotBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0x00, 0xFF))
+        };
+
+    // ── Where the cards land ──────────────────────────────────────────────────
+
+    /// <summary>
+    ///     No two cards on the player-details Overview board may claim the same cell.
+    ///     <para>
+    ///         A Grid child with no <c>Grid.Row</c> silently lands in row 0, and an opaque card there
+    ///         paints over whatever row 0 already held. That is what the Spray card did to the Form card:
+    ///         a whole card's worth of content hidden, with no binding error, no exception, and nothing
+    ///         in the markup that looks wrong next to its neighbours. Only a capture would have caught
+    ///         it, and only if somebody scrolled; counting the cells is cheaper and needs no demo.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task PlayerDetailsOverview_GivesEveryCardItsOwnCell()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            // No DataContext: the cards are declared in markup, so the layout under test is there
+            // whether or not a player has been opened.
+            PlayerDetailsView view = new();
+            _ = CaptureControl(view, "player-details-overview-cells");
+
+            Grid[] boards = view.GetVisualDescendants().OfType<Grid>()
+                .Where(g => g.Children.OfType<Border>().Count(IsCard) > 1)
+                .ToArray();
+            await Assert.That(boards.Length).IsEqualTo(1);
+
+            Grid board = boards[0];
+            Dictionary<(int Row, int Column), string> occupied = new();
+            List<string> clashes = [];
+            foreach (Border card in board.Children.OfType<Border>().Where(IsCard))
+            {
+                string name = CardName(card);
+                int row = Grid.GetRow(card);
+                int column = Grid.GetColumn(card);
+                for (int r = row; r < row + Grid.GetRowSpan(card); r++)
+                {
+                    for (int c = column; c < column + Grid.GetColumnSpan(card); c++)
+                    {
+                        if (occupied.TryGetValue((r, c), out string? held))
+                        {
+                            clashes.Add($"'{name}' lands on '{held}' at row {r}, column {c}");
+                        }
+                        else
+                        {
+                            occupied[(r, c)] = name;
+                        }
+                    }
+                }
+            }
+
+            await Assert.That(clashes).IsEmpty();
+
+            // And the grid has to DECLARE every row it hands out. Avalonia squeezes a child placed past
+            // the last RowDefinition into that last row, which is the same overlap by another route.
+            int deepest = occupied.Keys.Max(cell => cell.Row);
+            await Assert.That(board.RowDefinitions.Count).IsGreaterThanOrEqualTo(deepest + 1);
+        });
+    }
+
+    private static bool IsCard(Border border) => border.Classes.Contains("pdCard");
+
+    /// <summary>A card's header, so a clash names the two cards rather than two cell indices.</summary>
+    private static string CardName(Border card) =>
+        card.GetVisualDescendants().OfType<TextBlock>()
+            .FirstOrDefault(t => t.Classes.Contains("pdCardHeader"))?.Text ?? "unnamed card";
+
     // ── Fixtures ──────────────────────────────────────────────────────────────
 
     /// <summary>Every control in every mode, with values shaped like a real scoreboard column.</summary>
@@ -595,6 +765,23 @@ public class StatsComponentRenderTests
                             Values = [1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1]
                         }
                     }
+                },
+                // Opening duels for two players on ONE extent, which is the only arrangement in which
+                // the arms are comparable down a column.
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal, Spacing = 12,
+                    Children =
+                    {
+                        new DivergingBar
+                        {
+                            Width = 150, Positive = 9, Negative = 5, Extent = 12
+                        },
+                        new DivergingBar
+                        {
+                            Width = 150, Positive = 3, Negative = 11, Extent = 12
+                        }
+                    }
                 }
             }
         };
@@ -669,6 +856,16 @@ public class StatsComponentRenderTests
                 new Sparkline
                 {
                     Width = 120, Mode = SparklineMode.Bars, Values = [0, 0, 0]
+                },
+                // A player who fought no opening duels (nothing to scale against), and a bar left to
+                // scale against itself, which is the self-scaling fallback nobody should ship.
+                new DivergingBar
+                {
+                    Width = 150, Positive = 0, Negative = 0, Extent = 12
+                },
+                new DivergingBar
+                {
+                    Width = 150, Positive = 1, Negative = 0
                 },
                 // A full ring (the sweep that collapses start onto end) and one with no value.
                 new StackPanel

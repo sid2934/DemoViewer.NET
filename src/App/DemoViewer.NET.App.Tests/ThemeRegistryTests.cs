@@ -31,6 +31,26 @@ public class ThemeRegistryTests
     ];
 
     /// <summary>
+    ///     The composition bars' categorical palette, added with the category boards. A family of its
+    ///     own — "which thing", not "how good" — and all-or-nothing for the ramp's reason: a legend
+    ///     drawing three retinted slots beside three inherited ones reads as a rendering fault rather
+    ///     than as a key. Guarded separately rather than folded into the ramp, because a theme is
+    ///     entitled to retint one family and inherit the other; what it may not do is half-retint
+    ///     either. See section 15 of docs/ui/stats-components.md.
+    /// </summary>
+    private static readonly string[] _statSlots =
+    [
+        "StatSlot0", "StatSlot1", "StatSlot2", "StatSlot3", "StatSlot4", "StatSlot5"
+    ];
+
+    /// <summary>The <c>Stat*</c> families, each judged on its own.</summary>
+    private static readonly (string Name, string[] Tokens)[] _statFamilies =
+    [
+        ("the stat heat ramp", _statRamp),
+        ("the composition slot palette", _statSlots)
+    ];
+
+    /// <summary>
     ///     The embedded built-in theme files, parsed the same way <see cref="ThemeRegistry" /> parses
     ///     them. Reads the assembly resources rather than the repository, so the test travels with the
     ///     assembly and cannot drift from what actually ships.
@@ -93,13 +113,19 @@ public class ThemeRegistryTests
     }
 
     /// <summary>
-    ///     The whole stat heat ramp is one decision, so a theme retints all of it or none of it.
+    ///     Each <c>Stat*</c> family is one decision, so a theme retints all of a family or none of it.
     ///     <para>
     ///         A HALF-retinted ramp is worse than an un-retinted one. High-Contrast overrode
     ///         <c>StatPositive</c> to a neon green and inherited the default muted teal for
     ///         <c>StatPositiveSoft</c>, which put a vivid strong-good tier directly beside a washed-out
     ///         mild-good tier and read as a rendering fault rather than as a scale. Omitting the family
     ///         entirely is fine; the base palette is coherent on its own.
+    ///     </para>
+    ///     <para>
+    ///         The slot palette is held to the same rule for the same reason, and separately: an omitted
+    ///         token is not transparent or black, it falls through variant-to-base inheritance, so this
+    ///         is a coherence guard rather than a crash guard and the two families can be answered
+    ///         independently.
     ///     </para>
     ///     <para>
     ///         Asserted against the theme FILES rather than against resolved brushes, because the file is
@@ -112,31 +138,40 @@ public class ThemeRegistryTests
     {
         foreach ((string name, IReadOnlyDictionary<string, Color> tokens) in BuiltInThemeFiles())
         {
-            string[] present = _statRamp.Where(tokens.ContainsKey).ToArray();
-            if (present.Length == 0)
+            foreach ((string family, string[] keys) in _statFamilies)
             {
-                continue;
-            }
+                string[] present = keys.Where(tokens.ContainsKey).ToArray();
+                if (present.Length == 0)
+                {
+                    continue;
+                }
 
-            string[] missing = _statRamp.Except(present, StringComparer.Ordinal).ToArray();
-            await Assert.That(missing).IsEmpty()
-                .Because($"{name} retints {present.Length} of the {_statRamp.Length} Stat ramp tokens; "
-                         + $"missing: {string.Join(", ", missing)}");
+                string[] missing = keys.Except(present, StringComparer.Ordinal).ToArray();
+                await Assert.That(missing).IsEmpty()
+                    .Because($"{name} retints {present.Length} of the {keys.Length} tokens in {family}; "
+                             + $"missing: {string.Join(", ", missing)}");
+            }
         }
     }
 
-    /// <summary>Both shipped alternates carry the ramp, so neither renders a scale it did not choose.</summary>
+    /// <summary>
+    ///     Both shipped alternates carry every <c>Stat*</c> family, so neither renders a scale or a
+    ///     legend it did not choose.
+    /// </summary>
     [Test]
-    public async Task BuiltInThemes_BothCarryTheStatRamp()
+    public async Task BuiltInThemes_BothCarryEveryStatFamily()
     {
         (string Name, IReadOnlyDictionary<string, Color> Tokens)[] files = BuiltInThemeFiles();
 
         await Assert.That(files.Length).IsEqualTo(2);
         foreach ((string name, IReadOnlyDictionary<string, Color> tokens) in files)
         {
-            foreach (string key in _statRamp)
+            foreach ((string _, string[] keys) in _statFamilies)
             {
-                await Assert.That(tokens.ContainsKey(key)).IsTrue().Because($"{name} is missing {key}");
+                foreach (string key in keys)
+                {
+                    await Assert.That(tokens.ContainsKey(key)).IsTrue().Because($"{name} is missing {key}");
+                }
             }
         }
     }

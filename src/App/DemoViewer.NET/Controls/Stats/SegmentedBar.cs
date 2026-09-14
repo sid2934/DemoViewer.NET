@@ -113,7 +113,8 @@ public class SegmentedBar : TemplatedControl
     {
         AffectsRender<SegmentedBar>(SegmentsProperty, CompactProperty, ShowLabelsProperty, GapProperty,
             FillBrushProperty, TrackBrushProperty, LabelBrushProperty, CornerRadiusProperty,
-            ForegroundProperty, FontSizeProperty, FontFamilyProperty, MaxTotalProperty,
+            ForegroundProperty, FontSizeProperty, FontFamilyProperty, FontWeightProperty,
+            FontStyleProperty, PaddingProperty, MaxTotalProperty,
             Slot0BrushProperty, Slot1BrushProperty, Slot2BrushProperty, Slot3BrushProperty,
             Slot4BrushProperty, Slot5BrushProperty);
     }

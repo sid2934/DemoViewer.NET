@@ -115,11 +115,21 @@ public class SprayPlot : TemplatedControl
             return;
         }
 
+        // Non-finite samples are dropped on the way in, the way every other control in the library
+        // screens its series. One NaN is enough to blank the whole plot otherwise: Math.Max propagates
+        // it into `extent`, `extent` into `scale`, and `scale` into every point of BOTH traces, so a
+        // single bad bullet takes the reference pattern down with it. Dropping the point leaves a gap,
+        // which is already the honest rendering here — see the note on missing indices above.
         List<(double X, double Y)> pattern = [];
         if (Pattern is { Count: > 0 } pts)
         {
             foreach (SprayPatternPoint p in pts)
             {
+                if (!double.IsFinite(p.PunchYawDeg) || !double.IsFinite(p.PunchPitchDeg))
+                {
+                    continue;
+                }
+
                 pattern.Add((p.PunchYawDeg, p.PunchPitchDeg));
             }
         }
@@ -129,6 +139,11 @@ public class SprayPlot : TemplatedControl
         {
             foreach (SpraySample s in ss)
             {
+                if (!double.IsFinite(s.OffsetYawDeg) || !double.IsFinite(s.OffsetPitchDeg))
+                {
+                    continue;
+                }
+
                 shots.Add((s.OffsetYawDeg, s.OffsetPitchDeg));
             }
         }

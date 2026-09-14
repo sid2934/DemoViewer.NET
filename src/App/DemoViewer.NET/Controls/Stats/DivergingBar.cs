@@ -64,7 +64,7 @@ public class DivergingBar : TemplatedControl
     {
         AffectsRender<DivergingBar>(NegativeProperty, PositiveProperty, ExtentProperty,
             NegativeBrushProperty, PositiveBrushProperty, AxisBrushProperty, BarHeightProperty,
-            CornerRadiusProperty);
+            CornerRadiusProperty, PaddingProperty);
     }
 
     /// <inheritdoc cref="NegativeProperty" />

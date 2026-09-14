@@ -59,7 +59,8 @@ public class PipStrip : TemplatedControl
     {
         AffectsRender<PipStrip>(CountProperty, MaxPipsProperty, PipBrushProperty, EmptyBrushProperty,
             PipRadiusProperty, PipGapProperty, ForegroundProperty, FontSizeProperty);
-        AffectsMeasure<PipStrip>(CountProperty, MaxPipsProperty, PipRadiusProperty, PipGapProperty);
+        AffectsMeasure<PipStrip>(CountProperty, MaxPipsProperty, PipRadiusProperty, PipGapProperty,
+            PaddingProperty, FontFeaturesProperty);
     }
 
     /// <inheritdoc cref="CountProperty" />
@@ -115,11 +116,18 @@ public class PipStrip : TemplatedControl
     protected override Size MeasureOverride(Size availableSize)
     {
         double step = (PipRadius * 2) + PipGap;
+        FormattedText text = BuildCountText();
         double width = IsOverflowing
-            ? BuildCountText().Width
+            ? text.Width
             : Math.Max(1, Count) * step;
+
+        // The number's LINE height, not FontSize, and reserved even when the marks fit the declared
+        // cap. FontSize is the em size and a line stands taller than that, so measuring by it clipped
+        // the digits; and Render falls back to the number whenever the ARRANGED width cannot hold the
+        // marks, which is decided after this. A strip that goes on to draw dots pays a pixel or two for
+        // the reservation, which is much the cheaper half of the trade.
         return new Size(width + Padding.Left + Padding.Right,
-            Math.Max(PipRadius * 2, FontSize) + Padding.Top + Padding.Bottom);
+            Math.Max(PipRadius * 2, text.Height) + Padding.Top + Padding.Bottom);
     }
 
     /// <inheritdoc />
@@ -136,7 +144,8 @@ public class PipStrip : TemplatedControl
                                              || change.Property == PipBrushProperty
                                              || change.Property == FontFamilyProperty
                                              || change.Property == FontWeightProperty
-                                             || change.Property == FontStyleProperty)
+                                             || change.Property == FontStyleProperty
+                                             || change.Property == FontFeaturesProperty)
         {
             _overflow = null;
         }
@@ -199,8 +208,22 @@ public class PipStrip : TemplatedControl
     /// <summary>The count written as a number, for whichever of the two overflow paths took it.</summary>
     private FormattedText BuildCountText()
     {
-        return _overflow ??= new FormattedText(Count.ToString(CultureInfo.InvariantCulture),
+        if (_overflow is not null)
+        {
+            return _overflow;
+        }
+
+        _overflow = new FormattedText(Count.ToString(CultureInfo.InvariantCulture),
             CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
             new Typeface(FontFamily, FontStyle, FontWeight), FontSize, PipBrush ?? Foreground);
+        // `tnum` again, for the same reason it is on every other number in the library: the strip sits
+        // in a column, and an overflow row whose digits are proportionally spaced shifts against the
+        // rows above and below it.
+        if (FontFeatures is { Count: > 0 } features)
+        {
+            _overflow.SetFontFeatures(features);
+        }
+
+        return _overflow;
     }
 }

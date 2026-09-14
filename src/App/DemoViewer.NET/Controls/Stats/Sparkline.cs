@@ -110,7 +110,8 @@ public class Sparkline : TemplatedControl
     {
         AffectsRender<Sparkline>(ValuesProperty, ModeProperty, MinimumProperty, MaximumProperty,
             BaselineProperty, StrokeProperty, FillProperty, PositiveBrushProperty, NegativeBrushProperty,
-            BaselineBrushProperty, StrokeThicknessProperty, GapProperty, DotRadiusProperty);
+            BaselineBrushProperty, StrokeThicknessProperty, GapProperty, DotRadiusProperty,
+            PaddingProperty);
     }
 
     /// <inheritdoc cref="ValuesProperty" />

@@ -125,12 +125,17 @@ public class StatValue : StatPresenter
 
     static StatValue()
     {
+        // Foreground is what a NEUTRAL cell paints with and is baked into the cached text, so it belongs
+        // with the brushes; the two typeface inputs belong with the other font properties, because they
+        // change the glyphs' advance widths and so the width the cell asks for. TemplatedControl itself
+        // registers none of these: it has no Render of its own to invalidate.
         AffectsRender<StatValue>(ModeProperty, IsLeaderProperty, TintBarProperty, TextAlignmentProperty,
             BarAlignmentProperty,
             BarTrackBrushProperty, BarFillBrushProperty, LeaderBrushProperty, BackgroundProperty,
-            CornerRadiusProperty);
+            CornerRadiusProperty, ForegroundProperty);
         AffectsMeasure<StatValue>(ValueProperty, TextProperty, FormatProperty, IsLeaderProperty,
-            FontFamilyProperty, FontSizeProperty, FontWeightProperty, PaddingProperty);
+            FontFamilyProperty, FontSizeProperty, FontWeightProperty, FontStyleProperty,
+            FontFeaturesProperty, PaddingProperty);
     }
 
     /// <inheritdoc cref="ModeProperty" />
