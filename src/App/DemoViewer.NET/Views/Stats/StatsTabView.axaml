@@ -209,12 +209,14 @@
                      that is where the zeros were: seventeen columns come from the line-of-sight pass, and
                      on a map with no collision geometry seven of the eight on the Aim Quality board read a
                      hard 0 that looked exactly like a measurement. Wraps rather than trims, since the
-                     sentence naming the affected columns is the whole value of it. -->
+                     sentence naming the affected columns is the whole value of it. Gated with the chip
+                     rail above it rather than on content alone: it is about cells in the stat tables,
+                     and over Highlights or a keyed table there are none for it to be about. -->
                 <Border Background="{DynamicResource PanelBg}"
                         BorderBrush="{DynamicResource AccentAmber}"
                         BorderThickness="0 0 0 1"
                         Padding="12 7"
-                        IsVisible="{Binding HasSightNotice}">
+                        IsVisible="{Binding IsSightNoticeVisible}">
                     <TextBlock Text="{Binding SightNotice}"
                                TextWrapping="Wrap"
                                FontSize="12"

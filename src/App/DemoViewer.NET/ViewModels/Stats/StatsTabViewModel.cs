@@ -390,6 +390,15 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     /// <summary>Whether <see cref="SightNotice" /> has anything to say.</summary>
     public bool HasSightNotice => SightNotice.Length > 0;
 
+    /// <summary>
+    ///     Whether the notice band belongs on screen, on the same rule its sibling chip rail already
+    ///     follows. It explains cells in the stat tables; gated on content alone it also drew over the
+    ///     Highlights list, the vision table and the keyed extra tables, none of which has a
+    ///     line-of-sight column in it. Same shape as <see cref="IsPodiumVisible" /> and for the same
+    ///     reason.
+    /// </summary>
+    public bool IsSightNoticeVisible => HasSightNotice && IsTableView;
+
     /// <summary>Per-player visibility rows (team-grouped), populated by the compute action.</summary>
     public IReadOnlyList<VisibilityRow> VisibilityRows { get; private set; } = [];
 
@@ -446,6 +455,13 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(DetailPlayers));
         OnPropertyChanged(nameof(VisibilityRows));
         OnPropertyChanged(nameof(CanComputeVisibility));
+        // The notice is a getter over two plain fields, so clearing the fields above is invisible to
+        // the binding: without these the amber band stays up over the empty tab, still naming the map
+        // of the demo that was just closed.
+        OnPropertyChanged(nameof(SightUnavailable));
+        OnPropertyChanged(nameof(SightNotice));
+        OnPropertyChanged(nameof(HasSightNotice));
+        OnPropertyChanged(nameof(IsSightNoticeVisible));
     }
 
     /// <summary>
@@ -505,6 +521,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsDuelBoard));
         OnPropertyChanged(nameof(IsPipBoard));
         OnPropertyChanged(nameof(IsPodiumVisible));
+        OnPropertyChanged(nameof(IsSightNoticeVisible));
         OnPropertyChanged(nameof(BoardCaption));
         OnPropertyChanged(nameof(BoardLegend));
         OnPropertyChanged(nameof(HasBoardLegend));
@@ -763,11 +780,15 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
                   + "depend on it read as no data rather than zero.";
         OnPropertyChanged(nameof(SightNotice));
         OnPropertyChanged(nameof(HasSightNotice));
+        OnPropertyChanged(nameof(IsSightNoticeVisible));
     }
 
     // ── Sorting ───────────────────────────────────────────────────────────────
 
-    /// <summary>Sorts the scoreboard by a stat column; a second click flips the direction.</summary>
+    /// <summary>
+    ///     Sorts the scoreboard by a stat column. A first click ranks that column best-first, which is
+    ///     ASCENDING where less is better; a second click flips the direction.
+    /// </summary>
     [RelayCommand]
     private void SortByColumn(StatColumn column)
     {
@@ -783,7 +804,9 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         else
         {
             _sortKey = column.Label;
-            _sortDescending = true; // stats read best-first
+            // Best-first, which is not the same as descending: asking Spray or Deaths to rank the lobby
+            // and getting the worst row on top is the opposite of what the click meant.
+            _sortDescending = BestFirstIsDescending(column.Label);
         }
 
         RebuildGameRows();
@@ -879,9 +902,24 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
 
         rows.Sort((a, b) =>
         {
-            int cmp = sortIdx < 0
-                ? StringComparer.OrdinalIgnoreCase.Compare(a.PlayerName, b.PlayerName)
-                : CompareCellValues(a.Cells[sortIdx].Raw, b.Cells[sortIdx].Raw);
+            if (sortIdx < 0)
+            {
+                int byName = StringComparer.OrdinalIgnoreCase.Compare(a.PlayerName, b.PlayerName);
+                return _sortDescending ? -byName : byName;
+            }
+
+            object? left = a.Cells[sortIdx].Raw;
+            object? right = b.Cells[sortIdx].Raw;
+
+            // Ranked out HERE, above the flip, because the flip would otherwise rank them first. A cell
+            // with nothing behind it is not a small value, and a column of blanks floating to the top of
+            // an ascending sort puts "no data" exactly where a reader looks for the best row.
+            if (left is null || right is null)
+            {
+                return left is null && right is null ? 0 : left is null ? 1 : -1;
+            }
+
+            int cmp = CompareCellValues(left, right);
             return _sortDescending ? -cmp : cmp;
         });
 
@@ -910,17 +948,35 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     ///     <para>
     ///         Now that a category page no longer carries the Core block, most pages have no kills column
     ///         at all, and falling through to a name sort would open every specialist page in alphabetical
-    ///         order. The page's FIRST column is the one it is named after, so that becomes the key.
+    ///         order. The page's FIRST column is the one it is named after, so that becomes the key, in
+    ///         whichever direction its own polarity makes best-first.
     ///     </para>
     /// </summary>
     private static (string? Key, bool Descending) DefaultSort(List<string> visibleOrder)
     {
         string? kills = visibleOrder.FirstOrDefault(c => string.Equals(c, "Kills", StringComparison.OrdinalIgnoreCase))
                         ?? visibleOrder.FirstOrDefault(c => string.Equals(c, "TotalK", StringComparison.OrdinalIgnoreCase));
-        return kills is not null
-            ? (kills, true)
-            : (visibleOrder.FirstOrDefault(), visibleOrder.Count > 0);
+        if (kills is not null)
+        {
+            return (kills, true);
+        }
+
+        // Aim Quality opens on Spray, which is lower-is-better, so a hardcoded descending here put the
+        // worst player in the lobby on top of that page under a down-arrow, directly beneath a podium
+        // captioned as the match's top three.
+        return visibleOrder.FirstOrDefault() is { } first
+            ? (first, BestFirstIsDescending(first))
+            : (null, false);
     }
+
+    /// <summary>
+    ///     Which direction ranks a column BEST first, read off the same polarity the tint and the leader
+    ///     star use, so the three cannot disagree about which end of a column is the good one. Descending
+    ///     only means best-first where MORE is better. A column that declares no polarity keeps the
+    ///     scoreboard's descending convention, which is what a plain count wants anyway.
+    /// </summary>
+    private static bool BestFirstIsDescending(string column) =>
+        ColumnCatalogue.Resolve(column).Scale?.Polarity != StatPolarity.LowerIsBetter;
 
     /// <summary>
     ///     Groups sorted rows into CT/T sections with a totals/average row each and the
@@ -960,7 +1016,8 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     ///         <b>Gated on a plausible winning score.</b> A demo cut at the buzzer can lose the winner's
     ///         final round, and the recorded scoreline then reads as a tie. Announcing a draw on a match
     ///         somebody won is worse than announcing nothing, so an implausible total yields no pill at
-    ///         all. 13 is regulation, 15 a drawn overtime, 16 an overtime win.
+    ///         all. Which totals a match can actually end on is derived rather than listed: see
+    ///         <see cref="IsFinalScore" />.
     ///     </para>
     /// </summary>
     private static TeamOutcome OutcomeFor(int teamSort, IReadOnlyDictionary<int, int?> scoreBySort)
@@ -968,7 +1025,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         if (teamSort is not (0 or 1)
             || scoreBySort.GetValueOrDefault(0) is not { } ct
             || scoreBySort.GetValueOrDefault(1) is not { } t
-            || Math.Max(ct, t) is not (13 or 15 or 16))
+            || !IsFinalScore(Math.Max(ct, t)))
         {
             return TeamOutcome.None;
         }
@@ -978,6 +1035,29 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
             : mine < theirs ? TeamOutcome.Loss
             : TeamOutcome.Draw;
     }
+
+    /// <summary>Rounds that take a CS2 MR12 match in regulation.</summary>
+    private const int RegulationWin = 13;
+
+    /// <summary>Rounds in an overtime half (MR3): what one overtime adds to a final score.</summary>
+    private const int OvertimeHalf = 3;
+
+    /// <summary>
+    ///     Whether the leading half of a scoreline is a total a match can actually END on. Regulation is
+    ///     first to 13; every overtime after a 12-12 tie is MR3, six rounds with four of them taking it,
+    ///     so each overtime moves the winning total up by three (16, 19, 22) and leaves a drawn one
+    ///     sitting on 15, 18 or 21 while the next is played.
+    ///     <para>
+    ///         Derived rather than listed. The list this replaces was 13, 15 or 16, which is regulation
+    ///         and exactly ONE overtime: a match that went to a second finished 19-17 and fell outside
+    ///         it, losing the win/loss pill on the matches most worth having one.
+    ///     </para>
+    /// </summary>
+    private static bool IsFinalScore(int best) =>
+        best == RegulationWin
+        || (best > RegulationWin
+            && ((best - RegulationWin) % OvertimeHalf == 0
+                || (best - RegulationWin + 1) % OvertimeHalf == 0));
 
     /// <summary>Per-team round-win score from the full game table's CTW+TW values (unanimous or null).</summary>
     private static Dictionary<int, int?> ComputeTeamScores(MetricTable gameTable)
@@ -1111,7 +1191,9 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     ///     Mixed-type-safe cell comparison: a column can legitimately hold boxed ints AND doubles
     ///     (the value coercion parses "0" as int and "88.5" as double), and <c>int.CompareTo(object)</c>
     ///     throws across types: numerics compare as doubles, same-type comparables directly, and
-    ///     everything else by string. Nulls sort below every value.
+    ///     everything else by string. Nulls compare below every value here, but the scoreboard's sort
+    ///     settles them before it reaches this, so they land LAST in both directions instead of being
+    ///     flipped to the top by a descending one.
     /// </summary>
     private static int CompareCellValues(object? a, object? b)
     {
@@ -1239,7 +1321,8 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         List<double> peers = [];
         foreach (string column in orderedColumns)
         {
-            if (ColumnCatalogue.Resolve(column).Scale is not { } spec)
+            ColumnMeta meta = ColumnCatalogue.Resolve(column);
+            if (meta.Scale is not { } spec)
             {
                 scales[column] = default;
                 continue;
@@ -1248,7 +1331,12 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
             peers.Clear();
             foreach (MetricRow row in rows)
             {
-                if (new StatCell(row.Values.GetValueOrDefault(column)).Numeric is { } v)
+                // The same rule BuildRow applies to the cell, applied here to the population: a row
+                // with no sample is not a peer. It has to be decided from the row, because this runs a
+                // pass before any cell exists, and blanking the cell alone would leave the zero behind
+                // it still setting the column's bounds for everybody else.
+                if (!HasNoSample(row, meta)
+                    && new StatCell(row.Values.GetValueOrDefault(column)).Numeric is { } v)
                 {
                     peers.Add(v);
                 }
@@ -1296,6 +1384,31 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    ///     Whether this row has nothing at all behind a column's value: the column names a population
+    ///     (its <see cref="ColumnMeta.Denominator" />) and this row's count of it is exactly zero.
+    ///     <para>
+    ///         Every ratio in the aim ruleset guards its denominator with <c>max(d, 1)</c>, so a player
+    ///         nobody measured does not arrive as a gap. It arrives as a confident 0.0, which on a
+    ///         lower-is-better column is the BEST value on the board. The colour gate stops that one cell
+    ///         being painted and nothing more: the value still reached the peer domain, where a single 0
+    ///         in TTS moved the untinted band from [330, 430] to [120, 360] and took the leader star off
+    ///         the whole column, the row holding the good bound having had its polarity neutered on the
+    ///         way in.
+    ///     </para>
+    ///     <para>
+    ///         A count of zero is therefore a null, the same treatment the line-of-sight columns get, and
+    ///         for the same reason: it drops out of the peer domain, the leader star and the sort. A
+    ///         count the table never emitted reads null rather than 0 and says nothing either way, which
+    ///         is the honest answer about a run that never exported it. A count that is merely THIN is
+    ///         not this: that is the colour gate's job, and a three-shot sample keeps its bar.
+    ///     </para>
+    /// </summary>
+    private static bool HasNoSample(MetricRow row, ColumnMeta meta) =>
+        meta.Denominator is { } population
+        && new StatCell(row.Values.GetValueOrDefault(population.Key)).Numeric is { } count
+        && Math.Abs(count) < 1e-9;
+
+    /// <summary>
     ///     Whether this row has earned a tint on a gated column. Below the gate a row keeps its bar and
     ///     loses its colour, rather than vanishing from the column. Which columns gate, and on what, is
     ///     on the specs in <see cref="ColumnCatalogue" />.
@@ -1332,9 +1445,19 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     ///         board whose counts are positive demonstrably has the data whether or not a bake can be
     ///         resolved from here.
     ///     </para>
+    ///     <para>
+    ///         Both are asked only of a run that HAS a column needing geometry. Neither question means
+    ///         anything about a run with none, and answering them anyway put the board's "no data" band,
+    ///         naming seventeen columns, over evaluations that carried not one of them.
+    ///     </para>
     /// </summary>
     private bool SightIsUnavailable(MetricTable table)
     {
+        if (!table.ValueColumns.Any(ColumnCatalogue.RequiresVisibility))
+        {
+            return false; // nothing here needs geometry, so nothing here is missing any
+        }
+
         if (!table.ValueColumns.Contains(ColumnCatalogue.VisibilityAnchorColumn, StringComparer.Ordinal))
         {
             return _collisionTrisPath is null;
@@ -1388,14 +1511,19 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
                 ? new StatCell(row.Values.GetValueOrDefault(denominator.Key)).Numeric
                 : null;
 
+            // An empty population is not a measurement of zero, so the value goes with the count that
+            // qualifies it. BuildColumnScales has already dropped the same rows from the peer domain;
+            // blanking only the cell would leave the zero behind it still setting the column's bounds.
+            bool noSample = HasNoSample(row, meta);
+
             // A column with nothing behind it carries a null rather than the projector's 0, so it drops
             // out of the peer domain, the leader mark and the sort instead of anchoring all three at
             // zero. Its denominator goes with it: "0 ms over 0 engagements" is not a qualification.
             bool unavailable = sightUnavailable && meta.RequiresVisibility;
-            cells.Add(new StatCell(unavailable ? null : row.Values.GetValueOrDefault(column), meta, scale,
-                resolved.MarksLeader)
+            cells.Add(new StatCell(unavailable || noSample ? null : row.Values.GetValueOrDefault(column),
+                meta, scale, resolved.MarksLeader)
             {
-                Denominator = unavailable ? null : over,
+                Denominator = unavailable || noSample ? null : over,
                 Unavailable = unavailable
             });
         }
@@ -1495,6 +1623,17 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         // thread job. FirstBullet is only an event walk, but it goes the same way rather than
         // branching: one path is one behaviour to reason about.
         SprayModel model = await Task.Run(() => SpraySampler.Sample(demo, origin));
+
+        // The cache is keyed by origin alone and cleared on a demo swap, so a sample still in flight
+        // across one would land in the NEW demo's cache and be handed to every later reader as that
+        // demo's sprays. The house superseded-run rule, minus the token the visibility compute has:
+        // the sampler carries no cancellation seam, so the result goes back to the caller that asked
+        // for it and simply is not retained.
+        if (!ReferenceEquals(demo, _visibilityDemo))
+        {
+            return model;
+        }
+
         _sprays[origin] = model;
         return model;
     }

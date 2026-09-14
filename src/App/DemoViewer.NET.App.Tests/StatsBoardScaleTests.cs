@@ -558,6 +558,56 @@ public class StatsBoardScaleTests
     }
 
     /// <summary>
+    ///     An EMPTY population is not a thin one. A player the ruleset measured nothing for reads a
+    ///     confident 0.0 through max(d, 1), which on a lower-is-better column is the best value on the
+    ///     board, and that cell carries a null instead.
+    ///     <para>
+    ///         The colour gate is why this looked handled and was not: it neuters the one cell, while the
+    ///         peer domain is built from the rows and kept the 0. So the 0-holder won Spray's good bound
+    ///         with a neutered polarity, which is a leader star nobody can wear, and the untinted band
+    ///         stretched down to a value no player produced. Both ends of that are pinned below.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task EmptyPopulation_ReadsAsNoValue_AndIsNotAPeer()
+    {
+        StatsTabViewModel vm = BuildVm(noSprayFor: 8); // India: 0.0 over 0 shots
+        vm.SelectedCategory = StatGroup.AimQuality;
+
+        StatCell empty = Cell(vm, "India", "Spray");
+        await Assert.That(empty.Raw).IsNull();
+        await Assert.That(empty.Numeric).IsNull();
+        await Assert.That(empty.Denominator).IsNull();
+        await Assert.That(empty.IsScaled).IsFalse();
+        await Assert.That(empty.IsLeader).IsFalse();
+
+        // The domain is the nine rows that were measured, so the tightest MEASURED residual holds the
+        // good bound and wears the star. With the 0 still in the population both belonged to the row
+        // that had nothing behind it, and the star was on nobody at all.
+        StatCell tightest = Cell(vm, "Alice", "Spray");
+        await Assert.That(tightest.Scale!.Min).IsEqualTo(AimValue("Spray", 0));
+        await Assert.That(tightest.IsLeader).IsTrue();
+    }
+
+    /// <summary>
+    ///     The control: a thin sample is still a sample. Three measured sprays keep their value, their
+    ///     place in the peer domain and their bar; only the tint goes. Without this the fix above could
+    ///     pass by deleting every gated cell on the page.
+    /// </summary>
+    [Test]
+    public async Task ThinPopulation_IsStillAPeer()
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.AimQuality;
+
+        StatCell thin = Cell(vm, "India", "Spray"); // 0.6 over 3 shots
+        await Assert.That(thin.Numeric).IsNotNull();
+        await Assert.That(thin.Denominator).IsEqualTo(AimValue("SprayN", 8));
+        await Assert.That(Cell(vm, "Alice", "Spray").Scale!.Min).IsEqualTo(thin.Numeric!.Value)
+            .Because("the thinnest measured row still sets the column's good bound");
+    }
+
+    /// <summary>
     ///     Degrees off, degrees travelled and penalised bullets all read the other way round from the
     ///     percentages beside them. Getting one of these backwards produces a page that looks finished
     ///     and rewards the worst row on it.
@@ -803,6 +853,111 @@ public class StatsBoardScaleTests
         await Assert.That(Cell(vm, "Alice", "ADR").Scale).IsEqualTo(before);
     }
 
+    /// <summary>
+    ///     A page opens BEST first, which on a lower-is-better column means ascending. Aim Quality's
+    ///     first column is Spray, so a hardcoded descending default opened the flagship page with the
+    ///     worst player in the lobby on top, under a down-arrow, directly beneath a podium captioned as
+    ///     the match's top three.
+    /// </summary>
+    [Test]
+    public async Task PageWithALowerIsBetterFirstColumn_OpensBestFirst()
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.AimQuality;
+
+        await Assert.That(ColumnCatalogue.Resolve("Spray").Scale!.Polarity)
+            .IsEqualTo(StatPolarity.LowerIsBetter);
+
+        StatColumn first = vm.Columns[0];
+        await Assert.That(first.Label).IsEqualTo("Spray");
+        await Assert.That(first.IsSorted).IsTrue();
+        await Assert.That(first.SortDescending).IsFalse();
+        await Assert.That(first.SortGlyph).IsEqualTo(" ▲");
+
+        // India holds the tightest residual on the board, so India opens on top of it.
+        StatCell top = vm.GameRows[0].Cells[first.Index];
+        await Assert.That(vm.GameRows[0].PlayerName).IsEqualTo("India");
+        await Assert.That(top.Numeric).IsEqualTo(top.Scale!.Min)
+            .Because("the row on top of a lower-is-better page holds the column's good bound");
+    }
+
+    /// <summary>
+    ///     A header CLICK ranks best-first too, in whichever direction the column's polarity makes that.
+    ///     The first click was a fixed descending, so asking a lower-is-better column to rank the lobby
+    ///     answered with the worst row on top under a down-arrow: the same defect as the page default and
+    ///     louder, because here the reader actually asked for the ranking. The second click still flips,
+    ///     whichever way the first one went.
+    /// </summary>
+    [Test]
+    [Arguments("Preaim", StatGroup.AimQuality, false, "Echo")] // degrees off the chest: less is better
+    [Arguments("TTS", StatGroup.AimQuality, false, "Hotel")] // milliseconds: less is better
+    [Arguments("Linear%", StatGroup.Accuracy, false, "Alice")] // penalised bullets: less is better
+    [Arguments("CSAll%", StatGroup.Accuracy, true, "Alice")] // clean counter-strafes: more is better
+    public async Task FirstClickOnAColumn_RanksBestFirst(
+        string column, StatGroup chip, bool descending, string best)
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = chip;
+        // Not the chip's first column, so this is a first click on it rather than a flip of the default.
+        StatColumn target = vm.Columns.Single(c => c.Label == column);
+        await Assert.That(target.IsSorted).IsFalse();
+
+        vm.SortByColumnCommand.Execute(target);
+
+        await Assert.That(vm.Columns[target.Index].IsSorted).IsTrue();
+        await Assert.That(vm.Columns[target.Index].SortDescending).IsEqualTo(descending);
+        await Assert.That(vm.GameRows[0].PlayerName).IsEqualTo(best);
+
+        vm.SortByColumnCommand.Execute(target);
+
+        await Assert.That(vm.Columns[target.Index].SortDescending).IsEqualTo(!descending);
+        await Assert.That(vm.GameRows[0].PlayerName).IsNotEqualTo(best);
+    }
+
+    /// <summary>
+    ///     The control, and the half that was already right: a higher-is-better first column still opens
+    ///     descending, and so does the scoreboard's own kills default.
+    /// </summary>
+    [Test]
+    public async Task PageWithAHigherIsBetterFirstColumn_StillOpensDescending()
+    {
+        StatsTabViewModel vm = BuildVm();
+        vm.SelectedCategory = StatGroup.Accuracy;
+
+        StatColumn first = vm.Columns[0];
+        await Assert.That(first.Label).IsEqualTo("Acc%");
+        await Assert.That(first.SortDescending).IsTrue();
+        await Assert.That(vm.GameRows[0].PlayerName).IsEqualTo("Alice"); // 34%, the board's best
+
+        vm.SelectedCategory = StatGroup.Core;
+        await Assert.That(vm.Columns.Single(c => c.IsSorted).Label).IsEqualTo("TotalK");
+        await Assert.That(vm.GameRows[0].PlayerName).IsEqualTo("Alice");
+    }
+
+    /// <summary>
+    ///     A cell with nothing behind it sorts to the END in BOTH directions. The direction flip is
+    ///     applied to one comparison for every row, so a null that merely compared "below every value"
+    ///     was flipped to the TOP of an ascending sort, which on a lower-is-better column is exactly
+    ///     where a reader looks for the best row.
+    /// </summary>
+    [Test]
+    public async Task NullCell_SortsLast_InBothDirections()
+    {
+        StatsTabViewModel vm = BuildVm(noSprayFor: 8);
+        vm.SelectedCategory = StatGroup.AimQuality;
+        StatColumn spray = vm.Columns.Single(c => c.Label == "Spray");
+
+        await Assert.That(vm.GameRows[^1].PlayerName).IsEqualTo("India"); // opens ascending
+
+        vm.SortByColumnCommand.Execute(spray); // → descending
+        await Assert.That(vm.Columns[spray.Index].SortDescending).IsTrue();
+        await Assert.That(vm.GameRows[^1].PlayerName).IsEqualTo("India");
+
+        vm.SortByColumnCommand.Execute(spray); // → ascending again
+        await Assert.That(vm.Columns[spray.Index].SortDescending).IsFalse();
+        await Assert.That(vm.GameRows[^1].PlayerName).IsEqualTo("India");
+    }
+
     // ── Team outcome ──────────────────────────────────────────────────────────
 
     [Test]
@@ -842,6 +997,44 @@ public class StatsBoardScaleTests
         foreach (TeamSection section in vm.TeamSections)
         {
             await Assert.That(section.Outcome).IsEqualTo(TeamOutcome.Draw);
+        }
+    }
+
+    /// <summary>
+    ///     A match that went past ONE overtime still gets its pill. The gate used to be the list 13, 15
+    ///     or 16 — regulation and a single overtime — so every double-overtime scoreline fell outside it
+    ///     and lost the pill on the matches most worth having one. Each overtime is MR3, so the winning
+    ///     total climbs by three and a drawn one sits three below it.
+    /// </summary>
+    [Test]
+    [Arguments(13, 9, TeamOutcome.Win, TeamOutcome.Loss)] // regulation
+    [Arguments(16, 14, TeamOutcome.Win, TeamOutcome.Loss)] // one overtime
+    [Arguments(19, 17, TeamOutcome.Win, TeamOutcome.Loss)] // two
+    [Arguments(20, 22, TeamOutcome.Loss, TeamOutcome.Win)] // three
+    [Arguments(18, 18, TeamOutcome.Draw, TeamOutcome.Draw)] // a second overtime that drew
+    public async Task Outcome_SurvivesOvertime(int ctWins, int tWins, TeamOutcome ct, TeamOutcome t)
+    {
+        StatsTabViewModel vm = BuildVm(ctWins, tWins);
+
+        await Assert.That(vm.TeamSections.Single(s => s.IsCt).Outcome).IsEqualTo(ct);
+        await Assert.That(vm.TeamSections.Single(s => !s.IsCt).Outcome).IsEqualTo(t);
+    }
+
+    /// <summary>
+    ///     And the gate still holds: a total no CS2 match can END on yields no pill, which is the whole
+    ///     point of having one. A demo cut at the buzzer records the winner one round short.
+    /// </summary>
+    [Test]
+    [Arguments(14, 12)]
+    [Arguments(17, 15)]
+    [Arguments(20, 18)]
+    public async Task Outcome_IsStillWithheldOnAnImpossibleTotal(int ctWins, int tWins)
+    {
+        StatsTabViewModel vm = BuildVm(ctWins, tWins);
+
+        foreach (TeamSection section in vm.TeamSections)
+        {
+            await Assert.That(section.Outcome).IsEqualTo(TeamOutcome.None);
         }
     }
 
@@ -1517,11 +1710,18 @@ public class StatsBoardScaleTests
 
     // -- No line-of-sight data: "no data" must not look like a measurement ------------------------
     //
-    // The bug these pin: de_mirage ships no collision.tris, the projector emitted 0 for all seventeen
-    // line-of-sight columns, and the board rendered them as real values. Seven of the eight columns on
-    // the Aim Quality page read 0, which looks like ten players with a 0 ms reaction time rather than a
-    // missing asset. Watched failing before the fix: every assertion below reported 0 where it now
-    // expects no value.
+    // The bug these pin: when the line-of-sight pass produces nothing the projector still emits a hard
+    // 0 for all seventeen columns that depend on it, and the board rendered those zeros as real values.
+    // Seven of the eight columns on the Aim Quality page read 0, which looks like ten players with a
+    // 0 ms reaction time rather than an empty pass. Watched failing before the fix: every assertion
+    // below reported 0 where it now expects no value.
+    //
+    // It was FOUND on de_mirage, which shipped no bake at the time. All ten maps ship one now (gzipped),
+    // so that particular trigger is gone from the shipped set and the behaviour is not: a map outside
+    // those ten, a bake that fails to load, and a demo source whose events cannot support the pass all
+    // leave the same empty board. These drive it the way that is true of all three, an anchor count of
+    // zero on every row, which is also the question SightIsUnavailable asks FIRST, in preference to
+    // the bake file.
 
     /// <summary>
     ///     Every column the catalogue marks as line-of-sight reads "no data" when the pass produced
@@ -1679,18 +1879,21 @@ public class StatsBoardScaleTests
         });
     }
 
+    // noSprayFor is the roster index of a player the sampler measured no spray for at all: Spray and
+    // SprayN both read 0, which is the shape max(d, 1) really produces for an empty population.
     private static StatsTabViewModel BuildVm(int ctRoundWins = 13, int tRoundWins = 9,
-        bool sightless = false)
+        bool sightless = false, int? noSprayFor = null)
     {
         StatsTabViewModel vm = new(null, () => "/demos/match.dem");
-        (EvaluationResult result, ParsedDemo demo) = BuildScenario(ctRoundWins, tRoundWins, sightless);
+        (EvaluationResult result, ParsedDemo demo) =
+            BuildScenario(ctRoundWins, tRoundWins, sightless, noSprayFor);
         vm.Update(result, demo);
         return vm;
     }
 
     /// <summary>Mirrors the fixture shape in <see cref="StatsTabTests" />, widened to ten players.</summary>
     private static (EvaluationResult Result, ParsedDemo Demo) BuildScenario(
-        int ctRoundWins, int tRoundWins, bool sightless = false)
+        int ctRoundWins, int tRoundWins, bool sightless = false, int? noSprayFor = null)
     {
         StubNode roundNode = new("RoundNumber");
         List<StateNode> tracked = [roundNode];
@@ -1749,7 +1952,11 @@ public class StatsBoardScaleTests
                 // A map with no collision bake does not omit the line-of-sight columns; the projector
                 // emits a hard 0 for every one of them, denominators included. That is the shape.
                 bool blind = sightless && ColumnCatalogue.RequiresVisibility(_aimColumns[a]);
-                vec[colIdx[p][aimBase + a]] = Snap(blind ? 0 : AimValue(_aimColumns[a], p));
+                // A player the sampler measured no spray for is not omitted either. The ruleset guards
+                // the mean with max(d, 1), so the row arrives as a confident 0.0 beside a count of 0
+                // rather than as a gap, which is the whole reason an empty population needs catching.
+                bool unmeasured = noSprayFor == p && _aimColumns[a] is "Spray" or "SprayN";
+                vec[colIdx[p][aimBase + a]] = Snap(blind || unmeasured ? 0 : AimValue(_aimColumns[a], p));
             }
         }
 
