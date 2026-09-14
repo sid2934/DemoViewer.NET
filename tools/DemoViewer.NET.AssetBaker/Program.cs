@@ -13,10 +13,137 @@ const int SchemaVersion = 1;
 const string BakerVersion = "0.3+vrf19.2.6339";
 
 // ── args: <map> [<map>...] [--diag] ──
+// Modes that stop early and need no staged cs2-assets/ cache: --list-icons, --icons, --collision.
 // With no map args, bake the full shipping set (the Active Duty / commonly-demoed pool). Each
 // needs a source vpk (cs2-assets/maps/), a radar vtex_c, and an overview txt, all present in the
 // gitignored cs2-assets/ cache. Pass explicit map names to bake a subset.
 bool diag = args.Contains("--diag");
+
+// ── --list-icons: what this CS2 build ships, and what the curation already takes ──
+// The discovery half of adding an icon. Without it, finding a source path means dumping the archive
+// by hand; with it the exact string to paste into IconSet is on screen, already marked [x] if it is
+// spoken for. Filter with --list-icons=<substring>; narrow with --free or --taken.
+if (args.Any(a => a.StartsWith("--list-icons", StringComparison.Ordinal)))
+{
+    string? listCs2 = args
+        .FirstOrDefault(a => a.StartsWith("--cs2=", StringComparison.Ordinal))?["--cs2=".Length..];
+
+    string listPak = SteamLibrary.FindCs2Pak(listCs2)
+                     ?? throw new DirectoryNotFoundException(
+                         "Counter-Strike 2 not found. Pass --cs2=<path to pak01_dir.vpk or install root>.");
+
+    string listFilter = args
+        .FirstOrDefault(a => a.StartsWith("--list-icons=", StringComparison.Ordinal))
+        ?["--list-icons=".Length..] ?? "";
+
+    Console.WriteLine(Icons.List(listPak, listFilter,
+        takenOnly: args.Contains("--taken"), freeOnly: args.Contains("--free")));
+    return;
+}
+
+// ── --icons: bake the weapon/HUD iconography and stop ──
+// A separate mode, not a step of the map bake, because it shares nothing with one: it reads a single
+// archive (game/csgo/pak01_dir.vpk) straight out of the CS2 install and needs no staged cs2-assets/
+// cache at all. Pass --cs2=<path> to point at a vpk or an install root Steam discovery cannot find.
+if (args.Contains("--icons"))
+{
+    string? explicitCs2 = args
+        .FirstOrDefault(a => a.StartsWith("--cs2=", StringComparison.Ordinal))?["--cs2=".Length..];
+
+    string pak = SteamLibrary.FindCs2Pak(explicitCs2)
+                 ?? throw new DirectoryNotFoundException(
+                     "Counter-Strike 2 not found. Pass --cs2=<path to pak01_dir.vpk or install root>.");
+
+    string iconsOut = Path.Combine(FindRepoRoot(), "assets", "icons");
+    Console.WriteLine($"cs2 pak:  {pak}");
+    Console.WriteLine($"icons ->  {iconsOut}");
+    Console.WriteLine();
+    Console.WriteLine(Icons.Bake(pak, iconsOut, BakerVersion));
+    return;
+}
+
+// -- --collision: bake ONLY the line-of-sight triangle soups and stop --
+// A separate mode for the same reason --icons is one: it needs no staged cs2-assets/ cache. The soups
+// come straight out of the per-map vpks in the CS2 install, so a map whose 2D assets were baked long
+// ago can be given line-of-sight support without re-staging or re-baking anything 2D. That is not a
+// hypothetical: the committed bundles were all written by baker 0.1, which had no collision step, and
+// four of the nine shipped maps went years without a soup as a result. With no map args this tops up
+// every map already under assets/, which is idempotent because an unchanged vpk re-extracts to the
+// same bytes.
+//
+// It deliberately does NOT touch bundle.json. The bundle's collision field feeds a version CRC taken
+// over the radar and overview SOURCE bytes, which only a full bake has in hand, so writing one here
+// would mean either a wrong CRC or a re-stage. Nothing reads that field in any case: the app finds a
+// soup by the assets/<map>/collision.tris path, which is why the five maps that do ship one work today
+// with collision:null in their bundle.
+if (args.Contains("--collision"))
+{
+    string? collisionCs2 = args
+        .FirstOrDefault(a => a.StartsWith("--cs2=", StringComparison.Ordinal))?["--cs2=".Length..];
+
+    string mapsSource = SteamLibrary.FindCs2MapsDir(collisionCs2)
+                        ?? throw new DirectoryNotFoundException(
+                            "Counter-Strike 2 map archives not found. Pass --cs2=<install root, pak01_dir.vpk, "
+                            + "or the game/csgo/maps directory>.");
+
+    string soupRoot = Path.Combine(FindRepoRoot(), "assets");
+    string[] soupMaps = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
+    if (soupMaps.Length == 0)
+    {
+        // Discovered, NOT the hardcoded list the full bake defaults to further down. The two resolve
+        // to the same nine maps today and they are not the same rule, because the two modes have
+        // opposite jobs: a full bake CREATES a map directory, so it needs to be told which to create,
+        // while this one TOPS UP directories that already exist, so it can read them off disk and
+        // needs no edit when the shipped set grows. The asymmetry is worth knowing: a map added to the
+        // list below and baked once is picked up here for free afterwards, but this mode alone will
+        // never bake a map that has no directory yet, which is why de_train and de_dogtown still have
+        // no soup.
+        //
+        // A bundle.json is what makes a directory a baked map rather than a stray folder.
+        soupMaps = Directory.Exists(soupRoot)
+            ? Directory.GetDirectories(soupRoot)
+                .Where(d => File.Exists(Path.Combine(d, "bundle.json")))
+                .Select(Path.GetFileName)
+                .OfType<string>()
+                .OrderBy(m => m, StringComparer.Ordinal)
+                .ToArray()
+            : [];
+    }
+
+    Console.WriteLine($"cs2 maps:  {mapsSource}");
+    Console.WriteLine($"soups ->   {soupRoot}");
+    Console.WriteLine($"baking {soupMaps.Length} soup(s): {string.Join(", ", soupMaps)}\n");
+
+    int baked = 0;
+    foreach (string map in soupMaps)
+    {
+        string mapVpk = Path.Combine(mapsSource, map + ".vpk");
+        if (!File.Exists(mapVpk))
+        {
+            Console.WriteLine($"  x {map}: no {map}.vpk in {mapsSource}");
+            continue;
+        }
+
+        string mapOut = Path.Combine(soupRoot, map);
+        Directory.CreateDirectory(mapOut);
+        try
+        {
+            CollisionMesh.Result cm = CollisionMesh.Extract(
+                mapVpk, map, Path.Combine(mapOut, "collision.tris"));
+            Console.WriteLine($"# {map}");
+            Console.WriteLine(cm.Diagnostic);
+            baked++;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  x {map}: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    Console.WriteLine($"\n{baked}/{soupMaps.Length} soup(s) baked.");
+    return;
+}
+
 string[] maps = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
 if (maps.Length == 0)
 {
@@ -224,6 +351,24 @@ static void DecodeVtexToPng(string vtexPath, string outPng)
     Texture texture = (Texture)resource.DataBlock!;
     using SKBitmap bitmap = texture.GenerateBitmap();
     File.WriteAllBytes(outPng, TextureExtract.ToPngImage(bitmap));
+}
+
+// Walk up from the executable until the repository root (the directory holding the solution) is found.
+// The icon bake writes into assets/ there, next to the committed map bundles.
+static string FindRepoRoot()
+{
+    DirectoryInfo? dir = new(AppContext.BaseDirectory);
+    while (dir is not null)
+    {
+        if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
+        {
+            return dir.FullName;
+        }
+
+        dir = dir.Parent;
+    }
+
+    throw new DirectoryNotFoundException("repository root not found walking up from " + AppContext.BaseDirectory);
 }
 
 // Walk up from the executable until a directory containing cs2-assets/ is found.
