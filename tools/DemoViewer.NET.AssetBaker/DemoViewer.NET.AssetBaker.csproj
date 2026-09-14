@@ -34,6 +34,13 @@
         <PackageReference Include="ValvePak" Version="4.0.0.142"/>
         <PackageReference Include="SkiaSharp" Version="3.119.2"/>
         <PackageReference Include="SkiaSharp.NativeAssets.macOS" Version="3.119.2"/>
+        <!-- Both natives, because the RID below is a default and not a restriction: the icon bake is
+             run from whichever machine has CS2 installed, which in practice is a Windows one. -->
+        <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.119.2"/>
+        <!-- The icon bake ONLY. CS2 ships its iconography as compiled Panorama SVG, so the baker needs
+             an SVG rasteriser; Svg.Skia is the one that rides SkiaSharp 3.x. It is confined to this
+             project by the same file boundary that keeps SkiaSharp 3 away from the app's pinned 2.88.x. -->
+        <PackageReference Include="Svg.Skia" Version="3.0.2"/>
     </ItemGroup>
 
 </Project>

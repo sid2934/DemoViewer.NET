@@ -41,9 +41,11 @@ public sealed class KillFeedLayer : ISceneLayer
 
     private readonly StringBuilder _builder = new(96);
     private readonly IHudDataSource _data;
+    private readonly IIconSource? _icons;
     private readonly bool _ownsText;
     private readonly SKPaint _paint;
-    private readonly Dictionary<KillFeedRow, RowText> _rendered = new(256);
+    private readonly Dictionary<KillFeedRow, RowVisual> _rendered = new(256);
+    private readonly SKPaint? _iconPaint;
     private readonly HudStyle _style;
     private readonly TextBlobCache _text;
 
@@ -53,13 +55,38 @@ public sealed class KillFeedLayer : ISceneLayer
     /// <param name="data">The tick → HUD state function.</param>
     /// <param name="style">Colours and metrics; the shipped look when null.</param>
     /// <param name="text">A shared blob cache; a private one when null, disposed with the layer.</param>
-    public KillFeedLayer(IHudDataSource data, HudStyle? style = null, TextBlobCache? text = null)
+    /// <param name="icons">
+    ///     CS2's own artwork for the weapon and the modifiers. <b>Null keeps the text tokens</b>, which is
+    ///     the shipped default: every export golden was baselined against them, so a source arrives here
+    ///     only when a caller has decided to re-baseline.
+    /// </param>
+    public KillFeedLayer(
+        IHudDataSource data,
+        HudStyle? style = null,
+        TextBlobCache? text = null,
+        IIconSource? icons = null)
     {
         ArgumentNullException.ThrowIfNull(data);
         _data = data;
+        _icons = icons;
         _style = style ?? new HudStyle();
         _ownsText = text is null;
         _text = text ?? new TextBlobCache();
+
+        // Hoisted, not per-draw. Design §6 requires 0 B/frame in steady state, and a paint plus a
+        // blend-mode colour filter built per icon per frame is exactly the allocation it forbids. The
+        // tint never varies — the feed draws its icons in the same dim colour as its middle run — so
+        // both are built once here. The CI allocation bench mounts no HUD layer, so nothing else would
+        // have caught this.
+        if (icons is not null)
+        {
+            _iconPaint = new SKPaint
+            {
+                IsAntialias = true,
+                ColorFilter = SKColorFilter.CreateBlendMode(
+                    new SKColor(ClockLayer.DimTextArgb), SKBlendMode.SrcIn)
+            };
+        }
         _paint = new SKPaint
         {
             Style = SKPaintStyle.Fill,
@@ -118,7 +145,8 @@ public sealed class KillFeedLayer : ISceneLayer
         for (int i = first; i < rows.Count; i++)
         {
             KillFeedRow row = rows[i];
-            RowText parts = Compose(row);
+            RowVisual visual = Compose(row);
+            RowText parts = visual.Text;
 
             if (_text.Get(parts.Attacker, _style.FontSizePx) is not { } attacker ||
                 _text.Get(parts.Middle, _style.FontSizePx) is not { } middle ||
@@ -129,7 +157,10 @@ public sealed class KillFeedLayer : ISceneLayer
 
             float padX = _style.MarginPx * 0.55f;
             float padY = _style.MarginPx * 0.3f;
-            float rowW = attacker.Width + middle.Width + victim.Width;
+            float iconH = _style.FontSizePx;
+            float iconGap = iconH * 0.25f;
+            float iconsW = MeasureIcons(visual.IconKeys, iconH, iconGap);
+            float rowW = attacker.Width + iconsW + middle.Width + victim.Width;
 
             // Both rectangles are laid out from the same numbers: each part's Width is its ADVANCE, so
             // the three runs abut exactly as one shaped line would have; Height is one LINE BOX, so every
@@ -141,6 +172,7 @@ public sealed class KillFeedLayer : ISceneLayer
 
             float x = right - rowW - padX;
             x = DrawRun(canvas, attacker, x, y, SideColor(ctx, row.AttackerTeam));
+            x = DrawIcons(canvas, visual.IconKeys, x, y, attacker.Height, iconH, iconGap);
             x = DrawRun(canvas, middle, x, y, new SKColor(ClockLayer.DimTextArgb));
             DrawRun(canvas, victim, x, y, SideColor(ctx, row.VictimTeam));
 
@@ -152,6 +184,7 @@ public sealed class KillFeedLayer : ISceneLayer
     public void Dispose()
     {
         _paint.Dispose();
+        _iconPaint?.Dispose();
         if (_ownsText)
         {
             _text.Dispose();
@@ -193,8 +226,73 @@ public sealed class KillFeedLayer : ISceneLayer
     /// <param name="row">The kill to render.</param>
     public static string Format(KillFeedRow row)
     {
-        RowText parts = Build(new StringBuilder(96), row);
+        RowText parts = Build(new StringBuilder(96), row, spellWeapon: true, spellModifiers: true);
         return parts.Attacker + parts.Middle + parts.Victim;
+    }
+
+    // The keys this row draws, in feed order: the weapon, then each modifier it carries. Materialised
+    // once per distinct row into the row cache — including the composed "equipment/<weapon>" string,
+    // which would otherwise be a fresh allocation on every frame the row is on screen.
+    private static string[] IconKeys(KillFeedRow row)
+    {
+        List<string> keys = [Weapons.Key(row.Weapon)];
+
+        if (row.Headshot) { keys.Add("modifier/headshot"); }
+        if (row.Penetrated) { keys.Add("modifier/penetrate"); }
+        if (row.NoScope) { keys.Add("modifier/noscope"); }
+        if (row.ThroughSmoke) { keys.Add("modifier/smoke"); }
+        if (row.AttackerBlind) { keys.Add("modifier/blind"); }
+        if (row.AttackerInAir) { keys.Add("modifier/inair"); }
+
+        return [.. keys];
+    }
+
+    // Icons are height-sized and keep their own aspect, so a rifle takes the width a rifle needs. A key
+    // with no artwork contributes nothing at all, which is how an environment death draws no weapon.
+    private float MeasureIcons(string[] keys, float iconH, float gap)
+    {
+        if (_icons is null)
+        {
+            return 0;
+        }
+
+        float w = 0;
+        foreach (string key in keys)
+        {
+            if (_icons.Lookup(key, iconH) is { } img)
+            {
+                w += gap + iconH * img.Width / img.Height;
+            }
+        }
+
+        return w;
+    }
+
+    // Tinted through SrcIn: the baked artwork is white on transparent, so the blend replaces its colour
+    // wholesale and one set of bytes serves every palette the feed can be drawn in.
+    private float DrawIcons(SKCanvas canvas, string[] keys, float x, float top, float lineH,
+        float iconH, float gap)
+    {
+        if (_icons is null || _iconPaint is null)
+        {
+            return x;
+        }
+
+        float cy = top + (lineH - iconH) / 2f;
+        foreach (string key in keys)
+        {
+            if (_icons.Lookup(key, iconH) is not { } img)
+            {
+                continue;
+            }
+
+            x += gap;
+            float w = iconH * img.Width / img.Height;
+            canvas.DrawImage(img, SKRect.Create(x, cy, w, iconH), _iconPaint);
+            x += w;
+        }
+
+        return x;
     }
 
     // Draws one run at the cursor and returns where the next one starts.
@@ -219,19 +317,36 @@ public sealed class KillFeedLayer : ISceneLayer
 
     // Composed once per distinct row and kept: a demo has a few hundred kills, six of which are on
     // screen, and re-composing six strings every frame is exactly the per-frame allocation §6 forbids.
-    private RowText Compose(KillFeedRow row)
+    private RowVisual Compose(KillFeedRow row)
     {
-        if (_rendered.TryGetValue(row, out RowText cached))
+        if (_rendered.TryGetValue(row, out RowVisual cached))
         {
             return cached;
         }
 
-        RowText composed = Build(_builder, row);
+        string[] keys = _icons is null ? [] : IconKeys(row);
+
+        // Two separate decisions, decided once per distinct row and never per frame.
+        //
+        // The MODIFIERS are spelled only when there is no icon source at all: with one, every modifier
+        // the row carries is drawn as artwork and spelling them too would say everything twice.
+        //
+        // The WEAPON is spelled whenever its icon will not appear — either because there is no source,
+        // or because that one key is missing from the bake. The exception is a key CS2 ships
+        // deliberately empty: an environment death has no weapon, and printing "world" would name a
+        // thing the game is telling us is not there.
+        bool spellModifiers = _icons is null;
+        bool spellWeapon = _icons is null
+                           || (_icons.Lookup(keys[0], _style.FontSizePx) is null
+                               && !_icons.IsBlankByDesign(keys[0]));
+
+        RowVisual composed = new(Build(_builder, row, spellWeapon, spellModifiers), keys);
         _rendered[row] = composed;
         return composed;
     }
 
-    private static RowText Build(StringBuilder builder, KillFeedRow row)
+    private static RowText Build(StringBuilder builder, KillFeedRow row, bool spellWeapon,
+        bool spellModifiers)
     {
         builder.Clear();
         builder.Append(row.Attacker);
@@ -253,14 +368,23 @@ public sealed class KillFeedLayer : ISceneLayer
         string attacker = builder.ToString();
 
         builder.Clear();
-        builder.Append("  ").Append(row.Weapon);
 
-        Append(builder, row.Headshot, " HS");
-        Append(builder, row.Penetrated, " WB");
-        Append(builder, row.NoScope, " NS");
-        Append(builder, row.ThroughSmoke, " ≈"); // ≈ through smoke: U+2248, present in Inter
-        Append(builder, row.AttackerBlind, " BL"); // a word, because U+2731 is not in the embedded face
-        Append(builder, row.AttackerInAir, " ↑"); // ↑ killer airborne: U+2191, present in Inter
+        // With a source, the weapon and every modifier are drawn as artwork and must not also be spelled
+        // out: the middle run collapses to the arrow, and the icons occupy the gap ahead of it.
+        if (spellWeapon)
+        {
+            builder.Append("  ").Append(row.Weapon);
+        }
+
+        if (spellModifiers)
+        {
+            Append(builder, row.Headshot, " HS");
+            Append(builder, row.Penetrated, " WB");
+            Append(builder, row.NoScope, " NS");
+            Append(builder, row.ThroughSmoke, " ≈"); // ≈ through smoke: U+2248, present in Inter
+            Append(builder, row.AttackerBlind, " BL"); // a word, because U+2731 is not in the embedded face
+            Append(builder, row.AttackerInAir, " ↑"); // ↑ killer airborne: U+2191, present in Inter
+        }
 
         builder.Append("  →  "); // →
         return new RowText(attacker, builder.ToString(), row.Victim);
@@ -271,6 +395,36 @@ public sealed class KillFeedLayer : ISceneLayer
         if (condition)
         {
             builder.Append(token);
+        }
+    }
+
+    /// <summary>
+    ///     Everything a row needs to draw, composed once and kept: the three text runs and, when the feed
+    ///     draws artwork, the icon keys in feed order. Both halves are per-frame-allocation hazards if
+    ///     rebuilt — the keys include a concatenated <c>equipment/&lt;weapon&gt;</c> string.
+    /// </summary>
+    /// <param name="Text">The three coloured runs.</param>
+    /// <param name="IconKeys">Icon keys in draw order; empty when the feed is drawing text tokens.</param>
+    private readonly record struct RowVisual(RowText Text, string[] IconKeys);
+
+    // Weapon keys, interned per distinct weapon. A demo has a few dozen; composing the string per row
+    // would otherwise leave one allocation behind for every kill in the match.
+    private static class Weapons
+    {
+        private static readonly Dictionary<string, string> Cache = new(64, StringComparer.Ordinal);
+
+        public static string Key(string weapon)
+        {
+            lock (Cache)
+            {
+                if (!Cache.TryGetValue(weapon, out string? key))
+                {
+                    key = "equipment/" + weapon;
+                    Cache[weapon] = key;
+                }
+
+                return key;
+            }
         }
     }
 

@@ -581,8 +581,31 @@ public sealed class TimelineMarkerViewModel
     /// <summary>What the marker represents.</summary>
     public TimelineMarkerKind Kind { get; }
 
-    /// <summary>The glyph drawn on the bar.</summary>
+    /// <summary>The glyph drawn on the bar when no icon is available.</summary>
     public string Glyph { get; }
+
+    /// <summary>
+    ///     CS2's own artwork for this marker, or null where the game has none.
+    ///     <para>
+    ///         Derived from <see cref="Kind" /> here, in the view, rather than carried on
+    ///         <c>TimelineMarker</c>: the record is Core's renderer-independent contract and a track must
+    ///         never name a presentation asset, for the same reason it never reaches for a brush.
+    ///         <see cref="Glyph" /> stays as the fallback, so a marker whose icon is missing still draws.
+    ///     </para>
+    ///     <para>
+    ///         <see cref="TimelineMarkerKind.Annotation" /> and <see cref="TimelineMarkerKind.Round" />
+    ///         are deliberately null: an ink stroke and a round boundary are our concepts, not the game's,
+    ///         and CS2 ships nothing that means them.
+    ///     </para>
+    /// </summary>
+    public string? IconKey => Kind switch
+    {
+        TimelineMarkerKind.Kill => "ui/kill",
+        TimelineMarkerKind.BombPlant => "ui/bomb_c4",
+        TimelineMarkerKind.BombDefuse => "ui/defuse",
+        TimelineMarkerKind.BombExplode => "ui/killtype_blast",
+        _ => null
+    };
 
     /// <summary>Hover text. Carries the fold count when several markers coalesced here.</summary>
     public string Tooltip { get; }

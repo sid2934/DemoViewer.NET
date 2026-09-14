@@ -1,0 +1,1734 @@
+{
+  "schemaVersion": 2,
+  "bakerVersion": "0.3\u002Bvrf19.2.6339",
+  "sourceHash": "be9af0d7",
+  "scales": [
+    32,
+    96
+  ],
+  "icons": {
+    "equipment/ak47": {
+      "w": 88.5,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/ammobox": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/ammobox_threepack": {
+      "w": 39.833,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/armor": {
+      "w": 26,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/armor_helmet": {
+      "w": 48.75,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/assaultsuit": {
+      "w": 58,
+      "h": 40,
+      "tintable": true
+    },
+    "equipment/assaultsuit_helmet_only": {
+      "w": 58,
+      "h": 40,
+      "tintable": true
+    },
+    "equipment/aug": {
+      "w": 75.833,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/awp": {
+      "w": 109.5,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/bayonet": {
+      "w": 92,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/bizon": {
+      "w": 90,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/c4": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/clothing_hands": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/customplayer": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/cz75a": {
+      "w": 47.875,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/deagle": {
+      "w": 50.75,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/decoy": {
+      "w": 30,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/defuser": {
+      "w": 36,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/disconnect": {
+      "w": 32,
+      "h": 33,
+      "tintable": true
+    },
+    "equipment/dronegun": {
+      "w": 39.405,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/elite": {
+      "w": 68.25,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/famas": {
+      "w": 77.833,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/firebomb": {
+      "w": 18.833,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/fiveseven": {
+      "w": 39,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/flair0": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/flashbang": {
+      "w": 30,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/flashbang_assist": {
+      "w": 30.875,
+      "h": 29.661,
+      "tintable": true
+    },
+    "equipment/g3sg1": {
+      "w": 93.25,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/galilar": {
+      "w": 90.25,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/glock": {
+      "w": 44.875,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/grenadepack": {
+      "w": 37.625,
+      "h": 32.125,
+      "tintable": true
+    },
+    "equipment/grenadepack2": {
+      "w": 32.042,
+      "h": 32.125,
+      "tintable": true
+    },
+    "equipment/healthshot": {
+      "w": 44,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/heavy_armor": {
+      "w": 48.75,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/hegrenade": {
+      "w": 25,
+      "h": 33,
+      "tintable": true
+    },
+    "equipment/helmet": {
+      "w": 19.75,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/hkp2000": {
+      "w": 32.167,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/incgrenade": {
+      "w": 15,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/inferno": {
+      "w": 30.093,
+      "h": 28.944,
+      "tintable": true
+    },
+    "equipment/kevlar": {
+      "w": 26,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/knife": {
+      "w": 76.833,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/knife_bowie": {
+      "w": 100.5,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/knife_butterfly": {
+      "w": 79.833,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/knife_canis": {
+      "w": 92.059,
+      "h": 31.75,
+      "tintable": true
+    },
+    "equipment/knife_cord": {
+      "w": 91.436,
+      "h": 33.02,
+      "tintable": true
+    },
+    "equipment/knife_css": {
+      "w": 92.059,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/knife_falchion": {
+      "w": 89,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/knife_flip": {
+      "w": 79.167,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/knife_gut": {
+      "w": 72,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/knife_gypsy_jackknife": {
+      "w": 91.917,
+      "h": 31.583,
+      "tintable": true
+    },
+    "equipment/knife_karambit": {
+      "w": 66,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/knife_kukri": {
+      "w": 92.059,
+      "h": 31.75,
+      "tintable": true
+    },
+    "equipment/knife_m9_bayonet": {
+      "w": 87.167,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/knife_outdoor": {
+      "w": 92,
+      "h": 31.75,
+      "tintable": true
+    },
+    "equipment/knife_push": {
+      "w": 82.5,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/knife_skeleton": {
+      "w": 92.059,
+      "h": 31.75,
+      "tintable": true
+    },
+    "equipment/knife_stiletto": {
+      "w": 92,
+      "h": 31.5,
+      "tintable": true
+    },
+    "equipment/knife_survival_bowie": {
+      "w": 61.193,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/knife_t": {
+      "w": 79.167,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/knife_tactical": {
+      "w": 95.833,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/knife_twinblade": {
+      "w": 92.059,
+      "h": 31.75,
+      "tintable": true
+    },
+    "equipment/knife_ursus": {
+      "w": 92.059,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/knife_widowmaker": {
+      "w": 92,
+      "h": 32.5,
+      "tintable": true
+    },
+    "equipment/knifegg": {
+      "w": 95.563,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/m249": {
+      "w": 96.583,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/m4a1": {
+      "w": 78.604,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/m4a1_silencer": {
+      "w": 96.5,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/m4a1_silencer_off": {
+      "w": 79.808,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/mac10": {
+      "w": 44.625,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/mag7": {
+      "w": 67.5,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/melee": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/molotov": {
+      "w": 22,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/movelinear": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/mp5sd": {
+      "w": 92.592,
+      "h": 39.134,
+      "tintable": true
+    },
+    "equipment/mp7": {
+      "w": 49.125,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/mp9": {
+      "w": 73.625,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/negev": {
+      "w": 81.466,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/nova": {
+      "w": 100.25,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/p2000": {
+      "w": 37.875,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/p250": {
+      "w": 37.75,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/p90": {
+      "w": 68.375,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/planted_c4": {
+      "w": 30.093,
+      "h": 28.943,
+      "tintable": true
+    },
+    "equipment/prop_exploding_barrel": {
+      "w": 30.093,
+      "h": 28.943,
+      "tintable": true
+    },
+    "equipment/revolver": {
+      "w": 52.5,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/sawedoff": {
+      "w": 84.75,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/scar20": {
+      "w": 98,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/sg556": {
+      "w": 89.667,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/smokegrenade": {
+      "w": 15,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/spray0": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/ssg08": {
+      "w": 99.75,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/stomp_damage": {
+      "w": 39.404,
+      "h": 26.017,
+      "tintable": true
+    },
+    "equipment/taser": {
+      "w": 41.5,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/tec9": {
+      "w": 52.375,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/ump45": {
+      "w": 83.5,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/usp_silencer": {
+      "w": 69.25,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/usp_silencer_off": {
+      "w": 39.816,
+      "h": 32,
+      "tintable": true
+    },
+    "equipment/xm1014": {
+      "w": 97.875,
+      "h": 32,
+      "tintable": true
+    },
+    "map/ar_baggage": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/ar_pool_day": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/ar_shoots": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/ar_shoots_night": {
+      "w": 32,
+      "h": 33,
+      "tintable": false
+    },
+    "map/cs_italy": {
+      "w": 31,
+      "h": 31,
+      "tintable": false
+    },
+    "map/cs_office": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/cs_shelter": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_ancient": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_ancient_night": {
+      "w": 32,
+      "h": 33,
+      "tintable": false
+    },
+    "map/de_anubis": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_boulder": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_cache": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_debris": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_dust": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_dust2": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_eldorado": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_fachwerk": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_inferno": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_mirage": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_nuke": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_overpass": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_poseidon": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_train": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "map/de_vertigo": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "modifier/blind": {
+      "w": 32.074,
+      "h": 32.074,
+      "tintable": true
+    },
+    "modifier/domination": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "modifier/headshot": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "modifier/inair": {
+      "w": 32.074,
+      "h": 32.074,
+      "tintable": true
+    },
+    "modifier/noscope": {
+      "w": 32.074,
+      "h": 32.074,
+      "tintable": true
+    },
+    "modifier/penetrate": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "modifier/revenge": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "modifier/smoke": {
+      "w": 32.074,
+      "h": 32.074,
+      "tintable": true
+    },
+    "modifier/suicide": {
+      "w": 33.334,
+      "h": 32,
+      "tintable": true
+    },
+    "premier/tier0": {
+      "w": 178,
+      "h": 64,
+      "tintable": false
+    },
+    "premier/tier1": {
+      "w": 178,
+      "h": 64,
+      "tintable": false
+    },
+    "premier/tier2": {
+      "w": 178,
+      "h": 64,
+      "tintable": false
+    },
+    "premier/tier3": {
+      "w": 178,
+      "h": 64,
+      "tintable": false
+    },
+    "premier/tier4": {
+      "w": 178,
+      "h": 64,
+      "tintable": false
+    },
+    "premier/tier5": {
+      "w": 178,
+      "h": 64,
+      "tintable": false
+    },
+    "premier/tier6": {
+      "w": 178,
+      "h": 64,
+      "tintable": false
+    },
+    "premier/unranked": {
+      "w": 178,
+      "h": 64,
+      "tintable": false
+    },
+    "rank/competitive/0": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/1": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/10": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/11": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/12": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/13": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/14": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/15": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/16": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/17": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/18": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/2": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/3": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/4": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/5": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/6": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/7": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/8": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/9": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/expired": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/needwins": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/competitive/none": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/0": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/1": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/10": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/11": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/12": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/13": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/14": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/15": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/16": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/17": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/18": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/2": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/3": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/4": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/5": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/6": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/7": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/8": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/9": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/expired": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "rank/wingman/none": {
+      "w": 32,
+      "h": 13,
+      "tintable": false
+    },
+    "ui/alert": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/ammo": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/ammo_burst": {
+      "w": 50,
+      "h": 4,
+      "tintable": true
+    },
+    "ui/ammo_fullauto": {
+      "w": 50,
+      "h": 4,
+      "tintable": true
+    },
+    "ui/ammo_reserve": {
+      "w": 33,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/ammo_single": {
+      "w": 50,
+      "h": 4,
+      "tintable": true
+    },
+    "ui/armor": {
+      "w": 33,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/armor_helmet": {
+      "w": 33,
+      "h": 33,
+      "tintable": true
+    },
+    "ui/assists": {
+      "w": 27,
+      "h": 18,
+      "tintable": false
+    },
+    "ui/bomb": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/bomb_above": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/bomb_below": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/bomb_bonus": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/bomb_c4": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/bombsite_a": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/bombsite_b": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/bot": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/broadcast": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/bug": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/bullet": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/bullet_shell": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/buyzone": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/camera": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/champions": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/clip": {
+      "w": 32,
+      "h": 25,
+      "tintable": true
+    },
+    "ui/clock": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/coins": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/comm_bomb_at": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_decoy": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_dropped_bomb": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_eco": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_enemy_spotted": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_fire": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_flash": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_follow_me": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_go": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_grenade": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_guarding_bomb": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_have_bomb": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_heard_noise": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_hold_position": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_in_position": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_multiple_enemies": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_need_backup": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_no": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_one_enemy": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_rotate": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_sector_clear": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_site_a": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_site_b": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_smoke": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_sniper": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/comm_spread_out": {
+      "w": 54,
+      "h": 54,
+      "tintable": true
+    },
+    "ui/comm_stick_together": {
+      "w": 42,
+      "h": 42,
+      "tintable": true
+    },
+    "ui/comm_yes": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/crosshair": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/crosshair_circle": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/ct_logo": {
+      "w": 64,
+      "h": 64,
+      "tintable": true
+    },
+    "ui/ct_silhouette": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/death": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/defuse": {
+      "w": 32,
+      "h": 32,
+      "tintable": false
+    },
+    "ui/defused_dropped": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/defuser": {
+      "w": 33,
+      "h": 32,
+      "tintable": false
+    },
+    "ui/defuser_solid": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/direction": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/dollar": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/dominated": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/dominated_dead": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/elimination": {
+      "w": 29,
+      "h": 28,
+      "tintable": true
+    },
+    "ui/elimination_headshot": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/enemy_offmap": {
+      "w": 33.052,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/enemy_onmap": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/fast": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/film": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/filter_team": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/fire_auto": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/fire_single": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/first_person": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/ghost": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/health": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/helmet": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/hostage_dead": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/hostage_zone": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/kill": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/kill_headshot": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/killtype_blast": {
+      "w": 10,
+      "h": 10,
+      "tintable": true
+    },
+    "ui/killtype_burn": {
+      "w": 10,
+      "h": 10,
+      "tintable": true
+    },
+    "ui/killtype_default": {
+      "w": 10,
+      "h": 10,
+      "tintable": true
+    },
+    "ui/killtype_headshot": {
+      "w": 10,
+      "h": 10,
+      "tintable": true
+    },
+    "ui/killtype_shock": {
+      "w": 10,
+      "h": 10,
+      "tintable": true
+    },
+    "ui/killtype_slash": {
+      "w": 10,
+      "h": 10,
+      "tintable": true
+    },
+    "ui/leader": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/lobby_leader": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/major_coin": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/mic": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/mode_armsrace": {
+      "w": 32.118,
+      "h": 32.118,
+      "tintable": true
+    },
+    "ui/mode_deathmatch": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/mode_demolition": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/mode_retakes": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/mode_scoutsman": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/mode_training": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/mode_wingman": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/mvp": {
+      "w": 24,
+      "h": 24,
+      "tintable": false
+    },
+    "ui/nemesis": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/nemesis_dead": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/no_connection": {
+      "w": 33,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/onmap": {
+      "w": 23.027,
+      "h": 23.027,
+      "tintable": true
+    },
+    "ui/out_of_ammo": {
+      "w": 128,
+      "h": 128,
+      "tintable": true
+    },
+    "ui/overwatch": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/pause": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/ping_1": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/ping_2": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/ping_3": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/ping_4": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/play": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/player": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/player_arrow": {
+      "w": 33.697,
+      "h": 33.697,
+      "tintable": true
+    },
+    "ui/player_arrow_friend": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/prime": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/replay": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/skip": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/smoke": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/spotted": {
+      "w": 40,
+      "h": 40,
+      "tintable": true
+    },
+    "ui/stack_2": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/stack_3": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/stack_4": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/stack_5": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/star": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/star_empty": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/star_filled": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/stop": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/t_logo": {
+      "w": 69.903,
+      "h": 69.903,
+      "tintable": true
+    },
+    "ui/team_swatch": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/teamplayer": {
+      "w": 32,
+      "h": 98,
+      "tintable": true
+    },
+    "ui/timer": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/timer_long": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/timer_short": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/trade": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/trophy": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/vacnet": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/view_angle": {
+      "w": 155.322,
+      "h": 77.417,
+      "tintable": true
+    },
+    "ui/view_selected": {
+      "w": 79.381,
+      "h": 66.417,
+      "tintable": true
+    },
+    "ui/volume_1": {
+      "w": 8.072,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/volume_2": {
+      "w": 8.072,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/volume_3": {
+      "w": 8.072,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/volume_off": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/watch": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/winner": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/xp_rank": {
+      "w": 32,
+      "h": 32,
+      "tintable": true
+    },
+    "ui/zoom_in": {
+      "w": 31.985,
+      "h": 31.985,
+      "tintable": true
+    },
+    "ui/zoom_out": {
+      "w": 31.985,
+      "h": 31.985,
+      "tintable": true
+    }
+  },
+  "premierTiers": [
+    {
+      "name": "tier0",
+      "hex": "#b0c3d9",
+      "minRating": 0
+    },
+    {
+      "name": "tier1",
+      "hex": "#8cc6ff",
+      "minRating": 5000
+    },
+    {
+      "name": "tier2",
+      "hex": "#6a7dff",
+      "minRating": 10000
+    },
+    {
+      "name": "tier3",
+      "hex": "#c166ff",
+      "minRating": 15000
+    },
+    {
+      "name": "tier4",
+      "hex": "#f03cff",
+      "minRating": 20000
+    },
+    {
+      "name": "tier5",
+      "hex": "#eb4b4b",
+      "minRating": 25000
+    },
+    {
+      "name": "tier6",
+      "hex": "#ffd700",
+      "minRating": 30000
+    }
+  ],
+  "rankNames": [
+    "No Skill Group",
+    "Silver I",
+    "Silver II",
+    "Silver III",
+    "Silver IV",
+    "Silver Elite",
+    "Silver Elite Master",
+    "Gold Nova I",
+    "Gold Nova II",
+    "Gold Nova III",
+    "Gold Nova Master",
+    "Master Guardian I",
+    "Master Guardian II",
+    "Master Guardian Elite",
+    "Distinguished Master Guardian",
+    "Legendary Eagle",
+    "Legendary Eagle Master",
+    "Supreme Master First Class",
+    "The Global Elite"
+  ],
+  "blank": [
+    "equipment/trigger_hurt",
+    "equipment/world",
+    "equipment/worldent"
+  ]
+}

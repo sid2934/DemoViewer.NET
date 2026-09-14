@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using System.Reflection;
+using DemoViewer.NET.GameIcons;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using CS2DemoKit.Parser;
@@ -58,7 +59,13 @@ public static class RuntimeEnvInfo
             Row("OS arch", RuntimeInformation.OSArchitecture.ToString()),
             Row("process arch", RuntimeInformation.ProcessArchitecture.ToString()),
             Row("GC mode", $"{(GCSettings.IsServerGC ? "Server" : "Workstation")} · {GCSettings.LatencyMode}"),
-            Row("processors", Environment.ProcessorCount.ToString(CultureInfo.InvariantCulture))
+            Row("processors", Environment.ProcessorCount.ToString(CultureInfo.InvariantCulture)),
+            // Always on, unlike the ILogger pillar, which is behind a settings switch. A copied bug
+            // report therefore always says which bake shipped and whether anything asked for a key it
+            // did not get.
+            Row("icons", string.Create(CultureInfo.InvariantCulture,
+                $"{IconCatalogue.Keys.Count} baked · {IconCatalogue.SourceHash} · "
+                + $"{IconCatalogue.MissingKeys.Count} missing"))
         ];
 
         // At-a-glance "is profiling active" line a bug reporter wants. Profiling is a single runtime

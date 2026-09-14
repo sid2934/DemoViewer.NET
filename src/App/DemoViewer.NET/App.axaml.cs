@@ -8,6 +8,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
+using DemoViewer.NET.GameIcons;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
@@ -23,6 +24,7 @@ using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.Theming;
+using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Highlights;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
@@ -432,6 +434,12 @@ public class App : Application
         });
 
         DiagnosticsLog.LoggerFactory = factory;
+
+        // A missing icon key degrades to its fallback and keeps working, which is the point — but silent
+        // degradation that nobody ever notices is how a whole set rots after a CS2 update. The catalogue
+        // fires this ONCE per distinct key, so a key hit every frame costs one log line, not a flood.
+        ILogger icons = DiagnosticsLog.CreateLogger("App.Icons");
+        IconCatalogue.MissingKeyObserver = icons.IconKeyMissing;
     }
 
     // LiveSyncLogLevel is a 1:1 value mirror of MEL LogLevel, but map explicitly rather than cast.

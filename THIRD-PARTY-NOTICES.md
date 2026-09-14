@@ -54,6 +54,33 @@ Valve's Counter-Strike 2, as tracked by [SteamDatabase/GameTracking-CS2](https:/
 format. Valve Corporation owns Counter-Strike 2 and its data formats. This project is
 unaffiliated with Valve. No game assets are redistributed in the packages.
 
+## b2. Valve game artwork (map radars and iconography)
+
+Two sets of **Valve-authored artwork** are derived from a local Counter-Strike 2 installation by
+`tools/DemoViewer.NET.AssetBaker`, committed under `assets/`, and redistributed with the
+application:
+
+- **Map radar images** — `assets/<map>/<map>.png`, decoded from each map's `*_radar_psd.vtex_c`.
+- **Iconography** — `assets/icons/`, 332 keys covering weapon, kill-modifier, UI, Skill Group and
+  per-map artwork, rasterised from compiled Panorama SVG (`.vsvg_c`) in `game/csgo/pak01_dir.vpk`.
+  These are embedded into the `DemoViewer.NET.GameIcons` assembly rather than copied beside the
+  executable. The seven Premier CS Rating emblems are **derived**: CS2 ships one greyscale plate and
+  colours it at draw time, so the bake reproduces those colours using the tier values in the game's
+  own `panorama/styles/rating_emblem.vcss`.
+
+Valve Corporation owns Counter-Strike 2 and this artwork. This project is unaffiliated with Valve
+and claims no rights in it. The images are transformations of format only — decoded and
+rasterised, not redrawn — and are used to label the game's own entities in a demo-analysis tool.
+
+The raw extraction cache (`cs2-assets/`) is **git-ignored and never committed**; only the baked
+derivatives are. Note that §b's "No game assets are redistributed in the packages" is a statement
+about the published **NuGet packages**, which contain none of this; it has never covered the
+application's own `assets/` directory, and this section exists to say so plainly rather than leave
+the two readings to collide.
+
+Anyone redistributing this project, or shipping a build of it, should satisfy themselves that
+their use is consistent with the Steam Subscriber Agreement and Valve's policies on game content.
+
 ## c. Other package dependencies
 
 This project depends on the following NuGet packages, each under its own license, resolved

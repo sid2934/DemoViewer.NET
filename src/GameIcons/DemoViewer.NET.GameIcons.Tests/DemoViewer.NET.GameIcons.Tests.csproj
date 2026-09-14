@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      Guards the icon catalogue's contract. No Avalonia and no SkiaSharp here either: the point of the
+      library under test is that it has neither, and a suite that pulled one in could not notice if it
+      regained one.
+    -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>DemoViewer.NET.GameIconsTests</RootNamespace>
+        <!-- CA1707: test method names conventionally use underscores (e.g. Method_Condition_Expected) -->
+        <NoWarn>$(NoWarn);CA1707</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="TUnit"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\DemoViewer.NET.GameIcons\DemoViewer.NET.GameIcons.csproj"/>
+    </ItemGroup>
+
+</Project>

@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:stats="using:DemoViewer.NET.ViewModels.Stats"
              xmlns:statsCtl="using:DemoViewer.NET.Controls.Stats"
+             xmlns:controls="using:DemoViewer.NET.Controls"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="700"
              x:Class="DemoViewer.NET.Views.Stats.PlayerDetailsView"
              x:DataType="stats:PlayerDetailsViewModel">
@@ -29,6 +30,38 @@
                                     BarTrackBrush="{DynamicResource PanelHeaderBg}"
                                     BarFillBrush="{DynamicResource AccentInteractive}" />
                 <TextBlock Grid.Column="2" Text="{Binding ValueText}" Classes="pdKvValue"
+                           Margin="8 0 0 0" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- The weapon breakdown's own row: BarRowTemplate plus CS2's artwork for the weapon.
+             A SEPARATE template rather than a widened shared one, because BarRowTemplate also serves
+             the multi-kill and vision bars, whose labels are not weapon names and would reserve an
+             icon column they can never fill.
+
+             The icon column is fixed-width and the icon is height-sized, so the wide silhouettes (an
+             AWP is 3.42x wider than tall) and the square ones line up on the same left edge without
+             either being squashed. A weapon with no artwork simply leaves the column empty; the label
+             beside it already says which weapon it is. -->
+        <DataTemplate x:Key="WeaponBarRowTemplate" x:DataType="stats:BarRowItem">
+            <Grid ColumnDefinitions="34,72,150,Auto" Margin="0 2" ToolTip.Tip="{Binding Tooltip}">
+                <controls:GameIcon Grid.Column="0" IconHeight="11"
+                                   Key="{Binding Label, Converter={x:Static controls:WeaponIconKey.Key}}"
+                                   Foreground="{DynamicResource TextMid}"
+                                   HorizontalAlignment="Left" VerticalAlignment="Center"
+                                   Margin="0 0 6 0" />
+                <TextBlock Grid.Column="1" Text="{Binding Label}" Classes="pdKvLabel"
+                           TextTrimming="CharacterEllipsis" Margin="0 0 8 0" />
+                <statsCtl:StatValue Grid.Column="2"
+                                    Value="{Binding Value}"
+                                    Maximum="{Binding Max}"
+                                    Polarity="Neutral"
+                                    Text=""
+                                    Height="12" Padding="0" CornerRadius="2"
+                                    VerticalAlignment="Center"
+                                    BarTrackBrush="{DynamicResource PanelHeaderBg}"
+                                    BarFillBrush="{DynamicResource AccentInteractive}" />
+                <TextBlock Grid.Column="3" Text="{Binding ValueText}" Classes="pdKvValue"
                            Margin="8 0 0 0" />
             </Grid>
         </DataTemplate>
@@ -245,7 +278,7 @@
                                 <TextBlock Text="Weapon Breakdown" Classes="pdCardHeader" />
                             </DockPanel>
                             <ItemsControl ItemsSource="{Binding Weapons.Bars}"
-                                          ItemTemplate="{StaticResource BarRowTemplate}" />
+                                          ItemTemplate="{StaticResource WeaponBarRowTemplate}" />
                             <TextBlock Text="{Binding Weapons.EmptyMessage}"
                                        IsVisible="{Binding Weapons.ShowEmpty}" Classes="pdEmpty" />
                         </StackPanel>

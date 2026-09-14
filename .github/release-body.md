@@ -1,41 +1,49 @@
-## What's new in 0.8.0
+## What's new in 0.8.1
 
-The 2D playback view is rebuilt. It renders through a new Skia compositor, and that rework is what
-the rest of this release is built on: annotations you can draw on the map, video export straight out
-of the 2D view, maps with more than one floor, and a scrubbable timeline.
+The Stats page is rebuilt, and it can finally answer questions about aim rather than just counting
+kills.
 
-**Annotations.** Draw and erase on the 2D view, with undo/redo and a color picker. Each stroke has
-its own time envelope, so it can appear and fade when you want instead of hanging over the whole
-round. Strokes anchor either to the map or to a player, so they survive seeking and level switches
-rather than drifting. Everything saves to a `.dvann.json` file next to the demo, so a marked-up demo
-stays marked up.
+**A new scoreboard.** The table gained per-column scales, so a number is shaded against the other
+players in the match instead of sitting there as a bare figure, and the best in each column is
+marked. There is a podium for the top three, team badges, and a sub-nav that splits the stats into
+pages rather than one endless table. The whole palette now comes from the theme, so a custom theme
+retints the boards instead of fighting them.
 
-**Video export from the 2D view.** Export any range as WebM, MP4, or GIF, HUD included. ffmpeg is
-picked up from your PATH if you have it and downloaded on demand if you don't, and there is a
-built-in GIF encoder that needs no ffmpeg at all. The default is 720p60, which encodes at about 2.7x
-realtime. Export declines to start while LiveSync or a reel job is running rather than fighting them
-for the demo.
+**Fifteen aim-quality columns and an Aim board.** How fast you react to someone appearing, how long
+from first sight to first damage to the kill, how well you hold a spray, and whether you were
+actually stopped when you fired. These are computed from what the demo records about every shot,
+not estimated from the scoreboard.
 
-**Maps with more than one floor.** Multi-level maps now have a real layered level model instead of
-one flattened overhead. Pick a level by hand or let it switch as the action moves, and following a
-player always puts you on that player's floor.
+**A spray plot.** Pick a weapon and see its recoil pattern with your own bullets drawn over it, so
+a spray-control number has a picture behind it. There is a toggle to measure from the enemy instead
+of from your first bullet, which shows tracking rather than pure recoil control.
 
-**A timeline along the bottom.** Scrub the demo directly, with tracks for rounds, kills, the bomb,
-and your own annotations, and hover to see what is under the cursor. There is a full keymap for
-playback speed, follow, fit, and the drawing tools.
+**Every shipped map has geometry now.** Seventeen of the new columns need to know what you could
+actually see, which needs the map's collision. Four maps had none, so those columns showed a flat
+zero that looked like a measurement. All ten maps have it now, de_train among them.
 
-**Follow a player by clicking their card.** Selecting a card in the overview follows that player in
-the 2D view, and in-engine as well when LiveSync is on.
+**And when something cannot be measured, it says so.** A cell with no data shows a dash and drops
+out of the ranking and the shading, instead of showing a zero that reads like a real result. If a
+demo is on a map with no geometry, the board says which map and why.
 
-**A headless `dv2d` command.** Render frames, export video, run benchmarks, and verify goldens from a
-terminal with no UI, against the same renderer the app uses.
+**CS2's own artwork.** Weapons, kill modifiers, ranks and round objects now appear as the icons
+Valve drew for them, in the kill feed and through the app, with the text still there underneath
+wherever an icon is missing.
 
-Underneath all of it, drawing a frame is one Skia operation that allocates nothing per frame and
-holds p99 2.5 ms at 1080p against an 8 ms budget. The previous 2D control is still available behind a
-settings toggle for this release and is removed in the next one.
+One number moves down: counter-strafing was being measured over too long a window and was crediting
+shots taken after you had already stopped. The window now comes from the game's own friction values,
+so published counter-strafe figures fall. That is the metric getting more honest, not a regression.
 
 <details>
-<summary>What was new in 0.7.2 and earlier</summary>
+<summary>What was new in 0.8.0 and earlier</summary>
+
+**0.8.0** rebuilt the 2D playback view on a new Skia compositor: annotations you can draw on the map
+with their own time envelopes, saved beside the demo; video export straight out of the 2D view as
+WebM, MP4 or GIF; maps with more than one floor, with the level switching as the action moves;
+a scrubbable timeline with tracks for rounds, kills, the bomb and your annotations; following a
+player by clicking their card; and a headless `dv2d` command for rendering, exporting and
+benchmarking from a terminal. Drawing a frame became one Skia operation that allocates nothing per
+frame and holds p99 2.5 ms at 1080p against an 8 ms budget.
 
 **0.7.2** was a maintenance release. Demos that used to fail analysis outright started working
 again: a frame sharing a tick with a checkpoint the analyzer had picked took out 6 of 15 demos

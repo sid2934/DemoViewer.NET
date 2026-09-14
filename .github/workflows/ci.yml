@@ -97,6 +97,12 @@ jobs:
             || { echo "Avalonia.Controls.ColorPicker did not ship, App.Initialize will throw on the StyleInclude"; exit 1; }
           ls "$FW" | grep -q '^AvaloniaEdit\..*\.wasm$' \
             || { echo "AvaloniaEdit did not ship, App.Initialize will throw on the StyleInclude"; exit 1; }
+          # NOT boot-critical in the strict sense above - the head boots without it and only throws
+          # when something first draws an icon. Checked anyway, and separately, because this is the
+          # one head nothing in CI executes: the icons are EMBEDDED in this assembly (the Browser has
+          # no filesystem for the loose assets/ copy the desktop head probes), so if it fails to ship
+          # the failure surfaces to a user, not to us.
+          ls "$FW" | grep -q '^DemoViewer\.NET\.GameIcons\..*\.wasm$' || { echo "DemoViewer.NET.GameIcons did not ship, every icon will throw at runtime"; exit 1; }
           du -sh artifacts/wasm-publish/wwwroot
 
   # The ONE core/pipeline test invocation. Do not add a second.
