@@ -128,10 +128,17 @@ public static class SceneLayerCatalog
     ///     render into frames it had already passed.
     /// </param>
     /// <param name="smoother">Shared marker smoothing; a private one when null.</param>
+    /// <param name="icons">
+    ///     CS2's own weapon and modifier artwork for the kill feed. <b>Null keeps the text tokens.</b>
+    ///     Opt-in rather than default because <c>hud.killfeed</c> is in the golden fixture set: switching
+    ///     the feed to artwork changes every frame it appears in, so it comes with a re-baseline and is
+    ///     therefore the caller's decision, not this method's.
+    /// </param>
     /// <exception cref="ArgumentException">An id is not in <see cref="SceneStackIds" />.</exception>
     public static SceneCompositor CreateSceneStack(IReadOnlyList<string>? include = null,
         IReadOnlyList<string>? exclude = null, IVisionSolver? vision = null, IHudDataSource? hud = null,
-        AnnotationSession? annotations = null, MarkerSmoother? smoother = null)
+        AnnotationSession? annotations = null, MarkerSmoother? smoother = null,
+        IIconSource? icons = null)
     {
         HashSet<string>? wanted = include is null
             ? null
@@ -183,7 +190,7 @@ public static class SceneLayerCatalog
                     continue; // asked for, but nothing to feed it. Draw nothing rather than an empty box.
                 }
 
-                compositor.Add(BuildLayer(id, vision, hud, annotations, shared, text));
+                compositor.Add(BuildLayer(id, vision, hud, annotations, shared, text, icons));
             }
         }
         catch
@@ -204,7 +211,8 @@ public static class SceneLayerCatalog
             : hud is null;
 
     private static ISceneLayer BuildLayer(string id, IVisionSolver? vision, IHudDataSource? hud,
-        AnnotationSession? annotations, MarkerSmoother smoother, TextBlobCache text) => id switch
+        AnnotationSession? annotations, MarkerSmoother smoother, TextBlobCache text,
+        IIconSource? icons) => id switch
     {
         SceneLayerIds.Radar => new RadarLayer(),
         SceneLayerIds.Trails => new TrailLayer(),
@@ -216,6 +224,6 @@ public static class SceneLayerCatalog
         SceneLayerIds.Annotations => new AnnotationLayer(annotations!),
         SceneLayerIds.HudRoster => new RosterLayer(hud!, text: text),
         SceneLayerIds.HudClock => new ClockLayer(hud!, text: text),
-        _ => new KillFeedLayer(hud!, text: text)
+        _ => new KillFeedLayer(hud!, text: text, icons: icons)
     };
 }
