@@ -6,6 +6,7 @@ using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Output;
+using DemoViewer.NET.Controls.Stats;
 
 #endregion
 
@@ -28,7 +29,6 @@ public enum DetailSection
 /// </summary>
 public sealed partial class PlayerDetailsViewModel : ObservableObject
 {
-    private const double KvTrackWidth = 150;
 
     /// <summary>Core-strip tile keys in display order; HLTV is the hero tile.</summary>
     private static readonly (string Key, bool Hero)[] _coreTileKeys =
@@ -70,12 +70,16 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
         Parent = parent;
         Weapons = new WeaponBreakdownViewModel(parent);
         Vision = new VisionViewModel(parent);
+        Spray = new SprayViewModel(parent);
         Parent.PropertyChanged += OnParentPropertyChanged;
         SetSlot(slot);
     }
 
     /// <summary>The owning Stats tab: close command, visibility compute/busy, table access.</summary>
     public StatsTabViewModel Parent { get; }
+
+    /// <summary>Per-weapon spray shapes for this player.</summary>
+    public SprayViewModel Spray { get; }
 
     /// <summary>The open player's slot (the join key into every table).</summary>
     public int PlayerSlot { get; private set; } = -1;
@@ -141,7 +145,7 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
     // ── P-6 opening duels ─────────────────────────────────────────────────────
 
     /// <summary>Duel-win gauge fill width in px (Duel% of the track).</summary>
-    public double DuelGaugeWidth { get; private set; }
+    public double DuelPercent { get; private set; }
 
     /// <summary>Duel-win percentage text.</summary>
     public string DuelPercentText { get; private set; } = "";
@@ -285,6 +289,7 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
         RebuildIdentity(gameRow);
         RebuildForm();
         Weapons.SetSlot(PlayerSlot);
+        Spray.SetSlot(PlayerSlot);
         RebuildAchievements();
         RebuildDuels(gameRow, gameColumns);
         RebuildClutch(gameRow, gameColumns);
@@ -311,6 +316,7 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
         List<StatTileItem> tiles = [];
         if (gameRow is not null && Parent.GameTable is { } table)
         {
+            List<double> peers = [];
             foreach ((string key, bool hero) in _coreTileKeys)
             {
                 if (!table.ValueColumns.Contains(key))
@@ -319,8 +325,28 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
                 }
 
                 ColumnMeta meta = ColumnCatalogue.Resolve(key);
-                string display = new StatCell(gameRow.Values.GetValueOrDefault(key)).Display;
-                tiles.Add(new StatTileItem(meta.Display, display.Length == 0 ? "–" : display, hero, meta.Tooltip));
+                StatCell cell = new(gameRow.Values.GetValueOrDefault(key));
+                string display = cell.Display;
+
+                // The same shape the board resolves, over the same peer group: every player in the
+                // table, so a tile reads against the lobby rather than against itself.
+                StatScale? scale = null;
+                if (meta.Scale is { } spec)
+                {
+                    peers.Clear();
+                    foreach (MetricRow row in table.Rows)
+                    {
+                        if (new StatCell(row.Values.GetValueOrDefault(key)).Numeric is { } v)
+                        {
+                            peers.Add(v);
+                        }
+                    }
+
+                    scale = spec.Resolve(peers);
+                }
+
+                tiles.Add(new StatTileItem(meta.Display, display.Length == 0 ? "–" : display, hero,
+                    meta.Tooltip, cell.Numeric, scale));
             }
         }
 
@@ -377,7 +403,7 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
     private void RebuildDuels(MetricRow? gameRow, IReadOnlyList<string> columns)
     {
         double duelPct = Math.Clamp(AsDouble(gameRow?.Values.GetValueOrDefault("Duel%")), 0, 100);
-        DuelGaugeWidth = duelPct / 100 * KvTrackWidth;
+        DuelPercent = duelPct;
         DuelPercentText = columns.Contains("Duel%")
             ? duelPct.ToString("0.#", CultureInfo.InvariantCulture) + "%"
             : "";
@@ -398,7 +424,7 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
         }
 
         DuelItems = items;
-        OnPropertyChanged(nameof(DuelGaugeWidth));
+        OnPropertyChanged(nameof(DuelPercent));
         OnPropertyChanged(nameof(DuelPercentText));
         OnPropertyChanged(nameof(DuelItems));
     }
@@ -594,17 +620,19 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
 }
 
 /// <summary>
-///     Form-timeline geometry: measured per-round Kills sparkline, Damage bar
-///     strip, KAST dot-strip, and opening-duel ticks. All values pre-scaled to fixed pixel boxes so
-///     the view only draws. Strips whose source column is absent are hidden, never zero-faked.
+///     Per-round form series: Kills, Damage, KAST and opening-duel ticks, one entry per live round.
+///     Strips whose source column is absent are hidden, never zero-faked.
+///     <para>
+///         <b>These are RAW values, not pixels.</b> Normalisation belongs to the
+///         <see cref="Controls.Stats.Sparkline" /> that draws them, so the strips re-scale on a resize
+///         instead of being measured once at build time. Only <see cref="PixelWidth" /> is geometry, and
+///         only because the four strips share a horizontal slot pitch so their columns line up.
+///     </para>
 /// </summary>
 public sealed class FormTimelineViewModel
 {
     /// <summary>Horizontal pixels per round: shared by all four strips so columns align.</summary>
     public const double SlotWidth = 14;
-
-    private const double SparkHeight = 36;
-    private const double BarBoxHeight = 36;
 
     /// <summary>Builds geometry from this player's round rows (already round-ordered).</summary>
     public FormTimelineViewModel(IReadOnlyList<MetricRow> roundRows, IReadOnlyList<string> valueColumns)
@@ -642,12 +670,11 @@ public sealed class FormTimelineViewModel
         RangeLabel = string.Create(CultureInfo.InvariantCulture,
             $"rounds {rounds[0].Round}–{rounds[^1].Round}");
 
-        double killMax = Math.Max(1, rounds.Max(r => r.Kills));
-        double dmgMax = Math.Max(1, rounds.Max(r => r.Damage));
-
-        List<Point> points = new(rounds.Count);
-        List<FormBar> bars = new(rounds.Count);
-        List<FormDot> dots = new(rounds.Count);
+        List<double> killValues = new(rounds.Count);
+        List<double> damageValues = new(rounds.Count);
+        List<double> kastValues = new(rounds.Count);
+        List<int> roundNumbers = new(rounds.Count);
+        List<string> tooltips = new(rounds.Count);
         List<FormTick> ticks = new(rounds.Count);
         for (int i = 0; i < rounds.Count; i++)
         {
@@ -657,16 +684,19 @@ public sealed class FormTimelineViewModel
                                  $"r{round}: {kills:0.##}K {assists:0.##}A {deaths:0.##}D · {damage:0.##} dmg")
                              + (HasKast ? $" · KAST {(kast ? "✓" : "✗")}" : "");
 
-            points.Add(new Point(i * SlotWidth + SlotWidth / 2,
-                2 + (1 - kills / killMax) * (SparkHeight - 4)));
-            bars.Add(new FormBar(round, Math.Max(1, damage / dmgMax * (BarBoxHeight - 2)), tooltip));
-            dots.Add(new FormDot(round, kast, tooltip));
+            killValues.Add(kills);
+            damageValues.Add(damage);
+            kastValues.Add(kast ? 1 : 0);
+            roundNumbers.Add(round);
+            tooltips.Add(tooltip);
             ticks.Add(new FormTick(round, fk ? "▲" : fd ? "▼" : "·", fk, !fk && fd, tooltip));
         }
 
-        KillPoints = points;
-        DamageBars = bars;
-        KastDots = dots;
+        KillValues = killValues;
+        DamageValues = damageValues;
+        KastValues = kastValues;
+        RoundNumbers = roundNumbers;
+        PointTooltips = tooltips;
         DuelTicks = ticks;
     }
 
@@ -688,14 +718,23 @@ public sealed class FormTimelineViewModel
     /// <summary>Width of every strip in px (rounds × slot width).</summary>
     public double PixelWidth { get; }
 
-    /// <summary>Kills sparkline points, pre-scaled to the spark box.</summary>
-    public IList<Point> KillPoints { get; } = [];
+    /// <summary>Kills in each live round, in round order.</summary>
+    public IReadOnlyList<double> KillValues { get; } = [];
 
-    /// <summary>Damage bar per round (height pre-scaled to the bar box).</summary>
-    public IReadOnlyList<FormBar> DamageBars { get; } = [];
+    /// <summary>Damage dealt in each live round, in round order.</summary>
+    public IReadOnlyList<double> DamageValues { get; } = [];
 
-    /// <summary>KAST dot per round (filled = KAST round).</summary>
-    public IReadOnlyList<FormDot> KastDots { get; } = [];
+    /// <summary>KAST per live round as 1 or 0, the pass/fail series the dot strip draws.</summary>
+    public IReadOnlyList<double> KastValues { get; } = [];
+
+    /// <summary>
+    ///     The round number behind each series entry: the deep-link key for a tap on a strip, which
+    ///     arrives as a series INDEX and has to be translated back into the round the user clicked.
+    /// </summary>
+    public IReadOnlyList<int> RoundNumbers { get; } = [];
+
+    /// <summary>One tooltip per round, shared by every strip so they all name the same round.</summary>
+    public IReadOnlyList<string> PointTooltips { get; } = [];
 
     /// <summary>Opening-duel tick per round (▲ opening kill / ▼ opening death / · neither).</summary>
     public IReadOnlyList<FormTick> DuelTicks { get; } = [];
@@ -709,7 +748,6 @@ public sealed class FormTimelineViewModel
 /// </summary>
 public sealed partial class WeaponBreakdownViewModel : ObservableObject
 {
-    private const double TrackWidth = 150;
     private const string KillsTableName = "player_kills_by_weapon";
     private const string DamageTableName = "player_damage_by_weapon";
 
@@ -782,7 +820,7 @@ public sealed partial class WeaponBreakdownViewModel : ObservableObject
 
         double max = Math.Max(1, rows.Count == 0 ? 0 : rows.Max(x => x.Value));
         Bars = rows
-            .Select(x => new BarRowItem(x.Weapon, x.Value / max * TrackWidth,
+            .Select(x => new BarRowItem(x.Weapon, x.Value, max,
                 x.Value.ToString("0.##", CultureInfo.InvariantCulture),
                 $"{x.Weapon}: {x.Value.ToString("0.##", CultureInfo.InvariantCulture)} {(ShowDamage ? "damage" : "kills")}"))
             .ToList();
@@ -811,7 +849,6 @@ public sealed partial class WeaponBreakdownViewModel : ObservableObject
 /// </summary>
 public sealed class VisionViewModel : ObservableObject
 {
-    private const double TrackWidth = 150;
 
     private readonly StatsTabViewModel _parent;
 
@@ -862,9 +899,9 @@ public sealed class VisionViewModel : ObservableObject
                 PlayerDetailsViewModel.AsDouble(row.Values.GetValueOrDefault("VisionShare")), 0, 1);
             SummaryBars =
             [
-                new BarRowItem("Exposed", exposedShare * TrackWidth, FormatShare(exposedShare),
+                new BarRowItem("Exposed", exposedShare, 1, FormatShare(exposedShare),
                     "Time at least one enemy had a clear 3D line of sight to this player, as a share of sampled time"),
-                new BarRowItem("Vision", visionShare * TrackWidth, FormatShare(visionShare),
+                new BarRowItem("Vision", visionShare, 1, FormatShare(visionShare),
                     "Time this player had at least one enemy on screen, as a share of sampled time")
             ];
             SecondsSummary = string.Create(CultureInfo.InvariantCulture,
@@ -935,11 +972,29 @@ public sealed class VisionViewModel : ObservableObject
         (share * 100).ToString("0.#", CultureInfo.InvariantCulture) + " %";
 }
 
-/// <summary>One core-strip tile: big value over a small label.</summary>
-public sealed record StatTileItem(string Label, string Value, bool IsHero, string Tooltip);
+/// <summary>
+///     One core-strip tile: the value as the board formatted it, plus the number and the scale behind
+///     it so the tile can colour itself the same way a board cell does.
+///     <para>
+///         The scale is measured against the WHOLE LOBBY, not against this player's own rounds. The
+///         question a core tile answers is "was that good", and on a board that is always a comparison
+///         with the other nine players.
+///     </para>
+/// </summary>
+public sealed record StatTileItem(
+    string Label,
+    string Value,
+    bool IsHero,
+    string Tooltip,
+    double? Numeric = null,
+    StatScale? Scale = null);
 
-/// <summary>One labelled share bar: label, pre-scaled fill width (px), value text.</summary>
-public sealed record BarRowItem(string Label, double BarWidth, string ValueText, string Tooltip = "");
+/// <summary>
+///     One labelled share bar: label, the raw value and the domain it is measured against, and the
+///     value text. <see cref="Max" /> rather than a pixel width, so the <see cref="Controls.Stats.StatValue" />
+///     that draws it owns the scaling and the row re-lays-out when its track does.
+/// </summary>
+public sealed record BarRowItem(string Label, double Value, double Max, string ValueText, string Tooltip = "");
 
 /// <summary>One label/value row with optional good/bad accent.</summary>
 public sealed record KeyValueItem(string Label, string Value, bool IsPositive, bool IsNegative, string Tooltip);
@@ -950,12 +1005,6 @@ public sealed record HistBarItem(string Label, int Count, double Height, bool Po
     /// <summary>Count text above the bar (empty when zero, so zero buckets read as quiet).</summary>
     public string CountText => Count > 0 ? Count.ToString(CultureInfo.InvariantCulture) : "";
 }
-
-/// <summary>One damage bar in the form strip (height pre-scaled; Round is the deep-link key).</summary>
-public sealed record FormBar(int Round, double Height, string Tooltip);
-
-/// <summary>One KAST dot in the form strip.</summary>
-public sealed record FormDot(int Round, bool Filled, string Tooltip);
 
 /// <summary>One opening-duel tick in the form strip (▲ up / ▼ down / · neither).</summary>
 public sealed record FormTick(int Round, string Glyph, bool Up, bool Down, string Tooltip);

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "mapName": "de_mirage",
-  "mapVersion": "1efb9403",
-  "bakerVersion": "0.1\u002Bvrf19.2.6339",
+  "mapVersion": "9e86faf4",
+  "bakerVersion": "0.3\u002Bvrf19.2.6339",
   "transform": {
     "posX": -3230,
     "posY": 1713,
@@ -32,5 +32,15 @@
   ],
   "radarImages": [
     "de_mirage.png"
-  ]
+  ],
+  "collisionMesh": {
+    "file": "collision.tris.gz",
+    "triangleCount": 133131,
+    "minX": -4096,
+    "minY": -3864,
+    "minZ": -448,
+    "maxX": 2048,
+    "maxY": 2048.0048828125,
+    "maxZ": 1024
+  }
 }

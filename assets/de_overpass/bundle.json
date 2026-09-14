@@ -34,7 +34,7 @@
     "de_overpass.png"
   ],
   "collisionMesh": {
-    "file": "collision.tris",
+    "file": "collision.tris.gz",
     "triangleCount": 713341,
     "minX": -6400,
     "minY": -4544,

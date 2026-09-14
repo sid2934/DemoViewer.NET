@@ -13,6 +13,7 @@ using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.RuleWorkbench;
@@ -574,10 +575,12 @@ public class RuleWorkbenchModuleTests
     // ── M6 (trace: applied-fire slice) ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    ///     The data model reconciles with a real evaluation of the shipped rulesets on the reference demo:
-    ///     every declared stat/highlight is a target, at least one fired, and a fired target's fires match
-    ///     its count and carry real ticks. This is the correctness anchor (the applied-fire slice is
-    ///     ground-truth from the same run the results board projects from).
+    ///     The data model reconciles with a real evaluation of the shipped rulesets on whichever demo
+    ///     <see cref="DemoTestHelper.RequireDemo()" /> resolves (the first <c>.dem</c> under
+    ///     <c>demos/benchmarks/</c> on a developer machine; the named reference demo is not staged):
+    ///     every declared stat/highlight is a target, at least one fired, and a
+    ///     fired target's fires match its count and carry real ticks. This is the correctness anchor (the
+    ///     applied-fire slice is ground-truth from the same run the results board projects from).
     /// </summary>
     [Test]
     public async Task Trace_OnReferenceDemo_ReconcilesWithEvaluation()
@@ -608,17 +611,77 @@ public class RuleWorkbenchModuleTests
         // Fires are tick-ordered.
         await Assert.That(fires.Zip(fires.Skip(1)).All(p => p.First.Tick <= p.Second.Tick)).IsTrue();
 
-        // Non-tautological guard: kill/death conservation, every kill is exactly one death, so the
-        // total applied fires of the kills stat must equal the deaths stat's. This proves the
-        // applied-edge extraction reflects real gameplay counts (the eyeballed KAST-golden match above),
-        // not just internal list-length consistency.
+        // Non-tautological guard: kill/death conservation, matched per tick rather than by total so a
+        // missed kill and a spurious death cannot cancel. Every kill applied-fire is a death applied-fire
+        // on the same tick, and the ONLY deaths without a kill are the ones CS2 hands over with nobody to
+        // credit, which rules/kast.rules.yaml counts on purpose (the death view keeps a suicide, the kill
+        // view bakes Attacker != UserId out). This proves the applied-edge extraction reflects real
+        // gameplay counts (the eyeballed KAST-golden match above), not just internal list-length
+        // consistency.
+        //
+        // On the benchmark demo RequireDemo resolves to on a developer machine
+        // (match730_003769462952671838367_0003107139_392, de_dust2) the one surplus death is round 14's
+        // bomb explosion: planted_c4, Attacker 65535, on the bomb_exploded tick.
         WorkbenchTraceTarget? kills = report.Targets.FirstOrDefault(t => t is { Kind: "stat", Label: "kills" });
         WorkbenchTraceTarget? deaths = report.Targets.FirstOrDefault(t => t is { Kind: "stat", Label: "deaths" });
         await Assert.That(kills).IsNotNull();
         await Assert.That(deaths).IsNotNull();
         await Assert.That(kills!.FireCount).IsGreaterThan(0);
-        await Assert.That(kills.FireCount).IsEqualTo(deaths!.FireCount)
-            .Because("kill/death conservation: each kill applied-fire is exactly one death applied-fire");
+
+        Dictionary<int, int> killsByTick = CountByTick(report.FiresFor(kills.Id));
+        Dictionary<int, int> deathsByTick = CountByTick(report.FiresFor(deaths!.Id));
+        // Keyed by the tick of the FRAME the event rode in, which is the clock a WorkbenchTraceFire.Tick
+        // is stamped from (result.Messages[i].Frame.ServerTick), not by GameEvent.GameTick: the decoder
+        // derives that from the message's own server tick when the message carries one, and a demo
+        // whose event tick and frame header tick disagree would otherwise miss the lookup for no
+        // reason the assertion is about.
+        Dictionary<int, int> uncreditedByTick = new();
+        foreach (GameEvent e in demo.AllGameEvents)
+        {
+            if (e.Payload is PlayerDeathEvent death && (death.Attacker == death.UserId || death.Attacker == NoAttacker))
+            {
+                int frameTick = demo.Frames[e.FrameNumber].ServerTick;
+                uncreditedByTick[frameTick] = uncreditedByTick.GetValueOrDefault(frameTick) + 1;
+                Console.WriteLine($"[trace-m6] uncredited death tick={frameTick} (event tick {e.GameTick}) " +
+                                  $"victim={death.UserId} attacker={death.Attacker} weapon={death.Weapon}");
+            }
+        }
+
+        foreach ((int tick, int killCount) in killsByTick)
+        {
+            await Assert.That(deathsByTick.GetValueOrDefault(tick)).IsGreaterThanOrEqualTo(killCount)
+                .Because($"every kill applied-fire at tick {tick} is a death applied-fire on that tick");
+        }
+
+        int surplus = 0;
+        foreach ((int tick, int deathCount) in deathsByTick)
+        {
+            int extra = deathCount - killsByTick.GetValueOrDefault(tick);
+            surplus += extra;
+            await Assert.That(extra).IsLessThanOrEqualTo(uncreditedByTick.GetValueOrDefault(tick))
+                .Because($"a death applied-fire at tick {tick} with no kill applied-fire must be one CS2 credited to nobody");
+        }
+
+        Console.WriteLine($"[trace-m6] kills={kills.FireCount} deaths={deaths.FireCount} uncredited={surplus}");
+        await Assert.That(kills.FireCount + surplus).IsEqualTo(deaths.FireCount)
+            .Because("kill/death conservation: every death applied-fire is a kill applied-fire or an uncredited death");
+    }
+
+    /// <summary>
+    ///     CS2's "no entity" user id. A <c>player_death</c> carries it as <c>Attacker</c> when nothing
+    ///     is credited with the kill, which in a GOTV demo is the bomb.
+    /// </summary>
+    private const int NoAttacker = 65535;
+
+    private static Dictionary<int, int> CountByTick(IReadOnlyList<WorkbenchTraceFire> fires)
+    {
+        Dictionary<int, int> counts = new();
+        foreach (WorkbenchTraceFire fire in fires)
+        {
+            counts[fire.Tick] = counts.GetValueOrDefault(fire.Tick) + 1;
+        }
+
+        return counts;
     }
 
     /// <summary>Value-node stats (e.g. count:) are traceable via AppliedMessagesByEdge, not just highlights.</summary>

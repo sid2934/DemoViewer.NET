@@ -265,10 +265,11 @@ public class PlayerDetailsTests
         StatTileItem kills = details.CoreTiles.Single(t => t.Label == "K");
         await Assert.That(kills.Value).IsEqualTo("20");
 
-        // Form: two live rounds → 2 points / 2 damage bars; no HasKAST/FK columns → strips hidden.
+        // Form: two live rounds → 2 entries in every series; no HasKAST/FK columns → strips hidden.
         await Assert.That(details.Form.HasRounds).IsTrue();
-        await Assert.That(details.Form.KillPoints.Count).IsEqualTo(2);
-        await Assert.That(details.Form.DamageBars.Count).IsEqualTo(2);
+        await Assert.That(details.Form.KillValues.Count).IsEqualTo(2);
+        await Assert.That(details.Form.DamageValues.Count).IsEqualTo(2);
+        await Assert.That(details.Form.RoundNumbers.Count).IsEqualTo(2);
         await Assert.That(details.Form.HasKast).IsFalse();
         await Assert.That(details.Form.HasDuels).IsFalse();
 
@@ -316,12 +317,12 @@ public class PlayerDetailsTests
         // Form strips: KAST dots filled both rounds; duel ticks ▲ then ▼.
         await Assert.That(details.Form.HasKast).IsTrue();
         await Assert.That(details.Form.HasDuels).IsTrue();
-        await Assert.That(details.Form.KastDots.All(d => d.Filled)).IsTrue();
+        await Assert.That(details.Form.KastValues.All(v => v != 0)).IsTrue();
         await Assert.That(details.Form.DuelTicks.Select(t => t.Glyph)).IsEquivalentTo(["▲", "▼"]);
 
         // Bob had no KAST / opening duels: hollow dots, no glyphs.
         details.NextPlayerCommand.Execute(null);
-        await Assert.That(details.Form.KastDots.All(d => !d.Filled)).IsTrue();
+        await Assert.That(details.Form.KastValues.All(v => v == 0)).IsTrue();
         await Assert.That(details.Form.DuelTicks.All(t => t.Glyph == "·")).IsTrue();
         await Assert.That(details.RoundTableRows.All(r => r.Cells[opnIdx].Raw is null)).IsTrue();
     }
@@ -337,7 +338,8 @@ public class PlayerDetailsTests
 
         await Assert.That(weapons.Bars.Select(b => b.Label)).IsEquivalentTo(_expectedWeapons);
         await Assert.That(weapons.Bars[0].ValueText).IsEqualTo("7");
-        await Assert.That(weapons.Bars[0].BarWidth > weapons.Bars[1].BarWidth).IsTrue();
+        await Assert.That(weapons.Bars[0].Value > weapons.Bars[1].Value).IsTrue();
+        await Assert.That(weapons.Bars[0].Max).IsEqualTo(weapons.Bars[1].Max);
 
         // Damage metric selected but no damage table → per-metric empty message; toggle persists.
         weapons.SelectDamageCommand.Execute(null);

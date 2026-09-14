@@ -10,7 +10,7 @@ using ValveResourceFormat.ResourceTypes;
 #endregion
 
 const int SchemaVersion = 1;
-const string BakerVersion = "0.1+vrf19.2.6339";
+const string BakerVersion = "0.3+vrf19.2.6339";
 
 // ── args: <map> [<map>...] [--diag] ──
 // With no map args, bake the full shipping set (the Active Duty / commonly-demoed pool). Each
@@ -20,10 +20,19 @@ bool diag = args.Contains("--diag");
 string[] maps = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
 if (maps.Length == 0)
 {
+    // A map earns a place here by being bakeable AND demoed. Bakeable is a hard filter, not a
+    // preference: the bake needs resource/overviews/<map>.txt and a <map>_radar_psd.vtex_c, both of
+    // which live in pak01_dir.vpk, and six maps this CS2 build ships (de_boulder, de_debris,
+    // de_eldorado, de_fachwerk, de_poseidon, cs_shelter) have NEITHER, in pak01 or in their own
+    // vpk, so they cannot be baked from an install at all. Of the twelve that can, cs_italy and
+    // cs_office are left out as casual hostage maps: italy alone would add 45 MiB of collision soup
+    // for a map that does not appear in competitive demos. de_dogtown is not here because the map
+    // is gone from the game entirely; only its econ map tokens survive in pak01, so a dogtown demo
+    // can never get geometry and shows the board's no-data notice instead.
     maps =
     [
         "de_nuke", "de_dust2", "de_mirage", "de_inferno", "de_anubis",
-        "de_ancient", "de_overpass", "de_vertigo", "de_cache"
+        "de_ancient", "de_overpass", "de_vertigo", "de_train", "de_cache"
     ];
 }
 
@@ -117,19 +126,41 @@ void BakeMap(string map)
     // 5b. world collision → triangle soup (collision.tris) for 3D line-of-sight. Optional: a map without
     //     extractable physics still bakes its 2D assets. See the design notes in git history.
     CollisionMeshRef? collision = null;
+    const string TrisName = "collision.tris";
     try
     {
-        const string TrisName = "collision.tris";
         CollisionMesh.Result cm = CollisionMesh.Extract(vpk, map, Path.Combine(outDir, TrisName));
         crc.Append(File.ReadAllBytes(Path.Combine(outDir, TrisName)));
+        // The CRC above is over the UNCOMPRESSED bytes on purpose: mapVersion identifies the geometry
+        // and not the container it ships in, so compressing must not restamp every bundle and trip the
+        // golden stale-assets guard. That is why this runs after the CRC rather than inside Extract.
+        string gzName = TrisName + ".gz";
+        long gzLen = CollisionMesh.CompressAndReplace(
+            Path.Combine(outDir, TrisName), Path.Combine(outDir, gzName));
         collision = new CollisionMeshRef(
-            TrisName, cm.TriangleCount,
+            gzName, cm.TriangleCount,
             cm.Min.X, cm.Min.Y, cm.Min.Z, cm.Max.X, cm.Max.Y, cm.Max.Z);
-        Console.WriteLine(cm.Diagnostic);
+        Console.WriteLine($"{cm.Diagnostic}  gz {gzLen / 1024.0 / 1024.0:F1} MiB");
     }
     catch (Exception ex)
     {
         Console.WriteLine($"  collision: (skipped — {ex.GetType().Name}: {ex.Message})");
+
+        // Take the partial output with it. A plain .tris left behind by a compression that threw
+        // outlives the failure: the bundle written below says there is no mesh, so Playback2D draws
+        // no cones, while the Stats board resolves through CollisionSoup, which probes the plain
+        // name FIRST and hands it a soup. That split between the two surfaces is the thing the
+        // gzip migration set out to remove. A half-written .gz goes too, since it inflates to a
+        // truncation error rather than to an honest absence.
+        try
+        {
+            File.Delete(Path.Combine(outDir, TrisName));
+            File.Delete(Path.Combine(outDir, TrisName + ".gz"));
+        }
+        catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException)
+        {
+            Console.WriteLine($"  collision: partial output left in {outDir} — {cleanup.Message}");
+        }
     }
 
     // 6. version = CRC32 over source bytes (radar + nav + collision) + overview txt

@@ -1,0 +1,196 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Diagnostics"
+             xmlns:statsCtl="using:DemoViewer.NET.Controls.Stats"
+             x:Class="DemoViewer.NET.Views.Diagnostics.StatsGalleryView"
+             x:DataType="vm:StatsGalleryViewModel">
+
+    <!--
+      Component gallery for the stats library (docs/ui/stats-components.md), hosted in the Diagnostics
+      tab and therefore already behind the tab.diagnostics gate. Dev-only: it is not on any user path
+      and reads no demo, so it is reachable from a cold start with nothing loaded.
+
+      It exists because four of the six controls have no call site in the app yet. The sliders are the
+      point: the questions the next phase has to answer (where the dead zone sits, how wide "normal"
+      should be, whether the ramp still separates) are questions about MOVEMENT, and a captured PNG
+      cannot answer them.
+    -->
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.gLabel">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Width" Value="96" />
+        </Style>
+        <Style Selector="TextBlock.gReadout">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Width" Value="58" />
+        </Style>
+        <Style Selector="TextBlock.gHead">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextLabelAlt}" />
+            <Setter Property="Margin" Value="0 10 0 4" />
+        </Style>
+        <Style Selector="Slider.gSlider">
+            <Setter Property="Width" Value="180" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Spacing="2" Margin="0 4 0 0">
+
+        <!-- ── Drivers ────────────────────────────────────────────────────────── -->
+        <TextBlock Text="SCALE DRIVERS" Classes="gHead" Margin="0 0 0 4" />
+        <Grid ColumnDefinitions="Auto,Auto,Auto,20,Auto,Auto,Auto"
+              RowDefinitions="Auto,Auto,Auto">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Value" Classes="gLabel" />
+            <Slider Grid.Row="0" Grid.Column="1" Classes="gSlider"
+                    Minimum="-20" Maximum="120" Value="{Binding Value, Mode=TwoWay}" />
+            <TextBlock Grid.Row="0" Grid.Column="2" Classes="gReadout"
+                       Text="{Binding Value, StringFormat={}{0:0.00}}" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Minimum" Classes="gLabel" />
+            <Slider Grid.Row="1" Grid.Column="1" Classes="gSlider"
+                    Minimum="-20" Maximum="120" Value="{Binding Minimum, Mode=TwoWay}" />
+            <TextBlock Grid.Row="1" Grid.Column="2" Classes="gReadout"
+                       Text="{Binding Minimum, StringFormat={}{0:0.00}}" />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Maximum" Classes="gLabel" />
+            <Slider Grid.Row="2" Grid.Column="1" Classes="gSlider"
+                    Minimum="-20" Maximum="120" Value="{Binding Maximum, Mode=TwoWay}" />
+            <TextBlock Grid.Row="2" Grid.Column="2" Classes="gReadout"
+                       Text="{Binding Maximum, StringFormat={}{0:0.00}}" />
+
+            <TextBlock Grid.Row="0" Grid.Column="4" Text="Neutral low" Classes="gLabel" />
+            <Slider Grid.Row="0" Grid.Column="5" Classes="gSlider"
+                    Minimum="-20" Maximum="120" Value="{Binding NeutralLow, Mode=TwoWay}" />
+            <TextBlock Grid.Row="0" Grid.Column="6" Classes="gReadout"
+                       Text="{Binding NeutralLow, StringFormat={}{0:0.00}}" />
+
+            <TextBlock Grid.Row="1" Grid.Column="4" Text="Neutral high" Classes="gLabel" />
+            <Slider Grid.Row="1" Grid.Column="5" Classes="gSlider"
+                    Minimum="-20" Maximum="120" Value="{Binding NeutralHigh, Mode=TwoWay}" />
+            <TextBlock Grid.Row="1" Grid.Column="6" Classes="gReadout"
+                       Text="{Binding NeutralHigh, StringFormat={}{0:0.00}}" />
+
+            <TextBlock Grid.Row="2" Grid.Column="4" Text="Strong at" Classes="gLabel" />
+            <Slider Grid.Row="2" Grid.Column="5" Classes="gSlider"
+                    Minimum="0.05" Maximum="1" Value="{Binding StrongSentimentAt, Mode=TwoWay}" />
+            <TextBlock Grid.Row="2" Grid.Column="6" Classes="gReadout"
+                       Text="{Binding StrongSentimentAt, StringFormat={}{0:0.00}}" />
+        </Grid>
+
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0 6 0 0">
+            <ComboBox ItemsSource="{x:Static vm:StatsGalleryViewModel.PolarityNames}"
+                      SelectedIndex="{Binding PolarityIndex, Mode=TwoWay}"
+                      MinWidth="132" FontSize="11" />
+            <ComboBox ItemsSource="{x:Static vm:StatsGalleryViewModel.BarAlignmentNames}"
+                      SelectedIndex="{Binding BarAlignmentIndex, Mode=TwoWay}"
+                      MinWidth="168" FontSize="11"
+                      ToolTip.Tip="Which edge the fill grows from. Left shares one baseline down the column; right keeps every number sitting on its own fill." />
+            <CheckBox Content="track" IsChecked="{Binding ShowTrack, Mode=TwoWay}" FontSize="11" />
+            <CheckBox Content="tint bar" IsChecked="{Binding TintBar, Mode=TwoWay}" FontSize="11" />
+            <CheckBox Content="leader" IsChecked="{Binding ShowLeader, Mode=TwoWay}" FontSize="11" />
+            <Button Content="HLTV column" Classes="chip"
+                    Command="{Binding ResetToRatingColumnCommand}" />
+            <Button Content="Absolute 0-100" Classes="chip" Command="{Binding ResetToAbsoluteCommand}" />
+        </StackPanel>
+
+        <!-- The maths, in numbers. The colour is the thing under review, so it cannot also be the
+             thing that tells you whether the scale is doing what you asked. -->
+        <StackPanel Orientation="Horizontal" Spacing="14" Margin="0 6 0 0">
+            <TextBlock Classes="gReadout" Width="NaN"
+                       Text="{Binding FractionText, StringFormat='Fraction {0}'}" />
+            <TextBlock Classes="gReadout" Width="NaN"
+                       Text="{Binding SentimentText, StringFormat='Sentiment {0}'}" />
+            <TextBlock Classes="gReadout" Width="NaN" Text="{Binding TierText}" />
+        </StackPanel>
+
+        <!-- ── StatValue: three modes on the driven value ─────────────────────── -->
+        <TextBlock Text="StatValue — Bar / Chip / Plain" Classes="gHead" />
+        <StackPanel Orientation="Horizontal" Spacing="10">
+            <statsCtl:StatValue Width="130" Height="20"
+                                Value="{Binding Value}" Scale="{Binding Scale}"
+                                StrongSentimentAt="{Binding StrongSentimentAt}"
+                                IsLeader="{Binding ShowLeader}"
+                                TintBar="{Binding TintBar}"
+                                BarAlignment="{Binding BarAlignment}"
+                                Classes.untracked="{Binding !ShowTrack}" />
+            <statsCtl:StatValue Width="90" Height="20" Classes="chip"
+                                Value="{Binding Value}" Scale="{Binding Scale}"
+                                StrongSentimentAt="{Binding StrongSentimentAt}" />
+            <statsCtl:StatValue Width="90" Height="20" Mode="Plain"
+                                Value="{Binding Value}" Scale="{Binding Scale}"
+                                StrongSentimentAt="{Binding StrongSentimentAt}" />
+        </StackPanel>
+
+        <!-- ── The column preview: the only view that answers "does it read?" ─── -->
+        <TextBlock Text="A whole column on one scale (fixed values, live scale)" Classes="gHead" />
+        <ItemsControl ItemsSource="{Binding ColumnCells}" HorizontalAlignment="Left">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:GalleryCell">
+                    <statsCtl:StatValue Width="150" Height="19" Format="0.00"
+                                        Value="{Binding Value}" Scale="{Binding Scale}"
+                                        IsLeader="{Binding IsLeader}"
+                                        BarAlignment="{Binding BarAlignment}" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- ── SegmentedBar ───────────────────────────────────────────────────── -->
+        <TextBlock Text="SegmentedBar — full width and in-cell" Classes="gHead" />
+        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto" RowDefinitions="Auto">
+            <Slider Grid.Column="0" Width="86" Minimum="0" Maximum="120"
+                    Value="{Binding Flashes, Mode=TwoWay}" ToolTip.Tip="Flashes" />
+            <Slider Grid.Column="1" Width="86" Minimum="0" Maximum="120"
+                    Value="{Binding Smokes, Mode=TwoWay}" ToolTip.Tip="Smokes" />
+            <Slider Grid.Column="2" Width="86" Minimum="0" Maximum="120"
+                    Value="{Binding HeGrenades, Mode=TwoWay}" ToolTip.Tip="HEs" />
+            <Slider Grid.Column="3" Width="86" Minimum="0" Maximum="120"
+                    Value="{Binding Mollies, Mode=TwoWay}" ToolTip.Tip="Molotovs" />
+        </Grid>
+        <statsCtl:SegmentedBar Segments="{Binding Segments}" Margin="0 4 0 0" />
+        <statsCtl:SegmentedBar Segments="{Binding Segments}" Classes="compact"
+                               Width="180" HorizontalAlignment="Left" Margin="0 4 0 0" />
+
+        <!-- ── Sparkline ──────────────────────────────────────────────────────── -->
+        <DockPanel Margin="0 10 0 4">
+            <Button DockPanel.Dock="Right" Content="shuffle" Classes="chip"
+                    Command="{Binding ShuffleSeriesCommand}" />
+            <TextBlock Text="Sparkline — Line / Bars / Dots" Classes="gHead" Margin="0" />
+        </DockPanel>
+        <StackPanel Orientation="Horizontal" Spacing="12">
+            <statsCtl:Sparkline Width="200" Values="{Binding Series}" />
+            <statsCtl:Sparkline Width="200" Mode="Bars" Values="{Binding DamageSeries}" />
+            <statsCtl:Sparkline Width="200" Mode="Dots" Values="{Binding KastSeries}" />
+        </StackPanel>
+
+        <!-- ── RingGauge / StatTile / TeamBadge ───────────────────────────────── -->
+        <TextBlock Text="RingGauge · StatTile · TeamBadge" Classes="gHead" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <statsCtl:RingGauge Value="{Binding Value}" Scale="{Binding Scale}"
+                                StrongSentimentAt="{Binding StrongSentimentAt}"
+                                Format="0.00" Caption="LIVE" />
+            <statsCtl:StatTile Label="LIVE" Value="{Binding Value}" Scale="{Binding Scale}"
+                               StrongSentimentAt="{Binding StrongSentimentAt}"
+                               Format="0.00" IsHero="True" />
+            <statsCtl:StatTile Label="ADR" Value="87" Minimum="40" Maximum="100"
+                               NeutralLow="65" NeutralHigh="85" Format="0" Caption="+4" />
+            <statsCtl:StatTile Label="DEATHS" Value="21" Minimum="8" Maximum="24"
+                               Polarity="LowerIsBetter" Format="0" />
+            <StackPanel Spacing="3" VerticalAlignment="Center">
+                <statsCtl:TeamBadge Team="3" Label="My Team" Outcome="Win" Detail="13 : 9" />
+                <statsCtl:TeamBadge Team="2" Label="Enemy Team" Outcome="Loss" Detail="9 : 13" />
+                <statsCtl:TeamBadge Team="0" Label="Spectators" />
+            </StackPanel>
+        </StackPanel>
+
+    </StackPanel>
+</UserControl>

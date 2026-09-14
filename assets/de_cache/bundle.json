@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "mapName": "de_cache",
-  "mapVersion": "76c6059c",
-  "bakerVersion": "0.1\u002Bvrf19.2.6339",
+  "mapVersion": "fb4ec746",
+  "bakerVersion": "0.3\u002Bvrf19.2.6339",
   "transform": {
     "posX": -2000,
     "posY": 3250,
@@ -34,8 +34,8 @@
     "de_cache.png"
   ],
   "collisionMesh": {
-    "file": "collision.tris",
-    "triangleCount": 1622923,
+    "file": "collision.tris.gz",
+    "triangleCount": 1632062,
     "minX": -2398,
     "minY": -2624,
     "minZ": 1524,

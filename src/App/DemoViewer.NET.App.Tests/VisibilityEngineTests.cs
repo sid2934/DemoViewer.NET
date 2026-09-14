@@ -1,9 +1,11 @@
 #region
 
+using System.IO.Compression;
 using System.Numerics;
 using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -28,14 +30,14 @@ public class VisibilityEngineTests
 
     private static async Task<Fixture?> BuildFixtureAsync()
     {
-        string? trisPath = FindBaked("de_dust2", "collision.tris");
+        string? trisPath = CollisionSoup.Find("de_dust2");
         string? demoPath = DemoTestHelper.FindDemoPath("vitality-vs-fut-m2-dust2.dem");
         if (trisPath is null || demoPath is null)
         {
             return null;
         }
 
-        CollisionTris.Data d = CollisionTris.Load(trisPath);
+        CollisionTris.Data d = LoadSoup(trisPath);
         VisibilityEngine engine = VisibilityEngine.FromTriangles(d.Vertices, d.TriangleCount);
 
         byte[] bytes = await File.ReadAllBytesAsync(demoPath);
@@ -285,21 +287,21 @@ public class VisibilityEngineTests
         return true;
     }
 
-    private static string? FindBaked(string mapName, string file)
+    // The brute-force oracle scans the triangles themselves, so this cannot go through
+    // CollisionSoup.Load, which hands back only a built engine. Same two steps it takes: inflate on
+    // the way through when the pack ships the bake compressed, read straight off disk when a dev
+    // bake tree holds the plain one. CollisionTris reads sequentially, so the inflated soup never
+    // needs a seekable copy.
+    private static CollisionTris.Data LoadSoup(string path)
     {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
+        if (!path.EndsWith(CollisionSoup.CompressedSuffix, StringComparison.OrdinalIgnoreCase))
         {
-            string candidate = Path.Combine(dir.FullName, "cs2-assets", "baked", mapName, file);
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            dir = dir.Parent;
+            return CollisionTris.Load(path);
         }
 
-        return null;
+        using FileStream file = File.OpenRead(path);
+        using GZipStream inflate = new(file, CompressionMode.Decompress);
+        return CollisionTris.Load(inflate);
     }
 
     private sealed record Fixture(VisibilityEngine Engine, float[] V, int TriCount, List<Vector3> Feet);

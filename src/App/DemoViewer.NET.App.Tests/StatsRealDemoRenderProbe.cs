@@ -5,9 +5,11 @@ using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Stats;
 using DemoViewer.NET.Views.Stats;
@@ -36,7 +38,21 @@ public class StatsRealDemoRenderProbe
         // Post Rulesets v2 cutover the shipped scoreboard stats are v2 rulesets (in .Rulesets),
         // so build through the v2 overload: otherwise the rendered scoreboard is empty.
         RuleConfigLoadResult loaded = YamlConfigLoader.TryLoadDirectory(RuleSetLocator.ResolveShippedRulesDirectory());
-        BuildResult build = DemoAnalysis.Build(demo, loaded.Rulesets);
+        // Mirror the app: AnalysisViewModel hands the build a loaded collision bake, and without it
+        // the builder declines to synthesize enemy_spotted. A probe that skipped it would capture
+        // preaim, spotted accuracy and the timing ladder as a confident column of zeros, which is
+        // exactly the shape a reader would mistake for a working board. Through CollisionSoup for
+        // the same reason the app goes through it: the pack ships the bake gzipped, and the
+        // engine's own locator only knows the uncompressed name.
+        string? tris = CollisionSoup.Find(demo.MapName);
+        VisibilityEngine? visibility = tris is null ? null : CollisionSoup.Load(tris);
+        Console.WriteLine(visibility is null
+            ? $"[capture] no collision bake for {demo.MapName}; visibility columns will be empty"
+            : $"[capture] collision bake loaded for {demo.MapName}");
+        BuildResult build = DemoAnalysis.Build(demo, loaded.Rulesets, new AnalysisOptions
+        {
+            VisibilityEngine = visibility
+        });
         AnalysisRun run = DemoAnalysis.Evaluate(demo, build);
 
         await HeadlessSession.RunOnUi(async () =>
@@ -62,6 +78,28 @@ public class StatsRealDemoRenderProbe
 
             WriteableBitmap? board = window.CaptureRenderedFrame();
             board!.Save(Path.Combine(HeadlessSession.ArtifactDir, "real-scoreboard.png"));
+
+            // The two aim boards on the match table. Captured because the aim family is the widest
+            // the catalogue carries and every column in it is new: a column that resolves to
+            // StatGroup.Other, or one whose scale field was declared below _byKey and silently came
+            // back null, renders as a plausible table rather than as an error.
+            foreach ((StatGroup chip, string file) in new[]
+                     {
+                         (StatGroup.Accuracy, "real-accuracy.png"),
+                         (StatGroup.AimQuality, "real-aim-quality.png")
+                     })
+            {
+                vm.SelectedCategory = chip;
+                Dispatcher.UIThread.RunJobs();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                Dispatcher.UIThread.RunJobs();
+                WriteableBitmap? aim = window.CaptureRenderedFrame();
+                aim!.Save(Path.Combine(HeadlessSession.ArtifactDir, file));
+                Console.WriteLine($"[capture] {HeadlessSession.ArtifactDir}/{file} cols={vm.Columns.Count}");
+            }
+
+            vm.SelectedCategory = StatGroup.Core;
+            Dispatcher.UIThread.RunJobs();
 
             vm.IsRoundView = true;
             vm.SelectedRound = vm.Rounds.Count > 5 ? vm.Rounds[5] : vm.Rounds[0];

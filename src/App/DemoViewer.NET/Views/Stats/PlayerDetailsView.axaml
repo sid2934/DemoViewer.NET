@@ -3,23 +3,31 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:stats="using:DemoViewer.NET.ViewModels.Stats"
-             xmlns:statsViews="using:DemoViewer.NET.Views.Stats"
+             xmlns:statsCtl="using:DemoViewer.NET.Controls.Stats"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="700"
              x:Class="DemoViewer.NET.Views.Stats.PlayerDetailsView"
              x:DataType="stats:PlayerDetailsViewModel">
 
     <UserControl.Resources>
-        <!-- BarRow: label | fixed 150px track with a pre-scaled fill | monospace value.
-             Serves weapons, the duel gauge, and the vision summary (single source of chrome). -->
+        <!-- BarRow: label | fixed 150px track | monospace value.
+             Serves weapons, the duel gauge, and the vision summary (single source of chrome).
+             The track is a StatValue in Bar mode, which scales Value against Max itself: the row used
+             to carry a fill width the view model had already multiplied out. Polarity is Neutral and
+             Text is empty on purpose, so this stays a plain magnitude bar with its value in the third
+             column, exactly as before. Most weapon kills are neither good nor bad. -->
         <DataTemplate x:Key="BarRowTemplate" x:DataType="stats:BarRowItem">
             <Grid ColumnDefinitions="86,150,Auto" Margin="0 2" ToolTip.Tip="{Binding Tooltip}">
                 <TextBlock Grid.Column="0" Text="{Binding Label}" Classes="pdKvLabel"
                            TextTrimming="CharacterEllipsis" Margin="0 0 8 0" />
-                <Border Grid.Column="1" Background="{DynamicResource PanelHeaderBg}"
-                        Height="12" CornerRadius="2" VerticalAlignment="Center">
-                    <Rectangle Width="{Binding BarWidth}" Fill="{DynamicResource AccentInteractive}"
-                               HorizontalAlignment="Left" RadiusX="2" RadiusY="2" />
-                </Border>
+                <statsCtl:StatValue Grid.Column="1"
+                                    Value="{Binding Value}"
+                                    Maximum="{Binding Max}"
+                                    Polarity="Neutral"
+                                    Text=""
+                                    Height="12" Padding="0" CornerRadius="2"
+                                    VerticalAlignment="Center"
+                                    BarTrackBrush="{DynamicResource PanelHeaderBg}"
+                                    BarFillBrush="{DynamicResource AccentInteractive}" />
                 <TextBlock Grid.Column="2" Text="{Binding ValueText}" Classes="pdKvValue"
                            Margin="8 0 0 0" />
             </Grid>
@@ -78,7 +86,7 @@
                                Foreground="{DynamicResource TextBright}"
                                VerticalAlignment="Center" />
                     <TextBlock Text="{Binding SubtitleText}"
-                               FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                               FontSize="13"
                                Foreground="{DynamicResource TextMid}"
                                VerticalAlignment="Center" />
                 </StackPanel>
@@ -100,14 +108,16 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="stats:StatTileItem">
-                            <Border Classes="pdTile" Classes.hero="{Binding IsHero}"
-                                    ToolTip.Tip="{Binding Tooltip}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding Value}" Classes="pdTileValue"
-                                               Classes.hero="{Binding IsHero}" />
-                                    <TextBlock Text="{Binding Label}" Classes="pdTileLabel" />
-                                </StackPanel>
-                            </Border>
+                            <!-- The shared control, not a local restatement of it. The tile now colours
+                                 itself off the same scale the board uses, so a number that is good on
+                                 the scoreboard is good here too. Text carries the board's own
+                                 formatting; the control only draws. -->
+                            <statsCtl:StatTile Text="{Binding Value}"
+                                               Value="{Binding Numeric}"
+                                               Scale="{Binding Scale}"
+                                               Label="{Binding Label}"
+                                               IsHero="{Binding IsHero}"
+                                               ToolTip.Tip="{Binding Tooltip}" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -144,7 +154,7 @@
 
                 <!-- ═══ Overview: 2-column card grid, Form spans both ═══ -->
                 <Grid IsVisible="{Binding IsOverview}"
-                      ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto"
+                      ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto"
                       Margin="14 10">
 
                     <!-- P-3 Form (full width) -->
@@ -161,69 +171,37 @@
                                           VerticalScrollBarVisibility="Disabled"
                                           IsVisible="{Binding Form.HasRounds}">
                                 <Grid ColumnDefinitions="56,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
-                                    <!-- kills sparkline -->
+                                    <!-- Three Sparklines over the same per-round series (v0.8.1 stats
+                                         components). Each takes RAW values and normalises itself, so the
+                                         strips re-scale on a resize; they used to be pre-measured pixel
+                                         geometry built once in the view model. Gap 4 over a 14px slot
+                                         reproduces the old 10px bar inside its 14px box exactly. -->
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Kills"
                                                Classes="pdStripLabel" />
-                                    <Canvas Grid.Row="0" Grid.Column="1"
-                                            Width="{Binding Form.PixelWidth}" Height="36"
-                                            ToolTip.Tip="Kills per round">
-                                        <Polyline
-                                            Points="{Binding Form.KillPoints, TargetNullValue={x:Static statsViews:PlayerDetailsView.EmptyPoints}}"
-                                            Stroke="{DynamicResource AccentInteractive}"
-                                            StrokeThickness="1.5"
-                                            StrokeJoin="Round" StrokeLineCap="Round" />
-                                    </Canvas>
+                                    <statsCtl:Sparkline Grid.Row="0" Grid.Column="1"
+                                                     Width="{Binding Form.PixelWidth}" Height="36"
+                                                     Values="{Binding Form.KillValues}"
+                                                     PointTooltips="{Binding Form.PointTooltips}" />
                                     <!-- damage bar strip (click a bar → Rounds deep-link) -->
                                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Damage"
                                                Classes="pdStripLabel" />
-                                    <ItemsControl Grid.Row="1" Grid.Column="1"
-                                                  ItemsSource="{Binding Form.DamageBars}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="stats:FormBar">
-                                                <Border Width="14" Height="36"
-                                                        Background="Transparent"
-                                                        Cursor="Hand"
-                                                        Tapped="OnFormBarTapped"
-                                                        ToolTip.Tip="{Binding Tooltip}">
-                                                    <Rectangle Width="10" Height="{Binding Height}"
-                                                               Fill="{DynamicResource AccentInteractive}"
-                                                               VerticalAlignment="Bottom"
-                                                               HorizontalAlignment="Center" />
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <statsCtl:Sparkline Grid.Row="1" Grid.Column="1"
+                                                     Width="{Binding Form.PixelWidth}" Height="36"
+                                                     Mode="Bars" Gap="4"
+                                                     Values="{Binding Form.DamageValues}"
+                                                     PointTooltips="{Binding Form.PointTooltips}"
+                                                     Cursor="Hand"
+                                                     Tapped="OnFormBarTapped" />
                                     <!-- KAST dot strip -->
                                     <TextBlock Grid.Row="2" Grid.Column="0" Text="KAST"
                                                Classes="pdStripLabel"
                                                IsVisible="{Binding Form.HasKast}" />
-                                    <ItemsControl Grid.Row="2" Grid.Column="1"
-                                                  ItemsSource="{Binding Form.KastDots}"
-                                                  IsVisible="{Binding Form.HasKast}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="stats:FormDot">
-                                                <Border Width="14" Height="14"
-                                                        Background="Transparent"
-                                                        ToolTip.Tip="{Binding Tooltip}">
-                                                    <Ellipse Width="7" Height="7"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Classes="pdKastDot"
-                                                             Classes.filled="{Binding Filled}" />
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <statsCtl:Sparkline Grid.Row="2" Grid.Column="1"
+                                                     Width="{Binding Form.PixelWidth}" Height="14"
+                                                     Mode="Dots" DotRadius="3.5"
+                                                     Values="{Binding Form.KastValues}"
+                                                     PointTooltips="{Binding Form.PointTooltips}"
+                                                     IsVisible="{Binding Form.HasKast}" />
                                     <!-- opening-duel tick strip -->
                                     <TextBlock Grid.Row="3" Grid.Column="0" Text="Duel"
                                                Classes="pdStripLabel"
@@ -280,12 +258,15 @@
                             <Grid ColumnDefinitions="86,150,Auto" Margin="0 2"
                                   ToolTip.Tip="Share of opening duels won (%)">
                                 <TextBlock Grid.Column="0" Text="Duel Win %" Classes="pdKvLabel" />
-                                <Border Grid.Column="1" Background="{DynamicResource PanelHeaderBg}"
-                                        Height="12" CornerRadius="2" VerticalAlignment="Center">
-                                    <Rectangle Width="{Binding DuelGaugeWidth}"
-                                               Fill="{DynamicResource AccentInteractive}"
-                                               HorizontalAlignment="Left" RadiusX="2" RadiusY="2" />
-                                </Border>
+                                <statsCtl:StatValue Grid.Column="1"
+                                                    Value="{Binding DuelPercent}"
+                                                    Maximum="100"
+                                                    Polarity="Neutral"
+                                                    Text=""
+                                                    Height="12" Padding="0" CornerRadius="2"
+                                                    VerticalAlignment="Center"
+                                                    BarTrackBrush="{DynamicResource PanelHeaderBg}"
+                                                    BarFillBrush="{DynamicResource AccentInteractive}" />
                                 <TextBlock Grid.Column="2" Text="{Binding DuelPercentText}"
                                            Classes="pdKvValue" Margin="8 0 0 0" />
                             </Grid>
@@ -319,7 +300,7 @@
                                                        Classes="pdHistBar"
                                                        Classes.pos="{Binding Positive}" />
                                             <TextBlock Grid.Row="2" Text="{Binding Label}"
-                                                       Classes="pdTileLabel" TextAlignment="Center"
+                                                       Classes="pdStripLabel" TextAlignment="Center"
                                                        HorizontalAlignment="Center" />
                                         </Grid>
                                     </DataTemplate>
@@ -358,9 +339,12 @@
                                                     Classes.multi="{Binding IsMultiKill}"
                                                     Classes.clutch="{Binding IsClutch}"
                                                     Classes.opening="{Binding IsOpening}">
+                                                <!-- Monospace stays here on purpose: a chain id is an
+                                                     engine identifier the user can type into a
+                                                     ruleset, not prose. -->
                                                 <TextBlock Text="{Binding Chain}"
                                                            FontFamily="Consolas,Menlo,monospace"
-                                                           FontSize="10"
+                                                           FontSize="11"
                                                            Foreground="{DynamicResource TextBright}" />
                                             </Border>
                                             <TextBlock Text="{Binding RoundLabel}" Width="70"
@@ -373,6 +357,43 @@
                             </ItemsControl>
                             <TextBlock Text="No achievements recorded for this player."
                                        IsVisible="{Binding !HasAchievements}" Classes="pdEmpty" />
+                        </StackPanel>
+                    </Border>
+                    <!-- Spray shapes: the weapon's recoil pattern as a reference trace, with this
+                         player's own bullets over it. Full width at the foot of the board, below the
+                         weapon breakdown, because it answers the same question one level deeper: not
+                         how much a gun did, but what the player's hand did with it. -->
+                    <Border Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Classes="pdCard">
+                        <StackPanel Spacing="8">
+                            <DockPanel>
+                                <CheckBox DockPanel.Dock="Right" Content="Track target"
+                                          IsChecked="{Binding Spray.TrackTarget}"
+                                          ToolTip.Tip="Measure every bullet from the enemy's centre instead of from the spray's first bullet, so the plot shows tracking as well as recoil control." />
+                                <TextBlock Text="Spray" Classes="pdCardHeader" />
+                            </DockPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="8"
+                                        IsVisible="{Binding Spray.HasData}">
+                                <ComboBox ItemsSource="{Binding Spray.Weapons}"
+                                          SelectedItem="{Binding Spray.SelectedWeapon}"
+                                          MinWidth="140" />
+                                <ComboBox ItemsSource="{Binding Spray.Runs}"
+                                          SelectedItem="{Binding Spray.SelectedRun}"
+                                          DisplayMemberBinding="{Binding Label}"
+                                          MinWidth="130" />
+                                <ProgressBar IsIndeterminate="True" Width="80" Height="4"
+                                             VerticalAlignment="Center"
+                                             IsVisible="{Binding Spray.IsBusy}" />
+                            </StackPanel>
+
+                            <statsCtl:SprayPlot Height="300" Width="300"
+                                                HorizontalAlignment="Left"
+                                                IsVisible="{Binding Spray.HasData}"
+                                                Pattern="{Binding Spray.Pattern}"
+                                                Shots="{Binding Spray.Shots}" />
+
+                            <TextBlock Text="{Binding Spray.UnavailableMessage}"
+                                       IsVisible="{Binding !Spray.HasData}" Classes="pdEmpty" />
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -502,31 +523,33 @@
     </Grid>
 
     <UserControl.Styles>
-        <!-- InspectorCard chrome (style-class variant — one source for all panels). -->
+        <!--
+            v0.8.1 visual pass, matching the board behind it. This overlay is part of the Stats page,
+            so it follows the same rules: the app's proportional face for labels and identity, `tnum`
+            on every number so columns still align, and cards with room to breathe.
+        -->
+        <!-- InspectorCard chrome (style-class variant: one source for all panels). -->
         <Style Selector="Border.pdCard">
             <Setter Property="Background" Value="{DynamicResource CardBg}" />
             <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="12 8" />
-            <Setter Property="Margin" Value="0 0 8 8" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16 12" />
+            <Setter Property="Margin" Value="0 0 10 10" />
             <Setter Property="VerticalAlignment" Value="Top" />
         </Style>
         <Style Selector="TextBlock.pdCardHeader">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
-            <Setter Property="Margin" Value="0 0 0 6" />
+            <Setter Property="Foreground" Value="{DynamicResource TextCardHeader}" />
+            <Setter Property="Margin" Value="0 0 0 10" />
         </Style>
         <Style Selector="TextBlock.pdDim">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{DynamicResource TextDimGray}" />
         </Style>
         <Style Selector="TextBlock.pdEmpty">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource TextDimGray}" />
             <Setter Property="Margin" Value="0 4" />
         </Style>
@@ -537,44 +560,15 @@
         <Style Selector="TextBlock.pdBullet.ct">
             <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
         </Style>
-        <!-- StatTile -->
-        <Style Selector="Border.pdTile">
-            <Setter Property="Background" Value="{DynamicResource CardBg}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="10 4" />
-            <Setter Property="MinWidth" Value="58" />
-        </Style>
-        <Style Selector="Border.pdTile.hero">
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
-        </Style>
-        <Style Selector="TextBlock.pdTileValue">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="16" />
-            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
-            <Setter Property="TextAlignment" Value="Right" />
-        </Style>
-        <Style Selector="TextBlock.pdTileValue.hero">
-            <Setter Property="FontSize" Value="19" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource TextCardHeader}" />
-        </Style>
-        <Style Selector="TextBlock.pdTileLabel">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="9" />
-            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
-            <Setter Property="TextAlignment" Value="Right" />
-        </Style>
         <!-- key/value rows -->
         <Style Selector="TextBlock.pdKvLabel">
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style Selector="TextBlock.pdKvValue">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontFeatures" Value="tnum" />
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource TextEntityFieldVal}" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="TextAlignment" Value="Right" />
@@ -583,20 +577,21 @@
             <Setter Property="Foreground" Value="{DynamicResource StatPositive}" />
         </Style>
         <Style Selector="TextBlock.pdKvValue.neg">
-            <Setter Property="Foreground" Value="{DynamicResource AccentError}" />
+            <Setter Property="Foreground" Value="{DynamicResource StatNegative}" />
         </Style>
         <!-- rounds-table header cell -->
         <Style Selector="TextBlock.pdHeadCell">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
-            <Setter Property="Padding" Value="0 3" />
+            <Setter Property="Foreground" Value="{DynamicResource TextLabelAlt}" />
+            <Setter Property="Padding" Value="0 7" />
         </Style>
         <!-- rounds-table row (selected = form deep-link highlight) -->
         <Style Selector="Border.pdRoundRow">
-            <Setter Property="Padding" Value="0 2" />
+            <Setter Property="Padding" Value="0 5" />
             <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="0 0 0 1" />
         </Style>
         <Style Selector="Border.pdRoundRow:pointerover">
             <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
@@ -608,19 +603,9 @@
         </Style>
         <!-- form strip labels + marks -->
         <Style Selector="TextBlock.pdStripLabel">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
             <Setter Property="FontSize" Value="10" />
             <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
             <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-        <Style Selector="Ellipse.pdKastDot">
-            <Setter Property="Fill" Value="Transparent" />
-            <Setter Property="Stroke" Value="{DynamicResource TextDim}" />
-            <Setter Property="StrokeThickness" Value="1" />
-        </Style>
-        <Style Selector="Ellipse.pdKastDot.filled">
-            <Setter Property="Fill" Value="{DynamicResource StatPositive}" />
-            <Setter Property="Stroke" Value="{DynamicResource StatPositive}" />
         </Style>
         <Style Selector="TextBlock.pdTick">
             <Setter Property="Foreground" Value="{DynamicResource TextDim}" />

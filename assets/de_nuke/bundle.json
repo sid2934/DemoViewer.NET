@@ -44,7 +44,7 @@
     "de_nuke_lower.png"
   ],
   "collisionMesh": {
-    "file": "collision.tris",
+    "file": "collision.tris.gz",
     "triangleCount": 191628,
     "minX": -6112,
     "minY": -5658.267578125,

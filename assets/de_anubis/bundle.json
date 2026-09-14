@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "mapName": "de_anubis",
-  "mapVersion": "5d92ea44",
-  "bakerVersion": "0.1\u002Bvrf19.2.6339",
+  "mapVersion": "ad94c66c",
+  "bakerVersion": "0.3\u002Bvrf19.2.6339",
   "transform": {
     "posX": -2796,
     "posY": 3328,
@@ -32,5 +32,15 @@
   ],
   "radarImages": [
     "de_anubis.png"
-  ]
+  ],
+  "collisionMesh": {
+    "file": "collision.tris.gz",
+    "triangleCount": 699166,
+    "minX": -3202.5048828125,
+    "minY": -3456,
+    "minZ": -704,
+    "maxX": 2816.509765625,
+    "maxY": 4736,
+    "maxZ": 1152
+  }
 }

@@ -9,6 +9,8 @@
 # ever corrupting a demo or a collision bake.
 *.dem binary
 *.tris binary
+# The shipped bakes are gzipped, and `*.tris` does not match `collision.tris.gz`.
+*.gz binary
 *.png binary
 *.ico binary
 

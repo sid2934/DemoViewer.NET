@@ -44,7 +44,7 @@
     "de_vertigo_lower.png"
   ],
   "collisionMesh": {
-    "file": "collision.tris",
+    "file": "collision.tris.gz",
     "triangleCount": 210596,
     "minX": -4096,
     "minY": -3040,

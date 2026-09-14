@@ -1,8 +1,10 @@
 #region
 
+using System.IO.Compression;
 using System.Numerics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -41,10 +43,13 @@ public class VisibilityFrameGateProbe
     [Test]
     public async Task Dust2_PlayerFeet_SitOnCollisionFloor()
     {
-        string? trisPath = FindBaked("de_dust2", "collision.tris");
+        // CollisionSoup resolves the shipped gzipped bake as well as a plain one from a dev bake
+        // tree; asking for the uncompressed name alone finds nothing in a normal checkout and turns
+        // this gate into a permanent skip.
+        string? trisPath = CollisionSoup.Find("de_dust2");
         if (trisPath is null)
         {
-            throw new SkipTestException("no baked dust2 collision.tris (run the AssetBaker)");
+            throw new SkipTestException("no baked dust2 collision soup (run the AssetBaker)");
         }
 
         string? demoPath = DemoTestHelper.FindDemoPath("vitality-vs-fut-m2-dust2.dem");
@@ -181,29 +186,13 @@ public class VisibilityFrameGateProbe
 
         await Assert.That(dumped).IsTrue();
     }
-
-    private static string? FindBaked(string mapName, string file)
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            string candidate = Path.Combine(dir.FullName, "cs2-assets", "baked", mapName, file);
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        return null;
-    }
 }
 
 /// <summary>
-///     Throwaway brute-force collision triangle soup for the Phase-G gate: loads a baker <c>collision.tris</c>
-///     blob and answers "nearest triangle straight down from here". XY-bbox prune keeps 435k triangles
-///     tractable for a few hundred sample points; a BVH-backed engine replaces this in Phase 1.
+///     Throwaway brute-force collision triangle soup for the Phase-G gate: loads a baker
+///     <c>collision.tris</c> blob, gzipped or not, and answers "nearest triangle straight down from
+///     here". XY-bbox prune keeps 435k triangles tractable for a few hundred sample points; a
+///     BVH-backed engine replaces this in Phase 1.
 /// </summary>
 internal sealed class TriMesh
 {
@@ -243,7 +232,12 @@ internal sealed class TriMesh
 
     public static TriMesh Load(string path)
     {
-        using FileStream fs = new(path, FileMode.Open, FileAccess.Read);
+        // The blob reads the same either way; the only difference is whether an inflater sits in
+        // front of it, which is how the shipped pack stores it.
+        using FileStream file = new(path, FileMode.Open, FileAccess.Read);
+        using Stream fs = path.EndsWith(CollisionSoup.CompressedSuffix, StringComparison.OrdinalIgnoreCase)
+            ? new GZipStream(file, CompressionMode.Decompress)
+            : file;
         using BinaryReader r = new(fs);
         uint magic = r.ReadUInt32();
         if (magic != 0x49525443)

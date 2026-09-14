@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "mapName": "de_inferno",
-  "mapVersion": "3cff1c4e",
-  "bakerVersion": "0.1\u002Bvrf19.2.6339",
+  "mapVersion": "e7c5c33e",
+  "bakerVersion": "0.3\u002Bvrf19.2.6339",
   "transform": {
     "posX": -2087,
     "posY": 3870,
@@ -32,5 +32,15 @@
   ],
   "radarImages": [
     "de_inferno.png"
-  ]
+  ],
+  "collisionMesh": {
+    "file": "collision.tris.gz",
+    "triangleCount": 2733603,
+    "minX": -3552,
+    "minY": -2872,
+    "minZ": -280.00006103515625,
+    "maxX": 3968,
+    "maxY": 4264,
+    "maxZ": 1624.0001220703125
+  }
 }

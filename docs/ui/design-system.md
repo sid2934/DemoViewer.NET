@@ -140,6 +140,7 @@ Loaded by `App.axaml` **after** `FluentTheme` (so these are additive layers, nev
 | `Styles/Cards.axaml` | Reusable card/flyout **surfaces**. | `Border.card` `Border.card-flyout` |
 | `Styles/Tables.axaml` | List/tabular primitives. | `ListBox.data-list` `ListBox.card-grid` `TextBlock.col-label` |
 | `Styles/Chrome.axaml` | Shell/section furniture. | `Border.sectionHeader` `TextBlock.sectionLabel` `TextBlock.group-label` `Border.badge` `Rectangle.divider` |
+| `Styles/Stats.axaml` | The stats component library's theme layer (v0.8.1): default property values for the four drawn controls, `ControlTheme`s for the two templated ones, and the table-furniture classes. | `stats\|StatValue` (+`.untracked` `.chip`) `stats\|SegmentedBar` (+`.compact`) `stats\|Sparkline` `stats\|RingGauge` `stats\|DivergingBar` `stats\|PipStrip` (+`.good` `.rare`) · `Button.stat-col-header` `TextBlock.stat-sort-caret` `Border.stat-group-header` `TextBlock.stat-group-label` |
 
 **Design decision (P1.3):** these are **additive style classes**, NOT template-replacing
 `ControlTheme`s. A full `<ControlTheme TargetType="Button">` would swap the Fluent template globally and
@@ -237,7 +238,13 @@ Use the **dim** end for labels/metadata, the **bright** end for primary values. 
 | `AccentError` | `#E53935` | Errors (tracker/decode error text). |
 | `AccentErrorSoft` | `#E57373` | Softer error red for secondary error text: RuleWorkbench diagnostic `file:line` location (P3.3). |
 | `AccentCaution` | `#E0A030` | Muted caution gold: RuleWorkbench "shipped, read-only (use Save As)" indicator. Distinct from brighter `AccentAmber`. **Value coincides with `Pb2dTeamT`** (2D-HUD domain), **not** reused across the boundary (P3.3). |
-| `StatPositive` | `#4CAF50` | Intrinsically-good stat accents (Stats tab positive cells); matches depth-2 green. |
+| `StatPositive` | `#4CAF50` | Strong-good end of the stat heat ramp; matches depth-2 green. |
+| `StatPositiveSoft` | `#5FA894` | Mild-good tier of the ramp (teal). |
+| `StatNegativeSoft` | `#D98A3F` | Mild-bad tier (amber, **not** a desaturated red: the two bad tiers must differ in lightness too). |
+| `StatNegative` | `#DC5A52` | Strong-bad tier. Deliberately calmer than `AccentError`: a bad stat is a judgement, not a fault. |
+| `StatBarTrack` | `#212140` | Unfilled part of an in-cell stat bar. Lifted off the old `#16162E`, which sat at contrast 1.00 against `CardBg` and drew no track at all. |
+| `StatBarFill` | `#33335E` | Filled part. **Neutral by design**, never tinted by sentiment. |
+| `StatSlot0`-`StatSlot5` | see catalogue | The composition bars' **categorical** palette. A different job to the ramp: "which thing", not "how good". Not borrowed accents, so a monochrome theme cannot collapse them into one hue. |
 | `PrimaryButtonHover` | `#252548` | Primary-button hover. |
 
 ### Hex legend swatches (semi-transparent, `BinaryPane`)
@@ -992,6 +999,52 @@ for every audience; first-run + skippable.
   tracks window height: keep the capture `--size` (1280x800) and `_transportRect` in sync. NOT wired into
   MainView/MainViewModel yet (engine phase owns integration).
 
+<a id="stats-components"></a>
+### Stats component library (`Controls/Stats/`, v0.8.1)
+
+Nine controls plus a scale model and the abstract presenter they share, built for the Stats team and
+player views. Full rationale, the
+dependency survey that ruled out every charting library, and the open questions are in
+[`stats-components.md`](./stats-components.md); this is the contract.
+
+| Type | What it is | Key API |
+|---|---|---|
+| `StatScale` | Pure record, **no Avalonia reference**, so it unit-tests without a render harness. Maps a raw value onto two channels. | `Fraction(v)` → 0..1 bar, `Sentiment(v)` → -1..+1 colour. Factories: `Absolute` `FromPeers` `Banded` `Hybrid` — the four `StatScaleSpec.Resolve` calls. (`SignOf` and `Penalty` were both `Banded` in disguise with no caller, and are gone.) |
+| `StatPresenter` | Abstract base holding the value, the scale and the four accent brushes. The sentiment→brush rule lives here **once**. | `Value` `Scale` (or `Minimum`/`Maximum`/`Polarity`/`NeutralLow`/`NeutralHigh`), `Accent`, `Fraction`, `Sentiment`, `StrongSentimentAt`. |
+| `StatValue` | The workhorse cell: number over a bar, in a chip, or plain. | `Mode` = `Bar`/`Chip`/`Plain`, `IsLeader`, `TintBar`, `TextAlignment`, `BarAlignment` = `Left` (default)/`Center`/`Right`/`Auto`, `BarTrackBrush`, `BarFillBrush`. |
+| `SegmentedBar` | Stacked proportion bar, both densities. | `Segments` (`StatSegment(Value, Brush, Label)`), `Compact`, `ShowLabels`, `Gap`. |
+| `Sparkline` | Per-round micro chart. | `Values`, `Mode` = `Line`/`Bars`/`Dots`, `PointTooltips`, `IndexAt(point)`, `Baseline`. |
+| `RingGauge` | One headline number on a circular track. | `Thickness`, `Caption`, `TrackBrush`. |
+| `StatTile` | Templated KPI tile; the number is a nested `StatValue`. | `Label`, `Caption`, `IsHero` (`:hero`). |
+| `TeamBadge` | Templated team header with a WIN/LOSS pill. | `Team` (CS2 wire: 2 = T, 3 = CT), `Label`, `Outcome`, `Detail`; pseudo-classes `:ct` `:t` `:win` `:loss` `:draw`. |
+| `DivergingBar` | Won against lost about a break-even line. Replaces the four columns a duel record usually gets with one shape carrying all four. | `Negative`, `Positive`, `Extent` (the shared half-scale; without it each row self-scales and stops being comparable), `BarHeight`. |
+| `PipStrip` | A small count as one mark per event, for magnitudes where a numeric column is mostly whitespace. | `Count`, `MaxPips` (past it the number is written instead), `PipRadius`, `PipGap`, `EmptyBrush`. |
+| `SprayPlot` | One spray run as a 2D trace in degrees: the weapon's recoil pattern underneath as a faint reference, the player's own landed bullets over it. Pitch is deliberately **not** flipped (Source pitch is positive down and so is screen Y), and both series share one scale computed over both, so the shapes are comparable rather than each self-normalised. Gaps in the trace are the misses and are drawn as gaps. | `Pattern`, `Shots`, `PatternBrush`, `ShotBrush`, `AxisBrush`, `DotRadius`. |
+
+**Previewing them.** All nine have a product call site now, so the gallery is no longer the only way to
+see one — it is where the EDGE of each lives. The Diagnostics tab carries a collapsed
+**"Stats component gallery (design)"** panel: every control, live, driven by sliders, reading
+no demo and reachable from a cold start. It rides the `tab.diagnostics` gate and owns its own view
+model. `UiCapture` variants: `stats-components`, `stats-components-edge`, `stats-gallery`.
+
+**Invariants worth not breaking:**
+- **Bar length and colour sentiment are separate channels.** `Min`/`Max` drive the bar;
+  `NeutralLow`/`NeutralHigh` carve a dead zone out of the colour only. A single min/max/value triple
+  cannot express a column whose bar is peer-relative but whose colour is banded on a fixed pivot,
+  which is what a rating column needs.
+- **`Fraction` is never polarity-inverted.** A deaths column draws its longest bar for the most
+  deaths; only `Sentiment` flips. A big number over a short bar reads as a rendering fault.
+- **Neutral paints nothing.** Inside the dead zone no foreground is set, so the value inherits the
+  surrounding text colour and stays correct in every theme. Most cells in a healthy table are neutral;
+  that is what makes the outliers legible.
+- **Bars are not colour-coded.** `TintBar` is off by default so colour is not spent twice on the same
+  fact. A fifteen-column board with tinted bars is a heat map, not a table.
+- **No brush is held in code.** Every colour is a styled property fed from `Styles/Stats.axaml` via
+  `{DynamicResource}`, so a variant switch re-resolves it and `AffectsRender` repaints.
+  `StatsComponentRenderTests.Gallery_RepaintsWhenTheThemeVariantChanges` is the guard.
+- **The four drawn controls set their own `AutomationProperties.Name`**, because they paint glyphs
+  rather than hosting a `TextBlock` a screen reader could find.
+
 ### Other Controls/ (not full shared-design components, but shared)
 `CommandPalette` (Ctrl+P overlay), `OutputPanel` (bottom drawer), `StatusStrip` (bottom status),
 `ParseLinkChip` (source-link chip). `OpenExternal.cs` = VS Code / browser launch helper (desktop only,
@@ -1024,6 +1077,12 @@ Each class was rendered + read this pass (variant in the last column; see §7).
 | `Border.badge` | Border | Small rounded count/status pill (pair a `.mono` child in `TextChainBadge`). | `ChainSummaryBadgeBg` | `chrome` |
 | `Rectangle.divider` | Rectangle | Hairline rule (color only; set Width/Height per use). `.divider.strong` = heavier. | `BorderSubtle`/`BorderStrong` | `primitives`, `chrome` |
 | `Ellipse.dot` | Ellipse | StatusChip status dot (CSVG §3.1). State→token via `.stateOff/Working/Good/Degraded/Error`; `.hollow` = ring (Stroke); `.pulsing` = opacity animation. Consumer sets Width/Height. | `TextDim`/`AccentInteractive`/`StatPositive`/`AccentCaution`/`AccentError` | `livesync-chips`, `livesync-flyouts` |
+| `stats\|StatValue.untracked` | StatValue | Drops the empty-bar track, which is **on by default**. For a one-off bar with no column to compare against. | `StatBarTrack` | `stats-components` |
+| `stats\|StatValue.chip` | StatValue | The utility table's rating pill: centred, padded, tinted by its own sentiment. | ramp tokens | `stats-components` |
+| `stats\|SegmentedBar.compact` | SegmentedBar | In-cell density: four counts in one table column. | — | `stats-components` |
+| `Button.stat-col-header` | Button | Sortable leaf column header; `.sorted` switches label + caret to the interactive accent. | `PanelHeaderHover`, `AccentInteractive` | `stats-components` |
+| `TextBlock.stat-sort-caret` | TextBlock | Sort-direction caret, dim until its column is the key. | `TextDim`, `AccentInteractive` | `stats-components` |
+| `Border.stat-group-header` | Border | Band spanning several leaf columns ("Quality Rating Breakdown"); pair with `TextBlock.stat-group-label`. | `PanelHeaderBg`, `BorderSubtle` | `stats-components` |
 
 **Note on `sectionHeader`/`sectionLabel` casing:** these keep their original **camelCase** (3 live
 consumer views + the UiCapture `Section()` helper depend on the names). All *new* P1.3 classes use

@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Services;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Diagnostics.Tracing;
@@ -15,6 +16,7 @@ using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.GoldenStats;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Output;
+using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
@@ -24,7 +26,6 @@ using CS2DemoKit.Parser.GameEvents;
 
 // ── Test Suite ──────────────────────────────────────────────────────────────
 // Discovered from demos/benchmarks/: any .dem file is a benchmark entry.
-// If a matching <id>.leetify.json exists alongside it, stats comparison runs too.
 
 string benchDir = Path.Combine(FindRepoRoot(), "demos", "benchmarks");
 TestCase[] testSuite = DiscoverTestSuite(benchDir);
@@ -80,6 +81,17 @@ bool enableTimeline = flags.Contains("--timeline");
 // before/after comparison for the memory-mapped-buffer work. See MemoryMappedDemoSource's ownership
 // contract: the mapping is disposed as soon as the bytes are no longer needed.
 bool useMmap = flags.Contains("--mmap");
+// --ray-counters: turn on the visibility path's ray budget counters (VisibilityCounters, off by
+// default in the library). Process-wide, set before any run like Profiling.Enabled; RunBench resets
+// them before eval and snapshots them after, so --suite reports each demo on its own. Per-ray
+// Stopwatch brackets add a few percent to the raycasting, so eval_ms from a counted run is not the
+// baseline number; take that from a run without the flag.
+bool enableRayCounters = flags.Contains("--ray-counters");
+if (enableRayCounters)
+{
+    VisibilityCounters.Enabled = true;
+}
+
 bool enableProfile = flags.Contains("--profile");
 if (enableProfile)
 {
@@ -94,22 +106,20 @@ if (listSuite)
     {
         Console.WriteLine($"No .dem files found in {benchDir}");
         Console.WriteLine("Place demo files there to add them to the benchmark suite.");
-        Console.WriteLine("Add a matching <id>.leetify.json for correctness comparison.");
         return 0;
     }
 
     Console.WriteLine($"Benchmark directory: {benchDir}");
-    Console.WriteLine($"{"ID",-50} {"Size",8} {"Leetify",8}");
+    Console.WriteLine($"{"ID",-50} {"Size",8}");
     Console.WriteLine(new string('─', 70));
     foreach (TestCase tc in testSuite)
     {
         FileInfo fi = new(tc.DemoPath);
         string size = $"{fi.Length / 1024.0 / 1024.0:F0} MB";
-        string refStatus = tc.LeetifyJson is not null ? "yes" : "-";
-        Console.WriteLine($"  {tc.Id,-48} {size,8} {refStatus,8}");
+        Console.WriteLine($"  {tc.Id,-48} {size,8}");
     }
 
-    Console.WriteLine($"\n  {testSuite.Length} demo(s), {testSuite.Count(t => t.LeetifyJson is not null)} with reference data");
+    Console.WriteLine($"\n  {testSuite.Length} demo(s)");
     return 0;
 }
 
@@ -134,7 +144,7 @@ if (suiteMode)
         string reportFile = Path.Combine(suiteReportDir, $"{tc.Id}_{timestamp}.json");
         try
         {
-            int result = RunBench(tc.DemoPath, rulesDir, reportFile, tc.LeetifyJson, enableTrace, false,
+            int result = RunBench(tc.DemoPath, rulesDir, reportFile, enableTrace, false,
                 noGolden: noGolden, enableCounters: enableCounters, enableTimeline: enableTimeline,
                 useMmap: useMmap);
             if (result == 0)
@@ -156,6 +166,18 @@ if (suiteMode)
     Console.WriteLine($"\n{"═══"} Suite Complete {"═".PadRight(58, '═')}");
     Console.WriteLine($"  Passed: {passed}  Skipped: {skipped}  Failed: {failed}");
     Console.WriteLine($"  Reports: {Path.GetFullPath(suiteReportDir)}/");
+    // An EMPTY suite is a failure, not a pass. demos/**/*.dem is gitignored, so a fresh checkout or
+    // a CI runner has zero cases and every earlier line here reads exactly like a clean run: no
+    // failures, no skips, a report directory. Exiting 0 makes "the benchmark suite passed" and
+    // "there was nothing to benchmark" indistinguishable, which is how a perf gate silently stops
+    // gating.
+    if (testSuite.Length == 0)
+    {
+        Console.Error.WriteLine($"[FAIL] no .dem files in {benchDir}: the suite ran zero cases.");
+        Console.Error.WriteLine("       Place demos there, or use --list-suite to inspect without running.");
+        return 1;
+    }
+
     return failed > 0 ? 1 : 0;
 }
 
@@ -172,6 +194,7 @@ if (positional.Length == 0)
     Console.Error.WriteLine("  --bare               Run Evaluate() without snapshots (measures pure eval cost)");
     Console.Error.WriteLine("  --no-golden          Skip writing tests/fixtures golden files (use for verification runs)");
     Console.Error.WriteLine("  --mmap               Memory-map the .dem instead of File.ReadAllBytes (keeps the file bytes off the managed heap)");
+    Console.Error.WriteLine("  --ray-counters       Count rays cast / frustum-rejected pairs on the visibility path and time the raycasting");
     Console.Error.WriteLine("  --round-debug        Detailed per-round event trace");
     Console.Error.WriteLine("  --report=<path>      Write JSON report to file");
     Console.Error.WriteLine("  --export=csv|json    Export per-(player,round) stats as a MetricTable (requires snapshot mode)");
@@ -200,7 +223,6 @@ if (positional.Length == 0)
     // rules-dir), so the convention-matching form is `--export=csv [--out=<path>]`.
     string? exportFormat = namedArgs.GetValueOrDefault("--export");
     string? exportOut = namedArgs.GetValueOrDefault("--out");
-    string? leetifyJson = null;
 
     // Fail fast on a bad --export value, BEFORE the full parse+eval, so a typo doesn't waste a run.
     if (exportFormat is not null
@@ -209,14 +231,6 @@ if (positional.Length == 0)
     {
         Console.Error.WriteLine($"Unknown --export format '{exportFormat}'. Expected 'csv' or 'json'.");
         return 1;
-    }
-
-    // Check if this demo is in the test suite and has a reference file
-    string fullDemoPath = Path.GetFullPath(demoPath);
-    TestCase? suiteMatch = testSuite.FirstOrDefault(tc => Path.GetFullPath(tc.DemoPath) == fullDemoPath);
-    if (suiteMatch is not null)
-    {
-        leetifyJson = suiteMatch.LeetifyJson;
     }
 
     if (roundDebug)
@@ -237,14 +251,14 @@ if (positional.Length == 0)
         return 0;
     }
 
-    return RunBench(demoPath, rulesDir, reportPath, leetifyJson, enableTrace, bareMode, stateTraceArg, noGolden,
+    return RunBench(demoPath, rulesDir, reportPath, enableTrace, bareMode, stateTraceArg, noGolden,
         enableCounters, enableTimeline, exportFormat, exportOut, useMmap);
 }
 
 // ── Core Bench ─────────────────────────────────────────────────────────────
 
 static int RunBench(string demoPath, string rulesDir, string? reportPath,
-    string? leetifyJsonPath, bool enableTrace, bool bareMode, string? stateTraceArg = null, bool noGolden = false,
+    bool enableTrace, bool bareMode, string? stateTraceArg = null, bool noGolden = false,
     bool enableCounters = false, bool enableTimeline = false, string? exportFormat = null, string? exportOut = null,
     bool useMmap = false)
 {
@@ -258,11 +272,6 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     if (reportPath is not null)
     {
         Console.WriteLine($"Report: {reportPath}");
-    }
-
-    if (leetifyJsonPath is not null && File.Exists(leetifyJsonPath))
-    {
-        Console.WriteLine($"Ref:    {leetifyJsonPath}");
     }
 
     Console.WriteLine();
@@ -349,6 +358,11 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
 
 
     // ── Build ──────────────────────────────────────────────────────────────
+    // Ray budget counters: zeroed before the BUILD phase, not before eval, so a --suite run reports
+    // each demo alone AND the collision bake loaded during build still lands in this demo's numbers.
+    // Zeroing after the load instead silently discarded it, which is how the bake timing read zero on
+    // its first run.
+    VisibilityCounters.Reset();
     long buildStart = Stopwatch.GetTimestamp();
     BuildResult buildResult;
     using (AnalysisDiagnostics.ActivitySource.StartActivity("build"))
@@ -366,7 +380,21 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
         // DemoAnalysis.Build supplies the default registries, including the entity-provider
         // registries that make RuleChainBuilder construct the EntityChangeScanner — so the
         // benchmark drives the same entity-tracking hot path as the app.
-        buildResult = DemoAnalysis.Build(demo, loaded.Rulesets);
+        //
+        // The collision bake is loaded here for the same reason. Without it the builder declines
+        // to synthesize enemy_spotted, every visibility-gated aim stat reads zero, and the
+        // benchmark would measure a materially cheaper graph than the app actually runs. Null when
+        // the map has no bake, which is a real and common shape rather than a failure.
+        string? benchTris = CollisionSoup.Find(demo.MapName);
+        VisibilityEngine? benchVisibility = benchTris is null ? null : CollisionSoup.Load(benchTris);
+        Console.WriteLine(benchVisibility is null
+            ? $"Visibility: no collision bake for {demo.MapName} (visibility-gated stats stay empty)"
+            : $"Visibility: bake loaded for {demo.MapName}");
+
+        buildResult = DemoAnalysis.Build(demo, loaded.Rulesets, new AnalysisOptions
+        {
+            VisibilityEngine = benchVisibility
+        });
     }
 
     TimeSpan buildElapsed = Stopwatch.GetElapsedTime(buildStart);
@@ -490,6 +518,7 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
 
     TimeSpan evalElapsed = Stopwatch.GetElapsedTime(evalStart);
     long evalAllocBytes = GC.GetAllocatedBytesForCurrentThread() - evalAllocBefore;
+    VisibilityCountersSnapshot rays = VisibilityCounters.Snapshot();
     int gc0After = GC.CollectionCount(0), gc1After = GC.CollectionCount(1), gc2After = GC.CollectionCount(2);
 
     // ── Summary ────────────────────────────────────────────────────────────
@@ -532,6 +561,7 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     ScannerProfilingSnapshot sprof = buildResult.EntityScanner?.GetProfilingSnapshot() ?? default;
     PrintParseProfile(ParseProfilingSnapshot.Read());
     PrintEntityProfile(prof, sprof);
+    PrintRayCounters(rays, evalElapsed, VisibilityCounters.Enabled);
 
     if (listener is not null)
     {
@@ -595,7 +625,8 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
                     gc1After - evalGc1,
                     evalAllocBytes
                 ),
-                BuildEntityProfileReport(prof, sprof)
+                BuildEntityProfileReport(prof, sprof),
+                BuildRayReport(rays, evalElapsed, VisibilityCounters.Enabled)
             ),
             playerReports
         );
@@ -609,8 +640,7 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     // ── Golden-stats files (fixtures consumed by parity tests) ───────────
     // Always written when playerReports are available, so a single `--suite`
     // run refreshes every provider's golden file. The bench is the canonical
-    // producer for `ours`; leetify files are converted from the existing
-    // <id>.leetify.json caches under demos/benchmarks/.
+    // producer for `ours`.
     if (!noGolden && playerReports.Count > 0)
     {
         WriteGoldenStatsFiles(demoPath, sha256, demo, playerReports);
@@ -625,169 +655,7 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
         WriteRoundExport(exportFormat, exportOut, demoPath, evalResult, demo, bareMode);
     }
 
-    // ── Leetify Comparison ───────────────────────────────────────────────
-    if (leetifyJsonPath is not null && File.Exists(leetifyJsonPath) && playerReports.Count > 0)
-    {
-        CompareWithLeetify(leetifyJsonPath, playerReports);
-    }
-
     return 0;
-}
-
-// ── Leetify Comparison ────────────────────────────────────────────────────
-
-static void CompareWithLeetify(string leetifyPath, List<PlayerReport> players)
-{
-    using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(leetifyPath));
-    JsonElement root = doc.RootElement;
-    if (!root.TryGetProperty("playerStats", out JsonElement playerStats))
-    {
-        return;
-    }
-
-    Dictionary<string, JsonElement> leetifyByName = new(StringComparer.OrdinalIgnoreCase);
-    foreach (JsonElement p in playerStats.EnumerateArray())
-    {
-        if (p.TryGetProperty("name", out JsonElement name))
-        {
-            leetifyByName[name.GetString()!] = p;
-        }
-    }
-
-    (string OurKey, string LeetifyKey, double Scale, string Fmt)[] statMappings = new (string OurKey, string LeetifyKey, double Scale, string Fmt)[]
-    {
-        ("TotalK", "totalKills", 1, "F0"), ("TotalD", "totalDeaths", 1, "F0"), ("TotalA", "totalAssists", 1, "F0"), ("EnemyDmg", "totalDamage", 1, "F0"), ("ADR", "dpr", 1, "F1"), ("HS%", "hsp", 100, "F0"), ("KD", "kdRatio", 1, "F2"), ("KAST%", "kast", 100, "F0"), ("HLTV", "hltvRating", 1, "F2"), ("2K", "multi2k", 1, "F0"), ("3K", "multi3k", 1, "F0"), ("4K", "multi4k", 1, "F0"),
-        ("5K", "multi5k", 1, "F0"), ("Survived", "roundsSurvived", 1, "F0"), ("TrdK", "tradeKillsSucceeded", 1, "F0"),
-        // CTW/TW: detect team mapping (demo team numbers may be swapped vs Leetify)
-        ("CTW", "_ctw_auto", 1, "F0"), ("TW", "_tw_auto", 1, "F0"), ("HitFoe", "shotsHitFoe", 1, "F0"), ("Shots", "shotsFired", 1, "F0")
-    };
-
-    Console.WriteLine();
-    Console.WriteLine("─── Leetify Comparison ─────────────────────────────────");
-
-    int matched = 0, mismatched = 0, skipped = 0;
-    List<(string Player, string Stat, double Ours, double Leetify, double Delta)> deltas = new();
-
-    // Auto-detect CTW/TW team mapping by checking first player
-    bool ctwSwapped = false;
-    PlayerReport? firstPlayer = players.FirstOrDefault(p => p.Team is 2 or 3);
-    if (firstPlayer is not null && leetifyByName.TryGetValue(firstPlayer.Name, out JsonElement firstLeet))
-    {
-        double ourCtw = firstPlayer.Stats.TryGetValue("CTW", out object? cv) && cv is int ci ? ci : 0;
-        double ourTw = firstPlayer.Stats.TryGetValue("TW", out object? tv) && tv is int ti ? ti : 0;
-        double leetCtw = firstLeet.TryGetProperty("ctRoundsWon", out JsonElement lc) ? lc.GetDouble() : 0;
-        double leetTw = firstLeet.TryGetProperty("tRoundsWon", out JsonElement lt) ? lt.GetDouble() : 0;
-        double directError = Math.Abs(ourCtw - leetCtw) + Math.Abs(ourTw - leetTw);
-        double swappedError = Math.Abs(ourCtw - leetTw) + Math.Abs(ourTw - leetCtw);
-        ctwSwapped = swappedError < directError;
-    }
-
-    foreach (PlayerReport player in players.Where(p => p.Team is 2 or 3))
-    {
-        if (!leetifyByName.TryGetValue(player.Name, out JsonElement leetifyPlayer))
-        {
-            skipped++;
-            continue;
-        }
-
-        foreach ((string ourKey, string leetKey, double scale, string fmt) in statMappings)
-        {
-            string resolvedLeetKey = leetKey;
-            if (leetKey == "_ctw_auto")
-            {
-                resolvedLeetKey = ctwSwapped ? "tRoundsWon" : "ctRoundsWon";
-            }
-            else if (leetKey == "_tw_auto")
-            {
-                resolvedLeetKey = ctwSwapped ? "ctRoundsWon" : "tRoundsWon";
-            }
-
-            if (!player.Stats.TryGetValue(ourKey, out object? ourVal) || ourVal is null)
-            {
-                continue;
-            }
-
-            if (!leetifyPlayer.TryGetProperty(resolvedLeetKey, out JsonElement leetVal))
-            {
-                continue;
-            }
-
-            double ours = ourVal switch
-            {
-                int i => i,
-                double d => d,
-                string s when double.TryParse(s, CultureInfo.InvariantCulture, out double sd) => sd,
-                _ => double.NaN
-            };
-            if (double.IsNaN(ours))
-            {
-                continue;
-            }
-
-            double leetify = leetVal.ValueKind == JsonValueKind.Number ? leetVal.GetDouble() * scale : double.NaN;
-            if (double.IsNaN(leetify))
-            {
-                continue;
-            }
-
-            double delta = ours - leetify;
-            if (Math.Abs(delta) < 0.01)
-            {
-                matched++;
-            }
-            else
-            {
-                mismatched++;
-                deltas.Add((player.Name, ourKey, ours, leetify, delta));
-            }
-        }
-    }
-
-    if (deltas.Count > 0)
-    {
-        int nameWidth = Math.Max(6, deltas.Max(d => d.Player.Length) + 1);
-        Console.WriteLine($"  {"Player".PadRight(nameWidth)} {"Stat",-10} {"Ours",10} {"Leetify",10} {"Delta",10}");
-        Console.WriteLine($"  {"".PadRight(nameWidth, '-')} {"".PadRight(10, '-')} {"".PadRight(10, '-')} {"".PadRight(10, '-')} {"".PadRight(10, '-')}");
-        foreach ((string player, string stat, double ours, double leetify, double delta) in deltas.OrderBy(d => d.Player).ThenBy(d => d.Stat))
-        {
-            string sign = delta > 0 ? "+" : "";
-            Console.WriteLine($"  {player.PadRight(nameWidth)} {stat,-10} {ours,10:F2} {leetify,10:F2} {sign + delta.ToString("F2", CultureInfo.InvariantCulture),10}");
-        }
-    }
-
-    Console.WriteLine();
-    Console.WriteLine($"  Matched: {matched}  Mismatched: {mismatched}  Skipped: {skipped} players");
-    if (matched + mismatched > 0)
-    {
-        Console.WriteLine($"  Accuracy: {(double)matched / (matched + mismatched) * 100:F1}%");
-    }
-
-    // ── Per-stat mismatch summary ────────────────────────────────────────────
-    // The flat matched/mismatched count buries WHICH stats account for the
-    // divergence. This breakdown shows the distribution so per-stat tolerance
-    // tightening (or parser work) can be prioritised by impact.
-    if (deltas.Count > 0)
-    {
-        var byStat = deltas
-            .GroupBy(d => d.Stat)
-            .Select(g => new
-            {
-                Stat = g.Key,
-                Count = g.Count(),
-                MeanDelta = g.Average(d => d.Delta),
-                MaxAbs = g.Max(d => Math.Abs(d.Delta))
-            })
-            .OrderByDescending(s => s.Count)
-            .ToList();
-
-        Console.WriteLine();
-        Console.WriteLine("  Per-stat mismatch breakdown:");
-        Console.WriteLine($"    {"Stat",-12} {"Count",5} {"MeanΔ",10} {"MaxAbsΔ",10}");
-        foreach (var s in byStat)
-        {
-            Console.WriteLine($"    {s.Stat,-12} {s.Count,5} {s.MeanDelta,10:F3} {s.MaxAbs,10:F3}");
-        }
-    }
 }
 
 // ── Golden-stats producer ─────────────────────────────────────────────────
@@ -796,10 +664,6 @@ static void CompareWithLeetify(string leetifyPath, List<PlayerReport> players)
 // tests/fixtures/<demo-id>/. One file per provider:
 //
 //   tests/fixtures/<demo-id>/ours.golden.json     — produced from this run.
-//
-// leetify.golden.json is no longer written: CS2DemoKit.Analysis 0.9.1 retired the converter that
-// produced it. The live Leetify comparison above is unaffected — it parses the raw cached JSON
-// itself and never used the package.
 //
 // The directory pattern (rather than a flat layout) anticipates additional
 // providers — `hltv.golden.json`, `expected.golden.json` — without renaming
@@ -1323,8 +1187,7 @@ static TestCase[] DiscoverTestSuite(string benchDir)
         .Select(demoPath =>
         {
             string id = Path.GetFileNameWithoutExtension(demoPath);
-            string leetifyPath = Path.Combine(benchDir, $"{id}.leetify.json");
-            return new TestCase(id, demoPath, File.Exists(leetifyPath) ? leetifyPath : null);
+            return new TestCase(id, demoPath);
         })
         .ToArray();
 }
@@ -1440,6 +1303,7 @@ static ReportEntityProfile? BuildEntityProfileReport(EntityProfilingSnapshot pro
     }
 
     return new ReportEntityProfile(
+        Ms(sprof.PrecomputeTicks),
         Ms(sprof.SeekTicks),
         Ms(sprof.ProviderPollTicks),
         Ms(sprof.ProjectileScanTicks),
@@ -1448,6 +1312,7 @@ static ReportEntityProfile? BuildEntityProfileReport(EntityProfilingSnapshot pro
         Ms(prof.FieldPathTicks),
         Ms(prof.FieldValueTicks),
         Ms(prof.DescriptorBuildTicks),
+        sprof.PrecomputeAlloc,
         sprof.SeekAlloc,
         sprof.ProviderPollAlloc,
         sprof.ProjectileScanAlloc,
@@ -1462,9 +1327,107 @@ static ReportEntityProfile? BuildEntityProfileReport(EntityProfilingSnapshot pro
         prof.DescriptorBuilds);
 }
 
+// ── Visibility ray budget ─────────────────────────────────────────────────
+
+// The measured ray budget behind the aim-rating visibility path. Every figure comes from
+// VisibilityCounters, which the library leaves off unless --ray-counters set it; without the flag
+// this prints one line saying so. "Frustum-rejected pairs" are directed enemy pairs with no body
+// anchor inside the viewer's frustum: a frustum-first gate would cast nothing for them, and the
+// rays the current code spends on them are the ones such a gate removes outright.
+static void PrintRayCounters(VisibilityCountersSnapshot rays, TimeSpan evalElapsed, bool enabled)
+{
+    Console.WriteLine();
+    Console.WriteLine("─── Visibility Ray Budget ───────────────────────────────");
+
+    // Printed before the ray-counter gate on purpose. Bake loading rides Profiling.Enabled, not
+    // VisibilityCounters.Enabled, because it costs one Stopwatch pair per map rather than per ray, so
+    // a --profile run without --ray-counters still accounts for it. On the biggest bake this is about
+    // 0.9 s against a 2.3 s eval, which is too large a line item to leave off a profile.
+    if (rays.BakesLoaded > 0)
+    {
+        Console.WriteLine(
+            $"  Collision bakes loaded:     {rays.BakesLoaded,12:N0}   {rays.BakeTriangles:N0} triangles");
+        Console.WriteLine(
+            $"    read from disk:           {rays.BakeLoadMs,12:F1} ms");
+        Console.WriteLine(
+            $"    BVH build:                {rays.BvhBuildMs,12:F1} ms"
+            + $"   ({(rays.BakeLoadMs + rays.BvhBuildMs) / Math.Max(evalElapsed.TotalMilliseconds, 1) * 100:F1}% of eval, once per map)");
+    }
+
+    if (!enabled)
+    {
+        Console.WriteLine("  (no ray data — rerun with --ray-counters to enable)");
+        return;
+    }
+
+    if (rays.PairsEvaluated == 0)
+    {
+        Console.WriteLine("  no directed pairs evaluated (no collision bake, or no rule subscribed to enemy_spotted)");
+        return;
+    }
+
+    static double Pct(long part, long whole)
+    {
+        return whole > 0 ? part * 100.0 / whole : 0.0;
+    }
+
+    double evalMs = evalElapsed.TotalMilliseconds;
+    double raysPerSec = rays.RayMs > 0 ? rays.RaysCast / (rays.RayMs / 1000.0) : 0.0;
+    Console.WriteLine($"  Sampled ticks:              {rays.SampledTicks,12:N0}");
+    Console.WriteLine($"  Directed enemy pairs:       {rays.PairsEvaluated,12:N0}   ({(double)rays.PairsEvaluated / Math.Max(1, rays.SampledTicks):F1} per sampled tick)");
+    Console.WriteLine($"    frustum-rejected (0 anchors in FOV): {rays.PairsNoAnchorInFrustum,12:N0}   {Pct(rays.PairsNoAnchorInFrustum, rays.PairsEvaluated),5:F1}% of pairs");
+    Console.WriteLine($"    exposed:                  {rays.PairsExposed,12:N0}   {Pct(rays.PairsExposed, rays.PairsEvaluated),5:F1}%");
+    Console.WriteLine($"    could-see:                {rays.PairsCouldSee,12:N0}   {Pct(rays.PairsCouldSee, rays.PairsEvaluated),5:F1}%");
+    Console.WriteLine($"  Anchors in FOV:             {rays.AnchorsInFrustum,12:N0}   of {rays.AnchorsTotal:N0} ({Pct(rays.AnchorsInFrustum, rays.AnchorsTotal):F1}%)");
+    Console.WriteLine($"  Rays cast:                  {rays.RaysCast,12:N0}   ({(double)rays.RaysCast / rays.PairsEvaluated:F2} per pair; {rays.RaysSkippedByEarlyExit:N0} anchors skipped by early exit)");
+    Console.WriteLine($"    clear (no occluder):      {rays.RaysClear,12:N0}   {Pct(rays.RaysClear, rays.RaysCast),5:F1}%");
+    Console.WriteLine($"    decided by occluder hint: {rays.RaysShortCircuited,12:N0}   {Pct(rays.RaysShortCircuited, rays.RaysCast),5:F1}% of rays cast   ({Pct(rays.RaysShortCircuited, rays.RaysCast - rays.RaysClear):F1}% of occluded; no BVH traversal)");
+    Console.WriteLine($"  Anchors skipped by gate:    {rays.RaysSkippedByGate,12:N0}   {Pct(rays.RaysSkippedByGate, rays.AnchorsTotal),5:F1}% of anchors   ({rays.RaysSkippedBySmoke:N0} behind smoke, the rest outside the frustum)");
+    Console.WriteLine($"    anchor outside FOV:       {rays.RaysCastOutsideFrustum,12:N0}   {Pct(rays.RaysCastOutsideFrustum, rays.RaysCast),5:F1}%   (per-anchor frustum gate would skip these)");
+    Console.WriteLine($"    on frustum-rejected pairs:{rays.RaysCastOnFrustumRejectedPairs,12:N0}   {Pct(rays.RaysCastOnFrustumRejectedPairs, rays.RaysCast),5:F1}%   (per-pair frustum gate would skip these)");
+    Console.WriteLine($"  Raycast wall-clock:         {rays.RayMs,12:F1} ms   {Pct((long)rays.RayMs, (long)evalMs),5:F1}% of eval   ({raysPerSec / 1e6:F2} MRay/s, single thread)");
+    Console.WriteLine($"  Transition-scan wall-clock: {rays.SampleMs,12:F1} ms   {Pct((long)rays.SampleMs, (long)evalMs),5:F1}% of eval   (raycasts + frustum + anchors + crosshair test)");
+}
+
+// Null (omitted from the JSON) when the counters were not enabled for this run.
+static ReportVisibilityRays? BuildRayReport(VisibilityCountersSnapshot rays, TimeSpan evalElapsed, bool enabled)
+{
+    if (!enabled && rays.BakesLoaded == 0)
+    {
+        return null;
+    }
+
+    double evalMs = evalElapsed.TotalMilliseconds;
+    return new ReportVisibilityRays(
+        rays.SampledTicks,
+        rays.PairsEvaluated,
+        rays.PairsNoAnchorInFrustum,
+        rays.PairsExposed,
+        rays.PairsCouldSee,
+        rays.AnchorsTotal,
+        rays.AnchorsInFrustum,
+        rays.RaysCast,
+        rays.RaysClear,
+        rays.RaysCastOutsideFrustum,
+        rays.RaysCastOnFrustumRejectedPairs,
+        rays.RaysSkippedByEarlyExit,
+        Math.Round(rays.RayMs, 2),
+        Math.Round(rays.SampleMs, 2),
+        evalMs > 0 ? Math.Round(rays.RayMs / evalMs, 4) : 0.0,
+        evalMs > 0 ? Math.Round(rays.SampleMs / evalMs, 4) : 0.0,
+        rays.RayMs > 0 ? Math.Round(rays.RaysCast / (rays.RayMs / 1000.0)) : 0.0,
+        rays.RaysSkippedByGate,
+        rays.RaysSkippedBySmoke,
+        rays.RaysShortCircuited,
+        Math.Round(rays.BakeLoadMs, 2),
+        Math.Round(rays.BvhBuildMs, 2),
+        rays.BakeTriangles,
+        rays.BakesLoaded);
+}
+
 // ── Report Records ─────────────────────────────────────────────────────────
 
-internal sealed record TestCase(string Id, string DemoPath, string? LeetifyJson);
+internal sealed record TestCase(string Id, string DemoPath);
 
 internal sealed record BenchReport(ReportMetadata Metadata, ReportPerformance Performance, List<PlayerReport> Players);
 
@@ -1507,21 +1470,41 @@ internal sealed record ReportPerformance(
     int MaterializedPlayers,
     int TimelineEvents,
     GcReport Gc,
-    ReportEntityProfile? EntityProfile = null);
+    ReportEntityProfile? EntityProfile = null,
+    ReportVisibilityRays? VisibilityRays = null);
 
 internal sealed record GcReport(int Gen0, int Gen1, int Gen2, int EvalGen0, int EvalGen1, long AllocBytes);
 
 /// <summary>
 ///     Entity-decode sub-phase timings (all milliseconds) captured when a profiled run ran
 ///     (<see cref="CS2DemoKit.Parser.Profiling.Enabled" />). Null in the report when no profiled run captured data.
-///     Intervals nest:
-///     <c>
-///         ScannerSeekMs ⊇ PacketEntitiesMs ⊇ (FieldPathMs + FieldValueMs +
-///         DescriptorBuildMs)
-///     </c>
-///     .
+///     <para>
+///         This is TWO disjoint cost centres, not one tree. The per-frame tree nests:
+///         <c>ScannerSeekMs ⊇ PacketEntitiesMs ⊇ (FieldPathMs + FieldValueMs + DescriptorBuildMs)</c>,
+///         each level plus an unattributed remainder. <see cref="PrecomputeMs" /> sits OUTSIDE that tree and
+///         does not double-count against it: <c>PrecomputeParallelDigests</c> decodes the whole entity stream
+///         up front on worker threads, and every worker owns its own <c>EntityStateLayer</c> (hence its own
+///         <c>EntityTracker</c> and entity set), so worker decode never lands in the accumulators this record
+///         reads, which come from the scanner's single main-thread tracker.
+///     </para>
+///     <para>
+///         The failure mode that motivates carrying precompute in the JSON at all: once the precompute path
+///         runs, the eval loop consumes a per-frame digest instead of driving the layer, so the seek tree
+///         collapses toward zero (the tracker snapshot may even report Enabled=false) and a regression in the
+///         parallel decode is invisible in every other field here. Precompute is roughly 70% of eval
+///         wall-time, so a report without it watches the wrong 30%. Both cost centres sit inside
+///         <c>ReportPerformance.EvalMs</c>: the library nests its <c>analysis.precompute</c> span under
+///         <c>analysis.eval</c>.
+///     </para>
+///     <para>
+///         Do NOT baseline against the <c>bench-reports/*.json</c> committed before this field existed. Those
+///         runs used a ruleset with <c>edge_count</c> 9, i.e. a near-empty rule graph, so their eval and
+///         precompute numbers measure almost no rule work and will read as a false regression against any
+///         real ruleset. Take a fresh baseline first.
+///     </para>
 /// </summary>
 internal sealed record ReportEntityProfile(
+    double PrecomputeMs,
     double ScannerSeekMs,
     double ProviderPollMs,
     double ProjectileScanMs,
@@ -1530,6 +1513,7 @@ internal sealed record ReportEntityProfile(
     double FieldPathMs,
     double FieldValueMs,
     double DescriptorBuildMs,
+    long PrecomputeAllocBytes,
     long ScannerSeekAllocBytes,
     long ProviderPollAllocBytes,
     long ProjectileScanAllocBytes,
@@ -1544,6 +1528,56 @@ internal sealed record ReportEntityProfile(
     int DescriptorBuilds);
 
 internal sealed record PlayerReport(string Name, int Slot, int Team, int TemplateIndex, Dictionary<string, object?> Stats);
+
+/// <summary>
+///     The visibility path's measured ray budget for one run, from <c>VisibilityCounters</c>. Present
+///     only on runs made with <c>--ray-counters</c>. <see cref="RayShareOfEval" /> is raycast
+///     wall-clock over <c>ReportPerformance.EvalMs</c>; the raycasting runs single-threaded on the
+///     eval thread, so that share is the ceiling on what a faster traversal can take off eval.
+///     <para>
+///         <see cref="RaysSkippedByGate" /> and <see cref="RaysSkippedBySmoke" /> arrived with the
+///         engine's ray gating (0.11.0). From that version every anchor is cast, gate-skipped or
+///         early-exit-skipped exactly once, so <c>RaysCast + RaysSkippedByGate + RaysSkippedByEarlyExit
+///         == AnchorsTotal</c>. Reports written before it have no gate fields and a wider
+///         <see cref="RaysSkippedByEarlyExit" /> (it then also covered the out-of-frustum anchors of an
+///         exposed pair, which the gate now books); compare the two eras on <see cref="PairsCouldSee" />
+///         and the players block, not on the skip columns.
+///     </para>
+///     <para>
+///         <see cref="RaysShortCircuited" /> arrived with the last-occluder hint (also 0.11.0): of the
+///         rays cast, those decided by the triangle that blocked the same sightline last sample, without
+///         a BVH traversal. A short-circuited ray still counts in <see cref="RaysCast" /> and its time in
+///         <see cref="RayMs" />, so the ray tallies are comparable with the pre-hint era and the
+///         saving shows in <see cref="RayMs" />. <c>RaysShortCircuited / RaysCast</c> is the hit rate
+///         the batch-precompute decision hangs on; reports written against 0.10.0 have no such
+///         field.
+///     </para>
+/// </summary>
+internal sealed record ReportVisibilityRays(
+    long SampledTicks,
+    long DirectedPairs,
+    long PairsFrustumRejected,
+    long PairsExposed,
+    long PairsCouldSee,
+    long AnchorsTotal,
+    long AnchorsInFrustum,
+    long RaysCast,
+    long RaysClear,
+    long RaysCastOutsideFrustum,
+    long RaysCastOnFrustumRejectedPairs,
+    long RaysSkippedByEarlyExit,
+    double RayMs,
+    double TransitionScanMs,
+    double RayShareOfEval,
+    double TransitionScanShareOfEval,
+    double RaysPerSecond,
+    long RaysSkippedByGate,
+    long RaysSkippedBySmoke,
+    long RaysShortCircuited,
+    double BakeLoadMs = 0,
+    double BvhBuildMs = 0,
+    long BakeTriangles = 0,
+    long BakesLoaded = 0);
 
 internal static class JsonOpts
 {

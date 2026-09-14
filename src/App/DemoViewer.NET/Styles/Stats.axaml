@@ -1,0 +1,338 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="using:Avalonia.Data.Converters"
+        xmlns:stats="using:DemoViewer.NET.Controls.Stats">
+
+    <!--
+        Stats.axaml — the stats component library's theme layer (v0.8.1).
+
+        The nine controls in Controls/Stats/ hold no brush in code. Every colour they use arrives here as
+        a {DynamicResource} token, so a theme switch re-resolves it and AffectsRender repaints. That is
+        the whole contract; a control that paints a hard-coded colour is a bug.
+
+        Seven of the nine draw themselves (StatValue, SegmentedBar, Sparkline, DivergingBar, PipStrip,
+        RingGauge, SprayPlot) and so need only default property values, set by a plain Style. The two that
+        are layout and text (StatTile, TeamBadge) are templated and get a ControlTheme in
+        Styles.Resources below.
+
+        See docs/ui/stats-components.md for what each component is for, and docs/ui/design-system.md for
+        the contracts.
+    -->
+
+    <Styles.Resources>
+
+        <!-- ── StatTile — big number over a label, the player view's core stat strip ──────────────────
+             The number is a nested StatValue rather than a TextBlock, so the sentiment rule is not
+             reimplemented here: the tile inherits it. The nested control picks up its accent brushes from
+             the app-wide stats|StatValue style below, so nothing is passed down but the data. -->
+        <ControlTheme x:Key="{x:Type stats:StatTile}" TargetType="stats:StatTile">
+            <Setter Property="MinWidth" Value="76" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Name="PART_Root"
+                            Background="{DynamicResource CardBg}"
+                            BorderBrush="{DynamicResource BorderSubtle}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="14 8">
+                        <StackPanel>
+                            <stats:StatValue Name="PART_Value"
+                                             Value="{TemplateBinding Value}"
+                                             Text="{TemplateBinding Text}"
+                                             Format="{TemplateBinding Format}"
+                                             Scale="{TemplateBinding Scale}"
+                                             Minimum="{TemplateBinding Minimum}"
+                                             Maximum="{TemplateBinding Maximum}"
+                                             Polarity="{TemplateBinding Polarity}"
+                                             NeutralLow="{TemplateBinding NeutralLow}"
+                                             NeutralHigh="{TemplateBinding NeutralHigh}"
+                                             StrongSentimentAt="{TemplateBinding StrongSentimentAt}"
+                                             Mode="Plain"
+                                             TextAlignment="Left"
+                                             Padding="0"
+                                             FontSize="20"
+                                             Height="26"
+                                             FontFeatures="tnum"
+                                             Foreground="{DynamicResource TextCardHeader}" />
+                            <TextBlock Name="PART_Label"
+                                       Text="{TemplateBinding Label}"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextLabel}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Name="PART_Caption"
+                                       Text="{TemplateBinding Caption}"
+                                       FontSize="11"
+                                       FontFeatures="tnum"
+                                       Margin="0 2 0 0"
+                                       Foreground="{DynamicResource TextDim}"
+                                       TextTrimming="CharacterEllipsis"
+                                       IsVisible="{TemplateBinding Caption,
+                                           Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+
+            <!-- The lead metric of the strip: a brighter surface and a larger number, so one tile in a row
+                 of eight reads first. Matches the pdTile.hero it replaces. -->
+            <Style Selector="^:hero /template/ Border#PART_Root">
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
+            </Style>
+            <Style Selector="^:hero /template/ stats|StatValue#PART_Value">
+                <Setter Property="FontSize" Value="25" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+        </ControlTheme>
+
+        <!-- ── TeamBadge — side-coloured team header with a WIN/LOSS pill ────────────────────────────
+             Side and outcome arrive as pseudo-classes from the control, so every colour decision is here
+             and none is in code. The pill is collapsed by default and only the three outcome states turn
+             it on, which means TeamOutcome.None needs no special casing anywhere. -->
+        <ControlTheme x:Key="{x:Type stats:TeamBadge}" TargetType="stats:TeamBadge">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Name="PART_Root"
+                            Background="Transparent"
+                            BorderBrush="{DynamicResource TextDim}"
+                            BorderThickness="3 0 0 0"
+                            Padding="10 6">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <TextBlock Name="PART_Label"
+                                       Text="{TemplateBinding Label}"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextDim}"
+                                       VerticalAlignment="Center" />
+                            <Border Name="PART_Pill"
+                                    CornerRadius="2"
+                                    Padding="5 0"
+                                    IsVisible="False"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource TextDim}">
+                                <TextBlock Text="{TemplateBinding OutcomeText}"
+                                           FontFamily="Consolas,Menlo,monospace"
+                                           FontSize="9"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextOnAccent}" />
+                            </Border>
+                            <TextBlock Name="PART_Detail"
+                                       Text="{TemplateBinding Detail}"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       FontFeatures="tnum"
+                                       Foreground="{DynamicResource TextLabel}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+
+            <!-- Side colours match the board's existing CT-blue / T-amber convention exactly. -->
+            <Style Selector="^:ct /template/ Border#PART_Root">
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentInteractive}" />
+            </Style>
+            <Style Selector="^:ct /template/ TextBlock#PART_Label">
+                <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
+            </Style>
+            <Style Selector="^:t /template/ Border#PART_Root">
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentAmber}" />
+            </Style>
+            <Style Selector="^:t /template/ TextBlock#PART_Label">
+                <Setter Property="Foreground" Value="{DynamicResource AccentAmber}" />
+            </Style>
+
+            <Style Selector="^:win /template/ Border#PART_Pill">
+                <Setter Property="IsVisible" Value="True" />
+                <Setter Property="Background" Value="{DynamicResource StatPositive}" />
+            </Style>
+            <Style Selector="^:loss /template/ Border#PART_Pill">
+                <Setter Property="IsVisible" Value="True" />
+                <Setter Property="Background" Value="{DynamicResource StatNegative}" />
+            </Style>
+            <Style Selector="^:draw /template/ Border#PART_Pill">
+                <Setter Property="IsVisible" Value="True" />
+                <Setter Property="Background" Value="{DynamicResource TextDimGray}" />
+            </Style>
+        </ControlTheme>
+
+    </Styles.Resources>
+
+    <!-- ══ Drawn controls: default property values ═════════════════════════════════════════════════ -->
+
+    <!-- ── StatValue — the workhorse cell ────────────────────────────────────────────────────────────
+         Defaults are the board's current cell look (mono 11, TextEntityFieldVal), so swapping a
+         TextBlock.statsCell for one of these changes nothing until a scale is supplied.
+         Foreground is set rather than inherited: it is what a NEUTRAL value paints with, and a control
+         with no parent Foreground (a capture harness, a flyout) would otherwise draw near-black on a
+         near-black panel. -->
+    <Style Selector="stats|StatValue">
+        <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Padding" Value="4 1" />
+        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="Foreground" Value="{DynamicResource TextEntityFieldVal}" />
+        <Setter Property="PositiveBrush" Value="{DynamicResource StatPositive}" />
+        <Setter Property="PositiveSoftBrush" Value="{DynamicResource StatPositiveSoft}" />
+        <Setter Property="NegativeSoftBrush" Value="{DynamicResource StatNegativeSoft}" />
+        <Setter Property="NegativeBrush" Value="{DynamicResource StatNegative}" />
+        <Setter Property="BarFillBrush" Value="{DynamicResource StatBarFill}" />
+        <!-- The empty track is ON by default. A fill with no full-width reference behind it cannot be
+             read: half of a wide cell and all of a narrow one draw the same box, and the eye has nothing
+             to measure against. It was opt-in at first on the theory that a row of tracks would read as
+             a grid of boxes; at this weight it reads as the axis it is. -->
+        <Setter Property="BarTrackBrush" Value="{DynamicResource StatBarTrack}" />
+        <Setter Property="LeaderBrush" Value="{DynamicResource AccentAmber}" />
+    </Style>
+
+    <!-- `.untracked` drops the track again, for a one-off bar with no column to compare against. -->
+    <Style Selector="stats|StatValue.untracked">
+        <Setter Property="BarTrackBrush" Value="{x:Null}" />
+    </Style>
+
+    <!-- `.chip` is the utility table's rating pill: centred, padded, tinted by its own sentiment. -->
+    <Style Selector="stats|StatValue.chip">
+        <Setter Property="Mode" Value="Chip" />
+        <Setter Property="TextAlignment" Value="Center" />
+        <Setter Property="Padding" Value="8 2" />
+        <Setter Property="CornerRadius" Value="3" />
+    </Style>
+
+    <!-- ── SegmentedBar — stacked proportion bar ─────────────────────────────────────────────────── -->
+    <Style Selector="stats|SegmentedBar">
+        <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="CornerRadius" Value="3" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccent}" />
+        <Setter Property="FillBrush" Value="{DynamicResource StatBarFill}" />
+        <Setter Property="TrackBrush" Value="{DynamicResource StatBarTrack}" />
+        <!-- The categorical palette. A view model names a colour by SLOT and never holds one, so a
+             theme owns these exactly like every other token. One palette rather than one per category:
+             a slot means "the first thing, the second thing", which is not category-specific, and a
+             second copy is a second set to keep distinguishable. -->
+        <Setter Property="Slot0Brush" Value="{DynamicResource StatSlot0}" />
+        <Setter Property="Slot1Brush" Value="{DynamicResource StatSlot1}" />
+        <Setter Property="Slot2Brush" Value="{DynamicResource StatSlot2}" />
+        <Setter Property="Slot3Brush" Value="{DynamicResource StatSlot3}" />
+        <Setter Property="Slot4Brush" Value="{DynamicResource StatSlot4}" />
+        <Setter Property="Slot5Brush" Value="{DynamicResource StatSlot5}" />
+    </Style>
+
+    <!-- The in-cell density: four counts in the width of a table column. -->
+    <Style Selector="stats|SegmentedBar.compact">
+        <Setter Property="Compact" Value="True" />
+        <Setter Property="FontSize" Value="9" />
+        <Setter Property="Height" Value="14" />
+    </Style>
+
+    <!-- ── Sparkline — per-round micro chart ─────────────────────────────────────────────────────── -->
+    <Style Selector="stats|Sparkline">
+        <Setter Property="Height" Value="36" />
+        <Setter Property="Stroke" Value="{DynamicResource AccentInteractive}" />
+        <Setter Property="PositiveBrush" Value="{DynamicResource StatPositive}" />
+        <Setter Property="NegativeBrush" Value="{DynamicResource TextDim}" />
+        <Setter Property="BaselineBrush" Value="{DynamicResource BorderSubtle}" />
+    </Style>
+
+    <!-- == DivergingBar - won versus lost about a break-even line ============================== -->
+    <Style Selector="stats|DivergingBar">
+        <Setter Property="Height" Value="22" />
+        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="NegativeBrush" Value="{DynamicResource StatNegative}" />
+        <Setter Property="PositiveBrush" Value="{DynamicResource StatPositive}" />
+        <Setter Property="AxisBrush" Value="{DynamicResource BorderStrong}" />
+    </Style>
+
+    <!-- == PipStrip - a small count as marks rather than a number ============================== -->
+    <Style Selector="stats|PipStrip">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontFeatures" Value="tnum" />
+        <Setter Property="PipBrush" Value="{DynamicResource AccentInteractive}" />
+        <Setter Property="EmptyBrush" Value="{DynamicResource BorderStrong}" />
+    </Style>
+    <!-- The rarest tier of a multi-kill column earns the attention colour. -->
+    <Style Selector="stats|PipStrip.rare">
+        <Setter Property="PipBrush" Value="{DynamicResource AccentAmber}" />
+    </Style>
+    <Style Selector="stats|PipStrip.good">
+        <Setter Property="PipBrush" Value="{DynamicResource StatPositive}" />
+    </Style>
+
+    <!-- ── RingGauge — one headline number on a circular track ───────────────────────────────────── -->
+    <Style Selector="stats|RingGauge">
+        <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Width" Value="54" />
+        <Setter Property="Height" Value="54" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBright}" />
+        <Setter Property="TrackBrush" Value="{DynamicResource StatBarTrack}" />
+        <Setter Property="CaptionBrush" Value="{DynamicResource TextLabel}" />
+        <Setter Property="PositiveBrush" Value="{DynamicResource StatPositive}" />
+        <Setter Property="PositiveSoftBrush" Value="{DynamicResource StatPositiveSoft}" />
+        <Setter Property="NegativeSoftBrush" Value="{DynamicResource StatNegativeSoft}" />
+        <Setter Property="NegativeBrush" Value="{DynamicResource StatNegative}" />
+    </Style>
+
+    <!-- ── SprayPlot — one spray over the weapon's reference pattern ──────────────────────────────
+         Same division as Sparkline, which is the structural analogue: the data trace takes the
+         interactive accent, the frame behind it takes the subtle border, and the reference pattern
+         sits in the dimmest text token so the player's own bullets read on top of it.
+         Defaulted HERE rather than at the call site, which is how the mistake was possible: Avalonia
+         resolves a missing {DynamicResource} silently, so two mistyped token names left the control on
+         its code-held fallback colours in every theme with nothing to report it. -->
+    <Style Selector="stats|SprayPlot">
+        <Setter Property="PatternBrush" Value="{DynamicResource TextDim}" />
+        <Setter Property="ShotBrush" Value="{DynamicResource AccentInteractive}" />
+        <Setter Property="AxisBrush" Value="{DynamicResource BorderSubtle}" />
+    </Style>
+
+    <!-- ══ Table furniture: style classes, not controls ════════════════════════════════════════════
+         These are setter collections with no behaviour of their own, so they stay classes rather than
+         forking near-duplicate controls (design-system.md, adoption guide). Leaf header TEXT reuses the
+         existing TextBlock.col-label from Tables.axaml; nothing here re-declares it. -->
+
+    <!-- Sortable leaf column header. Ghost until sorted, then the interactive accent. -->
+    <Style Selector="Button.stat-col-header">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="4 2" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalAlignment" Value="Bottom" />
+    </Style>
+    <Style Selector="Button.stat-col-header:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
+    </Style>
+    <Style Selector="Button.stat-col-header.sorted TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
+    </Style>
+
+    <!-- The sort direction caret. Dim until its column is the sort key. -->
+    <Style Selector="TextBlock.stat-sort-caret">
+        <Setter Property="FontSize" Value="8" />
+        <Setter Property="Margin" Value="3 0 0 0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+    </Style>
+    <Style Selector="Button.stat-col-header.sorted TextBlock.stat-sort-caret">
+        <Setter Property="Foreground" Value="{DynamicResource AccentInteractive}" />
+    </Style>
+
+    <!-- The band spanning several leaf columns ("Quality Rating Breakdown"). Sits one row above the
+         leaf headers and is centred over them. -->
+    <Style Selector="Border.stat-group-header">
+        <Setter Property="Background" Value="{DynamicResource PanelHeaderBg}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+        <Setter Property="BorderThickness" Value="0 0 1 1" />
+        <Setter Property="Padding" Value="6 3" />
+    </Style>
+    <Style Selector="TextBlock.stat-group-label">
+        <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+
+</Styles>

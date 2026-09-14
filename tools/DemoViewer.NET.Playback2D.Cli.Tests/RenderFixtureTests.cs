@@ -3,6 +3,7 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Goldens;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
@@ -233,7 +234,15 @@ public class RenderFixtureTests
         await Assert.That(run.ExitCode).IsEqualTo(0);
         JsonObject payload = run.Json();
         await Assert.That(payload["assets_source"]!.GetValue<string>()).IsEqualTo("flag");
-        await Assert.That(payload["map_version"]!.GetValue<string>()).IsEqualTo("1efb9403");
+
+        // Read from the bundle rather than pinned to a literal CRC. What this test is about is that
+        // the version reported comes from the assets root the flag named; the CRC itself is a fact
+        // about a bake, and freezing it here turns every legitimate re-bake into a failure in a file
+        // that has nothing to do with baking. It did exactly that when the map soups landed.
+        string? expected = MapAssetPipeline.TryReadMapVersion(Dv2d.AssetsDirectory, "de_mirage");
+        await Assert.That(expected).IsNotNull();
+        await Assert.That(expected).IsNotEmpty();
+        await Assert.That(payload["map_version"]!.GetValue<string>()).IsEqualTo(expected);
     }
 
     // "Not blank" has to mean "more than one colour", not "not black": a fixture whose camera is wrong
