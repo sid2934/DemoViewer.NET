@@ -130,7 +130,13 @@ public sealed class TrackerSceneSnapshot
             _labelBySlot[slot] = label;
         }
 
-        if (controller["m_steamID"] is { } raw)
+        // m_steamID sits on the long lane, which the indexer boxes on every read; the typed read
+        // does not. The boxed path stays for a schema that maps it elsewhere.
+        if (controller.TryGet<ulong>("m_steamID") is { } steamId)
+        {
+            _steamIdBySlot[slot] = steamId;
+        }
+        else if (controller["m_steamID"] is { } raw)
         {
             _steamIdBySlot[slot] = CoerceUlong(raw);
         }
