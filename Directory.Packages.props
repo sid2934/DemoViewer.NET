@@ -77,18 +77,21 @@
             the other two transitively; the explicit references below are for the projects that
             use the parser without the engine.
 
-            0.11.0 carries the aim-shot-context engine work this app's Aim boards read: the new
-            per-player providers, the visibility rising edge and the per-shot context. It also
-            breaks things 0.10.0 allowed. The ones that reach a consumer are a wider
-            CatalogEnrichment and CatalogProvider, a Sentinels map on EnrichmentInfrastructure
-            that is required rather than defaulted, and two ruleset errors that are now hard: a
-            scoreboard label collision, and an ungated sentinel aggregate. The second is the one
-            to watch on a bump, because the resolver returns nothing once it has any diagnostic,
-            so one bad aggregate discards every stat in that file rather than just its own.
+            0.12.0 adds the forward analysis path: DemoAnalysis.Run(path, rules, options) reads
+            the demo as a stream and never retains its frames, and the retained
+            DemoParser.Parse + Evaluate(demo, ...) path this app's playback needs is unchanged.
+            The surface changes that reach a consumer: DemoFrame.CommandKind is required and
+            Command is computed from it; RuleChainBuilder and StateGraphEvaluator take an
+            AnalysisTarget instead of a ParsedDemo; per-player nodes materialise during the run
+            and are read back from AnalysisRun.MaterializedPlayers; EvaluationResult.Messages
+            holds MessageRef rather than the frame; AnalysisOptions.CaptureSnapshots is bool?
+            with null meaning on over a ParsedDemo and off over a stream; DemoAnalyzer,
+            DemoContext and RoundInfo are gone; ParsedDemo's constructor is public; enum-typed
+            and GameTick_t entity fields project as int rather than ulong.
         -->
-        <PackageVersion Include="CS2DemoKit.Parser" Version="0.11.0"/>
-        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.11.0"/>
-        <PackageVersion Include="CS2DemoKit.Analysis.Rules" Version="0.11.0"/>
+        <PackageVersion Include="CS2DemoKit.Parser" Version="0.12.0"/>
+        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.12.0"/>
+        <PackageVersion Include="CS2DemoKit.Analysis.Rules" Version="0.12.0"/>
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
         <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15"/>
         <!-- 3.29.5+ required by Cs2VideoGenerator.Core, and comfortably above the >= 3.27.0 floor

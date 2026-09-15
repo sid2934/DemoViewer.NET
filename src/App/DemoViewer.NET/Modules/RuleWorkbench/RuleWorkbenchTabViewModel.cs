@@ -496,7 +496,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
         {
             RuleChainBuilder builder = new(
                 EventRegistry.Build(),
-                demo,
+                demo is null ? null : AnalysisTarget.From(demo),
                 entityProviders: EntityValueProviderRegistry.CreateDefault(),
                 perPlayerEntityProviders: PerPlayerEntityValueProviderRegistry.CreateDefault());
             CatalogScopeAdapter adapter = CatalogScopeAdapter.From(CatalogResource.Load());

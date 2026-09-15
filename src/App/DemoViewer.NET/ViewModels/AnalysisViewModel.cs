@@ -201,7 +201,6 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         (Type EventType, Type? ParameterType, IReadOnlyDictionary<string, EventFieldAccessor> Fields)> _eventMetaByEdgeKey = new();
 
     private Dictionary<int, int>? _firstMessageByFrame; // frameIdx → first global msg idx
-    private Dictionary<DemoFrame, int>? _frameIndexByFrame; // DemoFrame → frameIdx
 
     // ── Graph visualization ───────────────────────────────────────────────────
 
@@ -266,7 +265,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     private bool _loadingBreakpoints;
 
-    private IReadOnlyList<(DemoFrame Frame, NetMessage Message)>? _messageList;
+    private IReadOnlyList<MessageRef>? _messageList;
 
     // ── Evaluation data ───────────────────────────────────────────────────────
 
@@ -663,7 +662,6 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         _eventMetaByEdgeKey = new Dictionary<(string, string, string, string?), (Type, Type?, IReadOnlyDictionary<string, EventFieldAccessor>)>();
         CloseConditionEditor();
         _firstMessageByFrame = null;
-        _frameIndexByFrame = null;
         _currentFrameIndex = -1;
         _currentSnapshot = null;
         PlayerTables = [];
@@ -755,7 +753,6 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         _messageSnapshots = null;
         _messageList = null;
         _firstMessageByFrame = null;
-        _frameIndexByFrame = null;
         _currentFrameIndex = -1;
         _currentSnapshot = null;
 
@@ -807,25 +804,13 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             // value/active keywords (built once per evaluation; the universe doesn't change mid-demo).
             _availableConditionIdentifiers = NodeBreakpointConditions.AvailableIdentifiers(result.FinalTrackedNodes);
 
-            // Build frame-index lookup maps.
-            Dictionary<DemoFrame, int> frameIndexByFrame = new(ReferenceEqualityComparer.Instance);
+            // First message index per frame, for frame-click seeks.
             Dictionary<int, int> firstMessageByFrame = new();
-
-            for (int i = 0; i < demo.Frames.Count; i++)
-            {
-                frameIndexByFrame[demo.Frames[i]] = i;
-            }
-
             for (int msgIdx = 0; msgIdx < result.Messages.Count; msgIdx++)
             {
-                DemoFrame frame = result.Messages[msgIdx].Frame;
-                if (frameIndexByFrame.TryGetValue(frame, out int fi) && !firstMessageByFrame.ContainsKey(fi))
-                {
-                    firstMessageByFrame[fi] = msgIdx;
-                }
+                firstMessageByFrame.TryAdd(result.Messages[msgIdx].FrameIndex, msgIdx);
             }
 
-            _frameIndexByFrame = frameIndexByFrame;
             _firstMessageByFrame = firstMessageByFrame;
 
             // ── Node view-models ────────────────────────────────────────────
@@ -2826,12 +2811,12 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     // The frame index a message belongs to (for positioning the entity accessor at the fire's frame).
     private int FrameIndexOfMessage(int msgIdx)
     {
-        if (_messageList is null || _frameIndexByFrame is null || msgIdx < 0 || msgIdx >= _messageList.Count)
+        if (_messageList is null || msgIdx < 0 || msgIdx >= _messageList.Count)
         {
             return -1;
         }
 
-        return _frameIndexByFrame.GetValueOrDefault(_messageList[msgIdx].Frame, -1);
+        return _messageList[msgIdx].FrameIndex;
     }
 
     // An edge breakpoint's default hits are the discrete message indices where its backing StateEdge
@@ -3044,7 +3029,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             _graphViewModel.InvalidateTableCells();
         }
 
-        (DemoFrame frame, NetMessage msg) = _messageList[index];
+        MessageRef message = _messageList[index];
+        NetMessage msg = message.Message;
         if (CardFactory is not null)
         {
             HarvestCardViewModel card = CardFactory(msg);
@@ -3058,9 +3044,9 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             HasCurrentCard = false;
         }
 
-        if (notifyFrameChange && _frameIndexByFrame is not null)
+        if (notifyFrameChange)
         {
-            int frameIdx = _frameIndexByFrame.GetValueOrDefault(frame, -1);
+            int frameIdx = message.FrameIndex;
             if (frameIdx >= 0 && frameIdx != _currentFrameIndex)
             {
                 _currentFrameIndex = frameIdx;

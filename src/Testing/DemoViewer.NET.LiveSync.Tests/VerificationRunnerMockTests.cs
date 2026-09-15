@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Parser;
+using CS2OpenSchema.Protos;
 using Cs2VideoGenerator.Core;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Services.LiveSync;
@@ -33,7 +34,7 @@ public class VerificationRunnerMockTests
         {
             frames[i] = new DemoFrame
             {
-                Command = "dem_packet",
+                CommandKind = EDemoCommands.DemPacket,
                 FrameNumber = i,
                 HeaderLength = 0,
                 IsCompressed = false,

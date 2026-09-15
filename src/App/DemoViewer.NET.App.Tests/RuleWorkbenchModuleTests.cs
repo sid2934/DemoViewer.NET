@@ -631,7 +631,7 @@ public class RuleWorkbenchModuleTests
         Dictionary<int, int> killsByTick = CountByTick(report.FiresFor(kills.Id));
         Dictionary<int, int> deathsByTick = CountByTick(report.FiresFor(deaths!.Id));
         // Keyed by the tick of the FRAME the event rode in, which is the clock a WorkbenchTraceFire.Tick
-        // is stamped from (result.Messages[i].Frame.ServerTick), not by GameEvent.GameTick: the decoder
+        // is stamped from (result.Messages[i].Tick), not by GameEvent.GameTick: the decoder
         // derives that from the message's own server tick when the message carries one, and a demo
         // whose event tick and frame header tick disagree would otherwise miss the lookup for no
         // reason the assertion is about.

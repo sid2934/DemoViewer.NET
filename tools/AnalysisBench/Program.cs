@@ -514,8 +514,8 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
                         continue;
                     }
 
-                    (DemoFrame frame, NetMessage msg) = result.Messages[m];
-                    Console.WriteLine($"    [tick {frame.ServerTick,8} msg {msg.GetType().Name,-30}]  IsActive={s.IsActive,-5}  Value={s.DisplayValue}");
+                    MessageRef msg = result.Messages[m];
+                    Console.WriteLine($"    [tick {msg.Tick,8} msg {msg.Message.GetType().Name,-30}]  IsActive={s.IsActive,-5}  Value={s.DisplayValue}");
                     prevActive = s.IsActive;
                     prevValue = s.DisplayValue;
                     transitions++;

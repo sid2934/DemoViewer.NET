@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Parser;
+using CS2OpenSchema.Protos;
 using DemoViewer.NET.ViewModels.Playback;
 
 #endregion
@@ -106,7 +107,7 @@ public class PlaybackControllerTickSeekTests
         {
             frames[i] = new DemoFrame
             {
-                Command = "DEM_Packet",
+                CommandKind = EDemoCommands.DemPacket,
                 FrameNumber = i,
                 ServerTick = ticks[i],
                 HeaderLength = 0,

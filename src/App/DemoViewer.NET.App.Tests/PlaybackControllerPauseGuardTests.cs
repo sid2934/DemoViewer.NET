@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Parser;
+using CS2OpenSchema.Protos;
 using DemoViewer.NET.ViewModels.Playback;
 
 #endregion
@@ -55,7 +56,7 @@ public class PlaybackControllerPauseGuardTests
         {
             frames.Add(new DemoFrame
             {
-                Command = "DEM_Packet",
+                CommandKind = EDemoCommands.DemPacket,
                 FrameNumber = i,
                 ServerTick = i,
                 HeaderLength = 0,
