@@ -377,7 +377,7 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
         if (s.Enabled)
         {
             rows.Add(Row("scanner", string.Empty));
-            rows.Add(Indent("precompute (parallel)", $"{Ms(s.PrecomputeTicks)} · {Mib(s.PrecomputeAlloc)}", 1));
+            rows.Add(Indent("digest fold (Σ workers)", $"{Ms(s.FoldTicks)} · {Mib(s.FoldAlloc)}", 1));
             rows.Add(Indent("seek", $"{Ms(s.SeekTicks)} · {Mib(s.SeekAlloc)}", 1));
             rows.Add(Indent("snapshot", $"{Ms(s.SnapshotTicks)} · {Mib(s.SnapshotAlloc)}", 1));
             rows.Add(Indent("frames polled", s.FramesPolled.ToString("N0", CultureInfo.InvariantCulture), 1));

@@ -1372,8 +1372,8 @@ static void PrintEntityProfile(EntityProfilingSnapshot prof, ScannerProfilingSna
     double scannerTotal = seek + poll + proj + snap;
     double scannerAlloc = Mib(sprof.SeekAlloc + sprof.ProviderPollAlloc + sprof.ProjectileScanAlloc + sprof.SnapshotAlloc);
 
-    double precompute = Ms(sprof.PrecomputeTicks);
-    Console.WriteLine($"  Parallel precompute        {precompute,9:F1} ms  {Mib(sprof.PrecomputeAlloc),9:F1} MiB   (up-front chunked parallel decode)");
+    double fold = Ms(sprof.FoldTicks);
+    Console.WriteLine($"  Digest fold (Σ workers)    {fold,9:F1} ms  {Mib(sprof.FoldAlloc),9:F1} MiB   (producer worker time, not wall-clock)");
     Console.WriteLine($"  AdvanceAndPoll (Σ phases)  {scannerTotal,9:F1} ms  {scannerAlloc,9:F1} MiB   over {sprof.FramesPolled:N0} frames");
     Console.WriteLine($"    ├─ pre-frame snapshot    {snap,9:F1} ms  {Mib(sprof.SnapshotAlloc),9:F1} MiB");
     Console.WriteLine($"    └─ layer seek            {seek,9:F1} ms  {Mib(sprof.SeekAlloc),9:F1} MiB");
@@ -1442,7 +1442,7 @@ static ReportEntityProfile? BuildEntityProfileReport(EntityProfilingSnapshot pro
     }
 
     return new ReportEntityProfile(
-        Ms(sprof.PrecomputeTicks),
+        Ms(sprof.FoldTicks),
         Ms(sprof.SeekTicks),
         Ms(sprof.ProviderPollTicks),
         Ms(sprof.ProjectileScanTicks),
@@ -1451,7 +1451,7 @@ static ReportEntityProfile? BuildEntityProfileReport(EntityProfilingSnapshot pro
         Ms(prof.FieldPathTicks),
         Ms(prof.FieldValueTicks),
         Ms(prof.DescriptorBuildTicks),
-        sprof.PrecomputeAlloc,
+        sprof.FoldAlloc,
         sprof.SeekAlloc,
         sprof.ProviderPollAlloc,
         sprof.ProjectileScanAlloc,
@@ -1670,32 +1670,24 @@ internal sealed record BenchOutcome(
 ///     Entity-decode sub-phase timings (all milliseconds) captured when a profiled run ran
 ///     (<see cref="CS2DemoKit.Parser.Profiling.Enabled" />). Null in the report when no profiled run captured data.
 ///     <para>
-///         This is TWO disjoint cost centres, not one tree. The per-frame tree nests:
+///         Two disjoint cost centres, not one tree. The per-frame tree nests
 ///         <c>ScannerSeekMs ⊇ PacketEntitiesMs ⊇ (FieldPathMs + FieldValueMs + DescriptorBuildMs)</c>,
-///         each level plus an unattributed remainder. <see cref="PrecomputeMs" /> sits OUTSIDE that tree and
-///         does not double-count against it: <c>PrecomputeParallelDigests</c> decodes the whole entity stream
-///         up front on worker threads, and every worker owns its own <c>EntityStateLayer</c> (hence its own
-///         <c>EntityTracker</c> and entity set), so worker decode never lands in the accumulators this record
-///         reads, which come from the scanner's single main-thread tracker.
-///     </para>
-///     <para>
-///         The failure mode that motivates carrying precompute in the JSON at all: once the precompute path
-///         runs, the eval loop consumes a per-frame digest instead of driving the layer, so the seek tree
-///         collapses toward zero (the tracker snapshot may even report Enabled=false) and a regression in the
-///         parallel decode is invisible in every other field here. Precompute is roughly 70% of eval
-///         wall-time, so a report without it watches the wrong 30%. Both cost centres sit inside
-///         <c>ReportPerformance.EvalMs</c>: the library nests its <c>analysis.precompute</c> span under
-///         <c>analysis.eval</c>.
+///         each level plus an unattributed remainder. <see cref="DigestFoldMs" /> sits outside it: the
+///         digest producer's fold time summed over its workers, on either source. Each worker owns its own
+///         <c>EntityStateLayer</c>, so its decode never lands in the per-frame accumulators, and the eval
+///         loop consumes digests rather than driving the layer, so the seek tree reads near zero and a
+///         regression in the fold shows up in this field alone. Summed worker time is not wall-clock:
+///         compare it across runs, not against <c>ReportPerformance.EvalMs</c>.
 ///     </para>
 ///     <para>
 ///         Do NOT baseline against the <c>bench-reports/*.json</c> committed before this field existed. Those
 ///         runs used a ruleset with <c>edge_count</c> 9, i.e. a near-empty rule graph, so their eval and
-///         precompute numbers measure almost no rule work and will read as a false regression against any
+///         fold numbers measure almost no rule work and will read as a false regression against any
 ///         real ruleset. Take a fresh baseline first.
 ///     </para>
 /// </summary>
 internal sealed record ReportEntityProfile(
-    double PrecomputeMs,
+    double DigestFoldMs,
     double ScannerSeekMs,
     double ProviderPollMs,
     double ProjectileScanMs,
@@ -1704,7 +1696,7 @@ internal sealed record ReportEntityProfile(
     double FieldPathMs,
     double FieldValueMs,
     double DescriptorBuildMs,
-    long PrecomputeAllocBytes,
+    long DigestFoldAllocBytes,
     long ScannerSeekAllocBytes,
     long ProviderPollAllocBytes,
     long ProjectileScanAllocBytes,

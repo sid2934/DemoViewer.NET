@@ -1308,7 +1308,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            AppLog.OperationFailed(DiagLog, $"load collision bake for {demo.MapName}", ex);
+            string operation = $"load collision bake for {demo.MapName}";
+            AppLog.OperationFailed(DiagLog, operation, ex);
             return null;
         }
     }

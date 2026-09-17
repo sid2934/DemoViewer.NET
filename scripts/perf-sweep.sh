@@ -12,7 +12,7 @@ DLL="artifacts/bin/AnalysisBench/release/AnalysisBench.dll"
 RUNID="${1:-baseline}"
 OUT="docs/perf/parser-and-entity-decode/runs/${RUNID}"; mkdir -p "$OUT"
 RESULTS="$OUT/results.tsv"
-printf "demo\tsource\ttotal_med_ms\tparse_ms\teval_ms\tpass1_ms\tpass2_ms\tpass3_ms\tprecompute_ms\tframes\tcompressed\teval_alloc_MiB\n" > "$RESULTS"
+printf "demo\tsource\ttotal_med_ms\tparse_ms\teval_ms\tpass1_ms\tpass2_ms\tpass3_ms\tfold_ms\tframes\tcompressed\teval_alloc_MiB\n" > "$RESULTS"
 
 n1() { grep -oE '[0-9][0-9.,]*' | head -1 | tr -d ','; }   # first number, strip thousands commas
 
@@ -40,7 +40,7 @@ for demo in "${demos[@]}"; do
   p1=$(echo "$prof" | grep 'Pass 1' | grep -oE '[0-9.]+ ms' | n1)
   p2=$(echo "$prof" | grep 'Pass 2' | grep -oE '[0-9.]+ ms' | n1)
   p3=$(echo "$prof" | grep 'Pass 3' | grep -oE '[0-9.]+ ms' | n1)
-  pc=$(echo "$prof" | grep 'Parallel precompute' | grep -oE '[0-9.]+ ms' | n1)
+  pc=$(echo "$prof" | grep 'Digest fold' | grep -oE '[0-9.]+ ms' | n1)
   fr=$(echo "$prof" | grep 'Pass 1' | grep -oE '[0-9,]+ frames' | n1)
   cmp=$(echo "$prof" | grep 'Pass 1' | grep -oE '[0-9,]+ compressed' | n1)
   ea=$(echo "$prof" | grep 'Eval allocated' | grep -oE '[0-9.]+ MiB' | n1)
