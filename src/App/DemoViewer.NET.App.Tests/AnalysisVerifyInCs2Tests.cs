@@ -45,6 +45,11 @@ public class AnalysisVerifyInCs2Tests
     private static ConditionTarget NodeTarget(string name) =>
         ConditionTarget.ForNode(new GraphNodeViewModel(name));
 
+    // The edge-fire maps are keyed by IGraphNode.Key, not by node name: a name matches up to ten
+    // nodes once the graph carries per-player copies. A bare GraphNodeViewModel keys as game scope,
+    // so that is the form these seeds have to use.
+    private static string K(string nodeName) => GraphNodeKey.ForGameScope(nodeName).ToString();
+
     // ── Pure tick resolution (frame clock AS-IS) ───────────────────────────────────────────────
 
     [Test]
@@ -134,7 +139,7 @@ public class AnalysisVerifyInCs2Tests
     {
         using AnalysisViewModel vm = new();
         vm.SetVerifyPositionForTests(MessagesWithTicks(6), 2); // playhead frame tick = 200
-        vm.SetVerifyEdgeFiresForTests(("A", "X", "player_death", null), [1, 4]);
+        vm.SetVerifyEdgeFiresForTests((K("A"), K("X"), "player_death", null), [1, 4]);
         ConditionTarget edge = ConditionTarget.ForEdge(
             new GraphEdgeViewModel(new GraphNodeViewModel("A"), new GraphNodeViewModel("X"), "player_death", default));
 
@@ -148,8 +153,8 @@ public class AnalysisVerifyInCs2Tests
     {
         using AnalysisViewModel vm = new();
         vm.SetVerifyPositionForTests(MessagesWithTicks(8), 6); // playhead frame tick = 600
-        vm.SetVerifyEdgeFiresForTests(("A", "X", "e1", null), [2]);
-        vm.SetVerifyEdgeFiresForTests(("B", "X", "e2", null), [5]);
+        vm.SetVerifyEdgeFiresForTests((K("A"), K("X"), "e1", null), [2]);
+        vm.SetVerifyEdgeFiresForTests((K("B"), K("X"), "e2", null), [5]);
 
         // Union {2,5}; nearest at-or-before playhead (6) is 5 ⇒ tick 500, NOT the playhead's 600.
         await Assert.That(vm.ResolveVerifyTick(NodeTarget("X"))).IsEqualTo(500)

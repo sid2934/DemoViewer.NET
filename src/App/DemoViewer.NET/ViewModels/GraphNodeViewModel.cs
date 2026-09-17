@@ -2,6 +2,7 @@
 
 using Avalonia;
 using Avalonia.Media;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.Visualization;
@@ -18,6 +19,10 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
 
     [ObservableProperty]
     private string? _displayValue;
+
+    // Last theme-resolved per-player border, refreshed whenever Style is read on the UI thread and
+    // reused when it is read off it. See the Style getter.
+    private Color? _perPlayerBorder;
 
     /// <summary>
     ///     Whether a graph breakpoint is armed on this node. Satisfies <see cref="IGraphNode.HasBreakpoint" />
@@ -100,8 +105,20 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
                 return null;
             }
 
-            Color border = ThemeColors.Get(
-                "GraphNodePerPlayerBorder", Application.Current?.ActualThemeVariant, "#009688");
+            // Application.ActualThemeVariant is a StyledProperty, so reading it off the UI thread
+            // throws "Call from invalid thread". This getter is read from BOTH threads: the renderer
+            // on the UI thread, and MsaglTranslator on the layout thread that GraphViewModel.SetGraphAsync
+            // pushes work onto. Resolve live when we are on the UI thread, which is what keeps a theme
+            // switch recolouring these borders, and hand the layout pass the last resolved value.
+            // Layout reads Style for size overrides, which this one does not set, so the cached colour
+            // costs it nothing.
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                _perPlayerBorder = ThemeColors.Get(
+                    "GraphNodePerPlayerBorder", Application.Current?.ActualThemeVariant, "#009688");
+            }
+
+            Color border = _perPlayerBorder ?? Color.Parse("#009688");
             return new NodeStyle
             {
                 ActiveBorder = border,
