@@ -298,6 +298,11 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private int _droppedEdgeCount;
 
+    // Retained from the last run so switching player can rebuild the graph without re-evaluating.
+    private BuildResult? _lastBuild;
+    private EvaluationResult? _lastResult;
+    private Dictionary<StateNode, int>? _snapshotIndexByNode;
+
     // The graph Root VM (always included in a sub-graph so chains stay anchored to a common origin).
     private GraphNodeViewModel? _rootNode;
 
@@ -667,6 +672,10 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         // RunAsync renders the full graph directly (empty rendered-chain set), so a subsequent
         // player-only change must not spuriously swap; a reload must re-swap from empty.
         _renderedChainKeys = new HashSet<string>(StringComparer.Ordinal);
+        _lastBuild = null;
+        _lastResult = null;
+        _snapshotIndexByNode = null;
+        _graphPlayerSlot = null;
         _renderedPlayerSlot = null; // full graph renders all rows; a reload must re-swap from "all"
         _swapRequestToken++; // cancel any in-flight debounced swap from the previous demo
 
@@ -814,67 +823,11 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             PerPlayerNodeTemplate.MaterializedPlayer? renderedPlayer = ResolveGraphPlayer(result);
             _graphPlayerSlot = renderedPlayer?.PlayerSlot;
 
-            Dictionary<StateNode, GraphNodeViewModel> nodeVmByNode = new(ReferenceEqualityComparer.Instance);
-            List<GraphNodeViewModel> nodeVms = new(build.Nodes.Count + (renderedPlayer?.Nodes.Count ?? 0));
-
-            foreach (StateNode node in build.Nodes)
-            {
-                GraphNodeViewModel vm = new(node.Name, node is RootNode, node.Subtitle)
-                {
-                    IsActive = node.IsActive,
-                    DisplayValue = node.GetDisplayValue(),
-                    NodeKey = GraphNodeKey.ForGameScope(node.Name),
-                    TrackedIndex = snapshotIndexByNode.GetValueOrDefault(node, -1)
-                };
-                nodeVmByNode[node] = vm;
-                nodeVms.Add(vm);
-            }
-
-            if (renderedPlayer is { } player)
-            {
-                foreach (StateNode node in player.Nodes)
-                {
-                    // A template node can be structurally deduplicated onto one the scaffolding already
-                    // owns. Keep the first view model rather than minting a second for the same
-                    // StateNode, or the two would disagree about TrackedIndex and about identity.
-                    if (nodeVmByNode.ContainsKey(node))
-                    {
-                        continue;
-                    }
-
-                    GraphNodeViewModel vm = new(node.Name, node is RootNode, node.Subtitle)
-                    {
-                        IsActive = node.IsActive,
-                        DisplayValue = node.GetDisplayValue(),
-                        IsPerPlayer = true,
-                        NodeKey = GraphNodeKey.ForPlayer(player.TemplateIndex, player.PlayerSlot, node.Name),
-                        TrackedIndex = snapshotIndexByNode.GetValueOrDefault(node, -1)
-                    };
-                    nodeVmByNode[node] = vm;
-                    nodeVms.Add(vm);
-                }
-            }
-
-            // ── Edge view-models ────────────────────────────────────────────
-            // Every endpoint miss is counted. An edge silently dropped here is a rule the user
-            // authored that the graph does not show, and before this counter existed 2 583 of them
-            // could vanish without the UI saying anything (issue #15).
-            List<GraphEdgeViewModel> edgeVms = new(build.Edges.Count + (renderedPlayer?.EdgeDescriptors.Count ?? 0));
-            int droppedEdges = 0;
-
-            foreach (GraphEdgeDescriptor e in EnumerateGraphEdges(build, renderedPlayer))
-            {
-                if (!nodeVmByNode.TryGetValue(e.Source, out GraphNodeViewModel? srcVm)
-                    || !nodeVmByNode.TryGetValue(e.Destination, out GraphNodeViewModel? dstVm))
-                {
-                    droppedEdges++;
-                    continue;
-                }
-
-                edgeVms.Add(new GraphEdgeViewModel(srcVm, dstVm, e.Label, e.Effect, e.ConditionLabel));
-            }
-
-            DroppedEdgeCount = droppedEdges;
+            GraphBuild graph = BuildGraphViewModels(build, result, renderedPlayer, snapshotIndexByNode);
+            Dictionary<StateNode, GraphNodeViewModel> nodeVmByNode = graph.NodeVmByNode;
+            List<GraphNodeViewModel> nodeVms = graph.Nodes;
+            List<GraphEdgeViewModel> edgeVms = graph.Edges;
+            DroppedEdgeCount = graph.DroppedEdges;
 
             // ── Edge → applied-message-index map (edge breakpoint default hits) ──
             // descriptor → backing StateEdge (build.EdgeBacking) → applied indices
@@ -931,6 +884,13 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
             _appliedByEdgeKey = appliedByEdgeKey;
             _eventMetaByEdgeKey = eventMetaByEdgeKey;
+
+            // Held so switching player can rebuild the graph without re-evaluating. No new memory
+            // cost worth counting: the heavy parts of `result` (MessageSnapshots, Messages,
+            // FinalTrackedNodes) are already retained field-by-field above.
+            _lastBuild = build;
+            _lastResult = result;
+            _snapshotIndexByNode = snapshotIndexByNode;
 
             // ── Groups ──────────────────────────────────────────────────────
             List<INodeGroup> groups = new();
@@ -1345,6 +1305,142 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     }
 
     // ── Filter population ────────────────────────────────────────────────
+
+    /// <summary>The node and edge view models for one rendered player, plus what could not be drawn.</summary>
+    private readonly record struct GraphBuild(
+        List<GraphNodeViewModel> Nodes,
+        List<GraphEdgeViewModel> Edges,
+        Dictionary<StateNode, GraphNodeViewModel> NodeVmByNode,
+        int DroppedEdges);
+
+    /// <summary>
+    ///     Builds the drawn graph: the shared game-scope scaffolding PLUS one player's materialized
+    ///     nodes.
+    ///     <para>
+    ///         <c>build.Nodes</c> alone is the scaffolding and nothing else: every rule in a
+    ///         <c>for: each_player</c> ruleset lives on a <c>PerPlayerNodeTemplate</c> that
+    ///         <c>build.Nodes</c> never contains, so drawing it alone drew 61 nodes of engine plumbing
+    ///         and not one shipped stat (issue #15). Drawing EVERY player instead is 3 791 nodes and
+    ///         2 583 edges on a real demo, which MSAGL lays out in about 1.3 s onto a canvas tens of
+    ///         thousands of pixels tall: correct, and unreadable. So one player renders at a time and
+    ///         the selector switches slot.
+    ///     </para>
+    /// </summary>
+    private static GraphBuild BuildGraphViewModels(
+        BuildResult build,
+        EvaluationResult result,
+        PerPlayerNodeTemplate.MaterializedPlayer? renderedPlayer,
+        Dictionary<StateNode, int> snapshotIndexByNode)
+    {
+        Dictionary<StateNode, GraphNodeViewModel> nodeVmByNode = new(ReferenceEqualityComparer.Instance);
+        List<GraphNodeViewModel> nodeVms = new(build.Nodes.Count + (renderedPlayer?.Nodes.Count ?? 0));
+
+        foreach (StateNode node in build.Nodes)
+        {
+            GraphNodeViewModel vm = new(node.Name, node is RootNode, node.Subtitle)
+            {
+                IsActive = node.IsActive,
+                DisplayValue = node.GetDisplayValue(),
+                NodeKey = GraphNodeKey.ForGameScope(node.Name),
+                TrackedIndex = snapshotIndexByNode.GetValueOrDefault(node, -1)
+            };
+            nodeVmByNode[node] = vm;
+            nodeVms.Add(vm);
+        }
+
+        if (renderedPlayer is { } player)
+        {
+            foreach (StateNode node in player.Nodes)
+            {
+                // A template node can be structurally deduplicated onto one the scaffolding already
+                // owns. Keep the first view model rather than minting a second for the same
+                // StateNode, or the two would disagree about TrackedIndex and about identity.
+                if (nodeVmByNode.ContainsKey(node))
+                {
+                    continue;
+                }
+
+                GraphNodeViewModel vm = new(node.Name, node is RootNode, node.Subtitle)
+                {
+                    IsActive = node.IsActive,
+                    DisplayValue = node.GetDisplayValue(),
+                    IsPerPlayer = true,
+                    NodeKey = GraphNodeKey.ForPlayer(player.TemplateIndex, player.PlayerSlot, node.Name),
+                    TrackedIndex = snapshotIndexByNode.GetValueOrDefault(node, -1)
+                };
+                nodeVmByNode[node] = vm;
+                nodeVms.Add(vm);
+            }
+        }
+
+        // Every endpoint miss is counted. An edge silently dropped here is a rule the user authored
+        // that the graph does not show, and before this counter existed 2 583 of them could vanish on
+        // a bare `continue` with nothing anywhere saying so (issue #15).
+        List<GraphEdgeViewModel> edgeVms = new(build.Edges.Count + (renderedPlayer?.EdgeDescriptors.Count ?? 0));
+        int droppedEdges = 0;
+
+        foreach (GraphEdgeDescriptor e in EnumerateGraphEdges(build, renderedPlayer))
+        {
+            if (!nodeVmByNode.TryGetValue(e.Source, out GraphNodeViewModel? srcVm)
+                || !nodeVmByNode.TryGetValue(e.Destination, out GraphNodeViewModel? dstVm))
+            {
+                droppedEdges++;
+                continue;
+            }
+
+            edgeVms.Add(new GraphEdgeViewModel(srcVm, dstVm, e.Label, e.Effect, e.ConditionLabel));
+        }
+
+        _ = result; // reserved: the per-player edge backing the engine does not yet expose
+        return new GraphBuild(nodeVms, edgeVms, nodeVmByNode, droppedEdges);
+    }
+
+    /// <summary>
+    ///     Rebuilds the drawn graph around a different player, without re-evaluating. Returns
+    ///     <c>false</c> when there is nothing to rebuild from (no run yet) or the slot is already the
+    ///     one drawn, which is what keeps this off the hot path of an unrelated filter change.
+    /// </summary>
+    private bool RebuildGraphForPlayer(int? slot)
+    {
+        if (_lastBuild is not { } build || _lastResult is not { } result || _snapshotIndexByNode is null)
+        {
+            return false;
+        }
+
+        if (slot == _graphPlayerSlot)
+        {
+            return false;
+        }
+
+        PerPlayerNodeTemplate.MaterializedPlayer? target = null;
+        foreach (PerPlayerNodeTemplate.MaterializedPlayer p in result.MaterializedPlayers)
+        {
+            if (p.PlayerSlot == slot)
+            {
+                target = p;
+                break;
+            }
+        }
+
+        // "All players" (or a slot that materialized nothing) keeps the currently drawn player rather
+        // than emptying the graph of every rule node: the graph can only ever show one, and showing
+        // none would be the very defect this change exists to fix.
+        if (target is null)
+        {
+            return false;
+        }
+
+        GraphBuild graph = BuildGraphViewModels(build, result, target, _snapshotIndexByNode);
+        _graphPlayerSlot = target.Value.PlayerSlot;
+        DroppedEdgeCount = graph.DroppedEdges;
+
+        _allGraphNodes = graph.Nodes;
+        _allGraphEdges = graph.Edges;
+        _allTables = BuildPlayerTables(result, graph.NodeVmByNode, build.Nodes);
+        _rootNode = graph.Nodes.FirstOrDefault(n => n.IsRoot);
+        _upstreamOf = BuildUpstreamAdjacency(graph.Edges);
+        return true;
+    }
 
     /// <summary>
     ///     Picks the player whose materialized nodes get built into the graph: whichever slot the
@@ -2800,10 +2896,16 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             RebindBreakpoints();
         }
 
+        // A player change also changes WHICH per-player nodes exist to render, not just which table
+        // rows survive: the graph carries one player's materialized nodes at a time. Rebuild the full
+        // node/edge set for the new slot first, then let the swap below project and lay it out. Cheap
+        // relative to the relayout it feeds, and it re-evaluates nothing.
+        bool rebuilt = RebuildGraphForPlayer(selectedSlot);
+
         // Nothing rendered differently → no work. Both the chain selection AND the player slot are
         // structural inputs to the rendered tables now (selecting a player REMOVES the other rows),
         // so an unchanged pair means the current render already matches the filter.
-        if (selectedChains.SetEquals(_renderedChainKeys) && selectedSlot == _renderedPlayerSlot)
+        if (!rebuilt && selectedChains.SetEquals(_renderedChainKeys) && selectedSlot == _renderedPlayerSlot)
         {
             return;
         }
