@@ -21,15 +21,28 @@ namespace DemoViewer.NET.ViewModels;
 /// </summary>
 public readonly record struct GraphNodeKey
 {
+    // Game is 0 so that default(GraphNodeKey) lands here rather than on a per-player slot.
+    private enum GraphNodeScope
+    {
+        Game = 0,
+        PerPlayer = 1
+    }
+
     private const string GameScopePrefix = "g:";
     private const string PerPlayerPrefix = "p";
 
-    private GraphNodeKey(int templateIndex, int playerSlot, string name)
+    private GraphNodeKey(GraphNodeScope scope, int templateIndex, int playerSlot, string name)
     {
+        Scope = scope;
         TemplateIndex = templateIndex;
         PlayerSlot = playerSlot;
         Name = name;
     }
+
+    // An explicit discriminator rather than a -1 sentinel on PlayerSlot, so that default(GraphNodeKey)
+    // - which the language permits and TryParse assigns before every false return - is game scope with
+    // no name, NOT a well-formed-looking key for template 0 / slot 0.
+    private GraphNodeScope Scope { get; }
 
     /// <summary>The materialising template's index, or <c>-1</c> for a game-scope node.</summary>
     public int TemplateIndex { get; }
@@ -38,17 +51,17 @@ public readonly record struct GraphNodeKey
     public int PlayerSlot { get; }
 
     /// <summary>The engine's node name. Unique within a scope, not across scopes.</summary>
-    public string Name { get; init; }
+    public string Name { get; }
 
     /// <summary>True when this key names a per-player copy rather than a shared scaffolding node.</summary>
-    public bool IsPerPlayer => PlayerSlot >= 0;
+    public bool IsPerPlayer => Scope == GraphNodeScope.PerPlayer;
 
     /// <summary>A node from the shared, game-scope scaffolding: one copy, no owning player.</summary>
-    public static GraphNodeKey ForGameScope(string name) => new(-1, -1, name);
+    public static GraphNodeKey ForGameScope(string name) => new(GraphNodeScope.Game, -1, -1, name);
 
     /// <summary>One player's copy of a per-player template node.</summary>
     public static GraphNodeKey ForPlayer(int templateIndex, int playerSlot, string name) =>
-        new(templateIndex, playerSlot, name);
+        new(GraphNodeScope.PerPlayer, templateIndex, playerSlot, name);
 
     /// <summary>
     ///     The wire form: <c>g:{name}</c> or <c>p{template}:{slot}:{name}</c>. Round-trips through

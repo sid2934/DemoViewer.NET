@@ -50,7 +50,6 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     // thousand distinct frames; far above that means a high-frequency edge whose full capture would bloat
     // the cache, so pre-warm declines and breakpoints on it lazy-build their own narrower set.
     private const int PrewarmFrameCap = 12_000;
-    private static readonly IReadOnlySet<string> _emptyChainKeys = new HashSet<string>();
 
     // A per-fire accessor that always resolves to null: the fallback when a Recompute closure is ever
     // invoked without a positioned cache (not on the pending path; the host always supplies EntityAccessorAt).
@@ -296,7 +295,14 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     // Surfaced rather than swallowed: a silently dropped edge is an authored rule the graph does not
     // show, and this used to be a bare `continue` with no counter anywhere (issue #15).
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DroppedEdgeText))]
+    [NotifyPropertyChangedFor(nameof(HasDroppedEdges))]
     private int _droppedEdgeCount;
+
+    // Key -> node view model for the currently drawn graph. Built once per graph build: the lookups
+    // that used to scan _allGraphNodes and allocate a key string per candidate now run at ~3800 nodes
+    // rather than 61, and RefreshBreakpointMarkers probes it once per node and twice per edge.
+    private Dictionary<string, GraphNodeViewModel> _nodeVmByKey = new(StringComparer.Ordinal);
 
     // Retained from the last run so switching player can rebuild the graph without re-evaluating.
     private BuildResult? _lastBuild;
@@ -672,6 +678,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         // RunAsync renders the full graph directly (empty rendered-chain set), so a subsequent
         // player-only change must not spuriously swap; a reload must re-swap from empty.
         _renderedChainKeys = new HashSet<string>(StringComparer.Ordinal);
+        _nodeVmByKey = new Dictionary<string, GraphNodeViewModel>(StringComparer.Ordinal);
         _lastBuild = null;
         _lastResult = null;
         _snapshotIndexByNode = null;
@@ -820,10 +827,10 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             // EVERY player instead is 3 791 nodes and 2 583 edges on a real demo, which MSAGL lays out
             // in ~1.3 s onto a canvas tens of thousands of pixels tall: correct, and unreadable. So one
             // player renders at a time and the selector switches slot.
-            PerPlayerNodeTemplate.MaterializedPlayer? renderedPlayer = ResolveGraphPlayer(result);
-            _graphPlayerSlot = renderedPlayer?.PlayerSlot;
+            List<PerPlayerNodeTemplate.MaterializedPlayer> renderedPlayer = ResolveGraphPlayer(result);
+            _graphPlayerSlot = renderedPlayer.Count > 0 ? renderedPlayer[0].PlayerSlot : null;
 
-            GraphBuild graph = BuildGraphViewModels(build, result, renderedPlayer, snapshotIndexByNode);
+            GraphBuild graph = BuildGraphViewModels(build, renderedPlayer, snapshotIndexByNode);
             Dictionary<StateNode, GraphNodeViewModel> nodeVmByNode = graph.NodeVmByNode;
             List<GraphNodeViewModel> nodeVms = graph.Nodes;
             List<GraphEdgeViewModel> edgeVms = graph.Edges;
@@ -885,31 +892,19 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             _appliedByEdgeKey = appliedByEdgeKey;
             _eventMetaByEdgeKey = eventMetaByEdgeKey;
 
-            // Held so switching player can rebuild the graph without re-evaluating. No new memory
-            // cost worth counting: the heavy parts of `result` (MessageSnapshots, Messages,
-            // FinalTrackedNodes) are already retained field-by-field above.
+            // Held so switching player can rebuild the graph without re-evaluating. This DOES retain
+            // more than before: MessageSnapshots, Messages and FinalTrackedNodes were already pinned
+            // field by field, but holding the whole result additionally pins MaterializedPlayers (every
+            // player's nodes, edges and descriptors), AppliedMessagesByEdge and Timeline, and holding
+            // the build pins EdgeBacking. All of it now lives as long as this view model rather than as
+            // long as the run. That is the price of switching player without a re-evaluation; it is
+            // released in the unload reset below.
             _lastBuild = build;
             _lastResult = result;
             _snapshotIndexByNode = snapshotIndexByNode;
 
             // ── Groups ──────────────────────────────────────────────────────
-            List<INodeGroup> groups = new();
-            foreach (NodeGroupHint hint in build.GroupHints)
-            {
-                List<IGraphNode> members = new();
-                foreach (StateNode member in hint.Members)
-                {
-                    if (nodeVmByNode.TryGetValue(member, out GraphNodeViewModel? vm))
-                    {
-                        members.Add(vm);
-                    }
-                }
-
-                if (members.Count > 0)
-                {
-                    groups.Add(new AnalysisNodeGroup(hint.GroupName, members));
-                }
-            }
+            List<INodeGroup> groups = BuildNodeGroups(build, nodeVmByNode);
 
             // ── Per-player tables (one per template × column-group) ──────────
             // Column edges are built INSIDE BuildPlayerTables' per-group loop, where the
@@ -919,6 +914,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
             // ── Capture the full graph as the projection source of truth ─────
             _allGraphNodes = nodeVms;
+            _nodeVmByKey = IndexByKey(nodeVms);
             _allGraphEdges = edgeVms;
             _allGroups = groups;
             _allTables = PlayerTables;
@@ -1306,6 +1302,64 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     // ── Filter population ────────────────────────────────────────────────
 
+    /// <summary>
+    ///     Cluster groups over the drawn nodes. Shared by the first render and by a player switch, which
+    ///     replaces every node view model and so must rebuild these too.
+    ///     <para>
+    ///         <c>build.GroupHints</c> is always empty today: the engine declares the list and never
+    ///         appends to it (CS2DemoKit#50). This is kept faithful rather than deleted so that the day
+    ///         the engine fills it, the groups appear without anyone rediscovering where they came from.
+    ///     </para>
+    /// </summary>
+    private static List<INodeGroup> BuildNodeGroups(
+        BuildResult build, Dictionary<StateNode, GraphNodeViewModel> nodeVmByNode)
+    {
+        List<INodeGroup> groups = [];
+        foreach (NodeGroupHint hint in build.GroupHints)
+        {
+            List<IGraphNode> members = [];
+            foreach (StateNode member in hint.Members)
+            {
+                if (nodeVmByNode.TryGetValue(member, out GraphNodeViewModel? vm))
+                {
+                    members.Add(vm);
+                }
+            }
+
+            if (members.Count > 0)
+            {
+                groups.Add(new AnalysisNodeGroup(hint.GroupName, members));
+            }
+        }
+
+        return groups;
+    }
+
+    // Last writer wins on a duplicate, which cannot happen: the key carries the player slot precisely
+    // so that ten copies of "Alive" are ten distinct keys.
+    /// <summary>True when the last graph build could not draw every edge it was given.</summary>
+    public bool HasDroppedEdges => DroppedEdgeCount > 0;
+
+    /// <summary>
+    ///     The toolbar's drop notice. An edge the graph cannot draw is a rule the user authored and
+    ///     cannot see, so the count is stated rather than swallowed.
+    /// </summary>
+    public string DroppedEdgeText =>
+        DroppedEdgeCount > 0
+            ? $"⚠ {DroppedEdgeCount.ToString(System.Globalization.CultureInfo.InvariantCulture)} edge(s) not drawn"
+            : string.Empty;
+
+    private static Dictionary<string, GraphNodeViewModel> IndexByKey(List<GraphNodeViewModel> nodes)
+    {
+        Dictionary<string, GraphNodeViewModel> byKey = new(nodes.Count, StringComparer.Ordinal);
+        foreach (GraphNodeViewModel vm in nodes)
+        {
+            byKey[vm.NodeKey.ToString()] = vm;
+        }
+
+        return byKey;
+    }
+
     /// <summary>The node and edge view models for one rendered player, plus what could not be drawn.</summary>
     private readonly record struct GraphBuild(
         List<GraphNodeViewModel> Nodes,
@@ -1328,12 +1382,17 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     /// </summary>
     private static GraphBuild BuildGraphViewModels(
         BuildResult build,
-        EvaluationResult result,
-        PerPlayerNodeTemplate.MaterializedPlayer? renderedPlayer,
+        IReadOnlyList<PerPlayerNodeTemplate.MaterializedPlayer> renderedPlayer,
         Dictionary<StateNode, int> snapshotIndexByNode)
     {
+        int perPlayerNodes = 0;
+        foreach (PerPlayerNodeTemplate.MaterializedPlayer p in renderedPlayer)
+        {
+            perPlayerNodes += p.Nodes.Count;
+        }
+
         Dictionary<StateNode, GraphNodeViewModel> nodeVmByNode = new(ReferenceEqualityComparer.Instance);
-        List<GraphNodeViewModel> nodeVms = new(build.Nodes.Count + (renderedPlayer?.Nodes.Count ?? 0));
+        List<GraphNodeViewModel> nodeVms = new(build.Nodes.Count + perPlayerNodes);
 
         foreach (StateNode node in build.Nodes)
         {
@@ -1348,7 +1407,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             nodeVms.Add(vm);
         }
 
-        if (renderedPlayer is { } player)
+        foreach (PerPlayerNodeTemplate.MaterializedPlayer player in renderedPlayer)
         {
             foreach (StateNode node in player.Nodes)
             {
@@ -1376,7 +1435,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         // Every endpoint miss is counted. An edge silently dropped here is a rule the user authored
         // that the graph does not show, and before this counter existed 2 583 of them could vanish on
         // a bare `continue` with nothing anywhere saying so (issue #15).
-        List<GraphEdgeViewModel> edgeVms = new(build.Edges.Count + (renderedPlayer?.EdgeDescriptors.Count ?? 0));
+        List<GraphEdgeViewModel> edgeVms = new(build.Edges.Count);
         int droppedEdges = 0;
 
         foreach (GraphEdgeDescriptor e in EnumerateGraphEdges(build, renderedPlayer))
@@ -1391,7 +1450,6 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             edgeVms.Add(new GraphEdgeViewModel(srcVm, dstVm, e.Label, e.Effect, e.ConditionLabel));
         }
 
-        _ = result; // reserved: the per-player edge backing the engine does not yet expose
         return new GraphBuild(nodeVms, edgeVms, nodeVmByNode, droppedEdges);
     }
 
@@ -1412,33 +1470,30 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             return false;
         }
 
-        PerPlayerNodeTemplate.MaterializedPlayer? target = null;
-        foreach (PerPlayerNodeTemplate.MaterializedPlayer p in result.MaterializedPlayers)
-        {
-            if (p.PlayerSlot == slot)
-            {
-                target = p;
-                break;
-            }
-        }
-
         // "All players" (or a slot that materialized nothing) keeps the currently drawn player rather
         // than emptying the graph of every rule node: the graph can only ever show one, and showing
         // none would be the very defect this change exists to fix.
-        if (target is null)
+        List<PerPlayerNodeTemplate.MaterializedPlayer> target = MaterializationsForSlot(result, slot);
+        if (target.Count == 0)
         {
             return false;
         }
 
-        GraphBuild graph = BuildGraphViewModels(build, result, target, _snapshotIndexByNode);
-        _graphPlayerSlot = target.Value.PlayerSlot;
+        GraphBuild graph = BuildGraphViewModels(build, target, _snapshotIndexByNode);
+        _graphPlayerSlot = target[0].PlayerSlot;
         DroppedEdgeCount = graph.DroppedEdges;
 
         _allGraphNodes = graph.Nodes;
+        _nodeVmByKey = IndexByKey(graph.Nodes);
         _allGraphEdges = graph.Edges;
         _allTables = BuildPlayerTables(result, graph.NodeVmByNode, build.Nodes);
+        // Groups hold node view models by reference, and every one of them was just replaced. Rebuilt
+        // from the same source as the first render, or the old instances would survive into the swap
+        // and every group box would silently fail to bound anything.
+        _allGroups = BuildNodeGroups(build, graph.NodeVmByNode);
         _rootNode = graph.Nodes.FirstOrDefault(n => n.IsRoot);
         _upstreamOf = BuildUpstreamAdjacency(graph.Edges);
+        RefreshBreakpointMarkers();
         return true;
     }
 
@@ -1449,32 +1504,60 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     ///     graph should not reshuffle under the user because a round started differently.
     ///     <c>null</c> when a run materialized no player, which is a demo with no roster, not an error.
     /// </summary>
-    private PerPlayerNodeTemplate.MaterializedPlayer? ResolveGraphPlayer(EvaluationResult result)
+    private List<PerPlayerNodeTemplate.MaterializedPlayer> ResolveGraphPlayer(EvaluationResult result)
     {
         if (result.MaterializedPlayers.Count == 0)
         {
-            return null;
+            return [];
         }
 
         int? wanted = Filter.SelectedPlayer is { Slot: >= 0 } sel ? sel.Slot : null;
+        List<PerPlayerNodeTemplate.MaterializedPlayer> chosen = MaterializationsForSlot(result, wanted);
+        if (chosen.Count > 0)
+        {
+            return chosen;
+        }
+
+        int lowest = int.MaxValue;
         foreach (PerPlayerNodeTemplate.MaterializedPlayer p in result.MaterializedPlayers)
         {
-            if (p.PlayerSlot == wanted)
+            if (p.PlayerSlot < lowest)
             {
-                return p;
+                lowest = p.PlayerSlot;
             }
         }
 
-        PerPlayerNodeTemplate.MaterializedPlayer lowest = result.MaterializedPlayers[0];
+        return MaterializationsForSlot(result, lowest);
+    }
+
+    /// <summary>
+    ///     EVERY materialization of one player slot, not the first.
+    ///     <para>
+    ///         The engine emits one <c>MaterializedPlayer</c> per (template, slot) pair: a v1 config
+    ///         and a v2 ruleset materialize the same human as separate template players, and the count
+    ///         doubles when both are loaded (CS2DemoKit's <c>ConfiguredOutputProjector.GroupBySlot</c>
+    ///         says so outright). Taking the first match would draw one template's nodes, leave the
+    ///         other template's edges with no endpoint, and silently count them as drops.
+    ///     </para>
+    /// </summary>
+    private static List<PerPlayerNodeTemplate.MaterializedPlayer> MaterializationsForSlot(
+        EvaluationResult result, int? slot)
+    {
+        List<PerPlayerNodeTemplate.MaterializedPlayer> found = [];
+        if (slot is null)
+        {
+            return found;
+        }
+
         foreach (PerPlayerNodeTemplate.MaterializedPlayer p in result.MaterializedPlayers)
         {
-            if (p.PlayerSlot < lowest.PlayerSlot)
+            if (p.PlayerSlot == slot)
             {
-                lowest = p;
+                found.Add(p);
             }
         }
 
-        return lowest;
+        return found;
     }
 
     /// <summary>
@@ -1482,14 +1565,14 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     ///     player's. Kept as one sequence so every drop funnels through a single counted site.
     /// </summary>
     private static IEnumerable<GraphEdgeDescriptor> EnumerateGraphEdges(
-        BuildResult build, PerPlayerNodeTemplate.MaterializedPlayer? player)
+        BuildResult build, IReadOnlyList<PerPlayerNodeTemplate.MaterializedPlayer> players)
     {
         foreach (GraphEdgeDescriptor e in build.Edges)
         {
             yield return e;
         }
 
-        if (player is { } p)
+        foreach (PerPlayerNodeTemplate.MaterializedPlayer p in players)
         {
             foreach (GraphEdgeDescriptor e in p.EdgeDescriptors)
             {
@@ -1853,7 +1936,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     public void InsertPickedNode(IGraphNode node)
     {
         // Resolve the picked node's snapshot column → its tracked StateNode (kind) + current value.
-        GraphNodeViewModel? nodeVm = _allGraphNodes.FirstOrDefault(n => n.NodeKey.ToString() == node.Key);
+        GraphNodeViewModel? nodeVm = _nodeVmByKey.GetValueOrDefault(node.Key);
         int col = nodeVm?.TrackedIndex ?? -1;
 
         NodeBreakpointConditions.ValueKind kind = NodeBreakpointConditions.ValueKind.None;
@@ -2331,11 +2414,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     // Keyed, not named: once per-player nodes are in the graph a name matches up to ten view models
     // and this would return whichever came first (issue #15).
-    private int NodeColumnByKey(string key)
-    {
-        GraphNodeViewModel? vm = _allGraphNodes.FirstOrDefault(n => n.NodeKey.ToString() == key);
-        return vm?.TrackedIndex ?? -1;
-    }
+    private int NodeColumnByKey(string key) =>
+        _nodeVmByKey.TryGetValue(key, out GraphNodeViewModel? vm) ? vm.TrackedIndex : -1;
 
     // Fired on any breakpoint set/condition/enabled change: rebind to the current evaluation and
     // persist the new set. While LoadPersistedBreakpoints is Adding the restored set this early-returns
@@ -2889,18 +2969,19 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         // (`input.player_death.Attacker == player`) recompile against the new slot; conditions that
         // don't reference `player` are inert. Independent of the sub-graph swap below; cheap (no entity
         // replay in the bare-player path).
+        // A player change also changes WHICH per-player nodes exist to render, not just which table
+        // rows survive: the graph carries one player's materialized nodes at a time. Rebuild the full
+        // node/edge set for the new slot FIRST, then rebind, then let the swap below project and lay
+        // it out. Order matters: rebinding first would recompute hits and markers against the node
+        // view models that are about to be discarded, and the new ones would come up unmarked.
+        bool rebuilt = RebuildGraphForPlayer(selectedSlot);
+
         int breakpointSlot = SelectedPlayerSlotOrAll();
         if (breakpointSlot != _breakpointPlayerSlot)
         {
             _breakpointPlayerSlot = breakpointSlot;
             RebindBreakpoints();
         }
-
-        // A player change also changes WHICH per-player nodes exist to render, not just which table
-        // rows survive: the graph carries one player's materialized nodes at a time. Rebuild the full
-        // node/edge set for the new slot first, then let the swap below project and lay it out. Cheap
-        // relative to the relayout it feeds, and it re-evaluates nothing.
-        bool rebuilt = RebuildGraphForPlayer(selectedSlot);
 
         // Nothing rendered differently → no work. Both the chain selection AND the player slot are
         // structural inputs to the rendered tables now (selecting a player REMOVES the other rows),

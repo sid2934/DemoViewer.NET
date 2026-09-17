@@ -40,13 +40,13 @@ public interface IGraphNode
     ///     that each occur ten times). Anything that has to survive a re-render or a round trip to disk
     ///     keys on this: breakpoints, selection, hit lookups.
     ///     <para>
-    ///         Defaults to <see cref="Name" />, which is correct for any graph whose names really are
-    ///         unique (the Workbench authoring graph, every sample fixture). Additive, mirroring the
-    ///         <see cref="HasBreakpoint" /> default-member pattern, so existing implementors need no
-    ///         change.
+    ///         Deliberately NOT defaulted to <see cref="Name" />. A consumer persists this string and
+    ///         matches it back later, so a default that silently disagreed with the real implementation's
+    ///         format would write records that can never be matched or cleared. Implementors say what
+    ///         their identity is.
     ///     </para>
     /// </summary>
-    string Key => Name;
+    string Key { get; }
 
     /// <summary>Unique display name rendered inside the node box.</summary>
     string Name { get; }

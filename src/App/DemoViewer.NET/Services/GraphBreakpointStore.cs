@@ -52,7 +52,7 @@ public sealed record PersistedGraphBreakpoint(
 ///     in-memory there). A runtime check, not a <c>#if BROWSER</c> define, because the same assembly is
 ///     shared by the desktop and browser hosts.
 ///     <para>
-///         Desktop persists to <c>%AppData%/DemoViewer.NET/GraphBreakpoints.json</c>: a map of
+///         Desktop persists to <c>%AppData%/DemoViewer.NET/GraphBreakpoints.v2.json</c>: a map of
 ///         <em>demo content key</em> (lowercase hex SHA-256 of the <c>.dem</c> bytes) → the breakpoints set
 ///         on that demo. Keying on content rather than path means a renamed or re-downloaded-identical demo
 ///         restores the same breakpoints, and two different demos never collide.
@@ -73,7 +73,14 @@ public sealed class GraphBreakpointStore
 
     private readonly string? _path;
 
-    /// <summary>Initializes a new <see cref="GraphBreakpointStore" /> instance.</summary>
+    /// <summary>
+    ///     Initializes a new <see cref="GraphBreakpointStore" /> instance.
+    ///     <para>
+    ///         NOT side-effect free: this also deletes the pre-v2 file. That is deliberate and is the
+    ///         only reliable moment for it, because Velopack's update hook, the tidier place, exists on
+    ///         Windows alone and never fires for a portable or unpackaged run.
+    ///     </para>
+    /// </summary>
     public GraphBreakpointStore()
     {
         if (OperatingSystem.IsBrowser())

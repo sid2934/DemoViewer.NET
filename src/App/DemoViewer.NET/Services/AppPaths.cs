@@ -93,7 +93,9 @@ public static class AppPaths
     ///         that actually ran, one name matches up to ten of them, so every per-player record in it
     ///         is ambiguous and none can be honoured. A new filename rather than an in-place schema
     ///         version because it makes the old records unreachable by construction: there is no parse
-    ///         to get subtly wrong, and a downgrade to an older build still finds its own file intact.
+    ///         to get subtly wrong. Note that the file does not survive: GraphBreakpointStore deletes
+    ///         it on construction, so it is gone after the first v2 launch and a downgrade finds
+    ///         nothing rather than its old set.
     ///     </para>
     /// </summary>
     public static string? LegacyGraphBreakpointsFile => Resolve("GraphBreakpoints.json");

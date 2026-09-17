@@ -180,6 +180,17 @@
                                    FontSize="11"
                                    Foreground="{DynamicResource TextDimGray}"
                                    VerticalAlignment="Center" />
+
+                        <!-- Edges the build could not draw. An edge with an unresolved endpoint is a
+                             rule the user wrote and cannot see on the canvas, so the count is stated
+                             instead of being dropped on a bare continue. Hidden when there are none. -->
+                        <TextBlock Text="{Binding DroppedEdgeText}"
+                                   IsVisible="{Binding HasDroppedEdges}"
+                                   ToolTip.Tip="Edges whose source or destination node is not in the drawn graph"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource AccentAmber}"
+                                   VerticalAlignment="Center" />
                     </StackPanel>
                 </Border>
 

@@ -54,6 +54,9 @@ public class SampleNode : IGraphNode, INotifyPropertyChanged
     /// <summary>Name.</summary>
     public string Name { get; }
 
+    /// <summary>Sample names are unique by construction, so the name IS the identity here.</summary>
+    public string Key => Name;
+
     /// <summary>Style.</summary>
     public NodeStyle? Style { get; init; }
 
