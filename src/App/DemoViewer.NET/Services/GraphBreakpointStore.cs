@@ -18,9 +18,9 @@ namespace DemoViewer.NET.Services;
 /// </summary>
 public sealed record PersistedGraphBreakpoint(
     GraphBreakpointTarget TargetKind,
-    string? NodeName,
-    string? EdgeSource,
-    string? EdgeDest,
+    string? NodeKey,
+    string? EdgeSourceKey,
+    string? EdgeDestKey,
     string? EdgeLabel,
     string? EdgeConditionLabel,
     string? Condition,
@@ -28,16 +28,16 @@ public sealed record PersistedGraphBreakpoint(
 {
     /// <summary>Captures the persisted fields of a live breakpoint.</summary>
     public static PersistedGraphBreakpoint From(GraphBreakpoint bp) => new(
-        bp.TargetKind, bp.NodeName, bp.EdgeSource, bp.EdgeDest,
+        bp.TargetKind, bp.NodeKey, bp.EdgeSourceKey, bp.EdgeDestKey,
         bp.EdgeLabel, bp.EdgeConditionLabel, bp.Condition, bp.Enabled);
 
     /// <summary>Reconstructs a live breakpoint (fresh id; hits recomputed by the host after load).</summary>
     public GraphBreakpoint ToBreakpoint() => new()
     {
         TargetKind = TargetKind,
-        NodeName = NodeName,
-        EdgeSource = EdgeSource,
-        EdgeDest = EdgeDest,
+        NodeKey = NodeKey,
+        EdgeSourceKey = EdgeSourceKey,
+        EdgeDestKey = EdgeDestKey,
         EdgeLabel = EdgeLabel,
         EdgeConditionLabel = EdgeConditionLabel,
         Condition = Condition,
@@ -82,6 +82,41 @@ public sealed class GraphBreakpointStore
         }
 
         _path = AppPaths.GraphBreakpointsFile;
+
+        // Every platform's backstop for the pre-v2 file. The desktop host also drops it from Velopack's
+        // after-update hook, which is the tidier moment, but that hook is Windows-only and never fires
+        // for an unpackaged or portable run. Deleting here as well makes the outcome the same
+        // everywhere, and the call is a no-op once the file is gone.
+        DeleteLegacyFile();
+    }
+
+    /// <summary>
+    ///     Deletes the pre-v2 breakpoint file if it is still there.
+    ///     <para>
+    ///         Called from the desktop host's Velopack after-update hook, so the drop happens once at
+    ///         upgrade rather than lazily. Safe to call at any time and on any platform: it is a no-op
+    ///         on WASM (no filesystem) and when the file is already gone, and it swallows I/O failures
+    ///         the same way every other method here does. Nothing is migrated: a pre-v2 record names a
+    ///         node, and a name no longer identifies one (see
+    ///         <see cref="AppPaths.LegacyGraphBreakpointsFile" />).
+    ///     </para>
+    /// </summary>
+    public static void DeleteLegacyFile()
+    {
+        string? legacy = AppPaths.LegacyGraphBreakpointsFile;
+        if (legacy is null)
+        {
+            return;
+        }
+
+        try
+        {
+            File.Delete(legacy);
+        }
+        catch
+        {
+            // Best-effort, exactly like Save: a stale file costs nothing, since nothing reads it.
+        }
     }
 
     /// <summary>The lowercase hex SHA-256 of a demo's bytes, its stable content key.</summary>

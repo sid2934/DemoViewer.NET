@@ -286,6 +286,18 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     // change here routes through the swap/relayout like a chain change, not a cheap cell repaint.
     private int? _renderedPlayerSlot;
 
+    // The player slot whose materialized nodes are BUILT INTO the graph, as distinct from
+    // _renderedPlayerSlot, which filters rows that are already built. Every `for: each_player` rule
+    // exists once per player, so the graph has to pick one to draw: ten at once is 3 791 nodes
+    // (issue #15). null only when a run materialized no player at all.
+    private int? _graphPlayerSlot;
+
+    // Edges the last build could not draw because an endpoint resolved to no node view model.
+    // Surfaced rather than swallowed: a silently dropped edge is an authored rule the graph does not
+    // show, and this used to be a bare `continue` with no counter anywhere (issue #15).
+    [ObservableProperty]
+    private int _droppedEdgeCount;
+
     // The graph Root VM (always included in a sub-graph so chains stay anchored to a common origin).
     private GraphNodeViewModel? _rootNode;
 
@@ -791,43 +803,78 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
                 snapshotIndexByNode[result.FinalTrackedNodes[i]] = i;
             }
 
+            // The graph draws the shared game-scope scaffolding PLUS one player's materialized nodes.
+            //
+            // build.Nodes alone is the scaffolding and nothing else: every rule in a `for: each_player`
+            // ruleset lives on a PerPlayerNodeTemplate that build.Nodes never contains, so drawing it
+            // alone drew 61 nodes of engine plumbing and not one shipped stat (issue #15). Drawing
+            // EVERY player instead is 3 791 nodes and 2 583 edges on a real demo, which MSAGL lays out
+            // in ~1.3 s onto a canvas tens of thousands of pixels tall: correct, and unreadable. So one
+            // player renders at a time and the selector switches slot.
+            PerPlayerNodeTemplate.MaterializedPlayer? renderedPlayer = ResolveGraphPlayer(result);
+            _graphPlayerSlot = renderedPlayer?.PlayerSlot;
+
             Dictionary<StateNode, GraphNodeViewModel> nodeVmByNode = new(ReferenceEqualityComparer.Instance);
-            List<GraphNodeViewModel> nodeVms = new();
+            List<GraphNodeViewModel> nodeVms = new(build.Nodes.Count + (renderedPlayer?.Nodes.Count ?? 0));
 
             foreach (StateNode node in build.Nodes)
             {
-                IReadOnlySet<string> chainIds =
-                    build.NodeChains is not null && build.NodeChains.TryGetValue(node, out IReadOnlySet<string>? keys)
-                        ? keys
-                        : _emptyChainKeys;
-
                 GraphNodeViewModel vm = new(node.Name, node is RootNode, node.Subtitle)
                 {
                     IsActive = node.IsActive,
                     DisplayValue = node.GetDisplayValue(),
-                    ChainIds = chainIds,
+                    NodeKey = GraphNodeKey.ForGameScope(node.Name),
                     TrackedIndex = snapshotIndexByNode.GetValueOrDefault(node, -1)
                 };
                 nodeVmByNode[node] = vm;
                 nodeVms.Add(vm);
             }
 
-            // ── Edge view-models ────────────────────────────────────────────
-            List<GraphEdgeViewModel> edgeVms = new();
-            foreach (GraphEdgeDescriptor e in build.Edges)
+            if (renderedPlayer is { } player)
             {
-                if (!nodeVmByNode.TryGetValue(e.Source, out GraphNodeViewModel? srcVm))
+                foreach (StateNode node in player.Nodes)
                 {
-                    continue;
-                }
+                    // A template node can be structurally deduplicated onto one the scaffolding already
+                    // owns. Keep the first view model rather than minting a second for the same
+                    // StateNode, or the two would disagree about TrackedIndex and about identity.
+                    if (nodeVmByNode.ContainsKey(node))
+                    {
+                        continue;
+                    }
 
-                if (!nodeVmByNode.TryGetValue(e.Destination, out GraphNodeViewModel? dstVm))
+                    GraphNodeViewModel vm = new(node.Name, node is RootNode, node.Subtitle)
+                    {
+                        IsActive = node.IsActive,
+                        DisplayValue = node.GetDisplayValue(),
+                        IsPerPlayer = true,
+                        NodeKey = GraphNodeKey.ForPlayer(player.TemplateIndex, player.PlayerSlot, node.Name),
+                        TrackedIndex = snapshotIndexByNode.GetValueOrDefault(node, -1)
+                    };
+                    nodeVmByNode[node] = vm;
+                    nodeVms.Add(vm);
+                }
+            }
+
+            // ── Edge view-models ────────────────────────────────────────────
+            // Every endpoint miss is counted. An edge silently dropped here is a rule the user
+            // authored that the graph does not show, and before this counter existed 2 583 of them
+            // could vanish without the UI saying anything (issue #15).
+            List<GraphEdgeViewModel> edgeVms = new(build.Edges.Count + (renderedPlayer?.EdgeDescriptors.Count ?? 0));
+            int droppedEdges = 0;
+
+            foreach (GraphEdgeDescriptor e in EnumerateGraphEdges(build, renderedPlayer))
+            {
+                if (!nodeVmByNode.TryGetValue(e.Source, out GraphNodeViewModel? srcVm)
+                    || !nodeVmByNode.TryGetValue(e.Destination, out GraphNodeViewModel? dstVm))
                 {
+                    droppedEdges++;
                     continue;
                 }
 
                 edgeVms.Add(new GraphEdgeViewModel(srcVm, dstVm, e.Label, e.Effect, e.ConditionLabel));
             }
+
+            DroppedEdgeCount = droppedEdges;
 
             // ── Edge → applied-message-index map (edge breakpoint default hits) ──
             // descriptor → backing StateEdge (build.EdgeBacking) → applied indices
@@ -846,7 +893,14 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
                         continue;
                     }
 
-                    (string, string, string, string?) key = (e.Source.Name, e.Destination.Name, e.Label, e.ConditionLabel);
+                    // Game-scope keys: build.Edges holds only scaffolding edges, and EdgeKey above
+                    // produces the same form for their view models. A per-player edge has no
+                    // EdgeBacking entry, so its breakpoint falls back to the default fire set.
+                    (string, string, string, string?) key = (
+                        GraphNodeKey.ForGameScope(e.Source.Name).ToString(),
+                        GraphNodeKey.ForGameScope(e.Destination.Name).ToString(),
+                        e.Label,
+                        e.ConditionLabel);
 
                     IReadOnlyList<int> applied = [];
                     if (result.AppliedMessagesByEdge is not null
@@ -1292,6 +1346,62 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     // ── Filter population ────────────────────────────────────────────────
 
+    /// <summary>
+    ///     Picks the player whose materialized nodes get built into the graph: whichever slot the
+    ///     filter already has selected, else the lowest slot on the roster. Lowest rather than first
+    ///     in the list because a coming engine change hands players back in discovery order, and the
+    ///     graph should not reshuffle under the user because a round started differently.
+    ///     <c>null</c> when a run materialized no player, which is a demo with no roster, not an error.
+    /// </summary>
+    private PerPlayerNodeTemplate.MaterializedPlayer? ResolveGraphPlayer(EvaluationResult result)
+    {
+        if (result.MaterializedPlayers.Count == 0)
+        {
+            return null;
+        }
+
+        int? wanted = Filter.SelectedPlayer is { Slot: >= 0 } sel ? sel.Slot : null;
+        foreach (PerPlayerNodeTemplate.MaterializedPlayer p in result.MaterializedPlayers)
+        {
+            if (p.PlayerSlot == wanted)
+            {
+                return p;
+            }
+        }
+
+        PerPlayerNodeTemplate.MaterializedPlayer lowest = result.MaterializedPlayers[0];
+        foreach (PerPlayerNodeTemplate.MaterializedPlayer p in result.MaterializedPlayers)
+        {
+            if (p.PlayerSlot < lowest.PlayerSlot)
+            {
+                lowest = p;
+            }
+        }
+
+        return lowest;
+    }
+
+    /// <summary>
+    ///     The edge descriptors the graph draws: the game-scope ones from the build, then the rendered
+    ///     player's. Kept as one sequence so every drop funnels through a single counted site.
+    /// </summary>
+    private static IEnumerable<GraphEdgeDescriptor> EnumerateGraphEdges(
+        BuildResult build, PerPlayerNodeTemplate.MaterializedPlayer? player)
+    {
+        foreach (GraphEdgeDescriptor e in build.Edges)
+        {
+            yield return e;
+        }
+
+        if (player is { } p)
+        {
+            foreach (GraphEdgeDescriptor e in p.EdgeDescriptors)
+            {
+                yield return e;
+            }
+        }
+    }
+
     private void PopulateFilter(
         BuildResult build, EvaluationResult result,
         IReadOnlyList<AnalysisChainSummaryViewModel> summaries)
@@ -1592,7 +1702,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     // The edge identity 4-tuple used across the edge maps and the breakpoint identity. Single source
     // so the tuple isn't copy-pasted at every lookup site.
     private static (string, string, string, string?) EdgeKey(IGraphEdge e) =>
-        (e.Source.Name, e.Destination.Name, e.Label, e.ConditionLabel);
+        (e.Source.Key, e.Destination.Key, e.Label, e.ConditionLabel);
 
     /// <summary>
     ///     Whether the target can carry a breakpoint. A node always can; an edge only if it's
@@ -1647,7 +1757,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     public void InsertPickedNode(IGraphNode node)
     {
         // Resolve the picked node's snapshot column → its tracked StateNode (kind) + current value.
-        GraphNodeViewModel? nodeVm = _allGraphNodes.FirstOrDefault(n => n.Name == node.Name);
+        GraphNodeViewModel? nodeVm = _allGraphNodes.FirstOrDefault(n => n.NodeKey.ToString() == node.Key);
         int col = nodeVm?.TrackedIndex ?? -1;
 
         NodeBreakpointConditions.ValueKind kind = NodeBreakpointConditions.ValueKind.None;
@@ -1735,7 +1845,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             string kind = DescribeKind(NodeColumn(target.Node!));
             EditingConditionTargetKind = kind;
 
-            Dictionary<string, NodeBreakpointConditions.InputEventInfo> inputs = NodeInputEventsByName(target.Node!.Name);
+            Dictionary<string, NodeBreakpointConditions.InputEventInfo> inputs = NodeInputEventsByKey(target.Node!.Key);
             // The free-text event-match box autocompletes node value-references, the input.<event>.<field>
             // shapes, and the bare `player` slot-comparison token, but NOT the entity-read grammar, which
             // the scope-aware rows below author (includeEntityReads: false).
@@ -2100,7 +2210,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         return target.Kind == GraphBreakpointTarget.Node
             ? NodeBreakpointConditions.Validate(expr, _trackedNodesByColumn, NodeColumn(target.Node!),
-                NodeInputEventsByName(target.Node!.Name), SelectedPlayerSlotOrAll(), _perPlayerProviders)
+                NodeInputEventsByKey(target.Node!.Key), SelectedPlayerSlotOrAll(), _perPlayerProviders)
             : ValidateEdgeCondition(expr, target.Edge!);
     }
 
@@ -2121,11 +2231,13 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     }
 
     // The snapshot column of a node (-1 if not tracked).
-    private int NodeColumn(IGraphNode node) => NodeColumnByName(node.Name);
+    private int NodeColumn(IGraphNode node) => NodeColumnByKey(node.Key);
 
-    private int NodeColumnByName(string name)
+    // Keyed, not named: once per-player nodes are in the graph a name matches up to ten view models
+    // and this would return whichever came first (issue #15).
+    private int NodeColumnByKey(string key)
     {
-        GraphNodeViewModel? vm = _allGraphNodes.FirstOrDefault(n => n.Name == name);
+        GraphNodeViewModel? vm = _allGraphNodes.FirstOrDefault(n => n.NodeKey.ToString() == key);
         return vm?.TrackedIndex ?? -1;
     }
 
@@ -2424,12 +2536,12 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     // hits, or, for an entity-read condition, a Pending descriptor the caller resolves against the cache.
     private (List<int> Hits, PendingEntityHit? Pending) ComputeEdgeHits(GraphBreakpoint bp)
     {
-        if (bp.EdgeSource is null || bp.EdgeDest is null || bp.EdgeLabel is null)
+        if (bp.EdgeSourceKey is null || bp.EdgeDestKey is null || bp.EdgeLabel is null)
         {
             return ([], null);
         }
 
-        (string, string, string, string?) key = (bp.EdgeSource, bp.EdgeDest, bp.EdgeLabel, bp.EdgeConditionLabel);
+        (string, string, string, string?) key = (bp.EdgeSourceKey, bp.EdgeDestKey, bp.EdgeLabel, bp.EdgeConditionLabel);
         if (!_appliedByEdgeKey.TryGetValue(key, out IReadOnlyList<int>? applied))
         {
             return ([], null);
@@ -2498,7 +2610,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     private (List<int> Hits, PendingEntityHit? Pending) ComputeNodeHits(GraphBreakpoint bp, SnapshotTable snaps)
     {
-        int col = NodeColumnByName(bp.NodeName ?? "");
+        int col = NodeColumnByKey(bp.NodeKey ?? "");
         if (col < 0)
         {
             return ([], null);
@@ -2512,7 +2624,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         // resolves synchronously. Invalid conditions yield no hits (the editor blocks saving them).
         NodeBreakpointConditions.NodeHitPlan plan = NodeBreakpointConditions.PlanNodeHits(
             snaps, _trackedNodesByColumn, col, bp.Condition,
-            NodeInputEventsByName(bp.NodeName ?? ""), PayloadAt, SelectedPlayerSlotOrAll(), _perPlayerProviders);
+            NodeInputEventsByKey(bp.NodeKey ?? ""), PayloadAt, SelectedPlayerSlotOrAll(), _perPlayerProviders);
 
         return plan.NeedsEntityCache
             ? ([], new PendingEntityHit(bp, plan.FireMessageIndices, plan.Recompute!))
@@ -2523,14 +2635,14 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     // input.<event>.<field> conditions. Only direct incoming edges with event metadata count;
     // entity-change input edges (no registry event) are excluded. Input edges sharing an event union
     // their fire sets (same event type/fields).
-    private Dictionary<string, NodeBreakpointConditions.InputEventInfo> NodeInputEventsByName(string nodeName)
+    private Dictionary<string, NodeBreakpointConditions.InputEventInfo> NodeInputEventsByKey(string nodeKey)
     {
         Dictionary<string, (Type Type, Type? ParameterType, IReadOnlyDictionary<string, EventFieldAccessor> Fields, List<int> Fires)> acc =
             new(StringComparer.OrdinalIgnoreCase);
 
         foreach (GraphEdgeViewModel e in _allGraphEdges)
         {
-            if (e.Destination.Name != nodeName)
+            if (e.Destination.NodeKey.ToString() != nodeKey)
             {
                 continue;
             }
@@ -2566,14 +2678,15 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     {
         foreach (GraphNodeViewModel vm in _allGraphNodes)
         {
-            GraphBreakpoint? bp = GraphBreakpoints.FindNode(vm.Name);
+            GraphBreakpoint? bp = GraphBreakpoints.FindNode(vm.NodeKey.ToString());
             vm.HasBreakpoint = bp is not null;
             vm.HasConditionalBreakpoint = bp?.Condition is not null;
         }
 
         foreach (GraphEdgeViewModel vm in _allGraphEdges)
         {
-            GraphBreakpoint? bp = GraphBreakpoints.FindEdge(vm.Source.Name, vm.Destination.Name, vm.Label, vm.ConditionLabel);
+            GraphBreakpoint? bp = GraphBreakpoints.FindEdge(
+                vm.Source.NodeKey.ToString(), vm.Destination.NodeKey.ToString(), vm.Label, vm.ConditionLabel);
             vm.HasBreakpoint = bp is not null;
             vm.HasConditionalBreakpoint = bp?.Condition is not null;
         }

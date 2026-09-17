@@ -81,10 +81,22 @@ public static class AppPaths
     public static string? BookmarksFile => Resolve("SessionState.json");
 
     /// <summary>
-    ///     Persisted analysis-graph breakpoints: <c>GraphBreakpoints.json</c>. Per-demo; kept SEPARATE.
+    ///     Persisted analysis-graph breakpoints: <c>GraphBreakpoints.v2.json</c>. Per-demo; kept SEPARATE.
     ///     <c>null</c> on WASM.
     /// </summary>
-    public static string? GraphBreakpointsFile => Resolve("GraphBreakpoints.json");
+    public static string? GraphBreakpointsFile => Resolve("GraphBreakpoints.v2.json");
+
+    /// <summary>
+    ///     The pre-v2 breakpoint file, kept only so it can be deleted.
+    ///     <para>
+    ///         Its records identify a node by NAME. Once the Analysis graph draws the per-player nodes
+    ///         that actually ran, one name matches up to ten of them, so every per-player record in it
+    ///         is ambiguous and none can be honoured. A new filename rather than an in-place schema
+    ///         version because it makes the old records unreachable by construction: there is no parse
+    ///         to get subtly wrong, and a downgrade to an older build still finds its own file intact.
+    ///     </para>
+    /// </summary>
+    public static string? LegacyGraphBreakpointsFile => Resolve("GraphBreakpoints.json");
 
     /// <summary>
     ///     Demo-library metadata cache: <c>library.json</c>. Rebuildable cache; kept SEPARATE. <c>null</c> on

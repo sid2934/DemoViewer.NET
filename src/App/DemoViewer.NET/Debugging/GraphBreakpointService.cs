@@ -35,20 +35,20 @@ public sealed class GraphBreakpointService
 
     // ── Add / find / remove ───────────────────────────────────────────────────
 
-    /// <summary>Returns the node breakpoint for <paramref name="name" />, or <c>null</c>.</summary>
-    public GraphBreakpoint? FindNode(string name) =>
-        Breakpoints.FirstOrDefault(b => b.TargetKind == GraphBreakpointTarget.Node && b.NodeName == name);
+    /// <summary>Returns the node breakpoint for <paramref name="nodeKey" />, or <c>null</c>.</summary>
+    public GraphBreakpoint? FindNode(string nodeKey) =>
+        Breakpoints.FirstOrDefault(b => b.TargetKind == GraphBreakpointTarget.Node && b.NodeKey == nodeKey);
 
     /// <summary>Returns the edge breakpoint for the given source/dest/label/condition, or <c>null</c>.</summary>
     public GraphBreakpoint? FindEdge(string source, string dest, string label, string? conditionLabel) =>
         Breakpoints.FirstOrDefault(b => b.TargetKind == GraphBreakpointTarget.Edge
-                                        && b.EdgeSource == source && b.EdgeDest == dest
+                                        && b.EdgeSourceKey == source && b.EdgeDestKey == dest
                                         && b.EdgeLabel == label && b.EdgeConditionLabel == conditionLabel);
 
     /// <summary>Adds (or returns the existing) breakpoint on <paramref name="node" />.</summary>
     public GraphBreakpoint AddNode(IGraphNode node, string? condition = null)
     {
-        GraphBreakpoint? existing = FindNode(node.Name);
+        GraphBreakpoint? existing = FindNode(node.Key);
         if (existing is not null)
         {
             return existing;
@@ -57,7 +57,7 @@ public sealed class GraphBreakpointService
         GraphBreakpoint bp = new()
         {
             TargetKind = GraphBreakpointTarget.Node,
-            NodeName = node.Name,
+            NodeKey = node.Key,
             Condition = condition
         };
         AddInternal(bp);
@@ -67,7 +67,7 @@ public sealed class GraphBreakpointService
     /// <summary>Adds (or returns the existing) breakpoint on <paramref name="edge" />.</summary>
     public GraphBreakpoint AddEdge(IGraphEdge edge, string? condition = null)
     {
-        GraphBreakpoint? existing = FindEdge(edge.Source.Name, edge.Destination.Name, edge.Label, edge.ConditionLabel);
+        GraphBreakpoint? existing = FindEdge(edge.Source.Key, edge.Destination.Key, edge.Label, edge.ConditionLabel);
         if (existing is not null)
         {
             return existing;
@@ -76,8 +76,8 @@ public sealed class GraphBreakpointService
         GraphBreakpoint bp = new()
         {
             TargetKind = GraphBreakpointTarget.Edge,
-            EdgeSource = edge.Source.Name,
-            EdgeDest = edge.Destination.Name,
+            EdgeSourceKey = edge.Source.Key,
+            EdgeDestKey = edge.Destination.Key,
             EdgeLabel = edge.Label,
             EdgeConditionLabel = edge.ConditionLabel,
             Condition = condition

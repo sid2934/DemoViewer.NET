@@ -67,6 +67,17 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
     /// <summary>Is root.</summary>
     public bool IsRoot { get; } = isRoot;
 
+    /// <summary>
+    ///     This node's stable identity (<see cref="IGraphNode.Key" />). Defaults to a game-scope key
+    ///     over <see cref="Name" />, which is what the Workbench authoring graph and the pre-evaluation
+    ///     skeleton want; the Analysis post-evaluation build overrides it with a per-player key for
+    ///     every materialized copy. Anything persisted or looked up keys on this, NOT on
+    ///     <see cref="Name" />, which repeats once per player.
+    /// </summary>
+    public GraphNodeKey NodeKey { get; init; } = GraphNodeKey.ForGameScope(name);
+
+    string IGraphNode.Key => NodeKey.ToString();
+
     /// <summary>Name.</summary>
     public string Name { get; } = name;
 
