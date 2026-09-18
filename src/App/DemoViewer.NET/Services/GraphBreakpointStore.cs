@@ -103,9 +103,9 @@ public sealed class GraphBreakpointStore
     ///         Called from the desktop host's Velopack after-update hook, so the drop happens once at
     ///         upgrade rather than lazily. Safe to call at any time and on any platform: it is a no-op
     ///         on WASM (no filesystem) and when the file is already gone, and it swallows I/O failures
-    ///         the same way every other method here does. Nothing is migrated: a pre-v2 record names a
-    ///         node, and a name no longer identifies one (see
-    ///         <see cref="AppPaths.LegacyGraphBreakpointsFile" />).
+    ///         the same way every other method here does. Nothing is migrated, by choice rather
+    ///         than necessity: a pre-v2 file holds only game-scope records, which would map losslessly
+    ///         onto the new key form (see <see cref="AppPaths.LegacyGraphBreakpointsFile" />).
     ///     </para>
     /// </summary>
     public static void DeleteLegacyFile()

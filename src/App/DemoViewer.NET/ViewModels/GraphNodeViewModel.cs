@@ -83,7 +83,15 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
     // struct on each access was a string allocation per probe across hundreds of nodes.
     private string? _keyText;
 
-    string IGraphNode.Key => _keyText ??= NodeKey.ToString();
+    /// <summary>
+    ///     The wire form of <see cref="NodeKey" />, materialized once. Call sites holding the concrete
+    ///     type use this rather than <c>NodeKey.ToString()</c>: the breakpoint-marker refresh probes it
+    ///     once per node and twice per edge, which is a four-figure count of string allocations per
+    ///     pass once the graph carries per-player nodes.
+    /// </summary>
+    public string KeyText => _keyText ??= NodeKey.ToString();
+
+    string IGraphNode.Key => KeyText;
 
     /// <summary>Name.</summary>
     public string Name { get; } = name;
@@ -111,9 +119,10 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
             // throws "Call from invalid thread". This getter is read from BOTH threads: the renderer
             // on the UI thread, and MsaglTranslator on the layout thread GraphViewModel.SetGraphAsync
             // pushes work onto. Resolve live on the UI thread, which is what keeps a theme switch
-            // recolouring these borders; hand the layout pass a fixed style. NOTHING is cached in a
-            // field: a getter that writes shared state is a data race when two threads read it, and
-            // layout reads Style only for size overrides, which neither branch sets.
+            // recolouring these borders; hand the layout pass a fixed style. The resolved style IS
+            // cached, in the statics above, but written only here, on the UI thread, behind this gate,
+            // so the layout thread reads neither the cache nor the theme and there is no race. Layout
+            // reads Style only for size overrides, which neither branch sets.
             if (!Dispatcher.UIThread.CheckAccess())
             {
                 return _perPlayerFallbackStyle;

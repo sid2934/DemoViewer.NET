@@ -164,8 +164,21 @@ Workbench uses and the Analysis tab does not.
 Closes #15. No new dependency, no renderer change, nothing about nodify. This phase is worth
 shipping alone.
 
-**Shipped.** All seven requirements below are implemented. Two things were found while building it
-that this section did not anticipate, both recorded in §3.2.
+**Shipped, with three of the seven altered in flight.** What actually landed, against what this
+section asked for:
+
+| Requirement | State |
+|---|---|
+| Join the real node set | as written |
+| Stable identity, not the name | as written (`GraphNodeKey`) |
+| Migrate persisted breakpoints | **changed**: they are DROPPED, not migrated, per decision 2 in §9. The proposal below (bind a legacy record to every slot) was never built. The mechanism is also a new filename rather than the schema version §9 describes |
+| Collapse per-player copies by default | as written, plus a rebuild so the selector actually switches player |
+| Count the drops, and show the count | **partial**: one counter over the graph-build edge sites, surfaced in the toolbar. The table sites and the two `MsaglTranslator` sites in §1.1 are still uncounted |
+| Delete the dead features | as written |
+| Fix what the bench and tests report | **changed**: the bench prints scaffolding and drawn counts separately. `RuleWorkbenchGraphTests` asserts root presence and name uniqueness rather than "a known rule id produces a node" |
+
+§3.1's suggestion that graph construction be extracted out of `AnalysisViewModel` **did not happen**;
+the file grew from 3 086 to about 3 500 lines. Three things found while building are in §3.2.
 
 **Join the real node set.** Source nodes from `build.Nodes` joined with
 `MaterializedPlayers[*].Nodes`, and edges from `build.Edges` joined with

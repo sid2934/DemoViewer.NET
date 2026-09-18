@@ -18,6 +18,11 @@ namespace DemoViewer.NET.ViewModels;
 ///         in discovery order. That matters for a coming engine change, which reorders players by
 ///         discovery and drops roster slots that never materialise; slots do not move under it.
 ///     </para>
+///     <para>
+///         Stable across runs of one demo, NOT across a change to the loaded ruleset set:
+///         <see cref="TemplateIndex" /> is a position among the materialising templates, so adding,
+///         removing or reordering a ruleset can shift it and orphan a persisted breakpoint.
+///     </para>
 /// </summary>
 public readonly record struct GraphNodeKey
 {
@@ -75,9 +80,9 @@ public readonly record struct GraphNodeKey
             : GameScopePrefix + Name;
 
     /// <summary>
-    ///     Parses the <see cref="ToString" /> form. Returns <c>false</c> for anything else, including a
-    ///     bare node name written by a build that predates this type: the caller treats that as a record
-    ///     it cannot honour rather than guessing which of ten nodes was meant.
+    ///     Parses the <see cref="ToString" /> form. Returns <c>false</c> for anything else, including
+    ///     the bare node name a build predating this type would have written. No such value reaches
+    ///     here in practice: the pre-v2 breakpoint file is deleted rather than read.
     /// </summary>
     public static bool TryParse(string? text, out GraphNodeKey key)
     {

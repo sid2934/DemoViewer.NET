@@ -89,13 +89,17 @@ public static class AppPaths
     /// <summary>
     ///     The pre-v2 breakpoint file, kept only so it can be deleted.
     ///     <para>
-    ///         Its records identify a node by NAME. Once the Analysis graph draws the per-player nodes
-    ///         that actually ran, one name matches up to ten of them, so every per-player record in it
-    ///         is ambiguous and none can be honoured. A new filename rather than an in-place schema
+    ///         Its records identify a node by NAME, which no longer identifies one.
+    ///     </para>
+    ///     <para>
+    ///         <b>These records are dropped by CHOICE, not because they cannot be carried.</b> Every
+    ///         record in a pre-v2 file is game-scope, because before the per-player join the Analysis
+    ///         graph drew only the shared scaffolding, so <c>name</c> to <c>g:{name}</c> would migrate
+    ///         them losslessly. Carrying them was considered and declined. If that is revisited, the
+    ///         rewrite belongs here, ahead of the delete. A new filename rather than an in-place schema
     ///         version because it makes the old records unreachable by construction: there is no parse
-    ///         to get subtly wrong. Note that the file does not survive: GraphBreakpointStore deletes
-    ///         it on construction, so it is gone after the first v2 launch and a downgrade finds
-    ///         nothing rather than its old set.
+    ///         to get subtly wrong. The file does not survive either way: GraphBreakpointStore deletes
+    ///         it on construction, so a downgrade finds nothing rather than its old set.
     ///     </para>
     /// </summary>
     public static string? LegacyGraphBreakpointsFile => Resolve("GraphBreakpoints.json");

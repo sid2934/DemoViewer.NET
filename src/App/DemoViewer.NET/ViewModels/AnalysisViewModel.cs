@@ -758,11 +758,13 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         _frameIndexByFrame = null;
         _currentFrameIndex = -1;
         _currentSnapshot = null;
-        ClearFullGraph();
 
-        // Which player the user was looking at, captured BEFORE the filter is wiped, so a re-run of
-        // the same demo comes back on the same player instead of jumping to the lowest slot.
+        // Which player the user was looking at, captured before ANY of the reset below runs. Both
+        // ClearFullGraph and Filter.Clear wipe a piece of this, and ClearFullGraph nulls
+        // _graphPlayerSlot itself, so a capture after either reads null and a re-run snaps the graph
+        // back to the lowest slot.
         int? previouslyViewedSlot = _graphPlayerSlot;
+        ClearFullGraph();
         Filter.Clear();
 
         try
@@ -848,7 +850,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             // in ~1.3 s onto a canvas tens of thousands of pixels tall: correct, and unreadable. So one
             // player renders at a time and the selector switches slot.
             List<PerPlayerNodeTemplate.MaterializedPlayer> renderedPlayer =
-                ResolveGraphPlayer(result, previouslyViewedSlot);
+                ResolveGraphPlayer(result.MaterializedPlayers, previouslyViewedSlot);
             _graphPlayerSlot = renderedPlayer.Count > 0 ? renderedPlayer[0].PlayerSlot : null;
             GraphPlayerLabel = DescribeGraphPlayer(renderedPlayer);
 
@@ -1066,7 +1068,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     ///     Progressive-reveal pre-render: paints the graph skeleton from
-    ///     <see cref="BuildResult" /> alone: nodes, edges, and group hints are all known after Build,
+    ///     <see cref="BuildResult" /> alone: nodes and edges are all known after Build,
     ///     before the multi-second evaluation. Node values are the pre-eval defaults (filled in by the
     ///     authoritative post-eval render in <see cref="RunAsync" />); per-player tables aren't included
     ///     because they need the evaluated result. Best-effort: any failure is swallowed so a cosmetic
@@ -1373,7 +1375,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         Dictionary<string, GraphNodeViewModel> byKey = new(nodes.Count, StringComparer.Ordinal);
         foreach (GraphNodeViewModel vm in nodes)
         {
-            byKey[vm.NodeKey.ToString()] = vm;
+            byKey[vm.KeyText] = vm;
         }
 
         return byKey;
@@ -1532,7 +1534,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         // "All players" (or a slot that materialized nothing) keeps the currently drawn player rather
         // than emptying the graph of every rule node: the graph can only ever show one, and showing
         // none would be the very defect this change exists to fix.
-        List<PerPlayerNodeTemplate.MaterializedPlayer> target = MaterializationsForSlot(result, slot);
+        List<PerPlayerNodeTemplate.MaterializedPlayer> target = MaterializationsForSlot(result.MaterializedPlayers, slot);
         if (target.Count == 0)
         {
             return false;
@@ -1561,27 +1563,35 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     ///     started differently. Empty when a run materialized no player, which is a demo with no
     ///     roster, not an error.
     ///     <para>
-    ///         The preference is passed in rather than read off <c>Filter</c>, because <c>RunAsync</c>
-    ///         clears the filter before it gets here: reading it at this point would always see null,
-    ///         and a re-run would silently drop the user back to the lowest slot.
+    ///         The preference is passed in rather than read off a field, because <c>RunAsync</c>'s
+    ///         reset runs first: <c>ClearFullGraph</c> nulls <c>_graphPlayerSlot</c> and
+    ///         <c>Filter.Clear</c> nulls the selection. Read here, either would be null.
     ///     </para>
     /// </summary>
+    /// <summary>
+    ///     Test seam over <see cref="ResolveGraphPlayer" />: the choice of drawn player decides what
+    ///     the user sees, and it is a pure function of the materialized set.
+    /// </summary>
+    internal static List<PerPlayerNodeTemplate.MaterializedPlayer> ResolveGraphPlayerForTests(
+        IReadOnlyList<PerPlayerNodeTemplate.MaterializedPlayer> players, int? preferredSlot) =>
+        ResolveGraphPlayer(players, preferredSlot);
+
     private static List<PerPlayerNodeTemplate.MaterializedPlayer> ResolveGraphPlayer(
-        EvaluationResult result, int? preferredSlot)
+        IReadOnlyList<PerPlayerNodeTemplate.MaterializedPlayer> players, int? preferredSlot)
     {
-        if (result.MaterializedPlayers.Count == 0)
+        if (players.Count == 0)
         {
             return [];
         }
 
-        List<PerPlayerNodeTemplate.MaterializedPlayer> chosen = MaterializationsForSlot(result, preferredSlot);
+        List<PerPlayerNodeTemplate.MaterializedPlayer> chosen = MaterializationsForSlot(players, preferredSlot);
         if (chosen.Count > 0)
         {
             return chosen;
         }
 
         int lowest = int.MaxValue;
-        foreach (PerPlayerNodeTemplate.MaterializedPlayer p in result.MaterializedPlayers)
+        foreach (PerPlayerNodeTemplate.MaterializedPlayer p in players)
         {
             if (p.PlayerSlot < lowest)
             {
@@ -1589,7 +1599,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             }
         }
 
-        return MaterializationsForSlot(result, lowest);
+        return MaterializationsForSlot(players, lowest);
     }
 
     /// <summary>
@@ -1603,7 +1613,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     ///     </para>
     /// </summary>
     private static List<PerPlayerNodeTemplate.MaterializedPlayer> MaterializationsForSlot(
-        EvaluationResult result, int? slot)
+        IReadOnlyList<PerPlayerNodeTemplate.MaterializedPlayer> players, int? slot)
     {
         List<PerPlayerNodeTemplate.MaterializedPlayer> found = [];
         if (slot is null)
@@ -1611,7 +1621,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             return found;
         }
 
-        foreach (PerPlayerNodeTemplate.MaterializedPlayer p in result.MaterializedPlayers)
+        foreach (PerPlayerNodeTemplate.MaterializedPlayer p in players)
         {
             if (p.PlayerSlot == slot)
             {
@@ -1622,10 +1632,6 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         return found;
     }
 
-    /// <summary>
-    ///     The edge descriptors the graph draws: the game-scope ones from the build, then the rendered
-    ///     player's. Kept as one sequence so every drop funnels through a single counted site.
-    /// </summary>
     /// <summary>
     ///     Key to snapshot column for every node the evaluation tracked, across ALL players rather
     ///     than the one being drawn. This is what lets a breakpoint set on one player keep resolving
@@ -2941,7 +2947,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         foreach (GraphEdgeViewModel e in _allGraphEdges)
         {
-            if (e.Destination.NodeKey.ToString() != nodeKey)
+            if (e.Destination.KeyText != nodeKey)
             {
                 continue;
             }
@@ -2977,7 +2983,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     {
         foreach (GraphNodeViewModel vm in _allGraphNodes)
         {
-            GraphBreakpoint? bp = GraphBreakpoints.FindNode(vm.NodeKey.ToString());
+            GraphBreakpoint? bp = GraphBreakpoints.FindNode(vm.KeyText);
             vm.HasBreakpoint = bp is not null;
             vm.HasConditionalBreakpoint = bp?.Condition is not null;
         }
@@ -2985,7 +2991,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         foreach (GraphEdgeViewModel vm in _allGraphEdges)
         {
             GraphBreakpoint? bp = GraphBreakpoints.FindEdge(
-                vm.Source.NodeKey.ToString(), vm.Destination.NodeKey.ToString(), vm.Label, vm.ConditionLabel);
+                vm.Source.KeyText, vm.Destination.KeyText, vm.Label, vm.ConditionLabel);
             vm.HasBreakpoint = bp is not null;
             vm.HasConditionalBreakpoint = bp?.Condition is not null;
         }
