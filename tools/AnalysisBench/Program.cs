@@ -194,7 +194,7 @@ if (positional.Length == 0)
     Console.Error.WriteLine("Options:");
     Console.Error.WriteLine("  --trace              Enable EventSource listener (adds instrumentation overhead)");
     Console.Error.WriteLine("  --counters           Attach a MeterListener (dotnet-counters-equivalent) and print counter totals");
-    Console.Error.WriteLine("  --timeline           Attach an ActivityListener and print the phase timeline (read/parse/build/eval/precompute)");
+    Console.Error.WriteLine("  --timeline           Attach an ActivityListener and print the phase timeline (read/parse/build/eval)");
     Console.Error.WriteLine("  --retained           Parse the whole demo, then evaluate over it (the app's playback path); the default is the forward path");
     Console.Error.WriteLine("  --bare               Run without snapshots (the forward path's default; with --retained it measures pure eval cost)");
     Console.Error.WriteLine("  --no-golden          Skip writing tests/fixtures golden files (use for verification runs)");

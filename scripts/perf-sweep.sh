@@ -22,19 +22,23 @@ else
   demos=( demos/benchmarks/*.dem demos/pro-demos/*.dem )
 fi
 
+# --retained on every invocation. The bench's default is the forward path now, which has no
+# separate parse phase and labels its bracket "Run" / "Total (run)", so every grep below would
+# come back empty, and the per-pass columns this sweep exists for only exist on that path.
+# Keeping the flag here keeps a re-run comparable with the runs already recorded in results.md.
 for demo in "${demos[@]}"; do
   name=$(basename "$demo" .dem); abs="$(pwd)/$demo"
   echo ">>> $name"
-  dotnet "$DLL" "$abs" --no-golden >/dev/null 2>&1            # cold discard
+  dotnet "$DLL" "$abs" --retained --no-golden >/dev/null 2>&1  # cold discard
   totals=()
   for i in 1 2 3; do                                          # 3 warm
-    out=$(dotnet "$DLL" "$abs" --no-golden 2>&1)
+    out=$(dotnet "$DLL" "$abs" --retained --no-golden 2>&1)
     totals+=( "$(echo "$out" | grep 'Total (parse+build+eval)' | n1)" )
     parse=$(echo "$out" | grep -E '^  Parse:' | n1)
     eval=$(echo "$out"  | grep -E '^  Eval:'  | n1)
   done
   med=$(printf '%s\n' "${totals[@]}" | sort -n | sed -n '2p')
-  prof=$(dotnet "$DLL" "$abs" --profile --no-golden 2>&1)     # breakdown
+  prof=$(dotnet "$DLL" "$abs" --retained --profile --no-golden 2>&1)  # breakdown
   echo "$prof" > "$OUT/$name.profile.txt"
   src=$(echo "$prof" | grep -oE 'Source: [A-Za-z]+' | head -1 | sed 's/Source: //')
   p1=$(echo "$prof" | grep 'Pass 1' | grep -oE '[0-9.]+ ms' | n1)
