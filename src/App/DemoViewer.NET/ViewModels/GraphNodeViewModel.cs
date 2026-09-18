@@ -22,6 +22,13 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
     // getter is read from two threads and must not write shared state to serve them (see the getter).
     private static readonly NodeStyle _perPlayerFallbackStyle = BorderStyle(Color.Parse("#009688"));
 
+    // The theme-resolved per-player style, cached per theme variant across ALL nodes. The getter runs
+    // twice per node per repaint and the graph now draws hundreds of them, so resolving a resource and
+    // allocating a NodeStyle on every read cost a four-figure number of both per frame. Written only
+    // on the UI thread; the layout thread never reaches this (it returns the fallback above).
+    private static NodeStyle? _perPlayerThemedStyle;
+    private static object? _perPlayerThemedFor;
+
     /// <summary>
     ///     Whether a graph breakpoint is armed on this node. Satisfies <see cref="IGraphNode.HasBreakpoint" />
     ///     (overriding its <c>false</c> default); the renderer draws the marker when true. Set by
@@ -71,7 +78,12 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
     /// </summary>
     public GraphNodeKey NodeKey { get; init; } = GraphNodeKey.ForGameScope(name);
 
-    string IGraphNode.Key => NodeKey.ToString();
+    // The wire form, materialized once. IGraphNode.Key is read per node and twice per edge by the
+    // breakpoint-marker refresh, and once per edge by the input-event scan, so re-serializing the
+    // struct on each access was a string allocation per probe across hundreds of nodes.
+    private string? _keyText;
+
+    string IGraphNode.Key => _keyText ??= NodeKey.ToString();
 
     /// <summary>Name.</summary>
     public string Name { get; } = name;
@@ -107,8 +119,17 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
                 return _perPlayerFallbackStyle;
             }
 
-            return BorderStyle(ThemeColors.Get(
+            object? variant = Application.Current?.ActualThemeVariant;
+            if (_perPlayerThemedStyle is { } cached && Equals(_perPlayerThemedFor, variant))
+            {
+                return cached;
+            }
+
+            NodeStyle resolved = BorderStyle(ThemeColors.Get(
                 "GraphNodePerPlayerBorder", Application.Current?.ActualThemeVariant, "#009688"));
+            _perPlayerThemedStyle = resolved;
+            _perPlayerThemedFor = variant;
+            return resolved;
         }
     }
 

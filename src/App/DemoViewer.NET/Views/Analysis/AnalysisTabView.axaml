@@ -181,6 +181,17 @@
                                    Foreground="{DynamicResource TextDimGray}"
                                    VerticalAlignment="Center" />
 
+                        <!-- Whose per-player nodes are on the canvas. The graph shows one player at a
+                             time, and the filter's picker reads "All players" after a run, so without
+                             this the node values on screen belong to nobody the user can name. -->
+                        <TextBlock Text="{Binding GraphPlayerLabel}"
+                                   IsVisible="{Binding HasGraphPlayer}"
+                                   ToolTip.Tip="The graph draws one player's rule nodes; use the player filter to switch"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource GraphNodePerPlayerBorder}"
+                                   VerticalAlignment="Center" />
+
                         <!-- Edges the build could not draw. An edge with an unresolved endpoint is a
                              rule the user wrote and cannot see on the canvas, so the count is stated
                              instead of being dropped on a bare continue. Hidden when there are none. -->

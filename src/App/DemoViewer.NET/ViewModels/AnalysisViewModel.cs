@@ -298,10 +298,24 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(HasDroppedEdges))]
     private int _droppedEdgeCount;
 
-    // Key -> node view model for the currently drawn graph. Built once per graph build: the lookups
-    // that used to scan _allGraphNodes and allocate a key string per candidate now run at ~3800 nodes
-    // rather than 61, and RefreshBreakpointMarkers probes it once per node and twice per edge.
+    // Who the drawn per-player nodes belong to. The graph can only show one player at a time, and the
+    // filter's picker sits on "All players" after a run, so without this the canvas shows one slot's
+    // Alive / Survived / round_team_alive with nothing on screen naming whose they are.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasGraphPlayer))]
+    private string _graphPlayerLabel = string.Empty;
+
+    // Key -> node view model for the currently DRAWN graph. Built once per graph build, replacing a
+    // scan of _allGraphNodes that allocated a key string per candidate.
     private Dictionary<string, GraphNodeViewModel> _nodeVmByKey = new(StringComparer.Ordinal);
+
+    // Key -> snapshot column for EVERY node the evaluation tracked, drawn or not.
+    //
+    // Deliberately separate from _nodeVmByKey, which holds only the one player the graph is showing.
+    // A breakpoint survives a player switch and keeps its own key, so resolving its column through
+    // the drawn set would return -1 the moment the user looked at somebody else, and the breakpoint
+    // would silently report zero hits on a node the engine evaluated perfectly well.
+    private Dictionary<string, int> _trackedIndexByKey = new(StringComparer.Ordinal);
 
     // Retained from the last run so switching player can rebuild the graph without re-evaluating.
     private BuildResult? _lastBuild;
@@ -678,11 +692,13 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         // player-only change must not spuriously swap; a reload must re-swap from empty.
         _renderedChainKeys = new HashSet<string>(StringComparer.Ordinal);
         _nodeVmByKey = new Dictionary<string, GraphNodeViewModel>(StringComparer.Ordinal);
+        _trackedIndexByKey = new Dictionary<string, int>(StringComparer.Ordinal);
         _lastBuild = null;
         _lastResult = null;
         _snapshotIndexByNode = null;
         _graphPlayerSlot = null;
         DroppedEdgeCount = 0; // or the toolbar keeps warning about the previous demo's edges
+        GraphPlayerLabel = string.Empty;
         _renderedPlayerSlot = null; // full graph renders all rows; a reload must re-swap from "all"
         _swapRequestToken++; // cancel any in-flight debounced swap from the previous demo
 
@@ -743,6 +759,10 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         _currentFrameIndex = -1;
         _currentSnapshot = null;
         ClearFullGraph();
+
+        // Which player the user was looking at, captured BEFORE the filter is wiped, so a re-run of
+        // the same demo comes back on the same player instead of jumping to the lowest slot.
+        int? previouslyViewedSlot = _graphPlayerSlot;
         Filter.Clear();
 
         try
@@ -827,8 +847,10 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             // EVERY player instead is 3 791 nodes and 2 583 edges on a real demo, which MSAGL lays out
             // in ~1.3 s onto a canvas tens of thousands of pixels tall: correct, and unreadable. So one
             // player renders at a time and the selector switches slot.
-            List<PerPlayerNodeTemplate.MaterializedPlayer> renderedPlayer = ResolveGraphPlayer(result);
+            List<PerPlayerNodeTemplate.MaterializedPlayer> renderedPlayer =
+                ResolveGraphPlayer(result, previouslyViewedSlot);
             _graphPlayerSlot = renderedPlayer.Count > 0 ? renderedPlayer[0].PlayerSlot : null;
+            GraphPlayerLabel = DescribeGraphPlayer(renderedPlayer);
 
             GraphBuild graph = BuildGraphViewModels(build, renderedPlayer, snapshotIndexByNode);
             Dictionary<StateNode, GraphNodeViewModel> nodeVmByNode = graph.NodeVmByNode;
@@ -854,8 +876,15 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
                     }
 
                     // Game-scope keys: build.Edges holds only scaffolding edges, and EdgeKey above
-                    // produces the same form for their view models. A per-player edge has no
-                    // EdgeBacking entry, so its breakpoint falls back to the default fire set.
+                    // produces the same form for their view models.
+                    //
+                    // Per-player edges are absent from this map entirely, and there is no fallback:
+                    // BuildResult.EdgeBacking covers game-scope descriptors only, and
+                    // MaterializedPlayer exposes no equivalent, so the evaluator's per-edge applied
+                    // indices are not reachable for them. IsBreakpointable therefore reports false
+                    // and the arm affordance stays disabled, which is honest - an armed breakpoint
+                    // with no fire set would look armed and never stop. Lifting this needs the engine
+                    // to expose per-player edge backing.
                     (string, string, string, string?) key = (
                         GraphNodeKey.ForGameScope(e.Source.Name).ToString(),
                         GraphNodeKey.ForGameScope(e.Destination.Name).ToString(),
@@ -902,12 +931,13 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             _lastBuild = build;
             _lastResult = result;
             _snapshotIndexByNode = snapshotIndexByNode;
+            _trackedIndexByKey = BuildTrackedIndexByKey(build, result, snapshotIndexByNode);
 
             // ── Per-player tables (one per template × column-group) ──────────
             // Column edges are built INSIDE BuildPlayerTables' per-group loop, where the
             // group's local column list and column nodes are both in hand, so each edge's
             // ColumnIndex is LOCAL to its table (aligned 1:1 with that table's ColumnNames).
-            PlayerTables = BuildPlayerTables(result, nodeVmByNode, build.Nodes);
+            PlayerTables = BuildPlayerTables(result, nodeVmByNode, build.Nodes, snapshotIndexByNode);
 
             // ── Capture the full graph as the projection source of truth ─────
             _allGraphNodes = nodeVms;
@@ -1305,6 +1335,25 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         Dictionary<StateNode, GraphNodeViewModel> NodeVmByNode,
         int DroppedEdges);
 
+    /// <summary>True while the graph is showing one player's rule nodes.</summary>
+    public bool HasGraphPlayer => GraphPlayerLabel.Length > 0;
+
+    // "per-player nodes: ZywOo (slot 14)". Named rather than just slotted, because the slot number is
+    // not what the user picked the player by.
+    private static string DescribeGraphPlayer(List<PerPlayerNodeTemplate.MaterializedPlayer> players)
+    {
+        if (players.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        PerPlayerNodeTemplate.MaterializedPlayer p = players[0];
+        string slot = p.PlayerSlot.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return string.IsNullOrWhiteSpace(p.PlayerName)
+            ? $"per-player nodes: slot {slot}"
+            : $"per-player nodes: {p.PlayerName} (slot {slot})";
+    }
+
     /// <summary>True when the last graph build could not draw every edge it was given.</summary>
     public bool HasDroppedEdges => DroppedEdgeCount > 0;
 
@@ -1401,7 +1450,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         List<GraphEdgeViewModel> edgeVms = new(build.Edges.Count);
         int droppedEdges = 0;
 
-        HashSet<(StateNode, StateNode)> drawnPairs = new();
+        HashSet<(StateNode, StateNode, string)> drawnPairs = new();
         foreach (GraphEdgeDescriptor e in EnumerateGraphEdges(build, renderedPlayer))
         {
             if (!nodeVmByNode.TryGetValue(e.Source, out GraphNodeViewModel? srcVm)
@@ -1411,7 +1460,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
                 continue;
             }
 
-            drawnPairs.Add((e.Source, e.Destination));
+            drawnPairs.Add((e.Source, e.Destination, e.Label));
             edgeVms.Add(new GraphEdgeViewModel(srcVm, dstVm, e.Label, e.Effect, e.ConditionLabel));
         }
 
@@ -1430,22 +1479,32 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         {
             foreach (StateEdge se in player.Edges)
             {
-                if (!nodeVmByNode.TryGetValue(se.Source, out GraphNodeViewModel? srcVm))
-                {
-                    continue;
-                }
+                // The registry name, not MessageType.Name. Every other edge on the canvas is labelled
+                // with the event name the user wrote in YAML, and the edge maps are keyed on it, so a
+                // CLR type name here would read as a second naming scheme and could never join them.
+                string label = EventNameForType(se.MessageType);
+                bool haveSource = nodeVmByNode.TryGetValue(se.Source, out GraphNodeViewModel? srcVm);
 
                 foreach (StateNode written in EnumerateWrittenNodes(se))
                 {
-                    // A descriptor already said this, with a better label. Do not double-draw it.
-                    if (!nodeVmByNode.TryGetValue(written, out GraphNodeViewModel? dstVm)
-                        || !drawnPairs.Add((se.Source, written)))
+                    if (!haveSource || !nodeVmByNode.TryGetValue(written, out GraphNodeViewModel? dstVm))
+                    {
+                        // Counted, like the descriptor pass: the usual cause is an endpoint in the
+                        // game-scope enrichment set the engine keeps behind StateGraph.Edges.
+                        droppedEdges++;
+                        continue;
+                    }
+
+                    // A descriptor already stated this exact relationship, with its own condition
+                    // label. Keyed on the label too, so two edges between one pair on different
+                    // events both survive.
+                    if (!drawnPairs.Add((se.Source, written, label)))
                     {
                         continue;
                     }
 
                     edgeVms.Add(new GraphEdgeViewModel(
-                        srcVm, dstVm, se.MessageType.Name, se.DeclaredEffect ?? EdgeEffect.SetValue));
+                        srcVm!, dstVm, label, se.DeclaredEffect ?? EdgeEffect.SetValue));
                 }
             }
         }
@@ -1481,12 +1540,13 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         GraphBuild graph = BuildGraphViewModels(build, target, _snapshotIndexByNode);
         _graphPlayerSlot = target[0].PlayerSlot;
+        GraphPlayerLabel = DescribeGraphPlayer(target);
         DroppedEdgeCount = graph.DroppedEdges;
 
         _allGraphNodes = graph.Nodes;
         _nodeVmByKey = IndexByKey(graph.Nodes);
         _allGraphEdges = graph.Edges;
-        _allTables = BuildPlayerTables(result, graph.NodeVmByNode, build.Nodes);
+        _allTables = BuildPlayerTables(result, graph.NodeVmByNode, build.Nodes, _snapshotIndexByNode);
         _rootNode = graph.Nodes.FirstOrDefault(n => n.IsRoot);
         _upstreamOf = BuildUpstreamAdjacency(graph.Edges);
         RefreshBreakpointMarkers();
@@ -1494,21 +1554,27 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Picks the player whose materialized nodes get built into the graph: whichever slot the
-    ///     filter already has selected, else the lowest slot on the roster. Lowest rather than first
-    ///     in the list because a coming engine change hands players back in discovery order, and the
-    ///     graph should not reshuffle under the user because a round started differently.
-    ///     <c>null</c> when a run materialized no player, which is a demo with no roster, not an error.
+    ///     Picks the player whose materialized nodes get built into the graph:
+    ///     <paramref name="preferredSlot" /> when that slot materialized, else the lowest slot on the
+    ///     roster. Lowest rather than first in the list because a coming engine change hands players
+    ///     back in discovery order, and the graph should not reshuffle under the user because a round
+    ///     started differently. Empty when a run materialized no player, which is a demo with no
+    ///     roster, not an error.
+    ///     <para>
+    ///         The preference is passed in rather than read off <c>Filter</c>, because <c>RunAsync</c>
+    ///         clears the filter before it gets here: reading it at this point would always see null,
+    ///         and a re-run would silently drop the user back to the lowest slot.
+    ///     </para>
     /// </summary>
-    private List<PerPlayerNodeTemplate.MaterializedPlayer> ResolveGraphPlayer(EvaluationResult result)
+    private static List<PerPlayerNodeTemplate.MaterializedPlayer> ResolveGraphPlayer(
+        EvaluationResult result, int? preferredSlot)
     {
         if (result.MaterializedPlayers.Count == 0)
         {
             return [];
         }
 
-        int? wanted = Filter.SelectedPlayer is { Slot: >= 0 } sel ? sel.Slot : null;
-        List<PerPlayerNodeTemplate.MaterializedPlayer> chosen = MaterializationsForSlot(result, wanted);
+        List<PerPlayerNodeTemplate.MaterializedPlayer> chosen = MaterializationsForSlot(result, preferredSlot);
         if (chosen.Count > 0)
         {
             return chosen;
@@ -1560,6 +1626,68 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     ///     The edge descriptors the graph draws: the game-scope ones from the build, then the rendered
     ///     player's. Kept as one sequence so every drop funnels through a single counted site.
     /// </summary>
+    /// <summary>
+    ///     Key to snapshot column for every node the evaluation tracked, across ALL players rather
+    ///     than the one being drawn. This is what lets a breakpoint set on one player keep resolving
+    ///     its own column while the graph shows somebody else.
+    /// </summary>
+    private static Dictionary<string, int> BuildTrackedIndexByKey(
+        BuildResult build,
+        EvaluationResult result,
+        Dictionary<StateNode, int> snapshotIndexByNode)
+    {
+        Dictionary<string, int> byKey = new(snapshotIndexByNode.Count, StringComparer.Ordinal);
+        foreach (StateNode node in build.Nodes)
+        {
+            byKey[GraphNodeKey.ForGameScope(node.Name).ToString()] = snapshotIndexByNode.GetValueOrDefault(node, -1);
+        }
+
+        foreach (PerPlayerNodeTemplate.MaterializedPlayer player in result.MaterializedPlayers)
+        {
+            foreach (StateNode node in player.Nodes)
+            {
+                byKey[GraphNodeKey.ForPlayer(player.TemplateIndex, player.PlayerSlot, node.Name).ToString()] =
+                    snapshotIndexByNode.GetValueOrDefault(node, -1);
+            }
+        }
+
+        return byKey;
+    }
+
+    // Dispatch CLR type -> the event/message name the rest of the app labels and keys edges by.
+    // Built once, lazily: EventRegistry.Build() is cheap reflection over a fixed set, but not free.
+    private static Dictionary<Type, string>? _eventNameByType;
+
+    private static string EventNameForType(Type messageType)
+    {
+        if (_eventNameByType is null)
+        {
+            EventRegistry registry = EventRegistry.Build();
+            Dictionary<Type, string> map = new();
+            foreach (string name in registry.EventNames)
+            {
+                if (registry.GetEvent(name) is { } ev)
+                {
+                    map[ev.EventType] = name;
+                }
+            }
+
+            foreach (string name in registry.NetMessageNames)
+            {
+                if (registry.GetNetMessage(name) is { } nm)
+                {
+                    map[nm.PayloadType] = name;
+                }
+            }
+
+            _eventNameByType = map;
+        }
+
+        // A dispatch type with no registry entry is a structural edge (a reset, a first-tick write).
+        // Its CLR name is the only name it has, and it is better than an empty label.
+        return _eventNameByType.GetValueOrDefault(messageType, messageType.Name);
+    }
+
     /// <summary>Every node a runtime edge writes: its single destination, plus any multi-write extras.</summary>
     private static IEnumerable<StateNode> EnumerateWrittenNodes(StateEdge edge)
     {
@@ -1577,6 +1705,10 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         }
     }
 
+    /// <summary>
+    ///     The edge descriptors the graph draws: the game-scope ones from the build, then the rendered
+    ///     player's. Kept as one sequence so every drop funnels through a single counted site.
+    /// </summary>
     private static IEnumerable<GraphEdgeDescriptor> EnumerateGraphEdges(
         BuildResult build, IReadOnlyList<PerPlayerNodeTemplate.MaterializedPlayer> players)
     {
@@ -1630,7 +1762,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     private static List<PlayerTableViewModel> BuildPlayerTables(
         EvaluationResult result,
         Dictionary<StateNode, GraphNodeViewModel> nodeVmByNode,
-        IReadOnlyList<StateNode> lifecycleNodeList)
+        IReadOnlyList<StateNode> lifecycleNodeList,
+        Dictionary<StateNode, int> snapshotIndexByNode)
     {
         if (result.MaterializedPlayers.Count == 0)
         {
@@ -1686,17 +1819,10 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
                     List<TableCellViewModel> cells = new();
                     foreach (PerPlayerColumnAssignment assignment in playerGroupAssignments)
                     {
-                        int nodeIdx = -1;
-                        for (int i = 0; i < result.FinalTrackedNodes.Count; i++)
-                        {
-                            if (ReferenceEquals(result.FinalTrackedNodes[i], assignment.Node))
-                            {
-                                nodeIdx = i;
-                                break;
-                            }
-                        }
-
-                        cells.Add(new TableCellViewModel(nodeIdx));
+                        // The same map the node builder uses. This was a linear ReferenceEquals scan
+                        // over FinalTrackedNodes per cell, which is ~3 800 entries once per-player
+                        // nodes are appended, run once per column per player on every player switch.
+                        cells.Add(new TableCellViewModel(snapshotIndexByNode.GetValueOrDefault(assignment.Node, -1)));
                     }
 
                     rows.Add(new TableRowViewModel(player.PlayerName, player.PlayerSlot, $"slot == {player.PlayerSlot}", cells));
@@ -2412,8 +2538,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     // Keyed, not named: once per-player nodes are in the graph a name matches up to ten view models
     // and this would return whichever came first (issue #15).
-    private int NodeColumnByKey(string key) =>
-        _nodeVmByKey.TryGetValue(key, out GraphNodeViewModel? vm) ? vm.TrackedIndex : -1;
+    private int NodeColumnByKey(string key) => _trackedIndexByKey.GetValueOrDefault(key, -1);
 
     // Fired on any breakpoint set/condition/enabled change: rebind to the current evaluation and
     // persist the new set. While LoadPersistedBreakpoints is Adding the restored set this early-returns
@@ -3091,9 +3216,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
             // Per-player tables: keep only those contributing a column to a SELECTED chain,
             // projecting each to just that chain's columns.
-            renderTables = selectedChains.Count == 0
-                ? []
-                : ProjectTables(_allTables, selectedChains.ToHashSet(StringComparer.Ordinal), include);
+            renderTables = ProjectTables(_allTables, selectedChains, include);
         }
 
         // Player selection REMOVES the non-selected rows (structural), uniformly across both the

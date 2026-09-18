@@ -111,6 +111,32 @@ public sealed class GraphNodeKeyTests
     }
 
     [Test]
+    public async Task EveryPlayersKeys_AreDistinct_AcrossAWholeRoster()
+    {
+        // The property that makes a breakpoint survive a player switch: ten slots' copies of the same
+        // template node are ten keys, and a lookup table over the whole roster loses none of them.
+        string[] names = ["Alive", "Survived", "Traded", "round_team_alive"];
+        int[] slots = [1, 5, 6, 7, 9, 10, 11, 12, 13, 14];
+
+        Dictionary<string, (int Slot, string Name)> byKey = new(StringComparer.Ordinal);
+        foreach (int slot in slots)
+        {
+            foreach (string name in names)
+            {
+                byKey[GraphNodeKey.ForPlayer(0, slot, name).ToString()] = (slot, name);
+            }
+        }
+
+        await Assert.That(byKey.Count).IsEqualTo(slots.Length * names.Length)
+            .Because("no key may collide, or one player's breakpoint resolves to another's column");
+
+        // Slot 7's key still resolves to slot 7, whichever player the graph happens to be drawing.
+        (int Slot, string Name) found = byKey[GraphNodeKey.ForPlayer(0, 7, "Alive").ToString()];
+        await Assert.That(found.Slot).IsEqualTo(7);
+        await Assert.That(found.Name).IsEqualTo("Alive");
+    }
+
+    [Test]
     public async Task NodeViewModel_DefaultsToGameScope()
     {
         // The Workbench authoring graph and the pre-evaluation skeleton both rely on this default.
