@@ -78,7 +78,6 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     // subset of them via SetGraphAsync. These hold the full sets so we can re-project
     // (or restore the whole graph) without rebuilding VMs or re-evaluating.
     private List<GraphNodeViewModel> _allGraphNodes = [];
-    private List<INodeGroup> _allGroups = [];
     private IReadOnlyList<PlayerTableViewModel> _allTables = [];
 
     // Per-edge applied (fired) message indices, keyed by (source, dest, label, conditionLabel): the
@@ -346,8 +345,9 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     private IReadOnlyList<StateNode> _trackedNodesByColumn = [];
 
     // dest node VM → its immediate upstream source node VMs (built from the full edge set).
-    // Drives the "+1-hop upstream" closure so a chain's nodes pull in the context/enrichment
-    // nodes that feed them (those have empty ChainIds and would otherwise leave dangling edges).
+    // Drives the "+1-hop upstream" closure so a chain's column sources pull in the context and
+    // enrichment nodes feeding them, which carry no chain membership and would otherwise leave
+    // dangling edges.
     private Dictionary<GraphNodeViewModel, List<GraphNodeViewModel>> _upstreamOf = new();
 
     // Set once per demo load: the next entity-cache build widens to every breakpointable fire frame so the
@@ -671,7 +671,6 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     {
         _allGraphNodes = [];
         _allGraphEdges = [];
-        _allGroups = [];
         _allTables = [];
         _upstreamOf = new Dictionary<GraphNodeViewModel, List<GraphNodeViewModel>>();
         _rootNode = null;
@@ -903,9 +902,6 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             _lastResult = result;
             _snapshotIndexByNode = snapshotIndexByNode;
 
-            // ── Groups ──────────────────────────────────────────────────────
-            List<INodeGroup> groups = BuildNodeGroups(build, nodeVmByNode);
-
             // ── Per-player tables (one per template × column-group) ──────────
             // Column edges are built INSIDE BuildPlayerTables' per-group loop, where the
             // group's local column list and column nodes are both in hand, so each edge's
@@ -916,7 +912,6 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             _allGraphNodes = nodeVms;
             _nodeVmByKey = IndexByKey(nodeVms);
             _allGraphEdges = edgeVms;
-            _allGroups = groups;
             _allTables = PlayerTables;
             _rootNode = nodeVms.FirstOrDefault(n => n.IsRoot);
             _upstreamOf = BuildUpstreamAdjacency(edgeVms);
@@ -926,7 +921,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             List<IGraphNode> vizNodes = nodeVms.Cast<IGraphNode>().ToList();
             List<IGraphEdge> vizEdges = edgeVms.Cast<IGraphEdge>().ToList();
             await _graphViewModel.SetGraphAsync(vizNodes, vizEdges,
-                groups.Count > 0 ? groups : null,
+                null,
                 PlayerTables.Count > 0 ? PlayerTables.Cast<INodeTable>().ToList() : null);
 
             // ── Chain summaries ───────────────────────────────────────────────
@@ -1302,41 +1297,13 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
     // ── Filter population ────────────────────────────────────────────────
 
-    /// <summary>
-    ///     Cluster groups over the drawn nodes. Shared by the first render and by a player switch, which
-    ///     replaces every node view model and so must rebuild these too.
-    ///     <para>
-    ///         <c>build.GroupHints</c> is always empty today: the engine declares the list and never
-    ///         appends to it (CS2DemoKit#50). This is kept faithful rather than deleted so that the day
-    ///         the engine fills it, the groups appear without anyone rediscovering where they came from.
-    ///     </para>
-    /// </summary>
-    private static List<INodeGroup> BuildNodeGroups(
-        BuildResult build, Dictionary<StateNode, GraphNodeViewModel> nodeVmByNode)
-    {
-        List<INodeGroup> groups = [];
-        foreach (NodeGroupHint hint in build.GroupHints)
-        {
-            List<IGraphNode> members = [];
-            foreach (StateNode member in hint.Members)
-            {
-                if (nodeVmByNode.TryGetValue(member, out GraphNodeViewModel? vm))
-                {
-                    members.Add(vm);
-                }
-            }
+    /// <summary>The node and edge view models for one rendered player, plus what could not be drawn.</summary>
+    private readonly record struct GraphBuild(
+        List<GraphNodeViewModel> Nodes,
+        List<GraphEdgeViewModel> Edges,
+        Dictionary<StateNode, GraphNodeViewModel> NodeVmByNode,
+        int DroppedEdges);
 
-            if (members.Count > 0)
-            {
-                groups.Add(new AnalysisNodeGroup(hint.GroupName, members));
-            }
-        }
-
-        return groups;
-    }
-
-    // Last writer wins on a duplicate, which cannot happen: the key carries the player slot precisely
-    // so that ten copies of "Alive" are ten distinct keys.
     /// <summary>True when the last graph build could not draw every edge it was given.</summary>
     public bool HasDroppedEdges => DroppedEdgeCount > 0;
 
@@ -1349,6 +1316,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             ? $"⚠ {DroppedEdgeCount.ToString(System.Globalization.CultureInfo.InvariantCulture)} edge(s) not drawn"
             : string.Empty;
 
+    // Last writer wins on a duplicate, which cannot happen: the key carries the player slot precisely
+    // so that ten copies of "Alive" are ten distinct keys.
     private static Dictionary<string, GraphNodeViewModel> IndexByKey(List<GraphNodeViewModel> nodes)
     {
         Dictionary<string, GraphNodeViewModel> byKey = new(nodes.Count, StringComparer.Ordinal);
@@ -1359,13 +1328,6 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         return byKey;
     }
-
-    /// <summary>The node and edge view models for one rendered player, plus what could not be drawn.</summary>
-    private readonly record struct GraphBuild(
-        List<GraphNodeViewModel> Nodes,
-        List<GraphEdgeViewModel> Edges,
-        Dictionary<StateNode, GraphNodeViewModel> NodeVmByNode,
-        int DroppedEdges);
 
     /// <summary>
     ///     Builds the drawn graph: the shared game-scope scaffolding PLUS one player's materialized
@@ -1524,10 +1486,6 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         _nodeVmByKey = IndexByKey(graph.Nodes);
         _allGraphEdges = graph.Edges;
         _allTables = BuildPlayerTables(result, graph.NodeVmByNode, build.Nodes);
-        // Groups hold node view models by reference, and every one of them was just replaced. Rebuilt
-        // from the same source as the first render, or the old instances would survive into the swap
-        // and every group box would silently fail to bound anything.
-        _allGroups = BuildNodeGroups(build, graph.NodeVmByNode);
         _rootNode = graph.Nodes.FirstOrDefault(n => n.IsRoot);
         _upstreamOf = BuildUpstreamAdjacency(graph.Edges);
         RefreshBreakpointMarkers();
@@ -1639,21 +1597,10 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         BuildResult build, EvaluationResult result,
         IReadOnlyList<AnalysisChainSummaryViewModel> summaries)
     {
-        // Scope each chain key by the POSITIVE game signal. Every game chain that fired events has
-        // a satisfaction conjunction node, and the graph build stamps that node's "_chain_{id}" key into
-        // NodeChains, so a key present in NodeChains is unambiguously game-scoped. Per-player
-        // chains never reach NodeChains (their factory doesn't touch it), so the two sets are
-        // disjoint. Default unknowns to PerPlayer: a per-player chain that fires but declares no
-        // columns would otherwise be mis-scoped Game and, on selection, project to an empty
-        // sub-graph (no graph node carries its key → ChainIds.Overlaps is false everywhere).
-        HashSet<string> gameKeys = new(StringComparer.Ordinal);
-        if (build.NodeChains is not null)
-        {
-            foreach (IReadOnlySet<string> keys in build.NodeChains.Values)
-            {
-                gameKeys.UnionWith(keys);
-            }
-        }
+        // Chains carry no scope any more. The game-scope signal was BuildResult.NodeChains, which
+        // the engine documents as always null, so every chip resolved PerPlayer regardless
+        // (CS2DemoKit#50). Carrying an enum whose other value was unreachable made the join look
+        // conditional when it never was.
 
         // One chip per chain that produced events. ChainSummaries also include auto-activate
         // logic-rule nodes (the timeline records every rising conjunction/disjunction), so keep
@@ -1662,13 +1609,9 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         // (a non-chain logic name would join to nothing and render an inert chip) and matches the
         // _chain_{id} join-key discipline. Label = the key; the human RuleChainDef.Name isn't
         // threaded to the timeline (cosmetic, noted as a known item).
-        List<(string Key, string Label, ChainScope Scope, int Count)> chips = summaries
+        List<(string Key, string Label, int Count)> chips = summaries
             .Where(s => s.ChainName.StartsWith("_chain_", StringComparison.Ordinal))
-            .Select(s => (
-                Key: s.ChainName,
-                Label: s.ChainName,
-                Scope: gameKeys.Contains(s.ChainName) ? ChainScope.Game : ChainScope.PerPlayer,
-                s.Count))
+            .Select(s => (Key: s.ChainName, Label: s.ChainName, s.Count))
             .ToList();
 
         // Players: distinct by slot across all materializations.
@@ -3113,6 +3056,10 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         IReadOnlyList<GraphNodeViewModel> renderNodes;
         IReadOnlyList<GraphEdgeViewModel> renderEdges;
+        // Always null. Cluster groups came from BuildResult.GroupHints, which the engine declares
+        // and never appends to, so the app has never had a group to draw (CS2DemoKit#50). The
+        // parameter stays on the calls because the visualization library supports groups; nothing
+        // here produces one. Restore the builder from git history when the engine fills the hints.
         IReadOnlyList<INodeGroup>? renderGroups;
         IReadOnlyList<PlayerTableViewModel> renderTables;
 
@@ -3121,35 +3068,31 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             // No chain selected → full graph.
             renderNodes = _allGraphNodes;
             renderEdges = _allGraphEdges;
-            renderGroups = _allGroups.Count > 0 ? _allGroups : null;
+            renderGroups = null;
             renderTables = _allTables;
         }
         else
         {
-            // Build the sub-graph node set: chain-member nodes + their 1-hop upstream context /
-            // enrichment neighbours + the Root (so chains stay anchored). Edges and groups are
-            // then induced from that set by GraphProjection.
+            // Build the sub-graph node set: the selected chains' column sources + their 1-hop
+            // upstream context / enrichment neighbours + the Root (so chains stay anchored). Edges
+            // are then induced from that set by GraphProjection.
             HashSet<GraphNodeViewModel> include = BuildSubGraphNodeSet(selectedChains);
 
             SubGraph sub = GraphProjection.Induce(
                 _allGraphNodes,
                 _allGraphEdges,
-                _allGroups,
+                [],
                 node => node is GraphNodeViewModel vm && include.Contains(vm));
 
             renderNodes = sub.Nodes.Cast<GraphNodeViewModel>().ToList();
             renderEdges = sub.Edges.Cast<GraphEdgeViewModel>().ToList();
-            renderGroups = sub.Groups.Count > 0 ? sub.Groups : null;
+            renderGroups = null;
 
-            // Per-player tables: keep only those that contribute a column to a SELECTED per-player
-            // chain, projecting each to just that chain's columns. Pure game-chain selections show
-            // no tables.
-            HashSet<string> perPlayerKeys = selectedChains
-                .Where(k => Filter.ScopeOf(k) == ChainScope.PerPlayer)
-                .ToHashSet(StringComparer.Ordinal);
-            renderTables = perPlayerKeys.Count == 0
+            // Per-player tables: keep only those contributing a column to a SELECTED chain,
+            // projecting each to just that chain's columns.
+            renderTables = selectedChains.Count == 0
                 ? []
-                : ProjectTables(_allTables, perPlayerKeys, include);
+                : ProjectTables(_allTables, selectedChains.ToHashSet(StringComparer.Ordinal), include);
         }
 
         // Player selection REMOVES the non-selected rows (structural), uniformly across both the
@@ -3180,30 +3123,22 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Builds the node set for the selected chains: every node whose <c>ChainIds</c> overlaps
-    ///     the selection, plus each such node's immediate upstream neighbours (1-hop), plus the
-    ///     graph Root. The 1-hop pull-in keeps a chain's edges anchored to the context/enrichment
-    ///     nodes that feed it (those carry no chain membership of their own).
+    ///     Builds the node set for the selected chains: the lifecycle nodes feeding those chains'
+    ///     table columns, plus each one's immediate upstream neighbours (1-hop), plus the graph Root.
+    ///     The 1-hop pull-in keeps a chain's edges anchored to the context and enrichment nodes that
+    ///     feed it, which carry no chain membership of their own.
     /// </summary>
     private HashSet<GraphNodeViewModel> BuildSubGraphNodeSet(HashSet<string> selectedChains)
     {
         HashSet<GraphNodeViewModel> include = new(ReferenceEqualityComparer.Instance);
-
-        // Seed: chain members.
         List<GraphNodeViewModel> members = new();
-        foreach (GraphNodeViewModel node in _allGraphNodes)
-        {
-            if (node.ChainIds.Overlaps(selectedChains))
-            {
-                include.Add(node);
-                members.Add(node);
-            }
-        }
 
-        // Per-player chains contribute NO graph nodes of their own (their nodes live in the player
-        // table). Seed the graph context from the lifecycle source nodes that feed a selected
-        // per-player chain's columns, so the graph shows the events producing those stats instead of
-        // collapsing to Root alone.
+        // There is no game-scope seed. Nodes used to be seeded by chain membership, but that read
+        // BuildResult.NodeChains, which the engine documents as always null, so the set was always
+        // empty (CS2DemoKit#50). The per-player column seed below is the one that has real data:
+        // PerPlayerColumnAssignment.ChainId is populated, and it is what a chain selection actually
+        // resolves through. Seed the graph context from the lifecycle source nodes feeding a selected
+        // chain's columns, so the graph shows the events producing those stats rather than Root alone.
         foreach (PlayerTableViewModel table in _allTables)
         {
             foreach (TableColumnEdgeViewModel ce in table.ColumnEdges)

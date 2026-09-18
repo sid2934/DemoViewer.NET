@@ -15,8 +15,6 @@ namespace DemoViewer.NET.ViewModels;
 /// <remarks>Initializes a new <see cref="GraphNodeViewModel" /> instance.</remarks>
 public sealed partial class GraphNodeViewModel(string name, bool isRoot = false, string? subtitle = null) : ObservableObject, IGraphNode
 {
-    private static readonly IReadOnlySet<string> _emptyChainIds = new HashSet<string>();
-
     [ObservableProperty]
     private string? _displayValue;
 
@@ -49,14 +47,6 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
     ///     the shared game-scope scaffolding. Purely cosmetic; never triggers a relayout.
     /// </summary>
     public bool IsPerPlayer { get; init; }
-
-    /// <summary>
-    ///     The set of <c>_chain_{id}</c> join-keys this node belongs to (game-scoped chains).
-    ///     Empty when the node is not attributed to any chain (context / enrichment / counter
-    ///     targets). Stamped from <see cref="CS2DemoKit.Analysis.Graphs.BuildResult.NodeChains" />.
-    ///     Drives sub-graph selection (which nodes a chain pulls into its rendered view).
-    /// </summary>
-    public IReadOnlySet<string> ChainIds { get; init; } = _emptyChainIds;
 
     /// <summary>
     ///     This node's absolute column index into a per-message <c>NodeSnapshot[]</c> row
