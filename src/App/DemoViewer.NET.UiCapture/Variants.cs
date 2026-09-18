@@ -116,6 +116,9 @@ public static class Variants
             ["chrome"] = Chrome,
             ["tables"] = TablesAndCards,
             ["swatches"] = Swatches,
+            ["game-icons"] = GameIconGallery,
+            ["rank-badges"] = RankBadgeGallery,
+            ["icon-fallback"] = IconFallbackGallery,
             ["navstrip-real"] = NavStripReal,
             ["navstrip-real-target"] = NavStripRealTarget,
             ["navstrip-proposed"] = () => NavStripProposed(),
@@ -2422,6 +2425,218 @@ public static class Variants
     }
 
     /// <summary>The DarkPalette semantic tokens as labeled swatches: reference for the design system.</summary>
+    // The baked CS2 iconography, drawn through the real GameIcon control so the capture exercises the
+    // shipping path: manifest aspect, scale selection, and opacity-mask tinting.
+    private static Border GameIconGallery()
+    {
+        StackPanel root = new()
+        {
+            Margin = new Thickness(16),
+            Spacing = 14
+        };
+
+        root.Children.Add(Row("kill feed", 13,
+        [
+            ("equipment/ak47", "AccentInteractive"), ("modifier/headshot", "AccentError"),
+            ("equipment/awp", "AccentInteractive"), ("modifier/noscope", "AccentHighlight"),
+            ("equipment/deagle", "AccentInteractive"), ("modifier/penetrate", "AccentAmber"),
+            ("equipment/knife_karambit", "AccentInteractive"), ("modifier/inair", "TextValue"),
+            ("equipment/hegrenade", "AccentInteractive"), ("modifier/blind", "AccentAmber"),
+            ("equipment/molotov", "AccentInteractive"), ("modifier/smoke", "TextDim")
+        ]));
+
+        root.Children.Add(Row("weapons at 24 px — note the aspect spread", 24,
+        [
+            ("equipment/m4a1_silencer", "TextValue"), ("equipment/famas", "TextValue"),
+            ("equipment/mp9", "TextValue"), ("equipment/nova", "TextValue"),
+            ("equipment/usp_silencer", "TextValue"), ("equipment/taser", "TextValue"),
+            ("equipment/c4", "AccentError"), ("equipment/defuser", "StatPositive")
+        ]));
+
+        root.Children.Add(Row("ui vocabulary", 18,
+        [
+            ("ui/bomb_c4", "AccentError"), ("ui/defuser", "StatPositive"),
+            ("ui/bombsite_a", "AccentAmber"), ("ui/bombsite_b", "AccentAmber"),
+            ("ui/clock", "TextValue"), ("ui/health", "StatPositive"), ("ui/armor", "AccentInteractive"),
+            ("ui/kill", "TextValue"), ("ui/death", "AccentError"), ("ui/mvp", "AccentHighlight"),
+            ("ui/trophy", "AccentAmber"), ("ui/star", "AccentAmber")
+        ]));
+
+        return WrapInShell(root, 700, 260);
+
+        static StackPanel Row(string caption, double height, (string Key, string Brush)[] icons)
+        {
+            StackPanel panel = new()
+            {
+                Spacing = 6
+            };
+            panel.Children.Add(new TextBlock
+            {
+                Text = caption,
+                FontSize = 11,
+                Opacity = 0.6
+            });
+
+            WrapPanel strip = new();
+            Application app = Application.Current!;
+            foreach ((string key, string brushKey) in icons)
+            {
+                IBrush? brush = app.TryGetResource(brushKey, app.ActualThemeVariant, out object? res) && res is IBrush b
+                    ? b
+                    : Brushes.White;
+                strip.Children.Add(new GameIcon
+                {
+                    Key = key,
+                    IconHeight = height,
+                    Foreground = brush,
+                    Margin = new Thickness(0, 0, 12, 0),
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+            }
+
+            panel.Children.Add(strip);
+            return panel;
+        }
+    }
+
+    // The Skill Group ladder and the Premier tiers, drawn through the real GameIcon control. These are
+    // pictures rather than masks, so this capture is the check that the control notices and stops
+    // tinting: a badge rendered as a flat foreground-coloured blob is the failure it guards against.
+    private static Border RankBadgeGallery()
+    {
+        StackPanel root = new()
+        {
+            Margin = new Thickness(16),
+            Spacing = 12
+        };
+
+        root.Children.Add(Caption("competitive — Silver I to The Global Elite"));
+        root.Children.Add(Ladder(GameIcons.IconCatalogue.CompetitiveRank, 1, 18));
+        root.Children.Add(Caption("wingman"));
+        root.Children.Add(Ladder(GameIcons.IconCatalogue.WingmanRank, 1, 18));
+        root.Children.Add(Caption("no rank: none / expired / needs wins  ·  premier tiers"));
+
+        WrapPanel states = new();
+        foreach (GameIcons.IconRef? r in new[]
+                 {
+                     GameIcons.IconCatalogue.UnrankedBadge(),
+                     GameIcons.IconCatalogue.UnrankedBadge(expired: true),
+                     GameIcons.IconCatalogue.NeedsWinsBadge()
+                 })
+        {
+            states.Children.Add(Badge(r, 30));
+        }
+
+        foreach (GameIcons.PremierTier tier in GameIcons.IconCatalogue.PremierTiers)
+        {
+            states.Children.Add(Badge(GameIcons.IconCatalogue.Get(tier.Key), 26));
+        }
+
+        root.Children.Add(states);
+        return WrapInShell(root, 760, 330);
+
+        static TextBlock Caption(string t) => new()
+        {
+            Text = t,
+            FontSize = 11,
+            Opacity = 0.6
+        };
+
+        static WrapPanel Ladder(Func<int, GameIcons.IconRef?> pick, int from, int to)
+        {
+            WrapPanel wrap = new();
+            for (int i = from; i <= to; i++)
+            {
+                wrap.Children.Add(Badge(pick(i), 26));
+            }
+
+            return wrap;
+        }
+
+        static Control Badge(GameIcons.IconRef? icon, double h) => new GameIcon
+        {
+            Key = icon?.Key,
+            IconHeight = h,
+            // Deliberately a loud tint: if the control ever masked a badge, every one of these would
+            // come out as a magenta silhouette instead of its own artwork.
+            Foreground = Brushes.Magenta,
+            Margin = new Thickness(0, 0, 8, 6),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+    }
+
+    // The four absence states, rendered through the shipping control. This is the capture that proves
+    // a blank key stays silent while a missing one falls back — the distinction the whole pattern turns
+    // on, and the one that is invisible in a unit test.
+    private static Border IconFallbackGallery()
+    {
+        StackPanel root = new()
+        {
+            Margin = new Thickness(16),
+            Spacing = 14
+        };
+
+        root.Children.Add(Case("resolved", "equipment/ak47", "ak47",
+            "artwork exists - the fallback never shows"));
+        root.Children.Add(Case("blank by design", "equipment/world", "world",
+            "CS2 ships empty art for environment deaths: nothing drawn, nothing logged"));
+        root.Children.Add(Case("missing, with fallback", "equipment/missing_on_purpose", "not_baked_yet",
+            "key absent from the bake: the name draws, the miss is logged once"));
+        root.Children.Add(Case("missing, no fallback", "ui/missing_on_purpose", null,
+            "a gap, deliberately - a hardcoded key with no sensible word to show"));
+        root.Children.Add(Case("no key asked for", null, "◆",
+            "a null key is not a failure: the caller's own glyph draws"));
+
+        return WrapInShell(root, 620, 300);
+
+        static Control Case(string title, string? key, string? fallback, string note)
+        {
+            StackPanel row = new()
+            {
+                Spacing = 3
+            };
+            row.Children.Add(new TextBlock
+            {
+                Text = title,
+                FontSize = 11,
+                Opacity = 0.85
+            });
+
+            StackPanel line = new()
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 10
+            };
+            line.Children.Add(new Border
+            {
+                Width = 120,
+                Height = 22,
+                BorderThickness = new Thickness(1),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x50, 0x88, 0x88, 0x99)),
+                Child = new GameIcon
+                {
+                    Key = key,
+                    Fallback = fallback,
+                    IconHeight = 14,
+                    FontSize = 11,
+                    Foreground = Brushes.Goldenrod,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
+            });
+            line.Children.Add(new TextBlock
+            {
+                Text = note,
+                FontSize = 10.5,
+                Opacity = 0.55,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            row.Children.Add(line);
+            return row;
+        }
+    }
+
     private static Border Swatches()
     {
         string[] keys =

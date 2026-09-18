@@ -97,6 +97,12 @@ jobs:
             || { echo "Avalonia.Controls.ColorPicker did not ship, App.Initialize will throw on the StyleInclude"; exit 1; }
           ls "$FW" | grep -q '^AvaloniaEdit\..*\.wasm$' \
             || { echo "AvaloniaEdit did not ship, App.Initialize will throw on the StyleInclude"; exit 1; }
+          # NOT boot-critical in the strict sense above - the head boots without it and only throws
+          # when something first draws an icon. Checked anyway, and separately, because this is the
+          # one head nothing in CI executes: the icons are EMBEDDED in this assembly (the Browser has
+          # no filesystem for the loose assets/ copy the desktop head probes), so if it fails to ship
+          # the failure surfaces to a user, not to us.
+          ls "$FW" | grep -q '^DemoViewer\.NET\.GameIcons\..*\.wasm$' || { echo "DemoViewer.NET.GameIcons did not ship, every icon will throw at runtime"; exit 1; }
           du -sh artifacts/wasm-publish/wwwroot
 
   # The ONE core/pipeline test invocation. Do not add a second.
@@ -246,7 +252,7 @@ jobs:
       - name: App suite, full tier (batched)
         run: bash scripts/test-app-suite.sh -c Release -n 4 -t full -x
 
-  # The three suites no lane above names. LiveSync's web-host tests are the slow half the `fast` and
+  # The suites no lane above names. LiveSync's web-host tests are the slow half the `fast` and
   # `standard` tiers exist to let a developer skip. CI pays the other half of that bargain, so these
   # run at `full`.
   library-tests:
@@ -272,6 +278,12 @@ jobs:
 
       - name: DemoTrimmer suite (full tier)
         run: bash scripts/test.sh -t full -p trimmer
+
+      # The icon catalogue's own guards: the manifest round-trip, the four availability states, and
+      # which artwork is tintable. They compile in `build` but nothing ran them, and the assembly
+      # they guard is the one the Browser head cannot boot an icon without.
+      - name: GameIcons suite (full tier)
+        run: bash scripts/test.sh -t full -p gameicons
 
   # Render-backend correctness (docs/playback2d-v2/plans/C2-gpu-provider.md §8.4).
   #

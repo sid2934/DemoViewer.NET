@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:timeline="using:DemoViewer.NET.Modules.Playback2D.Timeline"
+             xmlns:controls="using:DemoViewer.NET.Controls"
              mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="70"
              x:Class="DemoViewer.NET.Views.Playback2D.TimelineControl"
              x:DataType="timeline:Playback2DTimelineViewModel"
@@ -72,10 +73,15 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="timeline:TimelineMarkerViewModel">
-                            <TextBlock HorizontalAlignment="Left" VerticalAlignment="Center"
-                                       Margin="{Binding Offset}" Text="{Binding Glyph}"
-                                       Foreground="{Binding Brush}" FontSize="11"
-                                       ToolTip.Tip="{Binding Tooltip}" />
+                            <!-- CS2's artwork where the game has some, the track's own glyph otherwise.
+                                 A null IconKey (annotations, round boundaries — our concepts, not the
+                                 game's) means "nothing was asked for", so the glyph draws unreported. -->
+                            <controls:GameIcon HorizontalAlignment="Left" VerticalAlignment="Center"
+                                               Margin="{Binding Offset}"
+                                               Key="{Binding IconKey}" Fallback="{Binding Glyph}"
+                                               IconHeight="11" FontSize="11"
+                                               Foreground="{Binding Brush}"
+                                               ToolTip.Tip="{Binding Tooltip}" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

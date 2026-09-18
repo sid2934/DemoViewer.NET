@@ -84,12 +84,26 @@ dotnet publish src/App/DemoViewer.NET.Desktop -c Release -r "$RID" $SC_FLAG -o "
 #    so they ship in every build — including CI, where the gitignored cs2-assets/ dev cache is absent.
 #    Copied to <exeDir>/assets/, which MapAssetLoader + CollisionAssetLocator probe first. Use cp -R,
 #    NOT rsync — git-bash on the Windows runner has no rsync (would be a command-not-found failure).
+#
+#    assets/icons/ is deliberately REMOVED again after the copy. Unlike the map bundles, the
+#    icons are EMBEDDED in DemoViewer.NET.GameIcons.dll — they have to be, because the Browser
+#    head has no filesystem to probe — so shipping them loose as well would put the same 1.9 MB
+#    in every release and in every Velopack delta, for bytes nothing ever opens. Copy-then-prune
+#    rather than a filtered copy: git-bash has no rsync, and cp -R cannot exclude.
 if [ -d assets ] && [ -n "$(ls -A assets 2>/dev/null)" ]; then
     rm -rf "$OUT/assets"
     cp -R assets "$OUT/assets"
-    echo "baked bundles: $(ls assets | tr '\n' ' ')"
+    rm -rf "$OUT/assets/icons"
+    echo "baked bundles: $(ls "$OUT/assets" | tr '\n' ' ')"
 else
     echo "WARNING: assets/ not found or empty — bundle ships without radar/collision assets" >&2
+fi
+
+#    The icons ride inside the assembly, so verify THAT landed instead. A publish missing it would
+#    still launch, then throw from IconCatalogue's static constructor on the first icon drawn.
+if [ ! -f "$OUT/DemoViewer.NET.GameIcons.dll" ]; then
+    echo "ERROR: DemoViewer.NET.GameIcons.dll not in the publish output — icons would fail at runtime" >&2
+    exit 1
 fi
 
 # 2. CSVG natives — the SDK already flattened the target RID's runtimes/<rid>/native/* next to the

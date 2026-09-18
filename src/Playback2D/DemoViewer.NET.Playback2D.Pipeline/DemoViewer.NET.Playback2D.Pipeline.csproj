@@ -24,6 +24,9 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- The baked CS2 iconography, for SkiaIconSource. Asset-only and dependency-free,
+             so it cannot reintroduce Avalonia into the headless graph. -->
+        <ProjectReference Include="..\..\GameIcons\DemoViewer.NET.GameIcons\DemoViewer.NET.GameIcons.csproj"/>
         <ProjectReference
                 Include="..\DemoViewer.NET.Playback2D.Core\DemoViewer.NET.Playback2D.Core.csproj"/>
         <ProjectReference

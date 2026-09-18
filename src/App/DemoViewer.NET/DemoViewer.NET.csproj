@@ -52,6 +52,9 @@
 
     <ItemGroup>
         <ProjectReference Include="..\DemoViewer.NET.Modules.Abstractions\DemoViewer.NET.Modules.Abstractions.csproj"/>
+        <!-- The baked CS2 iconography. Dependency-free and embedded, so it works on the Browser head
+             too, where the filesystem probing that serves the map bundles does not. -->
+        <ProjectReference Include="..\..\GameIcons\DemoViewer.NET.GameIcons\DemoViewer.NET.GameIcons.csproj"/>
         <!-- The Avalonia-shaped half of the module contract (WorkspaceTabDescriptor / IWorkspaceModule).
              Same namespace as the project above — see its csproj for why the split exists. -->
         <ProjectReference
