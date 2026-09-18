@@ -88,9 +88,21 @@ internal static class SvgExporter
             double nw = node.Style?.Width ?? ns.Width;
             double nh = node.Style?.Height ?? ns.Height;
             bool active = node.IsActive;
-            Color bg = active ? node.IsRoot ? ns.RootBackground : ns.ActiveBackground : ns.InactiveBackground;
-            Color bd = active ? node.IsRoot ? ns.RootBorder : ns.ActiveBorder : ns.InactiveBorder;
-            Color fg = active ? node.IsRoot ? ns.RootForeground : ns.ActiveForeground : ns.InactiveForeground;
+            // Per-node overrides, in the same precedence GraphRenderer uses (:259-260). Without this
+            // the export honoured Style for size and for edges but not for node colours, so a graph
+            // whose nodes carry an override (the Analysis tab's teal per-player border) exported
+            // looking nothing like the screen, against this file's own "matches the on-screen
+            // rendering for visual review" claim.
+            NodeStyle? perStyle = node.Style;
+            Color bg = active
+                ? perStyle?.ActiveBackground ?? (node.IsRoot ? ns.RootBackground : ns.ActiveBackground)
+                : perStyle?.InactiveBackground ?? ns.InactiveBackground;
+            Color bd = active
+                ? perStyle?.ActiveBorder ?? (node.IsRoot ? ns.RootBorder : ns.ActiveBorder)
+                : perStyle?.InactiveBorder ?? ns.InactiveBorder;
+            Color fg = active
+                ? perStyle?.ActiveForeground ?? (node.IsRoot ? ns.RootForeground : ns.ActiveForeground)
+                : perStyle?.InactiveForeground ?? ns.InactiveForeground;
             Color subC = active ? ns.ActiveSubForeground : ns.InactiveSubForeground;
 
             sb.AppendFormat(_ci,

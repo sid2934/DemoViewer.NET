@@ -169,7 +169,9 @@ public sealed partial class AnalysisViewModel
                 foreach (KeyValuePair<(string Source, string Dest, string Label, string? Condition),
                              IReadOnlyList<int>> kv in _appliedByEdgeKey)
                 {
-                    if (kv.Key.Dest == node.Name && kv.Value.Count > 0)
+                    // Keyed, not named: _appliedByEdgeKey's endpoints are IGraphNode.Key, and a name
+                    // matches up to ten nodes once per-player copies are in the graph.
+                    if (kv.Key.Dest == node.Key && kv.Value.Count > 0)
                     {
                         (union ??= []).AddRange(kv.Value);
                     }

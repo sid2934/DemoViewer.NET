@@ -34,6 +34,20 @@ public interface IGraphNode
     /// <summary>True for the root/entry-point node — rendered with a distinct style.</summary>
     bool IsRoot { get; }
 
+    /// <summary>
+    ///     Stable identity for this node, distinct from <see cref="Name" />, which is NOT unique once a
+    ///     graph carries per-player copies of the same template (one real evaluation produces 371 names
+    ///     that each occur ten times). Anything that has to survive a re-render or a round trip to disk
+    ///     keys on this: breakpoints, selection, hit lookups.
+    ///     <para>
+    ///         Deliberately NOT defaulted to <see cref="Name" />. A consumer persists this string and
+    ///         matches it back later, so a default that silently disagreed with the real implementation's
+    ///         format would write records that can never be matched or cleared. Implementors say what
+    ///         their identity is.
+    ///     </para>
+    /// </summary>
+    string Key { get; }
+
     /// <summary>Unique display name rendered inside the node box.</summary>
     string Name { get; }
 

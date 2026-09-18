@@ -3,7 +3,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using CS2DemoKit.Analysis.Config;
 
 #endregion
 
@@ -16,15 +15,13 @@ namespace DemoViewer.NET.ViewModels;
 ///     cheap dim / inert passes (no MSAGL relayout).
 ///     <para>
 ///         Chain keys are the literal <c>_chain_{id}</c> form throughout: the same key the
-///         chain-summary chips and <c>BuildResult.NodeChains</c> use, so the joins line up.
+///         chain-summary chips and <c>PerPlayerColumnAssignment.ChainId</c> use, so the joins line up.
 ///     </para>
 /// </summary>
 public sealed partial class GraphFilterViewModel : ObservableObject
 {
     /// <summary>Sentinel slot for the "All players" option (no player filter).</summary>
     public const int AllPlayersSlot = -1;
-
-    private readonly Dictionary<string, ChainScope> _scopeByKey = new(StringComparer.Ordinal);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasActiveFilter))]
@@ -51,18 +48,14 @@ public sealed partial class GraphFilterViewModel : ObservableObject
     /// <summary>Raised whenever the filter state changes; the owner re-applies the dim passes.</summary>
     public event Action? FiltersChanged;
 
-    /// <summary>Resolves a chain key's scope (game vs per-player). Defaults to Game when unknown.</summary>
-    public ChainScope ScopeOf(string chainKey) =>
-        _scopeByKey.TryGetValue(chainKey, out ChainScope scope) ? scope : ChainScope.Game;
-
     /// <summary>
     ///     Rebuilds the chip + player lists from a fresh analysis result. Clears any prior
     ///     selection (filters don't persist across loads, by design).
     /// </summary>
-    /// <param name="chains">(Key=<c>_chain_{id}</c>, Label, Scope, Count) for each chain.</param>
+    /// <param name="chains">(Key=<c>_chain_{id}</c>, Label, Count) for each chain.</param>
     /// <param name="players">(Slot, Name) for each materialized player.</param>
     public void Populate(
-        IReadOnlyList<(string Key, string Label, ChainScope Scope, int Count)> chains,
+        IReadOnlyList<(string Key, string Label, int Count)> chains,
         IReadOnlyList<(int Slot, string Name)> players)
     {
         _suppressNotify = true;
@@ -70,10 +63,9 @@ public sealed partial class GraphFilterViewModel : ObservableObject
         {
             Clear();
 
-            foreach ((string key, string label, ChainScope scope, int count) in chains)
+            foreach ((string key, string label, int count) in chains)
             {
-                _scopeByKey[key] = scope;
-                Chains.Add(new ChainFilterChipViewModel(key, label, scope, count));
+                Chains.Add(new ChainFilterChipViewModel(key, label, count));
             }
 
             Players.Add(new PlayerFilterOption(AllPlayersSlot, "All players"));
@@ -106,7 +98,6 @@ public sealed partial class GraphFilterViewModel : ObservableObject
         {
             Chains.Clear();
             Players.Clear();
-            _scopeByKey.Clear();
             SelectedPlayer = null;
         }
         finally
@@ -187,7 +178,7 @@ public sealed partial class GraphFilterViewModel : ObservableObject
 }
 
 /// <summary>One chain chip in the filter bar: a selectable, count-badged chain.</summary>
-public sealed partial class ChainFilterChipViewModel(string key, string label, ChainScope scope, int count)
+public sealed partial class ChainFilterChipViewModel(string key, string label, int count)
     : ObservableObject
 {
     /// <summary>Whether this chip is currently selected (in the active filter).</summary>
@@ -199,9 +190,6 @@ public sealed partial class ChainFilterChipViewModel(string key, string label, C
 
     /// <summary>Human-readable label shown on the chip.</summary>
     public string Label { get; } = label;
-
-    /// <summary>Whether this chain is game-scoped (graph nodes) or per-player (table columns).</summary>
-    public ChainScope Scope { get; } = scope;
 
     /// <summary>Event count badge.</summary>
     public int Count { get; } = count;

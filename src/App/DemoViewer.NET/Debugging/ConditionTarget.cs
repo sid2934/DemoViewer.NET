@@ -53,8 +53,8 @@ public sealed class ConditionTarget
 
     /// <summary>Finds this target's existing breakpoint in <paramref name="service" />, or <c>null</c>.</summary>
     public GraphBreakpoint? Find(GraphBreakpointService service) => Kind == GraphBreakpointTarget.Node
-        ? service.FindNode(Node!.Name)
-        : service.FindEdge(Edge!.Source.Name, Edge.Destination.Name, Edge.Label, Edge.ConditionLabel);
+        ? service.FindNode(Node!.Key)
+        : service.FindEdge(Edge!.Source.Key, Edge.Destination.Key, Edge.Label, Edge.ConditionLabel);
 
     /// <summary>Adds (or returns the existing) breakpoint for this target, with an optional condition.</summary>
     public GraphBreakpoint Add(GraphBreakpointService service, string? condition) => Kind == GraphBreakpointTarget.Node

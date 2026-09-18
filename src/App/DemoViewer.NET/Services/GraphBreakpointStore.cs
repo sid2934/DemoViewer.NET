@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DemoViewer.NET.Debugging;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
@@ -18,6 +19,41 @@ namespace DemoViewer.NET.Services;
 /// </summary>
 public sealed record PersistedGraphBreakpoint(
     GraphBreakpointTarget TargetKind,
+    string? NodeKey,
+    string? EdgeSourceKey,
+    string? EdgeDestKey,
+    string? EdgeLabel,
+    string? EdgeConditionLabel,
+    string? Condition,
+    bool Enabled)
+{
+    /// <summary>Captures the persisted fields of a live breakpoint.</summary>
+    public static PersistedGraphBreakpoint From(GraphBreakpoint bp) => new(
+        bp.TargetKind, bp.NodeKey, bp.EdgeSourceKey, bp.EdgeDestKey,
+        bp.EdgeLabel, bp.EdgeConditionLabel, bp.Condition, bp.Enabled);
+
+    /// <summary>Reconstructs a live breakpoint (fresh id; hits recomputed by the host after load).</summary>
+    public GraphBreakpoint ToBreakpoint() => new()
+    {
+        TargetKind = TargetKind,
+        NodeKey = NodeKey,
+        EdgeSourceKey = EdgeSourceKey,
+        EdgeDestKey = EdgeDestKey,
+        EdgeLabel = EdgeLabel,
+        EdgeConditionLabel = EdgeConditionLabel,
+        Condition = Condition,
+        Enabled = Enabled
+    };
+}
+
+/// <summary>
+///     The pre-v2 persisted shape, kept only so the file can be read once and carried forward. Its
+///     identity fields hold NAMES; <see cref="ToV2" /> rewrites each as the game-scope key form, which
+///     is exact for every record such a file can contain (see
+///     <see cref="GraphBreakpointStore.MigrateLegacyFile" />).
+/// </summary>
+internal sealed record LegacyGraphBreakpoint(
+    GraphBreakpointTarget TargetKind,
     string? NodeName,
     string? EdgeSource,
     string? EdgeDest,
@@ -26,23 +62,19 @@ public sealed record PersistedGraphBreakpoint(
     string? Condition,
     bool Enabled)
 {
-    /// <summary>Captures the persisted fields of a live breakpoint.</summary>
-    public static PersistedGraphBreakpoint From(GraphBreakpoint bp) => new(
-        bp.TargetKind, bp.NodeName, bp.EdgeSource, bp.EdgeDest,
-        bp.EdgeLabel, bp.EdgeConditionLabel, bp.Condition, bp.Enabled);
+    /// <summary>Rewrites this record's name-based identity as game-scope keys.</summary>
+    public PersistedGraphBreakpoint ToV2() => new(
+        TargetKind,
+        Key(NodeName),
+        Key(EdgeSource),
+        Key(EdgeDest),
+        EdgeLabel,
+        EdgeConditionLabel,
+        Condition,
+        Enabled);
 
-    /// <summary>Reconstructs a live breakpoint (fresh id; hits recomputed by the host after load).</summary>
-    public GraphBreakpoint ToBreakpoint() => new()
-    {
-        TargetKind = TargetKind,
-        NodeName = NodeName,
-        EdgeSource = EdgeSource,
-        EdgeDest = EdgeDest,
-        EdgeLabel = EdgeLabel,
-        EdgeConditionLabel = EdgeConditionLabel,
-        Condition = Condition,
-        Enabled = Enabled
-    };
+    private static string? Key(string? name) =>
+        name is null ? null : GraphNodeKey.ForGameScope(name).ToString();
 }
 
 /// <summary>
@@ -52,7 +84,7 @@ public sealed record PersistedGraphBreakpoint(
 ///     in-memory there). A runtime check, not a <c>#if BROWSER</c> define, because the same assembly is
 ///     shared by the desktop and browser hosts.
 ///     <para>
-///         Desktop persists to <c>%AppData%/DemoViewer.NET/GraphBreakpoints.json</c>: a map of
+///         Desktop persists to <c>%AppData%/DemoViewer.NET/GraphBreakpoints.v2.json</c>: a map of
 ///         <em>demo content key</em> (lowercase hex SHA-256 of the <c>.dem</c> bytes) → the breakpoints set
 ///         on that demo. Keying on content rather than path means a renamed or re-downloaded-identical demo
 ///         restores the same breakpoints, and two different demos never collide.
@@ -73,7 +105,14 @@ public sealed class GraphBreakpointStore
 
     private readonly string? _path;
 
-    /// <summary>Initializes a new <see cref="GraphBreakpointStore" /> instance.</summary>
+    /// <summary>
+    ///     Initializes a new <see cref="GraphBreakpointStore" /> instance.
+    ///     <para>
+    ///         NOT side-effect free: this also deletes the pre-v2 file. That is deliberate and is the
+    ///         only reliable moment for it, because Velopack's update hook, the tidier place, exists on
+    ///         Windows alone and never fires for a portable or unpackaged run.
+    ///     </para>
+    /// </summary>
     public GraphBreakpointStore()
     {
         if (OperatingSystem.IsBrowser())
@@ -82,6 +121,82 @@ public sealed class GraphBreakpointStore
         }
 
         _path = AppPaths.GraphBreakpointsFile;
+
+        // Every platform's backstop for the pre-v2 file. The desktop host also runs this from
+        // Velopack's after-update hook, which is the tidier moment, but that hook is Windows-only and
+        // never fires for an unpackaged or portable run. Doing it here too makes the outcome the same
+        // everywhere, and the call is a no-op once the legacy file is gone.
+        MigrateLegacyFile();
+    }
+
+    /// <summary>
+    ///     Carries the pre-v2 breakpoint file forward, then removes it.
+    ///     <para>
+    ///         A pre-v2 record identifies a node by NAME, which is losslessly convertible: before the
+    ///         per-player join the Analysis graph drew only the shared game-scope scaffolding, so every
+    ///         node a user could right-click came from <c>build.Nodes</c>, and every such node now keys
+    ///         as <c>g:{name}</c>. The rewrite is a prefix, not a guess. The alternative was destroying
+    ///         hand-authored condition expressions with no notice.
+    ///     </para>
+    ///     <para>
+    ///         Runs from the desktop host's Velopack after-update hook so it happens once at upgrade,
+    ///         and from this class's constructor so it also happens on the platforms Velopack's hooks
+    ///         do not reach. Safe to call at any time: a no-op on WASM (no filesystem) and once the
+    ///         legacy file is gone, and it swallows I/O failures the way every other method here does.
+    ///         A demo already present in the v2 file wins, because that is a set the user has edited
+    ///         under the new build.
+    ///     </para>
+    /// </summary>
+    public static void MigrateLegacyFile()
+    {
+        string? legacy = AppPaths.LegacyGraphBreakpointsFile;
+        string? current = AppPaths.GraphBreakpointsFile;
+        if (legacy is null || current is null || !File.Exists(legacy))
+        {
+            return;
+        }
+
+        try
+        {
+            Dictionary<string, List<LegacyGraphBreakpoint>>? legacyByDemo =
+                JsonSerializer.Deserialize<Dictionary<string, List<LegacyGraphBreakpoint>>>(
+                    File.ReadAllText(legacy), _options);
+
+            if (legacyByDemo is { Count: > 0 })
+            {
+                Dictionary<string, List<PersistedGraphBreakpoint>> merged = ReadAllFrom(current);
+                foreach ((string demoKey, List<LegacyGraphBreakpoint> records) in legacyByDemo)
+                {
+                    if (merged.ContainsKey(demoKey))
+                    {
+                        continue;
+                    }
+
+                    List<PersistedGraphBreakpoint> carried = [.. records.Select(r => r.ToV2())];
+                    if (carried.Count > 0)
+                    {
+                        merged[demoKey] = carried;
+                    }
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(current)!);
+                File.WriteAllText(current, JsonSerializer.Serialize(merged, _options));
+            }
+        }
+        catch
+        {
+            // A legacy file that cannot be read cannot be carried. Fall through to the delete: the
+            // alternative is re-attempting a failing parse on every launch, forever.
+        }
+
+        try
+        {
+            File.Delete(legacy);
+        }
+        catch
+        {
+            // Best-effort, exactly like Save. A stale file costs nothing; nothing reads it again.
+        }
     }
 
     /// <summary>The lowercase hex SHA-256 of a demo's bytes, its stable content key.</summary>
@@ -146,9 +261,11 @@ public sealed class GraphBreakpointStore
         return result;
     }
 
-    private Dictionary<string, List<PersistedGraphBreakpoint>> ReadAll()
+    private Dictionary<string, List<PersistedGraphBreakpoint>> ReadAll() => ReadAllFrom(_path);
+
+    private static Dictionary<string, List<PersistedGraphBreakpoint>> ReadAllFrom(string? path)
     {
-        if (_path is null || !File.Exists(_path))
+        if (path is null || !File.Exists(path))
         {
             return new Dictionary<string, List<PersistedGraphBreakpoint>>(StringComparer.Ordinal);
         }
@@ -156,7 +273,8 @@ public sealed class GraphBreakpointStore
         try
         {
             return JsonSerializer.Deserialize<Dictionary<string, List<PersistedGraphBreakpoint>>>(
-                File.ReadAllText(_path), _options) ?? new Dictionary<string, List<PersistedGraphBreakpoint>>(StringComparer.Ordinal);
+                       File.ReadAllText(path), _options)
+                   ?? new Dictionary<string, List<PersistedGraphBreakpoint>>(StringComparer.Ordinal);
         }
         catch
         {

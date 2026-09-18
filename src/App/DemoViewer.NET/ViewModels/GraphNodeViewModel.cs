@@ -2,6 +2,7 @@
 
 using Avalonia;
 using Avalonia.Media;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.Visualization;
@@ -14,10 +15,19 @@ namespace DemoViewer.NET.ViewModels;
 /// <remarks>Initializes a new <see cref="GraphNodeViewModel" /> instance.</remarks>
 public sealed partial class GraphNodeViewModel(string name, bool isRoot = false, string? subtitle = null) : ObservableObject, IGraphNode
 {
-    private static readonly IReadOnlySet<string> _emptyChainIds = new HashSet<string>();
-
     [ObservableProperty]
     private string? _displayValue;
+
+    // The per-player border as it looks before a theme is reachable. Static and immutable: the Style
+    // getter is read from two threads and must not write shared state to serve them (see the getter).
+    private static readonly NodeStyle _perPlayerFallbackStyle = BorderStyle(Color.Parse("#009688"));
+
+    // The theme-resolved per-player style, cached per theme variant across ALL nodes. The getter runs
+    // twice per node per repaint and the graph now draws hundreds of them, so resolving a resource and
+    // allocating a NodeStyle on every read cost a four-figure number of both per frame. Written only
+    // on the UI thread; the layout thread never reaches this (it returns the fallback above).
+    private static NodeStyle? _perPlayerThemedStyle;
+    private static object? _perPlayerThemedFor;
 
     /// <summary>
     ///     Whether a graph breakpoint is armed on this node. Satisfies <see cref="IGraphNode.HasBreakpoint" />
@@ -46,14 +56,6 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
     public bool IsPerPlayer { get; init; }
 
     /// <summary>
-    ///     The set of <c>_chain_{id}</c> join-keys this node belongs to (game-scoped chains).
-    ///     Empty when the node is not attributed to any chain (context / enrichment / counter
-    ///     targets). Stamped from <see cref="CS2DemoKit.Analysis.Graphs.BuildResult.NodeChains" />.
-    ///     Drives sub-graph selection (which nodes a chain pulls into its rendered view).
-    /// </summary>
-    public IReadOnlySet<string> ChainIds { get; init; } = _emptyChainIds;
-
-    /// <summary>
     ///     This node's absolute column index into a per-message <c>NodeSnapshot[]</c> row
     ///     (i.e. its position in <c>EvaluationResult.FinalTrackedNodes</c>). Decouples a node's
     ///     state lookup from its position in the rendered list, so an arbitrary <em>subset</em> of
@@ -66,6 +68,30 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
 
     /// <summary>Is root.</summary>
     public bool IsRoot { get; } = isRoot;
+
+    /// <summary>
+    ///     This node's stable identity (<see cref="IGraphNode.Key" />). Defaults to a game-scope key
+    ///     over <see cref="Name" />, which is what the Workbench authoring graph and the pre-evaluation
+    ///     skeleton want; the Analysis post-evaluation build overrides it with a per-player key for
+    ///     every materialized copy. Anything persisted or looked up keys on this, NOT on
+    ///     <see cref="Name" />, which repeats once per player.
+    /// </summary>
+    public GraphNodeKey NodeKey { get; init; } = GraphNodeKey.ForGameScope(name);
+
+    // The wire form, materialized once. IGraphNode.Key is read per node and twice per edge by the
+    // breakpoint-marker refresh, and once per edge by the input-event scan, so re-serializing the
+    // struct on each access was a string allocation per probe across hundreds of nodes.
+    private string? _keyText;
+
+    /// <summary>
+    ///     The wire form of <see cref="NodeKey" />, materialized once. Call sites holding the concrete
+    ///     type use this rather than <c>NodeKey.ToString()</c>: the breakpoint-marker refresh probes it
+    ///     once per node and twice per edge, which is a four-figure count of string allocations per
+    ///     pass once the graph carries per-player nodes.
+    /// </summary>
+    public string KeyText => _keyText ??= NodeKey.ToString();
+
+    string IGraphNode.Key => KeyText;
 
     /// <summary>Name.</summary>
     public string Name { get; } = name;
@@ -89,13 +115,36 @@ public sealed partial class GraphNodeViewModel(string name, bool isRoot = false,
                 return null;
             }
 
-            Color border = ThemeColors.Get(
-                "GraphNodePerPlayerBorder", Application.Current?.ActualThemeVariant, "#009688");
-            return new NodeStyle
+            // Application.ActualThemeVariant is a StyledProperty, so reading it off the UI thread
+            // throws "Call from invalid thread". This getter is read from BOTH threads: the renderer
+            // on the UI thread, and MsaglTranslator on the layout thread GraphViewModel.SetGraphAsync
+            // pushes work onto. Resolve live on the UI thread, which is what keeps a theme switch
+            // recolouring these borders; hand the layout pass a fixed style. The resolved style IS
+            // cached, in the statics above, but written only here, on the UI thread, behind this gate,
+            // so the layout thread reads neither the cache nor the theme and there is no race. Layout
+            // reads Style only for size overrides, which neither branch sets.
+            if (!Dispatcher.UIThread.CheckAccess())
             {
-                ActiveBorder = border,
-                InactiveBorder = border
-            };
+                return _perPlayerFallbackStyle;
+            }
+
+            object? variant = Application.Current?.ActualThemeVariant;
+            if (_perPlayerThemedStyle is { } cached && Equals(_perPlayerThemedFor, variant))
+            {
+                return cached;
+            }
+
+            NodeStyle resolved = BorderStyle(ThemeColors.Get(
+                "GraphNodePerPlayerBorder", Application.Current?.ActualThemeVariant, "#009688"));
+            _perPlayerThemedStyle = resolved;
+            _perPlayerThemedFor = variant;
+            return resolved;
         }
     }
+
+    private static NodeStyle BorderStyle(Color border) => new()
+    {
+        ActiveBorder = border,
+        InactiveBorder = border
+    };
 }

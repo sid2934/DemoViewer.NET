@@ -47,6 +47,17 @@ public class RuleWorkbenchGraphTests
             .Because("a built ruleset graph has state nodes");
         await Assert.That(skeleton.Nodes.Count).IsEqualTo(build.Nodes.Count)
             .Because("every build node maps to exactly one graph node");
+
+        // The count above cannot fail: RuleGraphSkeleton.Build maps build.Nodes 1:1, so it asserts
+        // its own loop. What it was reaching for is that the graph carries the SCAFFOLDING the
+        // engine builds demo-less, which this checks by name instead of by arithmetic. The Analysis
+        // tab's post-evaluation graph is a different path and carries per-player nodes too; nothing
+        // in this file exercises that, by design.
+        await Assert.That(skeleton.Nodes.Any(n => n.IsRoot)).IsTrue()
+            .Because("the scaffolding is anchored on a root node");
+        await Assert.That(skeleton.Nodes.Select(n => n.Name).Distinct().Count())
+            .IsEqualTo(skeleton.Nodes.Count)
+            .Because("game-scope names are unique; it is only per-player copies that repeat a name");
         await Assert.That(skeleton.Edges.Count).IsGreaterThan(0)
             .Because("the rule chain connects nodes with edges");
         await Assert.That(skeleton.Nodes.All(n => !string.IsNullOrEmpty(n.Name))).IsTrue()
@@ -72,7 +83,7 @@ public class RuleWorkbenchGraphTests
                 .Because("the graph builds structurally from the open ruleset without a demo");
             await Assert.That(vm.GraphNodeCount).IsLessThanOrEqualTo(6)
                 .Because("a bare kill stat reduces to its declared output + upstream inputs (a handful of "
-                         + "nodes), NOT the ~36 shared-scaffolding nodes of the full engine graph");
+                         + "nodes), NOT the 61 shared-scaffolding nodes of the full engine graph");
             await Assert.That(vm.GraphSupported).IsTrue();
         });
     }

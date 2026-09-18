@@ -1,6 +1,7 @@
 #region
 
 using CommunityToolkit.Mvvm.ComponentModel;
+using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.Visualization;
 
 #endregion
@@ -23,11 +24,13 @@ public enum GraphBreakpointTarget
 ///     <em>message</em>-indexed, expression-conditioned, and persisted per-demo. They stop the
 ///     message-seek timeline at the indices where their condition holds.
 ///     <para>
-///         <b>Identity</b> mirrors the visualization hit-test keys: a node breakpoint is keyed by
-///         <see cref="NodeName" />; an edge breakpoint by (<see cref="EdgeSource" />,
-///         <see cref="EdgeDest" />, <see cref="EdgeLabel" />). These are the persisted fields. The
-///         hit indices (<see cref="HitIndices" />) are transient: recomputed from the evaluation,
-///         never serialized.
+///         <b>Identity</b> is <see cref="IGraphNode.Key" />, NOT the node's display name: a node
+///         breakpoint is keyed by <see cref="NodeKey" />; an edge breakpoint by
+///         (<see cref="EdgeSourceKey" />, <see cref="EdgeDestKey" />, <see cref="EdgeLabel" />,
+///         <see cref="EdgeConditionLabel" />). Names repeat once per player in a graph that draws the
+///         per-player nodes, so a name-keyed breakpoint matches up to ten nodes at once. These are the
+///         persisted fields. The hit indices (<see cref="HitIndices" />) are transient: recomputed
+///         from the evaluation, never serialized.
 ///     </para>
 /// </summary>
 public sealed partial class GraphBreakpoint : ObservableObject
@@ -65,14 +68,14 @@ public sealed partial class GraphBreakpoint : ObservableObject
     /// <summary>Whether this breakpoint targets a node or an edge.</summary>
     public required GraphBreakpointTarget TargetKind { get; init; }
 
-    /// <summary>Node name: set for <see cref="GraphBreakpointTarget.Node" />, else <c>null</c>.</summary>
-    public string? NodeName { get; init; }
+    /// <summary>Node key: set for <see cref="GraphBreakpointTarget.Node" />, else <c>null</c>.</summary>
+    public string? NodeKey { get; init; }
 
-    /// <summary>Edge source-node name: set for <see cref="GraphBreakpointTarget.Edge" />.</summary>
-    public string? EdgeSource { get; init; }
+    /// <summary>Edge source-node key: set for <see cref="GraphBreakpointTarget.Edge" />.</summary>
+    public string? EdgeSourceKey { get; init; }
 
-    /// <summary>Edge destination-node name: set for <see cref="GraphBreakpointTarget.Edge" />.</summary>
-    public string? EdgeDest { get; init; }
+    /// <summary>Edge destination-node key: set for <see cref="GraphBreakpointTarget.Edge" />.</summary>
+    public string? EdgeDestKey { get; init; }
 
     /// <summary>Edge label: set for <see cref="GraphBreakpointTarget.Edge" /> (the event name).</summary>
     public string? EdgeLabel { get; init; }
@@ -113,23 +116,32 @@ public sealed partial class GraphBreakpoint : ObservableObject
     {
         get
         {
-            string edgeTag = $"{EdgeSource}→{EdgeDest}"
+            string edgeTag = $"{Label(EdgeSourceKey)}→{Label(EdgeDestKey)}"
                              + (string.IsNullOrEmpty(EdgeLabel) ? "" : $" [{EdgeLabel}]")
                              + (string.IsNullOrEmpty(EdgeConditionLabel) ? "" : $" ⟨{EdgeConditionLabel}⟩");
-            string target = TargetKind == GraphBreakpointTarget.Node ? NodeName ?? "(node)" : edgeTag;
+            string target = TargetKind == GraphBreakpointTarget.Node ? Label(NodeKey) : edgeTag;
             return string.IsNullOrWhiteSpace(Condition) ? target : $"{target}  ⟨{Condition}⟩";
         }
     }
 
-    /// <summary>True when this breakpoint targets the given node (by name).</summary>
+    /// <summary>True when this breakpoint targets the given node (by <see cref="IGraphNode.Key" />).</summary>
     public bool Matches(IGraphNode node) =>
-        TargetKind == GraphBreakpointTarget.Node && NodeName == node.Name;
+        TargetKind == GraphBreakpointTarget.Node && NodeKey == node.Key;
 
-    /// <summary>True when this breakpoint targets the given edge (by source/dest/label/condition).</summary>
+    /// <summary>True when this breakpoint targets the given edge (by source/dest key, label, condition).</summary>
     public bool Matches(IGraphEdge edge) =>
         TargetKind == GraphBreakpointTarget.Edge
-        && EdgeSource == edge.Source.Name
-        && EdgeDest == edge.Destination.Name
+        && EdgeSourceKey == edge.Source.Key
+        && EdgeDestKey == edge.Destination.Key
         && EdgeLabel == edge.Label
         && EdgeConditionLabel == edge.ConditionLabel;
+
+    // A key's display form. The wire key carries a scope prefix the user never typed, so the list
+    // shows the readable tail plus the slot rather than the raw "p0:7:Alive".
+    private static string Label(string? key) =>
+        GraphNodeKey.TryParse(key, out GraphNodeKey parsed)
+            ? parsed.IsPerPlayer
+                ? $"{parsed.Name} (slot {parsed.PlayerSlot.ToString(System.Globalization.CultureInfo.InvariantCulture)})"
+                : parsed.Name
+            : key ?? "(node)";
 }

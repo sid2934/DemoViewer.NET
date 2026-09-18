@@ -9,7 +9,7 @@ using DemoViewer.NET.Visualization;
 namespace DemoViewer.NET.ViewModels;
 
 /// <summary>
-///     Pure conversion of a <see cref="BuildResult" /> (its <c>Nodes</c> + <c>Edges</c> + group hints)
+///     Pure conversion of a <see cref="BuildResult" /> (its <c>Nodes</c> + <c>Edges</c>)
 ///     into the <see cref="GraphViewModel" />-ready node/edge/group view-models: the graph <em>skeleton</em>
 ///     (topology + pre-eval node values, <c>TrackedIndex = -1</c>), independent of any evaluation. Extracted
 ///     so the progressive-reveal pre-render (<c>AnalysisViewModel.RenderGraphSkeletonAsync</c>) and the
@@ -19,8 +19,6 @@ namespace DemoViewer.NET.ViewModels;
 /// </summary>
 public static class RuleGraphSkeleton
 {
-    private static readonly IReadOnlySet<string> _emptyChainKeys = new HashSet<string>();
-
     /// <summary>
     ///     Converts the demo-less, ruleset-focused <see cref="AuthoringGraph.AuthoringGraphModel" /> (built
     ///     from the open ruleset in the Workbench) into graph view-models. Unlike <see cref="Build" />, this
@@ -35,7 +33,6 @@ public static class RuleGraphSkeleton
             nodeVms.Add(new GraphNodeViewModel(n.Name, n.IsRoot, n.Subtitle)
             {
                 DisplayValue = n.DisplayValue,
-                ChainIds = n.ChainIds,
                 IsPerPlayer = n.IsPerPlayer,
                 TrackedIndex = -1
             });
@@ -65,16 +62,10 @@ public static class RuleGraphSkeleton
         List<GraphNodeViewModel> nodeVms = new(build.Nodes.Count);
         foreach (StateNode node in build.Nodes)
         {
-            IReadOnlySet<string> chainIds =
-                build.NodeChains is not null && build.NodeChains.TryGetValue(node, out IReadOnlySet<string>? keys)
-                    ? keys
-                    : _emptyChainKeys;
-
             GraphNodeViewModel vm = new(node.Name, node is RootNode, node.Subtitle)
             {
                 IsActive = node.IsActive,
                 DisplayValue = node.GetDisplayValue(),
-                ChainIds = chainIds,
                 TrackedIndex = -1
             };
             byNode[node] = vm;
@@ -91,28 +82,13 @@ public static class RuleGraphSkeleton
             }
         }
 
-        List<INodeGroup> groups = new();
-        foreach (NodeGroupHint hint in build.GroupHints)
-        {
-            List<IGraphNode> members = new();
-            foreach (StateNode member in hint.Members)
-            {
-                if (byNode.TryGetValue(member, out GraphNodeViewModel? vm))
-                {
-                    members.Add(vm);
-                }
-            }
-
-            if (members.Count > 0)
-            {
-                groups.Add(new AnalysisNodeGroup(hint.GroupName, members));
-            }
-        }
-
+        // No groups: build.GroupHints is declared by the engine and never appended to, so this
+        // always produced an empty list (CS2DemoKit#50). Restore the loop from git history if the
+        // engine starts filling it.
         return new Skeleton(
             nodeVms.Cast<IGraphNode>().ToList(),
             edgeVms.Cast<IGraphEdge>().ToList(),
-            groups.Count > 0 ? groups : null);
+            null);
     }
 
     /// <summary>The three view-model lists a <see cref="GraphViewModel.SetGraphAsync" /> call consumes.</summary>

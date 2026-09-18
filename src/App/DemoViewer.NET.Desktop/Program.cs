@@ -36,7 +36,21 @@ internal sealed class Program
         // exits the process before any Avalonia/CSVG/SynchronizationContext init would run. On a
         // normal launch it returns immediately. Unpackaged/dev runs (no Velopack metadata) are a
         // no-op, so this is safe under `dotnet run` and the headless UI-capture host too.
-        VelopackApp.Build().Run();
+        // The after-update hook carries the pre-v2 graph-breakpoint file forward. Those records
+        // identify a node by NAME, which rewrites exactly to the new game-scope key form, so the user
+        // keeps the breakpoints and the conditions they authored on them.
+        //
+        // Velopack's install/update hooks are WINDOWS-ONLY (CA1416), so this is the ideal path, not the
+        // only one: GraphBreakpointStore's constructor makes the same call on every platform. Nothing
+        // reads the old file either way, the store having moved to GraphBreakpoints.v2.json, so this is
+        // housekeeping and a hook that never fires costs nothing.
+        VelopackApp builder = VelopackApp.Build();
+        if (OperatingSystem.IsWindows())
+        {
+            builder = builder.OnAfterUpdateFastCallback(static _ => GraphBreakpointStore.MigrateLegacyFile());
+        }
+
+        builder.Run();
 
         // Last-chance crash log: an unhandled exception aborts the process, and on macOS the OS
         // report (.ips) carries only unsymbolicated JIT frames. Persist the MANAGED stack.

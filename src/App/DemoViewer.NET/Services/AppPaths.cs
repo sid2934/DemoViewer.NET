@@ -81,10 +81,27 @@ public static class AppPaths
     public static string? BookmarksFile => Resolve("SessionState.json");
 
     /// <summary>
-    ///     Persisted analysis-graph breakpoints: <c>GraphBreakpoints.json</c>. Per-demo; kept SEPARATE.
+    ///     Persisted analysis-graph breakpoints: <c>GraphBreakpoints.v2.json</c>. Per-demo; kept SEPARATE.
     ///     <c>null</c> on WASM.
     /// </summary>
-    public static string? GraphBreakpointsFile => Resolve("GraphBreakpoints.json");
+    public static string? GraphBreakpointsFile => Resolve("GraphBreakpoints.v2.json");
+
+    /// <summary>
+    ///     The pre-v2 breakpoint file, kept only so it can be deleted.
+    ///     <para>
+    ///         Its records identify a node by NAME, which no longer identifies one.
+    ///     </para>
+    ///     <para>
+    ///         <b>These records are carried forward, not dropped.</b> Every record in a pre-v2 file is
+    ///         game-scope, because before the per-player join the Analysis graph drew only the shared
+    ///         scaffolding, so <c>name</c> to <c>g:{name}</c> is an exact rewrite rather than a guess.
+    ///         <c>GraphBreakpointStore.MigrateLegacyFile</c> does it, then removes this file. A new
+    ///         filename rather than an in-place schema version because the two shapes then cannot be
+    ///         confused for one another: the migration reads one and writes the other. The file does
+    ///         not survive the migration, so a downgrade finds nothing rather than its old set.
+    ///     </para>
+    /// </summary>
+    public static string? LegacyGraphBreakpointsFile => Resolve("GraphBreakpoints.json");
 
     /// <summary>
     ///     Demo-library metadata cache: <c>library.json</c>. Rebuildable cache; kept SEPARATE. <c>null</c> on

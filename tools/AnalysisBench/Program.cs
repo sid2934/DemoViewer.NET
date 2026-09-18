@@ -398,7 +398,11 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     }
 
     TimeSpan buildElapsed = Stopwatch.GetElapsedTime(buildStart);
-    Console.WriteLine($"Build:  {buildElapsed.TotalMilliseconds,8:F1} ms  |  {buildResult.Nodes.Count} nodes, {buildResult.Edges.Count} edges, {buildResult.Chains.Count} chains");
+    // Labelled "scaffolding", not "the graph". build.Nodes holds the shared game-scope nodes only:
+    // every rule in a `for: each_player` ruleset lives on a template this count never includes, so
+    // presenting it as the graph size understated a real corpus by a factor of about sixty. The
+    // materialized figure is printed with the evaluation below, which is the first point it exists.
+    Console.WriteLine($"Build:  {buildElapsed.TotalMilliseconds,8:F1} ms  |  {buildResult.Nodes.Count} scaffolding nodes, {buildResult.Edges.Count} edges, {buildResult.Chains.Count} chains");
 
     // ── Evaluate ───────────────────────────────────────────────────────────
     GC.Collect(2, GCCollectionMode.Forced, true, true);
@@ -437,6 +441,15 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
         TimeSpan evalElapsedFull = Stopwatch.GetElapsedTime(evalStart);
 
         Console.WriteLine($"Eval:   {evalElapsedFull.TotalMilliseconds,8:F1} ms  |  {messageCount} messages, {playerCount} materialized players");
+
+        // What the Analysis tab actually draws, which is the scaffolding plus ONE player's nodes,
+        // and what drawing every player would cost. Neither is derivable from the build counts above.
+        int materializedNodes = result.MaterializedPlayers.Sum(p => p.Nodes.Count);
+        int lowestSlot = result.MaterializedPlayers.Count > 0 ? result.MaterializedPlayers.Min(p => p.PlayerSlot) : -1;
+        int drawnNodes = buildResult.Nodes.Count
+                         + result.MaterializedPlayers.Where(p => p.PlayerSlot == lowestSlot).Sum(p => p.Nodes.Count);
+        Console.WriteLine($"Graph:  {drawnNodes,8} nodes drawn (scaffolding + slot {lowestSlot})  |  "
+                          + $"{buildResult.Nodes.Count + materializedNodes} if every player expanded");
 
         foreach (PerPlayerNodeTemplate.MaterializedPlayer mp in result.MaterializedPlayers)
         {
