@@ -682,6 +682,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         _lastResult = null;
         _snapshotIndexByNode = null;
         _graphPlayerSlot = null;
+        DroppedEdgeCount = 0; // or the toolbar keeps warning about the previous demo's edges
         _renderedPlayerSlot = null; // full graph renders all rows; a reload must re-swap from "all"
         _swapRequestToken++; // cancel any in-flight debounced swap from the previous demo
 
