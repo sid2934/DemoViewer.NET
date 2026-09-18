@@ -1,6 +1,7 @@
 # The rule graph: what it draws, what it should draw, and a node-based rule editor
 
-**Status: plan FINAL. The graph fix is in implementation.** Written 2026-09-17 against `main` at `0eebe12`,
+**Status: plan FINAL. The graph fix is IMPLEMENTED** on `fix/analysis-graph-materialized-nodes`
+(§3 records what shipped); the version bump, the readability pass and the node editor are not started. Written 2026-09-17 against `main` at `0eebe12`,
 CS2DemoKit pinned to **0.11.0**. Covers issue [#15](https://github.com/sid2934/DemoViewer.NET/issues/15)
 (the Analysis graph draws scaffolding and no rules), [#4](https://github.com/sid2934/DemoViewer.NET/issues/4)
 (readability pass), [#3](https://github.com/sid2934/DemoViewer.NET/issues/3) (isolate a node's
@@ -163,6 +164,9 @@ Workbench uses and the Analysis tab does not.
 Closes #15. No new dependency, no renderer change, nothing about nodify. This phase is worth
 shipping alone.
 
+**Shipped.** All seven requirements below are implemented. Two things were found while building it
+that this section did not anticipate, both recorded in §3.2.
+
 **Join the real node set.** Source nodes from `build.Nodes` joined with
 `MaterializedPlayers[*].Nodes`, and edges from `build.Edges` joined with
 `MaterializedEdgeDescriptors`. `AuthoringGraph.Build` already performs exactly this join for the
@@ -222,6 +226,34 @@ two test files. Extracting graph construction out of `AnalysisViewModel` into it
 doing as part of this, not after.
 
 ---
+
+### 3.2 What building it turned up
+
+**An off-thread theme read, latent since the per-player border was introduced.**
+`GraphNodeViewModel.Style` resolved its border from `Application.ActualThemeVariant`, a
+UI-thread-only `StyledProperty`, while MSAGL layout runs on a background thread. It never fired
+because the getter returns `null` unless `IsPerPlayer`, and the Analysis graph had no per-player
+nodes. Adding them turned it into an exception inside `RunAsync`, whose `catch` swallows into
+`StatusText`, so `EvaluationCompleted` never fired and the Stats tab and Match Overview came up
+empty. Four unrelated-looking test failures, one cause. The Workbench authoring graph sets
+`IsPerPlayer` too, so it was reachable there as well.
+
+**Descriptors do not describe most of the graph.** A `GraphEdgeDescriptor` is emitted only for a
+trigger-backed rule edge; enrichment, resets, first-tick and round-end-compute wiring gets none.
+Drawn from descriptors alone, **187 of 434 nodes had no edge at either end**. The runtime `StateEdge`
+carries the wiring (`Source`, `WrittenNode`, `AdditionalWrittenNodes`), and
+`MaterializedPlayer.Edges` is public, so the per-player half is recoverable: **187 orphans became
+54**. The remaining 54 are 6 per-player and **48 game-scope enrichment nodes** whose `StateEdge`s sit
+behind `StateGraph.Edges`, which is `internal`. Those need an engine change, and belong on
+CS2DemoKit#50 with the rest of the dead graph surface.
+
+**Every scoreboard column is now also a graph node.** Measured: **147 of the 434 drawn nodes** are
+the `PerPlayerColumnAssignment.Node` of a table column, so each of those stats appears twice on the
+canvas, once as a node with an incoming edge and once as a column with a connector from the same
+source. This is a consequence of drawing what ran, not a defect in the join, and the two reasonable
+answers (suppress the column node in the graph, or suppress the table for the rendered player) are
+both presentation decisions. **Left as-is deliberately**: hiding 147 nodes to tidy the picture is a
+smaller version of the defect this phase exists to fix. It belongs to the readability pass (§5).
 
 ## 4. The renderer decision
 
