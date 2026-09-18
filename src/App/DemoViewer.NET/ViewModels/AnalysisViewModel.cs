@@ -1438,6 +1438,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         List<GraphEdgeViewModel> edgeVms = new(build.Edges.Count);
         int droppedEdges = 0;
 
+        HashSet<(StateNode, StateNode)> drawnPairs = new();
         foreach (GraphEdgeDescriptor e in EnumerateGraphEdges(build, renderedPlayer))
         {
             if (!nodeVmByNode.TryGetValue(e.Source, out GraphNodeViewModel? srcVm)
@@ -1447,7 +1448,43 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
                 continue;
             }
 
+            drawnPairs.Add((e.Source, e.Destination));
             edgeVms.Add(new GraphEdgeViewModel(srcVm, dstVm, e.Label, e.Effect, e.ConditionLabel));
+        }
+
+        // Descriptors cover TRIGGER-BACKED rule edges and nothing else: enrichment, resets,
+        // first-tick and round-end-compute edges never get one. Drawn from descriptors alone, 187 of
+        // the 434 nodes on the reference demo came out with no edge at either end, which reads as a
+        // field of orphans rather than a graph.
+        //
+        // The runtime StateEdge knows its own wiring - Source, WrittenNode, and the
+        // AdditionalWrittenNodes that exist precisely because an enrichment edge writes several
+        // nodes at once - so the relationships are recoverable for the per-player half. That takes
+        // the orphan count to 54. The remaining 48 are game-scope enrichment nodes whose StateEdges
+        // sit behind StateGraph.Edges, which is internal to the engine: they need a change there,
+        // not here.
+        foreach (PerPlayerNodeTemplate.MaterializedPlayer player in renderedPlayer)
+        {
+            foreach (StateEdge se in player.Edges)
+            {
+                if (!nodeVmByNode.TryGetValue(se.Source, out GraphNodeViewModel? srcVm))
+                {
+                    continue;
+                }
+
+                foreach (StateNode written in EnumerateWrittenNodes(se))
+                {
+                    // A descriptor already said this, with a better label. Do not double-draw it.
+                    if (!nodeVmByNode.TryGetValue(written, out GraphNodeViewModel? dstVm)
+                        || !drawnPairs.Add((se.Source, written)))
+                    {
+                        continue;
+                    }
+
+                    edgeVms.Add(new GraphEdgeViewModel(
+                        srcVm, dstVm, se.MessageType.Name, se.DeclaredEffect ?? EdgeEffect.SetValue));
+                }
+            }
         }
 
         return new GraphBuild(nodeVms, edgeVms, nodeVmByNode, droppedEdges);
@@ -1564,6 +1601,23 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     ///     The edge descriptors the graph draws: the game-scope ones from the build, then the rendered
     ///     player's. Kept as one sequence so every drop funnels through a single counted site.
     /// </summary>
+    /// <summary>Every node a runtime edge writes: its single destination, plus any multi-write extras.</summary>
+    private static IEnumerable<StateNode> EnumerateWrittenNodes(StateEdge edge)
+    {
+        if (edge.WrittenNode is { } written)
+        {
+            yield return written;
+        }
+
+        if (edge.AdditionalWrittenNodes is { } extra)
+        {
+            foreach (StateNode n in extra)
+            {
+                yield return n;
+            }
+        }
+    }
+
     private static IEnumerable<GraphEdgeDescriptor> EnumerateGraphEdges(
         BuildResult build, IReadOnlyList<PerPlayerNodeTemplate.MaterializedPlayer> players)
     {
