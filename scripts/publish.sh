@@ -87,7 +87,7 @@ dotnet publish src/App/DemoViewer.NET.Desktop -c Release -r "$RID" $SC_FLAG -o "
 #
 #    assets/icons/ is deliberately REMOVED again after the copy. Unlike the map bundles, the
 #    icons are EMBEDDED in DemoViewer.NET.GameIcons.dll — they have to be, because the Browser
-#    head has no filesystem to probe — so shipping them loose as well would put the same 1.6 MB
+#    head has no filesystem to probe — so shipping them loose as well would put the same 1.9 MB
 #    in every release and in every Velopack delta, for bytes nothing ever opens. Copy-then-prune
 #    rather than a filtered copy: git-bash has no rsync, and cp -R cannot exclude.
 if [ -d assets ] && [ -n "$(ls -A assets 2>/dev/null)" ]; then
