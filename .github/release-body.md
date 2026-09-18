@@ -31,11 +31,11 @@ Valve drew for them, in the kill feed and through the app, with the text still t
 wherever an icon is missing.
 
 **The Analysis graph draws the rules that actually ran.** It was drawing the engine's shared
-scaffolding and nothing else — on a typical demo that is 61 boxes of plumbing and not one of the
+scaffolding and nothing else: on a typical demo that is 61 boxes of plumbing and not one of the
 stats you actually get out of it. The graph now shows the rules the engine really ran, per player,
 with a selector for whose nodes are on screen; ten players at once is nearly four thousand nodes and
-unreadable. Saved graph breakpoints do not carry over — they were keyed by a node name that is no
-longer unique, so the old file is dropped rather than quietly matching ten nodes at once.
+unreadable. Saved graph breakpoints do not carry over, because they were keyed by a node name that
+is no longer unique, so the old file is dropped rather than quietly matching ten nodes at once.
 
 One number moves down: counter-strafing was being measured over too long a window and was crediting
 shots taken after you had already stopped. The window now comes from the game's own friction values,
