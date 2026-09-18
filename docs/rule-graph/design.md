@@ -171,7 +171,7 @@ section asked for:
 |---|---|
 | Join the real node set | as written |
 | Stable identity, not the name | as written (`GraphNodeKey`) |
-| Migrate persisted breakpoints | **changed**: they are DROPPED, not migrated, per decision 2 in §9. The proposal below (bind a legacy record to every slot) was never built. The mechanism is also a new filename rather than the schema version §9 describes |
+| Migrate persisted breakpoints | **changed, twice**: decision 2 in §9 chose to drop them; review then established the drop rested on a false premise, and they are MIGRATED. A pre-v2 file can only hold game-scope records, so `name` to `g:{name}` is exact. The proposal below (bind a legacy record to every slot) was never needed. The mechanism is a new filename rather than the schema version §9 describes |
 | Collapse per-player copies by default | as written, plus a rebuild so the selector actually switches player |
 | Count the drops, and show the count | **partial**: one counter over the graph-build edge sites, surfaced in the toolbar. The table sites and the two `MsaglTranslator` sites in §1.1 are still uncounted |
 | Delete the dead features | as written |
@@ -605,12 +605,15 @@ rest and take the un-fork second; the fence stays standing one release longer an
    slot selector.** Scaffolding plus one player's nodes, 434 in total, reusing the player filter that
    already exists at `AnalysisViewModel.cs:1318-1322`. Expanding every player is a later, opt-in
    action, not the default.
-2. ~~**Legacy breakpoints**~~ **Resolved 2026-09-17: drop them, silently.** No notice, no
-   best-effort rebinding. The requirement is that loading an old file is **resilient**: a record
-   written before the identity change is discarded rather than misapplied or thrown on. Implemented
-   as a schema version on the persisted file, with an unversioned or older file read as empty.
-   **Preferably cleared during the Velopack update** so the drop happens once, at upgrade, rather
-   than lazily on next load.
+2. ~~**Legacy breakpoints**~~ **Resolved twice.** First: drop them silently (2026-09-17). Then
+   **reversed on review**, because that decision rested on a premise this document itself supplied
+   and which is false. A pre-v2 file cannot contain an ambiguous record: before the per-player join
+   the graph drew only the game-scope scaffolding, so every node a user could right-click came from
+   `build.Nodes`, and `name` to `g:{name}` is an exact rewrite. **They are migrated**, then the old
+   file is removed, from the Velopack after-update hook on Windows and from the store constructor
+   everywhere else. The cost of the reversal was about fifteen lines; the cost of shipping the drop
+   would have been every user's hand-authored breakpoint conditions, destroyed with no notice and no
+   second chance.
 3. ~~**Delete or gate** the three dead features~~ **Resolved 2026-09-17: delete.** The UI and the
    code paths go, leaving a comment naming CS2DemoKit#50 so the reason survives the deletion.
 4. **YAML round-trip fidelity** in the editable model: preserve comments and key order (expensive, needs a

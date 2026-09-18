@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DemoViewer.NET.Debugging;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
@@ -43,6 +44,37 @@ public sealed record PersistedGraphBreakpoint(
         Condition = Condition,
         Enabled = Enabled
     };
+}
+
+/// <summary>
+///     The pre-v2 persisted shape, kept only so the file can be read once and carried forward. Its
+///     identity fields hold NAMES; <see cref="ToV2" /> rewrites each as the game-scope key form, which
+///     is exact for every record such a file can contain (see
+///     <see cref="GraphBreakpointStore.MigrateLegacyFile" />).
+/// </summary>
+internal sealed record LegacyGraphBreakpoint(
+    GraphBreakpointTarget TargetKind,
+    string? NodeName,
+    string? EdgeSource,
+    string? EdgeDest,
+    string? EdgeLabel,
+    string? EdgeConditionLabel,
+    string? Condition,
+    bool Enabled)
+{
+    /// <summary>Rewrites this record's name-based identity as game-scope keys.</summary>
+    public PersistedGraphBreakpoint ToV2() => new(
+        TargetKind,
+        Key(NodeName),
+        Key(EdgeSource),
+        Key(EdgeDest),
+        EdgeLabel,
+        EdgeConditionLabel,
+        Condition,
+        Enabled);
+
+    private static string? Key(string? name) =>
+        name is null ? null : GraphNodeKey.ForGameScope(name).ToString();
 }
 
 /// <summary>
@@ -90,30 +122,71 @@ public sealed class GraphBreakpointStore
 
         _path = AppPaths.GraphBreakpointsFile;
 
-        // Every platform's backstop for the pre-v2 file. The desktop host also drops it from Velopack's
-        // after-update hook, which is the tidier moment, but that hook is Windows-only and never fires
-        // for an unpackaged or portable run. Deleting here as well makes the outcome the same
-        // everywhere, and the call is a no-op once the file is gone.
-        DeleteLegacyFile();
+        // Every platform's backstop for the pre-v2 file. The desktop host also runs this from
+        // Velopack's after-update hook, which is the tidier moment, but that hook is Windows-only and
+        // never fires for an unpackaged or portable run. Doing it here too makes the outcome the same
+        // everywhere, and the call is a no-op once the legacy file is gone.
+        MigrateLegacyFile();
     }
 
     /// <summary>
-    ///     Deletes the pre-v2 breakpoint file if it is still there.
+    ///     Carries the pre-v2 breakpoint file forward, then removes it.
     ///     <para>
-    ///         Called from the desktop host's Velopack after-update hook, so the drop happens once at
-    ///         upgrade rather than lazily. Safe to call at any time and on any platform: it is a no-op
-    ///         on WASM (no filesystem) and when the file is already gone, and it swallows I/O failures
-    ///         the same way every other method here does. Nothing is migrated, by choice rather
-    ///         than necessity: a pre-v2 file holds only game-scope records, which would map losslessly
-    ///         onto the new key form (see <see cref="AppPaths.LegacyGraphBreakpointsFile" />).
+    ///         A pre-v2 record identifies a node by NAME, which is losslessly convertible: before the
+    ///         per-player join the Analysis graph drew only the shared game-scope scaffolding, so every
+    ///         node a user could right-click came from <c>build.Nodes</c>, and every such node now keys
+    ///         as <c>g:{name}</c>. The rewrite is a prefix, not a guess. The alternative was destroying
+    ///         hand-authored condition expressions with no notice.
+    ///     </para>
+    ///     <para>
+    ///         Runs from the desktop host's Velopack after-update hook so it happens once at upgrade,
+    ///         and from this class's constructor so it also happens on the platforms Velopack's hooks
+    ///         do not reach. Safe to call at any time: a no-op on WASM (no filesystem) and once the
+    ///         legacy file is gone, and it swallows I/O failures the way every other method here does.
+    ///         A demo already present in the v2 file wins, because that is a set the user has edited
+    ///         under the new build.
     ///     </para>
     /// </summary>
-    public static void DeleteLegacyFile()
+    public static void MigrateLegacyFile()
     {
         string? legacy = AppPaths.LegacyGraphBreakpointsFile;
-        if (legacy is null)
+        string? current = AppPaths.GraphBreakpointsFile;
+        if (legacy is null || current is null || !File.Exists(legacy))
         {
             return;
+        }
+
+        try
+        {
+            Dictionary<string, List<LegacyGraphBreakpoint>>? legacyByDemo =
+                JsonSerializer.Deserialize<Dictionary<string, List<LegacyGraphBreakpoint>>>(
+                    File.ReadAllText(legacy), _options);
+
+            if (legacyByDemo is { Count: > 0 })
+            {
+                Dictionary<string, List<PersistedGraphBreakpoint>> merged = ReadAllFrom(current);
+                foreach ((string demoKey, List<LegacyGraphBreakpoint> records) in legacyByDemo)
+                {
+                    if (merged.ContainsKey(demoKey))
+                    {
+                        continue;
+                    }
+
+                    List<PersistedGraphBreakpoint> carried = [.. records.Select(r => r.ToV2())];
+                    if (carried.Count > 0)
+                    {
+                        merged[demoKey] = carried;
+                    }
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(current)!);
+                File.WriteAllText(current, JsonSerializer.Serialize(merged, _options));
+            }
+        }
+        catch
+        {
+            // A legacy file that cannot be read cannot be carried. Fall through to the delete: the
+            // alternative is re-attempting a failing parse on every launch, forever.
         }
 
         try
@@ -122,7 +195,7 @@ public sealed class GraphBreakpointStore
         }
         catch
         {
-            // Best-effort, exactly like Save: a stale file costs nothing, since nothing reads it.
+            // Best-effort, exactly like Save. A stale file costs nothing; nothing reads it again.
         }
     }
 
@@ -188,9 +261,11 @@ public sealed class GraphBreakpointStore
         return result;
     }
 
-    private Dictionary<string, List<PersistedGraphBreakpoint>> ReadAll()
+    private Dictionary<string, List<PersistedGraphBreakpoint>> ReadAll() => ReadAllFrom(_path);
+
+    private static Dictionary<string, List<PersistedGraphBreakpoint>> ReadAllFrom(string? path)
     {
-        if (_path is null || !File.Exists(_path))
+        if (path is null || !File.Exists(path))
         {
             return new Dictionary<string, List<PersistedGraphBreakpoint>>(StringComparer.Ordinal);
         }
@@ -198,7 +273,8 @@ public sealed class GraphBreakpointStore
         try
         {
             return JsonSerializer.Deserialize<Dictionary<string, List<PersistedGraphBreakpoint>>>(
-                File.ReadAllText(_path), _options) ?? new Dictionary<string, List<PersistedGraphBreakpoint>>(StringComparer.Ordinal);
+                       File.ReadAllText(path), _options)
+                   ?? new Dictionary<string, List<PersistedGraphBreakpoint>>(StringComparer.Ordinal);
         }
         catch
         {
