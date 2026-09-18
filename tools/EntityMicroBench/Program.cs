@@ -161,7 +161,7 @@ public class EntityTrackingBenchmarks
 ///     F-7 cross-check: an INDEPENDENT BenchmarkDotNet measurement of the parallel digest producer's
 ///     allocation. <see cref="MemoryDiagnoserAttribute" /> reports process-wide managed bytes/op, which
 ///     does NOT depend on the (now-fixed) per-worker <c>GetAllocatedBytesForCurrentThread</c> accountant
-///     inside <c>ParallelDigestProducer</c>, so it independently confirms the precompute really
+///     inside the digest producer, so it independently confirms the fold really
 ///     allocates GiB-scale, not the small fraction the pre-fix calling-thread bracket reported. It is a
 ///     magnitude check, NOT a reproduction of AnalysisBench's full-provider figure: this minimal scanner
 ///     uses fewer providers, so its digest-build allocation (and thus the bytes/op) runs a bit lower.
@@ -184,8 +184,9 @@ public class ParallelDecodeBenchmarks
 
         // Minimal scanner: empty singleton providers + one representative per-player provider. The
         // parallel ENTITY-STREAM decode (the dominant allocator the F-7 fix accounts for) runs
-        // regardless of the provider set, so this exercises ParallelDigestProducer.Produce faithfully
-        // without dragging in the YAML config / rule-chain builder.
+        // regardless of the provider set, so this exercises the producer's fold faithfully without
+        // dragging in the YAML config / rule-chain builder. PrecomputeParallelDigests folds on every
+        // call on 0.12.0, so each op is a whole fold.
         EntityStateLayer layer = new(demo.Frames);
         _scanner = new EntityChangeScanner(layer, [], [new PawnHealthProvider()]);
     }

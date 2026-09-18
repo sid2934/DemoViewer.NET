@@ -132,7 +132,7 @@ internal static class RulesCheckCommand
         // its errors already surfaced demo-less.
         RuleChainBuilder builder = new(
             EventRegistry.Build(),
-            parsed,
+            AnalysisTarget.From(parsed),
             entityProviders: EntityValueProviderRegistry.CreateDefault(),
             perPlayerEntityProviders: PerPlayerEntityValueProviderRegistry.CreateDefault());
         string profileId = builder.Profile.GetType().Name;

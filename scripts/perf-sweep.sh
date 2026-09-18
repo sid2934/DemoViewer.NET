@@ -12,7 +12,7 @@ DLL="artifacts/bin/AnalysisBench/release/AnalysisBench.dll"
 RUNID="${1:-baseline}"
 OUT="docs/perf/parser-and-entity-decode/runs/${RUNID}"; mkdir -p "$OUT"
 RESULTS="$OUT/results.tsv"
-printf "demo\tsource\ttotal_med_ms\tparse_ms\teval_ms\tpass1_ms\tpass2_ms\tpass3_ms\tprecompute_ms\tframes\tcompressed\teval_alloc_MiB\n" > "$RESULTS"
+printf "demo\tsource\ttotal_med_ms\tparse_ms\teval_ms\tpass1_ms\tpass2_ms\tpass3_ms\tfold_ms\tframes\tcompressed\teval_alloc_MiB\n" > "$RESULTS"
 
 n1() { grep -oE '[0-9][0-9.,]*' | head -1 | tr -d ','; }   # first number, strip thousands commas
 
@@ -22,25 +22,29 @@ else
   demos=( demos/benchmarks/*.dem demos/pro-demos/*.dem )
 fi
 
+# --retained on every invocation. The bench's default is the forward path now, which has no
+# separate parse phase and labels its bracket "Run" / "Total (run)", so every grep below would
+# come back empty, and the per-pass columns this sweep exists for only exist on that path.
+# Keeping the flag here keeps a re-run comparable with the runs already recorded in results.md.
 for demo in "${demos[@]}"; do
   name=$(basename "$demo" .dem); abs="$(pwd)/$demo"
   echo ">>> $name"
-  dotnet "$DLL" "$abs" --no-golden >/dev/null 2>&1            # cold discard
+  dotnet "$DLL" "$abs" --retained --no-golden >/dev/null 2>&1  # cold discard
   totals=()
   for i in 1 2 3; do                                          # 3 warm
-    out=$(dotnet "$DLL" "$abs" --no-golden 2>&1)
+    out=$(dotnet "$DLL" "$abs" --retained --no-golden 2>&1)
     totals+=( "$(echo "$out" | grep 'Total (parse+build+eval)' | n1)" )
     parse=$(echo "$out" | grep -E '^  Parse:' | n1)
     eval=$(echo "$out"  | grep -E '^  Eval:'  | n1)
   done
   med=$(printf '%s\n' "${totals[@]}" | sort -n | sed -n '2p')
-  prof=$(dotnet "$DLL" "$abs" --profile --no-golden 2>&1)     # breakdown
+  prof=$(dotnet "$DLL" "$abs" --retained --profile --no-golden 2>&1)  # breakdown
   echo "$prof" > "$OUT/$name.profile.txt"
   src=$(echo "$prof" | grep -oE 'Source: [A-Za-z]+' | head -1 | sed 's/Source: //')
   p1=$(echo "$prof" | grep 'Pass 1' | grep -oE '[0-9.]+ ms' | n1)
   p2=$(echo "$prof" | grep 'Pass 2' | grep -oE '[0-9.]+ ms' | n1)
   p3=$(echo "$prof" | grep 'Pass 3' | grep -oE '[0-9.]+ ms' | n1)
-  pc=$(echo "$prof" | grep 'Parallel precompute' | grep -oE '[0-9.]+ ms' | n1)
+  pc=$(echo "$prof" | grep 'Digest fold' | grep -oE '[0-9.]+ ms' | n1)
   fr=$(echo "$prof" | grep 'Pass 1' | grep -oE '[0-9,]+ frames' | n1)
   cmp=$(echo "$prof" | grep 'Pass 1' | grep -oE '[0-9,]+ compressed' | n1)
   ea=$(echo "$prof" | grep 'Eval allocated' | grep -oE '[0-9.]+ MiB' | n1)

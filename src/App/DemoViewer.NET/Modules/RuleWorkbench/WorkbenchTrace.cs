@@ -142,14 +142,6 @@ public static class WorkbenchTraceModel
         }
 
         Dictionary<int, int> roundByFrame = BuildRoundByFrame(result, demo);
-        Dictionary<DemoFrame, int> frameIndexOf = new(ReferenceEqualityComparer.Instance);
-        if (demo is not null)
-        {
-            for (int i = 0; i < demo.Frames.Count; i++)
-            {
-                frameIndexOf[demo.Frames[i]] = i;
-            }
-        }
 
         int? Round(int frameIndex)
         {
@@ -206,10 +198,9 @@ public static class WorkbenchTraceModel
                         continue;
                     }
 
-                    DemoFrame frame = result.Messages[idx].Frame;
-                    int frameIndex = frameIndexOf.TryGetValue(frame, out int fi) ? fi : -1;
+                    MessageRef message = result.Messages[idx];
                     list.Add(new WorkbenchTraceFire(
-                        frameIndex, frame.ServerTick, frameIndex >= 0 ? Round(frameIndex) : null, slot, name));
+                        message.FrameIndex, message.Tick, Round(message.FrameIndex), slot, name));
                 }
             }
         }
@@ -272,12 +263,6 @@ public static class WorkbenchTraceModel
             return roundByFrame;
         }
 
-        Dictionary<DemoFrame, int> frameIndexOf = new(ReferenceEqualityComparer.Instance);
-        for (int i = 0; i < demo.Frames.Count; i++)
-        {
-            frameIndexOf[demo.Frames[i]] = i;
-        }
-
         int current = 0;
         for (int m = 0; m < result.Messages.Count; m++)
         {
@@ -286,10 +271,7 @@ public static class WorkbenchTraceModel
                 current = (int)rn;
             }
 
-            if (frameIndexOf.TryGetValue(result.Messages[m].Frame, out int fi))
-            {
-                roundByFrame[fi] = current;
-            }
+            roundByFrame[result.Messages[m].FrameIndex] = current;
         }
 
         return roundByFrame;

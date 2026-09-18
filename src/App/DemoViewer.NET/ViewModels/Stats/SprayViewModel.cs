@@ -38,6 +38,7 @@ public sealed partial class SprayViewModel : ObservableObject
     private readonly StatsTabViewModel _parent;
     private IReadOnlyList<PlayerSprays> _forPlayer = [];
     private int _slot = -1;
+    private int _reload;
 
     internal SprayViewModel(StatsTabViewModel parent) => _parent = parent;
 
@@ -106,28 +107,47 @@ public sealed partial class SprayViewModel : ObservableObject
             return;
         }
 
+        // The newest reload owns IsBusy and the lists. An older one that lands after it must touch
+        // neither, or a slow TargetCentre sample overwrites the FirstBullet one already toggled to.
+        int reload = ++_reload;
         SprayOrigin origin = TrackTarget ? SprayOrigin.TargetCentre : SprayOrigin.FirstBullet;
+        IsBusy = true;
         try
         {
-            IsBusy = true;
             SprayModel model = await _parent.SpraysAsync(demo, origin);
+            if (reload != _reload)
+            {
+                return;
+            }
+
             _forPlayer = [.. model.Players.Where(p => p.Slot == _slot)];
             _patternsByWeapon = model.IdealByWeapon;
+            Populate();
         }
 #pragma warning disable CA1031 // A sampling failure degrades the plot; it must not take the drilldown down.
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            // Surfaced to the reader rather than logged: the drilldown is where they are looking,
-            // and an empty plot with no explanation is the failure this whole family keeps inviting.
-            Clear($"Spray data could not be read from this demo ({ex.GetType().Name}).");
-            return;
+            if (reload == _reload)
+            {
+                // Surfaced to the reader rather than logged: the drilldown is where they are looking,
+                // and an empty plot with no explanation is the failure this whole family keeps inviting.
+                Clear($"Spray data could not be read from this demo ({ex.GetType().Name}).");
+            }
         }
         finally
         {
-            IsBusy = false;
+            // Busy clears last. Whoever observes not-busy and a weapon list must also observe the
+            // selection and shots that go with it.
+            if (reload == _reload)
+            {
+                IsBusy = false;
+            }
         }
+    }
 
+    private void Populate()
+    {
         Weapons.Clear();
         foreach (string weapon in _forPlayer.Select(p => p.Weapon).OrderBy(w => w, StringComparer.Ordinal))
         {

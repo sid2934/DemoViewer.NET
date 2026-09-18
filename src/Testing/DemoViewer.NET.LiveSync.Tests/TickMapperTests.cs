@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Parser;
+using CS2OpenSchema.Protos;
 
 #endregion
 
@@ -30,7 +31,7 @@ public class TickMapperTests
 
     private static DemoFrame Frame(int index, int tick) => new()
     {
-        Command = "dem_packet",
+        CommandKind = EDemoCommands.DemPacket,
         FrameNumber = index,
         HeaderLength = 0,
         IsCompressed = false,

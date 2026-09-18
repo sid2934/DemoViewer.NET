@@ -44,8 +44,9 @@ The analysis evaluator publishes three runtime sources that cost a single branch
 - **`Meter` `DemoViewer.Analysis.Evaluator`**: counters (`analysis.messages.processed`,
   `analysis.edges.evaluated`, `analysis.edges.fired`, `analysis.logic_nodes.recomputed`,
   `analysis.players.materialized`) + the `analysis.frame.duration_ms` histogram.
-- **`ActivitySource` `DemoViewer.Analysis`**: phase-timeline spans (`analysis.eval` ⊃
-  `analysis.precompute`). `StartActivity` returns `null` when nothing is sampling, so the spans are
+- **`ActivitySource` `DemoViewer.Analysis`**: phase-timeline spans (`analysis.eval`, plus
+  `analysis.precompute` only when a host folds the digests itself through
+  `PrecomputeParallelDigests`). `StartActivity` returns `null` when nothing is sampling, so the spans are
   near-free by default. The bench also spans `read`/`parse`/`build` so `--timeline` shows the full
   nested pipeline.
 
@@ -75,16 +76,17 @@ dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --counters --n
 dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --trace --no-golden
 #  → "Evaluator Diagnostics" block (EventSource)
 dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --timeline --no-golden
-#  → "Phase Timeline (ActivitySource)" block: read / parse / build / analysis.eval ⊃ analysis.precompute
+#  → "Phase Timeline (ActivitySource)" block: read / parse / build / analysis.eval
 ```
 
 `--profile` implies `--counters` and `--timeline` (they construct one listener each, so no double-attach).
 Always pass `--no-golden` on verification runs so they don't re-baseline the committed
 `tests/fixtures/*/*.golden.json` oracle.
 
-> Note: under the parallel precompute path the entity decode runs on throwaway worker trackers,
-> so the `AdvanceAndPoll (Σ phases)` line and the tracker sub-tree (`PacketEntities`/`field-path`/…) read
-> ~0; the decode cost lands in `Parallel precompute` instead. This is expected, not a regression.
+> Note: the digest producer decodes the entity stream on its own worker trackers, so the
+> `AdvanceAndPoll (Σ phases)` line and the tracker sub-tree (`PacketEntities`/`field-path`/…) read
+> ~0; the decode cost lands in `Digest fold (Σ workers)` instead, as worker time summed across the
+> producer's workers rather than wall-clock. This is expected, not a regression.
 
 ## Profiling the shipped app (no rebuild): `dotnet-trace` / `dotnet-counters`
 

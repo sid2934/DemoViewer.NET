@@ -370,9 +370,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // The reel-generation engine impl lives in the desktop-only DemoViewer.NET.LiveSync project and arrives
     // via AppHostHooks.ReelJobFactory; null on Browser / tests / designer.
 
-    // Cached event-context built once per file load; used for per-tick stat computation.
-    private DemoContext? _replayDemoContext;
-
     // _cardBuildCts moved to ReplayTabViewModel (3.5b).
     // SelectedEntityItem / SelectedEntityListItem moved to EntityTab in 3.4c.
     // Their partial handlers (OnSelectedEntityItemChanged + OnSelectedEntityListItemChanged)
@@ -2638,7 +2635,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             (PlayerNames, _nameByUserId) = PlayerSnapshotBuilder.BuildNameLookups(parsed);
 
-            _replayDemoContext = DemoAnalyzer.BuildEventContext(parsed);
             // Match Overview stage parity with the interactive funnel (see LoadDemoFromBytesAsync).
             MatchOverviewTab.BeginAnalysis(path);
             // SHA-256 the demo bytes (off-thread) to key its persisted graph breakpoints.
@@ -3236,7 +3232,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     private void UnloadDemoState()
     {
-        _replayDemoContext = null;
         _demoBytes = null;
         // Drop our handle to the previous open's fan-out (it may still be running on a reload: that is
         // fine and pre-existing; it holds only the OLD demo, which is being replaced anyway). CloseDemoAsync
@@ -3730,8 +3725,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Primary: string-table names (parsed.Players). Secondary: PlayerConnectEvents.
             // Shared logic with the snapshot builder to keep ordering invariants identical.
             (PlayerNames, _nameByUserId) = PlayerSnapshotBuilder.BuildNameLookups(parsed);
-
-            _replayDemoContext = DemoAnalyzer.BuildEventContext(parsed);
 
             // ── Analysis engine ───────────────────────────────────────────────────
             // Everything above this line is the Match Overview's "Enriching" stage (roster, navigation index,

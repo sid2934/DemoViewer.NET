@@ -2,6 +2,7 @@
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CS2DemoKit.Analysis;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Debugging;
 
@@ -213,13 +214,13 @@ public sealed partial class AnalysisViewModel
 
     /// <summary>
     ///     The frame-clock tick backing message <paramref name="currentMessageIndex" />, or null when the
-    ///     index is unpositioned / out of range. The frame's <see cref="DemoFrame.ServerTick" /> is the
-    ///     frame clock: passed to the engine unmodified.
+    ///     index is unpositioned / out of range. <see cref="MessageRef.Tick" /> is the frame's
+    ///     <see cref="DemoFrame.ServerTick" />, the frame clock: passed to the engine unmodified.
     /// </summary>
     internal static int? ResolveFrameClockTick(
-        IReadOnlyList<(DemoFrame Frame, NetMessage Message)>? messageList, int currentMessageIndex) =>
+        IReadOnlyList<MessageRef>? messageList, int currentMessageIndex) =>
         messageList is not null && currentMessageIndex >= 0 && currentMessageIndex < messageList.Count
-            ? messageList[currentMessageIndex].Frame.ServerTick
+            ? messageList[currentMessageIndex].Tick
             : null;
 
     /// <summary>
@@ -234,7 +235,7 @@ public sealed partial class AnalysisViewModel
 
     /// <summary>Positions a synthetic message list so tick resolution runs without parsing a demo.</summary>
     internal void SetVerifyPositionForTests(
-        IReadOnlyList<(DemoFrame Frame, NetMessage Message)> messages, int currentIndex)
+        IReadOnlyList<MessageRef> messages, int currentIndex)
     {
         _messageList = messages;
         CurrentMessageIndex = currentIndex;

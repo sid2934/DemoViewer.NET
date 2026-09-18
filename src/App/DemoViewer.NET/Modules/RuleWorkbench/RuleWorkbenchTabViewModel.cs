@@ -434,12 +434,9 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     ///     scaffolding. Per-player template nodes are materialized once and flagged so authors can see what
     ///     materializes per player. With nothing open the graph is empty (no fallback to "all rulesets").
     ///     <para>
-    ///         Most rulesets graph with NO demo. The exception is a ruleset that reads live entity state
-    ///         (<c>player.entity.*</c>: health, armor, equipment): those nodes need the entity scanner, which
-    ///         only exists when a demo is bound (entity state <em>is</em> the demo). So we try demo-less first
-    ///         (cheap, and keeps the graph demo-independent for the common case) and, only if that hits the
-    ///         entity-provider requirement, retry with the loaded demo. With no demo loaded, such a ruleset
-    ///         shows a "load a demo" note rather than a raw engine error.
+    ///         The graph builds with or without a demo: per-player nodes materialise during evaluation,
+    ///         so a ruleset reading live entity state (<c>player.entity.*</c>) needs no scanner to graph.
+    ///         A bound demo supplies the tick rate and source profile the composition resolves against.
     ///     </para>
     ///     Node count is set synchronously (the deterministic test hook); the MSAGL layout is fired best-effort.
     /// </summary>
@@ -457,20 +454,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
         }
 
         List<RulesetDoc> docs = LoadOpenFileWithDeps();
-        if (TryRenderGraph(docs, null))
-        {
-            return; // demo-less build succeeded (event-based ruleset).
-        }
-
-        // The ruleset reads live entity state; that needs a demo's entity scanner.
-        ParsedDemo? demo = _demoSource?.CurrentDemo;
-        if (demo is not null && TryRenderGraph(docs, demo))
-        {
-            return;
-        }
-
-        SetEmptyGraph("This ruleset reads live entity state (player.entity.*) — load a demo (Library / Parser "
-                      + "tab) to graph it.");
+        RenderGraph(docs, _demoSource?.CurrentDemo);
     }
 
     /// <summary>Clears the graph to an empty state with the given caption.</summary>
@@ -486,17 +470,15 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
 
     /// <summary>
     ///     Builds + renders the authoring graph for <paramref name="docs" /> under <paramref name="demo" />
-    ///     (null = demo-less). Returns <c>false</c> ONLY when the build hit the "needs a bound entity scanner"
-    ///     requirement, the caller's signal to retry with a loaded demo. Any other failure is reported into
-    ///     <see cref="GraphSummary" /> and returns <c>true</c> (handled: do not retry).
+    ///     (null = demo-less). A failure is reported into <see cref="GraphSummary" />.
     /// </summary>
-    private bool TryRenderGraph(List<RulesetDoc> docs, ParsedDemo? demo)
+    private void RenderGraph(List<RulesetDoc> docs, ParsedDemo? demo)
     {
         try
         {
             RuleChainBuilder builder = new(
                 EventRegistry.Build(),
-                demo,
+                demo is null ? null : AnalysisTarget.From(demo),
                 entityProviders: EntityValueProviderRegistry.CreateDefault(),
                 perPlayerEntityProviders: PerPlayerEntityValueProviderRegistry.CreateDefault());
             CatalogScopeAdapter adapter = CatalogScopeAdapter.From(CatalogResource.Load());
@@ -519,21 +501,12 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
             {
                 _ = GraphViewModel.SetGraphAsync(skeleton.Nodes, skeleton.Edges, skeleton.Groups);
             }
-
-            return true;
-        }
-        catch (InvalidOperationException ex)
-            when (demo is null && ex.Message.Contains("requires per-player entity providers and a player slot",
-                      StringComparison.Ordinal))
-        {
-            return false; // entity-read ruleset, caller retries with a loaded demo
         }
         catch (Exception ex)
         {
             AppLog.OperationFailed(DiagLog, "render the rule graph", ex);
             GraphNodeCount = 0;
             GraphSummary = UserFacingError.Describe("render the rule graph", ex);
-            return true;
         }
     }
 

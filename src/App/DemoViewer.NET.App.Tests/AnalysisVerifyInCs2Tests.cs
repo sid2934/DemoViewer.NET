@@ -1,5 +1,6 @@
 #region
 
+using CS2DemoKit.Analysis;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Debugging;
 using DemoViewer.NET.ViewModels;
@@ -19,24 +20,15 @@ namespace DemoViewer.NET.AppTests;
 /// </summary>
 public class AnalysisVerifyInCs2Tests
 {
-    private static DemoFrame FrameAtTick(int serverTick) => new()
-    {
-        Command = "packet",
-        FrameNumber = 0,
-        HeaderLength = 0,
-        IsCompressed = false,
-        RawLength = 0,
-        RawStart = 0,
-        ServerTick = serverTick
-    };
+    private static MessageRef MessageAtTick(int serverTick) => new(0, serverTick, 0, null!);
 
     // A synthetic message list whose frame i has ServerTick i*100 (index 0 → 0, 1 → 100, …).
-    private static (DemoFrame Frame, NetMessage Message)[] MessagesWithTicks(int count)
+    private static MessageRef[] MessagesWithTicks(int count)
     {
-        (DemoFrame, NetMessage)[] messages = new (DemoFrame, NetMessage)[count];
+        MessageRef[] messages = new MessageRef[count];
         for (int i = 0; i < count; i++)
         {
-            messages[i] = (FrameAtTick(i * 100), null!);
+            messages[i] = MessageAtTick(i * 100);
         }
 
         return messages;
@@ -55,8 +47,8 @@ public class AnalysisVerifyInCs2Tests
     [Test]
     public async Task ResolveFrameClockTick_ValidIndex_ReturnsFrameServerTick()
     {
-        (DemoFrame, NetMessage)[] messages =
-            [(FrameAtTick(1000), null!), (FrameAtTick(54321), null!)];
+        MessageRef[] messages =
+            [MessageAtTick(1000), MessageAtTick(54321)];
 
         await Assert.That(AnalysisViewModel.ResolveFrameClockTick(messages, 1)).IsEqualTo(54321)
             .Because("the frame's ServerTick is the frame clock, passed to VerifyMomentAsync unmodified");
@@ -66,7 +58,7 @@ public class AnalysisVerifyInCs2Tests
     [Test]
     public async Task ResolveFrameClockTick_UnpositionedOrOutOfRange_ReturnsNull()
     {
-        (DemoFrame, NetMessage)[] messages = [(FrameAtTick(1000), null!)];
+        MessageRef[] messages = [MessageAtTick(1000)];
 
         await Assert.That(AnalysisViewModel.ResolveFrameClockTick(messages, -1)).IsNull();
         await Assert.That(AnalysisViewModel.ResolveFrameClockTick(messages, 5)).IsNull();
@@ -230,7 +222,7 @@ public class AnalysisVerifyInCs2Tests
             return Task.FromResult(true); // deterministic paused arrival
         };
         vm.Filter.SelectedPlayer = new PlayerFilterOption(3, "s1mple");
-        vm.SetVerifyPositionForTests([(FrameAtTick(1000), null!), (FrameAtTick(54321), null!)], 1);
+        vm.SetVerifyPositionForTests([MessageAtTick(1000), MessageAtTick(54321)], 1);
         ConditionTarget target = NodeTarget("some_node"); // no fires ⇒ playhead frame tick
         string statusBefore = vm.StatusText;
 

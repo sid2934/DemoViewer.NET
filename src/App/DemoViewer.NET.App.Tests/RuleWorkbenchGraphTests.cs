@@ -89,12 +89,11 @@ public class RuleWorkbenchGraphTests
     }
 
     /// <summary>
-    ///     An entity-reading ruleset (player_stats reads player.entity.* health/armor/equipment) cannot graph
-    ///     without a demo: the entity scanner needs one. With no demo loaded the graph shows a clear
-    ///     "load a demo" note, not the raw engine requirement error.
+    ///     An entity-reading ruleset graphs without a demo too: per-player nodes materialise during
+    ///     evaluation, so the build needs no scanner. The summary says nothing about a demo.
     /// </summary>
     [Test]
-    public async Task Graph_EntityRuleset_NoDemo_ShowsLoadDemoNote()
+    public async Task Graph_EntityRuleset_NoDemo_Renders()
     {
         await WithTempRules(async (vm, _) =>
         {
@@ -102,8 +101,8 @@ public class RuleWorkbenchGraphTests
             vm.ShowGraph = true;
 
             Console.WriteLine($"[graph-entity-nodemo] {vm.GraphSummary}");
-            await Assert.That(vm.GraphNodeCount).IsEqualTo(0);
-            await Assert.That(vm.GraphSummary).Contains("load a demo");
+            await Assert.That(vm.GraphNodeCount).IsGreaterThan(0);
+            await Assert.That(vm.GraphSummary).DoesNotContain("with demo");
         });
     }
 
@@ -120,9 +119,9 @@ public class RuleWorkbenchGraphTests
             vm.ShowGraph = true;
 
             Console.WriteLine($"[graph-entity-demo] {vm.GraphSummary}");
-            await Assert.That(vm.GraphNodeCount).IsGreaterThan(0)
-                .Because("with a demo bound the entity scanner exists, so player.entity.* nodes materialize");
-            await Assert.That(vm.GraphSummary).Contains("with demo");
+            await Assert.That(vm.GraphNodeCount).IsGreaterThan(0);
+            await Assert.That(vm.GraphSummary).Contains("with demo")
+                .Because("a bound demo supplies the tick rate and profile the graph resolves against");
         });
     }
 
