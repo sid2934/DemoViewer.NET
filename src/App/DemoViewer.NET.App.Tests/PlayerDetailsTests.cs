@@ -400,7 +400,7 @@ public class PlayerDetailsTests
             await Assert.That(frame).IsNotNull();
 
             string path = Path.Combine(HeadlessSession.ArtifactDir, "player-details.png");
-            frame!.Save(path);
+            frame!.Save(path, new PngBitmapEncoderOptions());
             Console.WriteLine(
                 $"[capture] {path}  tiles={vm.PlayerDetails!.CoreTiles.Count} " +
                 $"bars={vm.PlayerDetails.Weapons.Bars.Count} ach={vm.PlayerDetails.Achievements.Count}");

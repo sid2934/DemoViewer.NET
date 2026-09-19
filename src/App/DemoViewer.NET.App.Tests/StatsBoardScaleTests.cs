@@ -1535,7 +1535,7 @@ public class StatsBoardScaleTests
                 await Assert.That(frame).IsNotNull();
 
                 string outPath = Path.Combine(HeadlessSession.ArtifactDir, "stats-board.png");
-                frame!.Save(outPath);
+                frame!.Save(outPath, new PngBitmapEncoderOptions());
                 Console.WriteLine($"[stats-board] {outPath}");
 
                 byte[] pixels = FrameProbe.ToBytes(frame);
@@ -1589,7 +1589,7 @@ public class StatsBoardScaleTests
                 await Assert.That(frame).IsNotNull();
 
                 string outPath = Path.Combine(HeadlessSession.ArtifactDir, $"stats-board-{name}.png");
-                frame!.Save(outPath);
+                frame!.Save(outPath, new PngBitmapEncoderOptions());
                 Console.WriteLine($"[stats-board-{name}] {outPath}");
             }
             finally
@@ -1649,7 +1649,7 @@ public class StatsBoardScaleTests
                     await Assert.That(frame).IsNotNull();
                     string outPath = Path.Combine(HeadlessSession.ArtifactDir,
                         $"stats-theme-{themeId}-{suffix}.png");
-                    frame!.Save(outPath);
+                    frame!.Save(outPath, new PngBitmapEncoderOptions());
                     Console.WriteLine($"[stats-theme-{themeId}-{suffix}] {outPath}");
                 }
             }
@@ -1873,7 +1873,7 @@ public class StatsBoardScaleTests
             {
                 string outPath = Path.Combine(HeadlessSession.ArtifactDir, "stats-no-sight-data.png");
                 using FileStream file = File.Create(outPath);
-                frame.Save(file);
+                frame.Save(file, new PngBitmapEncoderOptions());
                 Console.WriteLine($"[stats-no-sight-data] {outPath}");
             }
         });

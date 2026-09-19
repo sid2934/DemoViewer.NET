@@ -55,7 +55,7 @@ public class TutorialAnchorTests
             window.Show();
             Pump();
 
-            await Assert.That(anchor.GetVisualRoot()).IsNotNull().Because("the anchor is now in the visual tree");
+            await Assert.That(TopLevel.GetTopLevel(anchor)).IsNotNull().Because("the anchor is now in the visual tree");
             await Assert.That(TutorialAnchor.TryResolve(target, out Control resolved)).IsTrue()
                 .Because("an attached tagged control registers itself");
             await Assert.That(ReferenceEquals(resolved, anchor)).IsTrue()

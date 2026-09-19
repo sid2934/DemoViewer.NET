@@ -107,7 +107,7 @@ public class Playback2DLegacyToggleTests
         }
 
         string path = Path.Combine(HeadlessSession.ArtifactDir, fileName);
-        frame.Save(path);
+        frame.Save(path, new PngBitmapEncoderOptions());
         Console.WriteLine($"[legacy-toggle] {path}");
         return true;
     }

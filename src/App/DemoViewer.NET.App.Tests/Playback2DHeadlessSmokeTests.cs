@@ -99,7 +99,7 @@ public class Playback2DHeadlessSmokeTests
             await Assert.That(frameBmp).IsNotNull();
 
             string path = Path.Combine(HeadlessSession.ArtifactDir, "playback2d.png");
-            frameBmp!.Save(path);
+            frameBmp!.Save(path, new PngBitmapEncoderOptions());
             (int nonBg, bool sawTeamColour) = ScanPixels(frameBmp);
             Console.WriteLine($"[capture] {path}  markers={vm.Markers.Count}  nonBg={nonBg}  team={sawTeamColour}");
 

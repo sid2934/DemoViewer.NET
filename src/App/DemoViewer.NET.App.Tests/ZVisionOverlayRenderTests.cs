@@ -132,7 +132,7 @@ public class ZVisionOverlayRenderTests
             sightlines = viewport.SightlineCount;
             if (window.CaptureRenderedFrame() is { } on)
             {
-                on.Save(Path.Combine(HeadlessSession.ArtifactDir, "vision-nuke.png"));
+                on.Save(Path.Combine(HeadlessSession.ArtifactDir, "vision-nuke.png"), new PngBitmapEncoderOptions());
                 nonBgOn = ScanNonBackground(on);
             }
 

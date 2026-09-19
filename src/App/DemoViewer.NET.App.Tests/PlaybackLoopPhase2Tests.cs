@@ -1,6 +1,7 @@
 #region
 
 using Avalonia.Controls;
+using Avalonia.Media.Imaging;
 using Avalonia.Headless;
 using Avalonia.Threading;
 using CS2DemoKit.Parser;
@@ -132,7 +133,7 @@ public class PlaybackLoopPhase2Tests
             Dispatcher.UIThread.RunJobs();
 
             string path = Path.Combine(HeadlessSession.ArtifactDir, "phase2-transport.png");
-            window.CaptureRenderedFrame()!.Save(path);
+            window.CaptureRenderedFrame()!.Save(path, new PngBitmapEncoderOptions());
             Console.WriteLine($"[capture] {path}");
 
             await Assert.That(File.Exists(path)).IsTrue();

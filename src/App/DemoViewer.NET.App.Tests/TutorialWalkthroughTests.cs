@@ -193,7 +193,7 @@ public class TutorialWalkthroughTests
                 WriteableBitmap? tabsFrame = window.CaptureRenderedFrame();
                 await Assert.That(tabsFrame).IsNotNull();
                 string tabsPath = Path.Combine(HeadlessSession.ArtifactDir, "tutorial-live-tabnav.png");
-                tabsFrame!.Save(tabsPath);
+                tabsFrame!.Save(tabsPath, new PngBitmapEncoderOptions());
                 Console.WriteLine(
                     $"[tutorial-live-tabnav] {tabsPath} rect={vm.Tutorial.SpotlightRect} nonBg={ScanNonBackground(tabsFrame)}");
 

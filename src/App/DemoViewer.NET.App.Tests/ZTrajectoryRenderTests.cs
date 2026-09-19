@@ -83,7 +83,7 @@ public class ZTrajectoryRenderTests
 
             WriteableBitmap? bmp = window.CaptureRenderedFrame();
             await Assert.That(bmp).IsNotNull();
-            bmp!.Save(Path.Combine(HeadlessSession.ArtifactDir, "trajectory.png"));
+            bmp!.Save(Path.Combine(HeadlessSession.ArtifactDir, "trajectory.png"), new PngBitmapEncoderOptions());
 
             int bright = CountBright(bmp);
             Console.WriteLine($"[trajectory] trail pts={vm.GrenadeTrails[0].Points.Count}  brightPixels={bright}");
@@ -149,7 +149,7 @@ public class ZTrajectoryRenderTests
 
             WriteableBitmap? bmp = window.CaptureRenderedFrame();
             await Assert.That(bmp).IsNotNull();
-            bmp!.Save(Path.Combine(HeadlessSession.ArtifactDir, "trajectory-fullview.png"));
+            bmp!.Save(Path.Combine(HeadlessSession.ArtifactDir, "trajectory-fullview.png"), new PngBitmapEncoderOptions());
         });
     }
 

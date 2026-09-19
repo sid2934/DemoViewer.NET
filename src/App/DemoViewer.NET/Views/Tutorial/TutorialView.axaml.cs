@@ -122,7 +122,7 @@ public partial class TutorialView : UserControl
             return;
         }
 
-        if (vm.CurrentStep is not { HasSpotlight: true } || this.GetVisualRoot() is null)
+        if (vm.CurrentStep is not { HasSpotlight: true } || TopLevel.GetTopLevel(this) is null)
         {
             return;
         }
@@ -159,7 +159,7 @@ public partial class TutorialView : UserControl
     // Borders "demoCard", so this frames whichever view is showing.
     private Rect? MeasureFirstDemoCard()
     {
-        if (this.GetVisualRoot() is not Visual root)
+        if (TopLevel.GetTopLevel(this) is not Visual root)
         {
             return null;
         }

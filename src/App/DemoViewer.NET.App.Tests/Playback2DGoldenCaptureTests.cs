@@ -326,7 +326,7 @@ public class Playback2DGoldenCaptureTests
             if (rendered is not null)
             {
                 using MemoryStream stream = new();
-                rendered.Save(stream);
+                rendered.Save(stream, new PngBitmapEncoderOptions());
                 capture.Png = stream.ToArray();
             }
 

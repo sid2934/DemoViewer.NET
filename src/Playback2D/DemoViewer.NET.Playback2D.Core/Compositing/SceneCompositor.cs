@@ -496,7 +496,7 @@ public sealed class SceneCompositor : IDisposable
         }
 
         SKMatrix matrix = ViewportMatrix.From(ctx.Transform);
-        canvas.DrawPicture(picture, ref matrix);
+        canvas.DrawPicture(picture, in matrix);
     }
 
     private void PublishStats() =>

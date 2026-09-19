@@ -51,7 +51,7 @@ public class RuleWorkbenchModuleTests
             await Assert.That(tab).IsNotNull()
                 .Because("the Workbench module must contribute its Authoring tab through the registry");
             await Assert.That(tab!.Header).IsEqualTo("Authoring");
-            await Assert.That(tab.Placement).IsEqualTo(TabPlacement.Main);
+            await Assert.That(tab.Placement).IsEqualTo(DemoViewer.NET.Modules.Abstractions.TabPlacement.Main);
         });
     }
 
@@ -553,7 +553,7 @@ public class RuleWorkbenchModuleTests
 
                 WriteableBitmap? bmp = window.CaptureRenderedFrame();
                 await Assert.That(bmp).IsNotNull();
-                bmp!.Save(Path.Combine(HeadlessSession.ArtifactDir, "ruleworkbench-editor.png"));
+                bmp!.Save(Path.Combine(HeadlessSession.ArtifactDir, "ruleworkbench-editor.png"), new PngBitmapEncoderOptions());
 
                 int toolbar = CountDifferentFromCorner(bmp, 12, 520, 12, 44);
                 Console.WriteLine($"[ruleworkbench] toolbar non-background pixels: {toolbar}");
@@ -774,7 +774,7 @@ public class RuleWorkbenchModuleTests
 
                 WriteableBitmap? bmp = window.CaptureRenderedFrame();
                 await Assert.That(bmp).IsNotNull();
-                bmp!.Save(Path.Combine(HeadlessSession.ArtifactDir, "ruleworkbench-m6-trace.png"));
+                bmp!.Save(Path.Combine(HeadlessSession.ArtifactDir, "ruleworkbench-m6-trace.png"), new PngBitmapEncoderOptions());
 
                 // The trace panel occupies the bottom-right third; its combobox + fire rows must paint.
                 int right = bmp.PixelSize.Width;

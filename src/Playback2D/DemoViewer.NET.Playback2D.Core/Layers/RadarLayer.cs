@@ -23,6 +23,11 @@ public sealed class RadarLayer : ISceneLayer
     /// <summary>Above this edge length the resample is an upscale, and caching it would waste memory.</summary>
     private const int MaxScaledEdge = 8192;
 
+    // SkiaSharp 3 moved sampling off SKPaint and onto the draw call. SKFilterQuality.High was cubic
+    // Mitchell (B = C = 1/3), so this is the same resampler the 2.88.9 paint selected, not a new
+    // choice: the measured 93.1%-within-1 match against the pre-v2 radar golden is what it preserves.
+    private static readonly SKSamplingOptions HighQuality = new(SKCubicResampler.Mitchell);
+
     private readonly SKPaint _image;
     private readonly SKPaint _major;
     private readonly SKPaint _minor;
@@ -51,7 +56,6 @@ public sealed class RadarLayer : ISceneLayer
             // not a default-by-habit: measured against the pre-v2 golden, it is the closest match of the
             // four (93.1% of pixels within ±1, versus 78.9% for Medium/Low and 76.5% for None), matching
             // how Avalonia's DrawImage resamples. Changing it re-baselines every radar golden.
-            FilterQuality = SKFilterQuality.High,
             IsAntialias = true
         };
 
@@ -60,7 +64,6 @@ public sealed class RadarLayer : ISceneLayer
         // render the radar at 0.81 opacity instead of 0.9.
         _resample = new SKPaint
         {
-            FilterQuality = SKFilterQuality.High,
             IsAntialias = true
         };
 
@@ -201,7 +204,7 @@ public sealed class RadarLayer : ISceneLayer
 
         if (!CacheScaledImage)
         {
-            canvas.DrawImage(image, destination, _image);
+            canvas.DrawImage(image, destination, HighQuality, _image);
             return true;
         }
 
@@ -212,11 +215,11 @@ public sealed class RadarLayer : ISceneLayer
             // 1:1. Drawing by ORIGIN rather than into a rectangle is what makes it a blit: a destination
             // rectangle whose width is 1234.7 against a 1235 px image is still a resample, and a resample
             // is the whole cost this cache exists to remove.
-            canvas.DrawImage(scaled, destination.Left, destination.Top, _image);
+            canvas.DrawImage(scaled, destination.Left, destination.Top, HighQuality, _image);
             return true;
         }
 
-        canvas.DrawImage(scaled, destination, _image);
+        canvas.DrawImage(scaled, destination, HighQuality, _image);
         return true;
     }
 
@@ -268,7 +271,7 @@ public sealed class RadarLayer : ISceneLayer
         }
 
         surface.Canvas.Clear(SKColors.Transparent);
-        surface.Canvas.DrawImage(source, new SKRect(0, 0, width, height), _resample);
+        surface.Canvas.DrawImage(source, new SKRect(0, 0, width, height), HighQuality, _resample);
 
         if (surface.Snapshot() is not { } snapshot)
         {

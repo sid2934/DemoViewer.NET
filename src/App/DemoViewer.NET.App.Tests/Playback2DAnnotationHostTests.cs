@@ -741,7 +741,7 @@ public class Playback2DAnnotationHostTests
 
             string path = Path.Combine(HeadlessSession.ArtifactDir, "annotations-stroke.png");
             Directory.CreateDirectory(HeadlessSession.ArtifactDir);
-            captured!.Save(path);
+            captured!.Save(path, new PngBitmapEncoderOptions());
 
             int magenta = CountMagenta(captured);
             Console.WriteLine($"[annotations] {path} magenta={magenta}");

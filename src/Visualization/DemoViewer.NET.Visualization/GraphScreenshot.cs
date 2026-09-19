@@ -36,6 +36,6 @@ public static class GraphScreenshot
 
         RenderTargetBitmap bmp = new(new PixelSize(width, height), new Vector(96, 96));
         bmp.Render(ctrl);
-        bmp.Save(outputPath);
+        bmp.Save(outputPath, new PngBitmapEncoderOptions());
     }
 }

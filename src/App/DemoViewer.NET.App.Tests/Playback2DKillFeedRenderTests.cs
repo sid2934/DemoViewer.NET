@@ -76,7 +76,7 @@ public class Playback2DKillFeedRenderTests
 
             WriteableBitmap? bmp = window.CaptureRenderedFrame();
             await Assert.That(bmp).IsNotNull();
-            bmp!.Save(Path.Combine(HeadlessSession.ArtifactDir, "killfeed.png"));
+            bmp!.Save(Path.Combine(HeadlessSession.ArtifactDir, "killfeed.png"), new PngBitmapEncoderOptions());
 
             // Scan the viewport's top-right (left column ends ~x=576; the feed is right-aligned there, top
             // ~90px). Excludes the right-hand game-info panel (x>580).
