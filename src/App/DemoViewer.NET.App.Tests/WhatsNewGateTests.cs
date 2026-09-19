@@ -42,15 +42,18 @@ public class WhatsNewGateTests
         string dir = NewTempDir();
         try
         {
-            RecordingWindowService windows = new();
-            SettingsService settings = new(dir);
-            MainViewModel vm = NewShell(windows, settings);
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                RecordingWindowService windows = new();
+                SettingsService settings = new(dir);
+                MainViewModel vm = NewShell(windows, settings);
 
-            vm.StartWhatsNewCheck();
+                vm.StartWhatsNewCheck();
 
-            await Assert.That(windows.WhatsNews).HasCount().EqualTo(0);
-            await Assert.That(settings.Current.LastSeenVersion)
-                .IsEqualTo(AppVersionInfo.CurrentReleaseVersion);
+                await Assert.That(windows.WhatsNews).HasCount().EqualTo(0);
+                await Assert.That(settings.Current.LastSeenVersion)
+                    .IsEqualTo(AppVersionInfo.CurrentReleaseVersion);
+            });
         }
         finally
         {
@@ -71,22 +74,25 @@ public class WhatsNewGateTests
         {
             File.WriteAllText(Path.Combine(dir, "settings.json"),
                 """{ "FirstRunCompleted": true, "LastSeenVersion": "0.0.1" }""");
-            RecordingWindowService windows = new();
-            SettingsService settings = new(dir);
-            MainViewModel vm = NewShell(windows, settings);
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                RecordingWindowService windows = new();
+                SettingsService settings = new(dir);
+                MainViewModel vm = NewShell(windows, settings);
 
-            vm.StartWhatsNewCheck();
+                vm.StartWhatsNewCheck();
 
-            await Assert.That(windows.WhatsNews).HasCount().EqualTo(1);
-            await Assert.That(windows.WhatsNews[0].Version)
-                .IsEqualTo(AppVersionInfo.CurrentReleaseVersion);
-            // Advanced BEFORE the window opened: the crash-loop guard.
-            await Assert.That(settings.Current.LastSeenVersion)
-                .IsEqualTo(AppVersionInfo.CurrentReleaseVersion);
+                await Assert.That(windows.WhatsNews).HasCount().EqualTo(1);
+                await Assert.That(windows.WhatsNews[0].Version)
+                    .IsEqualTo(AppVersionInfo.CurrentReleaseVersion);
+                // Advanced BEFORE the window opened: the crash-loop guard.
+                await Assert.That(settings.Current.LastSeenVersion)
+                    .IsEqualTo(AppVersionInfo.CurrentReleaseVersion);
 
-            // A second launch on the same version stays silent.
-            vm.StartWhatsNewCheck();
-            await Assert.That(windows.WhatsNews).HasCount().EqualTo(1);
+                // A second launch on the same version stays silent.
+                vm.StartWhatsNewCheck();
+                await Assert.That(windows.WhatsNews).HasCount().EqualTo(1);
+            });
         }
         finally
         {
@@ -103,13 +109,16 @@ public class WhatsNewGateTests
         {
             File.WriteAllText(Path.Combine(dir, "settings.json"),
                 $$"""{ "FirstRunCompleted": true, "LastSeenVersion": "{{AppVersionInfo.CurrentReleaseVersion}}" }""");
-            RecordingWindowService windows = new();
-            SettingsService settings = new(dir);
-            MainViewModel vm = NewShell(windows, settings);
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                RecordingWindowService windows = new();
+                SettingsService settings = new(dir);
+                MainViewModel vm = NewShell(windows, settings);
 
-            vm.StartWhatsNewCheck();
+                vm.StartWhatsNewCheck();
 
-            await Assert.That(windows.WhatsNews).HasCount().EqualTo(0);
+                await Assert.That(windows.WhatsNews).HasCount().EqualTo(0);
+            });
         }
         finally
         {
@@ -134,20 +143,23 @@ public class WhatsNewGateTests
             string dir = NewTempDir();
             try
             {
-                MainViewModel vm = NewShell(windows, new SettingsService(dir));
+                await HeadlessSession.RunOnUi(async () =>
+                {
+                    MainViewModel vm = NewShell(windows, new SettingsService(dir));
 
-                // No update offered → the command must no-op rather than open an empty window.
-                vm.ShowUpdateDetailsCommand.Execute(null);
-                await Assert.That(windows.UpdateNotices).HasCount().EqualTo(0);
+                    // No update offered → the command must no-op rather than open an empty window.
+                    vm.ShowUpdateDetailsCommand.Execute(null);
+                    await Assert.That(windows.UpdateNotices).HasCount().EqualTo(0);
 
-                UpdateViewModel.Shared.AvailableVersion = "9.9.9";
-                UpdateViewModel.Shared.IsUpdateAvailable = true;
-                vm.ShowUpdateDetailsCommand.Execute(null);
-                vm.ShowUpdateDetailsCommand.Execute(null);
+                    UpdateViewModel.Shared.AvailableVersion = "9.9.9";
+                    UpdateViewModel.Shared.IsUpdateAvailable = true;
+                    vm.ShowUpdateDetailsCommand.Execute(null);
+                    vm.ShowUpdateDetailsCommand.Execute(null);
 
-                await Assert.That(windows.UpdateNotices).HasCount().EqualTo(2);
-                await Assert.That(ReferenceEquals(windows.UpdateNotices[0], windows.UpdateNotices[1])).IsTrue();
-                await Assert.That(windows.UpdateNotices[0].HeadlineText).Contains("9.9.9");
+                    await Assert.That(windows.UpdateNotices).HasCount().EqualTo(2);
+                    await Assert.That(ReferenceEquals(windows.UpdateNotices[0], windows.UpdateNotices[1])).IsTrue();
+                    await Assert.That(windows.UpdateNotices[0].HeadlineText).Contains("9.9.9");
+                });
             }
             finally
             {
