@@ -166,7 +166,7 @@ public class ZRadarRenderTests
             WriteableBitmap? on = window.CaptureRenderedFrame();
             if (on is not null)
             {
-                on.Save(Path.Combine(HeadlessSession.ArtifactDir, outName));
+                on.Save(Path.Combine(HeadlessSession.ArtifactDir, outName), new PngBitmapEncoderOptions());
                 nonBgOn = ScanNonBackground(on);
             }
 

@@ -230,7 +230,7 @@ public class StatsTabTests
             await Assert.That(frame).IsNotNull();
 
             string path = Path.Combine(HeadlessSession.ArtifactDir, "stats-tab.png");
-            frame!.Save(path);
+            frame!.Save(path, new PngBitmapEncoderOptions());
             Console.WriteLine($"[capture] {path}  rows={vm.GameRows.Count} cols={vm.Columns.Count}");
 
             // Non-blank: the frame must contain a meaningful number of distinct colors (background +
@@ -249,7 +249,7 @@ public class StatsTabTests
             WriteableBitmap? roundsFrame = window.CaptureRenderedFrame();
             await Assert.That(roundsFrame).IsNotNull();
             string roundsPath = Path.Combine(HeadlessSession.ArtifactDir, "stats-rounds.png");
-            roundsFrame!.Save(roundsPath);
+            roundsFrame!.Save(roundsPath, new PngBitmapEncoderOptions());
             Console.WriteLine($"[capture] {roundsPath}  rows={vm.RoundRows.Count} cols={vm.RoundColumns.Count}");
         });
     }

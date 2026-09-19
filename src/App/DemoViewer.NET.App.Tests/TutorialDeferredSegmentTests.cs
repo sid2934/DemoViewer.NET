@@ -137,7 +137,7 @@ public class TutorialDeferredSegmentTests
                 WriteableBitmap? frame = window.CaptureRenderedFrame();
                 await Assert.That(frame).IsNotNull();
                 string outPath = Path.Combine(HeadlessSession.ArtifactDir, "tutorial-live-stats.png");
-                frame!.Save(outPath);
+                frame!.Save(outPath, new PngBitmapEncoderOptions());
                 Console.WriteLine(
                     $"[tutorial-live-stats] {outPath} rect={vm.Tutorial.SpotlightRect} nonBg={ScanNonBackground(frame)}");
 
@@ -171,7 +171,7 @@ public class TutorialDeferredSegmentTests
                 WriteableBitmap? transportFrame = window.CaptureRenderedFrame();
                 await Assert.That(transportFrame).IsNotNull();
                 string transportPath = Path.Combine(HeadlessSession.ArtifactDir, "tutorial-live-transport.png");
-                transportFrame!.Save(transportPath);
+                transportFrame!.Save(transportPath, new PngBitmapEncoderOptions());
                 Console.WriteLine(
                     $"[tutorial-live-transport] {transportPath} rect={vm.Tutorial.SpotlightRect} nonBg={ScanNonBackground(transportFrame)}");
 

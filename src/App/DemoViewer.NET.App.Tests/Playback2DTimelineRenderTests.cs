@@ -48,7 +48,7 @@ public class Playback2DTimelineRenderTests
                 (int)timeline.Bounds.Width, (int)timeline.Bounds.Height));
 
             string path = Path.Combine(HeadlessSession.ArtifactDir, "playback2d-timeline.png");
-            bmp!.Save(path);
+            bmp!.Save(path, new PngBitmapEncoderOptions());
             Console.WriteLine($"[timeline-render] rect={origin.X},{origin.Y} "
                               + $"{timeline.Bounds.Width:F0}x{timeline.Bounds.Height:F0} "
                               + $"area={scan.Area} fill=#{scan.Fill:X8} x{scan.FillCount} "

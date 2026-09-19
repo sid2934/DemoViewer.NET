@@ -100,7 +100,7 @@ public class ZLibraryRenderTests
             Dispatcher.UIThread.RunJobs();
             if (window.CaptureRenderedFrame() is { } cards)
             {
-                cards.Save(Path.Combine(HeadlessSession.ArtifactDir, "library-cards.png"));
+                cards.Save(Path.Combine(HeadlessSession.ArtifactDir, "library-cards.png"), new PngBitmapEncoderOptions());
                 cardInk = NonBackground(cards);
             }
 
@@ -111,7 +111,7 @@ public class ZLibraryRenderTests
             Dispatcher.UIThread.RunJobs();
             if (window.CaptureRenderedFrame() is { } list)
             {
-                list.Save(Path.Combine(HeadlessSession.ArtifactDir, "library-list.png"));
+                list.Save(Path.Combine(HeadlessSession.ArtifactDir, "library-list.png"), new PngBitmapEncoderOptions());
                 listInk = NonBackground(list);
             }
 
@@ -182,7 +182,7 @@ public class ZLibraryRenderTests
 
                 if (window.CaptureRenderedFrame() is { } hero)
                 {
-                    hero.Save(Path.Combine(HeadlessSession.ArtifactDir, "library-hero.png"));
+                    hero.Save(Path.Combine(HeadlessSession.ArtifactDir, "library-hero.png"), new PngBitmapEncoderOptions());
                     heroInk = NonBackground(hero);
                 }
 

@@ -987,7 +987,7 @@ public static class Variants
                 {
                     new TextBox
                     {
-                        Watermark = "Go to frame, tick, class, .proto…",
+                        PlaceholderText = "Go to frame, tick, class, .proto…",
                         FontFamily = new FontFamily("Consolas,Menlo,monospace"),
                         Background = Tok("PanelBg")
                     },
@@ -2041,7 +2041,7 @@ public static class Variants
         };
         inputs.Children.Add(new TextBox
         {
-            Watermark = "value (e.g. 37)",
+            PlaceholderText = "value (e.g. 37)",
             Width = 160,
             Classes =
             {

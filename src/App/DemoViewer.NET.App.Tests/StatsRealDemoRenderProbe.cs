@@ -77,7 +77,7 @@ public class StatsRealDemoRenderProbe
             Dispatcher.UIThread.RunJobs();
 
             WriteableBitmap? board = window.CaptureRenderedFrame();
-            board!.Save(Path.Combine(HeadlessSession.ArtifactDir, "real-scoreboard.png"));
+            board!.Save(Path.Combine(HeadlessSession.ArtifactDir, "real-scoreboard.png"), new PngBitmapEncoderOptions());
 
             // The two aim boards on the match table. Captured because the aim family is the widest
             // the catalogue carries and every column in it is new: a column that resolves to
@@ -94,7 +94,7 @@ public class StatsRealDemoRenderProbe
                 AvaloniaHeadlessPlatform.ForceRenderTimerTick();
                 Dispatcher.UIThread.RunJobs();
                 WriteableBitmap? aim = window.CaptureRenderedFrame();
-                aim!.Save(Path.Combine(HeadlessSession.ArtifactDir, file));
+                aim!.Save(Path.Combine(HeadlessSession.ArtifactDir, file), new PngBitmapEncoderOptions());
                 Console.WriteLine($"[capture] {HeadlessSession.ArtifactDir}/{file} cols={vm.Columns.Count}");
             }
 
@@ -108,7 +108,7 @@ public class StatsRealDemoRenderProbe
             Dispatcher.UIThread.RunJobs();
 
             WriteableBitmap? rounds = window.CaptureRenderedFrame();
-            rounds!.Save(Path.Combine(HeadlessSession.ArtifactDir, "real-rounds.png"));
+            rounds!.Save(Path.Combine(HeadlessSession.ArtifactDir, "real-rounds.png"), new PngBitmapEncoderOptions());
 
             // Wide-category alignment check: the Damage chip carries the most round columns.
             vm.SelectedCategory = StatGroup.Damage;
@@ -116,7 +116,7 @@ public class StatsRealDemoRenderProbe
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
             Dispatcher.UIThread.RunJobs();
             WriteableBitmap? damage = window.CaptureRenderedFrame();
-            damage!.Save(Path.Combine(HeadlessSession.ArtifactDir, "real-rounds-damage.png"));
+            damage!.Save(Path.Combine(HeadlessSession.ArtifactDir, "real-rounds-damage.png"), new PngBitmapEncoderOptions());
 
             Console.WriteLine("[damage round cols] " + string.Join(" | ", vm.RoundColumns.Select(c => c.Label)));
             Console.WriteLine("[damage row0] " + string.Join(" | ",
@@ -133,7 +133,7 @@ public class StatsRealDemoRenderProbe
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
             Dispatcher.UIThread.RunJobs();
             WriteableBitmap? details = window.CaptureRenderedFrame();
-            details!.Save(Path.Combine(HeadlessSession.ArtifactDir, "real-player-details.png"));
+            details!.Save(Path.Combine(HeadlessSession.ArtifactDir, "real-player-details.png"), new PngBitmapEncoderOptions());
             Console.WriteLine(
                 $"[capture] {HeadlessSession.ArtifactDir}/real-player-details.png " +
                 $"player={vm.PlayerDetails!.PlayerName} tiles={vm.PlayerDetails.CoreTiles.Count} " +
@@ -145,7 +145,7 @@ public class StatsRealDemoRenderProbe
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
             Dispatcher.UIThread.RunJobs();
             WriteableBitmap? detailRounds = window.CaptureRenderedFrame();
-            detailRounds!.Save(Path.Combine(HeadlessSession.ArtifactDir, "real-player-details-rounds.png"));
+            detailRounds!.Save(Path.Combine(HeadlessSession.ArtifactDir, "real-player-details-rounds.png"), new PngBitmapEncoderOptions());
             vm.ClosePlayerDetailsCommand.Execute(null);
 
             Console.WriteLine($"[capture] {HeadlessSession.ArtifactDir}/real-scoreboard.png cols={vm.Columns.Count}");

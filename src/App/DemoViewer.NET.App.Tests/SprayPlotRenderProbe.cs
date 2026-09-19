@@ -93,7 +93,7 @@ public class SprayPlotRenderProbe
 
         Window window = new()
         {
-            SystemDecorations = SystemDecorations.None,
+            WindowDecorations = WindowDecorations.None,
             Width = 360,
             Height = 360,
             Content = new Border
@@ -109,7 +109,7 @@ public class SprayPlotRenderProbe
         Dispatcher.UIThread.RunJobs();
 
         WriteableBitmap frame = window.CaptureRenderedFrame()!;
-        frame.Save(Path.Combine(HeadlessSession.ArtifactDir, $"{name}.png"));
+        frame.Save(Path.Combine(HeadlessSession.ArtifactDir, $"{name}.png"), new PngBitmapEncoderOptions());
         Console.WriteLine($"[plot] {HeadlessSession.ArtifactDir}/{name}.png");
         return FrameProbe.CountPixels(FrameProbe.ToBytes(frame), 0xFF00FF);
     }

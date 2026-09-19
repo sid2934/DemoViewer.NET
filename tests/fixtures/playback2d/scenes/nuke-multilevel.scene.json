@@ -252,5 +252,5 @@
     "followSlot": -1
   },
   "sourceDemoId": "sample-de_nuke.dem",
-  "notes": "Captured from the pre-v2 Playback2DViewport at frame 9733, CameraMode.Fit. B1 must re-render this to match the paired golden."
+  "notes": "Captured from the pre-v2 Playback2DViewport at frame 9733, CameraMode.Fit. The v2 compositor must re-render this to match the paired golden."
 }

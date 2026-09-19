@@ -6,20 +6,17 @@
     <ItemGroup>
         <!-- Avalonia packages -->
         <!-- Important: keep version in sync! -->
-        <PackageVersion Include="Avalonia" Version="11.3.12"/>
-        <PackageVersion Include="Avalonia.Controls.ColorPicker" Version="11.3.12"/>
-        <PackageVersion Include="Avalonia.Themes.Fluent" Version="11.3.12"/>
-        <PackageVersion Include="Avalonia.Fonts.Inter" Version="11.3.12"/>
-        <PackageVersion Include="Avalonia.Diagnostics" Version="11.3.12"/>
-        <PackageVersion Include="Avalonia.Desktop" Version="11.3.12"/>
-        <PackageVersion Include="Avalonia.iOS" Version="11.3.12"/>
-        <PackageVersion Include="Avalonia.Browser" Version="11.3.12"/>
-        <PackageVersion Include="Avalonia.Android" Version="11.3.12"/>
+        <PackageVersion Include="Avalonia" Version="12.1.2"/>
+        <PackageVersion Include="Avalonia.Controls.ColorPicker" Version="12.1.2"/>
+        <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.2"/>
+        <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.2"/>
+        <PackageVersion Include="Avalonia.Desktop" Version="12.1.2"/>
+        <PackageVersion Include="Avalonia.Browser" Version="12.1.2"/>
         <!-- AvaloniaEdit — Rulesets v2 authoring Workbench editor (Phase 3). Tracks the Avalonia 11.3.x line. -->
-        <PackageVersion Include="Avalonia.AvaloniaEdit" Version="11.3.0"/>
+        <PackageVersion Include="Avalonia.AvaloniaEdit" Version="12.0.0"/>
         <!-- Headless UI testing (TUnit + SkiaSharp frame capture). Keep in sync with Avalonia version. -->
-        <PackageVersion Include="Avalonia.Headless" Version="11.3.12"/>
-        <PackageVersion Include="Avalonia.Skia" Version="11.3.12"/>
+        <PackageVersion Include="Avalonia.Headless" Version="12.1.2"/>
+        <PackageVersion Include="Avalonia.Skia" Version="12.1.2"/>
         <!-- SkiaSharp: the Playback2D v2 render core (docs/playback2d-v2/design.md §3).
              PINNED to the version Avalonia.Skia 11.3.12 resolves. In B1 the on-screen path takes
              Avalonia's ISkiaSharpApiLeaseFeature, which hands back Avalonia's OWN SKCanvas: a different
@@ -27,17 +24,17 @@
              This is a DERIVED pin, not an independent choice. Bump ONLY in lockstep with the Avalonia
              version above, re-reading the resolved version from
              artifacts/obj/DemoViewer.NET.App.Tests/project.assets.json. -->
-        <PackageVersion Include="SkiaSharp" Version="2.88.9"/>
+        <PackageVersion Include="SkiaSharp" Version="3.119.4"/>
         <!-- Native Skia for Linux test/CI runners. The FULL package, not …NoDependencies: B1 draws
              SKTextBlob text and C1's golden corpus contains text layers, and swapping the native later
              would silently re-baseline every golden. The CI job installs its one system dependency:
              `sudo apt-get install -y libfontconfig1`. -->
-        <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="2.88.9"/>
+        <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4"/>
         <!-- Native Skia for the dv2d CLI (tools/DemoViewer.NET.Playback2D.Cli), which has no Avalonia
              to bring the natives along. Derived pins exactly like the two above: they move with
              SkiaSharp, which moves with Avalonia. -->
-        <PackageVersion Include="SkiaSharp.NativeAssets.Win32" Version="2.88.9"/>
-        <PackageVersion Include="SkiaSharp.NativeAssets.macOS" Version="2.88.9"/>
+        <PackageVersion Include="SkiaSharp.NativeAssets.Win32" Version="3.119.4"/>
+        <PackageVersion Include="SkiaSharp.NativeAssets.macOS" Version="3.119.4"/>
         <!-- ANGLE (EGL + GLES2 over D3D11) native binaries: the windowless GPU render-surface backend
              (docs/playback2d-v2/design.md §5.8, plans/C2-gpu-provider.md §8.1).
 
@@ -54,7 +51,7 @@
              License: BSD-3-Clause (The ANGLE Project Authors); see THIRD-PARTY-NOTICES.md §e. Unlike
              ffmpeg this is LINKED IN-PROCESS, so the "separate programs" posture does not apply; the
              obligation is reproducing the notice, which §d does. -->
-        <PackageVersion Include="Avalonia.Angle.Windows.Natives" Version="2.1.25547.20250602"/>
+        <PackageVersion Include="Avalonia.Angle.Windows.Natives" Version="2.1.27548.20260419"/>
         <!-- 2D-playback video export (docs/playback2d-v2/design.md §5.7). FFMpegCore is MIT and only
              BUILDS ARGUMENTS and pipes rawvideo to an ffmpeg SUBPROCESS. No ffmpeg code is linked, which
              is what keeps the GPL/LGPL posture clean (FSF "separate programs"). We never ship an ffmpeg

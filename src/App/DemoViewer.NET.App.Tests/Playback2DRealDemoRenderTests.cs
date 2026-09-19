@@ -142,7 +142,7 @@ public class Playback2DRealDemoRenderTests
             }
 
             string outPath = Path.Combine(HeadlessSession.ArtifactDir, "realdemo_playback2d.png");
-            frame.Save(outPath);
+            frame.Save(outPath, new PngBitmapEncoderOptions());
             nonBg = ScanNonBackground(frame);
             Console.WriteLine($"[capture] {outPath}  nonBg={nonBg}");
             await Task.CompletedTask;

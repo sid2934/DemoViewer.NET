@@ -48,7 +48,7 @@ public sealed class TutorialAnchor
             control.DetachedFromVisualTree += OnDetached;
 
             // If the property is set after the control is already in the tree, register now.
-            if (control.GetVisualRoot() is not null)
+            if (TopLevel.GetTopLevel(control) is not null)
             {
                 Register(GetTarget(control), control);
             }
@@ -75,7 +75,7 @@ public sealed class TutorialAnchor
         if (target != TutorialTarget.None
             && Registry.TryGetValue(target, out WeakReference<Control>? weak)
             && weak.TryGetTarget(out Control? live)
-            && live.GetVisualRoot() is not null)
+            && TopLevel.GetTopLevel(live) is not null)
         {
             control = live;
             return true;

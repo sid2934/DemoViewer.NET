@@ -55,7 +55,7 @@ public sealed class GraphView : Control
         // Crisp lines and text at fractional zoom (thin pens / monospace text
         // can shimmer at non-integer scales otherwise).
         RenderOptions.SetEdgeMode(this, EdgeMode.Antialias);
-        RenderOptions.SetTextRenderingMode(this, TextRenderingMode.Antialias);
+        TextOptions.SetTextRenderingMode(this, TextRenderingMode.Antialias);
     }
 
     /// <summary>The bound <see cref="GraphViewModel" /> driving rendering.</summary>

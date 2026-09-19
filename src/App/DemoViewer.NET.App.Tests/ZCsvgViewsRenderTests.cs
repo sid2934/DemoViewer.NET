@@ -44,7 +44,7 @@ public class ZCsvgViewsRenderTests
             return 0;
         }
 
-        frame.Save(Path.Combine(HeadlessSession.ArtifactDir, artifactName));
+        frame.Save(Path.Combine(HeadlessSession.ArtifactDir, artifactName), new PngBitmapEncoderOptions());
         return NonBackground(frame);
     }
 

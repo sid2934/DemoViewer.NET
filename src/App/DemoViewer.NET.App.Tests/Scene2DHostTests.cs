@@ -121,7 +121,7 @@ public class Scene2DHostTests
             await Assert.That(captured).IsNotNull();
 
             string path = Path.Combine(HeadlessSession.ArtifactDir, "scene2d-synthetic.png");
-            captured!.Save(path);
+            captured!.Save(path, new PngBitmapEncoderOptions());
             (int nonBg, bool team) = ScanPixels(captured);
             Console.WriteLine($"[scene2d] {path} nonBg={nonBg} team={team} " +
                               $"panes={host.Compositor.Stats.PanesRendered} " +

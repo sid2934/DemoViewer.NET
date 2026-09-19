@@ -829,7 +829,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             _palette,
             RenderPurpose.Interactive,
             new SKRect(0, 0, (float)bounds.Width, (float)bounds.Height),
-            (float)(VisualRoot?.RenderScaling ?? 1.0),
+            (float)(TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0),
             _levels.Space);
 
         // Published for the gate stress hook only. The op itself receives the submission by value at
@@ -850,7 +850,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     // their own memory.
     private void RenderCpuFallback(DrawingContext context, Rect bounds, in SceneSubmission submission)
     {
-        double scaling = VisualRoot?.RenderScaling ?? 1.0;
+        double scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
         int width = Math.Max(1, (int)Math.Ceiling(bounds.Width * scaling));
         int height = Math.Max(1, (int)Math.Ceiling(bounds.Height * scaling));
 

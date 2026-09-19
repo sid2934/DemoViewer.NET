@@ -44,7 +44,7 @@ public class UpdateBannerRenderTests
             await Assert.That(frame).IsNotNull();
 
             string outPath = Path.Combine(HeadlessSession.ArtifactDir, "update-banner-offer.png");
-            frame!.Save(outPath);
+            frame!.Save(outPath, new PngBitmapEncoderOptions());
             int nonBg = ScanNonBackground(frame);
             Console.WriteLine($"[update-banner-offer] {outPath} nonBg={nonBg}");
 
@@ -66,7 +66,7 @@ public class UpdateBannerRenderTests
             await Assert.That(frame).IsNotNull();
 
             string outPath = Path.Combine(HeadlessSession.ArtifactDir, "update-banner-downloading.png");
-            frame!.Save(outPath);
+            frame!.Save(outPath, new PngBitmapEncoderOptions());
             int nonBg = ScanNonBackground(frame);
             Console.WriteLine($"[update-banner-downloading] {outPath} nonBg={nonBg}");
 

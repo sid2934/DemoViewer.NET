@@ -337,7 +337,7 @@ public class SettingsViewModelTests
                     await Assert.That(frame).IsNotNull();
 
                     string outPath = Path.Combine(HeadlessSession.ArtifactDir, "settings.png");
-                    frame!.Save(outPath);
+                    frame!.Save(outPath, new PngBitmapEncoderOptions());
                     int nonBg = ScanNonBackground(frame);
                     Console.WriteLine($"[settings] {outPath} nonBg={nonBg}");
 
