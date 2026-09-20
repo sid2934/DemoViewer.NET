@@ -33,9 +33,22 @@ internal static class EdgeLabelText
     /// </summary>
     internal const string Chip = "[…]";
 
+    /// <summary>
+    ///     A predicate that fits within this many characters stays on the edge, because the chip
+    ///     exists to bound a label's width and a short predicate does not need bounding. 30 is one
+    ///     default node width at <see cref="CharWidth" />, which makes "a label may be as wide as the
+    ///     node it connects" the rule rather than a number picked by eye. It matters: 92 of the 244
+    ///     predicates on the shipped graph are things like <c>rising edge</c>, <c>active</c> and
+    ///     <c>value &gt;= 2</c>, and collapsing those would hide the useful ones to bound the rest.
+    /// </summary>
+    private const int InlineBudget = 30;
+
     private const string Gap = "  ";
 
-    /// <summary>The text drawn on the edge: the event name, plus a chip when a predicate is attached.</summary>
+    /// <summary>
+    ///     The text drawn on the edge: the event name, then the predicate if it fits in
+    ///     <see cref="InlineBudget" /> and a chip if it does not.
+    /// </summary>
     internal static string Collapsed(IGraphEdge edge)
     {
         if (!HasCondition(edge))
@@ -43,7 +56,10 @@ internal static class EdgeLabelText
             return edge.Label;
         }
 
-        return edge.Label.Length == 0 ? Chip : edge.Label + Gap + Chip;
+        string full = Expanded(edge);
+        return full.Length <= InlineBudget
+            ? full
+            : edge.Label.Length == 0 ? Chip : edge.Label + Gap + Chip;
     }
 
     /// <summary>The full text, chip expanded to the predicate. Render-only: layout never reserves it.</summary>
