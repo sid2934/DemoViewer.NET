@@ -198,18 +198,19 @@ public sealed class DemoCensus
         string path = ResolveDemo();
         byte[] bytes = File.ReadAllBytes(path);
 
+        // ParseOptions.OnUnknownMessage, never DemoParser.OnUnknownMessageType. The event is
+        // process-global and MainViewModel subscribes to it too, so a subscriber here collects every
+        // CONCURRENT parse's occurrences as well as this one's. The census is measured against a
+        // single frame of a single demo, so one foreign occurrence landing in the bag makes
+        // SelectingFrameWithUnknowns_BuildsWireDecodedUnknownCards and RenderCapture_UnknownCardInCardList
+        // fail, and only when the batch happens to run another parse alongside them. The per-parse
+        // callback sees this parse and nothing else. It fires on pass-2 worker threads, which is why
+        // the bag is concurrent.
         ConcurrentBag<UnknownMessageInfo> bag = new();
-        Action<UnknownMessageInfo> handler = info => bag.Add(info);
-        DemoParser.OnUnknownMessageType += handler;
-        ParsedDemo demo;
-        try
+        ParsedDemo demo = DemoParser.Parse(bytes.AsMemory(), new ParseOptions
         {
-            demo = DemoParser.Parse(bytes.AsMemory());
-        }
-        finally
-        {
-            DemoParser.OnUnknownMessageType -= handler;
-        }
+            OnUnknownMessage = info => bag.Add(info)
+        });
 
         Dictionary<int, List<UnknownMessageInfo>> census = new();
         Dictionary<int, (string Name, int First, int Size, int Count)> byType = new();

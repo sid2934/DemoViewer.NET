@@ -236,33 +236,41 @@ public class Playback2DExportStatusSurfaceTests
     /// <summary>
     ///     The shell half: the chip appears when a job runs and goes away when it is dismissed. Mirrors
     ///     <c>ReelChipShellReconcileTests</c>, because it is the same contract with a different job.
+    ///     <para>
+    ///         On the UI thread like every other body in this file. Constructing
+    ///         <see cref="MainViewModel" /> selects a tab, which builds <c>LibraryTabView</c>, and
+    ///         Avalonia 12 enforces the thread affinity on <c>ItemCollection.Add</c> that 11 did not.
+    ///         Off-thread it throws "The calling thread cannot access this object" out of the
+    ///         constructor. Same fix #19 applied to <c>WhatsNewGateTests</c>.
+    ///     </para>
     /// </summary>
     [Test]
-    public async Task TheChip_JoinsTheStrip_WhileRunning_AndLeavesOnDismiss()
-    {
-        FakeExportJob job = new();
-        Playback2DExportStatusViewModel status = new(job);
-        MainViewModel shell = new();
+    public async Task TheChip_JoinsTheStrip_WhileRunning_AndLeavesOnDismiss() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakeExportJob job = new();
+            Playback2DExportStatusViewModel status = new(job);
+            MainViewModel shell = new();
 
-        shell.AttachPlayback2DExportStatus(status);
-        await Assert.That(shell.Chips.Contains(status.Chip)).IsFalse()
-            .Because("attaching happens when the pane first opens, long before any Start");
+            shell.AttachPlayback2DExportStatus(status);
+            await Assert.That(shell.Chips.Contains(status.Chip)).IsFalse()
+                .Because("attaching happens when the pane first opens, long before any Start");
 
-        job.Push(new ExportJobStatus(ExportPhase.Rendering, 1, 100, 0, TimeSpan.Zero, "clip.webm", null));
-        await Assert.That(shell.Chips.Contains(status.Chip)).IsTrue();
+            job.Push(new ExportJobStatus(ExportPhase.Rendering, 1, 100, 0, TimeSpan.Zero, "clip.webm", null));
+            await Assert.That(shell.Chips.Contains(status.Chip)).IsTrue();
 
-        job.Push(new ExportJobStatus(ExportPhase.Completed, 100, 100, 60, TimeSpan.FromMinutes(1),
-            "clip.webm", null));
-        await Assert.That(shell.Chips.Contains(status.Chip)).IsTrue()
-            .Because("a finished result stays until the user dismisses it");
+            job.Push(new ExportJobStatus(ExportPhase.Completed, 100, 100, 60, TimeSpan.FromMinutes(1),
+                "clip.webm", null));
+            await Assert.That(shell.Chips.Contains(status.Chip)).IsTrue()
+                .Because("a finished result stays until the user dismisses it");
 
-        status.DismissCommand.Execute(null);
-        await Assert.That(shell.Chips.Contains(status.Chip)).IsFalse();
+            status.DismissCommand.Execute(null);
+            await Assert.That(shell.Chips.Contains(status.Chip)).IsFalse();
 
-        // A fresh export un-dismisses, so the chip comes back rather than staying gone for the session.
-        job.Push(new ExportJobStatus(ExportPhase.Preparing, 0, 100, 0, TimeSpan.Zero, "clip2.webm", null));
-        await Assert.That(shell.Chips.Contains(status.Chip)).IsTrue();
-    }
+            // A fresh export un-dismisses, so the chip comes back rather than staying gone for the session.
+            job.Push(new ExportJobStatus(ExportPhase.Preparing, 0, 100, 0, TimeSpan.Zero, "clip2.webm", null));
+            await Assert.That(shell.Chips.Contains(status.Chip)).IsTrue();
+        });
 
     private static (Window Window, Playback2DExportStatusView View) Show(
         Playback2DExportStatusViewModel status)
