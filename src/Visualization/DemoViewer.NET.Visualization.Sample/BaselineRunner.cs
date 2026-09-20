@@ -34,7 +34,7 @@ public static class BaselineRunner
         (IReadOnlyList<IGraphNode> Nodes, IReadOnlyList<IGraphEdge> Edges, IReadOnlyList<INodeGroup> Groups, IReadOnlyList<INodeTable> Tables) multiTable = StressTestGraphs.BuildMultiTableStack();
         (IReadOnlyList<IGraphNode> Nodes, IReadOnlyList<IGraphEdge> Edges, IReadOnlyList<INodeGroup> Groups) hub = StressTestGraphs.BuildHighDegreeHub();
         (IReadOnlyList<IGraphNode> Nodes, IReadOnlyList<IGraphEdge> Edges, IReadOnlyList<INodeGroup> Groups, IReadOnlyList<INodeTable> Tables) big = StressTestGraphs.BuildBigStandard();
-        (IReadOnlyList<IGraphNode> Nodes, IReadOnlyList<IGraphEdge> Edges, IReadOnlyList<INodeGroup> Groups) shipped = StressTestGraphs.BuildShippedScale();
+        (IReadOnlyList<IGraphNode> Nodes, IReadOnlyList<IGraphEdge> Edges, IReadOnlyList<INodeGroup> Groups) shipped = ShippedScaleGraph.Build();
 
         return
         [

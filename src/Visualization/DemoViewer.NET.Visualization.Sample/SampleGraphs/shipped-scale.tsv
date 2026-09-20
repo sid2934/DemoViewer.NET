@@ -1,0 +1,1047 @@
+# The Analysis tab's drawn graph, captured from the shipped rulesets on the reference demo.
+# nodes 434  edges 474  scaffolding 61  slot 1
+L	begin_new_match
+L	cs_win_panel_match
+L	round_freeze_end
+L	cs_pre_restart
+L	round_announce_last_round_half
+L	warmup_end
+L	round_announce_match_start
+L	round_prestart
+L	entity.game.freeze_period
+L	buytime_ended
+L	cs_round_final_beep
+L	round_officially_ended
+L	halftime
+L	cs_intermission
+L	bomb_pickup
+L	bomb_dropped
+L	bomb_beginplant
+L	bomb_planted
+L	bomb_abortplant
+L	bomb_begindefuse
+L	bomb_defused
+L	bomb_abortdefuse
+L	bomb_exploded
+L	cs_match_end_restart
+L	player_death
+L	CDemoFileHeader
+L	weapon_fire
+L	player_hurt
+L	bullet_damage
+L	enemy_spotted
+L	
+L	player_blind
+L	hegrenade_detonate
+L	flashbang_detonate
+L	smokegrenade_detonate
+L	molotov_thrown
+C	rounds_after_half_announce >= 0
+C	entity.game.freeze_period == true
+C	rounds_after_half_announce == 1
+C	event.UserId == player.slot && event.Attacker != event.UserId
+C	enrich.kill.traded_player_slot == player.slot
+C	event.UserId == player.slot && ((enrich.weapon_fire.is_bullet == true))
+C	event.Attacker == player.slot && (((enrich.hurt.is_bullet == true) && (enrich.hurt.was_enemy_damage == true)))
+C	event.Attacker == player.slot && ((((enrich.hurt.is_bullet == true) && (enrich.hurt.was_enemy_damage == true)) && (event.HitGroup == 1)))
+C	event.Attacker == player.slot && ((enrich.hurt.was_enemy_damage == true))
+C	event.UserId == player.slot && (((enrich.weapon_fire.is_bullet == true) && (enrich.shot.counter_strafe_admitted == true)))
+C	event.UserId == player.slot && ((((enrich.weapon_fire.is_bullet == true) && (enrich.shot.counter_strafe_admitted == true)) && (enrich.shot.counter_strafe_good == true)))
+C	event.UserId == player.slot && ((((enrich.weapon_fire.is_bullet == true) && (enrich.shot.counter_strafe_admitted == true)) && (enrich.shot.counter_strafe_good == false)))
+C	event.Attacker == player.slot && ((enrich.shot.spray_residual_measured == true))
+C	event.ViewerSlot == player.slot
+C	event.UserId == player.slot && (((enrich.weapon_fire.is_bullet == true) && (enrich.shot.is_first_bullet == true)))
+C	event.Attacker == player.slot && ((enrich.shot.is_first_bullet == true))
+C	event.UserId == player.slot && (((enrich.weapon_fire.is_bullet == true) && (enrich.shot.is_first_bullet == false)))
+C	event.Attacker == player.slot && ((enrich.shot.is_first_bullet == false))
+C	event.ViewerSlot == player.slot && ((enrich.spotted.is_first_contact == true))
+C	event.UserId == player.slot && ((((enrich.weapon_fire.is_bullet == true) && (enrich.shot.is_first_after_on_target == true)) && (enrich.shot.ticks_since_on_target <= 320)))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (enrich.kill.ticks_since_spot <= 640)) && (event.Attacker != event.UserId)))
+C	event.UserId == player.slot && ((((enrich.weapon_fire.is_bullet == true) && (enrich.shot.is_first_after_spot == true)) && (enrich.shot.ticks_since_spot <= 320)))
+C	event.Attacker == player.slot && (((enrich.shot.is_first_after_spot == true) && (enrich.shot.ticks_since_spot <= 320)))
+C	event.Attacker == player.slot && (((enrich.shot.ticks_since_spot <= 320) && (enrich.shot.travel_from_spot_deg >= 0)))
+C	event.Attacker == player.slot && (((((enrich.kill.was_enemy_kill == true) && (event.NoScope == true)) && (event.Attacker != event.UserId)) && ((event.Weapon == "awp") || (event.Weapon == "ssg08"))))
+C	event.Attacker == player.slot && (((((enrich.kill.was_enemy_kill == true) && (event.NoScope == true)) && (event.Attacker != event.UserId)) && ((event.AttackerInAir == true) && ((event.Weapon == "awp") || (event.Weapon == "ssg08")))))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && (event.AttackerInAir == true)))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && (event.Penetrated >= 1)))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && (event.Penetrated >= 2)))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.ThruSmoke == true)) && (event.Attacker != event.UserId)))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && (event.Distance > 2500)))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (enrich.kill.was_flash_kill == true)) && (event.Attacker != event.UserId)))
+C	value >= 1
+C	rising edge
+C	event.Attacker == player.slot
+C	event.Attacker == player.slot && (((enrich.shot.turn_degrees >= 60) && (enrich.shot.ticks_since_last_shot <= 24)))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && ((enrich.kill.spray_kills >= 2) && (enrich.kill.spray_shots_at_kill >= 4))))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && ((((((player.entity.pawn.active_weapon_clip == 1) && (event.Weapon != "hegrenade")) && (event.Weapon != "molotov")) && (event.Weapon != "incgrenade")) && (event.Weapon != "inferno")) && (event.Weapon != "taser"))))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && (player.team == 3)))
+C	((enrich.clutch.was_clutch_won && (enrich.clutch.winner_slot == player.slot)) && (round_clutch_size == 2))
+C	((enrich.clutch.was_clutch_won && (enrich.clutch.winner_slot == player.slot)) && (round_clutch_size == 3))
+C	((enrich.clutch.was_clutch_won && (enrich.clutch.winner_slot == player.slot)) && (round_clutch_size == 4))
+C	((enrich.clutch.was_clutch_won && (enrich.clutch.winner_slot == player.slot)) && (round_clutch_size == 5))
+C	value >= 2
+C	active
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && (event.AttackerBlind == true)))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && (event.Weapon == "hegrenade")))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && ((event.Weapon == "inferno") || (event.Weapon == "molotov"))))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && ((event.AttackerInAir == true) && (((event.Weapon == "knife") || (event.Weapon == "knife_t")) || (event.Weapon == "knife_kukri")))))
+C	event.Attacker == player.slot && (((enrich.kill.was_team_kill == true) && (event.Attacker != event.UserId)))
+C	event.UserId == player.slot && (((enrich.kill.was_enemy_kill == true) && (((event.Weapon == "knife") || (event.Weapon == "knife_t")) || (event.Weapon == "knife_kukri"))))
+C	event.UserId == player.slot && (((enrich.kill.was_enemy_kill == true) && (event.Penetrated >= 1)))
+C	event.UserId == player.slot && (((enrich.kill.was_enemy_kill == true) && (event.NoScope == true)))
+C	event.Attacker == player.slot && (((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)))
+C	value >= 5
+C	value >= 4
+C	value >= 3
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && (player.entity.pawn.equipment_value < 2000)))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && ((((((((((event.Weapon == "glock") || (event.Weapon == "hkp2000")) || (event.Weapon == "usp_silencer")) || (event.Weapon == "p250")) || (event.Weapon == "deagle")) || (event.Weapon == "fiveseven")) || (event.Weapon == "tec9")) || (event.Weapon == "cz75a")) || (event.Weapon == "elite")) || (event.Weapon == "revolver"))))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && (((event.Weapon == "knife") || (event.Weapon == "knife_t")) || (event.Weapon == "knife_kukri"))))
+C	((event.UserId == player.slot) && (round_enemies_alive > 0))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && (((player.team == 3) && (player.entity.pawn.place == "TSpawn")) || ((player.team == 2) && (player.entity.pawn.place == "CTSpawn")))))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && (player.entity.pawn.place == "BombsiteA")))
+C	event.Attacker == player.slot && ((((enrich.kill.was_enemy_kill == true) && (event.Attacker != event.UserId)) && (player.entity.pawn.place == "BombsiteB")))
+C	event.Attacker == player.slot && ((event.Attacker != event.UserId))
+C	event.Assister == player.slot && ((event.Attacker != event.UserId))
+C	event.UserId == player.slot
+C	event.Attacker == player.slot && (((event.Attacker != event.UserId) && (((event.Weapon == "hegrenade") || (event.Weapon == "inferno")) || (event.Weapon == "molotov"))))
+C	event.Attacker == player.slot && (((event.Headshot == true) && (event.Attacker != event.UserId)))
+C	event.Assister == player.slot && (((event.Attacker != event.UserId) && (enrich.kill.was_enemy_kill == true)))
+C	event.Assister == player.slot && (((event.AssistedFlash == true) && (event.Attacker != event.UserId)))
+C	event.Attacker == player.slot && (((event.NoScope == true) && (event.Attacker != event.UserId)))
+C	event.Attacker == player.slot && (((event.Attacker != event.UserId) && (event.Penetrated > 0)))
+C	event.Attacker == player.slot && (((event.ThruSmoke == true) && (event.Attacker != event.UserId)))
+C	event.Attacker == player.slot && ((enrich.blind.was_enemy_flash == true))
+C	value > 0
+C	event.Assister == player.slot && ((((enrich.kill.was_enemy_assist == true) && (event.Attacker != event.UserId)) && (event.AssistedFlash == false)))
+C	event.Attacker == player.slot && (((event.Attacker != event.UserId) && (event.AttackerBlind == true)))
+C	event.Attacker == player.slot && (((event.Attacker != event.UserId) && (event.Revenge > 0)))
+C	event.Attacker == player.slot && (((event.Attacker != event.UserId) && (event.Weapon == "awp")))
+C	event.Attacker == player.slot && (((event.Attacker != event.UserId) && ((((((((((event.Weapon == "glock") || (event.Weapon == "hkp2000")) || (event.Weapon == "usp_silencer")) || (event.Weapon == "p250")) || (event.Weapon == "deagle")) || (event.Weapon == "fiveseven")) || (event.Weapon == "tec9")) || (event.Weapon == "cz75a")) || (event.Weapon == "elite")) || (event.Weapon == "revolver"))))
+C	event.Attacker == player.slot && (((event.Attacker != event.UserId) && ((((((((event.Weapon == "ak47") || (event.Weapon == "m4a1")) || (event.Weapon == "m4a1_silencer")) || (event.Weapon == "aug")) || (event.Weapon == "sg556")) || (event.Weapon == "famas")) || (event.Weapon == "galilar")) || (event.Weapon == "ssg08"))))
+C	event.Attacker == player.slot && (((event.Attacker != event.UserId) && (((((((event.Weapon == "mp9") || (event.Weapon == "mac10")) || (event.Weapon == "mp7")) || (event.Weapon == "mp5sd")) || (event.Weapon == "ump45")) || (event.Weapon == "bizon")) || (event.Weapon == "p90"))))
+C	event.Attacker == player.slot && (((event.Attacker != event.UserId) && (((event.Weapon == "knife") || (event.Weapon == "knife_t")) || (event.Weapon == "knife_kukri"))))
+C	event.Attacker == player.slot && (((enrich.kill.was_trade_kill == true) && (event.Attacker != event.UserId)))
+C	event.Attacker >= 0 && event.Attacker < 64 && ((((enrich.kill.was_flash_kill == true) && (event.Attacker != event.UserId)) && (enrich.kill.flash_attacker_slot == player.slot)))
+C	event.Attacker == player.slot && ((enrich.hurt.was_team_damage == true))
+C	event.Attacker == player.slot && ((event.Attacker == event.UserId))
+C	(player.entity.pawn.armor > 0)
+C	event.PlayerSlot == player.slot
+C	(event.UserId == player.slot)
+C	(enrich.clutch.was_clutch_won && (enrich.clutch.winner_slot == player.slot))
+C	((enrich.round.has_winner && (enrich.round.winner_team == player.team)) && (enrich.round.winner_side == 3))
+C	((enrich.round.has_winner && (enrich.round.winner_team != player.team)) && (enrich.round.winner_side == 2))
+C	((enrich.round.has_winner && (enrich.round.winner_team == player.team)) && (enrich.round.winner_side == 2))
+C	((enrich.round.has_winner && (enrich.round.winner_team != player.team)) && (enrich.round.winner_side == 3))
+C	event.Attacker == player.slot && (((event.Attacker != event.UserId) && (player.team == 3)))
+C	event.UserId == player.slot && (((event.Attacker != event.UserId) && (player.team == 3)))
+C	event.Attacker == player.slot && (((event.Attacker != event.UserId) && (player.team == 2)))
+C	event.UserId == player.slot && (((event.Attacker != event.UserId) && (player.team == 2)))
+C	event.Attacker == player.slot && ((((event.Headshot == true) && (event.Attacker != event.UserId)) && (event.Weapon == "deagle")))
+N	1	Root		
+N	0	entity.game.freeze_period		
+N	0	enrich.kill.was_enemy_kill		
+N	0	enrich.kill.was_team_kill		
+N	0	enrich.kill.was_self_kill		
+N	0	enrich.kill.was_enemy_assist		
+N	0	enrich.kill.was_trade_kill		
+N	0	enrich.kill.traded_player_slot		-1
+N	0	enrich.kill.was_flash_kill		
+N	0	enrich.kill.flash_attacker_slot		-1
+N	0	enrich.hurt.was_enemy_damage		
+N	0	enrich.hurt.was_team_damage		
+N	0	enrich.hurt.was_self_damage		
+N	0	enrich.hurt.victim_health_before		9
+N	0	enrich.hurt.capped_damage		9
+N	0	enrich.hurt.attacker_active_weapon		
+N	0	enrich.blind.was_enemy_flash		
+N	0	enrich.blind.duration		
+N	0	enrich.kill.clutch_detected		
+N	0	enrich.kill.clutch_player_slot		-1
+N	0	enrich.clutch.was_clutch_won		
+N	0	enrich.clutch.winner_slot		-1
+N	0	enrich.round.has_winner		
+N	0	enrich.round.winner_team		3
+N	0	enrich.round.winner_side		3
+N	0	enrich.weapon_fire.is_bullet		
+N	0	enrich.hurt.is_bullet		
+N	0	enrich.shot.turn_degrees		
+N	0	enrich.shot.ticks_since_last_shot		
+N	0	enrich.shot.spray_shots		
+N	0	enrich.shot.spray_victims		
+N	0	enrich.kill.spray_kills		0
+N	0	enrich.kill.spray_shots_at_kill		0
+N	0	enrich.spotted.ticks_since_last_spot		1000000
+N	0	enrich.spotted.spot_index		1
+N	0	enrich.spotted.is_first_contact		
+N	0	enrich.shot.counter_strafe_good		
+N	0	enrich.shot.counter_strafe_admitted		
+N	0	enrich.shot.is_first_bullet		
+N	0	enrich.shot.spray_residual_pitch		0
+N	0	enrich.shot.spray_residual_yaw		0
+N	0	enrich.shot.spray_residual_measured		
+N	0	enrich.shot.ticks_since_spot		12
+N	0	enrich.shot.travel_from_spot_deg		0.8326926501359496
+N	0	enrich.shot.flick_error_deg		0.1780758770074401
+N	0	enrich.shot.is_first_after_spot		
+N	0	enrich.shot.spray_residual_deg		0
+N	0	enrich.shot.ticks_since_on_target		1000000
+N	0	enrich.shot.is_first_after_on_target		
+N	0	enrich.kill.ticks_since_spot		12
+N	0	MatchLive		
+N	0	RoundActive		
+N	0	RoundNumber		24
+N	0	RoundsAfterHalfAnnounce		13
+N	0	GameplayPhase		FreezeTime
+N	0	BombStatus		Defused
+N	0	BombWasPlanted		
+N	0	RegulationStatus		Regulation
+N	0	HalfState		SecondHalf
+N	0	NoDeathsYet		
+N	0	MapName		de_mirage
+N	2	Alive	YEKINDAR	
+N	2	Survived	YEKINDAR	
+N	2	Traded	YEKINDAR	
+N	2	round_team_alive	YEKINDAR	3
+N	2	round_team_players	YEKINDAR	5
+N	2	round_enemies_alive	YEKINDAR	0
+N	2	round_enemies_players	YEKINDAR	5
+N	2	round_alive_in_clutch	YEKINDAR	
+N	2	round_clutch_size	YEKINDAR	
+N	2	bullet_shots	YEKINDAR	296
+N	2	__first_tick_aim_rating_bullet_shots	YEKINDAR	2750
+N	2	enemy_hits	YEKINDAR	45
+N	2	__first_tick_aim_rating_enemy_hits	YEKINDAR	57681
+N	2	enemy_head_hits	YEKINDAR	9
+N	2	__first_tick_aim_rating_enemy_head_hits	YEKINDAR	107124
+N	2	enemy_damage	YEKINDAR	1537
+N	2	enemy_head_damage	YEKINDAR	580
+N	2	cs_attempts	YEKINDAR	139
+N	2	__first_tick_aim_rating_cs_attempts	YEKINDAR	2750
+N	2	cs_clean	YEKINDAR	85
+N	2	__first_tick_aim_rating_cs_clean	YEKINDAR	2750
+N	2	moving_shots	YEKINDAR	54
+N	2	__first_tick_aim_rating_moving_shots	YEKINDAR	21335
+N	2	spray_error_sum	YEKINDAR	0
+N	2	spray_residual_shots	YEKINDAR	0
+N	2	__first_tick_aim_rating_spray_residual_shots	YEKINDAR	-2147483648
+N	2	enemy_seen_round	YEKINDAR	
+N	2	contact_shots	YEKINDAR	264
+N	2	__first_tick_aim_rating_contact_shots	YEKINDAR	2750
+N	2	contact_hits	YEKINDAR	42
+N	2	__first_tick_aim_rating_contact_hits	YEKINDAR	57681
+N	2	first_bullet_shots	YEKINDAR	63
+N	2	__first_tick_aim_rating_first_bullet_shots	YEKINDAR	2750
+N	2	first_bullet_hits	YEKINDAR	0
+N	2	__first_tick_aim_rating_first_bullet_hits	YEKINDAR	-2147483648
+N	2	spray_shots_fired	YEKINDAR	201
+N	2	__first_tick_aim_rating_spray_shots_fired	YEKINDAR	21335
+N	2	spray_hits	YEKINDAR	0
+N	2	__first_tick_aim_rating_spray_hits	YEKINDAR	-2147483648
+N	2	first_contacts	YEKINDAR	22
+N	2	__first_tick_aim_rating_first_contacts	YEKINDAR	2610
+N	2	first_contact_angle_sum	YEKINDAR	242.02974063158035
+N	2	round_contacts	YEKINDAR	0
+N	2	__first_tick_aim_rating_round_contacts	YEKINDAR	-2147483648
+N	2	aimrx_shots	YEKINDAR	16
+N	2	__first_tick_aim_rating_aimrx_shots	YEKINDAR	21335
+N	2	aimrx_ticks	YEKINDAR	44
+N	2	ttk_kills	YEKINDAR	11
+N	2	__first_tick_aim_rating_ttk_kills	YEKINDAR	57681
+N	2	ttk_ticks	YEKINDAR	706
+N	2	tts_shots	YEKINDAR	39
+N	2	__first_tick_aim_rating_tts_shots	YEKINDAR	2750
+N	2	tts_ticks	YEKINDAR	1114
+N	2	ttd_shots	YEKINDAR	0
+N	2	__first_tick_aim_rating_ttd_shots	YEKINDAR	-2147483648
+N	2	ttd_ticks	YEKINDAR	0
+N	2	travel_shots	YEKINDAR	0
+N	2	__first_tick_aim_rating_travel_shots	YEKINDAR	-2147483648
+N	2	travel_sum	YEKINDAR	0
+N	2	flick_error_sum	YEKINDAR	0
+N	2	accuracy_pct	YEKINDAR	15.2
+N	2	hs_accuracy_pct	YEKINDAR	20.0
+N	2	hs_damage_pct	YEKINDAR	37.7
+N	2	counter_strafe_pct	YEKINDAR	61.2
+N	2	counter_strafe_all_pct	YEKINDAR	28.7
+N	2	linear_movement_pct	YEKINDAR	18.2
+N	2	first_bullet_pct	YEKINDAR	0.0
+N	2	spotted_accuracy_pct	YEKINDAR	15.9
+N	2	spray_accuracy_pct	YEKINDAR	0.0
+N	2	preaim_deg	YEKINDAR	11.0
+N	2	aimed_reaction_ms	YEKINDAR	43
+N	2	time_to_kill_ms	YEKINDAR	1003
+N	2	time_to_shoot_ms	YEKINDAR	446
+N	2	time_to_damage_ms	YEKINDAR	0
+N	2	spray_error_deg	YEKINDAR	0.00
+N	2	crosshair_travel_deg	YEKINDAR	0.0
+N	2	flick_error_avg	YEKINDAR	0.0
+N	2	no_scope_kills	YEKINDAR	0
+N	2	__first_tick_highlights_aim_no_scope_kills	YEKINDAR	-2147483648
+N	2	jumping_no_scope_kills	YEKINDAR	0
+N	2	__first_tick_highlights_aim_jumping_no_scope_kills	YEKINDAR	-2147483648
+N	2	jumpshot_kills	YEKINDAR	0
+N	2	__first_tick_highlights_aim_jumpshot_kills	YEKINDAR	-2147483648
+N	2	wallbang_kills	YEKINDAR	0
+N	2	__first_tick_highlights_aim_wallbang_kills	YEKINDAR	-2147483648
+N	2	deep_wallbang_kills	YEKINDAR	0
+N	2	__first_tick_highlights_aim_deep_wallbang_kills	YEKINDAR	-2147483648
+N	2	through_smoke_kills	YEKINDAR	0
+N	2	__first_tick_highlights_aim_through_smoke_kills	YEKINDAR	-2147483648
+N	2	long_range_kills	YEKINDAR	0
+N	2	__first_tick_highlights_aim_long_range_kills	YEKINDAR	-2147483648
+N	2	blind_enemy_kills	YEKINDAR	0
+N	2	__first_tick_highlights_aim_blind_enemy_kills	YEKINDAR	-2147483648
+N	2	_chain_no_scope		
+N	2	no_scope.count	YEKINDAR	0
+N	2	_chain_jumping_no_scope		
+N	2	jumping_no_scope.count	YEKINDAR	0
+N	2	_chain_jumpshot_kill		
+N	2	jumpshot_kill.count	YEKINDAR	0
+N	2	_chain_wallbang_kill		
+N	2	wallbang_kill.count	YEKINDAR	0
+N	2	_chain_deep_wallbang		
+N	2	deep_wallbang.count	YEKINDAR	0
+N	2	_chain_through_smoke_kill		
+N	2	through_smoke_kill.count	YEKINDAR	4
+N	2	_chain_long_range_kill		
+N	2	long_range_kill.count	YEKINDAR	0
+N	2	_chain_blind_enemy_kill		
+N	2	blind_enemy_kill.count	YEKINDAR	0
+N	2	shots_landed	YEKINDAR	0
+N	2	__first_tick_highlights_aim_pro_shots_landed	YEKINDAR	-2147483648
+N	2	flick_shots	YEKINDAR	0
+N	2	__first_tick_highlights_aim_pro_flick_shots	YEKINDAR	-2147483648
+N	2	spray_transfer_kills	YEKINDAR	0
+N	2	__first_tick_highlights_aim_pro_spray_transfer_kills	YEKINDAR	-2147483648
+N	2	_chain_flick		
+N	2	flick.count	YEKINDAR	0
+N	2	_chain_spray_transfer		
+N	2	spray_transfer.count	YEKINDAR	0
+N	2	last_bullet_kills	YEKINDAR	0
+N	2	__first_tick_highlights_ammo_last_bullet_kills	YEKINDAR	-2147483648
+N	2	_chain_last_bullet_kill		
+N	2	last_bullet_kill.count	YEKINDAR	0
+N	2	retake_kills	YEKINDAR	0
+N	2	__first_tick_highlights_clutch_retake_kills	YEKINDAR	-2147483648
+N	2	clutch_1v2_round	YEKINDAR	
+N	2	clutch_1v3_round	YEKINDAR	
+N	2	clutch_1v4_round	YEKINDAR	
+N	2	clutch_1v5_round	YEKINDAR	
+N	2	_chain_retake_multi		
+N	2	retake_multi.count	YEKINDAR	1
+N	2	_chain_clutch_1v2		
+N	2	clutch_1v2.count	YEKINDAR	0
+N	2	_chain_clutch_1v3		
+N	2	clutch_1v3.count	YEKINDAR	0
+N	2	_chain_clutch_1v4		
+N	2	clutch_1v4.count	YEKINDAR	0
+N	2	_chain_clutch_1v5		
+N	2	clutch_1v5.count	YEKINDAR	0
+N	2	blind_kills	YEKINDAR	0
+N	2	__first_tick_highlights_funny_blind_kills	YEKINDAR	-2147483648
+N	2	nade_kills	YEKINDAR	0
+N	2	__first_tick_highlights_funny_nade_kills	YEKINDAR	-2147483648
+N	2	fire_kills	YEKINDAR	0
+N	2	__first_tick_highlights_funny_fire_kills	YEKINDAR	-2147483648
+N	2	jumping_knife_kills	YEKINDAR	0
+N	2	__first_tick_highlights_funny_jumping_knife_kills	YEKINDAR	-2147483648
+N	2	_chain_blind_kill_lucky		
+N	2	blind_kill_lucky.count	YEKINDAR	0
+N	2	_chain_nade_kill		
+N	2	nade_kill.count	YEKINDAR	0
+N	2	_chain_fire_kill		
+N	2	fire_kill.count	YEKINDAR	0
+N	2	_chain_jumping_knife_kill		
+N	2	jumping_knife_kill.count	YEKINDAR	0
+N	2	teamkill_count	YEKINDAR	0
+N	2	__first_tick_highlights_lowlights_teamkill_count	YEKINDAR	-2147483648
+N	2	knifed_count	YEKINDAR	0
+N	2	__first_tick_highlights_lowlights_knifed_count	YEKINDAR	-2147483648
+N	2	died_to_wallbang_count	YEKINDAR	0
+N	2	__first_tick_highlights_lowlights_died_to_wallbang_count	YEKINDAR	-2147483648
+N	2	no_scoped_on_count	YEKINDAR	0
+N	2	__first_tick_highlights_lowlights_no_scoped_on_count	YEKINDAR	-2147483648
+N	2	_chain_teamkill		
+N	2	teamkill.count	YEKINDAR	0
+N	2	_chain_knifed		
+N	2	knifed.count	YEKINDAR	0
+N	2	_chain_died_to_wallbang		
+N	2	died_to_wallbang.count	YEKINDAR	0
+N	2	_chain_no_scoped_on		
+N	2	no_scoped_on.count	YEKINDAR	0
+N	2	enemy_kills_round	YEKINDAR	0
+N	2	__first_tick_highlights_multikill_enemy_kills_round	YEKINDAR	-2147483648
+N	2	_chain_ace		
+N	2	ace.count	YEKINDAR	0
+N	2	_chain_quad_kill		
+N	2	quad_kill.count	YEKINDAR	0
+N	2	_chain_triple_kill		
+N	2	triple_kill.count	YEKINDAR	2
+N	2	eco_frag_kills	YEKINDAR	0
+N	2	__first_tick_highlights_objective_eco_frag_kills	YEKINDAR	-2147483648
+N	2	pistol_multi_kills	YEKINDAR	0
+N	2	__first_tick_highlights_objective_pistol_multi_kills	YEKINDAR	-2147483648
+N	2	knife_kill_count	YEKINDAR	0
+N	2	__first_tick_highlights_objective_knife_kill_count	YEKINDAR	-2147483648
+N	2	ninja_defuse_count	YEKINDAR	0
+N	2	__first_tick_highlights_objective_ninja_defuse_count	YEKINDAR	-2147483648
+N	2	_chain_eco_frag		
+N	2	eco_frag.count	YEKINDAR	1
+N	2	_chain_pistol_multi		
+N	2	pistol_multi.count	YEKINDAR	0
+N	2	_chain_knife_kill		
+N	2	knife_kill.count	YEKINDAR	0
+N	2	_chain_ninja_defuse		
+N	2	ninja_defuse.count	YEKINDAR	0
+N	2	spawn_raid_kills	YEKINDAR	0
+N	2	__first_tick_highlights_position_spawn_raid_kills	YEKINDAR	-2147483648
+N	2	kills_from_site_a	YEKINDAR	0
+N	2	__first_tick_highlights_position_kills_from_site_a	YEKINDAR	-2147483648
+N	2	kills_from_site_b	YEKINDAR	0
+N	2	__first_tick_highlights_position_kills_from_site_b	YEKINDAR	-2147483648
+N	2	_chain_spawn_raid		
+N	2	spawn_raid.count	YEKINDAR	0
+N	2	_chain_site_lockdown		
+N	2	site_lockdown.count	YEKINDAR	0
+N	2	double_burst	YEKINDAR	
+N	2	triple_burst	YEKINDAR	
+N	2	quad_burst	YEKINDAR	
+N	2	ace_burst	YEKINDAR	
+N	2	collateral_burst	YEKINDAR	
+N	2	_chain_rapid_double		
+N	2	rapid_double.count	YEKINDAR	1
+N	2	_chain_rapid_triple		
+N	2	rapid_triple.count	YEKINDAR	1
+N	2	_chain_rapid_quad		
+N	2	rapid_quad.count	YEKINDAR	0
+N	2	_chain_instant_ace		
+N	2	instant_ace.count	YEKINDAR	0
+N	2	_chain_collateral		
+N	2	collateral.count	YEKINDAR	0
+N	2	kills	YEKINDAR	0
+N	2	__first_tick_kast_kills	YEKINDAR	-2147483648
+N	2	assists	YEKINDAR	0
+N	2	__first_tick_kast_assists	YEKINDAR	-2147483648
+N	2	deaths	YEKINDAR	0
+N	2	__first_tick_kast_deaths	YEKINDAR	-2147483648
+N	2	damage_dealt	YEKINDAR	0
+N	2	utility_damage	YEKINDAR	0
+N	2	headshot_kills	YEKINDAR	0
+N	2	__first_tick_kast_headshot_kills	YEKINDAR	-2147483648
+N	2	enemy_kills_round	YEKINDAR	0
+N	2	__first_tick_kast_enemy_kills_round	YEKINDAR	-2147483648
+N	2	team_assists_round	YEKINDAR	0
+N	2	__first_tick_kast_team_assists_round	YEKINDAR	-2147483648
+N	2	flash_assists	YEKINDAR	0
+N	2	__first_tick_kast_flash_assists	YEKINDAR	-2147483648
+N	2	noscope_kills	YEKINDAR	0
+N	2	__first_tick_kast_noscope_kills	YEKINDAR	-2147483648
+N	2	wallbang_kills	YEKINDAR	0
+N	2	__first_tick_kast_wallbang_kills	YEKINDAR	-2147483648
+N	2	smoke_kills	YEKINDAR	0
+N	2	__first_tick_kast_smoke_kills	YEKINDAR	-2147483648
+N	2	shots_fired	YEKINDAR	2
+N	2	__first_tick_kast_shots_fired	YEKINDAR	197046
+N	2	enemies_flashed	YEKINDAR	0
+N	2	__first_tick_kast_enemies_flashed	YEKINDAR	-2147483648
+N	2	traded		
+N	2	has_kast		
+N	2	rounds_5k	YEKINDAR	0
+N	2	rounds_4k	YEKINDAR	0
+N	2	rounds_3k	YEKINDAR	2
+N	2	rounds_2k	YEKINDAR	2
+N	2	__seen_tally_kast_multi_kill_tally	YEKINDAR	
+N	2	_chain_kast		
+N	2	kast.count	YEKINDAR	15
+N	2	kast_pct	YEKINDAR	58.33
+N	2	TotalEnemyKills	YEKINDAR	16
+N	2	__first_tick_player_stats_TotalEnemyKills	YEKINDAR	57681
+N	2	TeamKills	YEKINDAR	0
+N	2	__first_tick_player_stats_TeamKills	YEKINDAR	-2147483648
+N	2	total_deaths	YEKINDAR	16
+N	2	__first_tick_player_stats_total_deaths	YEKINDAR	2753
+N	2	TotalTeamAssists	YEKINDAR	5
+N	2	__first_tick_player_stats_TotalTeamAssists	YEKINDAR	118780
+N	2	total_headshot_kills	YEKINDAR	7
+N	2	__first_tick_player_stats_total_headshot_kills	YEKINDAR	107124
+N	2	total_flash_assists	YEKINDAR	0
+N	2	__first_tick_player_stats_total_flash_assists	YEKINDAR	-2147483648
+N	2	total_noscope_kills	YEKINDAR	0
+N	2	__first_tick_player_stats_total_noscope_kills	YEKINDAR	-2147483648
+N	2	total_wallbang_kills	YEKINDAR	0
+N	2	__first_tick_player_stats_total_wallbang_kills	YEKINDAR	-2147483648
+N	2	total_smoke_kills	YEKINDAR	5
+N	2	__first_tick_player_stats_total_smoke_kills	YEKINDAR	125518
+N	2	total_blind_kills	YEKINDAR	0
+N	2	__first_tick_player_stats_total_blind_kills	YEKINDAR	-2147483648
+N	2	total_revenge_kills	YEKINDAR	0
+N	2	__first_tick_player_stats_total_revenge_kills	YEKINDAR	-2147483648
+N	2	awp_kills	YEKINDAR	0
+N	2	__first_tick_player_stats_awp_kills	YEKINDAR	-2147483648
+N	2	pistol_kills	YEKINDAR	3
+N	2	__first_tick_player_stats_pistol_kills	YEKINDAR	106769
+N	2	rifle_kills	YEKINDAR	12
+N	2	__first_tick_player_stats_rifle_kills	YEKINDAR	57681
+N	2	smg_kills	YEKINDAR	1
+N	2	__first_tick_player_stats_smg_kills	YEKINDAR	141204
+N	2	knife_kills	YEKINDAR	0
+N	2	__first_tick_player_stats_knife_kills	YEKINDAR	-2147483648
+N	2	TradeKills	YEKINDAR	4
+N	2	__first_tick_player_stats_TradeKills	YEKINDAR	106769
+N	2	FlashKills	YEKINDAR	0
+N	2	__first_tick_player_stats_FlashKills	YEKINDAR	-2147483648
+N	2	TeamDmg	YEKINDAR	0
+N	2	SelfDmg	YEKINDAR	13
+N	2	ShotsHitFriend	YEKINDAR	1
+N	2	__first_tick_player_stats_ShotsHitFriend	YEKINDAR	156022
+N	2	HealthWhileDamagingSum	YEKINDAR	4382
+N	2	EnemyDamageInstances	YEKINDAR	50
+N	2	__first_tick_player_stats_EnemyDamageInstances	YEKINDAR	34425
+N	2	EquipmentValueSum	YEKINDAR	93400
+N	2	EquipmentValueRounds	YEKINDAR	24
+N	2	__first_tick_player_stats_EquipmentValueRounds	YEKINDAR	1410
+N	2	RoundsWithArmor	YEKINDAR	23
+N	2	__first_tick_player_stats_RoundsWithArmor	YEKINDAR	1410
+N	2	he_used	YEKINDAR	7
+N	2	__first_tick_player_stats_he_used	YEKINDAR	8507
+N	2	flash_used	YEKINDAR	10
+N	2	__first_tick_player_stats_flash_used	YEKINDAR	8849
+N	2	smoke_used	YEKINDAR	18
+N	2	__first_tick_player_stats_smoke_used	YEKINDAR	7619
+N	2	molotov_used	YEKINDAR	13
+N	2	__first_tick_player_stats_molotov_used	YEKINDAR	8061
+N	2	bomb_plants	YEKINDAR	0
+N	2	__first_tick_player_stats_bomb_plants	YEKINDAR	-2147483648
+N	2	bomb_defuses	YEKINDAR	2
+N	2	__first_tick_player_stats_bomb_defuses	YEKINDAR	107951
+N	2	rounds_survived	YEKINDAR	8
+N	2	__first_tick_player_stats_rounds_survived	YEKINDAR	45481
+N	2	TotalEnemyFlashes	YEKINDAR	0
+N	2	__first_tick_player_stats_TotalEnemyFlashes	YEKINDAR	-2147483648
+N	2	TotalBlindDuration	YEKINDAR	0
+N	2	clutch_won	YEKINDAR	0
+N	2	__first_tick_player_stats_clutch_won	YEKINDAR	-2147483648
+N	2	CTWins	YEKINDAR	10
+N	2	__first_tick_player_stats_CTWins	YEKINDAR	108252
+N	2	CTLosses	YEKINDAR	2
+N	2	__first_tick_player_stats_CTLosses	YEKINDAR	138372
+N	2	TWins	YEKINDAR	3
+N	2	__first_tick_player_stats_TWins	YEKINDAR	3494
+N	2	TLosses	YEKINDAR	9
+N	2	__first_tick_player_stats_TLosses	YEKINDAR	11346
+N	2	CTFK	YEKINDAR	4
+N	2	__first_tick_player_stats_CTFK	YEKINDAR	141204
+N	2	CTFD	YEKINDAR	0
+N	2	__first_tick_player_stats_CTFD	YEKINDAR	-2147483648
+N	2	TFK	YEKINDAR	0
+N	2	__first_tick_player_stats_TFK	YEKINDAR	-2147483648
+N	2	TFD	YEKINDAR	3
+N	2	__first_tick_player_stats_TFD	YEKINDAR	9041
+N	2	opening_kill_round	YEKINDAR	
+N	2	opening_death_round	YEKINDAR	
+N	2	deagle_hs_kills	YEKINDAR	0
+N	2	__first_tick_player_stats_deagle_hs_kills	YEKINDAR	-2147483648
+N	2	total_assists	YEKINDAR	5
+N	2	__first_tick_player_stats_total_assists	YEKINDAR	118780
+N	2	rapid_kill_sequences	YEKINDAR	3
+N	2	_chain_opening_kill		
+N	2	opening_kill.count	YEKINDAR	4
+N	2	_chain_opening_death		
+N	2	opening_death.count	YEKINDAR	3
+N	2	_chain_deagle_hs_round		
+N	2	deagle_hs_round.count	YEKINDAR	0
+N	2	_chain_traded_death		
+N	2	traded_death.count	YEKINDAR	3
+N	2	ADR	YEKINDAR	64.0
+N	2	HS%	YEKINDAR	43.75
+N	2	KPR	YEKINDAR	0.67
+N	2	KD	YEKINDAR	1.00
+N	2	Surv%	YEKINDAR	33.33
+N	2	AvgHealthWhileDamaging	YEKINDAR	87.6
+N	2	AvgEquipmentValue	YEKINDAR	3892
+N	2	AvgBlind	YEKINDAR	0.0
+N	2	HLTV	YEKINDAR	0.93
+N	2	DuelWin%	YEKINDAR	57
+N	2	FK±	YEKINDAR	1
+N	2	plant_tick	YEKINDAR	389747
+N	2	post_plant_kills	YEKINDAR	0
+N	2	__first_tick_post_plant_double_post_plant_kills	YEKINDAR	-2147483648
+N	2	kill_ticks	YEKINDAR	
+N	2	_chain_post_plant_double		
+N	2	post_plant_double.count	YEKINDAR	1
+N	2	kills_by_weapon	YEKINDAR	16
+N	2	damage_by_weapon	YEKINDAR	1537
+E	0	50	0	0	-1
+E	0	50	1	1	-1
+E	50	51	0	2	-1
+E	50	51	1	3	-1
+E	50	51	1	1	-1
+E	50	52	2	2	-1
+E	50	52	2	0	-1
+E	0	53	2	4	-1
+E	0	53	2	2	0
+E	0	53	2	0	-1
+E	0	54	2	5	-1
+E	0	54	2	6	-1
+E	0	54	2	7	-1
+E	0	54	2	8	1
+E	0	54	2	2	-1
+E	0	54	2	9	-1
+E	0	54	2	10	-1
+E	0	54	2	11	-1
+E	0	54	2	3	-1
+E	0	54	2	11	2
+E	0	54	2	3	2
+E	0	54	2	12	-1
+E	0	54	2	13	-1
+E	0	54	2	1	-1
+E	0	55	2	14	-1
+E	0	55	2	15	-1
+E	0	55	2	16	-1
+E	0	55	2	17	-1
+E	0	55	2	18	-1
+E	0	55	2	19	-1
+E	0	55	2	20	-1
+E	0	55	2	21	-1
+E	0	55	2	22	-1
+E	0	56	1	2	-1
+E	0	56	0	17	-1
+E	0	57	2	23	-1
+E	0	58	2	12	-1
+E	0	58	2	11	2
+E	0	58	2	3	2
+E	0	58	2	0	-1
+E	0	59	0	2	-1
+E	0	59	1	24	-1
+E	0	60	2	25	-1
+E	0	61	0	2	-1
+E	0	61	1	24	3
+E	61	62	0	3	-1
+E	61	62	0	1	-1
+E	6	63	0	24	4
+E	51	70	2	26	5
+E	0	72	2	27	6
+E	0	74	2	27	7
+E	0	76	2	27	8
+E	0	77	2	27	7
+E	51	78	2	26	9
+E	51	80	2	26	10
+E	51	82	2	26	11
+E	51	84	2	28	12
+E	51	85	2	28	12
+E	51	87	0	29	13
+E	87	88	2	26	5
+E	87	90	2	27	6
+E	87	92	2	26	14
+E	87	94	2	28	15
+E	87	96	2	26	16
+E	87	98	2	28	17
+E	51	100	2	29	18
+E	51	102	2	29	18
+E	51	103	2	29	18
+E	51	105	2	26	19
+E	51	107	2	26	19
+E	51	108	2	24	20
+E	51	110	2	24	20
+E	51	111	2	26	21
+E	51	113	2	26	21
+E	51	114	2	28	22
+E	51	116	2	28	22
+E	51	117	2	28	23
+E	51	119	2	28	23
+E	51	120	2	28	23
+E	51	138	2	24	24
+E	51	140	2	24	25
+E	51	142	2	24	26
+E	51	144	2	24	27
+E	51	146	2	24	28
+E	51	148	2	24	29
+E	51	150	2	24	30
+E	51	152	2	24	31
+E	138	154	3	30	32
+E	154	155	2	30	33
+E	140	156	3	30	32
+E	156	157	2	30	33
+E	142	158	3	30	32
+E	158	159	2	30	33
+E	144	160	3	30	32
+E	160	161	2	30	33
+E	146	162	3	30	32
+E	162	163	2	30	33
+E	148	164	3	30	32
+E	164	165	2	30	33
+E	150	166	3	30	32
+E	166	167	2	30	33
+E	152	168	3	30	32
+E	168	169	2	30	33
+E	0	170	2	28	34
+E	51	172	2	28	35
+E	51	174	2	24	36
+E	172	176	3	30	32
+E	176	177	2	30	33
+E	174	178	3	30	32
+E	178	179	2	30	33
+E	51	180	2	24	37
+E	180	182	3	30	32
+E	182	183	2	30	33
+E	56	184	2	24	38
+E	0	186	0	3	39
+E	0	186	0	1	39
+E	0	187	0	3	40
+E	0	187	0	1	40
+E	0	188	0	3	41
+E	0	188	0	1	41
+E	0	189	0	3	42
+E	0	189	0	1	42
+E	184	190	3	30	43
+E	190	191	2	30	33
+E	186	192	3	30	44
+E	192	193	2	30	33
+E	187	194	3	30	44
+E	194	195	2	30	33
+E	188	196	3	30	44
+E	196	197	2	30	33
+E	189	198	3	30	44
+E	198	199	2	30	33
+E	0	200	2	24	45
+E	0	202	2	24	46
+E	0	204	2	24	47
+E	0	206	2	24	48
+E	200	208	3	30	32
+E	208	209	2	30	33
+E	202	210	3	30	32
+E	210	211	2	30	33
+E	204	212	3	30	32
+E	212	213	2	30	33
+E	206	214	3	30	32
+E	214	215	2	30	33
+E	51	216	2	24	49
+E	51	218	2	24	50
+E	51	220	2	24	51
+E	51	222	2	24	52
+E	216	224	3	30	32
+E	224	225	2	30	33
+E	218	226	3	30	32
+E	226	227	2	30	33
+E	220	228	3	30	32
+E	228	229	2	30	33
+E	222	230	3	30	32
+E	230	231	2	30	33
+E	51	232	2	24	53
+E	232	234	3	30	54
+E	234	235	2	30	33
+E	232	236	3	30	55
+E	236	237	2	30	33
+E	232	238	3	30	56
+E	238	239	2	30	33
+E	51	240	2	24	57
+E	51	242	2	24	58
+E	51	244	2	24	59
+E	0	246	2	20	60
+E	240	248	3	30	43
+E	248	249	2	30	33
+E	242	250	3	30	56
+E	250	251	2	30	33
+E	244	252	3	30	32
+E	252	253	2	30	33
+E	246	254	3	30	32
+E	254	255	2	30	33
+E	51	256	2	24	61
+E	51	258	2	24	62
+E	51	260	2	24	63
+E	256	262	3	30	32
+E	262	263	2	30	33
+E	258	264	4	30	56
+E	260	264	4	30	56
+E	264	265	2	30	33
+E	0	266	2	24	53
+E	0	267	2	24	53
+E	0	268	2	24	53
+E	0	269	2	24	53
+E	0	270	2	24	53
+E	266	271	3	30	44
+E	271	272	2	30	33
+E	267	273	3	30	44
+E	273	274	2	30	33
+E	268	275	3	30	44
+E	275	276	2	30	33
+E	269	277	3	30	44
+E	277	278	2	30	33
+E	270	279	3	30	44
+E	279	280	2	30	33
+E	51	281	2	24	64
+E	51	283	2	24	65
+E	51	285	2	24	66
+E	51	287	2	27	64
+E	51	288	2	27	67
+E	51	289	2	24	68
+E	0	291	2	24	53
+E	0	293	2	24	69
+E	51	295	2	24	70
+E	51	297	2	24	71
+E	51	299	2	24	72
+E	51	301	2	24	73
+E	51	303	2	26	5
+E	0	305	2	31	74
+E	63	307	3	30	44
+E	291	308	4	30	75
+E	293	308	4	30	75
+E	62	308	4	30	44
+E	307	308	4	30	44
+E	281	309	2	3	-1
+E	281	310	2	3	-1
+E	281	311	2	3	-1
+E	281	312	2	3	-1
+E	281	309	2	1	-1
+E	281	310	2	1	-1
+E	281	311	2	1	-1
+E	281	312	2	1	-1
+E	308	314	3	30	44
+E	314	315	2	30	33
+E	0	317	2	24	53
+E	0	319	2	24	49
+E	50	321	2	24	66
+E	0	323	2	24	76
+E	0	325	2	24	68
+E	51	327	2	24	70
+E	51	329	2	24	71
+E	51	331	2	24	72
+E	51	333	2	24	73
+E	51	335	2	24	77
+E	51	337	2	24	78
+E	51	339	2	24	79
+E	51	341	2	24	80
+E	51	343	2	24	81
+E	51	345	2	24	82
+E	51	347	2	24	83
+E	0	349	2	24	84
+E	0	351	2	24	85
+E	0	353	2	27	86
+E	0	354	2	27	87
+E	0	355	2	27	86
+E	0	357	2	27	8
+E	0	358	2	27	8
+E	61	360	2	2	-1
+E	61	361	2	2	-1
+E	61	363	2	2	88
+E	51	365	2	32	66
+E	51	367	2	33	66
+E	51	369	2	34	66
+E	51	371	2	35	89
+E	0	373	2	17	90
+E	0	375	2	20	90
+E	61	377	2	3	-1
+E	61	377	2	1	-1
+E	0	379	2	31	74
+E	0	381	2	31	74
+E	0	382	2	3	91
+E	0	382	2	1	91
+E	0	384	2	3	92
+E	0	384	2	1	92
+E	0	386	2	3	93
+E	0	386	2	1	93
+E	0	388	2	3	94
+E	0	388	2	1	94
+E	0	390	2	3	95
+E	0	390	2	1	95
+E	59	392	2	24	96
+E	59	394	2	24	97
+E	59	396	2	24	98
+E	59	398	2	24	99
+E	59	400	0	24	64
+E	59	401	0	24	66
+E	51	402	2	24	100
+E	51	404	2	24	65
+E	0	406	2	24	64
+E	400	407	3	30	44
+E	407	408	2	30	33
+E	401	409	3	30	44
+E	409	410	2	30	33
+E	402	411	3	30	43
+E	411	412	2	30	33
+E	307	413	3	30	44
+E	413	414	2	30	33
+E	0	426	2	17	-1
+E	56	427	2	24	53
+E	56	429	2	24	53
+E	427	430	3	30	43
+E	430	431	2	30	33
+E	0	432	2	24	53
+E	0	433	2	27	8
+E	51	71	2	26	-1
+E	0	73	2	27	-1
+E	0	75	2	27	-1
+E	51	79	2	26	-1
+E	51	81	2	26	-1
+E	51	83	2	26	-1
+E	51	86	2	28	-1
+E	87	89	2	26	-1
+E	87	91	2	27	-1
+E	87	93	2	26	-1
+E	87	95	2	28	-1
+E	87	97	2	26	-1
+E	87	99	2	28	-1
+E	51	101	2	29	-1
+E	51	104	2	29	-1
+E	51	106	2	26	-1
+E	51	109	2	24	-1
+E	51	112	2	26	-1
+E	51	115	2	28	-1
+E	51	118	2	28	-1
+E	0	121	2	3	-1
+E	0	121	2	1	-1
+E	0	122	2	3	-1
+E	0	122	2	1	-1
+E	0	123	2	3	-1
+E	0	123	2	1	-1
+E	0	124	2	3	-1
+E	0	124	2	1	-1
+E	0	125	2	3	-1
+E	0	125	2	1	-1
+E	0	126	2	3	-1
+E	0	126	2	1	-1
+E	0	127	2	3	-1
+E	0	127	2	1	-1
+E	0	128	2	3	-1
+E	0	128	2	1	-1
+E	0	129	2	3	-1
+E	0	129	2	1	-1
+E	0	130	2	3	-1
+E	0	130	2	1	-1
+E	0	131	2	3	-1
+E	0	131	2	1	-1
+E	0	132	2	3	-1
+E	0	132	2	1	-1
+E	0	133	2	3	-1
+E	0	133	2	1	-1
+E	0	134	2	3	-1
+E	0	134	2	1	-1
+E	0	135	2	3	-1
+E	0	135	2	1	-1
+E	0	136	2	3	-1
+E	0	136	2	1	-1
+E	0	137	2	3	-1
+E	0	137	2	1	-1
+E	51	139	2	24	-1
+E	51	141	2	24	-1
+E	51	143	2	24	-1
+E	51	145	2	24	-1
+E	51	147	2	24	-1
+E	51	149	2	24	-1
+E	51	151	2	24	-1
+E	51	153	2	24	-1
+E	0	171	2	28	-1
+E	51	173	2	28	-1
+E	51	175	2	24	-1
+E	51	181	2	24	-1
+E	56	185	2	24	-1
+E	0	201	2	24	-1
+E	0	203	2	24	-1
+E	0	205	2	24	-1
+E	0	207	2	24	-1
+E	51	217	2	24	-1
+E	51	219	2	24	-1
+E	51	221	2	24	-1
+E	51	223	2	24	-1
+E	51	233	2	24	-1
+E	51	241	2	24	-1
+E	51	243	2	24	-1
+E	51	245	2	24	-1
+E	0	247	2	20	-1
+E	51	257	2	24	-1
+E	51	259	2	24	-1
+E	51	261	2	24	-1
+E	51	282	2	24	-1
+E	51	284	2	24	-1
+E	51	286	2	24	-1
+E	51	290	2	24	-1
+E	0	292	2	24	-1
+E	0	294	2	24	-1
+E	51	296	2	24	-1
+E	51	298	2	24	-1
+E	51	300	2	24	-1
+E	51	302	2	24	-1
+E	51	304	2	26	-1
+E	0	306	2	31	-1
+E	0	309	2	3	-1
+E	0	310	2	3	-1
+E	0	311	2	3	-1
+E	0	312	2	3	-1
+E	0	313	2	3	-1
+E	0	309	2	1	-1
+E	0	310	2	1	-1
+E	0	311	2	1	-1
+E	0	312	2	1	-1
+E	0	313	2	1	-1
+E	0	316	2	3	-1
+E	0	316	2	1	-1
+E	0	318	2	24	-1
+E	0	320	2	24	-1
+E	50	322	2	24	-1
+E	0	324	2	24	-1
+E	0	326	2	24	-1
+E	51	328	2	24	-1
+E	51	330	2	24	-1
+E	51	332	2	24	-1
+E	51	334	2	24	-1
+E	51	336	2	24	-1
+E	51	338	2	24	-1
+E	51	340	2	24	-1
+E	51	342	2	24	-1
+E	51	344	2	24	-1
+E	51	346	2	24	-1
+E	51	348	2	24	-1
+E	0	350	2	24	-1
+E	0	352	2	24	-1
+E	0	356	2	27	-1
+E	0	359	2	27	-1
+E	61	362	2	2	-1
+E	61	364	2	2	-1
+E	51	366	2	32	-1
+E	51	368	2	33	-1
+E	51	370	2	34	-1
+E	51	372	2	35	-1
+E	0	374	2	17	-1
+E	0	376	2	20	-1
+E	61	378	2	3	-1
+E	61	378	2	1	-1
+E	0	380	2	31	-1
+E	0	383	2	3	-1
+E	0	383	2	1	-1
+E	0	385	2	3	-1
+E	0	385	2	1	-1
+E	0	387	2	3	-1
+E	0	387	2	1	-1
+E	0	389	2	3	-1
+E	0	389	2	1	-1
+E	0	391	2	3	-1
+E	0	391	2	1	-1
+E	59	393	2	24	-1
+E	59	395	2	24	-1
+E	59	397	2	24	-1
+E	59	399	2	24	-1
+E	51	403	2	24	-1
+E	51	405	2	24	-1
+E	0	415	2	3	-1
+E	0	415	2	1	-1
+E	0	416	2	3	-1
+E	0	416	2	1	-1
+E	0	417	2	3	-1
+E	0	417	2	1	-1
+E	0	418	2	3	-1
+E	0	418	2	1	-1
+E	0	419	2	3	-1
+E	0	419	2	1	-1
+E	0	420	2	3	-1
+E	0	420	2	1	-1
+E	0	421	2	3	-1
+E	0	421	2	1	-1
+E	0	422	2	3	-1
+E	0	422	2	1	-1
+E	0	423	2	3	-1
+E	0	423	2	1	-1
+E	0	424	2	3	-1
+E	0	424	2	1	-1
+E	0	425	2	3	-1
+E	0	425	2	1	-1
+E	56	428	2	24	-1
