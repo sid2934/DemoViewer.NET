@@ -1354,8 +1354,9 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             ? $"⚠ {DroppedEdgeCount.ToString(System.Globalization.CultureInfo.InvariantCulture)} edge(s) not drawn"
             : string.Empty;
 
-    // Last writer wins on a duplicate, which cannot happen: the key carries the player slot precisely
-    // so that ten copies of "Alive" are ten distinct keys.
+    // Last writer wins on a duplicate. The key carries the player slot so that ten copies of "Alive"
+    // are ten distinct keys, and an occurrence counter so that the two names two rulesets both declare
+    // are two more. Before that counter existed this silently kept one of each colliding pair.
     private static Dictionary<string, GraphNodeViewModel> IndexByKey(List<GraphNodeViewModel> nodes)
     {
         Dictionary<string, GraphNodeViewModel> byKey = new(nodes.Count, StringComparer.Ordinal);
@@ -1366,6 +1367,42 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         return byKey;
     }
+
+    /// <summary>
+    ///     One materialization's nodes, each paired with the key that identifies it. The single place
+    ///     a per-player <see cref="GraphNodeKey" /> is minted, so the drawn graph and the snapshot
+    ///     column map cannot disagree about which copy is which.
+    ///     <para>
+    ///         The occurrence counter is the reason this exists. Two rulesets may declare the same
+    ///         stat id, and the engine materializes both into ONE player's node list under the one
+    ///         name: <c>enemy_kills_round</c> from <c>highlights_multikill</c> and from <c>kast</c>,
+    ///         <c>wallbang_kills</c> from <c>highlights_aim</c> and from <c>kast</c>. That is 2 of a
+    ///         player's 373 nodes and 20 of the reference demo's 3 791, and without the counter both
+    ///         copies key alike, so a breakpoint set on one arms on both and the column map keeps
+    ///         whichever was written last.
+    ///     </para>
+    ///     <para>
+    ///         Counted over <c>player.Nodes</c> itself, BEFORE any caller's own dedup, so a caller
+    ///         that skips a node still agrees with one that does not about every later node's
+    ///         occurrence.
+    ///     </para>
+    /// </summary>
+    private static IEnumerable<(StateNode Node, GraphNodeKey Key)> KeyedNodes(
+        PerPlayerNodeTemplate.MaterializedPlayer player)
+    {
+        Dictionary<string, int> seen = new(StringComparer.Ordinal);
+        foreach (StateNode node in player.Nodes)
+        {
+            int occurrence = seen.TryGetValue(node.Name, out int previous) ? previous : 0;
+            seen[node.Name] = occurrence + 1;
+            yield return (node,
+                GraphNodeKey.ForPlayer(player.TemplateIndex, player.PlayerSlot, occurrence, node.Name));
+        }
+    }
+
+    /// <summary>Test seam over <see cref="KeyedNodes" />, which is otherwise reachable only mid-build.</summary>
+    internal static IReadOnlyList<(StateNode Node, GraphNodeKey Key)> KeyedNodesForTests(
+        PerPlayerNodeTemplate.MaterializedPlayer player) => [.. KeyedNodes(player)];
 
     /// <summary>
     ///     Builds the drawn graph: the shared game-scope scaffolding PLUS one player's materialized
@@ -1409,7 +1446,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         foreach (PerPlayerNodeTemplate.MaterializedPlayer player in renderedPlayer)
         {
-            foreach (StateNode node in player.Nodes)
+            foreach ((StateNode node, GraphNodeKey key) in KeyedNodes(player))
             {
                 // A template node can be structurally deduplicated onto one the scaffolding already
                 // owns. Keep the first view model rather than minting a second for the same
@@ -1424,7 +1461,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
                     IsActive = node.IsActive,
                     DisplayValue = node.GetDisplayValue(),
                     IsPerPlayer = true,
-                    NodeKey = GraphNodeKey.ForPlayer(player.TemplateIndex, player.PlayerSlot, node.Name),
+                    NodeKey = key,
                     TrackedIndex = snapshotIndexByNode.GetValueOrDefault(node, -1)
                 };
                 nodeVmByNode[node] = vm;
@@ -1636,10 +1673,9 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         foreach (PerPlayerNodeTemplate.MaterializedPlayer player in result.MaterializedPlayers)
         {
-            foreach (StateNode node in player.Nodes)
+            foreach ((StateNode node, GraphNodeKey key) in KeyedNodes(player))
             {
-                byKey[GraphNodeKey.ForPlayer(player.TemplateIndex, player.PlayerSlot, node.Name).ToString()] =
-                    snapshotIndexByNode.GetValueOrDefault(node, -1);
+                byKey[key.ToString()] = snapshotIndexByNode.GetValueOrDefault(node, -1);
             }
         }
 
