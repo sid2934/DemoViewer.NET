@@ -568,11 +568,28 @@ table is a trap and should be read as such.**
 **The theme itself is innocent, proven by vendoring.** The MIT source at tag `v6.6.0` retargeted
 `netstandard2.0` to `net8.0` and `AvaloniaVersion` to 12.1.2 builds clean, and on Avalonia 12 all
 eleven `ControlTheme`s resolve and a 12-node graph renders correctly to a captured frame. The fork
-is 9 files, +51 / -38. Two capabilities are lost, not renamed: touchpad pinch-zoom (`Gestures` is
-now internal) and the popup hop in command routing (`IHostedVisualTreeRoot` is now internal). One
-change is a semantic shift rather than an API rename and will recur on every upstream merge:
-`{RelativeSource TemplatedParent}` inside a nested `ItemsPanelTemplate` now binds to the
-`ItemsPresenter` rather than the outer template's target.
+is 9 files, +51 / -38.
+
+> **Corrected 2026-09-20 by the vendoring that shipped this (#23), and verified by reflection
+> against 12.1.2.** Three claims in the paragraph above were wrong.
+>
+> **No capability is lost.** `Gestures` did go internal, but the event moved:
+> `PointerTouchPadGestureMagnifyEvent` is public on `InputElement`, so touchpad pinch-zoom works.
+> `IHostedVisualTreeRoot` is internal, but `PopupRoot.Parent` and `PopupRoot.ParentTopLevel` are
+> both public and are what Avalonia's own `Host` getter reads, so the popup hop is reproducible;
+> the fork does it as `RoutedCommand.PopupHostOf`. **That one carries a maintenance cost the
+> documented loss would not**: it re-implements an internal, so it can rot silently, and its
+> comment says to re-read Avalonia's `PopupRoot.cs` on every major bump.
+>
+> **The `ItemsPanelTemplate` shift is not an Avalonia 12 change.** Pristine `v6.6.0` produces the
+> same six `AVLN2000` errors against 11.3.12 and none against 11.1.0, upstream's own pin, so it
+> arrived in the 11.2/11.3 line. The hazard is unchanged and is the R15 one: upstream's spelling
+> parses and then fails at XAML load, so re-applying an upstream revision of `Minimap.xaml` or
+> `NodifyEditor.xaml` compiles and breaks at runtime.
+>
+> **The theme count is 19 type-keyed plus 3 named, not eleven**, and `Theme.axaml` carries
+> separate Light and Dark dictionaries, so a break in one is invisible from the other. The guard
+> test asserts both variants.
 
 **Browser: capability proven, rendering not.** On the real `browser-wasm` mono runtime the stock
 package fails with the same typeref error; the fork loads, initialises the application with the
@@ -799,10 +816,18 @@ rest and take the un-fork second; the fence stays standing one release longer an
    Nodify, so it tracks the thing the API is documented against, and a fork of it re-merges from
    upstream rather than diverging permanently.
    **The cost is real and is accepted, not overlooked.** `v6.6.0` is the tip of upstream's
-   `avalonia_port` branch with no Avalonia 12 tag, so this means MAINTAINING a fork: 9 files,
-   +51 / -38, two capabilities lost outright (touchpad pinch-zoom and the popup hop in command
-   routing, both because the APIs went internal), and one semantic shift that recurs on every
-   upstream merge (R15). Re-evaluate if upstream tags an Avalonia 12 release.
+   `avalonia_port` branch with no Avalonia 12 tag, so this means MAINTAINING a fork, and one
+   semantic shift recurs on every upstream merge (R15). Re-evaluate if upstream tags an
+   Avalonia 12 release.
+   **Amended 2026-09-20 once it shipped (#23).** This decision was written expecting two
+   capabilities to be lost outright. Neither is: both were recovered, and §6.5 records how.
+   What the fork costs instead is `RoutedCommand.PopupHostOf`, which re-implements an
+   internal Avalonia behaviour from public members. It works and is tested, and unlike a
+   documented loss it can rot silently on an Avalonia bump. **Keeping it is a live choice:**
+   the alternative is deleting it and taking the popup-hop loss the original decision
+   assumed. The measured size is also larger than predicted, 10 files and +127 / -59 against
+   9 files and +51 / -38, though roughly 40 of those lines are the provenance headers that
+   make an upstream re-merge possible at all.
 
 ---
 
