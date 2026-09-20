@@ -34,6 +34,7 @@ public static class BaselineRunner
         (IReadOnlyList<IGraphNode> Nodes, IReadOnlyList<IGraphEdge> Edges, IReadOnlyList<INodeGroup> Groups, IReadOnlyList<INodeTable> Tables) multiTable = StressTestGraphs.BuildMultiTableStack();
         (IReadOnlyList<IGraphNode> Nodes, IReadOnlyList<IGraphEdge> Edges, IReadOnlyList<INodeGroup> Groups) hub = StressTestGraphs.BuildHighDegreeHub();
         (IReadOnlyList<IGraphNode> Nodes, IReadOnlyList<IGraphEdge> Edges, IReadOnlyList<INodeGroup> Groups, IReadOnlyList<INodeTable> Tables) big = StressTestGraphs.BuildBigStandard();
+        (IReadOnlyList<IGraphNode> Nodes, IReadOnlyList<IGraphEdge> Edges, IReadOnlyList<INodeGroup> Groups) shipped = StressTestGraphs.BuildShippedScale();
 
         return
         [
@@ -49,7 +50,8 @@ public static class BaselineRunner
             new Fixture("DisconnectedComponents", disconnected.Nodes, disconnected.Edges, disconnected.Groups, null),
             new Fixture("MultiTableStack", multiTable.Nodes, multiTable.Edges, multiTable.Groups, multiTable.Tables),
             new Fixture("HighDegreeHub", hub.Nodes, hub.Edges, hub.Groups, null),
-            new Fixture("BigStandard", big.Nodes, big.Edges, big.Groups, big.Tables)
+            new Fixture("BigStandard", big.Nodes, big.Edges, big.Groups, big.Tables),
+            new Fixture("ShippedScale", shipped.Nodes, shipped.Edges, shipped.Groups, null)
         ];
     }
 
