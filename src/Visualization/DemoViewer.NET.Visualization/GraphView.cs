@@ -127,7 +127,7 @@ public sealed class GraphView : Control
         GraphRenderer.DrawGroups(context, layout, style, scale, ToScreen);
         GraphRenderer.DrawNodeBackgrounds(context, vm.Nodes, layout, style, scale, ToScreen);
         GraphRenderer.DrawEdges(context, vm.Edges, layout, style, scale, ToScreen, _revealedEdge);
-        GraphRenderer.DrawSelfLoops(context, vm.Edges, layout, style, scale, ToScreen, _revealedEdge);
+        GraphRenderer.DrawSelfLoops(context, vm.Edges, layout, style, scale, ToScreen);
 
         if (vm.Tables is not null)
         {
@@ -189,8 +189,8 @@ public sealed class GraphView : Control
     }
 
     /// <summary>
-    ///     Returns the edge whose placed label rect contains <paramref name="screen" /> AND carries a
-    ///     condition, or <c>null</c>. This is the hover target that expands a collapsed predicate: a
+    ///     Returns the edge whose placed label rect contains <paramref name="screen" /> AND has a
+    ///     predicate the label is hiding, or <c>null</c>. This is the hover target: a
     ///     label rect test rather than a route-distance test, because the chip is the affordance and a
     ///     rect containment check stays cheap on the 474-edge shipped graph.
     /// </summary>
@@ -207,7 +207,10 @@ public sealed class GraphView : Control
 
         foreach (IGraphEdge edge in vm.Edges)
         {
-            if (!edge.IsVisible || edge.ConditionLabel is null or "")
+            // Only an edge that IS collapsed has anything to reveal. A short predicate already
+            // reads in full on the edge, and arming a hover that redraws the same text on top of
+            // itself is an affordance that does nothing.
+            if (!edge.IsVisible || !EdgeLabelText.IsCollapsed(edge))
             {
                 continue;
             }

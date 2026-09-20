@@ -76,6 +76,10 @@ internal static class EdgeLabelText
 
     internal static bool HasCondition(IGraphEdge edge) => !string.IsNullOrEmpty(edge.ConditionLabel);
 
+    /// <summary>Whether this edge's predicate is actually hidden behind a chip, so a reveal has work to do.</summary>
+    internal static bool IsCollapsed(IGraphEdge edge) =>
+        HasCondition(edge) && Expanded(edge).Length > InlineBudget;
+
     /// <summary>Width of the collapsed label rect, in logical units.</summary>
     internal static double Width(IGraphEdge edge) => Collapsed(edge).Length * CharWidth;
 }

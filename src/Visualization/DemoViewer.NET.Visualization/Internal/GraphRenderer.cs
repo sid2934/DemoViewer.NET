@@ -362,10 +362,15 @@ internal static class GraphRenderer
         }
     }
 
-    /// <summary>Draws self-loops. <paramref name="revealed" /> as in <see cref="DrawEdges" />.</summary>
+    /// <summary>
+    ///     Draws self-loops. Their labels are NOT chipped: the placement pass skips self-loops, so a
+    ///     loop label has no placed rect, nothing to hover, and therefore no way back to a collapsed
+    ///     predicate. Chipping here would hide the condition permanently. It costs nothing in layout
+    ///     either, since a loop label was never in the layout to begin with.
+    /// </summary>
     internal static void DrawSelfLoops(DrawingContext dc,
         IReadOnlyList<IGraphEdge> edges, LayoutResult layout, GraphStyle style,
-        double scale, Func<double, double, Point> toScreen, IGraphEdge? revealed = null)
+        double scale, Func<double, double, Point> toScreen)
     {
         EdgeStyleConfig es = style.Edge;
 
@@ -419,9 +424,7 @@ internal static class GraphRenderer
                 DrawBreakpointDisc(dc, toScreen(mid.X, mid.Y), scale, edge.HasConditionalBreakpoint);
             }
 
-            string label = ReferenceEquals(edge, revealed)
-                ? EdgeLabelText.Expanded(edge)
-                : EdgeLabelText.Collapsed(edge);
+            string label = EdgeLabelText.Expanded(edge);
             if (label.Length > 0)
             {
                 double mx = (p0.X + p3.X) / 2;
