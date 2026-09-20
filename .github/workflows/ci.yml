@@ -276,6 +276,16 @@ jobs:
       - name: Visualization suite (full tier)
         run: bash scripts/test.sh -t full -p visualization
 
+      # The round-trip gate on the node editor (docs/rule-graph/design.md §9 decision 4). It reads
+      # the real rules/ directory rather than a copied fixture, so a shipped ruleset that starts
+      # using a construct the writer cannot splice turns this lane red rather than going unnoticed.
+      #
+      # That only covers constructs the corpus actually contains. The ones it does not (anchors,
+      # aliases, merge keys, tags, block scalars) are held by HostileYamlTests in the same suite,
+      # which is where a construct that would parse but mean something different is caught.
+      - name: RuleAuthoring suite (full tier)
+        run: bash scripts/test.sh -t full -p ruleauthoring
+
       - name: DemoTrimmer suite (full tier)
         run: bash scripts/test.sh -t full -p trimmer
 
