@@ -97,6 +97,11 @@ jobs:
             || { echo "Avalonia.Controls.ColorPicker did not ship, App.Initialize will throw on the StyleInclude"; exit 1; }
           ls "$FW" | grep -q '^AvaloniaEdit\..*\.wasm$' \
             || { echo "AvaloniaEdit did not ship, App.Initialize will throw on the StyleInclude"; exit 1; }
+          # Merged into Application.Resources by App.axaml for the Rule Workbench's ruleset graph.
+          # Boot-critical in the strict sense: a ResourceInclude the loader cannot resolve throws out
+          # of Application.Initialize, and the head comes up black.
+          ls "$FW" | grep -q '^Nodify\..*\.wasm$' \
+            || { echo "Nodify did not ship, App.Initialize will throw on the ResourceInclude"; exit 1; }
           # NOT boot-critical in the strict sense above - the head boots without it and only throws
           # when something first draws an icon. Checked anyway, and separately, because this is the
           # one head nothing in CI executes: the icons are EMBEDDED in this assembly (the Browser has

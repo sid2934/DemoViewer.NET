@@ -5,6 +5,7 @@
              xmlns:ae="using:AvaloniaEdit"
              xmlns:vm="using:DemoViewer.NET.Modules.RuleWorkbench"
              xmlns:viz="using:DemoViewer.NET.Visualization"
+             xmlns:nodify="using:Nodify"
              mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="650"
              x:Class="DemoViewer.NET.Views.RuleWorkbench.RuleWorkbenchView"
              x:DataType="vm:RuleWorkbenchTabViewModel">
@@ -279,8 +280,52 @@
                 <DockPanel Margin="4">
                     <TextBlock DockPanel.Dock="Top" Text="{Binding GraphSummary}"
                                FontWeight="SemiBold" Opacity="0.7" Margin="2,2,2,6" />
-                    <viz:GraphView ViewModel="{Binding GraphViewModel}"
-                                   ClipToBounds="True" MinHeight="300" />
+                    <!-- The open ruleset drawn as real node controls (design.md §6.4 item 3),
+                         positioned by MSAGL rather than by nodify, which has no layout of its own
+                         and whose own maintainer recommends MSAGL for exactly this.
+
+                         READ-ONLY, and that is enforced here rather than trusted: dragging,
+                         selection and cutting are all off, so there is no gesture that can change
+                         the graph. Editing is §6.4 items 4 and 5 and is not started. Panning and
+                         zooming stay on, because they are how a 400-node graph is read at all. -->
+                    <nodify:NodifyEditor ItemsSource="{Binding RulesetNodes}"
+                                         Connections="{Binding RulesetConnections}"
+                                         DisableZooming="False" DisablePanning="False"
+                                         EnableRealtimeSelection="False"
+                                         CanSelectMultipleItems="False"
+                                         ClipToBounds="True" MinHeight="300">
+                        <nodify:NodifyEditor.ItemContainerTheme>
+                            <ControlTheme TargetType="nodify:ItemContainer"
+                                          BasedOn="{StaticResource {x:Type nodify:ItemContainer}}"
+                                          x:DataType="vm:RulesetGraphNode">
+                                <Setter Property="Location" Value="{Binding Location}" />
+                                <Setter Property="IsDraggable" Value="False" />
+                                <Setter Property="IsSelectable" Value="False" />
+                            </ControlTheme>
+                        </nodify:NodifyEditor.ItemContainerTheme>
+                        <nodify:NodifyEditor.ItemTemplate>
+                            <DataTemplate x:DataType="vm:RulesetGraphNode">
+                                <nodify:Node Header="{Binding Title}" Width="180">
+                                    <StackPanel Spacing="1">
+                                        <TextBlock Text="{Binding Subtitle}"
+                                                   IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                                   FontSize="10" Opacity="0.75"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Value}"
+                                                   IsVisible="{Binding Value, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                                   FontSize="10" FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </nodify:Node>
+                            </DataTemplate>
+                        </nodify:NodifyEditor.ItemTemplate>
+                        <nodify:NodifyEditor.ConnectionTemplate>
+                            <DataTemplate x:DataType="vm:RulesetGraphConnection">
+                                <nodify:Connection Source="{Binding Source}" Target="{Binding Target}"
+                                                   Text="{Binding Label}" />
+                            </DataTemplate>
+                        </nodify:NodifyEditor.ConnectionTemplate>
+                    </nodify:NodifyEditor>
                 </DockPanel>
             </Border>
 
