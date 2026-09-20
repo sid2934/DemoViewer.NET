@@ -136,6 +136,32 @@ public sealed class GraphBreakpointStoreTests
     }
 
     [Test]
+    public async Task APerPlayerKeyWrittenBeforeTheOccurrenceCounter_LoadsAndStillResolves()
+    {
+        // The second identity change, and it needs no file at all. Giving a per-player key an
+        // occurrence could have orphaned every breakpoint in GraphBreakpoints.v2.json; instead the
+        // occurrence is omitted at zero, so what earlier builds wrote IS the first copy's form. The
+        // carry is therefore the absence of a rewrite, and this is what says so.
+        using ConfigDir dir = new();
+        File.WriteAllText(
+            AppPaths.GraphBreakpointsFile!,
+            """
+            {"demo-f":[{"TargetKind":"Node","NodeKey":"p0:7:wallbang_kills","EdgeSourceKey":null,
+              "EdgeDestKey":null,"EdgeLabel":null,"EdgeConditionLabel":null,
+              "Condition":"value > 1","Enabled":true}]}
+            """);
+
+        PersistedGraphBreakpoint bp = new GraphBreakpointStore().Load("demo-f").Single();
+
+        await Assert.That(bp.Condition).IsEqualTo("value > 1")
+            .Because("the hand-authored condition is the expensive part of a breakpoint");
+        await Assert.That(GraphNodeKey.TryParse(bp.NodeKey, out GraphNodeKey parsed)).IsTrue();
+        await Assert.That(parsed).IsEqualTo(GraphNodeKey.ForPlayer(0, 7, 0, "wallbang_kills"))
+            .Because("an un-suffixed per-player key is the first copy, which is one of the two the "
+                     + "same string used to match at once");
+    }
+
+    [Test]
     public async Task Merge_ReplacesOneDemo_AndLeavesEveryOtherAlone()
     {
         Dictionary<string, List<PersistedGraphBreakpoint>> existing = new(StringComparer.Ordinal)

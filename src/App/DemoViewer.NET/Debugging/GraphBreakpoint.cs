@@ -137,11 +137,27 @@ public sealed partial class GraphBreakpoint : ObservableObject
         && EdgeConditionLabel == edge.ConditionLabel;
 
     // A key's display form. The wire key carries a scope prefix the user never typed, so the list
-    // shows the readable tail plus the slot rather than the raw "p0:7:Alive".
-    private static string Label(string? key) =>
-        GraphNodeKey.TryParse(key, out GraphNodeKey parsed)
-            ? parsed.IsPerPlayer
-                ? $"{parsed.Name} (slot {parsed.PlayerSlot.ToString(System.Globalization.CultureInfo.InvariantCulture)})"
-                : parsed.Name
-            : key ?? "(node)";
+    // shows the readable tail plus the slot rather than the raw "p0:7:Alive". The copy number appears
+    // only when there is more than one copy to tell apart, which is two names on the shipped corpus.
+    private static string Label(string? key)
+    {
+        if (!GraphNodeKey.TryParse(key, out GraphNodeKey parsed))
+        {
+            return key ?? "(node)";
+        }
+
+        if (!parsed.IsPerPlayer)
+        {
+            return parsed.Name;
+        }
+
+        string slot = parsed.PlayerSlot.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (parsed.Occurrence <= 0)
+        {
+            return $"{parsed.Name} (slot {slot})";
+        }
+
+        string copy = (parsed.Occurrence + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return $"{parsed.Name} (slot {slot}, copy {copy})";
+    }
 }
