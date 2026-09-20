@@ -4,7 +4,7 @@
 [#16](https://github.com/sid2934/DemoViewer.NET/pull/16) (§3 records what shipped),
 [#19](https://github.com/sid2934/DemoViewer.NET/pull/19) and
 [#20](https://github.com/sid2934/DemoViewer.NET/pull/20) (§5 records what shipped). **The node
-editor is next, and it is blocked on §9 decisions 4 and 5.**
+editor is next and is now UNBLOCKED: §9 decisions 4, 5 and 7 were taken 2026-09-20.**
 Written 2026-09-17 against `main` at `0eebe12` with CS2DemoKit pinned to 0.11.0; **refreshed
 2026-09-19 against `main` at `d985dbe`, CS2DemoKit pinned to 0.12.0**
 ([#17](https://github.com/sid2934/DemoViewer.NET/pull/17)); **readability pass recorded 2026-09-20**. Sections 1 and 2 diagnose a defect that
@@ -774,18 +774,35 @@ rest and take the un-fork second; the fence stays standing one release longer an
    second chance.
 3. ~~**Delete or gate** the three dead features~~ **Resolved 2026-09-17: delete.** The UI and the
    code paths go, leaving a comment naming CS2DemoKit#50 so the reason survives the deletion.
-4. **YAML round-trip fidelity** in the editable model: preserve comments and key order (expensive, needs a
-   CST-preserving writer), or regenerate and tell the user? This is the gate on the whole editor.
-5. Is the node editor wanted **in the browser**, or desktop only? It changes how much the nodify spike
-   has to prove, and it is the main thing riding on Avalonia 12's WASM story.
-   **Still open, but cheaper to answer than it was.** The spike proved the capability half on the
-   real `browser-wasm` runtime: with the vendored fork, types load, the theme merges, all eleven
-   `ControlTheme`s resolve, and 60 nodes realise with templates applied (§6.5). What is unproven is
-   rendering through the browser canvas backend and frame rate. So "yes" is no longer a gamble on
-   whether it CAN work; it is a call about whether the browser head is worth the surface.
+4. ~~**YAML round-trip fidelity** in the editable model~~ **Resolved 2026-09-20: preserve comments
+   and key order.** The expensive option, taken deliberately. A ruleset is hand-authored and its
+   comments carry the reasoning; regenerating would silently discard an author's notes the first
+   time they opened a file in the editor, which is the same class of loss decision 2 reversed
+   itself over. The editable model therefore needs a CST-preserving writer, and that writer is
+   the first thing built rather than something retrofitted: §6.1 already names the round-trip as
+   the blocking problem, and a model that cannot round-trip cannot be given one later without
+   rewriting everything above it.
+5. ~~Is the node editor wanted **in the browser**, or desktop only?~~ **Resolved 2026-09-20:
+   preserve browser support if it is reachable; otherwise file it and ship desktop.** The spike
+   proved the capability half on the real `browser-wasm` runtime (§6.5): with the vendored fork,
+   types load, the theme merges, all eleven `ControlTheme`s resolve, and 60 nodes realise with
+   templates applied. What is unproven is rendering through the browser canvas backend, DOM
+   input and frame rate. So browser is the target, and the escape hatch is explicit: if making
+   it work costs more than the desktop editor itself, open an issue and ship desktop first
+   rather than holding the editor behind it.
 6. ~~**Does stream V happen at all**~~ **Resolved 2026-09-17: yes.** Not for anything in this
    document, but because SkiaSharp 3 is wanted on its own merits, AssetBaker being the clearest case
    (§7.0). The open sub-question is only whether **un-forking AssetBaker** rides along or follows.
+7. ~~**Which nodify port**~~ **Resolved 2026-09-20: BAndysc's `NodifyAvalonia`, vendored.** Not
+   trrahul's `Nodify.Avalonia`, though that one installs on Avalonia 12 today and this one does
+   not (§6.5). The reason is convergence rather than cost: BAndysc's is a direct port of upstream
+   Nodify, so it tracks the thing the API is documented against, and a fork of it re-merges from
+   upstream rather than diverging permanently.
+   **The cost is real and is accepted, not overlooked.** `v6.6.0` is the tip of upstream's
+   `avalonia_port` branch with no Avalonia 12 tag, so this means MAINTAINING a fork: 9 files,
+   +51 / -38, two capabilities lost outright (touchpad pinch-zoom and the popup hop in command
+   routing, both because the APIs went internal), and one semantic shift that recurs on every
+   upstream merge (R15). Re-evaluate if upstream tags an Avalonia 12 release.
 
 ---
 
@@ -795,11 +812,10 @@ Four streams, three PRs before any editor work: **the graph fix, then the versio
 readability pass, then the node editor.**
 
 > **Where this stands (2026-09-20).** Three of the four streams are merged: the graph fix (#16),
-> the version bump (#19) and the readability pass (#20). **The node editor is all that is left, and
-> it cannot start**: §9 decision 4 (YAML round-trip fidelity) is called the gate on the whole editor
-> and decision 5 (browser or desktop only) sets what the spike has to prove. Both are product
-> decisions and both are open. The nodify spike in §6.4 is the one piece that was runnable, and R11
-> is answered in §6.5.
+> the version bump (#19) and the readability pass (#20). **The node editor is the only one left, and
+> it is unblocked.** §9 decisions 4, 5 and 7 were taken on 2026-09-20: preserve comments and key
+> order, target the browser with an explicit escape hatch, and vendor BAndysc's `NodifyAvalonia`.
+> §6.4 is the staging, and §6.1's round-trip is the first thing built rather than the last.
 
 **One of these orderings is a constraint and the rest are preferences.** Worth separating, because V
 now has drivers outside this document (§7.0) and may want to move:
