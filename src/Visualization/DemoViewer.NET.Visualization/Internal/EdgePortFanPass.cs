@@ -10,23 +10,28 @@ namespace DemoViewer.NET.Visualization.Internal;
 ///     Pass 2, the port fan. Spreads edge endpoints that MSAGL landed on the same point of the same
 ///     node, so parallel edges stop being drawn on top of each other.
 ///     <para>
-///         MSAGL routes an edge between two node SHAPES, not between ports, so two edges with the
-///         same endpoints get the same curve. The shipped Analysis graph has 88 such duplicates on
-///         one player: the root writes to one lifecycle node fourteen times on fourteen different
-///         events, and all fourteen arrows, arrowheads and labels land on one another. The
-///         <c>SharedPorts</c> gate counts exactly this, and it read 60 on the captured fixture.
+///         MSAGL routes between node SHAPES, not between ports, so two edges with the same endpoints
+///         get the same curve. The shipped Analysis graph has 88 such duplicates on one player: the
+///         root writes one lifecycle node fourteen times on fourteen different events, and all
+///         fourteen lines, arrowheads and labels land on each other. The <c>SharedPorts</c> gate
+///         counts exactly this, and it read 60 on the captured fixture.
 ///     </para>
 ///     <para>
-///         Only a coincident anchor moves. An anchor MSAGL already placed on its own is left alone,
-///         because the high-degree nodes in this corpus are already spread and re-slotting them
-///         would trade a solved problem for a new one.
+///         Only a crowded anchor moves. One MSAGL already placed clear of its neighbours is left
+///         alone, because the high-degree nodes in this corpus are already spread and re-slotting
+///         them would trade a solved problem for a new one.
 ///     </para>
 ///     <para>
-///         A displaced anchor walks the node's whole PERIMETER rather than the one face it started
-///         on. A face does not always have the room: the busiest node in the shipped graph takes 134
-///         incident edges and its 56-unit side offers 56 whole-unit slots. The route stays
-///         rectilinear either way, because the elbow behind a moved anchor is inserted on the axis
-///         the new face is entered from.
+///         A displaced anchor slides along the face its edge already leaves from, and steps onto a
+///         further-out ring when that face is full. It stays on that face deliberately. An earlier
+///         cut walked the whole perimeter, and then 67 of the 143 anchors it moved on the shipped
+///         graph left from a face whose route had to cross the node box to reach the rest of itself.
+///         No gate can see that: <c>EdgeNodeIntersections</c> excludes an edge's own endpoints.
+///     </para>
+///     <para>
+///         The rebuilt route stays axis-aligned and stays clear of the box. A moved end turns twice,
+///         once a <see cref="Clearance" /> off the face and once back onto the old route, so the
+///         detour sits in the routing channel the edge was already using.
 ///     </para>
 /// </summary>
 internal static class EdgePortFanPass
@@ -45,17 +50,25 @@ internal static class EdgePortFanPass
     // separation that survives the gate's rounding, including its banker's-rounding ties.
     private const double MinGap = 1.5;
 
-    // How far out each successive ring sits, and how many there are. A node face holds
-    // width/MinGap anchors; past that the overflow steps off the box rather than walking round to a
-    // face that points the wrong way, because a detour around the node costs far more crossings than
-    // a line that starts a few units short of it. The busiest node in the shipped graph takes 195
-    // outgoing edges against a 180-unit face, so two rings of headroom is what this is sized for.
+    // How far out each successive ring sits, and how many there are. A face holds faceLength/MinGap
+    // anchors per ring, so a 180-unit face over six rings is 720 slots, far more headroom than the
+    // busiest node in this corpus needs.
     private const double RingStep = 3;
     private const int Rings = 6;
 
+    // Keeps the outermost anchor inside its face rather than on a corner.
+    private const double FaceMargin = 4;
+
+    // How far off the face a moved end turns. Matches the default EdgeRoutingPadding, which is where
+    // MSAGL already puts the first bend, and it doubles as a floor on the length of the segment
+    // carrying the arrowhead, because ArrowRenderer draws nothing for a zero-length one.
+    private const double Clearance = 12;
+
     internal static void Run(LayoutContext ctx)
     {
-        // (edge, isSourceEnd) -> where its anchor moves to, and which face it lands on.
+        // (edge, isSourceEnd) -> where its anchor moves to and which face it lands on. The default
+        // comparer, matching ctx.EdgeRoutes, so a lookup here resolves for exactly the edge
+        // instances that dictionary resolves for.
         Dictionary<(IGraphEdge Edge, bool Source), Port> ports = new();
 
         Dictionary<IGraphNode, List<Endpoint>> incident = new(ReferenceEqualityComparer.Instance);
@@ -67,7 +80,7 @@ internal static class EdgePortFanPass
             order[ctx.Edges[i]] = i;
         }
 
-        void Note(IGraphNode node, IGraphEdge edge, bool source, Point anchor)
+        void Note(IGraphNode node, IGraphEdge edge, bool source, IReadOnlyList<Point> route)
         {
             if (!ctx.NodePositions.ContainsKey(node))
             {
@@ -79,8 +92,20 @@ internal static class EdgePortFanPass
                 incident[node] = list = [];
             }
 
-            list.Add(new Endpoint(edge, source, anchor, order[edge]));
+            Point anchor = source ? route[0] : route[^1];
+            Point neighbour = source ? route[1] : route[^2];
+            // Which face this end leaves from is decided by the route, not by which side of the rect
+            // the anchor is nearest. An anchor on a corner is nearest two of them, and picking the
+            // one the route does not travel puts the fan on the wrong axis.
+            bool horizontalFace = Math.Abs(neighbour.Y - anchor.Y) >= Math.Abs(neighbour.X - anchor.X);
+            list.Add(new Endpoint(edge, source, anchor, horizontalFace, order[edge]));
         }
+
+        // Two edges that compare EQUAL resolve to ONE entry in EdgeRoutes, because that dictionary
+        // and MSAGL's own use the default comparer while IGraphEdge is implemented by records in
+        // places. Nothing here can undo that collapse, but noting the shared route twice would make
+        // this pass see a coincidence that does not exist and move a route that had no collision.
+        HashSet<IReadOnlyList<Point>> noted = new(ReferenceEqualityComparer.Instance);
 
         foreach (IGraphEdge edge in ctx.Edges)
         {
@@ -94,8 +119,13 @@ internal static class EdgePortFanPass
                 continue;
             }
 
-            Note(edge.Source, edge, true, route[0]);
-            Note(edge.Destination, edge, false, route[^1]);
+            if (!noted.Add(route))
+            {
+                continue;
+            }
+
+            Note(edge.Source, edge, true, route);
+            Note(edge.Destination, edge, false, route);
         }
 
         foreach ((IGraphNode node, List<Endpoint> ends) in incident)
@@ -150,11 +180,18 @@ internal static class EdgePortFanPass
                 continue;
             }
 
-            if (TryPlace(rect, e.Anchor, occupied, out Port port))
+            if (TryPlace(rect, e, occupied, out Port port))
             {
                 ports[(e.Edge, e.Source)] = port;
                 occupied.Add(port.Anchor);
+                continue;
             }
+
+            // Nowhere on the face to go. The anchor keeps its contested spot, and it still counts as
+            // occupied: leaving it out would let the next endpoint read the spot as free and pile a
+            // third one on. This surfaces as a SharedPorts gate failure with nothing naming this
+            // pass, so it is the thing to look at first if that gate goes red on a new graph.
+            occupied.Add(e.Anchor);
         }
     }
 
@@ -171,26 +208,48 @@ internal static class EdgePortFanPass
         return true;
     }
 
-    private static bool TryPlace(Rect rect, Point anchor, List<Point> occupied, out Port port)
+    // Slides along the face the edge leaves from, alternating sides, widest spacing first, stepping
+    // to a further-out ring when the face is full.
+    private static bool TryPlace(Rect rect, Endpoint end, List<Point> occupied, out Port port)
     {
-        double perimeter = 2 * (rect.Width + rect.Height);
-        double origin = Parameterise(anchor, rect);
+        bool horizontal = end.HorizontalFace;
+        double min = (horizontal ? rect.Left : rect.Top) + FaceMargin;
+        double max = (horizontal ? rect.Right : rect.Bottom) - FaceMargin;
+        double origin = horizontal ? end.Anchor.X : end.Anchor.Y;
+
+        // Which of the two faces on that axis, and which way is away from the node, read off where
+        // the anchor already is rather than assumed.
+        bool low = horizontal
+            ? end.Anchor.Y <= rect.Top + rect.Height / 2
+            : end.Anchor.X <= rect.Left + rect.Width / 2;
+        double face = horizontal
+            ? low ? rect.Top : rect.Bottom
+            : low ? rect.Left : rect.Right;
+        double outward = low ? -1 : 1;
 
         for (int ring = 0; ring < Rings; ring++)
         {
+            double perpendicular = face + outward * ring * RingStep;
             foreach (double step in _stepLadder)
             {
-                int span = (int)(perimeter / step);
+                int span = (int)((max - min) / step) + 1;
+
+                // Ring 0 skips offset 0, which is the contested spot the anchor is being moved off.
                 for (int i = ring == 0 ? 1 : 0; i <= span; i++)
                 {
                     for (int sign = -1; sign <= 1; sign += 2)
                     {
-                        Point moved = Locate(origin + sign * i * step, rect, out bool horizontal);
-                        moved = Outset(moved, rect, ring * RingStep, horizontal);
-                        if (IsFree(moved, occupied))
+                        double along = origin + sign * i * step;
+                        if (along >= min && along <= max)
                         {
-                            port = new Port(moved, horizontal);
-                            return true;
+                            Point moved = horizontal
+                                ? new Point(along, perpendicular)
+                                : new Point(perpendicular, along);
+                            if (IsFree(moved, occupied))
+                            {
+                                port = new Port(moved, horizontal, outward);
+                                return true;
+                            }
                         }
 
                         if (i == 0)
@@ -206,112 +265,70 @@ internal static class EdgePortFanPass
         return false;
     }
 
-    // Pushes a boundary point off the node along the face normal. The edge then starts (or ends) a
-    // few units short of the box, which at the zooms this graph is read at is the width of the node
-    // border.
-    private static Point Outset(Point p, Rect rect, double distance, bool horizontalFace)
-    {
-        if (distance <= 0)
-        {
-            return p;
-        }
-
-        if (horizontalFace)
-        {
-            return new Point(p.X, p.Y <= rect.Top + rect.Height / 2 ? p.Y - distance : p.Y + distance);
-        }
-
-        return new Point(p.X <= rect.Left + rect.Width / 2 ? p.X - distance : p.X + distance, p.Y);
-    }
-
-    // Boundary point to distance travelled clockwise from the top-left corner.
-    private static double Parameterise(Point p, Rect rect)
-    {
-        double w = rect.Width, h = rect.Height;
-        double toTop = Math.Abs(p.Y - rect.Top), toBottom = Math.Abs(p.Y - rect.Bottom);
-        double toLeft = Math.Abs(p.X - rect.Left), toRight = Math.Abs(p.X - rect.Right);
-        double nearest = Math.Min(Math.Min(toTop, toBottom), Math.Min(toLeft, toRight));
-
-        if (nearest == toTop)
-        {
-            return Math.Clamp(p.X - rect.Left, 0, w);
-        }
-
-        if (nearest == toRight)
-        {
-            return w + Math.Clamp(p.Y - rect.Top, 0, h);
-        }
-
-        if (nearest == toBottom)
-        {
-            return w + h + Math.Clamp(rect.Right - p.X, 0, w);
-        }
-
-        return 2 * w + h + Math.Clamp(rect.Bottom - p.Y, 0, h);
-    }
-
-    // The inverse, plus which kind of face the result landed on: a horizontal face is entered
-    // vertically and a vertical face horizontally, which is what keeps the re-elbowed route
-    // axis-aligned.
-    private static Point Locate(double t, Rect rect, out bool horizontalFace)
-    {
-        double w = rect.Width, h = rect.Height;
-        double perimeter = 2 * (w + h);
-        t -= Math.Floor(t / perimeter) * perimeter;
-
-        if (t < w)
-        {
-            horizontalFace = true;
-            return new Point(rect.Left + t, rect.Top);
-        }
-
-        if (t < w + h)
-        {
-            horizontalFace = false;
-            return new Point(rect.Right, rect.Top + (t - w));
-        }
-
-        if (t < 2 * w + h)
-        {
-            horizontalFace = true;
-            return new Point(rect.Right - (t - w - h), rect.Bottom);
-        }
-
-        horizontalFace = false;
-        return new Point(rect.Left, rect.Bottom - (t - 2 * w - h));
-    }
-
-    // Moves one end of the route to its new port and re-elbows the segment behind it so the polyline
-    // stays axis-aligned. With only two points there is no interior vertex to bend, so a pair of
-    // waypoints at the midpoint of the run take that job; bending at the neighbour instead would put
-    // the turn flush against the far node's face.
+    // Moves one end of the route to its new port and rebuilds the two segments behind it, so the
+    // polyline stays axis-aligned and stays clear of the node box.
     private static void Slide(List<Point> points, Port port, bool head)
     {
         int end = head ? 0 : points.Count - 1;
         int next = head ? 1 : points.Count - 2;
         Point moved = port.Anchor;
+        Point neighbour = points[next];
 
-        if (points.Count == 2)
+        Point a, b;
+        if (port.HorizontalFace)
         {
-            Point other = points[next];
-            double midX = (moved.X + other.X) / 2, midY = (moved.Y + other.Y) / 2;
-            Point a = port.HorizontalFace ? new Point(moved.X, midY) : new Point(midX, moved.Y);
-            Point b = port.HorizontalFace ? new Point(other.X, midY) : new Point(midX, other.Y);
-            points.Clear();
-            points.AddRange(head ? [moved, a, b, other] : new[] { other, b, a, moved });
+            double turn = port.Outward < 0
+                ? Math.Min(neighbour.Y, moved.Y - Clearance)
+                : Math.Max(neighbour.Y, moved.Y + Clearance);
+            a = new Point(moved.X, turn);
+            b = new Point(neighbour.X, turn);
+        }
+        else
+        {
+            double turn = port.Outward < 0
+                ? Math.Min(neighbour.X, moved.X - Clearance)
+                : Math.Max(neighbour.X, moved.X + Clearance);
+            a = new Point(turn, moved.Y);
+            b = new Point(turn, neighbour.Y);
+        }
+
+        points[end] = moved;
+
+        // One turn is enough whenever the two would coincide, which happens when the old route
+        // already bent at the height the new one turns at. Inserting the duplicate anyway is
+        // harmless to draw and noisy to read back out of the route.
+        List<Point> turns = [a];
+        if (!Same(a, b))
+        {
+            turns.Add(b);
+        }
+
+        if (Same(turns[^1], neighbour))
+        {
+            turns.RemoveAt(turns.Count - 1);
+        }
+
+        if (turns.Count == 0)
+        {
             return;
         }
 
-        Point neighbour = points[next];
-        Point elbow = port.HorizontalFace
-            ? new Point(moved.X, neighbour.Y)
-            : new Point(neighbour.X, moved.Y);
-
-        points[end] = moved;
-        points.Insert(head ? 1 : points.Count - 1, elbow);
+        if (head)
+        {
+            points.InsertRange(1, turns);
+        }
+        else
+        {
+            turns.Reverse();
+            points.InsertRange(points.Count - 1, turns);
+        }
     }
 
-    private readonly record struct Endpoint(IGraphEdge Edge, bool Source, Point Anchor, int Order);
+    private static bool Same(Point a, Point b) =>
+        Math.Abs(a.X - b.X) < 1e-9 && Math.Abs(a.Y - b.Y) < 1e-9;
 
-    private readonly record struct Port(Point Anchor, bool HorizontalFace);
+    private readonly record struct Endpoint(
+        IGraphEdge Edge, bool Source, Point Anchor, bool HorizontalFace, int Order);
+
+    private readonly record struct Port(Point Anchor, bool HorizontalFace, double Outward);
 }
