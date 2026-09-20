@@ -53,24 +53,54 @@ public static class ShippedScaleGraph
         List<bool> isPerPlayer = new();
         List<IGraphEdge> edges = new();
 
+        int lineNumber = 0;
         foreach (string line in ReadLines())
         {
+            lineNumber++;
             if (line.Length == 0 || line[0] == '#')
             {
                 continue;
             }
 
             string[] f = line.Split('\t');
+
+            // Every field is checked. BaselineRunner.BuildAll builds all fourteen fixtures eagerly,
+            // so a malformed row here fails every gate test rather than one, and an IndexOutOfRange
+            // from the middle of a parse loop says nothing about which row.
+            void Expect(int arity)
+            {
+                if (f.Length != arity)
+                {
+                    throw new InvalidOperationException(
+                        $"{ResourceName} line {lineNumber}: '{f[0]}' row wants {arity} fields, has {f.Length}");
+                }
+            }
+
+            int Index(string field, int max, int min = 0)
+            {
+                int v = int.Parse(field, CultureInfo.InvariantCulture);
+                if (v < min || v >= max)
+                {
+                    throw new InvalidOperationException(
+                        $"{ResourceName} line {lineNumber}: index {v} outside [{min}, {max})");
+                }
+
+                return v;
+            }
+
             switch (f[0])
             {
                 case "L":
+                    Expect(2);
                     labels.Add(f[1]);
                     break;
                 case "C":
+                    Expect(2);
                     conditions.Add(f[1]);
                     break;
                 case "N":
                 {
+                    Expect(5);
                     int flags = int.Parse(f[1], CultureInfo.InvariantCulture);
                     // Subtitle and display value are empty strings in the capture when the node had
                     // none; the interfaces want null, and the renderer draws the two differently.
@@ -88,16 +118,21 @@ public static class ShippedScaleGraph
 
                 case "E":
                 {
-                    int src = int.Parse(f[1], CultureInfo.InvariantCulture);
-                    int dst = int.Parse(f[2], CultureInfo.InvariantCulture);
-                    int effect = int.Parse(f[3], CultureInfo.InvariantCulture);
-                    int label = int.Parse(f[4], CultureInfo.InvariantCulture);
-                    int condition = int.Parse(f[5], CultureInfo.InvariantCulture);
+                    Expect(6);
+                    int src = Index(f[1], nodes.Count);
+                    int dst = Index(f[2], nodes.Count);
+                    int effect = Index(f[3], Enum.GetValues<VisualEdgeEffect>().Length);
+                    int label = Index(f[4], labels.Count);
+                    int condition = Index(f[5], conditions.Count, -1);
                     edges.Add(new SampleEdge(nodes[src], nodes[dst], labels[label],
                         (VisualEdgeEffect)effect,
                         condition >= 0 ? conditions[condition] : null));
                     break;
                 }
+
+                default:
+                    throw new InvalidOperationException(
+                        $"{ResourceName} line {lineNumber}: unknown row type '{f[0]}'");
             }
         }
 
