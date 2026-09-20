@@ -420,7 +420,12 @@ Inside the existing renderer, independent of nodify, and mostly unblocked by the
   **Done, as a chip.** `EdgeLabelText` is now the single definition of an edge label's text and
   width, shared by the placement pass, the renderer and the headless metric. A condition collapses
   to a three-character chip; hovering the chip spells the predicate out, drawn on top, with no
-  relayout. `WidestLabelOverNode` 15.00 to 1.00 and `LabelOverlaps` 13 to 0 on the real graph.
+  relayout. `WidestLabelOverNode` 15.00 to 1.00 and `LabelOverlaps` 13 to 0 on the real graph. A
+  predicate short enough to fit the budget stays on the edge: 92 of the 244 conditioned edges read
+  `rising edge`, `active` or `value >= 2`, and chipping those would hide the readable predicates in
+  order to bound the unreadable ones. A SELF-LOOP's predicate is never chipped, because
+  `LabelPlacementPass` skips self-loops, so a loop label has no placed rect and nothing to hover;
+  collapsing it would hide the condition with no way back.
   **One premise in the previous draft of this section was wrong**: labels never influenced node
   placement. `MsaglTranslator` hands MSAGL node boxes and nothing else, so the layout has never seen
   a character of label text. The predicate was not pushing the graph apart, it simply could not be
@@ -459,13 +464,18 @@ before any of the work above:
 | `SharedPorts` (gated at 0) | 0 | **60** | 0 |
 | `LabelOverlaps` (gated at 0) | 0 | **13** | 0 |
 | `WidestLabelOverNode` | 2.43 | 15.00 | 1.00 |
-| `EdgeCrossings` | 0 | 2 160 | 3 434 |
+| `EdgeCrossings` | 0 | 2 160 | 4 196 |
 | `TotalEdgeLength` | 85 123 | 2 087 054 | 1 489 056 |
 | Canvas | | 2151 x 34726 | 1901 x 24425 |
 
 `EdgeCrossings` rising is the honest price of the port fan: fourteen collinear arrows cross nothing
-because they are the same line, and separating them puts them in each other's way. It is not gated,
-and 3 434 is below the 4 621 the fan alone produced before the separations were re-tuned.
+because they are the same line, and separating them puts them in each other's way. It is not gated.
+Two of the three ways the fan was tried cost FEWER crossings and were rejected for correctness:
+letting a displaced anchor walk the whole node perimeter reaches 3 434, and redistributing a
+saturated node's anchors evenly around it reaches 8 997, but the first draws 67 of 143 moved edges
+straight through their own node box and the second sends a quarter of the root's edges out of the
+face pointing away from their destination. `EdgeNodeIntersections` sees neither, because it excludes
+an edge's own endpoints.
 
 **One identity defect found while capturing, and not fixed here.** `enemy_kills_round` and
 `wallbang_kills` each occur twice within a SINGLE player's 373 nodes, so
