@@ -24,6 +24,26 @@ public sealed class GraphViewModel : INotifyPropertyChanged
     /// <summary>Current layout result (used internally by GraphView).</summary>
     internal LayoutResult? CurrentLayout { get; private set; }
 
+    /// <summary>
+    ///     Where the layout put each node: the CENTRE of its box, in logical units. Empty until
+    ///     <see cref="IsLayoutComplete" /> is true, and replaced wholesale by each layout.
+    ///     <para>
+    ///         This is the one part of the layout result that is public, because a second renderer
+    ///         needs somewhere to put its nodes and MSAGL is what decides that (design.md §6.4). The
+    ///         rest of <c>LayoutResult</c> stays internal on purpose: routes, label rectangles, group
+    ///         bounds and table placements are the pipeline's working shape, not a contract, and the
+    ///         readability pass changed three of them in one PR. Widening them now would make the
+    ///         next such change a breaking one.
+    ///     </para>
+    ///     <para>
+    ///         Positions and nothing else is also all a node-based renderer wants: it draws its own
+    ///         connections between two node boxes rather than following a routed polyline, and it
+    ///         measures its own extent from the boxes.
+    ///     </para>
+    /// </summary>
+    public IReadOnlyDictionary<IGraphNode, GraphNodePlacement> NodePlacements { get; private set; }
+        = new Dictionary<IGraphNode, GraphNodePlacement>();
+
     internal IReadOnlyList<IGraphEdge> Edges { get; private set; } = [];
 
     /// <summary>True after layout computation completes.</summary>
@@ -87,7 +107,19 @@ public sealed class GraphViewModel : INotifyPropertyChanged
             LayoutPipeline.ComputeFullLayout(nodes, edges, groups, tables, style));
 
         CurrentLayout = layout;
+
+        Dictionary<IGraphNode, GraphNodePlacement> placements = new(layout.NodePositions.Count);
+        foreach ((IGraphNode node, NodePosition position) in layout.NodePositions)
+        {
+            placements[node] = new GraphNodePlacement(position.X, position.Y);
+        }
+
+        NodePlacements = placements;
+
+        // Placements before the flag, so anything that reacts to IsLayoutComplete reads the new
+        // positions rather than the previous layout's.
         IsLayoutComplete = true;
+        OnPropertyChanged(nameof(NodePlacements));
         OnPropertyChanged(nameof(CurrentLayout));
     }
 
