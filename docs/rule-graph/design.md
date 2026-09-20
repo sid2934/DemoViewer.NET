@@ -1,8 +1,13 @@
 # The rule graph: what it draws, what it should draw, and a node-based rule editor
 
-**Status: plan FINAL. The graph fix is IMPLEMENTED** on `fix/analysis-graph-materialized-nodes`
-(§3 records what shipped); the version bump, the readability pass and the node editor are not started. Written 2026-09-17 against `main` at `0eebe12`,
-CS2DemoKit pinned to **0.11.0**. Covers issue [#15](https://github.com/sid2934/DemoViewer.NET/issues/15)
+**Status: plan FINAL. The graph fix is MERGED** as
+[#16](https://github.com/sid2934/DemoViewer.NET/pull/16) (§3 records what shipped); the version
+bump, the readability pass and the node editor are not started, and **the version bump is next**.
+Written 2026-09-17 against `main` at `0eebe12` with CS2DemoKit pinned to 0.11.0; **refreshed
+2026-09-19 against `main` at `d985dbe`, CS2DemoKit pinned to 0.12.0**
+([#17](https://github.com/sid2934/DemoViewer.NET/pull/17)). Sections 1 and 2 diagnose a defect that
+is now fixed and are kept as the as-of record; where 0.12.0 moved something underneath them it is
+marked inline. Their `file:line` references are to the 2026-09-17 tree and have drifted. Covers issue [#15](https://github.com/sid2934/DemoViewer.NET/issues/15)
 (the Analysis graph draws scaffolding and no rules), [#4](https://github.com/sid2934/DemoViewer.NET/issues/4)
 (readability pass), [#3](https://github.com/sid2934/DemoViewer.NET/issues/3) (isolate a node's
 sub-chain), and the proposal to adopt `nodify-avalonia` as a renderer and as the base for a visual
@@ -22,21 +27,25 @@ Every count in this document was **measured**, not estimated. The probes are des
 
 ## 0. The three things a reader needs first
 
-**0.1 The issue's line numbers do not apply to this tree.** Issue #15 cites
-`feature/cs2demokit-0.12-streaming` at `9afd5235`. That branch does not exist on `origin`, and
-`git cat-file -t 9afd5235` fails. The issue also describes a 0.12.0 engine bump; **0.12.0 is not
-published** and nuget.org's latest CS2DemoKit is still 0.11.0. The engine's unreleased
-`work/forward-only` branch carries the `AnalysisRun.MaterializedNodes` / `.FinalNodes` names the
-issue uses, untagged and unmerged. Section 2 restates the defect against types that exist today.
+**0.1 ~~The issue's line numbers do not apply to this tree.~~ Resolved 2026-09-19.** When this was
+written, issue #15 cited `feature/cs2demokit-0.12-streaming` at `9afd5235`, a branch not on `origin`
+and a 0.12.0 engine that was not published. Both have since landed: 0.12.0 is on nuget.org and the
+app is pinned to it (#17), and `9afd5235` is in that PR's history as "put the bench on the forward
+path". The `AnalysisRun.MaterializedNodes` / `.FinalNodes` names the issue used are real at 0.12.0
+(§2). **None of this changed the fix**, which shipped against 0.11.0 and needed no engine bump: §0.2
+is why.
 
 **0.2 The fix does not need an engine bump.** `EvaluationResult.MaterializedPlayers[i].Nodes` and
-`.EdgeDescriptors` are fully populated in pinned 0.11.0. The join that issue #15 asks for is
+`.EdgeDescriptors` were fully populated in the then-pinned 0.11.0, and still are at 0.12.0. The join that issue #15 asks for is
 available now. What is **not** available at any version is `GroupHints`, `NodeChains` and `Chains`,
 which are dead in the engine ([CS2DemoKit#50](https://github.com/CS2OpenDev/CS2DemoKit/issues/50))
 and still dead on the unreleased branch.
 
 **0.3 The fix makes the graph 62x bigger, and breaks node identity.** Measured on
-`demos/pro/furia-vs-vitality-m1-mirage.dem` with the fifteen shipped rulesets:
+`demos/pro/furia-vs-vitality-m1-mirage.dem` with the fifteen shipped rulesets. **Re-verified on
+0.12.0 (2026-09-19)**: `AnalysisBench` on that demo prints `61 scaffolding nodes, 43 edges` and
+`434 nodes drawn (scaffolding + slot 1) | 3791 if every player expanded`, so the table below still
+holds exactly.
 
 | | nodes | edges |
 |---|---|---|
@@ -124,14 +133,18 @@ Confirmed against the engine source, not inferred:
   written**: per-player chain membership lives on `PerPlayerColumnAssignment.ChainId`, not on the
   node.
 
-`tools/AnalysisBench/Program.cs:401` and `:615-617` print `build.Nodes/Edges/Chains` as the graph
-size. That is the scaffolding count presented as the graph. `RuleWorkbenchGraphTests.cs:48-49`
-asserts `skeleton.Nodes.Count == build.Nodes.Count`, which is tautological against
-`RuleGraphSkeleton.Build`'s 1:1 mapping and cannot fail for the reason the test exists.
+~~`tools/AnalysisBench/Program.cs` prints `build.Nodes/Edges/Chains` as the graph size, which is the
+scaffolding count presented as the graph.~~ **Fixed.** #16 relabelled it `scaffolding nodes` and
+added a `Graph:` line carrying what is actually drawn; #17 moved both onto a shared `PrintGraphSize`
+so the retained and forward paths report identically.
+
+**Still open:** `RuleWorkbenchGraphTests` asserts `skeleton.Nodes.Count == build.Nodes.Count`, which
+is tautological against `RuleGraphSkeleton.Build`'s 1:1 mapping and cannot fail for the reason the
+test exists. Unchanged as of 2026-09-19.
 
 ---
 
-## 2. What the engine actually offers at 0.11.0
+## 2. What the engine actually offers (0.11.0 as written; 0.12.0 deltas marked)
 
 | Member | State |
 |---|---|
@@ -143,7 +156,8 @@ asserts `skeleton.Nodes.Count == build.Nodes.Count`, which is tautological again
 | `EvaluationResult.MaterializedPlayers` | populated, **10** |
 | `EvaluationResult.MaterializedEdgeDescriptors` | populated, **2 540**, zero references in this repo |
 | `MaterializedPlayer.Nodes` / `.EdgeDescriptors` / `.ColumnAssignments` | populated: **373 / 254 / 147** per player |
-| `AnalysisRun.MaterializedNodes` / `.FinalNodes` | **do not exist at 0.11.0**. Unreleased `work/forward-only` only |
+| `AnalysisRun.MaterializedNodes` / `.FinalNodes` | ~~do not exist at 0.11.0~~ **both exist at 0.12.0** (verified by reflection 2026-09-19), alongside `.Highlights`, `.Timeline` and `.Provenance` |
+| `BuildResult.NodeChains` / `.GroupHints` / `.Chains` **at 0.12.0** | **still dead.** A real 0.12.0 bench run on the reference demo still prints `0 chains`. CS2DemoKit#50 remains the blocker, so §9 decision 3 and issue #3's status are unchanged |
 
 Two facts shape every design below.
 
@@ -588,7 +602,7 @@ rest and take the un-fork second; the fence stays standing one release longer an
 | R4 | A future Avalonia 12 move strands us: BAndysc's port has not moved, trrahul's is 12-only | The two ports converge on that bump rather than diverging. Re-evaluate then, not now |
 | R5 | The YAML writer loses comments and key order on every save | Decide the position on the editable model first, before building on it. Round-trip preservation is a real cost |
 | R6 | Nodify has no virtualization, ever, by design | Keep it off the Analysis graph. That is §4.4 |
-| R7 | 0.12.0's roster change (discovery order, no row for a slot with no materialising event) reshuffles per-player identity | The identity key uses player **slot**, which that change does not move |
+| R7 | ~~0.12.0's roster change (discovery order, no row for a slot with no materialising event) reshuffles per-player identity~~ **Did not occur.** 0.12.0 was adopted in #17 and the slot-keyed identity held; the full App tier is green on it | Closed 2026-09-19 |
 | R8 | The engine never fills `GroupHints` / `NodeChains`, so deleting the dead features is permanent | CS2DemoKit#50 is open. Deleting is reversible; shipping dead filters is what costs |
 | R9 | A golden moves during the version bump and nothing says whether the platform or a feature did it | The bump carries no feature work and re-baselines once. This is why it is not folded into the readability pass |
 | R10 | The real compile-error count is far above what the probes suggest | The inventory step exists to find that out before anything depends on the bump's timing. The graph fix does not, by §10 |
@@ -630,6 +644,12 @@ rest and take the un-fork second; the fence stays standing one release longer an
 
 Four streams, three PRs before any editor work: **the graph fix, then the version bump, then the
 readability pass, then the node editor.**
+
+> **Where this stands (2026-09-19).** The graph fix is merged (#16). **The version bump is next**,
+> and its first step is the inventory in §7.4: build the solution against Avalonia 12.1.2 and
+> SkiaSharp 3.119.4 on a scratch branch and count compile errors by project. Nothing else in the
+> bump is schedulable until that number exists (R10). Decisions 4 and 5 in §9 are still open; both
+> gate the node editor only, so neither blocks the bump or the readability pass.
 
 **One of these orderings is a constraint and the rest are preferences.** Worth separating, because V
 now has drivers outside this document (§7.0) and may want to move:
@@ -679,7 +699,8 @@ to the readability pass is fixed.
 
 Two throwaway console projects in a session scratchpad, neither committed.
 
-- **Graph size** (§0.3, §2): references `CS2DemoKit.Parser` and `CS2DemoKit.Analysis` 0.11.0,
+- **Graph size** (§0.3, §2): references `CS2DemoKit.Parser` and `CS2DemoKit.Analysis` 0.11.0 as
+  first measured, re-verified at 0.12.0 on 2026-09-19 from `AnalysisBench` output directly,
   reproduces the wiring in `tools/AnalysisBench/RulesCheckCommand.cs:125-150`
   (`YamlConfigLoader.TryLoadDirectory` on `rules/`, `RuleChainBuilder`, `RulesetComposition.Compose`,
   `DemoAnalysis.Evaluate`) against `demos/pro/furia-vs-vitality-m1-mirage.dem`, then counts
