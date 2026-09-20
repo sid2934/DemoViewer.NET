@@ -483,6 +483,14 @@ an edge's own endpoints.
 §0.3 established that names collide ACROSS players and the key solved that; it does not solve a
 collision within one. That belongs to the graph fix's identity work, not to readability.
 
+**Fixed 2026-09-20.** Both names are declared by two rulesets at once, which
+`MaterializedPlayer.NodesByRuleId` shows as `highlights_multikill.enemy_kills_round` beside
+`kast.enemy_kills_round` and `highlights_aim.wallbang_kills` beside `kast.wallbang_kills`. The key
+gained an `Occurrence`, counted in `MaterializedPlayer.Nodes` order, which takes the reference
+demo's 3 791 nodes from 20 colliding keys to 0. It is omitted at zero in the wire form, so every
+per-player key already on disk is byte-for-byte the first copy's and resolves without a file
+rewrite.
+
 ---
 
 ## 6. The node editor
