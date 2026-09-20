@@ -157,19 +157,43 @@ public class ExportJobServiceTests
         await Assert.That(runner.Started).IsEqualTo(1);
     }
 
+    /// <summary>
+    ///     The gate is free by the time a terminal status can be read.
+    ///     <para>
+    ///         <b>No longer <c>[Category("Environmental")]</c>, and no longer a ~1-in-5 flake.</b> That tag
+    ///         means "depends on machine or OS state this repository does not own", and nothing here did.
+    ///         The wait was <c>!service.Status.IsRunning</c>, which <see cref="ExportJobStatus.Idle" />
+    ///         also satisfies, and <c>Start</c> hands the job to the thread pool:
+    ///         <c>ExportJobService</c> says in its own summary that <c>Status</c> stays <c>Idle</c> for a
+    ///         moment after <c>Start</c> returns. Under load the wait was therefore satisfied by the
+    ///         PRE-start status, and by the time the assertions ran the job had published
+    ///         <c>Preparing</c>. That is the failure, verbatim, under a four-batch partition.
+    ///     </para>
+    ///     <para>
+    ///         The predicate has to exclude <c>Idle</c> explicitly, not just name a phase: <c>Idle</c>
+    ///         carries <c>Phase == Completed</c> with <c>IsIdle</c> set, so waiting on the phase alone
+    ///         would return before the job started and every assertion below would then hold vacuously.
+    ///         "Not idle and not running" is the terminal status this test is about, and nothing but a
+    ///         published terminal status satisfies it.
+    ///     </para>
+    /// </summary>
     [Test]
-    // Asserts a cross-thread publish ordering that loses a race ~1 run in 5 under full-suite
-    // parallelism and passes 10/10 in isolation (P2 report; reproduced at the tiers merge).
-    // Environmental keeps it out of fast/standard; the App suite is not in CI, so no lane changes.
-    [Category("Environmental")]
     public async Task TheTerminalStatus_PublishesOnlyAfterTheGateIsReleased()
     {
         using HeavyJobGate gate = new();
         FakeRunner runner = new();
         ExportJobService service = new(runner, gate);
 
+        await Assert.That(service.Status.IsIdle).IsTrue()
+            .Because("the wait below is only meaningful if the pre-start status is the idle one");
+
         service.Start(Request());
-        await WaitUntil(() => !service.Status.IsRunning);
+        await WaitUntil(() => !service.Status.IsIdle && !service.Status.IsRunning);
+
+        // WaitUntil is bounded and returns either way, so a timeout is stated here rather than read off
+        // whichever assertion below happens to notice it first.
+        await Assert.That(service.Status.IsIdle).IsFalse()
+            .Because("a status still idle after the wait means the job never published anything");
 
         // Status is assigned before StatusChanged is raised, and the gate is released before Status is
         // assigned. So the instant a poller can SEE a terminal status, the machine must already be free:
