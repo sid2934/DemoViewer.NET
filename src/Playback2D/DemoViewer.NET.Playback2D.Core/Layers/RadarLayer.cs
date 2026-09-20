@@ -282,7 +282,14 @@ public sealed class RadarLayer : ISceneLayer
 
         surface.Canvas.Clear(SKColors.Transparent);
         SKRect intermediate = new(0, 0, width, height);
-        surface.Canvas.DrawImage(source, intermediate, SamplingFor(source, intermediate), _resample);
+
+        // Whole-pixel target, so an equal size here is a genuine 1:1 and copies. Unlike the
+        // fractional destination above, there is no sub-pixel offset for a filter to carry, and
+        // 2.88.9 short-circuited this case too.
+        SKSamplingOptions sampling = width == source.Width && height == source.Height
+            ? default
+            : SamplingFor(source, intermediate);
+        surface.Canvas.DrawImage(source, intermediate, sampling, _resample);
 
         if (surface.Snapshot() is not { } snapshot)
         {
