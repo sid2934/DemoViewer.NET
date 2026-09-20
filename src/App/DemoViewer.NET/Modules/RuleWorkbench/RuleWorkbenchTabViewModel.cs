@@ -209,8 +209,28 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     /// <summary>The MSAGL graph of the OPEN ruleset (demo-less, structural), reuses the shipped Visualization stack.</summary>
     public GraphViewModel GraphViewModel { get; } = new();
 
-    /// <summary>Graph rendering is desktop-only (MSAGL layout runs off-thread); the toggle hides on WASM.</summary>
+    /// <summary>
+    ///     Graph rendering is desktop-only (MSAGL layout runs off-thread); the toggle hides on WASM.
+    ///     <para>
+    ///         Unchanged by the move to a node-based renderer, and worth saying why, because the
+    ///         obvious guess is that nodify is what cannot run there. It is not: the vendored fork
+    ///         loads, themes and realizes controls on the real browser-wasm runtime (design.md §6.5),
+    ///         and the Browser head publishes with it. What this gate is about is MSAGL on a runtime
+    ///         with one thread. Issue #25 has what it would take to lift it.
+    ///     </para>
+    /// </summary>
     public bool GraphSupported { get; } = !OperatingSystem.IsBrowser();
+
+    /// <summary>
+    ///     The open ruleset's nodes, positioned by MSAGL, for the node-based renderer. Replaced
+    ///     wholesale on every render rather than mutated in place: this is a read-only view of a
+    ///     graph that is rebuilt from scratch whenever the ruleset changes, so there is no identity
+    ///     to preserve across renders and nothing yet that would notice one.
+    /// </summary>
+    public ObservableCollection<RulesetGraphNode> RulesetNodes { get; } = [];
+
+    /// <summary>The edges between those nodes, as the two points each runs between.</summary>
+    public ObservableCollection<RulesetGraphConnection> RulesetConnections { get; } = [];
 
     /// <summary>Save-in-place is allowed only for an editable open file (user, or shipped in DeveloperMode) that is dirty.</summary>
     public bool CanSave => _userDir is not null && SelectedFile is not null && IsDirty && !IsReadOnlyFile;
@@ -462,6 +482,8 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     {
         GraphNodeCount = 0;
         GraphSummary = summary;
+        RulesetNodes.Clear();
+        RulesetConnections.Clear();
         if (GraphSupported)
         {
             _ = GraphViewModel.SetGraphAsync([], []);
@@ -499,7 +521,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
                            + (demo is not null ? " (with demo)." : ".");
             if (GraphSupported)
             {
-                _ = GraphViewModel.SetGraphAsync(skeleton.Nodes, skeleton.Edges, skeleton.Groups);
+                _ = RenderNodeGraphAsync(skeleton);
             }
         }
         catch (Exception ex)
@@ -507,6 +529,35 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
             AppLog.OperationFailed(DiagLog, "render the rule graph", ex);
             GraphNodeCount = 0;
             GraphSummary = UserFacingError.Describe("render the rule graph", ex);
+        }
+    }
+
+    /// <summary>
+    ///     Lays the skeleton out and republishes the projection the node renderer binds to.
+    ///     <para>
+    ///         The layout runs on a background thread inside <c>SetGraphAsync</c>, so the collections
+    ///         are only touched after awaiting it, back on the UI thread. Refilling them from the
+    ///         layout thread is the class of bug that turned an off-thread theme read into four
+    ///         unrelated-looking test failures during the graph fix (design.md §3.2).
+    ///     </para>
+    /// </summary>
+    private async Task RenderNodeGraphAsync(RuleGraphSkeleton.Skeleton skeleton)
+    {
+        await GraphViewModel.SetGraphAsync(skeleton.Nodes, skeleton.Edges, skeleton.Groups);
+
+        (IReadOnlyList<RulesetGraphNode> nodes, IReadOnlyList<RulesetGraphConnection> connections) =
+            RulesetGraphProjection.Project(GraphViewModel, skeleton.Nodes, skeleton.Edges);
+
+        RulesetNodes.Clear();
+        foreach (RulesetGraphNode node in nodes)
+        {
+            RulesetNodes.Add(node);
+        }
+
+        RulesetConnections.Clear();
+        foreach (RulesetGraphConnection connection in connections)
+        {
+            RulesetConnections.Add(connection);
         }
     }
 
