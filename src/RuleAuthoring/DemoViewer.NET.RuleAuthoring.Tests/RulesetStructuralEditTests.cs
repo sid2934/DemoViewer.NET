@@ -146,6 +146,39 @@ public class RulesetStructuralEditTests
         await Assert.That(edited.Text).Contains("    label: Kills\r\n");
     }
 
+    /// <summary>
+    ///     A file that does not end in a newline still gets its new entry on its own line. The
+    ///     offset after the last line IS the end of such a document, so an insert there would land
+    ///     on the last line instead: <c>count: kill</c> silently becoming
+    ///     <c>count: kill  label: X</c>, which parses as one scalar. A corrupted file rather than an
+    ///     error, which is why it is worth its own test.
+    /// </summary>
+    [Test]
+    public async Task ADocumentWithNoTrailingNewline_StillGetsItsEntryOnItsOwnLine()
+    {
+        string yaml = "ruleset: probe\nfor: match\nstats:\n  kills:\n    count: kill";
+
+        RulesetDocumentEditor edited = RulesetDocumentEditor.Open(yaml)
+            .SetStatField("kills", "label", "Kills");
+
+        await Assert.That(edited.Text).Contains("    count: kill\n    label: Kills");
+        await Assert.That(LoadedStatCount(edited.Text, "probe")).IsEqualTo(1)
+            .Because("the edited document has to still load");
+    }
+
+    /// <summary>The same for a whole added entry, which takes a different path through the code.</summary>
+    [Test]
+    public async Task AddingAStatToADocumentWithNoTrailingNewline_StartsANewLine()
+    {
+        string yaml = "ruleset: probe\nfor: match\nstats:\n  kills:\n    count: kill";
+
+        RulesetDocumentEditor edited = RulesetDocumentEditor.Open(yaml)
+            .AddStat("deaths:\n  count: death\n");
+
+        await Assert.That(edited.Text).Contains("    count: kill\n  deaths:");
+        await Assert.That(LoadedStatCount(edited.Text, "probe")).IsEqualTo(2);
+    }
+
     /// <summary>Appending to a flow sequence stays on its line, which is how the corpus writes <c>exports:</c>.</summary>
     [Test]
     public async Task AppendingToAFlowSequence_StaysInline()

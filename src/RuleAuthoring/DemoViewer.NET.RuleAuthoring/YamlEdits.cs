@@ -64,9 +64,9 @@ public static class YamlEdits
             ? (int)map.Children.Keys.Last().Start.Index
             : (int)map.Start.Index;
         string indent = doc.IndentOf(indentAt);
-        int at = doc.StartOfNextLine(map.Children.Count > 0 ? doc.EndOf(map) : (int)map.Start.Index);
+        (int at, string lead) = AppendPoint(doc, map);
 
-        string text = $"{indent}{key}: {Quote(value, ScalarStyle.Any)}{doc.NewLine}";
+        string text = $"{lead}{indent}{key}: {Quote(value, ScalarStyle.Any)}{doc.NewLine}";
         return new TextEdit(at, 0, text, $"add {mapping.Key(key)}");
     }
 
@@ -125,9 +125,10 @@ public static class YamlEdits
             ? (int)map.Children.Keys.Last().Start.Index
             : (int)map.Start.Index;
         string indent = doc.IndentOf(indentAt);
-        int at = doc.StartOfNextLine(map.Children.Count > 0 ? doc.EndOf(map) : (int)map.Start.Index);
+        (int at, string lead) = AppendPoint(doc, map);
 
-        return new TextEdit(at, 0, Reindent(block, indent, doc.NewLine), $"add entry under {mapping}");
+        return new TextEdit(at, 0, lead + Reindent(block, indent, doc.NewLine),
+            $"add entry under {mapping}");
     }
 
     /// <summary>Appends <paramref name="item" /> to the sequence at <paramref name="sequence" />.</summary>
@@ -151,14 +152,14 @@ public static class YamlEdits
             int inner = seq.Children.Count > 0
                 ? doc.EndOf(seq.Children[^1])
                 : (int)seq.Start.Index + 1;
-            string text = seq.Children.Count > 0 ? $", {quoted}" : $" {quoted}";
+            string text = seq.Children.Count > 0 ? $", {quoted}" : quoted;
             return new TextEdit(inner, 0, text, $"append to {sequence}");
         }
 
         int indentAt = seq.Children.Count > 0 ? (int)seq.Children[0].Start.Index : (int)seq.Start.Index;
         string indent = doc.IndentOf(indentAt);
-        int at = doc.StartOfNextLine(doc.EndOf(seq));
-        return new TextEdit(at, 0, $"{indent}- {quoted}{doc.NewLine}", $"append to {sequence}");
+        (int at, string lead) = AppendPoint(doc, seq);
+        return new TextEdit(at, 0, $"{lead}{indent}- {quoted}{doc.NewLine}", $"append to {sequence}");
     }
 
     /// <summary>
@@ -233,6 +234,20 @@ public static class YamlEdits
             or "null" or "Null" or "NULL" or "~" or "yes" or "no" or "on" or "off"
         || double.TryParse(value, System.Globalization.NumberStyles.Any,
             System.Globalization.CultureInfo.InvariantCulture, out _);
+
+    // Where a new entry goes, and what has to precede it.
+    //
+    // A document that does not end in a newline is the case that bites: the offset after the last
+    // line IS the end of the document, so an insert there would be appended to the last line rather
+    // than put under it. `count: kill` with no newline would silently become
+    // `count: kill  label: X`, which parses as one scalar and is a corrupted file, not an error. So
+    // the lead carries the missing newline.
+    private static (int At, string Lead) AppendPoint(YamlDocumentText doc, YamlNode collection)
+    {
+        int at = doc.StartOfNextLine(doc.EndOf(collection));
+        bool startsALine = at == 0 || doc.Text[at - 1] is '\n' or '\r';
+        return (at, startsALine ? "" : doc.NewLine);
+    }
 
     private static string DoubleQuote(string value) =>
         "\"" + value
