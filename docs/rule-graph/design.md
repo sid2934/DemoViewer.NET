@@ -148,9 +148,13 @@ scaffolding count presented as the graph.~~ **Fixed.** #16 relabelled it `scaffo
 added a `Graph:` line carrying what is actually drawn; #17 moved both onto a shared `PrintGraphSize`
 so the retained and forward paths report identically.
 
-**Still open:** `RuleWorkbenchGraphTests` asserts `skeleton.Nodes.Count == build.Nodes.Count`, which
-is tautological against `RuleGraphSkeleton.Build`'s 1:1 mapping and cannot fail for the reason the
-test exists. Unchanged as of 2026-09-19.
+~~**Still open:** `RuleWorkbenchGraphTests` asserts `skeleton.Nodes.Count == build.Nodes.Count`,
+which is tautological against `RuleGraphSkeleton.Build`'s 1:1 mapping and cannot fail for the reason
+the test exists.~~ **Fixed 2026-09-20.** The node count is deleted and the same intent now sits on
+the half of the conversion that can lose something: `skeleton.Edges.Count == build.Edges.Count`,
+against the `RuleGraphSkeleton.cs:76-83` drop this table lists. 61 nodes and 43 of 43 edges convert
+with nothing dropped on both demos the test can resolve, so it is a boundary rather than a ceiling.
+Endpoint identity and `TrackedIndex == -1` went in beside it.
 
 ---
 

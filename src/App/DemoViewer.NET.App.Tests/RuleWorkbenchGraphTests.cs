@@ -15,6 +15,7 @@ using DemoViewer.NET.Modules.RuleWorkbench;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.Views.RuleWorkbench;
+using DemoViewer.NET.Visualization;
 
 #endregion
 
@@ -45,14 +46,45 @@ public class RuleWorkbenchGraphTests
 
         await Assert.That(skeleton.Nodes.Count).IsGreaterThan(0)
             .Because("a built ruleset graph has state nodes");
-        await Assert.That(skeleton.Nodes.Count).IsEqualTo(build.Nodes.Count)
-            .Because("every build node maps to exactly one graph node");
 
-        // The count above cannot fail: RuleGraphSkeleton.Build maps build.Nodes 1:1, so it asserts
-        // its own loop. What it was reaching for is that the graph carries the SCAFFOLDING the
-        // engine builds demo-less, which this checks by name instead of by arithmetic. The Analysis
-        // tab's post-evaluation graph is a different path and carries per-player nodes too; nothing
-        // in this file exercises that, by design.
+        // `skeleton.Nodes.Count == build.Nodes.Count` used to stand here and is deleted. It could not
+        // fail: Build walks build.Nodes and appends one view model per entry with no filter, so the
+        // assertion restated its own loop. What it was reaching for is that the conversion is
+        // LOSSLESS, and the half that can actually lose something is the edges: Build drops an edge
+        // whose source or destination misses the node map on a bare `if`, with nothing counting it
+        // (RuleGraphSkeleton.cs:76-83, one of the sites docs/rule-graph/design.md 1.1 tabulates).
+        // Equality here is that property, and unlike the node count it can fail.
+        await Assert.That(skeleton.Edges.Count).IsEqualTo(build.Edges.Count)
+            .Because("an edge whose endpoint misses the node map is dropped silently, and a node the "
+                     + "conversion fails to map takes its edges down with it");
+
+        // Endpoint identity, not just arity: every edge has to be wired to the view models this same
+        // conversion produced. A second view model minted for one node keeps both counts right and
+        // still leaves the graph drawing edges onto boxes the canvas does not own, which is a real
+        // enough shape that AnalysisViewModel.BuildGraphViewModels carries a dedup guard against it.
+        HashSet<IGraphNode> converted = new(ReferenceEqualityComparer.Instance);
+        foreach (IGraphNode node in skeleton.Nodes)
+        {
+            converted.Add(node);
+        }
+
+        await Assert.That(skeleton.Edges.All(e => converted.Contains(e.Source)
+                                                  && converted.Contains(e.Destination))).IsTrue()
+            .Because("an edge endpoint that is not one of these nodes is a duplicate view model");
+
+        // The skeleton is the PRE-evaluation graph, which is the one thing separating it from the
+        // live post-evaluation render that shares this file. A real snapshot column here means the
+        // shared conversion started reading evaluation state, and the Analysis tab's progressive
+        // reveal would have nothing left to reveal. The arity check first, or an OfType that matched
+        // nothing would make the All below pass over an empty sequence.
+        GraphNodeViewModel[] concrete = [.. skeleton.Nodes.OfType<GraphNodeViewModel>()];
+        await Assert.That(concrete.Length).IsEqualTo(skeleton.Nodes.Count)
+            .Because("these are this app's view models, and a partial match makes the next line vacuous");
+        await Assert.That(concrete.All(n => n.TrackedIndex == -1)).IsTrue()
+            .Because("TrackedIndex is wired by the post-evaluation path, never by the skeleton");
+
+        // The Analysis tab's post-evaluation graph is a different path and carries per-player nodes
+        // too; nothing in this file exercises that, by design.
         await Assert.That(skeleton.Nodes.Any(n => n.IsRoot)).IsTrue()
             .Because("the scaffolding is anchored on a root node");
         await Assert.That(skeleton.Nodes.Select(n => n.Name).Distinct().Count())
