@@ -1,0 +1,94 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    VENDORED from BAndysc/nodify-avalonia at tag v6.6.0. ../README.md records what changed, why,
+    and what a re-merge has to re-check. This file is one of the changed ones; the blocks marked
+    VENDORED CHANGE below are the deltas against upstream's Nodify/Nodify.csproj.
+  -->
+  <PropertyGroup>
+    <!--
+      VENDORED CHANGE: was <TargetFrameworks>netstandard2.0</TargetFrameworks>.
+
+      This is the whole reason the fork exists. Avalonia 12.1.2 ships no netstandard2.0 target, so
+      a netstandard2.0 Nodify keeps the Avalonia 11 typerefs it was compiled against, restores
+      happily into a net10.0 consumer, and then throws
+      TypeLoadException: Could not load type 'Avalonia.Controls.Primitives.IScrollable'
+      at JIT of the first method that touches a Nodify type, before any XAML is read.
+
+      net10.0 rather than the net8.0 the spike used: this repository has one TFM, and a second one
+      would pull a second targeting pack for no gain.
+    -->
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Authors>miroiu, bandysc</Authors>
+    <Company />
+    <PackageId>NodifyAvalonia</PackageId>
+    <Product>NodifyAvalonia</Product>
+    <Description>The core controls for a node based editor (designed for MVVM) for Avalonia</Description>
+    <Copyright>Miroiu Emanuel</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/BAndysc/nodify-avalonia</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/miroiu/nodify</RepositoryUrl>
+    <PackageTags>wpf mvvm node network node-editor graph controls</PackageTags>
+    <Version>6.6.0</Version>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <WarningsAsErrors>$(WarningsAsErrors),AVP1000, AVP1001, AVP1002, AVP1010, AVP1011, AVP1012, AVP1013, AVP1020, AVP1021, AVP1022, AVP1030, AVP1031, AVP1032, AVP1040, AVA2001</WarningsAsErrors>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LangVersion>12.0</LangVersion>
+  </PropertyGroup>
+
+  <!--
+    VENDORED CHANGE: this whole block is ours. It is this repository's build policy meeting
+    third-party source, and none of it is upstream's business.
+
+    TreatWarningsAsErrors stays ON (Directory.Build.props sets it repo-wide) and is not relaxed.
+    What is relaxed is everything that measures this source against THIS project's house style:
+
+      - EnableNETAnalyzers / EnforceCodeStyleInBuild: CA and IDE rules over 128 files of someone
+        else's code produce hundreds of findings that cannot be fixed without turning every future
+        upstream merge into a manual reconciliation. R15 is already this fork's cost; re-styling
+        upstream would multiply it.
+      - GenerateDocumentationFile: upstream emits XML docs only from its own packing build. Off
+        here, which also drops the CS1572/CS1573/CS1574/CS1580/CS1587 doc-comment warnings that
+        come with it. Nothing in this repository consumes a Nodify XML doc file.
+
+    The NoWarn list is upstream's OWN pre-existing warning set, enumerated rather than blanket
+    suppressed so that a warning class which is NOT on it still fails the build. Measured by
+    compiling pristine v6.6.0 against Avalonia 11.1.0 (upstream's pin), 11.3.12 and 12.1.2: the
+    same families appear at all three, so they are upstream's, not fallout from the retarget.
+  -->
+  <PropertyGroup>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- CS4014 un-awaited call; CS86xx the nullable-reference family. -->
+    <NoWarn>$(NoWarn);CS4014;CS8600;CS8602;CS8603;CS8604;CS8605;CS8618;CS8620;CS8622;CS8625</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      VENDORED CHANGE: was Version="$(AvaloniaVersion)", which upstream's own Directory.Build.props
+      set to 11.1.0. Central package management supplies 12.1.2 from Directory.Packages.props.
+    -->
+    <PackageReference Include="Avalonia" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="Themes\*.xaml" />
+    <AvaloniaResource Include="Themes\*.xaml" />
+    <None Remove="Themes\Styles\*.xaml" />
+    <AvaloniaResource Include="Themes\Styles\*.xaml" />
+  </ItemGroup>
+
+  <!--
+    VENDORED CHANGE, removals. Upstream's csproj additionally carried:
+      - GeneratePackageOnBuild, SignAssembly and AssemblyOriginatorKeyFile (..\build\Nodify.snk) in
+        Release. Nothing here packs or signs this assembly and the key file is not vendored.
+      - PackageIcon and PackageReadmeFile None items pointing at ..\icon.png and ..\README.md,
+        which exist only in upstream's repository root.
+    Directory.Build.props sets IsPackable=false repo-wide, so the pack metadata kept above is inert
+    and stays only because it records where the assembly came from.
+  -->
+
+</Project>

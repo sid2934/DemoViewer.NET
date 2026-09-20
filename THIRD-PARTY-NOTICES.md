@@ -1,8 +1,8 @@
 # Third-Party Notices
 
-This repository is licensed under the MIT License (see `LICENSE`). It also contains code
-adapted from a third-party MIT-licensed project, and generates code from third-party protobuf
-definitions. Both are documented below.
+This repository is licensed under the MIT License (see `LICENSE`). It also contains code adapted
+from, and one library vendored whole from, third-party MIT-licensed projects, and generates code
+from third-party protobuf definitions. All of them are documented below.
 
 ## a. demofile-net (MIT)
 
@@ -229,3 +229,49 @@ encode time. WebM/VP9 (the default format) is present in the LGPL build.
 
 ffmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg project. This project is
 unaffiliated with it.
+
+## h. NodifyAvalonia (MIT)
+
+`src/Nodify/Nodify/` is a **vendored fork** of
+[NodifyAvalonia](https://github.com/BAndysc/nodify-avalonia) at tag `v6.6.0` (commit
+`af468753371d075abb479f75ed5c2c35ad95272d`), the Avalonia port maintained by BAndysc of
+[Nodify](https://github.com/miroiu/nodify), a WPF node-editor control library by Miroiu Emanuel.
+Upstream's whole `Nodify/` project directory is committed here, 128 files, of which ten carry local
+changes; each of those marks the change with a `VENDORED` comment, and `src/Nodify/README.md`
+records what changed and why.
+
+It is committed as source rather than consumed as the published NuGet package because the package
+cannot load on Avalonia 12 at all: it targets `netstandard2.0`, which Avalonia 12.1.2 no longer
+ships, so it resolves at restore time and throws `TypeLoadException` at JIT. The fork exists to
+retarget it, and for no other reason.
+
+The upstream license text, reproduced in full, and also committed verbatim at `src/Nodify/LICENSE`:
+
+```text
+MIT License
+
+Copyright (c) 2020 Miroiu Emanuel
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+MIT permits the modification and redistribution this does, on the condition that the notice above
+travels with it. That condition is met twice over: by this section and by `src/Nodify/LICENSE`. The
+assembly keeps upstream's `PackageId`, `Authors` and `Copyright` metadata so a built `Nodify.dll`
+still identifies its origin, and nothing in this repository packs or publishes it.
