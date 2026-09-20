@@ -22,6 +22,7 @@ public static class YamlEdits
     ///     the end of the scalar.
     /// </summary>
     /// <exception cref="InvalidOperationException">Nothing there, or it is not a scalar.</exception>
+    /// <exception cref="NotSupportedException">The scalar carries a construct a splice cannot rewrite.</exception>
     public static TextEdit SetScalar(YamlDocumentText doc, YamlPath path, string value)
     {
         ArgumentNullException.ThrowIfNull(doc);
@@ -32,9 +33,57 @@ public static class YamlEdits
             throw new InvalidOperationException($"{path} is not a scalar in this document");
         }
 
+        Refuse(scalar, path);
+
+        // A literal or folded scalar would have to be re-emitted with its own indentation and
+        // chomping to stay one. Rewriting it as a quoted string preserves the VALUE and destroys
+        // the shape the author chose, so it is refused rather than silently reformatted.
+        if (scalar.Style is ScalarStyle.Literal or ScalarStyle.Folded)
+        {
+            throw new NotSupportedException(
+                $"{path} is a block scalar; editing one through a splice is not supported");
+        }
+
         (int start, int length) = doc.SpanOf(scalar);
-        return new TextEdit(start, length, Quote(value, scalar.Style), $"set {path}");
+        return new TextEdit(start, length,
+            Quote(value, scalar.Style, InFlow(doc, path), LooksNonString(scalar.Value ?? "")),
+            $"set {path}");
     }
+
+    /// <summary>
+    ///     Refuses a node this writer cannot splice without changing what the document means.
+    ///     <para>
+    ///         An anchored node is shared: the representation model hands back ONE node for the
+    ///         anchor and for every alias of it, so its span points at the definition wherever the
+    ///         alias was used. An edit through an alias would rewrite the definition, and an append
+    ///         after one would insert at the wrong place entirely. An explicit tag is dropped by a
+    ///         rewrite, which turns <c>!!str 5</c> into the number 5.
+    ///     </para>
+    ///     <para>
+    ///         None of these appear in the shipped corpus. They are refused rather than handled
+    ///         because a file that still parses and no longer means what it did is worse than an
+    ///         operation the editor says it cannot do.
+    ///     </para>
+    /// </summary>
+    private static void Refuse(YamlNode node, YamlPath path)
+    {
+        if (!node.Anchor.IsEmpty)
+        {
+            throw new NotSupportedException(
+                $"{path} carries the anchor '{node.Anchor}'; anchors and aliases are not supported");
+        }
+
+        if (!node.Tag.IsEmpty)
+        {
+            throw new NotSupportedException(
+                $"{path} carries the explicit tag '{node.Tag}'; tags are not supported");
+        }
+    }
+
+    // Whether the value at `path` sits inside a flow collection, which changes what plain can hold.
+    private static bool InFlow(YamlDocumentText doc, YamlPath path) =>
+        path.Parent is { } parent && doc.Find(parent) is YamlMappingNode { Style: MappingStyle.Flow }
+            or YamlSequenceNode { Style: SequenceStyle.Flow };
 
     /// <summary>
     ///     Sets <paramref name="key" /> under the mapping at <paramref name="mapping" />, replacing
@@ -47,24 +96,22 @@ public static class YamlEdits
         ArgumentNullException.ThrowIfNull(doc);
         ArgumentNullException.ThrowIfNull(mapping);
 
-        if (doc.Find(mapping.Key(key)) is YamlScalarNode)
+        YamlNode? existing = doc.Find(mapping.Key(key));
+        if (existing is YamlScalarNode)
         {
             return SetScalar(doc, mapping.Key(key), value);
         }
 
-        if (doc.Find(mapping) is not YamlMappingNode map || map.Style == MappingStyle.Flow)
+        // The key is there but holds a collection. Appending a second entry with the same key would
+        // write a document YAML rejects as a duplicate key, from a layer that cannot explain why.
+        if (existing is not null)
         {
-            throw new InvalidOperationException($"{mapping} is not a block mapping");
+            throw new InvalidOperationException(
+                $"{mapping.Key(key)} already holds a {existing.GetType().Name}; "
+                + "replacing a collection with a scalar is not supported");
         }
 
-        // After the last entry, so an insert never reorders what is already there. The line the last
-        // entry ends on may carry a trailing comment, so the insertion point is the START of the
-        // next line rather than the end of the value.
-        int indentAt = map.Children.Count > 0
-            ? (int)map.Children.Keys.Last().Start.Index
-            : (int)map.Start.Index;
-        string indent = doc.IndentOf(indentAt);
-        (int at, string lead) = AppendPoint(doc, map);
+        (int at, string lead, string indent) = AppendPointUnder(doc, mapping);
 
         string text = $"{lead}{indent}{key}: {Quote(value, ScalarStyle.Any)}{doc.NewLine}";
         return new TextEdit(at, 0, text, $"add {mapping.Key(key)}");
@@ -101,6 +148,15 @@ public static class YamlEdits
             throw new InvalidOperationException($"{mapping.Key(key)} is not in this document");
         }
 
+        // An aliased or merged value resolves to the node it points AT, which sits earlier in the
+        // file, so the span below would run backwards and the splice would be rejected by the
+        // editor with a message about document length that explains nothing.
+        Refuse(valueNode, mapping.Key(key));
+        if (key == "<<")
+        {
+            throw new NotSupportedException($"{mapping} uses a merge key; merge keys are not supported");
+        }
+
         int from = doc.StartOfLine((int)keyNode.Start.Index);
         int to = doc.StartOfNextLine(doc.EndOf(valueNode));
 
@@ -119,16 +175,7 @@ public static class YamlEdits
         ArgumentNullException.ThrowIfNull(mapping);
         ArgumentException.ThrowIfNullOrWhiteSpace(block);
 
-        if (doc.Find(mapping) is not YamlMappingNode map || map.Style == MappingStyle.Flow)
-        {
-            throw new InvalidOperationException($"{mapping} is not a block mapping");
-        }
-
-        int indentAt = map.Children.Count > 0
-            ? (int)map.Children.Keys.Last().Start.Index
-            : (int)map.Start.Index;
-        string indent = doc.IndentOf(indentAt);
-        (int at, string lead) = AppendPoint(doc, map);
+        (int at, string lead, string indent) = AppendPointUnder(doc, mapping);
 
         return new TextEdit(at, 0, lead + Reindent(block, indent, doc.NewLine),
             $"add entry under {mapping}");
@@ -146,7 +193,14 @@ public static class YamlEdits
             throw new InvalidOperationException($"{sequence} is not a sequence");
         }
 
-        string quoted = Quote(item, ScalarStyle.Any);
+        // An aliased item resolves to the node it points at, which is earlier in the file, so the
+        // append would land in the middle of the sequence rather than at its end.
+        for (int i = 0; i < seq.Children.Count; i++)
+        {
+            Refuse(seq.Children[i], sequence.Index(i));
+        }
+
+        string quoted = Quote(item, ScalarStyle.Any, seq.Style == SequenceStyle.Flow);
 
         if (seq.Style == SequenceStyle.Flow)
         {
@@ -180,28 +234,48 @@ public static class YamlEdits
     ///         boolean or a number.
     ///     </para>
     /// </summary>
-    public static string Quote(string value, ScalarStyle style)
+    /// <param name="value">The text to emit.</param>
+    /// <param name="style">The style of the scalar being replaced, or <c>Any</c> for a new one.</param>
+    /// <param name="inFlow">
+    ///     Whether the scalar sits inside a flow collection. It changes what plain can hold: a comma
+    ///     or a bracket is ordinary text in a block context and structure in a flow one, so a weapon
+    ///     name of <c>awp, ssg08</c> written plain into <c>match: { … }</c> would silently become two
+    ///     more entries.
+    /// </param>
+    /// <param name="wasNonString">
+    ///     Whether the value being REPLACED already read as a boolean, a number or null. It is the
+    ///     evidence for what the slot holds: <c>match: { bullet: true }</c> set to <c>false</c> stays
+    ///     a plain boolean, while a label of <c>Kills</c> set to <c>true</c> is quoted, because the
+    ///     author was writing a string there a moment ago.
+    /// </param>
+    public static string Quote(string value, ScalarStyle style, bool inFlow = false,
+        bool wasNonString = false)
     {
         ArgumentNullException.ThrowIfNull(value);
 
+        bool multiline = value.AsSpan().ContainsAny('\n', '\r');
+
         return style switch
         {
-            ScalarStyle.SingleQuoted when !value.Contains('\'', StringComparison.Ordinal) =>
+            // A single-quoted scalar cannot hold a line break without folding it to a space, so a
+            // multi-line value has to change style rather than silently lose its newlines.
+            ScalarStyle.SingleQuoted when !multiline
+                                         && !value.Contains('\'', StringComparison.Ordinal) =>
                 $"'{value}'",
             ScalarStyle.SingleQuoted or ScalarStyle.DoubleQuoted => DoubleQuote(value),
-            // An existing PLAIN scalar stays plain when it can. `match: { bullet: true }` is a
-            // boolean the author wrote plain, and quoting it on the way back out would both change
-            // the file and change what it means.
-            ScalarStyle.Plain => CanBePlain(value) ? value : DoubleQuote(value),
-            _ => CanBePlain(value) && !LooksNonString(value) ? value : DoubleQuote(value)
+            ScalarStyle.Plain when CanBePlain(value, inFlow)
+                                   && (wasNonString || !LooksNonString(value)) => value,
+            ScalarStyle.Plain => DoubleQuote(value),
+            _ => CanBePlain(value, inFlow) && !LooksNonString(value) ? value : DoubleQuote(value)
         };
     }
 
     // YAML's real rule for a plain scalar, not a conservative approximation of it: a colon is only a
-    // separator when a space follows it or it ends the token, and a hash only starts a comment when
-    // a space precedes it. Being stricter than this would re-quote expressions like
-    // `event.Weapon == "awp"` that the corpus writes plain, and byte-equality would fail.
-    private static bool CanBePlain(string value)
+    // separator when a space follows it or it ends the token, a hash only starts a comment when a
+    // space precedes it, and a dash only opens an entry when a space follows it. Being stricter than
+    // this would re-quote the `summary:` lines and `event.Weapon == "awp"` expressions the corpus
+    // writes plain, and byte-equality would fail.
+    private static bool CanBePlain(string value, bool inFlow)
     {
         if (value.Length == 0 || value != value.Trim()
             || value.AsSpan().ContainsAny('\n', '\r', '\t'))
@@ -209,15 +283,23 @@ public static class YamlEdits
             return false;
         }
 
-        if (value[0] is '-' or '?' or ':' or ',' or '[' or ']' or '{' or '}' or '#' or '&' or '*'
-            or '!' or '|' or '>' or '\'' or '"' or '%' or '@' or '`')
+        if (value[0] is '?' or ':' or ',' or '[' or ']' or '{' or '}' or '#' or '&' or '*'
+                or '!' or '|' or '>' or '\'' or '"' or '%' or '@' or '`'
+            || (value[0] == '-' && value.Length > 1 && value[1] == ' '))
+        {
+            return false;
+        }
+
+        // Inside a flow collection these are structure wherever they appear, not only at the front.
+        if (inFlow && value.AsSpan().ContainsAny(",[]{}"))
         {
             return false;
         }
 
         for (int i = 0; i < value.Length; i++)
         {
-            if (value[i] == ':' && (i == value.Length - 1 || value[i + 1] == ' '))
+            if (value[i] == ':' && (i == value.Length - 1 || value[i + 1] == ' '
+                                    || (inFlow && value[i + 1] is ',' or ']' or '}')))
             {
                 return false;
             }
@@ -231,12 +313,62 @@ public static class YamlEdits
         return true;
     }
 
-    // Whether an unquoted form would be read back as something other than a string.
+    // Whether an unquoted form would be read back as something other than a string. YAML 1.1's
+    // spellings are all here, not just 1.2's, because that is what the editors and language servers
+    // a ruleset author has open will apply to it.
     private static bool LooksNonString(string value) =>
         value is "true" or "false" or "True" or "False" or "TRUE" or "FALSE"
-            or "null" or "Null" or "NULL" or "~" or "yes" or "no" or "on" or "off"
+            or "null" or "Null" or "NULL" or "~" or ""
+            or "yes" or "Yes" or "YES" or "no" or "No" or "NO"
+            or "on" or "On" or "ON" or "off" or "Off" or "OFF"
+            or "y" or "Y" or "n" or "N"
+            or ".inf" or "-.inf" or "+.inf" or ".Inf" or ".INF" or ".nan" or ".NaN" or ".NAN"
+        || value.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+        || value.StartsWith("0o", StringComparison.OrdinalIgnoreCase)
         || double.TryParse(value, System.Globalization.NumberStyles.Any,
-            System.Globalization.CultureInfo.InvariantCulture, out _);
+            System.Globalization.CultureInfo.InvariantCulture, out _)
+        || DateTime.TryParse(value, System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out _);
+
+    /// <summary>
+    ///     Where a new entry goes under <paramref name="mapping" />, what has to precede it, and at
+    ///     what indentation.
+    ///     <para>
+    ///         It appends AFTER the last entry, so an insert never reorders what is already there,
+    ///         and it measures from the start of the following line rather than the end of the last
+    ///         value, so a trailing comment is not written through.
+    ///     </para>
+    ///     <para>
+    ///         The third case is a section that has been emptied: removing the only stat leaves
+    ///         <c>stats:</c> holding nothing, which parses as a null scalar rather than a mapping.
+    ///         Without this the editor could delete a ruleset's last stat and then not be able to
+    ///         add one, with no way back through the API.
+    ///     </para>
+    /// </summary>
+    private static (int At, string Lead, string Indent) AppendPointUnder(
+        YamlDocumentText doc, YamlPath mapping)
+    {
+        YamlNode? node = doc.Find(mapping);
+
+        if (node is YamlMappingNode { Style: not MappingStyle.Flow } map)
+        {
+            int indentAt = map.Children.Count > 0
+                ? (int)map.Children.Keys.Last().Start.Index
+                : (int)map.Start.Index;
+            (int at, string lead) = AppendPoint(doc, map);
+            return (at, lead, doc.IndentOf(indentAt));
+        }
+
+        if (node is YamlScalarNode { Value: null or "" } && doc.FindKey(mapping) is { } emptyKey)
+        {
+            int keyStart = (int)emptyKey.Start.Index;
+            int at = doc.StartOfNextLine(keyStart);
+            bool startsALine = at == 0 || doc.Text[at - 1] is '\n' or '\r';
+            return (at, startsALine ? "" : doc.NewLine, doc.IndentOf(keyStart) + "  ");
+        }
+
+        throw new InvalidOperationException($"{mapping} is not a block mapping");
+    }
 
     // Where a new entry goes, and what has to precede it.
     //
@@ -252,13 +384,42 @@ public static class YamlEdits
         return (at, startsALine ? "" : doc.NewLine);
     }
 
-    private static string DoubleQuote(string value) =>
-        "\"" + value
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("\"", "\\\"", StringComparison.Ordinal)
-            .Replace("\n", "\\n", StringComparison.Ordinal)
-            .Replace("\r", "\\r", StringComparison.Ordinal)
-            .Replace("\t", "\\t", StringComparison.Ordinal) + "\"";
+    // Every character YAML treats as a line break or a control has to be escaped, not just the three
+    // familiar ones: a raw U+0085, U+2028 or U+2029 inside double quotes is a LINE BREAK to a
+    // conforming parser, so leaving one in writes a file that no longer parses.
+    private static string DoubleQuote(string value)
+    {
+        System.Text.StringBuilder sb = new(value.Length + 2);
+        sb.Append('"');
+        foreach (char c in value)
+        {
+            switch (c)
+            {
+                case '\\': sb.Append("\\\\"); break;
+                case '"': sb.Append("\\\""); break;
+                case '\n': sb.Append("\\n"); break;
+                case '\r': sb.Append("\\r"); break;
+                case '\t': sb.Append("\\t"); break;
+                case '\u0085': sb.Append("\\N"); break;
+                case '\u2028': sb.Append("\\L"); break;
+                case '\u2029': sb.Append("\\P"); break;
+                default:
+                    if (char.IsControl(c))
+                    {
+                        sb.Append(System.Globalization.CultureInfo.InvariantCulture,
+                            $"\\x{(int)c:x2}");
+                    }
+                    else
+                    {
+                        sb.Append(c);
+                    }
+
+                    break;
+            }
+        }
+
+        return sb.Append('"').ToString();
+    }
 
     // Re-indents a zero-indented block to `indent`, normalising line endings to the document's and
     // guaranteeing exactly one trailing newline. Blank lines stay blank rather than becoming
@@ -267,9 +428,14 @@ public static class YamlEdits
     {
         string[] lines = block.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
         System.Text.StringBuilder sb = new();
-        foreach (string line in lines)
+        for (int i = 0; i < lines.Length; i++)
         {
-            if (line.Length == 0 && ReferenceEquals(line, lines[^1]))
+            string line = lines[i];
+
+            // Only the empty segment a trailing newline leaves behind is dropped. Comparing by
+            // REFERENCE here matched every blank line in the block, because string.Split hands back
+            // the same string.Empty instance for all of them.
+            if (line.Length == 0 && i == lines.Length - 1)
             {
                 continue;
             }

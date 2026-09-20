@@ -1,5 +1,6 @@
 #region
 
+using YamlDotNet.Core;
 using YamlDotNet.Core.Events;
 using YamlDotNet.RepresentationModel;
 
@@ -10,8 +11,14 @@ namespace DemoViewer.NET.RuleAuthoring;
 /// <summary>
 ///     A YAML document held as its original text alongside a parse of it, so a caller can ask where
 ///     a value is and then splice that span. This is the whole basis of the round trip: comments,
-///     key order, indentation, quoting style and anchors survive because nothing outside the spliced
-///     span is ever rewritten.
+///     key order, indentation and quoting style survive because nothing outside the spliced span is
+///     ever rewritten.
+///     <para>
+///         Anchors and tags survive an unedited save for the same reason, but they are not
+///         EDITABLE: an anchored node is shared, so the representation model hands back one node for
+///         the definition and for every alias of it. <see cref="YamlEdits" /> refuses them rather
+///         than rewriting the wrong span.
+///     </para>
 /// </summary>
 public sealed class YamlDocumentText
 {
@@ -134,6 +141,22 @@ public sealed class YamlDocumentText
 
         switch (node)
         {
+            // A literal or folded scalar's end mark sits PAST its terminating line break, at the
+            // start of the following line. Believed as-is it makes every insert after such a value
+            // land inside the next sibling, and makes a removal take the line after it as well:
+            // both produce a file that still parses, which is the worst kind of wrong.
+            case YamlScalarNode { Style: ScalarStyle.Literal or ScalarStyle.Folded } block:
+            {
+                int end = (int)block.End.Index;
+                while (end > (int)block.Start.Index && end - 1 < Text.Length
+                       && Text[end - 1] is '\n' or '\r')
+                {
+                    end--;
+                }
+
+                return end;
+            }
+
             case YamlScalarNode scalar:
                 return (int)scalar.End.Index;
 
@@ -195,6 +218,15 @@ public sealed class YamlDocumentText
     public int StartOfLine(int offset)
     {
         int i = Math.Clamp(offset, 0, Text.Length);
+
+        // Handed the LF of a CRLF pair, walk onto the CR first. Otherwise the loop below stops
+        // immediately and returns the line ENDING's index as if it were a line start, which reads
+        // as an empty line and quietly disables anything that walks upward from here.
+        if (i > 0 && i < Text.Length && Text[i] == '\n' && Text[i - 1] == '\r')
+        {
+            i--;
+        }
+
         while (i > 0 && Text[i - 1] is not ('\n' or '\r'))
         {
             i--;

@@ -7,8 +7,14 @@
       the reasoning: rules/kast.rules.yaml opens with sixteen lines explaining how each v1 chain maps
       onto a v2 stat, and every other shipped file is the same. §9 decision 4 chose to PRESERVE
       comments and key order, so this library never regenerates a document. It splices the original
-      text, which preserves comments, key order, indentation, quoting style and anchors by not
-      touching them.
+      text, which preserves comments, key order, indentation and quoting style by not touching them.
+
+      What it does NOT do is edit every construct YAML has. Anchors, aliases, merge keys, explicit
+      tags and the text of a block scalar are REFUSED, because a splice cannot rewrite them without
+      changing what the document means, and a file that still parses and no longer means what it did
+      is worse than an operation the editor says it cannot do. None appear in the shipped corpus, so
+      none are reachable from a file this repository ships; a user's own ruleset is under no such
+      restraint, which is why HostileYamlTests exists alongside the corpus round trip.
 
       DELIBERATELY UI-FREE. No Avalonia, no view models. The node editor sits on top of this; the
       Workbench's existing text editor could too. Keeping it separate is also what makes the round
