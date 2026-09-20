@@ -3,6 +3,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using Avalonia.Controls;
+using Avalonia.Media.Imaging;
 using Avalonia.Headless;
 using Avalonia.Threading;
 using CS2DemoKit.Parser;
@@ -154,7 +155,7 @@ public class UnknownMessageCardTests
         Dispatcher.UIThread.RunJobs();
 
         string path = Path.Combine(HeadlessSession.ArtifactDir, fileName);
-        window.CaptureRenderedFrame()!.Save(path);
+        window.CaptureRenderedFrame()!.Save(path, new PngBitmapEncoderOptions());
         return path;
     }
 }

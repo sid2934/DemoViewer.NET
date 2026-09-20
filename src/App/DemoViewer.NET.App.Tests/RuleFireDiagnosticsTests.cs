@@ -182,7 +182,7 @@ public class RuleFireDiagnosticsTests
                     WriteableBitmap? frame = window.CaptureRenderedFrame();
                     await Assert.That(frame).IsNotNull();
                     string capturePath = Path.Combine(HeadlessSession.ArtifactDir, "rule-fire-lint.png");
-                    frame!.Save(capturePath);
+                    frame!.Save(capturePath, new PngBitmapEncoderOptions());
                     Console.WriteLine($"[capture] {capturePath}  badges={analysis.RuleFireStats.Count}");
                     await Assert.That(CountDistinctColors(frame)).IsGreaterThan(8);
 

@@ -64,7 +64,7 @@ public class StatsComponentRenderTests
                 await Assert.That(frame).IsNotNull();
 
                 string outPath = Path.Combine(HeadlessSession.ArtifactDir, "stats-components.png");
-                frame!.Save(outPath);
+                frame!.Save(outPath, new PngBitmapEncoderOptions());
                 byte[] pixels = FrameProbe.ToBytes(frame);
 
                 foreach ((string token, uint hex) in DarkRamp)
@@ -174,7 +174,7 @@ public class StatsComponentRenderTests
             await Assert.That(frame).IsNotNull();
 
             string outPath = Path.Combine(HeadlessSession.ArtifactDir, "stats-components-edge.png");
-            frame!.Save(outPath);
+            frame!.Save(outPath, new PngBitmapEncoderOptions());
             Console.WriteLine($"[stats-components-edge] {outPath}");
         });
     }
@@ -315,7 +315,7 @@ public class StatsComponentRenderTests
                 await Assert.That(frame).IsNotNull();
 
                 string outPath = Path.Combine(HeadlessSession.ArtifactDir, "stats-gallery.png");
-                frame!.Save(outPath);
+                frame!.Save(outPath, new PngBitmapEncoderOptions());
                 Console.WriteLine($"[stats-gallery] {outPath}");
 
                 // The gallery drives every control off one scale, so the ramp has to reach the frame
@@ -424,7 +424,7 @@ public class StatsComponentRenderTests
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
             Dispatcher.UIThread.RunJobs();
             WriteableBitmap plain = window.CaptureRenderedFrame()!;
-            plain.Save(Path.Combine(HeadlessSession.ArtifactDir, "stats-cell-accent-withdrawn.png"));
+            plain.Save(Path.Combine(HeadlessSession.ArtifactDir, "stats-cell-accent-withdrawn.png"), new PngBitmapEncoderOptions());
 
             await Assert.That(FrameProbe.CountPixels(FrameProbe.ToBytes(plain), accentRgb)).IsEqualTo(0);
         });
@@ -914,7 +914,7 @@ public class StatsComponentRenderTests
         Window window = BuildWindow(Gallery());
         window.RequestedThemeVariant = variant;
         WriteableBitmap frame = Render(window)!;
-        frame.Save(Path.Combine(HeadlessSession.ArtifactDir, $"{name}.png"));
+        frame.Save(Path.Combine(HeadlessSession.ArtifactDir, $"{name}.png"), new PngBitmapEncoderOptions());
         return FrameProbe.ToBytes(frame);
     }
 
@@ -922,7 +922,7 @@ public class StatsComponentRenderTests
     {
         Window window = BuildWindow(control);
         WriteableBitmap frame = Render(window)!;
-        frame.Save(Path.Combine(HeadlessSession.ArtifactDir, $"{name}.png"));
+        frame.Save(Path.Combine(HeadlessSession.ArtifactDir, $"{name}.png"), new PngBitmapEncoderOptions());
         return FrameProbe.ToBytes(frame);
     }
 

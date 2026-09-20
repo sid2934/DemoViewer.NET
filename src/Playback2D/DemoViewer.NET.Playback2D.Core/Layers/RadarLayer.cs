@@ -23,6 +23,21 @@ public sealed class RadarLayer : ISceneLayer
     /// <summary>Above this edge length the resample is an upscale, and caching it would waste memory.</summary>
     private const int MaxScaledEdge = 8192;
 
+    // SkiaSharp 3 moved sampling off SKPaint and onto the draw call, and the translation of
+    // SKFilterQuality.High is NOT one resampler. Measured against 2.88.9 on the same source and
+    // destination rects: High is cubic Mitchell only when MAGNIFYING. On a minification it is
+    // linear plus a nearest mipmap (byte-identical at 0.50), and at 1:1 it is a pass-through,
+    // which cubic Mitchell is not, because B = 1/3 misses Skia's identity short-circuit.
+    //
+    // Shipping Mitchell everywhere therefore blurred a blit that used to copy, and cost about 3x
+    // on the downscale that is the radar's normal regime. Both are what these two pick apart.
+    private static readonly SKSamplingOptions Magnify = new(SKCubicResampler.Mitchell);
+    private static readonly SKSamplingOptions Minify = new(SKFilterMode.Linear, SKMipmapMode.Nearest);
+
+    // 2.88.9's rule, restated: cubic upwards, linear plus mipmap downwards.
+    private static SKSamplingOptions SamplingFor(SKImage source, SKRect destination) =>
+        destination.Width >= source.Width && destination.Height >= source.Height ? Magnify : Minify;
+
     private readonly SKPaint _image;
     private readonly SKPaint _major;
     private readonly SKPaint _minor;
@@ -47,11 +62,10 @@ public sealed class RadarLayer : ISceneLayer
             // The pre-v2 draw was PushOpacity(0.9) + DrawImage. In Skia that is a white paint at the
             // same alpha, because DrawImage multiplies the image by the paint's colour.
             Color = new SKColor(255, 255, 255, (byte)(SceneDefaults.RadarOpacity * 255)),
-            // SkiaSharp 2.88.9 predates SKSamplingOptions. Sampling is a paint property here. High is
-            // not a default-by-habit: measured against the pre-v2 golden, it is the closest match of the
-            // four (93.1% of pixels within ±1, versus 78.9% for Medium/Low and 76.5% for None), matching
-            // how Avalonia's DrawImage resamples. Changing it re-baselines every radar golden.
-            FilterQuality = SKFilterQuality.High,
+            // Sampling is NOT set here: SkiaSharp 3 takes it on the draw call, see SamplingFor. The
+            // quality choice itself is unchanged and still measured, the closest match of the four to
+            // the pre-v2 golden (93.1% of pixels within ±1, versus 78.9% for Medium/Low and 76.5%
+            // for None), matching how Avalonia's DrawImage resamples.
             IsAntialias = true
         };
 
@@ -60,7 +74,6 @@ public sealed class RadarLayer : ISceneLayer
         // render the radar at 0.81 opacity instead of 0.9.
         _resample = new SKPaint
         {
-            FilterQuality = SKFilterQuality.High,
             IsAntialias = true
         };
 
@@ -114,7 +127,7 @@ public sealed class RadarLayer : ISceneLayer
     ///     <para>
     ///         Exists because <c>LayerCacheHint.PerCamera</c> caches the picture, not its pixels: replaying
     ///         it re-runs the bicubic resample every frame, and on a ~2 000 px bundle layer at
-    ///         <see cref="SKFilterQuality.High" /> that one <c>DrawImage</c> was five sixths of the export
+    ///         the measured sampling that one <c>DrawImage</c> was five sixths of the export
     ///         frame budget. Caching the resample instead costs one image per pane per camera epoch.
     ///     </para>
     /// </remarks>
@@ -201,7 +214,7 @@ public sealed class RadarLayer : ISceneLayer
 
         if (!CacheScaledImage)
         {
-            canvas.DrawImage(image, destination, _image);
+            canvas.DrawImage(image, destination, SamplingFor(image, destination), _image);
             return true;
         }
 
@@ -212,17 +225,17 @@ public sealed class RadarLayer : ISceneLayer
             // 1:1. Drawing by ORIGIN rather than into a rectangle is what makes it a blit: a destination
             // rectangle whose width is 1234.7 against a 1235 px image is still a resample, and a resample
             // is the whole cost this cache exists to remove.
-            canvas.DrawImage(scaled, destination.Left, destination.Top, _image);
+            canvas.DrawImage(scaled, destination.Left, destination.Top, default, _image);
             return true;
         }
 
-        canvas.DrawImage(scaled, destination, _image);
+        canvas.DrawImage(scaled, destination, SamplingFor(scaled, destination), _image);
         return true;
     }
 
     /// <summary>
     ///     The radar, already resampled to <paramref name="destination" />'s size. The subsequent draw is
-    ///     then a 1:1 blit, which <see cref="SKFilterQuality.High" /> short-circuits.
+    ///     then a 1:1 blit, drawn with no sampling so it copies rather than resamples.
     ///     <para>
     ///         Keyed on the source image identity and the destination size rounded to whole pixels: a
     ///         camera that has not moved re-uses the resample, and one that has pays for it once. Sizes
@@ -268,7 +281,15 @@ public sealed class RadarLayer : ISceneLayer
         }
 
         surface.Canvas.Clear(SKColors.Transparent);
-        surface.Canvas.DrawImage(source, new SKRect(0, 0, width, height), _resample);
+        SKRect intermediate = new(0, 0, width, height);
+
+        // Whole-pixel target, so an equal size here is a genuine 1:1 and copies. Unlike the
+        // fractional destination above, there is no sub-pixel offset for a filter to carry, and
+        // 2.88.9 short-circuited this case too.
+        SKSamplingOptions sampling = width == source.Width && height == source.Height
+            ? default
+            : SamplingFor(source, intermediate);
+        surface.Canvas.DrawImage(source, intermediate, sampling, _resample);
 
         if (surface.Snapshot() is not { } snapshot)
         {

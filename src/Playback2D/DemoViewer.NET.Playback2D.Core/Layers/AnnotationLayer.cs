@@ -152,7 +152,7 @@ public sealed class AnnotationLayer : ISceneLayer
         // Ink is authored in WORLD units and is meant to zoom with the map, so the camera matrix goes on
         // the canvas. The marker layers transform their own points instead, because their radii and
         // stroke widths are in SCREEN units and must not scale.
-        canvas.Concat(ref matrix);
+        canvas.Concat(in matrix);
 
         RenderDry(canvas, in ctx, _dry);
         RenderPrepared(canvas, in ctx);

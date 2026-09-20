@@ -102,7 +102,20 @@ public class ReelJobServiceMockTests
             await Assert.ThrowsAsync<ReelInProgressException>(async () =>
                 await gate.AcquireInteractiveAsync(cancellationToken));
 
-            await WaitForAsync(() => !reel.Status.IsRunning, "job finished");
+            // Sampled while waiting, because the EVENT path cannot be relied on here.
+            // ReelJobService raises StatusChanged inline only when the caller already owns the UI
+            // thread and posts it to the dispatcher otherwise. The job runs on a pool thread, and
+            // in a full-suite run some earlier class has already bound Dispatcher.UIThread to a
+            // thread nothing in this assembly pumps, so the per-clip statuses are queued and never
+            // delivered. reel.Status is a plain property read with no marshalling, and the loop
+            // below already ticks every 50 ms while clip capture takes seconds, so it sees the
+            // same progress the app sees through the event.
+            List<ReelJobStatus> polled = [];
+            await WaitForAsync(() =>
+            {
+                polled.Add(reel.Status);
+                return !reel.Status.IsRunning;
+            }, "job finished");
             ReelJobStatus final = reel.Status;
 
             // Two real clips walk the mock successfully; the missing-demo clip fails (v1.1
@@ -113,11 +126,12 @@ public class ReelJobServiceMockTests
             await Assert.That(final.HasRetryableClips).IsTrue();
             await Assert.That(gate.IsReelActive).IsFalse().Because("the reel session releases on completion");
 
-            // Progress surfaced per clip while capturing.
+            // Progress surfaced per clip while capturing. Both sources count: whichever of the two
+            // the host makes available, a subscriber sees the first clip go through Capturing.
             List<ReelJobStatus> snapshot;
             lock (statuses)
             {
-                snapshot = [.. statuses];
+                snapshot = [.. statuses, .. polled];
             }
 
             await Assert.That(snapshot.Any(s =>

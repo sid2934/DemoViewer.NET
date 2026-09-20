@@ -406,8 +406,11 @@ public class Playback2DAnnotationHostTests
         });
     }
 
-    // A real PointerMovedEvent carrying previous raw points. The 9-argument constructor is internal to
-    // Avalonia, so it is reached by reflection rather than re-implemented.
+    // A real PointerMovedEvent carrying previous raw points. The constructor that takes them is
+    // internal to Avalonia, so it is reached by reflection rather than re-implemented. Selected by
+    // its previousPoints parameter rather than by arity: Avalonia 12 appended a
+    // platformInputEventCookie and turned the 9-argument form into a 10-argument one, which an
+    // arity match found nothing for and failed as "sequence contains no matching element".
     private static PointerEventArgs PointerMoveWithHistory(Fixture f, double[] historyX, double primary,
         double y)
     {
@@ -432,15 +435,28 @@ public class Playback2DAnnotationHostTests
             .GetConstructors(BindingFlags.Public
                              | BindingFlags.NonPublic
                              | BindingFlags.Instance)
-            .Single(c => c.GetParameters().Length == 9);
+            .Single(c => c.GetParameters().Any(p => p.Name == "previousPoints"));
 
-        return (PointerEventArgs)ctor.Invoke([
+        // Positional up to previousPoints, then defaults for whatever the version appends after it.
+        ParameterInfo[] parameters = ctor.GetParameters();
+        object?[] args = new object?[parameters.Length];
+        object?[] known =
+        [
             InputElement.PointerMovedEvent, f.Host,
             new Pointer(1, PointerType.Mouse, true), f.Window,
             f.HostPoint(primary, y), 0UL,
             new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.Other),
             KeyModifiers.None, lazy
-        ]);
+        ];
+        known.CopyTo(args, 0);
+        for (int i = known.Length; i < parameters.Length; i++)
+        {
+            args[i] = parameters[i].ParameterType.IsValueType
+                ? Activator.CreateInstance(parameters[i].ParameterType)
+                : null;
+        }
+
+        return (PointerEventArgs)ctor.Invoke(args);
     }
 
     /// <summary>
@@ -741,7 +757,7 @@ public class Playback2DAnnotationHostTests
 
             string path = Path.Combine(HeadlessSession.ArtifactDir, "annotations-stroke.png");
             Directory.CreateDirectory(HeadlessSession.ArtifactDir);
-            captured!.Save(path);
+            captured!.Save(path, new PngBitmapEncoderOptions());
 
             int magenta = CountMagenta(captured);
             Console.WriteLine($"[annotations] {path} magenta={magenta}");

@@ -110,7 +110,7 @@ public class NavStripTests
             await Assert.That(frame).IsNotNull();
 
             string outPath = Path.Combine(HeadlessSession.ArtifactDir, "navstrip.png");
-            frame!.Save(outPath);
+            frame!.Save(outPath, new PngBitmapEncoderOptions());
             int nonBg = ScanNonBackground(frame);
             Console.WriteLine($"[navstrip] {outPath} nonBg={nonBg}");
 

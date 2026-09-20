@@ -33,7 +33,7 @@ public sealed class PlaceholderModule : IWorkspaceModule
             TabId = "placeholder.sandbox",
             Header = "Sandbox",
             Order = 100,
-            Placement = TabPlacement.Diagnostics,
+            Placement = Abstractions.TabPlacement.Diagnostics,
             // ViewModelFactory (not DataContext): Activate only populates TabViewModel, and
             // only calls OnActivated, through the factory. The DataContext form left
             // TabViewModel null and skipped the whole module lifecycle (the exact trap

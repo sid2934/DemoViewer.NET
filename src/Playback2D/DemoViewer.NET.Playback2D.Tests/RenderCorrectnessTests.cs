@@ -310,6 +310,68 @@ public class RenderCorrectnessTests
         await Assert.That(layer.ScaledCacheSizeForTest).IsNotEqualTo((0, 0));
     }
 
+    // ── The cached radar path must not filter a 1:1 draw ────────────────────────────────────────────
+
+    [Test]
+    public async Task TheCachedRadarPath_CopiesAtOneToOne_RatherThanResampling()
+    {
+        // SceneExportSession sets CacheScaledImage for every video export, so this path draws every
+        // exported frame. It resamples into a whole-pixel intermediate and then blits that out, and
+        // BOTH steps are 1:1 when the pane matches the radar. Under SkiaSharp 2.88.9 a High-quality
+        // draw short-circuited to a copy there. Cubic Mitchell does not, because B = 1/3 misses Skia's
+        // identity test, so translating High to Mitchell filtered the frame twice and softened it.
+        //
+        // Nothing else covers this: the golden corpus renders with CacheScaledImage OFF, and the other
+        // test that turns it on asserts cache bookkeeping rather than pixels. A checkerboard is the
+        // probe because any filtering pulls its two values toward each other, while a copy keeps
+        // exactly two.
+        const int Edge = 128;
+        using SKImage source = CheckerImage(Edge, Edge);
+        using RadarLayer layer = new()
+        {
+            CacheScaledImage = true,
+            RadarBoundsOverride = new WorldBounds(-100, -100, 100, 100)
+        };
+
+        using CpuSurfaceProvider provider = new();
+        using SKSurface surface = provider.CreateSurface(new SKSizeI(Edge, Edge));
+        surface.Canvas.Clear(SKColors.Transparent);
+        layer.Render(surface.Canvas, RadarContext(source, Edge, Edge));
+
+        using SKImage drawn = surface.Snapshot();
+        using SKBitmap bitmap = SKBitmap.FromImage(drawn);
+        HashSet<byte> levels = [];
+        for (int y = 0; y < Edge; y++)
+        {
+            for (int x = 0; x < Edge; x++)
+            {
+                levels.Add(bitmap.GetPixel(x, y).Red);
+            }
+        }
+
+        Console.WriteLine($"[radar-blit] distinct red levels: {levels.Count} ({string.Join(",", levels.Order())})");
+
+        await Assert.That(levels.Count).IsLessThanOrEqualTo(2)
+            .Because("a 1:1 cached draw copies; anything that filters it invents intermediate levels");
+    }
+
+    private static SKImage CheckerImage(int width, int height)
+    {
+        using SKSurface surface = SKSurface.Create(new SKImageInfo(width, height,
+            SKColorType.Rgba8888, SKAlphaType.Premul));
+        surface.Canvas.Clear(SKColors.Black);
+        using SKPaint white = new() { Color = SKColors.White, IsAntialias = false };
+        for (int y = 0; y < height; y += 2)
+        {
+            for (int x = (y / 2 % 2) * 2; x < width; x += 4)
+            {
+                surface.Canvas.DrawRect(x, y, 2, 2, white);
+            }
+        }
+
+        return surface.Snapshot();
+    }
+
     // ── TextBlobCache can dispose SKTypeface.Default ─────────────────────────────────────────────────
 
     [Test]

@@ -76,10 +76,9 @@ public class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // Avoid duplicate validations from both Avalonia and the CommunityToolkit.
-            // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
-            DisableAvaloniaDataAnnotationValidation();
-
+            // No DataAnnotations plugin to strip: Avalonia 12 makes that validation opt-in through
+            // AppBuilder.WithDataAnnotationsValidation(), which this app does not call, so the
+            // CommunityToolkit is the only validator and there is nothing to duplicate.
             MainWindow window = new();
             // Owner-lookup defers to the live MainWindow so the parse-chain window can be
             // parented (and centred) without the service holding a hard window reference.
@@ -899,19 +898,6 @@ public class App : Application
         if (bounds.Maximized)
         {
             window.WindowState = WindowState.Maximized;
-        }
-    }
-
-    private static void DisableAvaloniaDataAnnotationValidation()
-    {
-        // Get an array of plugins to remove
-        DataAnnotationsValidationPlugin[] dataValidationPluginsToRemove =
-            BindingPlugins.DataValidators.OfType<DataAnnotationsValidationPlugin>().ToArray();
-
-        // remove each entry found
-        foreach (DataAnnotationsValidationPlugin plugin in dataValidationPluginsToRemove)
-        {
-            BindingPlugins.DataValidators.Remove(plugin);
         }
     }
 }

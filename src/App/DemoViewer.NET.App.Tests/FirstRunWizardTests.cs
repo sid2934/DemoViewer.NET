@@ -313,7 +313,7 @@ public class FirstRunWizardTests
                 await Assert.That(frame).IsNotNull();
 
                 string outPath = Path.Combine(HeadlessSession.ArtifactDir, "first-run-wizard.png");
-                frame!.Save(outPath);
+                frame!.Save(outPath, new PngBitmapEncoderOptions());
                 int nonBg = ScanNonBackground(frame);
                 Console.WriteLine($"[wizard] {outPath} nonBg={nonBg}");
 
@@ -362,7 +362,7 @@ public class FirstRunWizardTests
                 await Assert.That(frame).IsNotNull();
 
                 string outPath = Path.Combine(HeadlessSession.ArtifactDir, "first-run-wizard-folders.png");
-                frame!.Save(outPath);
+                frame!.Save(outPath, new PngBitmapEncoderOptions());
                 int nonBg = ScanNonBackground(frame);
                 Console.WriteLine($"[wizard-folders] {outPath} nonBg={nonBg}");
 
@@ -409,7 +409,7 @@ public class FirstRunWizardTests
                 await Assert.That(frame).IsNotNull();
 
                 string outPath = Path.Combine(HeadlessSession.ArtifactDir, "first-run-wizard-notfound.png");
-                frame!.Save(outPath);
+                frame!.Save(outPath, new PngBitmapEncoderOptions());
                 Console.WriteLine($"[wizard-notfound] {outPath} nonBg={ScanNonBackground(frame)}");
 
                 await Assert.That(vm.ShowNotFoundNotice).IsTrue();

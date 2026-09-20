@@ -36,7 +36,7 @@ public class HarnessSmokeTest
 
             WriteableBitmap? frame = window.CaptureRenderedFrame();
             string path = Path.Combine(HeadlessSession.ArtifactDir, "smoke.png");
-            frame!.Save(path);
+            frame!.Save(path, new PngBitmapEncoderOptions());
             Console.WriteLine($"[capture] {path}");
 
             return Task.CompletedTask;

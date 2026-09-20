@@ -54,7 +54,7 @@ public class IdleViewRenderTests
             await Assert.That(frame).IsNotNull();
 
             string outPath = Path.Combine(HeadlessSession.ArtifactDir, "idle.png");
-            frame!.Save(outPath);
+            frame!.Save(outPath, new PngBitmapEncoderOptions());
             int nonBg = ScanNonBackground(frame);
             Console.WriteLine($"[idle] {outPath} nonBg={nonBg}");
 

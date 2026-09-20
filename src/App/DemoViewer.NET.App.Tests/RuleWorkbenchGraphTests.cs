@@ -181,7 +181,7 @@ public class RuleWorkbenchGraphTests
                 WriteableBitmap? bmp = window.CaptureRenderedFrame();
                 await Assert.That(bmp).IsNotNull()
                     .Because("the graph overlay + GraphView render without crashing when toggled on");
-                bmp!.Save(Path.Combine(HeadlessSession.ArtifactDir, "ruleworkbench-graph.png"));
+                bmp!.Save(Path.Combine(HeadlessSession.ArtifactDir, "ruleworkbench-graph.png"), new PngBitmapEncoderOptions());
 
                 await Assert.That(skeleton.Nodes.Count).IsGreaterThan(0);
                 Console.WriteLine($"[authoring-graph-render] skeleton nodes={skeleton.Nodes.Count} edges={skeleton.Edges.Count}");

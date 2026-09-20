@@ -429,7 +429,7 @@ public class TabFeatureGatingTests
             await Assert.That(frame).IsNotNull();
 
             string outPath = Path.Combine(HeadlessSession.ArtifactDir, "mainview-consumer-gate.png");
-            frame!.Save(outPath);
+            frame!.Save(outPath, new PngBitmapEncoderOptions());
             int nonBg = ScanNonBackground(frame);
             Console.WriteLine($"[mainview-gate] {outPath} nonBg={nonBg}");
 
