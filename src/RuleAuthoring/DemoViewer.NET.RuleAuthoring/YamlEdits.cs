@@ -72,12 +72,16 @@ public static class YamlEdits
 
     /// <summary>
     ///     Removes the whole <paramref name="key" /> entry from the block mapping at
-    ///     <paramref name="mapping" />, including its value however deeply nested, its trailing
-    ///     comment, and the run of comment lines directly above it at the same indentation.
+    ///     <paramref name="mapping" />: its key line, its value however deeply nested, and every
+    ///     comment INSIDE it.
     ///     <para>
-    ///         Those comment lines go because in every shipped ruleset they describe the entry below
-    ///         them. A blank line stops the run, which is how an author separates a section comment
-    ///         from an entry comment.
+    ///         A comment ABOVE the entry stays. It is tempting to take it, since an entry comment
+    ///         usually sits right on top of the entry, but the corpus shows why not:
+    ///         <c>rules/kast.rules.yaml</c> has
+    ///         <c># ── Per-round counters ──</c> directly above <c>kills:</c>, and that line
+    ///         describes the whole section. Absorbing it would delete an author's writing to tidy
+    ///         up after a deletion, which is the loss §9 decision 2 reversed itself over. An
+    ///         orphaned comment is visible and one keystroke to remove; a deleted one is gone.
     ///     </para>
     /// </summary>
     /// <exception cref="InvalidOperationException">The key is not there, or the parent is not a block mapping.</exception>
@@ -99,7 +103,6 @@ public static class YamlEdits
 
         int from = doc.StartOfLine((int)keyNode.Start.Index);
         int to = doc.StartOfNextLine(doc.EndOf(valueNode));
-        from = AbsorbCommentsAbove(doc, from, doc.IndentOf(from).Length);
 
         return new TextEdit(from, to - from, "", $"remove {mapping.Key(key)}");
     }
@@ -256,28 +259,6 @@ public static class YamlEdits
             .Replace("\n", "\\n", StringComparison.Ordinal)
             .Replace("\r", "\\r", StringComparison.Ordinal)
             .Replace("\t", "\\t", StringComparison.Ordinal) + "\"";
-
-    // Walks up from `from` over comment lines at the same indentation, stopping at a blank line or
-    // at anything that is not a comment.
-    private static int AbsorbCommentsAbove(YamlDocumentText doc, int from, int indent)
-    {
-        int at = from;
-        while (at > 0)
-        {
-            int previous = doc.StartOfLine(at - 1);
-            string line = doc.Text[previous..at];
-            string trimmed = line.TrimEnd('\r', '\n');
-            string content = trimmed.TrimStart(' ');
-            if (content.Length == 0 || content[0] != '#' || trimmed.Length - content.Length != indent)
-            {
-                break;
-            }
-
-            at = previous;
-        }
-
-        return at;
-    }
 
     // Re-indents a zero-indented block to `indent`, normalising line endings to the document's and
     // guaranteeing exactly one trailing newline. Blank lines stay blank rather than becoming

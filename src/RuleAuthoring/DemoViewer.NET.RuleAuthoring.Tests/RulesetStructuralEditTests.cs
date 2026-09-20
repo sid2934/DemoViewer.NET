@@ -75,8 +75,7 @@ public class RulesetStructuralEditTests
     }
 
     /// <summary>
-    ///     Removing a stat takes its body and the comments that describe it, and leaves every other
-    ///     stat in place and in order.
+    ///     Removing a stat takes its body and leaves every other stat in place and in order.
     /// </summary>
     [Test]
     [MethodDataSource(nameof(ShippedRulesets))]
@@ -144,6 +143,35 @@ public class RulesetStructuralEditTests
         await Assert.That(edited.Text.Replace("\r\n", "", StringComparison.Ordinal))
             .DoesNotContain("\n").Because("a lone LF means the editor mixed line endings in");
         await Assert.That(edited.Text).Contains("    label: Kills\r\n");
+    }
+
+    /// <summary>
+    ///     Removing an entry takes the comments INSIDE it and leaves the one above it. The shipped
+    ///     corpus is why: <c>kast.rules.yaml</c> writes <c># Per-round counters</c> directly above
+    ///     <c>kills:</c>, and that line describes the section rather than the stat, so absorbing it
+    ///     would delete an author's writing to tidy up after a deletion.
+    /// </summary>
+    [Test]
+    public async Task RemovingAStat_KeepsTheCommentAboveAndTakesTheOneInside()
+    {
+        const string Yaml = """
+                            ruleset: probe
+                            for: match
+                            stats:
+                              # a section header, not a comment about kills
+                              kills:
+                                # this one is about kills
+                                count: kill
+                              deaths:
+                                count: death
+                            """;
+
+        RulesetDocumentEditor removed = RulesetDocumentEditor.Open(Yaml).RemoveStat("kills");
+
+        await Assert.That(removed.Text).Contains("# a section header, not a comment about kills");
+        await Assert.That(removed.Text).DoesNotContain("# this one is about kills");
+        await Assert.That(removed.Text).DoesNotContain("count: kill");
+        await Assert.That(string.Join(",", removed.StatIds)).IsEqualTo("deaths");
     }
 
     /// <summary>
