@@ -135,11 +135,18 @@ internal static class GraphRenderer
         }
     }
 
+    /// <summary>
+    ///     Draws every non-loop edge, its arrowhead, its breakpoint marker and its label.
+    ///     <paramref name="revealed" /> is the one edge whose predicate is spelled out in full instead
+    ///     of the chip; it is drawn LAST and unclipped, because a reveal is a transient overlay that
+    ///     the layout never reserved room for.
+    /// </summary>
     internal static void DrawEdges(DrawingContext dc,
         IReadOnlyList<IGraphEdge> edges, LayoutResult layout, GraphStyle style,
-        double scale, Func<double, double, Point> toScreen)
+        double scale, Func<double, double, Point> toScreen, IGraphEdge? revealed = null)
     {
         EdgeStyleConfig es = style.Edge;
+        Point? revealAt = null;
 
         foreach (IGraphEdge edge in edges)
         {
@@ -195,16 +202,25 @@ internal static class GraphRenderer
                 DrawBreakpointDisc(dc, toScreen(mid.X, mid.Y), scale, edge.HasConditionalBreakpoint);
             }
 
-            string label = edge.ConditionLabel is not null
-                ? $"{edge.Label}  [{edge.ConditionLabel}]"
-                : edge.Label;
+            string label = EdgeLabelText.Collapsed(edge);
             if (label.Length > 0 && layout.LabelPositions.TryGetValue(edge, out LabelPlacement? lp))
             {
                 // The label-placement pass resolved a collision-free rect; draw
                 // the label at its centre.
                 Point c = toScreen(lp.X + lp.Width / 2, lp.Y + lp.Height / 2);
                 LabelRenderer.DrawLabel(dc, label, c.X, c.Y, scale, style);
+                if (ReferenceEquals(edge, revealed))
+                {
+                    revealAt = c;
+                }
             }
+        }
+
+        // The reveal goes on top of every edge and label, since it is by definition wider than the
+        // space the layout reserved for the chip it replaces.
+        if (revealed is not null && revealAt is { } at && EdgeLabelText.HasCondition(revealed))
+        {
+            LabelRenderer.DrawLabel(dc, EdgeLabelText.Expanded(revealed), at.X, at.Y, scale, style);
         }
     }
 
@@ -346,6 +362,12 @@ internal static class GraphRenderer
         }
     }
 
+    /// <summary>
+    ///     Draws self-loops. Their labels are NOT chipped: the placement pass skips self-loops, so a
+    ///     loop label has no placed rect, nothing to hover, and therefore no way back to a collapsed
+    ///     predicate. Chipping here would hide the condition permanently. It costs nothing in layout
+    ///     either, since a loop label was never in the layout to begin with.
+    /// </summary>
     internal static void DrawSelfLoops(DrawingContext dc,
         IReadOnlyList<IGraphEdge> edges, LayoutResult layout, GraphStyle style,
         double scale, Func<double, double, Point> toScreen)
@@ -402,9 +424,7 @@ internal static class GraphRenderer
                 DrawBreakpointDisc(dc, toScreen(mid.X, mid.Y), scale, edge.HasConditionalBreakpoint);
             }
 
-            string label = edge.ConditionLabel is not null
-                ? $"{edge.Label}  [{edge.ConditionLabel}]"
-                : edge.Label;
+            string label = EdgeLabelText.Expanded(edge);
             if (label.Length > 0)
             {
                 double mx = (p0.X + p3.X) / 2;

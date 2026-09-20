@@ -40,6 +40,11 @@ public sealed class GraphView : Control
 
     private readonly PanZoomHandler _panZoom = new();
 
+    // The edge whose predicate is currently spelled out, or null. Set by hovering a condition chip.
+    // Render-only state: the layout reserved room for the chip, not for the predicate, so this never
+    // invalidates the layout.
+    private IGraphEdge? _revealedEdge;
+
     // Press position of the in-progress left gesture while picking, for the click-vs-drag test on
     // release. Null when no left gesture is active.
     private Point? _pickPressPoint;
@@ -121,7 +126,7 @@ public sealed class GraphView : Control
 
         GraphRenderer.DrawGroups(context, layout, style, scale, ToScreen);
         GraphRenderer.DrawNodeBackgrounds(context, vm.Nodes, layout, style, scale, ToScreen);
-        GraphRenderer.DrawEdges(context, vm.Edges, layout, style, scale, ToScreen);
+        GraphRenderer.DrawEdges(context, vm.Edges, layout, style, scale, ToScreen, _revealedEdge);
         GraphRenderer.DrawSelfLoops(context, vm.Edges, layout, style, scale, ToScreen);
 
         if (vm.Tables is not null)
@@ -157,9 +162,67 @@ public sealed class GraphView : Control
         base.OnPointerMoved(e);
         if (_panZoom.OnPointerMoved(this, e))
         {
+            // Panning: the reveal would chase the cursor across the canvas, so drop it.
+            _revealedEdge = null;
             InvalidateVisual();
             e.Handled = true;
+            return;
         }
+
+        IGraphEdge? hovered = HitTestConditionLabel(e.GetPosition(this));
+        if (!ReferenceEquals(hovered, _revealedEdge))
+        {
+            _revealedEdge = hovered;
+            InvalidateVisual();
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        if (_revealedEdge is not null)
+        {
+            _revealedEdge = null;
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>
+    ///     Returns the edge whose placed label rect contains <paramref name="screen" /> AND has a
+    ///     predicate the label is hiding, or <c>null</c>. This is the hover target: a
+    ///     label rect test rather than a route-distance test, because the chip is the affordance and a
+    ///     rect containment check stays cheap on the 474-edge shipped graph.
+    /// </summary>
+    public IGraphEdge? HitTestConditionLabel(Point screen)
+    {
+        GraphViewModel? vm = ViewModel;
+        if (vm is null || !TryGetViewTransform(out LayoutResult? layout, out double scale, out double offX, out double offY))
+        {
+            return null;
+        }
+
+        double lx = (screen.X - offX) / scale;
+        double ly = (screen.Y - offY) / scale;
+
+        foreach (IGraphEdge edge in vm.Edges)
+        {
+            // Only an edge that IS collapsed has anything to reveal. A short predicate already
+            // reads in full on the edge, and arming a hover that redraws the same text on top of
+            // itself is an affordance that does nothing.
+            if (!edge.IsVisible || !EdgeLabelText.IsCollapsed(edge))
+            {
+                continue;
+            }
+
+            if (layout.LabelPositions.TryGetValue(edge, out LabelPlacement? lp)
+                && lx >= lp.X && lx <= lp.X + lp.Width && ly >= lp.Y && ly <= lp.Y + lp.Height)
+            {
+                return edge;
+            }
+        }
+
+        return null;
     }
 
     /// <inheritdoc />

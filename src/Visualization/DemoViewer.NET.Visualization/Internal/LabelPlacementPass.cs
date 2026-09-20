@@ -13,19 +13,15 @@ namespace DemoViewer.NET.Visualization.Internal;
 ///     perpendicular offsets AND along-segment shifts, scoring each against the
 ///     spatial picture so far — node boxes, edge polylines, and already-placed
 ///     labels. The lowest-collision candidate wins; ties break toward the seed.
-///     Text size: the headless metrics path has no Avalonia font manager, so
-///     <see cref="Avalonia.Media.FormattedText" /> can't measure here (the same
-///     block the headless screenshot path hit). The pass uses the SAME
-///     <c>length*6</c> width / <c>14</c> height mono-calibrated estimate the metric
-///     and the renderer's collision math use; because the metric reads the emitted
-///     <see cref="LayoutContext.LabelPositions" />, placement and scoring agree on
-///     the exact rect by construction. Target: HighDegreeHub 2 -> 0.
+///     Text size comes from <see cref="EdgeLabelText" />, which every consumer of a
+///     label shares. Note that it sizes the COLLAPSED label: a condition contributes
+///     a three-character chip, not the predicate. Sizing the predicate is what made
+///     the shipped graph 15x a node wide per label and 2 million units of edge
+///     length (issue #4); the reveal is a render-time overlay, so expanding one
+///     never relayouts the graph.
 /// </summary>
 internal static class LabelPlacementPass
 {
-    private const double CharWidth = 6;
-    private const double LabelHeight = 14;
-
     internal static void Run(LayoutContext ctx)
     {
         Dictionary<IGraphEdge, LabelPlacement> placed = new();
@@ -49,9 +45,7 @@ internal static class LabelPlacementPass
                 continue;
             }
 
-            string text = edge.ConditionLabel is not null
-                ? $"{edge.Label}  [{edge.ConditionLabel}]"
-                : edge.Label;
+            string text = EdgeLabelText.Collapsed(edge);
             if (text.Length == 0)
             {
                 continue;
@@ -64,7 +58,7 @@ internal static class LabelPlacementPass
 
         foreach ((IGraphEdge edge, IReadOnlyList<Point> route, string text, double _) in labelled)
         {
-            double w = text.Length * CharWidth, h = LabelHeight;
+            double w = text.Length * EdgeLabelText.CharWidth, h = EdgeLabelText.LabelHeight;
 
             // Seed: midpoint of the longest segment + that segment's orientation.
             int seg = LongestSegment(route);

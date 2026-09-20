@@ -34,6 +34,7 @@ public static class BaselineRunner
         (IReadOnlyList<IGraphNode> Nodes, IReadOnlyList<IGraphEdge> Edges, IReadOnlyList<INodeGroup> Groups, IReadOnlyList<INodeTable> Tables) multiTable = StressTestGraphs.BuildMultiTableStack();
         (IReadOnlyList<IGraphNode> Nodes, IReadOnlyList<IGraphEdge> Edges, IReadOnlyList<INodeGroup> Groups) hub = StressTestGraphs.BuildHighDegreeHub();
         (IReadOnlyList<IGraphNode> Nodes, IReadOnlyList<IGraphEdge> Edges, IReadOnlyList<INodeGroup> Groups, IReadOnlyList<INodeTable> Tables) big = StressTestGraphs.BuildBigStandard();
+        (IReadOnlyList<IGraphNode> Nodes, IReadOnlyList<IGraphEdge> Edges, IReadOnlyList<INodeGroup> Groups) shipped = ShippedScaleGraph.Build();
 
         return
         [
@@ -49,7 +50,8 @@ public static class BaselineRunner
             new Fixture("DisconnectedComponents", disconnected.Nodes, disconnected.Edges, disconnected.Groups, null),
             new Fixture("MultiTableStack", multiTable.Nodes, multiTable.Edges, multiTable.Groups, multiTable.Tables),
             new Fixture("HighDegreeHub", hub.Nodes, hub.Edges, hub.Groups, null),
-            new Fixture("BigStandard", big.Nodes, big.Edges, big.Groups, big.Tables)
+            new Fixture("BigStandard", big.Nodes, big.Edges, big.Groups, big.Tables),
+            new Fixture("ShippedScale", shipped.Nodes, shipped.Edges, shipped.Groups, null)
         ];
     }
 
@@ -58,8 +60,8 @@ public static class BaselineRunner
         StringBuilder sb = new();
         CultureInfo ci = CultureInfo.InvariantCulture;
 
-        sb.AppendLine("| Fixture | NodeOverlap | EdgeNodeX | EdgeCross | EdgeLen | SharedPorts | LabelOverlap | OOB | SelfLoopOX | Aspect | LayoutMs |");
-        sb.AppendLine("|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|");
+        sb.AppendLine("| Fixture | NodeOverlap | EdgeNodeX | EdgeCross | EdgeLen | SharedPorts | LabelOverlap | OOB | SelfLoopOX | Aspect | LayoutMs | LabelOverNode |");
+        sb.AppendLine("|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|");
 
         foreach (Fixture f in BuildAll())
         {
@@ -69,10 +71,10 @@ public static class BaselineRunner
             double ms = Math.Min(m.LayoutMilliseconds, m2.LayoutMilliseconds);
 
             sb.AppendLine(string.Format(ci,
-                "| {0} | {1} | {2} | {3} | {4:F0} | {5} | {6} | {7} | {8} | {9:F2} | {10:F1} |",
+                "| {0} | {1} | {2} | {3} | {4:F0} | {5} | {6} | {7} | {8} | {9:F2} | {10:F1} | {11:F2} |",
                 f.Name, m.NodeNodeOverlaps, m.EdgeNodeIntersections, m.EdgeCrossings,
                 m.TotalEdgeLength, m.SharedPortEndpoints, m.LabelOverlaps,
-                m.OutOfBoundsPrimitives, m.SelfLoopOverlaps, m.AspectRatio, ms));
+                m.OutOfBoundsPrimitives, m.SelfLoopOverlaps, m.AspectRatio, ms, m.WidestLabelOverNode));
         }
 
         return sb.ToString();

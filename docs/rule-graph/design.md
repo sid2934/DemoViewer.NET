@@ -1,11 +1,13 @@
 # The rule graph: what it draws, what it should draw, and a node-based rule editor
 
-**Status: plan FINAL. The graph fix is MERGED** as
-[#16](https://github.com/sid2934/DemoViewer.NET/pull/16) (§3 records what shipped); the version
-bump, the readability pass and the node editor are not started, and **the version bump is next**.
+**Status: plan FINAL. The graph fix, the version bump and the readability pass are MERGED**, as
+[#16](https://github.com/sid2934/DemoViewer.NET/pull/16) (§3 records what shipped),
+[#19](https://github.com/sid2934/DemoViewer.NET/pull/19) and
+[#20](https://github.com/sid2934/DemoViewer.NET/pull/20) (§5 records what shipped). **The node
+editor is next, and it is blocked on §9 decisions 4 and 5.**
 Written 2026-09-17 against `main` at `0eebe12` with CS2DemoKit pinned to 0.11.0; **refreshed
 2026-09-19 against `main` at `d985dbe`, CS2DemoKit pinned to 0.12.0**
-([#17](https://github.com/sid2934/DemoViewer.NET/pull/17)). Sections 1 and 2 diagnose a defect that
+([#17](https://github.com/sid2934/DemoViewer.NET/pull/17)); **readability pass recorded 2026-09-20**. Sections 1 and 2 diagnose a defect that
 is now fixed and are kept as the as-of record; where 0.12.0 moved something underneath them it is
 marked inline. Their `file:line` references are to the 2026-09-17 tree and have drifted. Covers issue [#15](https://github.com/sid2934/DemoViewer.NET/issues/15)
 (the Analysis graph draws scaffolding and no rules), [#4](https://github.com/sid2934/DemoViewer.NET/issues/4)
@@ -50,8 +52,16 @@ holds exactly.
 | | nodes | edges |
 |---|---|---|
 | What the viewer draws today (`build.Nodes` / `build.Edges`) | **61** | **43** |
-| Collapsed to one representative player | **434** | **297** |
+| Collapsed to one representative player | **434** | **474** |
 | Naive expansion, all ten players | **3 791** | **2 583** |
+
+**Corrected 2026-09-20: the collapsed row said 297 edges and it is 474.** 43 + 254 = 297 counts
+edge DESCRIPTORS, which the engine emits only for trigger-backed rule edges. #16 then added the
+runtime `StateEdge` pass that recovers enrichment, reset and first-tick wiring (§3.2, the one that
+took orphans from 187 to 54), and that pass draws 177 more. So the number in this row has been the
+pre-#16 count since #16 shipped. Re-measured by reproducing `BuildGraphViewModels` against 0.12.0
+on the reference demo; the capture is committed as the `ShippedScale` layout fixture. The
+all-players row is a descriptor count too and is left as measured, since nothing consumes it.
 
 Across that 3 791-node merged set there are **432 distinct names and 371 colliding names**, most of
 them appearing exactly ten times (`Alive`, `Survived`, `Traded`, `round_team_alive`, and so on).
@@ -297,6 +307,13 @@ There are two Avalonia ports of Nodify, and the difference is decisive.
 | Stars | 75 | 308 |
 | Licence | MIT | MIT |
 | Against our Avalonia 11.3.12 | **restore fails** | **builds clean** |
+| Against Avalonia 12.1.2 (added 2026-09-20) | builds; untried | **builds clean and then throws `TypeLoadException` at run time** |
+
+**The "builds clean" row is a trap, and the spike walked into it deliberately so nobody else has
+to.** `NodifyAvalonia` 6.6.0 compiles against Avalonia 12.1.2 and fails to LOAD, because a
+`netstandard2.0` assembly built against Avalonia 11 carries typerefs that Avalonia 12 no longer
+satisfies and Avalonia 12.1.2 has dropped its `netstandard2.0` target entirely. §6.5 has the
+evidence and the vendored-fork cost.
 
 Verified, not inferred. A scratch project on Avalonia 11.3.12 referencing `Nodify.Avalonia` 2.0.0
 fails with `NU1605: Detected package downgrade: Avalonia from 12.0.5 to 11.3.12`, and `NU1605` is
@@ -394,18 +411,77 @@ decision rather than cutting against one.
 
 Inside the existing renderer, independent of nodify, and mostly unblocked by the graph fix.
 
+**Shipped 2026-09-20.** What each item asked for, and what landed:
+
 - **Conditions off the edge.** A predicate rides on `IGraphEdge.ConditionLabel` and crowds the
   edge. Render it as a chip anchored to the edge midpoint with collapse-by-default, or as a small
   gate node. `LabelPlacementPass` (260 lines) already does greedy collision avoidance and is where
   this lands.
+  **Done, as a chip.** `EdgeLabelText` is now the single definition of an edge label's text and
+  width, shared by the placement pass, the renderer and the headless metric. A condition collapses
+  to a three-character chip; hovering the chip spells the predicate out, drawn on top, with no
+  relayout. `WidestLabelOverNode` 15.00 to 1.00 and `LabelOverlaps` 13 to 0 on the real graph. A
+  predicate short enough to fit the budget stays on the edge: 92 of the 244 conditioned edges read
+  `rising edge`, `active` or `value >= 2`, and chipping those would hide the readable predicates in
+  order to bound the unreadable ones. A SELF-LOOP's predicate is never chipped, because
+  `LabelPlacementPass` skips self-loops, so a loop label has no placed rect and nothing to hover;
+  collapsing it would hide the condition with no way back.
+  **One premise in the previous draft of this section was wrong**: labels never influenced node
+  placement. `MsaglTranslator` hands MSAGL node boxes and nothing else, so the layout has never seen
+  a character of label text. The predicate was not pushing the graph apart, it simply could not be
+  placed.
 - **A per-player template layout.** The repeated per-player subtree is 373 nodes of identical
   shape. It should draw as one template with a slot selector, not ten copies. This is the visual
   half of collapsing per-player copies.
+  **Already shipped in #16**, and re-confirmed rather than re-done: `BuildGraphViewModels` draws
+  the scaffolding plus ONE materialised slot, `RebuildGraphForPlayer` switches slot without
+  re-evaluating, and the graph toolbar names the drawn player. Nothing was left for this pass.
 - **Spacing and routing.** `LayoutStyleConfig` has three knobs. Re-tune against
   `LayoutMetricsHardGateTests`, which already asserts six overlap and intersection metrics at zero
   across 13 fixtures, so a regression here is caught.
+  **Done, plus a new pass.** `LayerSeparation` 160 to 110 and `NodeSeparation` 60 to 30: canvas
+  2151 x 34726 to 1901 x 24425, edge length down 29%, crossings down 26%. The rotation makes the two
+  knobs mean the opposite of what they read like, which is why the height never moved: with
+  `Rotation(pi/2)`, `LayerSeparation` sets the WIDTH. Routing also gained `EdgePortFanPass`, because
+  MSAGL routes between node shapes rather than ports and the real graph has 88 duplicate endpoint
+  pairs, all drawn on top of each other.
 - **A fixture at the real size.** The largest stress fixture is `BuildBigStandard` at 120 nodes
   / ~200 edges. Add a 434-node fixture, or the gate keeps passing at a size we no longer ship.
+  **Done, and captured rather than modelled.** `ShippedScaleGraph` reads a committed capture of the
+  drawn graph: 434 nodes, 474 edges, 36 real event labels, 101 real predicates up to 434 characters.
+  A first cut modelled the topology at the right node count and reported zero on both metrics above;
+  grounding it is what surfaced them.
+
+### 5.1 What the fixture cost to ground, and what it says about the gate
+
+The hard gate had been passing on a corpus that did not contain the defect. Against the capture,
+before any of the work above:
+
+| | modelled | captured | after |
+|---|--:|--:|--:|
+| Edges | 297 | 474 | 474 |
+| Edges carrying a predicate | 25% | 51.5% | 51.5% |
+| `SharedPorts` (gated at 0) | 0 | **60** | 0 |
+| `LabelOverlaps` (gated at 0) | 0 | **13** | 0 |
+| `WidestLabelOverNode` | 2.43 | 15.00 | 1.00 |
+| `EdgeCrossings` | 0 | 2 160 | 4 196 |
+| `TotalEdgeLength` | 85 123 | 2 087 054 | 1 489 056 |
+| Canvas | | 2151 x 34726 | 1901 x 24425 |
+
+`EdgeCrossings` rising is the honest price of the port fan: fourteen collinear arrows cross nothing
+because they are the same line, and separating them puts them in each other's way. It is not gated.
+Two of the three ways the fan was tried cost FEWER crossings and were rejected for correctness:
+letting a displaced anchor walk the whole node perimeter reaches 3 434, and redistributing a
+saturated node's anchors evenly around it reaches 8 997, but the first draws 67 of 143 moved edges
+straight through their own node box and the second sends a quarter of the root's edges out of the
+face pointing away from their destination. `EdgeNodeIntersections` sees neither, because it excludes
+an edge's own endpoints.
+
+**One identity defect found while capturing, and not fixed here.** `enemy_kills_round` and
+`wallbang_kills` each occur twice within a SINGLE player's 373 nodes, so
+`GraphNodeKey.ForPlayer(templateIndex, slot, name)` is not unique for 2 of the 434 drawn nodes.
+§0.3 established that names collide ACROSS players and the key solved that; it does not solve a
+collision within one. That belongs to the graph fix's identity work, not to readability.
 
 ---
 
@@ -457,14 +533,81 @@ a diagnostic-to-node mapping layer is new work.
 
 ### 6.4 Staging
 
-- **Spike.** `NodifyAvalonia` in the app shell, desktop and browser, rendering a real ruleset's
-  authoring graph read-only at MSAGL-computed positions. Answers the theme-include question, the
-  WASM question and the per-node-control cost question for about a day's work. BAndysc ships a live
-  WASM demo, so browser is plausible rather than proven for us.
+- ~~**Spike.**~~ **Run 2026-09-20 against Avalonia 12.1.2. Findings in §6.5.** Answer: the
+  published package cannot run on Avalonia 12 at all, a vendored fork can, and the per-node cost is
+  fine at the size this editor needs.
 - **The editable model and the YAML writer.** §6.1. Gate everything else on this.
 - **Read-only nodify view of the open ruleset**, replacing the Workbench graph toggle only.
 - **Editing**: drag, connect, add and delete against that model, YAML regenerated on save.
 - **Undo and redo**, which nodify does not provide and which a node editor cannot ship without.
+
+### 6.5 What the spike found (2026-09-20)
+
+Run on Avalonia 12.1.2 with SkiaSharp 3.119.4, on the tree as merged by #19. Throwaway scratch
+projects outside the repo; nothing of the spike is committed.
+
+**R11 is confirmed, and its wording was wrong.** The theme was never the problem. The published
+`NodifyAvalonia` 6.6.0 assembly does not load at all under Avalonia 12: it throws
+`TypeLoadException: Could not load type 'Avalonia.Controls.Primitives.IScrollable' from assembly
+'Avalonia.Controls'` at JIT of the first method that touches a Nodify type, before any XAML is
+parsed. A probe that merges no Nodify resources and only does `new NodifyEditor()` throws
+identically, which rules out the theme, the `ResourceInclude` and compiled XAML.
+
+The cause is binary, not behavioural. `IScrollable` moved from `Avalonia.Controls.dll` to
+`Avalonia.Base.dll` in Avalonia 12 with **no type forwarder**, and `NodifyEditor` implements
+`ILogicalScrollable`, whose base typeref is baked into `Nodify.dll`. A metadata resolver run over
+every Avalonia-scoped typeref and memberref in `Nodify.dll` finds **8 type-level and 6 member-level
+breaks** against 12.1.2 and **zero** against 11.3.12. Any one of them is fatal.
+
+**A second blocker §4.1 did not catch.** Avalonia 12.1.2 dropped its `netstandard2.0` target
+(`lib/` has only `net8.0` and `net10.0`). `NodifyAvalonia` is `netstandard2.0`. NuGet is happy to
+feed it to a `net10.0` consumer, which is exactly why §4.1's "builds clean against both 11.3.12 and
+12.1.2" is true and misleading: nothing resolves a typeref until load time. **That row in §4.1's
+table is a trap and should be read as such.**
+
+**The theme itself is innocent, proven by vendoring.** The MIT source at tag `v6.6.0` retargeted
+`netstandard2.0` to `net8.0` and `AvaloniaVersion` to 12.1.2 builds clean, and on Avalonia 12 all
+eleven `ControlTheme`s resolve and a 12-node graph renders correctly to a captured frame. The fork
+is 9 files, +51 / -38. Two capabilities are lost, not renamed: touchpad pinch-zoom (`Gestures` is
+now internal) and the popup hop in command routing (`IHostedVisualTreeRoot` is now internal). One
+change is a semantic shift rather than an API rename and will recur on every upstream merge:
+`{RelativeSource TemplatedParent}` inside a nested `ItemsPanelTemplate` now binds to the
+`ItemsPresenter` rather than the outer template's target.
+
+**Browser: capability proven, rendering not.** On the real `browser-wasm` mono runtime the stock
+package fails with the same typeref error; the fork loads, initialises the application with the
+Nodify theme merged, resolves all eleven `ControlTheme`s, and realises 60 nodes / 120 connectors /
+112 connections with templates applied. Both variants `dotnet publish` clean from a
+`net10.0-browser` head modelled on `DemoViewer.NET.Browser`. What is NOT proven: rendering through
+Avalonia's browser canvas backend, DOM input, and frame rate. No browser was driven.
+
+**Per-node cost, headless Skia software raster, synthetic graph at this repo's node sizes:**
+
+| nodes | Avalonia visuals | realize ms | re-layout ms | pan ms, zoom to fit | managed MB |
+|--:|--:|--:|--:|--:|--:|
+| 50 | 2 599 | 126 | 48 | 9.6 | 17 |
+| 100 | 5 183 | 276 | 73 | 10.9 | 34 |
+| 250 | 12 959 | 795 | 119 | 20.8 | 93 |
+| 500 | 25 935 | 1 588 | 148 | 35.1 | 188 |
+| 1 000 | 51 887 | 2 478 | 269 | 10.0 (culled) | 378 |
+
+One node control is about **52 Avalonia visuals and 350 KB**. Realization is linear at 2.5 to 3.2 ms
+a node and is the number to design around, not frame rate: 100 nodes blocks the UI thread for about
+280 ms.
+
+**§4.3's read of BAndysc#10 is a version out of date.** "~50 nodes laggy, ~100 at 20-30 fps"
+measures as 104 fps at 50 and 92 fps at 100 zoomed to fit on Avalonia 12; the 20-30 fps band now
+sits near 500 nodes. Avalonia 12 culls off-screen content where 11 did not, so at native zoom the
+pan frame is flat at about 10 ms from 50 to 1 000 nodes against 57 ms on 11. **This does not change
+§4.4.** 1 000 nodes still costs 2.5 s of realization and 378 MB, and the Analysis graph's real sizes
+are 434 and 3 791, so R6 stands and the Analysis tab keeps its immediate-mode renderer.
+
+**What the spike did not do.** It used a synthetic graph of the right size and aspect rather than
+`AuthoringGraph.Build` over `rules/`, so the real-ruleset half of §6.4 is still open; it is cheap
+now that the hard question is answered. It did not test dragging, connecting, rubber-band selection,
+undo, or the `Minimap` under load, and it did not re-evaluate trrahul's `Nodify.Avalonia` 2.0.0,
+which §4.1 dismissed on a constraint (Avalonia >= 12.0.5) that **no longer applies now that #19 has
+merged**. That re-evaluation should happen before anyone commits to maintaining a fork.
 
 ---
 
@@ -598,15 +741,16 @@ rest and take the un-fork second; the fence stays standing one release longer an
 |---|---|---|
 | R1 | The graph fix lands the join without the identity work, and every per-player breakpoint silently matches ten nodes | Identity and the join are one change. §0.3 is the test case |
 | R2 | 434 nodes is unreadable even after the graph fix | It collapses per-player copies by default; the readability pass is scoped to exactly this |
-| R3 | `NodifyAvalonia` 6.6.0 is 7 months stale and its Avalonia 12 request is open and unanswered | It is MIT and vendorable. It is also confined to the Workbench, so the Analysis tab is unaffected either way |
-| R4 | A future Avalonia 12 move strands us: BAndysc's port has not moved, trrahul's is 12-only | The two ports converge on that bump rather than diverging. Re-evaluate then, not now |
+| R3 | ~~`NodifyAvalonia` 6.6.0 is 7 months stale and its Avalonia 12 request is open and unanswered~~ **Occurred.** The package cannot run on Avalonia 12 at all (§6.5) | Vendoring is now the plan of record rather than the fallback: 9 files, +51 / -38, two capabilities dropped. Still MIT, still confined to the Workbench |
+| R4 | ~~A future Avalonia 12 move strands us: BAndysc's port has not moved, trrahul's is 12-only~~ **Occurred and inverted.** #19 merged; the ports did NOT converge. `v6.6.0` is still the tip of upstream's `avalonia_port` branch with no Avalonia 12 tag | The choice is now a vendored BAndysc fork against re-evaluating trrahul's `Nodify.Avalonia` 2.0.0, which is installable now that we are on Avalonia 12. That comparison has not been made |
 | R5 | The YAML writer loses comments and key order on every save | Decide the position on the editable model first, before building on it. Round-trip preservation is a real cost |
 | R6 | Nodify has no virtualization, ever, by design | Keep it off the Analysis graph. That is §4.4 |
 | R7 | ~~0.12.0's roster change (discovery order, no row for a slot with no materialising event) reshuffles per-player identity~~ **Did not occur.** 0.12.0 was adopted in #17 and the slot-keyed identity held; the full App tier is green on it | Closed 2026-09-19 |
 | R8 | The engine never fills `GroupHints` / `NodeChains`, so deleting the dead features is permanent | CS2DemoKit#50 is open. Deleting is reversible; shipping dead filters is what costs |
 | R9 | A golden moves during the version bump and nothing says whether the platform or a feature did it | The bump carries no feature work and re-baselines once. This is why it is not folded into the readability pass |
 | R10 | The real compile-error count is far above what the probes suggest | The inventory step exists to find that out before anything depends on the bump's timing. The graph fix does not, by §10 |
-| R11 | `NodifyAvalonia` compiles against Avalonia 12 but its Avalonia-11-built `Themes/NodifyStyle.axaml` and `ControlTheme`s fail to load at runtime | Unproven either way; its tracker has an open, unanswered Avalonia 12 request. The nodify spike runs **after** the bump precisely to test this once, on the Avalonia we will actually ship |
+| R11 | ~~its Avalonia-11-built `Themes/NodifyStyle.axaml` and `ControlTheme`s fail to load at runtime~~ **CONFIRMED 2026-09-20, and mis-stated.** The theme is fine. The ASSEMBLY does not load: `TypeLoadException` on `IScrollable` before any XAML is read, plus 13 further metadata breaks | Recompiling the MIT source against Avalonia 12 fixes it, and then all eleven `ControlTheme`s resolve and render, on desktop and on browser-wasm. §6.5 |
+| R15 | The vendored fork has to be re-merged on every upstream release, and one of its changes is a SEMANTIC change in Avalonia 12 binding resolution rather than an API rename, so a clean textual merge can still be wrong | Named here so it is a known cost rather than a surprise. `{RelativeSource TemplatedParent}` inside a nested `ItemsPanelTemplate` is the case: it now binds to the `ItemsPresenter`. Re-evaluating trrahul's port (R4) is the alternative to paying it |
 | R12 | The version bump slips, and the later streams stall behind it | Only the readability pass and the node editor are behind it. The graph fix, the sole correctness fix, is not |
 | R13 | Un-forking AssetBaker folds it back into CPM and VRF's `SkiaSharp.NativeAssets.Linux.NoDependencies` silently wins over the full Linux package the goldens need | Named in §7.0 as a decision, not a discovery. Keep the full package and keep the props comment that says why |
 | R14 | Restoring warnings-as-errors on AssetBaker surfaces VRF-interop nullability warnings that are a project of their own | The un-fork is severable from the rest of the bump by design. Land the bump, take the un-fork second |
@@ -634,6 +778,11 @@ rest and take the un-fork second; the fence stays standing one release longer an
    CST-preserving writer), or regenerate and tell the user? This is the gate on the whole editor.
 5. Is the node editor wanted **in the browser**, or desktop only? It changes how much the nodify spike
    has to prove, and it is the main thing riding on Avalonia 12's WASM story.
+   **Still open, but cheaper to answer than it was.** The spike proved the capability half on the
+   real `browser-wasm` runtime: with the vendored fork, types load, the theme merges, all eleven
+   `ControlTheme`s resolve, and 60 nodes realise with templates applied (§6.5). What is unproven is
+   rendering through the browser canvas backend and frame rate. So "yes" is no longer a gamble on
+   whether it CAN work; it is a call about whether the browser head is worth the surface.
 6. ~~**Does stream V happen at all**~~ **Resolved 2026-09-17: yes.** Not for anything in this
    document, but because SkiaSharp 3 is wanted on its own merits, AssetBaker being the clearest case
    (§7.0). The open sub-question is only whether **un-forking AssetBaker** rides along or follows.
@@ -645,11 +794,12 @@ rest and take the un-fork second; the fence stays standing one release longer an
 Four streams, three PRs before any editor work: **the graph fix, then the version bump, then the
 readability pass, then the node editor.**
 
-> **Where this stands (2026-09-19).** The graph fix is merged (#16). **The version bump is next**,
-> and its first step is the inventory in §7.4: build the solution against Avalonia 12.1.2 and
-> SkiaSharp 3.119.4 on a scratch branch and count compile errors by project. Nothing else in the
-> bump is schedulable until that number exists (R10). Decisions 4 and 5 in §9 are still open; both
-> gate the node editor only, so neither blocks the bump or the readability pass.
+> **Where this stands (2026-09-20).** Three of the four streams are merged: the graph fix (#16),
+> the version bump (#19) and the readability pass (#20). **The node editor is all that is left, and
+> it cannot start**: §9 decision 4 (YAML round-trip fidelity) is called the gate on the whole editor
+> and decision 5 (browser or desktop only) sets what the spike has to prove. Both are product
+> decisions and both are open. The nodify spike in §6.4 is the one piece that was runnable, and R11
+> is answered in §6.5.
 
 **One of these orderings is a constraint and the rest are preferences.** Worth separating, because V
 now has drivers outside this document (§7.0) and may want to move:

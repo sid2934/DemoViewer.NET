@@ -125,9 +125,9 @@ internal static class SvgExporter
 
         foreach ((IGraphEdge edge, LabelPlacement lp) in layout.LabelPositions)
         {
-            string label = edge.ConditionLabel is not null
-                ? $"{edge.Label}  [{edge.ConditionLabel}]"
-                : edge.Label;
+            // The collapsed form, matching what the pass reserved and what the renderer draws. The
+            // export has no hover, so the predicate is simply not in the SVG.
+            string label = EdgeLabelText.Collapsed(edge);
             if (label.Length == 0)
             {
                 continue;

@@ -24,7 +24,8 @@ public sealed record LayoutMetrics(
     int OutOfBoundsPrimitives,
     int SelfLoopOverlaps,
     double AspectRatio,
-    double LayoutMilliseconds)
+    double LayoutMilliseconds,
+    double WidestLabelOverNode)
 {
     /// <summary>
     ///     Runs the v1 layout pipeline under a stopwatch and computes all metrics.
@@ -73,7 +74,8 @@ public sealed record LayoutMetrics(
             CountOutOfBounds(rects, layout),
             CountSelfLoopOverlaps(edges, rects, layout),
             layout.TotalHeight > 0 ? layout.TotalWidth / layout.TotalHeight : 0,
-            layoutMs);
+            layoutMs,
+            WidestLabelOverNodeWidth(edges, layout, style));
     }
 
     // ── Metric 3: edge crossings (segment-segment intersections, distinct edges) ─
@@ -140,6 +142,30 @@ public sealed record LayoutMetrics(
         }
 
         return count;
+    }
+
+    // ── Readability: widest placed label, as a multiple of a node's width ────
+    // NOT a hard gate, and deliberately not zero-valued: an edge label is allowed to be wider than a
+    // node. It is here because the overlap metrics above cannot see the thing issue #4 is about. A
+    // predicate like `event.KillerSlot == player.slot && event.Weapon.IsRifle` places a rect roughly
+    // 2.4x the width of the 180-unit node it connects, and the layout separates nodes to fit it. So
+    // the conditions never OVERLAP, they inflate, which is why the corpus reads zero overlaps while
+    // the graph is still unreadable. Collapsing a condition to a chip should drive this toward 1.
+    private static double WidestLabelOverNodeWidth(
+        IReadOnlyList<IGraphEdge> edges, LayoutResult layout, GraphStyle style)
+    {
+        double widest = 0;
+        foreach (IGraphEdge edge in edges)
+        {
+            if (!ReferenceEquals(edge.Source, edge.Destination) &&
+                layout.LabelPositions.TryGetValue(edge, out LabelPlacement? placed))
+            {
+                widest = Math.Max(widest, placed.ToRect().Width);
+            }
+        }
+
+        double node = style.Node.Width;
+        return node > 0 ? widest / node : 0;
     }
 
     // ── Metric 6: label overlaps (label-label and label-node) ───────────────

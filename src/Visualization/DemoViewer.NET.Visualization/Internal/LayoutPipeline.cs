@@ -5,13 +5,14 @@ namespace DemoViewer.NET.Visualization.Internal;
 ///     <see cref="LayoutContext" />; the result is frozen into an immutable
 ///     <see cref="LayoutResult" /> for the renderer.
 ///     Pass order:
-///     1. CoarseLayout   — MSAGL Sugiyama (layer assignment + crossing
+///     1. CoarseLayout:   MSAGL Sugiyama (layer assignment + crossing
 ///     minimisation + coordinate assignment; the hard parts).
-///     2. SelfLoops      — loop routes per node.
-///     3. GroupBounds    — AABB over each group's member node boxes.
-///     4. TablePlacement — tables anchored to the real graph content bbox.
-///     5. LabelPlacement — collision-resolved edge-label rectangles.
-///     6. Containment    — true bbox over EVERY primitive; shift out negatives so
+///     2. EdgePortFan:    spreads coincident endpoints so parallel edges separate.
+///     3. SelfLoops:      loop routes per node.
+///     4. GroupBounds:    AABB over each group's member node boxes.
+///     5. TablePlacement: tables anchored to the real graph content bbox.
+///     6. LabelPlacement: collision-resolved edge-label rectangles.
+///     7. Containment:    true bbox over EVERY primitive; shift out negatives so
 ///     the reported bounds actually contain all geometry.
 /// </summary>
 internal static class LayoutPipeline
@@ -26,6 +27,7 @@ internal static class LayoutPipeline
         LayoutContext ctx = new(nodes, edges, groups, tables, style);
 
         CoarseLayoutPass.Run(ctx);
+        EdgePortFanPass.Run(ctx);
         SelfLoopPass.Run(ctx);
         GroupBoundsPass.Run(ctx);
         TablePlacementPass.Run(ctx);

@@ -18,4 +18,10 @@
     <ItemGroup>
         <InternalsVisibleTo Include="DemoViewer.NET.Visualization.Tests"/>
     </ItemGroup>
+    <ItemGroup>
+        <!-- The captured Analysis-tab graph behind ShippedScaleGraph. Embedded rather than copied to
+             output so the metrics gate, which runs out of the test project, reads the same bytes the
+             sample app does. -->
+        <EmbeddedResource Include="SampleGraphs\shipped-scale.tsv"/>
+    </ItemGroup>
 </Project>
