@@ -1,10 +1,13 @@
 # The rule graph: what it draws, what it should draw, and a node-based rule editor
 
-**Status: plan FINAL. The graph fix, the version bump and the readability pass are MERGED**, as
-[#16](https://github.com/sid2934/DemoViewer.NET/pull/16) (§3 records what shipped),
-[#19](https://github.com/sid2934/DemoViewer.NET/pull/19) and
-[#20](https://github.com/sid2934/DemoViewer.NET/pull/20) (§5 records what shipped). **The node
-editor is next and is now UNBLOCKED: §9 decisions 4, 5 and 7 were taken 2026-09-20.**
+**Status: plan COMPLETE. All four streams are MERGED**, as
+[#16](https://github.com/sid2934/DemoViewer.NET/pull/16) (the graph fix, §3),
+[#19](https://github.com/sid2934/DemoViewer.NET/pull/19) (the version bump, §7),
+[#20](https://github.com/sid2934/DemoViewer.NET/pull/20) (the readability pass, §5) and
+[#22](https://github.com/sid2934/DemoViewer.NET/pull/22), [#23](https://github.com/sid2934/DemoViewer.NET/pull/23),
+[#26](https://github.com/sid2934/DemoViewer.NET/pull/26), [#31](https://github.com/sid2934/DemoViewer.NET/pull/31)
+(the node editor, §6). §9 decisions 4, 5 and 7 were taken 2026-09-20. **What is left is listed in
+§6.6, and every item there is a decision rather than a task.**
 Written 2026-09-17 against `main` at `0eebe12` with CS2DemoKit pinned to 0.11.0; **refreshed
 2026-09-19 against `main` at `d985dbe`, CS2DemoKit pinned to 0.12.0**
 ([#17](https://github.com/sid2934/DemoViewer.NET/pull/17)); **readability pass recorded 2026-09-20**. Sections 1 and 2 diagnose a defect that
@@ -548,10 +551,27 @@ a diagnostic-to-node mapping layer is new work.
 - ~~**Spike.**~~ **Run 2026-09-20 against Avalonia 12.1.2. Findings in §6.5.** Answer: the
   published package cannot run on Avalonia 12 at all, a vendored fork can, and the per-node cost is
   fine at the size this editor needs.
-- **The editable model and the YAML writer.** §6.1. Gate everything else on this.
-- **Read-only nodify view of the open ruleset**, replacing the Workbench graph toggle only.
-- **Editing**: drag, connect, add and delete against that model, YAML regenerated on save.
-- **Undo and redo**, which nodify does not provide and which a node editor cannot ship without.
+- ~~**The editable model and the YAML writer.**~~ **Merged as #22.** It splices the value's
+  character span rather than serialising, so comments, key order and quoting survive by not
+  being touched. Byte-identical round trip over all 15 shipped rulesets, including one that
+  rewrites every scalar with its own value. Constructs a splice cannot do (anchors, aliases,
+  merge keys, explicit tags, block-scalar text) are REFUSED with an error rather than
+  silently mangled.
+- ~~**Read-only nodify view of the open ruleset.**~~ **Merged as #26**, on the vendored fork
+  from #23, at MSAGL-computed positions.
+- ~~**Editing**~~ / ~~**Undo and redo**~~ **Merged together as #31**, because shipping editing
+  without undo is the state this list says cannot ship. Every gesture produces a new buffer
+  through the same splice the text pane uses, so a click-edit and a typed edit produce the
+  same bytes. Undo holds the replaced document rather than inverting a splice, which the
+  immutable editor makes free.
+
+  **Two of the four gestures did not ship as gestures, and both are decisions rather than
+  omissions.** *Drag* is transient: a ruleset has no layout section, and inventing a
+  `position:` key would change a shipped format validated against the engine's own schema
+  copy, for a view-only concern. *Connect* is absent because an edge here is DERIVED, from a
+  trigger, a predicate or an expression reference, so there is no dependency key for a wire
+  to set; a gesture that looked like connecting and actually rewrote a predicate would be
+  worse than none. Editing a trigger or predicate is available as a field. See §6.6.
 
 ### 6.5 What the spike found (2026-09-20)
 
@@ -637,6 +657,39 @@ now that the hard question is answered. It did not test dragging, connecting, ru
 undo, or the `Minimap` under load, and it did not re-evaluate trrahul's `Nodify.Avalonia` 2.0.0,
 which §4.1 dismissed on a constraint (Avalonia >= 12.0.5) that **no longer applies now that #19 has
 merged**. That re-evaluation should happen before anyone commits to maintaining a fork.
+
+### 6.6 What is left, and who decides it (2026-09-20)
+
+The plan is delivered. Nothing below is a task waiting on an engineer; each is a choice waiting
+on an owner, recorded here so it does not get rediscovered as a defect.
+
+**1. Connect, as a gesture.** The open design question from §6.4. An edge in this graph is
+derived rather than declared: it comes from a stat's `on:` trigger, its `while:`/`where:`
+predicate, or an expression referencing another stat. A dragged wire would have to decide which
+of the three it meant and then write into the expression language, which §6.2 keeps textual.
+Either give the gesture one unambiguous meaning, or leave triggers and predicates as fields and
+say so in the UI. Not an implementation question.
+
+**2. `RoutedCommand.PopupHostOf` in the vendored fork.** §9 decision 7 and §6.5. It reproduces
+an internal Avalonia behaviour from public members, so unlike the documented capability loss the
+decision originally assumed, it can rot silently on a major bump. Keep it and re-read Avalonia's
+`PopupRoot.cs` each time, or delete it and take the loss.
+
+**3. The browser.** Issue [#25](https://github.com/sid2934/DemoViewer.NET/issues/25). Decision
+5's escape hatch was used as designed. The blocker is NOT nodify, which loads and runs on the
+real `browser-wasm` runtime: it is that `GraphSupported` is `!OperatingSystem.IsBrowser()`
+because MSAGL layout wants a thread WASM does not have. That predates this work.
+
+**4. Diagnostics to nodes.** §6.3. Deferred deliberately while the staging ran, on the grounds
+that a diagnostic lands better once an author has somewhere to fix it. That is now true.
+
+**5. Issue [#3](https://github.com/sid2934/DemoViewer.NET/issues/3), isolating a sub-chain.**
+Still blocked for the reason §1.3 gives: `ChainIds` is empty on every node because the engine
+never fills `NodeChains`. CS2DemoKit#50, not ours.
+
+**6. The demo corpus is empty.** Unrelated to the plan and recorded because it changes what a
+green suite means: 84 demo-dependent tests SKIP rather than run. `demos/CORPUS.md` lists what was
+there. Only its owner can restore it.
 
 ---
 
@@ -848,11 +901,11 @@ rest and take the un-fork second; the fence stays standing one release longer an
 Four streams, three PRs before any editor work: **the graph fix, then the version bump, then the
 readability pass, then the node editor.**
 
-> **Where this stands (2026-09-20).** Three of the four streams are merged: the graph fix (#16),
-> the version bump (#19) and the readability pass (#20). **The node editor is the only one left, and
-> it is unblocked.** §9 decisions 4, 5 and 7 were taken on 2026-09-20: preserve comments and key
-> order, target the browser with an explicit escape hatch, and vendor BAndysc's `NodifyAvalonia`.
-> §6.4 is the staging, and §6.1's round-trip is the first thing built rather than the last.
+> **Where this stands (2026-09-20). All four streams are merged and this sequencing is spent.**
+> The graph fix (#16), the version bump (#19), the readability pass (#20) and the node editor
+> (#22, #23, #26, #31). The constraints below held: the bump landed before the readability
+> pass so a moved golden had one cause, and the nodify spike ran after the bump, which is the
+> only reason R11 was testable at all. What remains is §6.6.
 
 **One of these orderings is a constraint and the rest are preferences.** Worth separating, because V
 now has drivers outside this document (§7.0) and may want to move:
