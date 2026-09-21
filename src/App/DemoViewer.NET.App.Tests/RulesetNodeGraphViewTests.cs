@@ -77,12 +77,11 @@ public class RulesetNodeGraphViewTests
 
     /// <summary>
     ///     The Workbench's own XAML, with real data pushed through it: the item template produces
-    ///     <see cref="Node" /> controls, each container sits where MSAGL put it, and read-only is
-    ///     ENFORCED rather than merely unused. "We did not write a drag handler" is not the same
-    ///     claim as "the control will not drag", and editing is §6.4 items 4 and 5, not started.
+    ///     <see cref="Node" /> controls, each container sits where MSAGL put it, and one node can be
+    ///     selected at a time, which is what the field editor binds to.
     /// </summary>
     [Test]
-    public async Task TheWorkbenchGraph_DrawsNodesWhereTheLayoutPutThem_AndCannotBeDragged()
+    public async Task TheWorkbenchGraph_DrawsNodesWhereTheLayoutPutThem_AndIsSelectable()
     {
         await HeadlessSession.RunOnUi(async () =>
         {
@@ -120,10 +119,13 @@ public class RulesetNodeGraphViewTests
                 await Assert.That(containers.Count).IsEqualTo(nodes.Count);
                 await Assert.That(editor.GetVisualDescendants().OfType<Node>().Any()).IsTrue()
                     .Because("the Workbench item template should have produced Node controls");
-                await Assert.That(containers.All(c => !c.IsDraggable)).IsTrue()
-                    .Because("the view is read-only; nothing should be draggable");
-                await Assert.That(containers.All(c => !c.IsSelectable)).IsTrue();
-                await Assert.That(editor.CanSelectMultipleItems).IsFalse();
+                // Selectable and draggable now that editing exists (§6.4 item 4). Dragging moves
+                // the box and nothing else: a ruleset has no layout section, so a position is
+                // MSAGL's answer and lasts until the next render. RulesetNodeEditingTests holds
+                // that no gesture writes one.
+                await Assert.That(containers.All(c => c.IsSelectable)).IsTrue();
+                await Assert.That(editor.CanSelectMultipleItems).IsFalse()
+                    .Because("one node is edited at a time");
                 await Assert.That(editor.EnableRealtimeSelection).IsFalse();
 
                 foreach (ItemContainer container in containers)
