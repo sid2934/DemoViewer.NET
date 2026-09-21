@@ -67,6 +67,9 @@
              restores happily and then throws TypeLoadException at the first Nodify type it JITs.
              docs/rule-graph/design.md §6.5 has the evidence, §9 decision 7 the choice. -->
         <ProjectReference Include="..\..\Nodify\Nodify\Nodify.csproj"/>
+        <!-- The comment- and order-preserving ruleset writer (design.md §9 decision 4). Every edit
+             the node editor makes goes through it; there is deliberately no second write path. -->
+        <ProjectReference Include="..\..\RuleAuthoring\DemoViewer.NET.RuleAuthoring\DemoViewer.NET.RuleAuthoring.csproj"/>
         <!-- Repo-local feed package (see nuget.config), not a sibling-checkout ProjectReference. -->
         <PackageReference Include="CS2OpenDev.Sdk"/>
     </ItemGroup>

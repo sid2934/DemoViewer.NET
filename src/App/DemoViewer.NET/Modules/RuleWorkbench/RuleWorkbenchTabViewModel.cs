@@ -98,6 +98,11 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
 
     private bool _loadingDocument; // guards the disk→buffer load from marking the doc dirty
 
+    // Graph-node name -> what the OPEN document declares it to be. Rebuilt with the graph, and
+    // the reason a node can be edited at all; see RulesetNodeBinding.
+    private IReadOnlyDictionary<string, RulesetNodeBinding> _nodeBindings =
+        new Dictionary<string, RulesetNodeBinding>(StringComparer.Ordinal);
+
     /// <summary>The open file's proposed save-as name (the read-only save-as prompt).</summary>
     [ObservableProperty]
     private string _saveAsName = "";
@@ -231,6 +236,21 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
 
     /// <summary>The edges between those nodes, as the two points each runs between.</summary>
     public ObservableCollection<RulesetGraphConnection> RulesetConnections { get; } = [];
+
+    /// <summary>The node the graph has selected, or <c>null</c>. Drives the field editor.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(DeleteSelectedNodeCommand))]
+    private RulesetGraphNode? _selectedRulesetNode;
+
+    /// <summary>The selected node's editable keys and their current values.</summary>
+    public ObservableCollection<RulesetNodeField> SelectedNodeFields { get; } = [];
+
+    /// <summary>What the field editor says about the selection when it offers no fields.</summary>
+    [ObservableProperty]
+    private string _selectedNodeSummary = "Select a node to edit the stat behind it.";
+
+    /// <summary>Whether the selected node is one the open document declares and can therefore be edited.</summary>
+    public bool CanEditSelectedNode => SelectedRulesetNode?.IsEditable == true && !IsReadOnlyFile;
 
     /// <summary>Save-in-place is allowed only for an editable open file (user, or shipped in DeveloperMode) that is dirty.</summary>
     public bool CanSave => _userDir is not null && SelectedFile is not null && IsDirty && !IsReadOnlyFile;
@@ -514,6 +534,13 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
             AuthoringGraph.AuthoringGraphModel model = AuthoringGraph.Build(build, rulesets);
             RuleGraphSkeleton.Skeleton skeleton = RuleGraphSkeleton.BuildAuthoring(model);
 
+            // The join that makes a node editable. Built from the OPEN document rather than from
+            // the whole composed set: an edit is addressed at the file the Workbench has open, so a
+            // node contributed by a `use:` dependency is drawn and is not editable.
+            _nodeBindings = OpenDocument() is { } open
+                ? RulesetNodeBinding.Map(open)
+                : new Dictionary<string, RulesetNodeBinding>(StringComparer.Ordinal);
+
             GraphNodeCount = skeleton.Nodes.Count;
             int perPlayer = model.Nodes.Count(n => n.IsPerPlayer);
             GraphSummary = $"open ruleset: {skeleton.Nodes.Count} node(s), {skeleton.Edges.Count} edge(s)"
@@ -546,7 +573,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
         await GraphViewModel.SetGraphAsync(skeleton.Nodes, skeleton.Edges, skeleton.Groups);
 
         (IReadOnlyList<RulesetGraphNode> nodes, IReadOnlyList<RulesetGraphConnection> connections) =
-            RulesetGraphProjection.Project(GraphViewModel, skeleton.Nodes, skeleton.Edges);
+            RulesetGraphProjection.Project(GraphViewModel, skeleton.Nodes, skeleton.Edges, _nodeBindings);
 
         RulesetNodes.Clear();
         foreach (RulesetGraphNode node in nodes)
