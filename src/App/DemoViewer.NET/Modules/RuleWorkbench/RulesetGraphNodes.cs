@@ -25,6 +25,11 @@ namespace DemoViewer.NET.Modules.RuleWorkbench;
 /// <param name="Value">The node's display value, or <c>null</c>.</param>
 /// <param name="IsRoot">Whether this is the graph's entry point.</param>
 /// <param name="IsPerPlayer">Whether the node came from a per-player template.</param>
+/// <param name="Binding">
+///     What the node is in the open document, and therefore whether an edit can be addressed to it.
+///     <see cref="RulesetNodeBinding.None" /> for everything the graph draws that no <c>stats:</c>
+///     or <c>highlights:</c> entry owns.
+/// </param>
 public sealed record RulesetGraphNode(
     int Key,
     Point Location,
@@ -32,7 +37,12 @@ public sealed record RulesetGraphNode(
     string? Subtitle,
     string? Value,
     bool IsRoot,
-    bool IsPerPlayer);
+    bool IsPerPlayer,
+    RulesetNodeBinding Binding)
+{
+    /// <summary>Whether the editor offers fields for this node. Drives the selection affordance.</summary>
+    public bool IsEditable => Binding.IsEditable;
+}
 
 /// <summary>
 ///     One edge, as the two points it runs between rather than as a routed polyline.
@@ -69,7 +79,8 @@ public static class RulesetGraphProjection
         Project(
             GraphViewModel graph,
             IReadOnlyList<IGraphNode> nodes,
-            IReadOnlyList<IGraphEdge> edges)
+            IReadOnlyList<IGraphEdge> edges,
+            IReadOnlyDictionary<string, RulesetNodeBinding>? bindings = null)
     {
         ArgumentNullException.ThrowIfNull(graph);
         ArgumentNullException.ThrowIfNull(nodes);
@@ -104,7 +115,8 @@ public static class RulesetGraphProjection
                 node.Subtitle,
                 node.DisplayValue,
                 node.IsRoot,
-                node is GraphNodeViewModel { IsPerPlayer: true }));
+                node is GraphNodeViewModel { IsPerPlayer: true },
+                bindings?.GetValueOrDefault(node.Name) ?? RulesetNodeBinding.None));
         }
 
         List<RulesetGraphConnection> connections = new(edges.Count);
