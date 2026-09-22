@@ -1,13 +1,15 @@
 # The rule graph: what it draws, what it should draw, and a node-based rule editor
 
-**Status: plan COMPLETE. All four streams are MERGED**, as
+**Status: the four original streams are MERGED, and the node editor was then RESTAGED.**
+A design review on 2026-09-22 found the shipped canvas drew the wrong graph; §6.7 to §6.9
+carry the review, the corrected staging and what has since landed. The merges below stand:
 [#16](https://github.com/sid2934/DemoViewer.NET/pull/16) (the graph fix, §3),
 [#19](https://github.com/sid2934/DemoViewer.NET/pull/19) (the version bump, §7),
 [#20](https://github.com/sid2934/DemoViewer.NET/pull/20) (the readability pass, §5) and
 [#22](https://github.com/sid2934/DemoViewer.NET/pull/22), [#23](https://github.com/sid2934/DemoViewer.NET/pull/23),
 [#26](https://github.com/sid2934/DemoViewer.NET/pull/26), [#31](https://github.com/sid2934/DemoViewer.NET/pull/31)
-(the node editor, §6). §9 decisions 4, 5 and 7 were taken 2026-09-20. **What is left is listed in
-§6.6, and every item there is a decision rather than a task.**
+(the node editor, §6). §9 decisions 4, 5 and 7 were taken 2026-09-20, decisions 8 and 9 on
+2026-09-21. **What is left is listed in §6.9.**
 Written 2026-09-17 against `main` at `0eebe12` with CS2DemoKit pinned to 0.11.0; **refreshed
 2026-09-19 against `main` at `d985dbe`, CS2DemoKit pinned to 0.12.0**
 ([#17](https://github.com/sid2934/DemoViewer.NET/pull/17)); **readability pass recorded 2026-09-20**. Sections 1 and 2 diagnose a defect that
@@ -573,6 +575,10 @@ a diagnostic-to-node mapping layer is new work.
   to set; a gesture that looked like connecting and actually rewrote a predicate would be
   worse than none. Editing a trigger or predicate is available as a field. See §6.6.
 
+**All four items above were then restaged.** A design review on 2026-09-22 found the shipped
+canvas drew the wrong graph: see §6.7 for the review and §6.8 for the corrected staging. The
+merges recorded here stand; what changed is what they were worth.
+
 ### 6.5 What the spike found (2026-09-20)
 
 Run on Avalonia 12.1.2 with SkiaSharp 3.119.4, on the tree as merged by #19. Throwaway scratch
@@ -663,6 +669,12 @@ merged**. That re-evaluation should happen before anyone commits to maintaining 
 The plan is delivered. Nothing below is a task waiting on an engineer; each is a choice waiting
 on an owner, recorded here so it does not get rediscovered as a defect.
 
+> **Overtaken by the 2026-09-22 review, and left standing because the six items below are still
+> live.** The framing is what changed: the canvas this section signed off on drew the wrong
+> graph, so the plan was NOT delivered in the sense this paragraph means. §6.7 has the review,
+> §6.8 the corrected staging, and §6.9 what has since landed. Item 1 in particular is answered
+> there: an edge IS declared, as a sibling reference in `compute:` / `when:` / `where:`.
+
 **1. Connect, as a gesture.** The open design question from §6.4. An edge in this graph is
 derived rather than declared: it comes from a stat's `on:` trigger, its `while:`/`where:`
 predicate, or an expression referencing another stat. A dragged wire would have to decide which
@@ -690,6 +702,252 @@ never fills `NodeChains`. CS2DemoKit#50, not ours.
 **6. The demo corpus is empty.** Unrelated to the plan and recorded because it changes what a
 green suite means: 84 demo-dependent tests SKIP rather than run. `demos/CORPUS.md` lists what was
 there. Only its owner can restore it.
+### 6.7 The UX review (2026-09-21) and the revised target
+
+§6.4 item 3 shipped and was reviewed against the intended experience. **It is not a node editor and
+was never going to be one**: item 3 is a view, and items 4 and 5 were the editor. The review set the
+target explicitly, which the rest of this section had left implicit. The model is Godot's
+`GraphNode`: every node carries named anchor points, a toolbar offers the node and edge kinds that
+can be created, and wiring is a drag between two anchors.
+
+**What the shipped view does not have.**
+
+- **No ports at all.** `nodify:Node` exposes `Input` and `Output` collection properties.
+  `Views/RuleWorkbench/RuleWorkbenchView.axaml:349` sets neither, so a node is a header over two
+  `TextBlock`s.
+- **Edges are geometry, not connections.** `RulesetGraphConnection` carries `Point Source` and
+  `Point Target`, the box-edge midpoints of MSAGL placements. There is nothing for an anchor to
+  attach to even if anchors existed.
+- **No palette, no connect gesture, no add or delete.** Editing is the 260px field panel bound to
+  `SelectedNodeFields`.
+
+**The library is not the constraint.** The vendored fork already ships `NodeInput`, `NodeOutput`,
+`Connector`, `PendingConnection`, `KnotNode`, `GroupingNode`, `CuttingLine` and `StateNode`. None of
+them are referenced by this repository. Every gap above is a model gap.
+
+**Two decisions taken 2026-09-21.**
+
+1. **The canvas is CO-EQUAL with the YAML editor, not a replacement.** Both author the same
+   document and stay in sync. The canvas therefore only has to represent what it can round-trip,
+   and the prose that makes `rules/*.rules.yaml` readable stays first-class rather than becoming
+   generator output.
+2. **Node positions live in a sidecar**, `<name>.rules.layout.json` beside the ruleset, not in a
+   `layout:` key. `rules/aim_rating.rules.yaml` opens with roughly 60 lines of prose on tier
+   degradation and denominator choice; machine-written coordinates do not belong in a file like
+   that even with a CST-preserving writer. MSAGL auto-layout stays the fallback for any ruleset the
+   editor has never opened, so the sidecar is additive and optional.
+
+**How much of the canvas can be authored at all.** Measured 2026-09-21 by building `AuthoringGraph`
+over each file in `rules/` and joining the result against `RulesetNodeBinding.Map`:
+
+| | nodes | bound to the document | share | edges |
+|---|--:|--:|--:|--:|
+| 14 rulesets that compose standalone | 230 | 148 | **64 %** | 240 |
+| best case (`aim_rating`) | 51 | 48 | 94 % | 36 |
+| worst case (`highlights_ammo`) | 6 | 2 | 33 % | 8 |
+
+`player_stats`, the largest file, is absent: it declares `use: [ kast ]` and the measurement
+composed each document alone, so it reduced to zero nodes. The share is therefore approximate and
+the direction is what matters.
+
+**About a third of what the canvas draws is engine scaffolding** that no `stats:` or `highlights:`
+entry owns: the root, `MatchLive`, `RoundActive`, every `enrich.*`, and a `tally:` stat's threshold
+counters. A `GraphNode` canvas implies everything drawn can be wired, and here a third of it cannot
+be. **The editor has to distinguish an authorable node from a projected one, or the canvas lies
+about what it is.** That is the largest open question in this section, ahead of ports.
+
+> **This section originally ended with a slot table and a six-step staging list. Both were wrong
+> and neither was built on; §6.8 replaces them and they are not reproduced here.** The slot table
+> promoted `on:` and `while:` to connectors, which §6.8 measures as the thing that produces the
+> canvas's worst property rather than a fix for it. The staging list ordered ports first.
+
+---
+
+### 6.8 The design review (2026-09-22) and the corrected plan
+
+§6.7 was reviewed against the state of the art by a node-editor specialist, and its staging did not
+survive. The verdict: an experienced author would not choose this canvas over the YAML pane, and
+§6.7's ordering would not change that, because its first five steps all address the canvas's
+TOPOLOGY and topology is the least informative thing on it.
+
+#### What the canvas actually draws
+
+Measured 2026-09-22 over `rules/`, one document at a time, which is how `RenderGraphForOpenFile`
+does it. Self-edges excluded. Reproduced independently of the review:
+
+| | |
+|---|--:|
+| nodes / edges across the corpus | 230 / 240 |
+| edges originating at `Root`, `MatchLive`, `RoundActive`, `BombWasPlanted` | **137 (57 %)** |
+| nodes with out-degree 0 | **108 (47 %)** |
+| `compute:` stats drawn | 18 |
+| of those, drawn with NO edge of any kind | **18 (100 %)** |
+| `aim_rating` alone | 51 nodes, 36 edges, 30 of them from hubs, 17 fully isolated |
+
+**The 17 isolated nodes in `aim_rating` are its 17 `compute:` stats**, which are the board columns
+the file exists to produce: `accuracy_pct`, `hs_accuracy_pct`, `counter_strafe_pct`,
+`spray_error_deg`, `flick_error_avg` and the rest. The author's own mental model, "CS% is
+cs_clean over cs_attempts", is the one relationship the picture refuses to draw, while 30 of 36
+wires go to gates that every stat in the file shares and that therefore distinguish nothing.
+
+**Mechanism.** `AuthoringGraph.Build` emits edges only from `GraphEdgeDescriptor`
+(`CS2DemoKit.Analysis/Graphs/AuthoringGraph.cs:144-151`). A `compute:` lowers to a round-end
+compute edge and emits no descriptor, which §3.2 already records without anyone connecting it to
+the authoring canvas. `while: round.active` DOES emit one, so a shared gate becomes a 21-way hub.
+
+#### The correction to the slot model
+
+§6.7's table promoted `on:`, `while:` and `off:` to input slots. That is precisely what produces
+the hubs above: those three resolve to catalog globals, not to nodes the author placed. `off:`
+additionally appears **zero times** in the shipped corpus while being one of the six fields the
+editing panel offers. The slot §6.7 omitted is the only one with real port semantics.
+
+**Two slot kinds, not one:**
+
+| | what it is | rendering | gesture |
+|---|---|---|---|
+| **value reference** | a sibling-stat id inside `compute:`, `when:`, `where:` | a real `Connector` each side | drag to connect; drag into empty space for a filtered palette |
+| **trigger / gate** | `on:`, `while:`, `off:` | a chip in the node header | click the chip, pick from a list |
+
+Rendering triggers as chips rather than wires deletes 137 of 240 connections and loses nothing.
+Value references, which 38 of 172 stats carry and which are currently invisible, become the wires.
+
+**Validity cannot come from the catalog.** §6.7 said to validate the connect gesture against
+`CatalogResource`. A value reference is legal when its id resolves in scope, including through
+`use:` and `exports:`, and when the types agree. That is `RulesetComposition`'s job.
+
+#### The highest-leverage interaction, which nothing had planned
+
+**Render `match:` on the node face as a typed, view-scoped facet form.** `CatalogResource.Load()`
+carries 18 views and 83 typed facets, mean 4.6 per view (`shot_landed` 21, `shot` 16, `kill` 9),
+each a `bool`, `int`, `float` or `string`. 88 of 172 stats in the corpus declare a `match:` block,
+and the editing panel cannot touch any of them.
+
+The text pane structurally cannot compete here: `WorkbenchCompletion.Build` iterates every view and
+offers all 83 facets regardless of which view the stat fires on, so it cannot tell an author that
+`counter_strafe_good` is legal on `shot` and meaningless on `kill`. A checkbox for each bool, a
+comparator and a number for each numeric, a combo for each string, scoped to the view the node
+fires on, is the answer to "why would I use the canvas instead of typing", and it is small: static
+metadata that is already loaded, largest form 21 rows.
+
+This also answers §6.7's open question about the node box. 48 of `aim_rating`'s 51 nodes currently
+render `Subtitle` as the literal `each player` and `Value` as a `0` placeholder, so two of the
+three lines in every box are constants. That space is where `match:` goes.
+
+#### Corrected staging
+
+1. **The document-derived graph model.** A node is a `StatDef` or `HighlightDef` carrying its
+   `SourcePosition`; an edge is a sibling-stat reference parsed from `compute:` / `when:` /
+   `where:`; `on:` and built-in gates become header chips. **Plus node-to-caret sync**, which is
+   nearly free once nodes carry a position: `JumpRequested` already exists
+   (`RuleWorkbenchTabViewModel.cs:314`) and is already wired for diagnostics. **Plus both panes
+   visible at once**, which is a Grid change (see below).
+2. **`match:` as a facet form on the node face.**
+3. **Debounce and keyed reconcile.** `OnDocumentTextChanged` calls `Check()` with no debounce, and
+   `RenderNodeGraphAsync` does `Clear()` then re-add, so every committed keystroke tears down and
+   re-realises every container. Reconcile by key instead, and preserve the selection across a
+   render.
+4. **The sidecar layout store** (§9 decision 9), which is meaningless until 3 lands.
+5. **The palette.** 18 views fits one screen with no search.
+6. **The connect gesture** through `PendingConnection`, for value references only, validated by the
+   composer.
+7. **Undo and redo**, which already exist and mainly need to stop being destroyed by the re-render.
+
+**Why the model change comes first.** It fixes the topology, it removes the projected-node problem
+(a document-derived model has no scaffolding to hide), it gives every node a stable identity that
+the sidecar layout needs, and it is cheaper than what runs today: the current rebuild is a full
+`RuleChainBuilder.Build`, while a document model is a YAML parse the Workbench already performs.
+Building ports first would move 240 connections onto `Connector` anchors, 137 of which should be
+deleted rather than promoted and 34 of which do not exist yet.
+
+#### Two defects this turned up, both filed rather than fixed
+
+- **The canvas is an overlay, not a pane.** `RuleWorkbenchView.axaml:276-279` is a `Border` at
+  `Grid.Column="0" Grid.ColumnSpan="3"` with an opaque background, so it covers the YAML editor and
+  the vocabulary browser entirely. Shipped, the two surfaces are alternating full-screen modes,
+  which contradicts §9 decision 8. The fix is a Grid change.
+- **`player_stats` draws an empty canvas.** The largest ruleset in the repo, 58 stats and 505
+  lines, yields **0 nodes** from `AuthoringGraph.Build` with no demo loaded. The review reported
+  this as one of four rulesets throwing a per-player provider exception; that did not reproduce,
+  and all 15 documents built cleanly here. The symptom is real and the mechanism is not yet known.
+
+**One review finding is recorded as unverified.** The claim that a field edit deselects the node
+and destroys the arrangement is read from the code path (`ObservableCollection.Clear()` to an
+Avalonia selection reset to a TwoWay push of `null`) and was not observed running. It is cheap to
+settle with one headless test that pushes an edit through `RuleWorkbenchTabViewModel` and asserts
+`SelectedRulesetNode` survives. No such test exists.
+
+
+### 6.9 What landed (2026-09-22), and what is still unbuilt
+
+Steps 1 and 3 of §6.8's staging, plus half of 7, are on the feature branch. Steps 2, 4, 5 and 6 are
+not. **Two of them ship as tested models with no consumer**, which is a deliberate staging choice
+and is also the thing most likely to be mistaken for a finished feature, so it is named here.
+
+#### Built
+
+| | |
+|---|---|
+| `RulesetDocumentGraph` | the model over `CheckedRuleset`: nodes from `Stats` and `Highlights`, edges from `DeclaredReads`, chips from `ConcreteEvents` |
+| `RuleWorkbenchView` | the canvas is a pane beside the editor behind a splitter, no longer an opaque `ColumnSpan=3` overlay (§9 decision 8, finally true) |
+| `RuleWorkbenchTabViewModel` | node to caret sync both ways through the existing `JumpRequested`, idle-debounced render, collection reconciled by key with the selection preserved |
+| `EventChipsConverter` | renders `ConcreteEvents` as header chips instead of wires |
+| 53 tests | including a corpus characterisation gate over all 15 shipped rulesets |
+
+Measured through the running view model, not the projection in isolation: `aim_rating` draws 48
+nodes and 40 wires, `player_stats` draws 86 of which 19 arrive through `use:`, and the corpus
+totals are 216 nodes and 110 edges with 55 isolated (25%).
+
+**Three numbers in §6.7 and §6.8 were wrong and are corrected in place.** The corpus has **110**
+edges and **55** isolated nodes, not 106 and 57; two agents measured 110/55 independently, and the
+difference is a `<highlight>.count` read resolving back to the highlight that owns the auto counter,
+which is how `StatReferenceCycleDetector` treats it. The `match:` denominator is **172** stat
+entries across the 15 documents, not 167.
+
+#### Shipped but not wired
+
+- **`MatchFacetForm`.** §6.8's highest-leverage item. The typed, view-scoped `match:` model is
+  written and tested against the pinned catalog, and has **zero production references**. It needs a
+  writer (`stats.<id>.match.<facet>` through the existing splice) and a row template on the node
+  face. `CheckedStat.ResolvedView` answers "which view does this stat fire on" directly, so no
+  caller has to guess one from `On ?? KindArg`.
+- **`RulesetLayoutStore`.** The `.rules.layout.json` sidecar from §9 decision 9, with load, save,
+  the fallback rule and corrupt-file tolerance all implemented and tested. Zero production
+  references, and it cannot be used until the next item is fixed.
+
+#### The defect to fix before anything else
+
+**Dragging a node detaches its wires.** `RulesetGraphConnection` carries two absolute `Point`s baked
+at projection time and the template binds them literally, so moving a container leaves its
+connections behind. `ItemContainer.Location` is registered `TwoWay` against an init-only record
+property, so the write-back silently fails and the view model never learns a position. Dragging is
+the only direct-manipulation gesture currently enabled and it draws something false.
+
+The fix is §6.8's own slot model: a `Connector` on each node face, `Connection` bound to
+`Connector.Anchor`, and `RulesetGraphConnection` holding a source and target KEY rather than a point
+pair. That also unblocks the sidecar layout store, and is the prerequisite for the connect gesture.
+
+#### Also open, from the same review
+
+- **No fit to screen, no minimap, no level of detail.** A 200px node in a roughly 690px pane fits
+  about three and a half nodes across at zoom 1, so `aim_rating`'s 48 nodes and `player_stats`'s 86
+  land mostly off-screen. Nodify provides `FitToScreen` and nothing calls it.
+- **Add stat does not select what it added.** `AddStatNode` reads `RulesetNodes` synchronously while
+  the collection is only filled after an awaited layout, so the lookup matches nothing and assigns
+  null. Two lines, and no test covers it.
+- **Undo skips anything typed in the YAML pane.** `_undo` is pushed only by `PushBuffer`, so a field
+  edit followed by typing followed by undo discards the typing. One document should have one
+  history.
+- **The node's second line truncates.** Label, kind, value type, `declared in <ruleset>` and
+  `reads <a, b>` are joined into one trimmed `TextBlock` in a 200px node, so provenance and
+  cross-ruleset reads are effectively never visible.
+
+#### One dependency the model cannot express
+
+A `count:` triggering on a sibling `flag:` resolves to a `ResolvedTrigger.FlagSource` the resolver
+keeps private: the stat comes back with EMPTY `ConcreteEvents` and nothing naming the flag, so the
+wire cannot be drawn without parsing the YAML behind the model's back. Two occurrences in the
+corpus, `kast` and `post_plant_double`. Surfacing it needs an engine change, not a change here.
 
 ---
 
@@ -893,6 +1151,21 @@ rest and take the un-fork second; the fence stays standing one release longer an
    assumed. The measured size is also larger than predicted, 10 files and +127 / -59 against
    9 files and +51 / -38, though roughly 40 of those lines are the provenance headers that
    make an upstream re-merge possible at all.
+8. ~~**Is the node canvas the way rulesets get authored, or one view of them?**~~
+   **Resolved 2026-09-21: one view, co-equal with the YAML editor.** Both surfaces author the same
+   document and stay in sync. The canvas is therefore only obliged to represent what it can
+   round-trip, which keeps decision 4 honest: a construct the canvas cannot yet draw is still
+   editable as text instead of being a hole. It also keeps the prose in `rules/*.rules.yaml` a
+   first-class artifact rather than something a generator has to be taught to preserve.
+9. ~~**Where do user-arranged node positions live?**~~ **Resolved 2026-09-21: a
+   `<name>.rules.layout.json` sidecar**, not a `layout:` key in the ruleset. The alternative puts
+   machine-written coordinates into files whose value is substantially their prose, and it makes
+   every drag a document edit that decision 4's writer has to splice. The sidecar is additive:
+   MSAGL auto-layout remains the answer for any ruleset the editor has never opened, so nothing
+   has to be migrated and a missing sidecar is not an error. **This reverses the position in
+   §6.4's original item 3**, which refused to invent a layout store at all. That refusal was
+   correct for a read-only view and is wrong for an editor, because an arrangement the user
+   cannot keep is not an arrangement.
 
 ---
 
