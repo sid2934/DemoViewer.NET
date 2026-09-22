@@ -53,8 +53,11 @@ An agent made `demos/` reachable from a git worktree with a Windows directory ju
 `git worktree remove --force`. The removal followed the junction and deleted the TARGET's
 contents rather than the link.
 
-`.claude/hooks/guard_demos.py` now asks for confirmation before any worktree removal, any
-destructive command naming `demos`, and any attempt to link `demos/` into another tree.
+A local PreToolUse hook, `.claude/hooks/guard_demos.py`, asks for confirmation before any
+worktree removal, any destructive command naming `demos`, and any attempt to link `demos/` into
+another tree. **It does not arrive with a clone.** `.claude/` is deliberately untracked, so that
+guard protects the machine it was set up on and nothing else. The rule below is what travels, and
+it is the one to rely on.
 
 **The supported way to reach the corpus from elsewhere is the `DEMO_PATH` environment variable,
 which `DemoTestHelper` honours ahead of every other location.** Never link it.
