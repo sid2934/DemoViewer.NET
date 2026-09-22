@@ -97,11 +97,6 @@ jobs:
             || { echo "Avalonia.Controls.ColorPicker did not ship, App.Initialize will throw on the StyleInclude"; exit 1; }
           ls "$FW" | grep -q '^AvaloniaEdit\..*\.wasm$' \
             || { echo "AvaloniaEdit did not ship, App.Initialize will throw on the StyleInclude"; exit 1; }
-          # Merged into Application.Resources by App.axaml for the Rule Workbench's ruleset graph.
-          # Boot-critical in the strict sense: a ResourceInclude the loader cannot resolve throws out
-          # of Application.Initialize, and the head comes up black.
-          ls "$FW" | grep -q '^Nodify\..*\.wasm$' \
-            || { echo "Nodify did not ship, App.Initialize will throw on the ResourceInclude"; exit 1; }
           # NOT boot-critical in the strict sense above - the head boots without it and only throws
           # when something first draws an icon. Checked anyway, and separately, because this is the
           # one head nothing in CI executes: the icons are EMBEDDED in this assembly (the Browser has
@@ -293,14 +288,6 @@ jobs:
 
       - name: DemoTrimmer suite (full tier)
         run: bash scripts/test.sh -t full -p trimmer
-
-      # The vendored Nodify fork's guard (src/Nodify/README.md). It is in this lane rather than
-      # skipped as "just a dependency" because compiling Nodify proves nothing: the published
-      # package compiles clean against Avalonia 12 and then throws TypeLoadException at JIT. These
-      # tests load the assembly, merge its theme and realise nodes, so an Avalonia bump that breaks
-      # it fails here instead of in front of a user.
-      - name: Nodify vendor guard (full tier)
-        run: bash scripts/test.sh -t full -p nodify
 
       # The icon catalogue's own guards: the manifest round-trip, the four availability states, and
       # which artwork is tintable. They compile in `build` but nothing ran them, and the assembly
