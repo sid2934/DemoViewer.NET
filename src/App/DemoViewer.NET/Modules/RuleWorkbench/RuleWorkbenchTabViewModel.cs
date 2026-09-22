@@ -3,10 +3,12 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Avalonia.Controls;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Building;
 using CS2DemoKit.Analysis.Catalog;
 using CS2DemoKit.Analysis.Diagnostics;
@@ -14,6 +16,7 @@ using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Analysis.Plugins;
 using CS2DemoKit.Analysis.Registry;
+using CS2DemoKit.Analysis.Rules.Hashing;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.RulesetsV2.Resolve;
 using CS2DemoKit.Analysis.Yaml;
@@ -27,7 +30,7 @@ using DemoViewer.NET.Visualization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-// RuleGraphSkeleton / GraphViewModel: authoring graph
+// RuleGraphSkeleton / GraphViewModel: MSAGL layout for the document-derived canvas
 
 #endregion
 
@@ -50,6 +53,10 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     private static readonly Regex _rulesetLine =
         new(@"^ruleset:.*$", RegexOptions.Multiline | RegexOptions.Compiled);
 
+    // How long the canvas waits for typing to stop. Long enough that a burst of keystrokes renders
+    // once, short enough that a pause feels like the canvas is keeping up.
+    private static readonly TimeSpan _graphIdle = TimeSpan.FromMilliseconds(250);
+
     // The live user-settings monitor (null on the designer / test path) + its OnChange
     // subscription, disposed in Dispose.
     private readonly IOptionsMonitor<AppSettings>? _settings;
@@ -71,13 +78,13 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     [ObservableProperty]
     private string _evalSummary = "Evaluate the open ruleset against the loaded demo.";
 
-    /// <summary>Node count of the open ruleset's focused graph (0 = nothing open), the deterministic, sync test hook.</summary>
+    /// <summary>Node count of the open ruleset's canvas (0 = nothing open), the deterministic, sync test hook.</summary>
     [ObservableProperty]
     private int _graphNodeCount;
 
-    /// <summary>Caption for the graph panel, reflects the last build or an empty state.</summary>
+    /// <summary>Caption for the canvas pane, reflects the last render or an empty state.</summary>
     [ObservableProperty]
-    private string _graphSummary = "Open a ruleset to see its state graph.";
+    private string _graphSummary = "Open a ruleset to see its nodes.";
 
     [ObservableProperty]
     private bool _isClean;
@@ -98,10 +105,28 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
 
     private bool _loadingDocument; // guards the disk→buffer load from marking the doc dirty
 
-    // Graph-node name -> what the OPEN document declares it to be. Rebuilt with the graph, and
+    // Canvas-node title -> what the OPEN document declares it to be. Rebuilt with the graph, and
     // the reason a node can be edited at all; see RulesetNodeBinding.
     private IReadOnlyDictionary<string, RulesetNodeBinding> _nodeBindings =
         new Dictionary<string, RulesetNodeBinding>(StringComparer.Ordinal);
+
+    // Canvas-node title -> where its stats:/highlights: entry starts. This is the half of the
+    // node-to-caret sync that AuthoringGraph could not supply at all: its nodes carry no
+    // back-reference to the YAML (design.md §6.1), and every node of the document model carries one.
+    private IReadOnlyDictionary<string, SourcePosition> _nodePositions =
+        new Dictionary<string, SourcePosition>(StringComparer.Ordinal);
+
+    // Set while a render re-applies the selection it captured, so the restore does not read as a
+    // user click and yank the caret to the node the author had merely left selected.
+    private bool _restoringSelection;
+
+    // Set while one direction of the node/caret sync is running, so the other does not answer it.
+    private bool _syncingCaret;
+
+    // The idle-debounce token. Only the newest scheduled render runs; see ScheduleGraphRender.
+    private int _renderGeneration;
+
+    private bool _disposed;
 
     /// <summary>The open file's proposed save-as name (the read-only save-as prompt).</summary>
     [ObservableProperty]
@@ -113,8 +138,9 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     [ObservableProperty]
     private WorkbenchTraceTarget? _selectedTraceTarget;
 
-    /// <summary>Whether the graph overlay is shown (toolbar toggle). Desktop-only; see <see cref="GraphSupported" />.</summary>
+    /// <summary>Whether the node canvas pane is shown (toolbar toggle). Desktop-only; see <see cref="GraphSupported" />.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GraphPaneWidth))]
     private bool _showGraph;
 
     [ObservableProperty]
@@ -142,6 +168,19 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
         _userDir = OperatingSystem.IsBrowser() ? null : SafeUserDir(_shippedDir);
         Paths = BuildPaths();
         PathTree = WorkbenchPathTree.Build(Paths);
+
+        // The box MSAGL reserves has to be the box the canvas draws, or the spacing is computed for
+        // one node and applied to another. A document node is a header, a descriptor line and a row
+        // of event chips, which is taller than the 56 the default config assumes.
+        GraphViewModel.Style = GraphViewModel.Style with
+        {
+            Node = GraphViewModel.Style.Node with
+            {
+                Width = 200,
+                Height = 86
+            }
+        };
+
         RefreshFiles();
         StartWatcher();
         Check();
@@ -209,7 +248,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     /// <summary>Live player values at the current frame (name / team / position), populated while a demo is loaded.</summary>
     public ObservableCollection<LivePlayerRow> LivePlayers { get; } = [];
 
-    // ── Ruleset state-graph visualization ────────────────────────────────────────────────────────
+    // ── Ruleset node canvas ──────────────────────────────────────────────────────────────────────
 
     /// <summary>The MSAGL graph of the OPEN ruleset (demo-less, structural), reuses the shipped Visualization stack.</summary>
     public GraphViewModel GraphViewModel { get; } = new();
@@ -227,10 +266,24 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     public bool GraphSupported { get; } = !OperatingSystem.IsBrowser();
 
     /// <summary>
-    ///     The open ruleset's nodes, positioned by MSAGL, for the node-based renderer. Replaced
-    ///     wholesale on every render rather than mutated in place: this is a read-only view of a
-    ///     graph that is rebuilt from scratch whenever the ruleset changes, so there is no identity
-    ///     to preserve across renders and nothing yet that would notice one.
+    ///     The canvas column's width, which is how the pane collapses without leaving a gap where it
+    ///     was.
+    ///     <para>
+    ///         <b>The canvas is a PANE, not an overlay.</b> It used to be a
+    ///         <c>Grid.ColumnSpan="3"</c> border with an opaque background, so switching it on covered
+    ///         the YAML editor and the vocabulary browser and the two surfaces were alternating
+    ///         full-screen modes. design.md §9 decision 8 makes the canvas co-equal with the editor
+    ///         because both author the same document, and a mode that hides the other one cannot be
+    ///         co-equal with it.
+    ///     </para>
+    /// </summary>
+    public GridLength GraphPaneWidth => ShowGraph ? new GridLength(1.2, GridUnitType.Star) : new GridLength(0);
+
+    /// <summary>
+    ///     The open ruleset's nodes, positioned by MSAGL, for the node-based renderer. Reconciled by
+    ///     title on every render rather than cleared and refilled: a container costs 2.5 to 3.2 ms to
+    ///     realize (design.md §6.5), so tearing all of them down on a committed keystroke is the
+    ///     single most expensive thing the canvas did.
     /// </summary>
     public ObservableCollection<RulesetGraphNode> RulesetNodes { get; } = [];
 
@@ -274,6 +327,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     /// </summary>
     public void Dispose()
     {
+        _disposed = true; // a render queued by ScheduleGraphRender lands after this and must no-op
         _settingsSub?.Dispose();
         if (_watcher is not null)
         {
@@ -457,7 +511,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
         return new WorkbenchScoreboard(title, table.ValueColumns, rows);
     }
 
-    /// <summary>Re-render the authoring graph when the toggle is switched on.</summary>
+    /// <summary>Re-render the canvas when the toggle is switched on.</summary>
     partial void OnShowGraphChanged(bool value)
     {
         if (value)
@@ -467,15 +521,20 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     }
 
     /// <summary>
-    ///     Renders the <b>open ruleset's</b> focused state graph into <see cref="GraphViewModel" />, structural
-    ///     and independent of any evaluation. It builds from the open file + its <c>use:</c>
-    ///     dependencies and <see cref="AuthoringGraph" /> reduces it to the ruleset's declared stats/highlights
-    ///     plus the events/gates that feed them. A bare kill stat is two nodes, not the whole engine's
-    ///     scaffolding. Per-player template nodes are materialized once and flagged so authors can see what
-    ///     materializes per player. With nothing open the graph is empty (no fallback to "all rulesets").
+    ///     Renders the <b>open ruleset's</b> node canvas into <see cref="GraphViewModel" />, structural and
+    ///     independent of any evaluation. Every node is one <c>stats:</c> or <c>highlights:</c> entry of the
+    ///     open document or of a <c>use:</c> dependency, and every edge is a value reference between two
+    ///     siblings. With nothing open the canvas is empty (no fallback to "all rulesets").
     ///     <para>
-    ///         The graph builds with or without a demo: per-player nodes materialise during evaluation,
-    ///         so a ruleset reading live entity state (<c>player.entity.*</c>) needs no scanner to graph.
+    ///         <b>The source is <see cref="RulesetDocumentGraph" />, not <c>AuthoringGraph</c>, and the
+    ///         reason is measured.</b> Over <c>rules/</c> the authoring graph hangs 137 of 240 edges off
+    ///         four lifecycle hubs, leaves 108 of 230 nodes with out-degree 0, and draws all 18 of the
+    ///         corpus's <c>compute:</c> stats with no edge at all, which in <c>aim_rating</c> means its 17
+    ///         isolated nodes ARE the 17 board columns the file exists to produce (design.md §6.7). It also
+    ///         carries no back-reference to the YAML, so no node could be jumped to.
+    ///     </para>
+    ///     <para>
+    ///         The canvas builds with or without a demo, because a document's entries do not depend on one.
     ///         A bound demo supplies the tick rate and source profile the composition resolves against.
     ///     </para>
     ///     Node count is set synchronously (the deterministic test hook); the MSAGL layout is fired best-effort.
@@ -489,7 +548,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
 
         if (OpenFilePath() is null)
         {
-            SetEmptyGraph("Open a ruleset to see its state graph.");
+            SetEmptyGraph("Open a ruleset to see its nodes.");
             return;
         }
 
@@ -497,13 +556,15 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
         RenderGraph(docs, _demoSource?.CurrentDemo);
     }
 
-    /// <summary>Clears the graph to an empty state with the given caption.</summary>
+    /// <summary>Clears the canvas to an empty state with the given caption.</summary>
     private void SetEmptyGraph(string summary)
     {
         GraphNodeCount = 0;
         GraphSummary = summary;
         RulesetNodes.Clear();
         RulesetConnections.Clear();
+        _nodeBindings = new Dictionary<string, RulesetNodeBinding>(StringComparer.Ordinal);
+        _nodePositions = new Dictionary<string, SourcePosition>(StringComparer.Ordinal);
         if (GraphSupported)
         {
             _ = GraphViewModel.SetGraphAsync([], []);
@@ -511,8 +572,44 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     }
 
     /// <summary>
-    ///     Builds + renders the authoring graph for <paramref name="docs" /> under <paramref name="demo" />
-    ///     (null = demo-less). A failure is reported into <see cref="GraphSummary" />.
+    ///     Queues a canvas render for the next idle beat, replacing any render already queued.
+    ///     <para>
+    ///         <b>The debounce is on the RENDER, not on the check.</b> Inline diagnostics have to track
+    ///         the edit, so <see cref="Check" /> stays synchronous; what cannot run per keystroke is the
+    ///         canvas, where realizing one node control costs 2.5 to 3.2 ms (design.md §6.5) and a
+    ///         100-node ruleset therefore blocks the UI thread for about 280 ms. A generation token rather
+    ///         than a timer, so the view-model needs no dispatcher to be constructed and nothing has to be
+    ///         disposed on a host that never started one.
+    ///     </para>
+    /// </summary>
+    private void ScheduleGraphRender()
+    {
+        if (!ShowGraph || _disposed)
+        {
+            return;
+        }
+
+        int generation = ++_renderGeneration;
+        _ = Task.Delay(_graphIdle).ContinueWith(
+            _ => Dispatcher.UIThread.Post(() =>
+            {
+                if (generation == _renderGeneration && !_disposed)
+                {
+                    RenderGraphForOpenFile();
+                }
+            }, DispatcherPriority.Background),
+            TaskScheduler.Default);
+    }
+
+    /// <summary>
+    ///     Composes <paramref name="docs" /> under <paramref name="demo" /> (null = demo-less), projects the
+    ///     composed rulesets into the document graph, and renders it. A failure is reported into
+    ///     <see cref="GraphSummary" />.
+    ///     <para>
+    ///         No <c>RuleChainBuilder.Build</c> runs here any more. The builder is still constructed, for the
+    ///         profile name the composition resolves against, but the graph is a projection of the CHECKED
+    ///         model, so the chain build the old canvas paid for on every keystroke is gone.
+    ///     </para>
     /// </summary>
     private void RenderGraph(List<RulesetDoc> docs, ParsedDemo? demo)
     {
@@ -530,25 +627,20 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
                     .Rulesets
             ];
 
-            BuildResult build = builder.Build(rulesets);
-            AuthoringGraph.AuthoringGraphModel model = AuthoringGraph.Build(build, rulesets);
-            RuleGraphSkeleton.Skeleton skeleton = RuleGraphSkeleton.BuildAuthoring(model);
+            RulesetDocumentGraph document = RulesetDocumentGraph.Build(rulesets, OpenDocument()?.Id);
+            CanvasModel canvas = BuildCanvas(document);
+            _nodeBindings = canvas.Bindings;
+            _nodePositions = canvas.Positions;
 
-            // The join that makes a node editable. Built from the OPEN document rather than from
-            // the whole composed set: an edit is addressed at the file the Workbench has open, so a
-            // node contributed by a `use:` dependency is drawn and is not editable.
-            _nodeBindings = OpenDocument() is { } open
-                ? RulesetNodeBinding.Map(open)
-                : new Dictionary<string, RulesetNodeBinding>(StringComparer.Ordinal);
-
-            GraphNodeCount = skeleton.Nodes.Count;
-            int perPlayer = model.Nodes.Count(n => n.IsPerPlayer);
-            GraphSummary = $"open ruleset: {skeleton.Nodes.Count} node(s), {skeleton.Edges.Count} edge(s)"
-                           + (perPlayer > 0 ? $" — {perPlayer} per-player" : "")
+            GraphNodeCount = canvas.Skeleton.Nodes.Count;
+            int projected = document.Nodes.Count(n => !n.IsAuthorable);
+            GraphSummary = $"open ruleset: {canvas.Skeleton.Nodes.Count} node(s), "
+                           + $"{canvas.Skeleton.Edges.Count} value reference(s)"
+                           + (projected > 0 ? $", {projected} from use:" : "")
                            + (demo is not null ? " (with demo)." : ".");
             if (GraphSupported)
             {
-                _ = RenderNodeGraphAsync(skeleton);
+                _ = RenderNodeGraphAsync(canvas.Skeleton);
             }
         }
         catch (Exception ex)
@@ -560,7 +652,109 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     }
 
     /// <summary>
-    ///     Lays the skeleton out and republishes the projection the node renderer binds to.
+    ///     Projects the document graph onto the view models MSAGL lays out, plus the two lookups the
+    ///     canvas joins back through.
+    ///     <para>
+    ///         <b>A node's title is unique across the composed set.</b> Everything that has to survive a
+    ///         render keys on it: the editing binding, the source position, the selection restore. An id
+    ///         is unique only inside one ruleset (the corpus declares <c>enemy_kills_round</c> twice), so
+    ///         a node the open document does not declare is titled <c>ruleset.id</c>, which is also what
+    ///         an author would have to write to read it and is the read-only marking's first signal.
+    ///     </para>
+    /// </summary>
+    private static CanvasModel BuildCanvas(RulesetDocumentGraph document)
+    {
+        Dictionary<RulesetDocumentNodeKey, GraphNodeViewModel> byKey = [];
+        Dictionary<string, RulesetNodeBinding> bindings = new(StringComparer.Ordinal);
+        Dictionary<string, SourcePosition> positions = new(StringComparer.Ordinal);
+        List<IGraphNode> nodes = new(document.Nodes.Count);
+
+        foreach (RulesetDocumentNode node in document.Nodes)
+        {
+            string title = node.IsAuthorable ? node.Id : node.Key.ToString();
+            GraphNodeViewModel vm = new(title, false, SubtitleOf(node, title))
+            {
+                // The trigger's wire events, which the canvas draws as header chips rather than as
+                // wires. Promoting them to edges is what produced AuthoringGraph's 21-way hubs.
+                DisplayValue = string.Join(' ', node.Events),
+                TrackedIndex = -1
+            };
+
+            byKey[node.Key] = vm;
+            nodes.Add(vm);
+            positions[title] = node.Position;
+            if (node.IsAuthorable)
+            {
+                bindings[title] = new RulesetNodeBinding(
+                    node.IsHighlight ? RulesetNodeKind.Highlight : RulesetNodeKind.Stat, node.Id);
+            }
+        }
+
+        // Parallel reads between the same pair (a stat and its `<id>.count` pseudo-member, say) are
+        // one wire carrying both labels. Drawn separately they are two lines between the same two box
+        // edges, which is one line with a doubled stroke and two labels fighting over it.
+        Dictionary<(RulesetDocumentNodeKey, RulesetDocumentNodeKey), List<string>> merged = [];
+        foreach (RulesetDocumentEdge edge in document.Edges)
+        {
+            if (!byKey.ContainsKey(edge.Source) || !byKey.ContainsKey(edge.Target))
+            {
+                continue;
+            }
+
+            if (!merged.TryGetValue((edge.Source, edge.Target), out List<string>? labels))
+            {
+                labels = [];
+                merged[(edge.Source, edge.Target)] = labels;
+            }
+
+            if (!labels.Contains(edge.Reference, StringComparer.Ordinal))
+            {
+                labels.Add(edge.Reference);
+            }
+        }
+
+        List<IGraphEdge> edges = new(merged.Count);
+        foreach (((RulesetDocumentNodeKey source, RulesetDocumentNodeKey target), List<string> labels) in merged)
+        {
+            edges.Add(new GraphEdgeViewModel(
+                byKey[source], byKey[target], string.Join(", ", labels), EdgeEffect.SetValue));
+        }
+
+        return new CanvasModel(new RuleGraphSkeleton.Skeleton(nodes, edges, null), bindings, positions);
+    }
+
+    /// <summary>
+    ///     The node's second line: what it is, what type it produces, and anything about it the canvas
+    ///     would otherwise lose without trace.
+    /// </summary>
+    private static string SubtitleOf(RulesetDocumentNode node, string title)
+    {
+        List<string> parts = [];
+        if (!string.IsNullOrWhiteSpace(node.Label) && !string.Equals(node.Label, title, StringComparison.Ordinal))
+        {
+            parts.Add(node.Label!);
+        }
+
+        parts.Add(node.Kind.ToString().ToLowerInvariant());
+        parts.Add(node.ValueType.Kind.ToString().ToLowerInvariant());
+
+        if (!node.IsAuthorable)
+        {
+            parts.Add("declared in " + node.Key.Ruleset);
+        }
+
+        // A read that leaves the ruleset resolves to a node in another document, so it is not an edge
+        // and there is nowhere else on the canvas for it to appear.
+        if (node.CrossRulesetReads.Count > 0)
+        {
+            parts.Add("reads " + string.Join(", ", node.CrossRulesetReads));
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    /// <summary>
+    ///     Lays the skeleton out and reconciles the collections the node renderer binds to.
     ///     <para>
     ///         The layout runs on a background thread inside <c>SetGraphAsync</c>, so the collections
     ///         are only touched after awaiting it, back on the UI thread. Refilling them from the
@@ -575,18 +769,142 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
         (IReadOnlyList<RulesetGraphNode> nodes, IReadOnlyList<RulesetGraphConnection> connections) =
             RulesetGraphProjection.Project(GraphViewModel, skeleton.Nodes, skeleton.Edges, _nodeBindings);
 
-        RulesetNodes.Clear();
-        foreach (RulesetGraphNode node in nodes)
+        string? selected = SelectedRulesetNode?.Title;
+        ReconcileNodes(nodes);
+        ReconcileConnections(connections);
+        RestoreSelection(selected);
+    }
+
+    /// <summary>
+    ///     Brings <see cref="RulesetNodes" /> to <paramref name="next" /> by title, replacing only what
+    ///     actually differs.
+    ///     <para>
+    ///         <b>An unchanged node keeps its instance, and therefore its realized container.</b> That is
+    ///         the whole point: a <c>Clear()</c> and refill costs 2.5 to 3.2 ms a node to re-realize, and
+    ///         an edit that does not move the layout changes nothing the canvas draws. A moved node is
+    ///         still replaced, because a position is baked into the record and there is no setter for it.
+    ///     </para>
+    /// </summary>
+    private void ReconcileNodes(IReadOnlyList<RulesetGraphNode> next)
+    {
+        for (int i = 0; i < next.Count; i++)
         {
-            RulesetNodes.Add(node);
+            RulesetGraphNode want = next[i];
+            if (i < RulesetNodes.Count && Titled(RulesetNodes[i], want.Title))
+            {
+                if (!RulesetNodes[i].Equals(want))
+                {
+                    RulesetNodes[i] = want;
+                }
+
+                continue;
+            }
+
+            int found = IndexOfTitle(want.Title, i);
+            if (found < 0)
+            {
+                RulesetNodes.Insert(i, want);
+                continue;
+            }
+
+            RulesetNodes.Move(found, i);
+            if (!RulesetNodes[i].Equals(want))
+            {
+                RulesetNodes[i] = want;
+            }
         }
 
-        RulesetConnections.Clear();
-        foreach (RulesetGraphConnection connection in connections)
+        while (RulesetNodes.Count > next.Count)
         {
-            RulesetConnections.Add(connection);
+            RulesetNodes.RemoveAt(RulesetNodes.Count - 1);
         }
     }
+
+    private static bool Titled(RulesetGraphNode node, string title) =>
+        string.Equals(node.Title, title, StringComparison.Ordinal);
+
+    private int IndexOfTitle(string title, int from)
+    {
+        for (int i = from; i < RulesetNodes.Count; i++)
+        {
+            if (Titled(RulesetNodes[i], title))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    ///     The same walk for the connections, positionally: they have no identity of their own (a
+    ///     <see cref="RulesetGraphConnection" /> is two points and a label), so equality is all there is
+    ///     to compare, and it still spares the redraw when the layout did not move.
+    /// </summary>
+    private void ReconcileConnections(IReadOnlyList<RulesetGraphConnection> next)
+    {
+        for (int i = 0; i < next.Count; i++)
+        {
+            if (i < RulesetConnections.Count)
+            {
+                if (!RulesetConnections[i].Equals(next[i]))
+                {
+                    RulesetConnections[i] = next[i];
+                }
+            }
+            else
+            {
+                RulesetConnections.Add(next[i]);
+            }
+        }
+
+        while (RulesetConnections.Count > next.Count)
+        {
+            RulesetConnections.RemoveAt(RulesetConnections.Count - 1);
+        }
+    }
+
+    /// <summary>
+    ///     Re-selects the node that was selected before the render, by title.
+    ///     <para>
+    ///         Replacing an item the editor has selected makes it push <c>null</c> back through the
+    ///         two-way <c>SelectedItem</c> binding, so without this a field edit deselects the node it
+    ///         edited and empties the field panel mid-edit. The restore is flagged, so it does not read
+    ///         as a click and move the caret.
+    ///     </para>
+    /// </summary>
+    private void RestoreSelection(string? title)
+    {
+        if (title is null)
+        {
+            return;
+        }
+
+        // Re-point at the INSTANCE the collection now holds, not just at the title: an edited node
+        // is a new record, and leaving the selection on the record it replaced would hand the field
+        // panel a value the document no longer has.
+        RulesetGraphNode? now = RulesetNodes.FirstOrDefault(n => Titled(n, title));
+        if (ReferenceEquals(now, SelectedRulesetNode))
+        {
+            return;
+        }
+
+        _restoringSelection = true;
+        try
+        {
+            SelectedRulesetNode = now;
+        }
+        finally
+        {
+            _restoringSelection = false;
+        }
+    }
+
+    /// <summary>The skeleton plus the two title-keyed lookups the canvas joins back through.</summary>
+    private readonly record struct CanvasModel(
+        RuleGraphSkeleton.Skeleton Skeleton,
+        IReadOnlyDictionary<string, RulesetNodeBinding> Bindings,
+        IReadOnlyDictionary<string, SourcePosition> Positions);
 
     /// <summary>The open file's doc + its transitive <c>use:</c> dependencies (by ruleset id) from the loaded set.</summary>
     private List<RulesetDoc> LoadOpenFileWithDeps()
@@ -817,6 +1135,86 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     public void RequestJump(WorkbenchDiagnostic diagnostic) =>
         JumpRequested?.Invoke(Math.Max(1, diagnostic.Line), Math.Max(1, diagnostic.Column));
 
+    /// <summary>
+    ///     The View calls this when the caret moves: selects the node whose entry the caret is inside.
+    ///     <para>
+    ///         <b>The entry that starts at or above the caret owns it.</b> A node carries the position its
+    ///         <c>stats:</c> key starts at and not the span it covers, so the nearest key above the caret
+    ///         is the enclosing one, and a caret in the document's prose or its <c>use:</c> block sits
+    ///         above every key and selects nothing rather than selecting the first.
+    ///     </para>
+    /// </summary>
+    /// <param name="line">The caret's 1-based line.</param>
+    public void SelectNodeAtLine(int line)
+    {
+        if (_syncingCaret || RulesetNodes.Count == 0 || OpenFilePath() is not { } openPath)
+        {
+            return;
+        }
+
+        string? title = null;
+        int nearest = 0;
+        foreach ((string candidate, SourcePosition at) in _nodePositions)
+        {
+            if (at.Line <= nearest || at.Line > line
+                || !string.Equals(at.File, openPath, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            nearest = at.Line;
+            title = candidate;
+        }
+
+        if (title is null || RulesetNodes.FirstOrDefault(n => Titled(n, title)) is not { } node
+            || ReferenceEquals(node, SelectedRulesetNode))
+        {
+            return;
+        }
+
+        _syncingCaret = true;
+        try
+        {
+            SelectedRulesetNode = node;
+        }
+        finally
+        {
+            _syncingCaret = false;
+        }
+    }
+
+    /// <summary>
+    ///     Reveals the selected node's source, which is the other half of the caret sync.
+    ///     <para>
+    ///         It goes out through <see cref="JumpRequested" />, the event the diagnostics list already
+    ///         uses, so a node and a diagnostic reveal a line the same way rather than through two
+    ///         mechanisms that can drift apart. Guarded on both sides: a jump raised here must not come
+    ///         back as a caret move that re-selects, and a selection the render merely restored is not a
+    ///         click and moves nothing.
+    ///     </para>
+    /// </summary>
+    private void RevealSelectedNode(RulesetGraphNode? node)
+    {
+        if (_syncingCaret || _restoringSelection || node is null
+            || !_nodePositions.TryGetValue(node.Title, out SourcePosition at) || at.Line <= 0
+            || !string.Equals(at.File, OpenFilePath(), StringComparison.OrdinalIgnoreCase))
+        {
+            // A node a `use:` dependency declares lives in another file, and the editor has this one
+            // open, so there is no line here to reveal.
+            return;
+        }
+
+        _syncingCaret = true;
+        try
+        {
+            JumpRequested?.Invoke(Math.Max(1, at.Line), Math.Max(1, at.Column));
+        }
+        finally
+        {
+            _syncingCaret = false;
+        }
+    }
+
     partial void OnSelectedFileChanged(RulesetFileRef? value)
     {
         OnPropertyChanged(nameof(IsReadOnlyFile));
@@ -1025,7 +1423,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
                 : $"{Diagnostics.Count} problem(s) across {fileCount} ruleset(s)"
                   + (OpenFileDiagnostics.Count > 0 ? $" ({OpenFileDiagnostics.Count} in this file)." : ".");
 
-            RenderGraphForOpenFile(); // keep the graph in sync with the edited buffer
+            ScheduleGraphRender(); // the canvas follows the edited buffer, one idle beat behind it
         }
         catch (Exception ex)
         {

@@ -173,6 +173,7 @@ public sealed partial class RuleWorkbenchTabViewModel
     {
         OnPropertyChanged(nameof(CanEditSelectedNode));
         RefreshSelectedNodeFields();
+        RevealSelectedNode(value); // picking a node on the canvas reveals the YAML that declares it
     }
 
     private void RefreshSelectedNodeFields()
@@ -187,12 +188,13 @@ public sealed partial class RuleWorkbenchTabViewModel
 
         if (!node.Binding.IsEditable)
         {
-            // Said plainly rather than left as an empty panel. Most of what the graph draws is not
-            // declared by the open file, and an author who clicks the root deserves to know why
+            // Said plainly rather than left as an empty panel. Every node the canvas draws was
+            // written by a human, but not all of them in THIS file: a `use:` dependency's stats
+            // compose in and are read-only here, and an author who clicks one deserves to know why
             // nothing happened.
             SelectedNodeSummary =
-                $"{node.Title} is not declared by this ruleset (engine scaffolding, an enrichment, "
-                + "or a counter derived from a stat), so there is nothing here to edit.";
+                $"{node.Title} is declared by a ruleset this one use:s, not by this file, "
+                + "so there is nothing here to edit.";
             return;
         }
 

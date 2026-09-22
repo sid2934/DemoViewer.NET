@@ -44,6 +44,7 @@ public partial class RuleWorkbenchView : UserControl
             _editor.TextChanged += OnEditorTextChanged;
             _editor.TextArea.KeyDown += OnEditorKeyDown; // Ctrl+Space → completion
             _editor.TextArea.TextEntered += OnTextEntered; // GAP-UI-2: auto-trigger + re-narrow
+            _editor.TextArea.Caret.PositionChanged += OnCaretMoved; // caret → canvas selection
         }
 
         if (_diagnostics is not null)
@@ -137,6 +138,24 @@ public partial class RuleWorkbenchView : UserControl
         _syncing = true;
         _vm.DocumentText = _editor.Text;
         _syncing = false;
+    }
+
+    /// <summary>
+    ///     The caret half of the node sync: moving it selects the node whose entry it is inside.
+    ///     <para>
+    ///         The same <c>_syncing</c> flag the text bridge uses guards it, because pushing the
+    ///         view-model's text into the editor moves the caret as a side effect and that is not the
+    ///         author navigating. The other direction guards itself in the view-model.
+    ///     </para>
+    /// </summary>
+    private void OnCaretMoved(object? sender, EventArgs e)
+    {
+        if (_editor is null || _vm is null || _syncing)
+        {
+            return;
+        }
+
+        _vm.SelectNodeAtLine(_editor.TextArea.Caret.Line);
     }
 
     private void OnDiagnosticSelected(object? sender, SelectionChangedEventArgs e)

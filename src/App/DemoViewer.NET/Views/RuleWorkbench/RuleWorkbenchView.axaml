@@ -4,11 +4,20 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ae="using:AvaloniaEdit"
              xmlns:vm="using:DemoViewer.NET.Modules.RuleWorkbench"
-             xmlns:viz="using:DemoViewer.NET.Visualization"
+             xmlns:rw="using:DemoViewer.NET.Views.RuleWorkbench"
              xmlns:nodify="using:Nodify"
              mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="650"
              x:Class="DemoViewer.NET.Views.RuleWorkbench.RuleWorkbenchView"
              x:DataType="vm:RuleWorkbenchTabViewModel">
+
+    <UserControl.Styles>
+        <!-- A node the open file does not declare. Dimming is the third signal, after the lock
+             glyph and the ruleset-qualified title, so the read-only marking never rests on colour
+             alone. -->
+        <Style Selector="nodify|Node.projected">
+            <Setter Property="Opacity" Value="0.68" />
+        </Style>
+    </UserControl.Styles>
 
     <DockPanel Margin="12">
 
@@ -71,11 +80,11 @@
                 <TextBlock Text="{Binding Summary}"
                            TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Opacity="0.75" />
             </StackPanel>
-            <!-- State-graph toggle (desktop-only; hidden on WASM via GraphSupported) -->
+            <!-- Canvas toggle (desktop-only; hidden on WASM via GraphSupported) -->
             <ToggleButton Grid.Column="7" Content="Graph" Margin="8,0,0,0"
                           IsChecked="{Binding ShowGraph}"
                           IsVisible="{Binding GraphSupported}"
-                          ToolTip.Tip="Show the open ruleset's state graph (no demo needed; per-player nodes are outlined in teal)." />
+                          ToolTip.Tip="Show the open ruleset's stats and highlights as a node canvas, beside the editor rather than over it." />
         </Grid>
 
         <!-- Bottom: diagnostics (click a row to jump the caret) + results + trace (M6 applied fires) -->
@@ -210,18 +219,174 @@
 
         </Grid>
 
-        <!-- Editor (center) + data browser (right) -->
+        <!-- Editor + node canvas (center) + data browser (right) -->
         <Grid ColumnDefinitions="*,4,300">
 
-            <Border Grid.Column="0" BorderBrush="{DynamicResource BorderTranslucent}" BorderThickness="1"
-                    CornerRadius="4">
-                <ae:TextEditor x:Name="Editor"
-                               FontFamily="Cascadia Code,Consolas,Menlo,monospace"
-                               FontSize="13"
-                               ShowLineNumbers="True"
-                               HorizontalScrollBarVisibility="Auto"
-                               VerticalScrollBarVisibility="Auto" />
-            </Border>
+            <!-- The YAML editor and the node canvas SHARE this column rather than taking turns in
+                 it. The canvas used to be a ColumnSpan=3 border with an opaque background, which
+                 made the two surfaces alternating full-screen modes; design.md §9 decision 8 makes
+                 them co-equal, because both author the same document and stay in sync. The canvas
+                 column collapses to zero when the toggle is off (GraphPaneWidth), so nothing is left
+                 holding space for a pane that is not there. -->
+            <Grid Grid.Column="0" x:Name="EditorAndCanvas">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="160" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="{Binding GraphPaneWidth}" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" x:Name="EditorPane"
+                        BorderBrush="{DynamicResource BorderTranslucent}" BorderThickness="1"
+                        CornerRadius="4">
+                    <ae:TextEditor x:Name="Editor"
+                                   FontFamily="Cascadia Code,Consolas,Menlo,monospace"
+                                   FontSize="13"
+                                   ShowLineNumbers="True"
+                                   HorizontalScrollBarVisibility="Auto"
+                                   VerticalScrollBarVisibility="Auto" />
+                </Border>
+
+                <GridSplitter Grid.Column="1" Width="4" Background="Transparent"
+                              ResizeDirection="Columns" IsVisible="{Binding ShowGraph}" />
+
+                <!-- Canvas pane: see the ItemTemplate below for what a node is. -->
+                <Border Grid.Column="2" x:Name="CanvasPane"
+                        IsVisible="{Binding ShowGraph}"
+                        BorderBrush="{DynamicResource BorderTranslucent}" BorderThickness="1"
+                        CornerRadius="4">
+                    <DockPanel Margin="4">
+                        <TextBlock DockPanel.Dock="Top" Text="{Binding GraphSummary}"
+                                   FontWeight="SemiBold" Opacity="0.7" Margin="2,2,2,6"
+                                   TextTrimming="CharacterEllipsis" />
+
+                        <!-- Node editing (design.md §6.4 item 4). Every button here produces a new
+                             BUFFER through the splicing writer, so Save, dirty-tracking, the checker
+                             and the canvas re-render all continue to work unchanged. -->
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6"
+                                    Margin="2,0,2,6">
+                            <Button Content="Add stat" Command="{Binding AddStatNodeCommand}"
+                                    ToolTip.Tip="Append a new stat and select it" />
+                            <Button Content="Delete" Command="{Binding DeleteSelectedNodeCommand}"
+                                    ToolTip.Tip="Remove the selected stat or highlight" />
+                            <Button Content="Undo" Command="{Binding UndoCommand}" />
+                            <Button Content="Redo" Command="{Binding RedoCommand}" />
+                        </StackPanel>
+
+                        <TextBlock DockPanel.Dock="Top" Text="{Binding SelectedNodeSummary}"
+                                   Opacity="0.75" TextWrapping="Wrap" Margin="2,0,2,6" />
+
+                        <!-- The selected node's fields. A blank value removes the key, which is the
+                             only gesture a field editor has for taking an optional one back off. -->
+                        <Border DockPanel.Dock="Bottom" MaxHeight="150" Margin="0,6,0,0"
+                                IsVisible="{Binding CanEditSelectedNode}"
+                                BorderBrush="{DynamicResource BorderTranslucent}" BorderThickness="1"
+                                CornerRadius="4" Padding="6">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding SelectedNodeFields}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:RulesetNodeField">
+                                            <StackPanel Margin="0,0,0,6">
+                                                <TextBlock Text="{Binding Key}" FontSize="11" Opacity="0.7" />
+                                                <TextBox Text="{Binding Value, Mode=OneTime}"
+                                                         FontFamily="Consolas,Menlo,monospace" FontSize="11"
+                                                         Tag="{Binding}" KeyDown="OnNodeFieldKeyDown" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+
+                        <!-- The open ruleset drawn as real node controls, positioned by MSAGL rather
+                             than by nodify, which has no layout of its own and whose own maintainer
+                             recommends MSAGL for exactly this.
+
+                             Nodes ARE the document: one per stats: or highlights: entry, wired by the
+                             value references between siblings. Dragging and selection are on; a drag
+                             moves the box for as long as the layout stands, and selecting a node
+                             reveals the YAML that declares it. -->
+                        <nodify:NodifyEditor x:Name="Canvas"
+                                             ItemsSource="{Binding RulesetNodes}"
+                                             Connections="{Binding RulesetConnections}"
+                                             SelectedItem="{Binding SelectedRulesetNode, Mode=TwoWay}"
+                                             DisableZooming="False" DisablePanning="False"
+                                             EnableRealtimeSelection="False"
+                                             CanSelectMultipleItems="False"
+                                             ClipToBounds="True" MinHeight="240">
+                            <nodify:NodifyEditor.ItemContainerTheme>
+                                <ControlTheme TargetType="nodify:ItemContainer"
+                                              BasedOn="{StaticResource {x:Type nodify:ItemContainer}}"
+                                              x:DataType="vm:RulesetGraphNode">
+                                    <Setter Property="Location" Value="{Binding Location}" />
+                                    <!-- Dragging moves the box and NOTHING else. The arrangement is
+                                         MSAGL's answer and lasts until the next render; the sidecar
+                                         store that would keep it is design.md §6.7 staging item 4,
+                                         and no gesture here writes one. -->
+                                    <Setter Property="IsDraggable" Value="True" />
+                                    <Setter Property="IsSelectable" Value="True" />
+                                </ControlTheme>
+                            </nodify:NodifyEditor.ItemContainerTheme>
+                            <nodify:NodifyEditor.ItemTemplate>
+                                <DataTemplate x:DataType="vm:RulesetGraphNode">
+                                    <nodify:Node Width="200" Classes.projected="{Binding !IsEditable}"
+                                                 ToolTip.Tip="{Binding Subtitle}">
+                                        <nodify:Node.Header>
+                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                <!-- Shape, not colour. A node this file declares
+                                                     carries a pencil; one composed in through use: is
+                                                     read-only here and carries the same lock the
+                                                     toolbar puts on a shipped ruleset, is titled with
+                                                     its owning ruleset, and is dimmed. Any one of the
+                                                     three survives a greyscale screenshot. -->
+                                                <TextBlock Text="✎" Opacity="0.85"
+                                                           IsVisible="{Binding IsEditable}" />
+                                                <TextBlock Text="🔒" Opacity="0.85"
+                                                           IsVisible="{Binding !IsEditable}" />
+                                                <TextBlock Text="{Binding Title}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </nodify:Node.Header>
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="{Binding Subtitle}"
+                                                       IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                                       FontSize="10" Opacity="0.75"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <!-- on:/gate chips. These are what the trigger fires on,
+                                                 and drawing them as wires instead is what gave the
+                                                 old canvas its four lifecycle hubs. -->
+                                            <ItemsControl ItemsSource="{Binding Value, Converter={x:Static rw:EventChipsConverter.Instance}}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel Orientation="Horizontal" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="x:String">
+                                                        <Border Margin="0,0,3,3" Padding="4,1"
+                                                                CornerRadius="7"
+                                                                BorderThickness="1"
+                                                                BorderBrush="{DynamicResource BorderTranslucent}">
+                                                            <TextBlock Text="{Binding}" FontSize="9"
+                                                                       Opacity="0.85"
+                                                                       FontFamily="Cascadia Code,Consolas,Menlo,monospace" />
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </nodify:Node>
+                                </DataTemplate>
+                            </nodify:NodifyEditor.ItemTemplate>
+                            <nodify:NodifyEditor.ConnectionTemplate>
+                                <DataTemplate x:DataType="vm:RulesetGraphConnection">
+                                    <nodify:Connection Source="{Binding Source}" Target="{Binding Target}"
+                                                       Text="{Binding Label}" />
+                                </DataTemplate>
+                            </nodify:NodifyEditor.ConnectionTemplate>
+                        </nodify:NodifyEditor>
+                    </DockPanel>
+                </Border>
+            </Grid>
 
             <GridSplitter Grid.Column="1" Background="Transparent" />
 
@@ -271,104 +436,6 @@
                 </DockPanel>
             </Border>
 
-            <!-- Ruleset state-graph overlay — spans the center row (editor + splitter + browser),
-                 shown when the Graph toggle is on. Additive: reuses no existing column index. -->
-            <Border Grid.Column="0" Grid.ColumnSpan="3"
-                    IsVisible="{Binding ShowGraph}"
-                    Background="{DynamicResource PanelBg}"
-                    BorderBrush="{DynamicResource BorderTranslucent}" BorderThickness="1" CornerRadius="4">
-                <DockPanel Margin="4">
-                    <TextBlock DockPanel.Dock="Top" Text="{Binding GraphSummary}"
-                               FontWeight="SemiBold" Opacity="0.7" Margin="2,2,2,6" />
-
-                    <!-- Node editing (design.md §6.4 item 4). Every button here produces a new
-                         BUFFER through the splicing writer, so Save, dirty-tracking, the checker
-                         and the graph re-render all continue to work unchanged. -->
-                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6"
-                                Margin="2,0,2,6">
-                        <Button Content="Add stat" Command="{Binding AddStatNodeCommand}"
-                                ToolTip.Tip="Append a new stat and select it" />
-                        <Button Content="Delete" Command="{Binding DeleteSelectedNodeCommand}"
-                                ToolTip.Tip="Remove the selected stat or highlight" />
-                        <Button Content="Undo" Command="{Binding UndoCommand}" />
-                        <Button Content="Redo" Command="{Binding RedoCommand}" />
-                        <TextBlock Text="{Binding SelectedNodeSummary}" VerticalAlignment="Center"
-                                   Opacity="0.75" TextTrimming="CharacterEllipsis" MaxWidth="520" />
-                    </StackPanel>
-
-                    <!-- The selected node's fields. A blank value removes the key, which is the
-                         only gesture a field editor has for taking an optional one back off. -->
-                    <Border DockPanel.Dock="Right" Width="260" Margin="6,0,0,0"
-                            IsVisible="{Binding CanEditSelectedNode}"
-                            BorderBrush="{DynamicResource BorderTranslucent}" BorderThickness="1"
-                            CornerRadius="4" Padding="6">
-                        <ItemsControl ItemsSource="{Binding SelectedNodeFields}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:RulesetNodeField">
-                                    <StackPanel Margin="0,0,0,6">
-                                        <TextBlock Text="{Binding Key}" FontSize="11" Opacity="0.7" />
-                                        <TextBox Text="{Binding Value, Mode=OneTime}"
-                                                 FontFamily="Consolas,Menlo,monospace" FontSize="11"
-                                                 Tag="{Binding}" KeyDown="OnNodeFieldKeyDown" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </Border>
-                    <!-- The open ruleset drawn as real node controls (design.md §6.4 item 3),
-                         positioned by MSAGL rather than by nodify, which has no layout of its own
-                         and whose own maintainer recommends MSAGL for exactly this.
-
-                         READ-ONLY, and that is enforced here rather than trusted: dragging,
-                         selection and cutting are all off, so there is no gesture that can change
-                         the graph. Editing is §6.4 items 4 and 5 and is not started. Panning and
-                         zooming stay on, because they are how a 400-node graph is read at all. -->
-                    <nodify:NodifyEditor ItemsSource="{Binding RulesetNodes}"
-                                         Connections="{Binding RulesetConnections}"
-                                         SelectedItem="{Binding SelectedRulesetNode, Mode=TwoWay}"
-                                         DisableZooming="False" DisablePanning="False"
-                                         EnableRealtimeSelection="False"
-                                         CanSelectMultipleItems="False"
-                                         ClipToBounds="True" MinHeight="300">
-                        <nodify:NodifyEditor.ItemContainerTheme>
-                            <ControlTheme TargetType="nodify:ItemContainer"
-                                          BasedOn="{StaticResource {x:Type nodify:ItemContainer}}"
-                                          x:DataType="vm:RulesetGraphNode">
-                                <Setter Property="Location" Value="{Binding Location}" />
-                                <!-- Dragging moves the box and NOTHING else. A ruleset has no
-                                     layout section and this editor will not invent one, so a
-                                     position is MSAGL's answer and lasts until the next render.
-                                     Useful for untangling a dense graph while reading it; not a
-                                     saved property, and no gesture here writes one. -->
-                                <Setter Property="IsDraggable" Value="True" />
-                                <Setter Property="IsSelectable" Value="True" />
-                            </ControlTheme>
-                        </nodify:NodifyEditor.ItemContainerTheme>
-                        <nodify:NodifyEditor.ItemTemplate>
-                            <DataTemplate x:DataType="vm:RulesetGraphNode">
-                                <nodify:Node Header="{Binding Title}" Width="180">
-                                    <StackPanel Spacing="1">
-                                        <TextBlock Text="{Binding Subtitle}"
-                                                   IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                                   FontSize="10" Opacity="0.75"
-                                                   TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{Binding Value}"
-                                                   IsVisible="{Binding Value, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                                   FontSize="10" FontWeight="SemiBold"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                </nodify:Node>
-                            </DataTemplate>
-                        </nodify:NodifyEditor.ItemTemplate>
-                        <nodify:NodifyEditor.ConnectionTemplate>
-                            <DataTemplate x:DataType="vm:RulesetGraphConnection">
-                                <nodify:Connection Source="{Binding Source}" Target="{Binding Target}"
-                                                   Text="{Binding Label}" />
-                            </DataTemplate>
-                        </nodify:NodifyEditor.ConnectionTemplate>
-                    </nodify:NodifyEditor>
-                </DockPanel>
-            </Border>
 
         </Grid>
 
