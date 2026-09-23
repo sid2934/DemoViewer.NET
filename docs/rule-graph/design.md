@@ -1,5 +1,21 @@
 # The rule graph: what it draws, what it should draw, and a node-based rule editor
 
+> **SIDELINED 2026-09-22. The node editor of §6 was built and then reverted out of `main`.**
+> Everything it needed was merged (the vendored `NodifyAvalonia` fork, the read-only canvas, node
+> editing with undo) and a design review then found the canvas drew the wrong graph: it anchored 137
+> of 240 corpus edges on four lifecycle nodes and drew ALL 18 `compute:` stats with no edge at all.
+> A rebuild on a document-derived model fixed that and went further, and it is NOT finished:
+> dragging a node leaves its wires behind, no arrangement survives an edit, and `match:` is not
+> editable on the node. Rather than ship that, the whole node editor and the vendored fork were
+> reverted from `main` and the work parked on `feature/graph-based-rule-editor`, which carries the
+> canvas rebuild and §6.7 to §6.9 of this plan.
+>
+> **What stayed on `main`:** Avalonia 12 and SkiaSharp 3 (§7), the Analysis graph fix (§3), the
+> readability pass (§5), the MSAGL layout and placement API, and the comment-preserving ruleset
+> writer of §6.1, which never depended on nodify. **What left:** `src/Nodify`, the Workbench canvas
+> and everything that referenced them. Sections 6.2 to 6.6 below describe a state `main` no longer
+> has; read them as the record of a branch, not of the tree.
+
 **Status: plan FINAL. The graph fix, the version bump and the readability pass are MERGED**, as
 [#16](https://github.com/sid2934/DemoViewer.NET/pull/16) (§3 records what shipped),
 [#19](https://github.com/sid2934/DemoViewer.NET/pull/19) and

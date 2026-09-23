@@ -13,13 +13,6 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceInclude Source="avares://DemoViewer.NET/Styles/DarkPalette.axaml" />
-                <!-- The vendored Nodify fork's control themes, for the Rule Workbench's ruleset
-                     graph. A ResourceDictionary rather than a StyleInclude: Nodify ships its
-                     ControlThemes plus a Light/Dark ThemeDictionaries pair, which is resource shape,
-                     not style shape. Without it NodifyEditor and every Node render templateless,
-                     the same failure the AvaloniaEdit and ColorPicker includes below exist to
-                     avoid. -->
-                <ResourceInclude Source="avares://Nodify/Theme.axaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

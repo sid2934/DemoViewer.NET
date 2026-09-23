@@ -314,24 +314,6 @@ public partial class RuleWorkbenchView : UserControl
         }
     }
 
-    /// <summary>
-    ///     Commits a node field on Enter. Deliberately not on every keystroke: each commit is one
-    ///     splice and one undo entry, and an author typing a predicate would otherwise leave a stack
-    ///     of forty of them and a graph re-rendering between characters.
-    /// </summary>
-    private void OnNodeFieldKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter || sender is not TextBox box
-            || box.Tag is not RulesetNodeField field
-            || DataContext is not RuleWorkbenchTabViewModel vm)
-        {
-            return;
-        }
-
-        vm.SetNodeFieldCommand.Execute(field with { Value = box.Text ?? "" });
-        e.Handled = true;
-    }
-
     private void InitializeComponent()
     {
         AvaloniaXamlLoader.Load(this);

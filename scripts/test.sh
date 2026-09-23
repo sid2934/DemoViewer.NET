@@ -5,7 +5,7 @@
 #
 #   -t  tier (default: standard, the in-flight default; see docs/playback2d-v2/plans/P3-test-tiers.md)
 #   -p  project key or `all` (default: all).  Keys: playback2d cli app livesync trimmer
-#       visualization gameicons nodify ruleauthoring
+#       visualization gameicons ruleauthoring
 #   -c  configuration (default: Release, matching CI)
 #   -n  no build; assume the binaries are current
 #   -l  list only; discover and count, run nothing
@@ -75,7 +75,6 @@ esac
 # rather than after the slowest suite has finished.
 PROJECTS=(
   "gameicons|src/GameIcons/DemoViewer.NET.GameIcons.Tests"
-  "nodify|src/Nodify/DemoViewer.NET.Nodify.Tests"
   "ruleauthoring|src/RuleAuthoring/DemoViewer.NET.RuleAuthoring.Tests"
   "visualization|src/Visualization/DemoViewer.NET.Visualization.Tests"
   "trimmer|tools/DemoViewer.NET.DemoTrimmer.Tests"

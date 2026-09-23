@@ -27,12 +27,6 @@
         <Project Path="src/GameIcons/DemoViewer.NET.GameIcons/DemoViewer.NET.GameIcons.csproj"/>
         <Project Path="src/GameIcons/DemoViewer.NET.GameIcons.Tests/DemoViewer.NET.GameIcons.Tests.csproj"/>
     </Folder>
-    <Folder Name="/src/Nodify/">
-        <File Path="src/Nodify/README.md"/>
-        <File Path="src/Nodify/LICENSE"/>
-        <Project Path="src/Nodify/Nodify/Nodify.csproj"/>
-        <Project Path="src/Nodify/DemoViewer.NET.Nodify.Tests/DemoViewer.NET.Nodify.Tests.csproj"/>
-    </Folder>
     <Folder Name="/src/Playback2D/">
         <Project Path="src/Playback2D/DemoViewer.NET.Playback2D.Core/DemoViewer.NET.Playback2D.Core.csproj"/>
         <Project
