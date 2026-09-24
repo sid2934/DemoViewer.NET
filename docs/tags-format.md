@@ -115,6 +115,19 @@ all absolute per side, never relative to "us":
 | `endReason`, `plantSite`, `plantTick`, `roundTime` | as Round Facts reports them |
 | `phase` | the round phase at the instance's `fromTick` |
 | `manCount.ct`, `manCount.t` | players alive at `fromTick` |
+| `slots.ct`, `slots.t` | the side's player slots, comma-separated |
+| `equipment.ct`, `equipment.t`, `money.ct`, `money.t`, `moneyReliable.ct`, `moneyReliable.t` | the per-side economy at freeze end; `money.*` only when it is reliable |
+| `endTick`, `plantSlot`, `defuseTick`, `explodeTick`, `firstContactTick`, `openingKillTick` | frame-clock ticks and a slot, each only when the round has it |
+| any other name | a column a user's `round_facts` ruleset added, under its own name |
+
+Facts are written in two places. A new instance gets its round's facts as it is made, from the rows
+the demo has at that moment. After that, every time Round Facts rewrites a demo's rows (a re-parse, or a
+newer Round Facts schema), each instance in that demo's document is refreshed: `round` and `facts`
+from the round holding `fromTick`, and a new `factsStamp`. A document open in the 2D tab is refreshed
+in place without an undo step. Opening a document also fills any instance made before the demo had
+rows, or stamped under another schema. `labels`, `note`, positions and movements are never read or
+written by any of this. Until CS2DemoKit ships the engine surfaces the Round Facts ruleset needs, no
+demo has rows, so `facts` stays empty on real demos.
 
 Relative groups (`side`, `buy.us`, `buy.them`, `opponent`) are not facts. A consumer derives them at
 query time from Team Identity; a person or a detector writes `side` as a human label when an instance

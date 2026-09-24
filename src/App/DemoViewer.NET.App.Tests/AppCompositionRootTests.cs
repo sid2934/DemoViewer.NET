@@ -121,6 +121,7 @@ public class AppCompositionRootTests
             await Assert.That(provider.GetRequiredService<Services.RoundFacts.IRoundFactsSource>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<Services.RoundIndex.ISituationIndex>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<Services.Provenance.IDemoProvenanceSource>()).IsNotNull();
+            await Assert.That(provider.GetRequiredService<Services.Tags.TagFactsRefresher>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>().Coordinator)
                 .IsSameReferenceAs(coordinator);
         });
