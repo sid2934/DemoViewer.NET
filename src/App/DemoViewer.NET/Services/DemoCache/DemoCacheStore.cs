@@ -454,6 +454,10 @@ public sealed class DemoCacheStore
     public static void StampAnalysis(DemoCacheRecord record) =>
         Stamp(record.Analysis, DemoCacheRecord.AnalysisSchema);
 
+    /// <summary>Stamps the round index sidecar as written now.</summary>
+    public static void StampRoundIndex(DemoCacheRecord record) =>
+        Stamp(record.RoundIndex, DemoCacheRecord.RoundIndexSchema);
+
     private static void Stamp(TierStamp stamp, int schema)
     {
         stamp.Schema = schema;
