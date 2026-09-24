@@ -103,6 +103,12 @@ public sealed class TagSession : IDisposable
     /// <summary>The attached demo's path, or null.</summary>
     public string? DemoPath { get; private set; }
 
+    /// <summary>
+    ///     The attached demo's cached rounds (frame clock), or null without a cache record. The Tag Palette
+    ///     clamps a new span by them: the same rows <c>round</c> is derived from, so the two cannot disagree.
+    /// </summary>
+    public IReadOnlyList<CachedRound>? Rounds => _rounds;
+
     /// <summary>Bumped on every change, undoable or not. Never goes backwards.</summary>
     public int Version { get; private set; }
 

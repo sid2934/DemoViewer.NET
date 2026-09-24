@@ -10,11 +10,11 @@ namespace DemoViewer.NET.Modules.RoundTagger;
 ///     The Round Tagger module (tag-store.md §3.11): the home of the Tag Palette hosted by the 2D Playback
 ///     tab and of The Matrix's Main-strip tab.
 ///     <para>
-///         <b>A shell today.</b> It contributes no tab yet: The Matrix (<see cref="MatrixTabId" />) and the
-///         palette are their own build items and arrive against the store and session that exist now. What
-///         is fixed here is the module id and the two feature ids, because all three are persisted keys
-///         (the user's per-tab session state and <c>Features:Overrides:{id}</c>) and must not move when the
-///         surfaces land.
+///         <b>No tab of its own yet.</b> The Tag Palette (<c>Palette/TagPaletteViewModel</c>) docks in the
+///         2D Playback tab, which owns the tag session it writes through, under <see cref="PaletteFeatureId" />;
+///         The Matrix (<see cref="MatrixTabId" />) is its own build item. What is fixed here is the module id
+///         and the two feature ids, because all three are persisted keys (the user's per-tab session state
+///         and <c>Features:Overrides:{id}</c>) and must not move when the surfaces land.
 ///     </para>
 ///     <para>
 ///         <b>Wiring contract</b>, when the tabs arrive: <see cref="WorkspaceTabDescriptor.ViewModelFactory" />

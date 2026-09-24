@@ -679,4 +679,14 @@ public sealed class Playback2DSettings
     ///     unknown value in a hand-edited file degrades to the default instead of failing the bind.
     /// </summary>
     public string ExportQuality { get; set; } = "standard";
+
+    // ---------------- Tag Palette (tag-store.md §3.11) ----------------
+    // The one settings row the design gives the Round Tagger. WASM-reachable (the palette docks in the 2D
+    // tab on the browser too), so it has a SettingsService.WriteInMemory row.
+
+    /// <summary>
+    ///     The id of the palette the 2D tab tags with. An id no palette carries (a drop-in since deleted)
+    ///     falls back to the built-in <c>cs2-default</c> rather than to nothing.
+    /// </summary>
+    public string TagPaletteId { get; set; } = "cs2-default";
 }
