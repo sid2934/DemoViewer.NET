@@ -22,8 +22,8 @@ namespace DemoViewer.NET.AppTests;
 ///         differ is the <b>id set</b>.
 ///     </para>
 ///     <para>
-///         The five <see cref="SceneLayerIds.OptIn" /> ids are absent from every scene stack (they need a
-///         HUD source, an ink document or a query document the caller supplies), and <c>Scene2DHost</c> mounts
+///         The six <see cref="SceneLayerIds.OptIn" /> ids are absent from every scene stack (they need a
+///         HUD source, an ink document, a query document or an overlay document the caller supplies), and <c>Scene2DHost</c> mounts
 ///         <c>playback2d.annotations</c> later, when a session attaches. The claim under test is "the
 ///         non-opt-in set is identical", not "the lists are equal".
 ///     </para>
@@ -88,13 +88,13 @@ public class SceneLayerListParityTests
     ///     actually decides draw order, a reader of the table has every right to expect the two agree.
     /// </summary>
     [Test]
-    public async Task CatalogTable_IsTheTwelvePersistedIds_InDrawOrder()
+    public async Task CatalogTable_IsTheThirteenPersistedIds_InDrawOrder()
     {
         string[] expected =
         [
             "playback2d.radar", "playback2d.trails", "playback2d.areaeffects", "playback2d.vision",
             "playback2d.markers", "playback2d.bomb", "playback2d.floorlabel", "playback2d.annotations",
-            "hud.roster", "hud.clock", "hud.killfeed", "playback2d.query"
+            "hud.roster", "hud.clock", "hud.killfeed", "playback2d.query", "playback2d.overlay"
         ];
 
         await Assert.That(SceneLayerCatalog.SceneStackIds.ToArray()).IsEquivalentTo(expected);

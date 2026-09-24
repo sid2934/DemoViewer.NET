@@ -23,6 +23,7 @@ internal static class Program
                                            [--size WxH]             default 1920x1080
                                            [--layers a,b] [--exclude-layers a,b]
                                            [--ink <file.dvann.json>] [--query <file.dvquery.json>]
+                                           [--overlay <file.dvoverlay.json>]
                                            [--camera fit-map|fit-alive|follow:<steamId>|fixed:<x>,<y>,<zoom>]
                                            [--layout stacked|single] [--level <levelId>]
                                            [--assets <dir>] [--no-radar]
@@ -66,16 +67,17 @@ internal static class Program
                                            A CPU answer is not an error (exit 0); --require-gpu makes it exit 6,
                                            and --require-hardware additionally rejects WARP / llvmpipe.
 
-                                --layers    the twelve ids SceneLayerCatalog registers, bare or prefixed:
+                                --layers    the thirteen ids SceneLayerCatalog registers, bare or prefixed:
                                             radar, trails, areaeffects, vision, markers, bomb, floorlabel
                                             (the scene, drawn by default) and annotations, hud.roster,
-                                            hud.clock, hud.killfeed, query (opt-in, named or absent). render,
-                                            golden and bench draw the SAME stack export does — up to D6
-                                            they drew a debug grid instead, and every committed golden
-                                            was a picture of it. The five opt-in ids need a source: --ink
-                                            feeds the annotation layer, --query feeds the query tokens,
-                                            and the three HUD ids need a demo's clock and kill timeline,
-                                            so only `export --hud` can.
+                                            hud.clock, hud.killfeed, query, overlay (opt-in, named or
+                                            absent). render, golden and bench draw the SAME stack export
+                                            does; up to D6 they drew a debug grid instead, and every
+                                            committed golden was a picture of it. The six opt-in ids need
+                                            a source: --ink feeds the annotation layer, --query feeds the
+                                            query tokens, --overlay feeds the heatmap, and the three HUD
+                                            ids need a demo's clock and kill timeline, so only
+                                            `export --hud` can.
 
                                 --ink       burns a .dvann.json sidecar into a single-frame render. `golden`
                                             and `bench` take it by convention instead — annotations/<name>.dvann.json
@@ -85,6 +87,11 @@ internal static class Program
                                 --query     draws a .dvquery.json query fixture (the Situations tab's placed
                                             place tokens) into a single-frame render. `golden` and `bench`
                                             take it by the same convention: queries/<name>.dvquery.json
+                                            beside the corpus entry's scene.
+
+                                --overlay   draws a .dvoverlay.json overlay fixture (the Overlay View's stacked
+                                            positions, as a heatmap) into a single-frame render. `golden` and
+                                            `bench` take it by the same convention: overlays/<name>.dvoverlay.json
                                             beside the corpus entry's scene.
 
                                 --perf (alias --profile, env CS2DEMOKIT_PROFILE / DEMOVIEWER_PROFILE) adds a

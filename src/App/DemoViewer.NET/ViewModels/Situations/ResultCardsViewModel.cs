@@ -1,10 +1,14 @@
 #region
 
 using System.Collections.ObjectModel;
+using System.Globalization;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Playback2D.Core.Overlay;
+using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
@@ -28,6 +32,14 @@ namespace DemoViewer.NET.ViewModels.Situations;
 ///         strip's stale count says how many; "Rebuild index" is the remedy.
 ///     </para>
 ///     <para>
+///         <b>Overlay all N.</b> The same positions files, read once more: every alive tuple of every
+///         sampled step between a hit's first and last matched tick, with the side from the round's CT
+///         slots, into the canvas's <see cref="OverlayDocument" />, which the heatmap layer stacks per
+///         floor. Forty rounds are about twenty thousand points and a few milliseconds of reads, on the
+///         same worker pattern as the cards, and still no demo opens. A hit whose demo has no current
+///         positions file contributes nothing and the line says how many did not.
+///     </para>
+///     <para>
 ///         Delegate-injected (the Highlights precedent): the playback seam, the thumbnail renderer and
 ///         the bitmap decoder are all seams a test replaces, and the cache store, the sidecar store and
 ///         the place sources are the same singletons the strip and the canvas read.
@@ -41,6 +53,9 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     /// <summary>The note on a card whose matched step the walk did not sample.</summary>
     public const string NoSampleNote = "no sample at this tick";
 
+    /// <summary>The overlay line when no hit in the set had a positions file to stack.</summary>
+    public const string NoOverlayNote = "no positions for these rounds; rebuild the index";
+
     private readonly SituationThumbnailCache _cache;
     private readonly Func<byte[], Bitmap?> _decode;
     private readonly DemoCacheStore _demoCache;
@@ -53,6 +68,14 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     // Bumped per Load; a worker whose generation is behind posts nothing, so a search issued while the
     // last batch is still rendering cannot land old pictures on new cards.
     private int _generation;
+
+    /// <summary>True while the overlay worker is reading and stacking; the button is disabled meanwhile.</summary>
+    [ObservableProperty]
+    private bool _isOverlayBuilding;
+
+    /// <summary>"40 rounds · 312 states · 2,104 positions", or why there is no overlay; empty with none asked for.</summary>
+    [ObservableProperty]
+    private string _overlayLine = "";
 
     /// <summary>The walk's current card, or null with no result set.</summary>
     [ObservableProperty]
@@ -70,6 +93,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     /// <param name="renderer">Builds the batch's renderer; the pipeline's bundle loader when null.</param>
     /// <param name="post">UI-thread marshal for the worker's results; the dispatcher when null.</param>
     /// <param name="decode">PNG bytes to a bitmap; Avalonia's decoder when null, a stub in a test without a platform.</param>
+    /// <param name="overlay">The canvas's overlay document the heatmap layer draws; a private one when null.</param>
     public ResultCardsViewModel(
         DemoCacheStore demoCache,
         RoundIndexStore store,
@@ -78,7 +102,8 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         SituationThumbnailCache? cache = null,
         Func<SituationThumbnailRenderer>? renderer = null,
         Action<Action>? post = null,
-        Func<byte[], Bitmap?>? decode = null)
+        Func<byte[], Bitmap?>? decode = null,
+        OverlayDocument? overlay = null)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
         ArgumentNullException.ThrowIfNull(store);
@@ -92,6 +117,8 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         _renderer = renderer ?? (() => new SituationThumbnailRenderer());
         _post = post ?? (action => Dispatcher.UIThread.Post(action));
         _decode = decode ?? DecodePng;
+        Overlay = overlay ?? new OverlayDocument();
+        Overlay.Changed += OnOverlayChanged;
     }
 
     /// <summary>The cards, in the index's order.</summary>
@@ -115,6 +142,21 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     /// <summary>The thumbnail cache, so a rebuild can drop every picture of the old rows.</summary>
     public SituationThumbnailCache Cache => _cache;
 
+    /// <summary>The Overlay View's points: the canvas's document, filled by <see cref="OverlayAllCommand" />.</summary>
+    public OverlayDocument Overlay { get; }
+
+    /// <summary>The heatmap is on the canvas.</summary>
+    public bool IsOverlayShown => !Overlay.IsEmpty;
+
+    /// <summary>"Overlay all 40".</summary>
+    public string OverlayLabel => $"Overlay all {Cards.Count}";
+
+    /// <summary>There is a set to stack and no build in flight.</summary>
+    public bool CanOverlay => Cards.Count > 0 && !IsOverlayBuilding;
+
+    /// <summary>The last overlay build's worker, so a test can await it instead of polling the document.</summary>
+    internal Task OverlayTask { get; private set; } = Task.CompletedTask;
+
     /// <summary>
     ///     Replaces the result set with the hits of a search and starts the batch that fills the cards.
     ///     The cards exist at once, with the match label and the round, so the list is never blank
@@ -127,6 +169,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
 
         int generation = Interlocked.Increment(ref _generation);
         Cards.Clear();
+        DropOverlay();
         foreach (SituationHit hit in hits)
         {
             Cards.Add(new ResultCardViewModel(this, hit, _demoCache.TryGetIndex(hit.DemoPath)));
@@ -153,6 +196,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     {
         Interlocked.Increment(ref _generation);
         Cards.Clear();
+        DropOverlay();
         SelectedCard = null;
         WalkLine = "";
         NotifySetChanged();
@@ -230,6 +274,140 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasCards));
         OnPropertyChanged(nameof(HeaderLine));
         OnPropertyChanged(nameof(SelectedIndex));
+        OnPropertyChanged(nameof(OverlayLabel));
+        OnPropertyChanged(nameof(CanOverlay));
+        OverlayAllCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>
+    ///     The overlay line for a finished build: the rounds, the states and the positions, and how
+    ///     many rounds had no positions to give when any did not.
+    /// </summary>
+    /// <param name="rounds">How many hits were asked for.</param>
+    /// <param name="withoutPositions">How many of them had no current positions file or no sampled step.</param>
+    /// <param name="states">How many sampled steps were stacked.</param>
+    /// <param name="points">How many positions were stacked.</param>
+    public static string OverlayLineFor(int rounds, int withoutPositions, int states, int points)
+    {
+        string line = $"{rounds} {(rounds == 1 ? "round" : "rounds")} · {states} {(states == 1 ? "state" : "states")} · "
+                      + $"{points.ToString("N0", CultureInfo.InvariantCulture)} positions";
+        return withoutPositions > 0 ? $"{line} · {withoutPositions} without positions" : line;
+    }
+
+    /// <summary>
+    ///     Overlay all N: stacks every matched state of the set onto the canvas. The reads and the
+    ///     stacking run on a worker; the document is replaced on the UI thread when they land, and a
+    ///     result set replaced meanwhile discards the answer.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanOverlay))]
+    private void OverlayAll()
+    {
+        int generation = Volatile.Read(ref _generation);
+        List<SituationHit> hits = [.. Cards.Select(c => c.Hit)];
+        IsOverlayBuilding = true;
+        OverlayLine = "stacking the rounds";
+        OverlayTask = Task.Run(() => BuildOverlay(generation, hits));
+    }
+
+    /// <summary>Takes the heatmap off the canvas. The cards stay.</summary>
+    [RelayCommand]
+    private void ClearOverlay() => DropOverlay();
+
+    partial void OnIsOverlayBuildingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanOverlay));
+        OverlayAllCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnOverlayChanged() => OnPropertyChanged(nameof(IsOverlayShown));
+
+    // A new set, an emptied set or the clear action: the overlay described the old hits and goes with
+    // them, and a build still in flight for them posts nothing because the generation moved.
+    private void DropOverlay()
+    {
+        IsOverlayBuilding = false;
+        OverlayLine = "";
+        Overlay.Clear();
+    }
+
+    // The worker: one positions read per demo, then every sampled step from the first matched tick to
+    // the last, alive tuples only, with the side from the round's CT slots. The record is read for its
+    // hash, so a positions file another copy of the demo left behind is refused the way the cards
+    // refuse it.
+    private void BuildOverlay(int generation, List<SituationHit> hits)
+    {
+        List<OverlayPoint> points = [];
+        int states = 0;
+        int without = 0;
+        string? currentPath = null;
+        RoundPositionsDocument? positions = null;
+
+        foreach (SituationHit hit in hits)
+        {
+            if (generation != Volatile.Read(ref _generation))
+            {
+                return;
+            }
+
+            if (!string.Equals(currentPath, hit.DemoPath, StringComparison.Ordinal))
+            {
+                currentPath = hit.DemoPath;
+                DemoCacheRecord? record = TryLoadRecord(hit.DemoPath);
+                positions = _store.TryReadPositions(hit.DemoPath, _sources.FingerprintFor(hit.Map), record?.Sha256);
+            }
+
+            if (positions?.Round(hit.RoundNumber) is not { } round)
+            {
+                without++;
+                continue;
+            }
+
+            int first = positions.StepFor(round, hit.FirstMatchTick);
+            int last = Math.Max(first, positions.StepFor(round, hit.LastMatchTick));
+            HashSet<int> ct = [.. round.Ct];
+            bool sampled = false;
+            for (int step = first; step <= last; step++)
+            {
+                IReadOnlyList<RoundPosition> tuples = round.At(step);
+                if (tuples.Count == 0)
+                {
+                    continue;
+                }
+
+                sampled = true;
+                states++;
+                foreach (RoundPosition tuple in tuples)
+                {
+                    points.Add(new OverlayPoint(tuple.X, tuple.Y, tuple.Z,
+                        ct.Contains(tuple.Slot) ? QuerySide.Ct : QuerySide.T));
+                }
+            }
+
+            if (!sampled)
+            {
+                without++;
+            }
+        }
+
+        string map = hits.Count > 0 ? hits[0].Map : "";
+        _post(() =>
+        {
+            if (generation != Volatile.Read(ref _generation))
+            {
+                return;
+            }
+
+            IsOverlayBuilding = false;
+            if (points.Count == 0)
+            {
+                Overlay.Clear();
+                OverlayLine = NoOverlayNote;
+                return;
+            }
+
+            Overlay.Replace(map, points, states);
+            OverlayLine = OverlayLineFor(hits.Count, without, states, points.Count);
+        });
     }
 
     // The worker: one record read and one positions read per demo, then a render per hit that the

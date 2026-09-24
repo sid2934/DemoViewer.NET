@@ -20,8 +20,8 @@ namespace DemoViewer.NET.ViewModels.Situations;
 ///     <para>
 ///         Delegate-injected (the Highlights precedent): the VM owns no engine; it reads the
 ///         <see cref="ISituationIndex" />, the cache rows and drives the <see cref="RoundIndexEvaluator" />.
-///         The Query Canvas (<see cref="Canvas" />) sits below the strip; Result Cards, Overlay View and
-///         the Tolerance Slider are their own build items and land beside it.
+///         The Query Canvas (<see cref="Canvas" />) sits below the strip with the Result Cards under it,
+///         whose Overlay all N stacks onto the canvas; the Tolerance Slider is its own build item.
 ///     </para>
 ///     <para>
 ///         On the browser host there is no queue and no filesystem, so no library index exists; the
@@ -120,8 +120,10 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
 
         // The cards read the positions files the same store wrote, under the fingerprint in force for
         // the map; a set built without a sidecar store has nothing to draw and says so on every tile.
+        // Their overlay is the canvas's own document, so the heatmap lands on the map the query was
+        // drawn on.
         Results = results ?? new ResultCardsViewModel(demoCache, sidecars ?? new RoundIndexStore(null, demoCache),
-            sources, playback ?? (() => null));
+            sources, playback ?? (() => null), overlay: Canvas.Overlay);
         Canvas.Searched += Results.Load;
         Canvas.PropertyChanged += OnCanvasPropertyChanged;
 

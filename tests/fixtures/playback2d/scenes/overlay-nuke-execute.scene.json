@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "playback2d-scene/1",
+  "time": {
+    "tick": 0,
+    "frameIndex": 0,
+    "demoSeconds": 0,
+    "deltaSeconds": 0.015625,
+    "isDiscontinuity": true
+  },
+  "camera": {
+    "viewWidth": 640,
+    "viewHeight": 320,
+    "centerX": 131,
+    "centerY": -697,
+    "baseScale": 0.041071428571428571,
+    "zoom": 1,
+    "panX": 0,
+    "panY": 0
+  },
+  "size": {
+    "width": 640,
+    "height": 640
+  },
+  "mapName": "de_nuke",
+  "mapVersion": "075a27b3",
+  "frame": {
+    "time": {
+      "tick": 0,
+      "frameIndex": 0,
+      "demoSeconds": 0,
+      "deltaSeconds": 0.015625,
+      "isDiscontinuity": false
+    },
+    "markers": [],
+    "areaEffects": [],
+    "trails": [],
+    "killFeed": [],
+    "gameInfo": {
+      "roundNumber": 0,
+      "ctScore": 0,
+      "tScore": 0,
+      "phase": "Unknown",
+      "clockText": "",
+      "roundClockSeconds": 0
+    },
+    "map": {
+      "mapName": "de_nuke",
+      "networkedBounds": {
+        "minX": -3453,
+        "minY": -4281,
+        "maxX": 3715,
+        "maxY": 2887
+      },
+      "observedBounds": {
+        "minX": -3453,
+        "minY": -4281,
+        "maxX": 3715,
+        "maxY": 2887
+      },
+      "radars": []
+    },
+    "vision": {
+      "isAvailable": false,
+      "cones": [],
+      "sightlines": []
+    },
+    "followSlot": -1
+  },
+  "notes": "The Overlay View with no demo behind it: the de_nuke bundle's two nav floors and radar, no markers, and the overlay fixture overlays/overlay-nuke-execute.dvoverlay.json stacked over it as a heatmap. The same static map frame the Query Canvas golden uses; only the fixture beside it differs."
+}
