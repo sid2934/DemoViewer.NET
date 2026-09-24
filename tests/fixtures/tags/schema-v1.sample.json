@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "demo": {
+    "sha256": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+    "fileName": "match730_sample.dem",
+    "sizeBytes": 549715968
+  },
+  "clock": {
+    "kind": "dv-frame-clock",
+    "tickRate": 64,
+    "frameCount": 223114,
+    "firstTick": 0,
+    "lastTick": 0
+  },
+  "palette": "cs2-default",
+  "instances": [
+    {
+      "id": "6f1c0d2e-3a4b-4c5d-8e9f-a0b1c2d3e4f5",
+      "code": "A execute",
+      "fromTick": 41216,
+      "toTick": 42432,
+      "round": 7,
+      "createdUtc": "2026-09-23T14:02:11Z",
+      "modifiedUtc": "2026-09-23T14:05:11Z",
+      "source": "human",
+      "labels": [
+        {
+          "group": "outcome",
+          "value": "won"
+        },
+        {
+          "group": "site",
+          "value": "A"
+        },
+        {
+          "group": "site",
+          "value": "B"
+        },
+        {
+          "group": "",
+          "value": "sloppy",
+          "futureLabel": "kept"
+        }
+      ],
+      "facts": [
+        {
+          "group": "side",
+          "value": "T"
+        },
+        {
+          "group": "buy.us",
+          "value": "full"
+        },
+        {
+          "group": "buy.them",
+          "value": "force"
+        },
+        {
+          "group": "score",
+          "value": "6-4"
+        },
+        {
+          "group": "endReason",
+          "value": "bomb"
+        },
+        {
+          "group": "plantSite",
+          "value": "A"
+        }
+      ],
+      "factsStamp": {
+        "schema": 1,
+        "computedUtc": "2026-09-23T14:02:11Z",
+        "stale": false
+      },
+      "note": "smokes were 1s late; the B player rotated before the flash",
+      "positions": [
+        {
+          "x": -1180.5,
+          "y": 2044.25,
+          "levelMinZ": -384,
+          "tick": 41600,
+          "place": "BombsiteA",
+          "placeSource": "zones:1c2b3a49",
+          "futurePosition": 3
+        }
+      ],
+      "movements": [
+        {
+          "from": {
+            "x": -220,
+            "y": 1610,
+            "levelMinZ": -384,
+            "tick": 41300,
+            "place": "Ramp",
+            "placeSource": "pawn"
+          },
+          "to": {
+            "x": -1180.5,
+            "y": 2044.25,
+            "levelMinZ": -384,
+            "tick": 41600
+          }
+        }
+      ],
+      "futureInstance": true
+    },
+    {
+      "id": "0a1b2c3d-4e5f-4a6b-9c7d-8e9fa0b1c2d3",
+      "code": "B execute",
+      "fromTick": 60000,
+      "toTick": 61200,
+      "createdUtc": "2026-09-23T15:02:11Z",
+      "modifiedUtc": "2026-09-23T15:02:11Z",
+      "source": "suggested",
+      "provenance": {
+        "source": "suggested-tags",
+        "detector": "execute",
+        "proposalId": "exec|r12|T|BombsiteB|s=21",
+        "confidence": 0.78,
+        "detectorSetFingerprint": "abc123",
+        "edited": false
+      },
+      "labels": [
+        {
+          "group": "strat",
+          "value": "b-split"
+        }
+      ],
+      "facts": [],
+      "positions": [],
+      "movements": []
+    }
+  ],
+  "futureRoot": {
+    "kept": true
+  }
+}
