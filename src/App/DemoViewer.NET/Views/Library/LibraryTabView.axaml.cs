@@ -1,7 +1,9 @@
 #region
 
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.ViewModels.Library;
@@ -42,6 +44,28 @@ public partial class LibraryTabView : UserControl
         if (sender is Control { Tag: DemoEntry entry } && DataContext is LibraryTabViewModel vm)
         {
             vm.OpenEntryCommand.Execute(entry);
+        }
+    }
+
+    // The provenance chip's menu: the item's Tag is the label (null on "Automatic") and its DataContext is
+    // the card's entry, inherited through the flyout from the chip. Walks up when a presenter in between
+    // has not inherited it yet, so a click never lands on nothing.
+    private void OnProvenancePicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem item || DataContext is not LibraryTabViewModel vm)
+        {
+            return;
+        }
+
+        StyledElement? node = item;
+        while (node is not null && node.DataContext is not DemoEntry)
+        {
+            node = node.Parent;
+        }
+
+        if (node?.DataContext is DemoEntry entry)
+        {
+            vm.SetProvenance(entry, item.Tag as string);
         }
     }
 

@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.Teams;
 
 #endregion
@@ -89,6 +90,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     private readonly RecentFilesStore? _recentFiles; // recent-files store (null on designer / older tests)
     private readonly string? _sampleDemoPath; // bundled tour sample (null = none ships / designer / tests)
     private readonly TeamIdentityService? _teams; // the Team filter's source (null = no filter offered)
+    private readonly IDemoProvenanceSource? _provenance; // the card's provenance chip (null = no chip)
 
     [ObservableProperty]
     private bool _isCardView = true; // user default: card view
@@ -129,7 +131,8 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         Func<Task>? openFilePicker = null,
         RecentFilesStore? recentFiles = null,
         string? sampleDemoPath = null,
-        TeamIdentityService? teams = null)
+        TeamIdentityService? teams = null,
+        IDemoProvenanceSource? provenance = null)
     {
         _library = library;
         _openDemo = openDemo;
@@ -138,6 +141,14 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         _recentFiles = recentFiles;
         _sampleDemoPath = sampleDemoPath;
         _teams = teams;
+        _provenance = provenance;
+        if (_provenance is not null)
+        {
+            // Same lifetime as the team subscription: a pin set from another surface, a team marked
+            // as us or a demo indexed all change what the chips say.
+            _provenance.Changed += RefreshProvenance;
+        }
+
         AvailableTeams.Add(TeamFilterItem.All);
         if (_teams is not null)
         {
@@ -159,6 +170,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
         RefreshMapFilters();
         RefreshAvailablePlayers();
+        RefreshProvenance();
         ApplyFilter();
     }
 
@@ -202,6 +214,9 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
     /// <summary>True when a Team Identity service backs the Team filter.</summary>
     public bool HasTeamFilter => _teams is not null;
+
+    /// <summary>True when a provenance source backs the card's label chip.</summary>
+    public bool HasProvenance => _provenance is not null;
 
     /// <summary>Distinct player names across the library, for the player filter; index 0 is "All players".</summary>
     public ObservableCollection<string> AvailablePlayers { get; } = [AllPlayers];
@@ -541,6 +556,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     {
         RefreshMapFilters();
         RefreshAvailablePlayers();
+        RefreshProvenance();
         ApplyFilter();
     }
 
@@ -556,7 +572,40 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         RefreshMapFilters();
         RefreshAvailablePlayers();
         RaiseScoreRepairState();
+        RefreshProvenance();
         ApplyFilter();
+    }
+
+    // ── Provenance ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     Pins a demo's provenance label, or with null goes back to the heuristic. The chip on the card
+    ///     re-reads through the source's Changed, so nothing is written onto the entry here.
+    /// </summary>
+    /// <param name="entry">The card.</param>
+    /// <param name="label">One of <see cref="DemoProvenanceLabel.All" />, or null for automatic.</param>
+    public void SetProvenance(DemoEntry entry, string? label)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        _teams?.SetProvenanceOverride(entry.FilePath, label);
+    }
+
+    // One batch over the entries: the source resolves every override and assignment in a single pass
+    // rather than a lookup storm per card, and an entry the cache does not know reads unlabeled.
+    private void RefreshProvenance()
+    {
+        if (_provenance is null)
+        {
+            return;
+        }
+
+        IReadOnlyDictionary<string, DemoProvenance> resolved = _provenance.ResolveAll(_library.Entries.Select(e => e.FilePath));
+        foreach (DemoEntry entry in _library.Entries)
+        {
+            DemoProvenance? p = resolved.GetValueOrDefault(entry.FilePath);
+            entry.ProvenanceLabel = p?.Label;
+            entry.ProvenanceIsOverride = p?.IsOverride ?? false;
+        }
     }
 
     private void RaiseScoreRepairState()
