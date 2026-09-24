@@ -769,6 +769,15 @@ public class App : Application
                 () => monitor?.CurrentValue.Situations.TokenSource ?? RoundIndexTokenSource.Pawn);
         });
 
+        // Find Rounds Like This: the 2D tab's Ctrl+F hands its current tick through this seam. The tab
+        // VM resolves lazily (the same container singleton the module activates, so the canvas the key
+        // fills is the one the tab shows), and the tab switch reaches the shell at call time, the way
+        // the Settings factory reaches StartWalkthrough, never at construction.
+        services.AddSingleton<IFindRoundsLikeThis>(sp => new FindRoundsLikeThis(
+            sp.GetRequiredService<SituationsTabViewModel>,
+            sp.GetRequiredService<RoundIndexPlaceSources>(),
+            tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false));
+
         // The "one parse, many evaluators" coordinator: the single submitter
         // that polls the registered IDemoEvaluators (Library + Highlights + Round Facts) for a demo and
         // coalesces their queue submissions onto ONE parse. The candidate universe re-polled on

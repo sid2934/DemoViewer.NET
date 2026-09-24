@@ -3392,12 +3392,23 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // Switches the workspace to the tab with the given TabId (null / absent = no-op). Wired to the tutorial
     // controller so a step can bring its target region on screen; a gated-off tab simply isn't found, and the
     // step degrades to a callout with no spotlight (anchor-missing → graceful).
-    private void SelectTabById(string? tabId)
+    private void SelectTabById(string? tabId) => TrySelectTab(tabId);
+
+    /// <summary>
+    ///     Switches to the tab with the given TabId and says whether it was there. A gated-off tab is
+    ///     absent from the strip, so false is how a module learns its target has nowhere to show (Find
+    ///     Rounds Like This leaves its key unhandled on that answer).
+    /// </summary>
+    /// <param name="tabId">The persisted tab id.</param>
+    internal bool TrySelectTab(string? tabId)
     {
         if (tabId is { Length: > 0 } && Tabs.FirstOrDefault(t => t.TabId == tabId) is { } tab)
         {
             SelectedTab = tab;
+            return true;
         }
+
+        return false;
     }
 
     /// <summary>

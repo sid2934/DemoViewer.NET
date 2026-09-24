@@ -35,7 +35,10 @@ public enum Playback2DAction
     Undo,
     Redo,
     ClearAnnotations,
-    HoldPan
+    HoldPan,
+
+    // Bound by Find Rounds Like This (Strat Room, plan D7):
+    FindRoundsLikeThis
 }
 
 /// <summary>When a binding applies. Tool-scoped bindings take precedence while a drawing tool is active.</summary>
@@ -352,6 +355,13 @@ public static class Playback2DKeymap
             "Hold to pan while a drawing tool is active", false),
         new(Playback2DAction.CancelGesture, Key.Escape, KeyModifiers.None,
             Playback2DBindingScope.WhenToolActive, "Cancel the in-progress gesture", false),
+
+        // ── Situation Search (Always). Ctrl+F, not F: bare F is follow cycling, and the owner chose the
+        //    common find chord (plan D7). It is not a shell accelerator, and the browser DOES deliver
+        //    Ctrl+F to the page (the find bar opens only when nothing handles it), so it is not in the
+        //    browser-reserved list either.
+        new(Playback2DAction.FindRoundsLikeThis, Key.F, KeyModifiers.Control, Playback2DBindingScope.Always,
+            "Find rounds like this: snapshot the alive players onto the Situations query", false),
 
         // ── Reserved: declared so the conflict checker guards them; bound by B3. ──
         new(Playback2DAction.FitCamera, Key.Home, KeyModifiers.None, Playback2DBindingScope.Always,
