@@ -22,7 +22,7 @@ namespace DemoViewer.NET.ViewModels.Situations;
 ///         <see cref="ISituationIndex" />, the cache rows and drives the <see cref="RoundIndexEvaluator" />.
 ///         The Query Canvas (<see cref="Canvas" />) sits below the strip with the Result Cards under it,
 ///         whose Overlay all N stacks onto the canvas; the Watched Situations list (<see cref="Watched" />)
-///         sits between the strip and the canvas; the Tolerance Slider is its own build item.
+///         sits between the strip and the canvas; the tolerance slider is part of the canvas.
 ///     </para>
 ///     <para>
 ///         On the browser host there is no queue and no filesystem, so no library index exists; the
