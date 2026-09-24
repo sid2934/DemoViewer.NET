@@ -70,6 +70,13 @@ public sealed class DemoEvaluationCoordinator : IDisposable
         _queue.CapacityAvailable -= OnCapacityAvailable;
     }
 
+    /// <summary>
+    ///     The registered evaluators' ids in fan-out order. The order is a contract other features
+    ///     build on (an evaluator may read what the one before it wrote in the same pass), so the
+    ///     composition root's list is pinned by a test through this.
+    /// </summary>
+    public IReadOnlyList<string> EvaluatorIds => [.. _evaluators.Select(e => e.Id)];
+
     /// <summary>Polls every evaluator for one path and submits for each interested, not-outstanding one.</summary>
     public void Consider(string path)
     {

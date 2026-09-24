@@ -1,5 +1,6 @@
 #region
 
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 
@@ -31,5 +32,21 @@ public static class FrameClock
         return new ClockIdentity(ClockIdentity.DvFrameClock,
             context.TickRate > 0 ? context.TickRate : 64,
             context.TotalFrames, context.FirstTick, context.LastTick);
+    }
+
+    /// <summary>
+    ///     The header for a held parse, by the same definition: a background evaluator writing a
+    ///     per-demo store has the <see cref="ParsedDemo" /> and no context.
+    /// </summary>
+    public static ClockIdentity IdentityFor(ParsedDemo parsed)
+    {
+        ArgumentNullException.ThrowIfNull(parsed);
+
+        IReadOnlyList<DemoFrame> frames = parsed.Frames;
+        return new ClockIdentity(ClockIdentity.DvFrameClock,
+            parsed.TickRate > 0 ? parsed.TickRate : 64,
+            frames.Count,
+            frames.Count > 0 ? frames[0].ServerTick : 0,
+            frames.Count > 0 ? frames[^1].ServerTick : 0);
     }
 }

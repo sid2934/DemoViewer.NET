@@ -23,6 +23,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Highlights;
@@ -702,22 +703,42 @@ public class App : Application
                 action => Dispatcher.UIThread.Post(action));
         });
 
+        // Round Facts: the per-round, per-side record every Strat Room feature filters on. An evaluator on
+        // the tier-2 fan-out (no second parse) writing into the unified cache's Analysis tier under the
+        // round_facts ruleset's own fingerprint, and the read API over those rows. The engine row source
+        // is the parked seam: until CS2DemoKit #54 ships the surfaces the ruleset reads, the effective
+        // rules carry no round_facts, the identity answers null, and the evaluator writes nothing.
+        services.AddSingleton<IRoundFactsRulesetIdentity, RulesRoundFactsRulesetIdentity>();
+        services.AddSingleton<IRoundFactsRowSource, EngineRoundFactsRowSource>();
+        services.AddSingleton(sp => new RoundFactsEvaluator(
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<IRoundFactsRowSource>(),
+            sp.GetRequiredService<IRoundFactsRulesetIdentity>(),
+            action => Dispatcher.UIThread.Post(action)));
+        services.AddSingleton<IRoundFactsSource>(sp => new RoundFactsSource(
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<RoundFactsEvaluator>()));
+
         // The "one parse, many evaluators" coordinator: the single submitter
-        // that polls the registered IDemoEvaluators (Library + Highlights) for a demo and coalesces their
-        // queue submissions onto ONE parse. The candidate universe re-polled on CapacityAvailable is the
-        // UNION of each evaluator's worker-readable pending snapshot (never the UI-bound Entries collection).
-        // Setting .Coordinator on each flips it off its inline/feeder path onto the coordinator; the
-        // construction side-effect runs under ValidateOnBuild (+ the explicit force-resolve below).
+        // that polls the registered IDemoEvaluators (Library + Highlights + Round Facts) for a demo and
+        // coalesces their queue submissions onto ONE parse. The candidate universe re-polled on
+        // CapacityAvailable is the UNION of each evaluator's worker-readable pending snapshot (never the
+        // UI-bound Entries collection). Setting .Coordinator on each flips it off its inline/feeder path
+        // onto the coordinator; the construction side-effect runs under ValidateOnBuild (+ the explicit
+        // force-resolve below). The ORDER is a contract (the round index, when it lands, reads the round
+        // facts written in the same pass) and is pinned by AppCompositionRootTests.
         services.AddSingleton(sp =>
         {
             DemoLibraryService library = sp.GetRequiredService<DemoLibraryService>();
             HighlightScanService highlights =
                 sp.GetRequiredService<HighlightScanService>();
+            RoundFactsEvaluator roundFacts = sp.GetRequiredService<RoundFactsEvaluator>();
             DemoEvaluationCoordinator coordinator = new(
-                [library, highlights],
+                [library, highlights, roundFacts],
                 sp.GetRequiredService<IDemoProcessingQueue>(),
                 () => library.Tier2Backlog()
                     .Concat(highlights.PendingPaths())
+                    .Concat(roundFacts.PendingPaths())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList());
             library.Coordinator = coordinator;

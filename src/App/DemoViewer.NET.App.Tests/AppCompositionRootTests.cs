@@ -100,6 +100,22 @@ public class AppCompositionRootTests
         });
     }
 
+    // The fan-out order is a contract (overview correction 19): an evaluator may read what the one before
+    // it wrote in the same pass, so the round index, when it lands, goes after round facts and reads them.
+    [Test]
+    public async Task EvaluatorFanOutOrder_IsLibraryThenHighlightsThenRoundFacts()
+    {
+        await WithProvider(new DesktopWindowService(() => null), async provider =>
+        {
+            Services.DemoProcessing.DemoEvaluationCoordinator coordinator =
+                provider.GetRequiredService<Services.DemoProcessing.DemoEvaluationCoordinator>();
+            await Assert.That(coordinator.EvaluatorIds)
+                .IsEquivalentTo(new[] { "library", "highlights", Services.RoundFacts.RoundFactsEvaluator.EvaluatorId });
+            await Assert.That(coordinator.EvaluatorIds[2]).IsEqualTo("roundfacts");
+            await Assert.That(provider.GetRequiredService<Services.RoundFacts.IRoundFactsSource>()).IsNotNull();
+        });
+    }
+
     // (a2) REGRESSION (v0.5.0 launch hang): restoring a session whose active tab reaches for the shell
     // during activation must not recurse. The shell ctor used to call RestoreSession, which selected the
     // persisted tab, whose activation resolved MainViewModel from the container, but a DI singleton is not
