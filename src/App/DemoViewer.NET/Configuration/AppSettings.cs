@@ -66,6 +66,9 @@ public sealed class AppSettings
     /// <summary>The 2D Playback module's settings. ONE section for the whole module.</summary>
     public Playback2DSettings Playback2D { get; set; } = new();
 
+    /// <summary>The Situations module's settings: the round index sweep and its token source.</summary>
+    public SituationsSettings Situations { get; set; } = new();
+
     /// <summary>
     ///     The app version (x.y.z) whose release notes the user has been shown, the post-update
     ///     "What's new" gate. Null until a launch records it. Compared against the running version at
@@ -339,6 +342,30 @@ public enum LiveSyncLogLevel
 
     /// <summary>Silence the CSVG log surface entirely.</summary>
     None
+}
+
+/// <summary>
+///     The Situations module's settings. Both keys carry a <c>SettingsService.WriteInMemory</c> row:
+///     the tab renders on the browser head and says what it cannot do, so a write there must survive
+///     a tab switch even though no index can be built.
+/// </summary>
+public sealed class SituationsSettings
+{
+    /// <summary>
+    ///     Background library indexing, default ON: the flagship needs coverage, and at one to three
+    ///     seconds per demo the sweep is a third of the Highlights scan the opt-in there guards. Off,
+    ///     only a demo the user retries from the strip is indexed.
+    /// </summary>
+    public bool BackgroundIndex { get; set; } = true;
+
+    /// <summary>
+    ///     Which string names a row's place: <see cref="Services.RoundIndex.RoundIndexTokenSource.Pawn" />
+    ///     (default; Valve's names, no asset) or <see cref="Services.RoundIndex.RoundIndexTokenSource.Zones" />
+    ///     (the team's own zones where a map has them). Part of the index fingerprint, so changing it
+    ///     re-indexes the library; the strip says so.
+    /// </summary>
+    public Services.RoundIndex.RoundIndexTokenSource TokenSource { get; set; } =
+        Services.RoundIndex.RoundIndexTokenSource.Pawn;
 }
 
 /// <summary>Demo-library settings.</summary>

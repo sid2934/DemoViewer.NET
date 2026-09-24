@@ -1,0 +1,229 @@
+{
+  "schemaVersion": "playback2d-scene/1",
+  "time": {
+    "tick": 11066,
+    "frameIndex": 0,
+    "demoSeconds": 0,
+    "deltaSeconds": 0.015625,
+    "isDiscontinuity": true
+  },
+  "camera": {
+    "viewWidth": 320,
+    "viewHeight": 180,
+    "centerX": 131,
+    "centerY": -697,
+    "baseScale": 0.023102678571428573,
+    "zoom": 1,
+    "panX": 0,
+    "panY": 0
+  },
+  "size": {
+    "width": 320,
+    "height": 180
+  },
+  "mapName": "de_nuke",
+  "mapVersion": "075a27b3",
+  "frame": {
+    "time": {
+      "tick": 11066,
+      "frameIndex": 0,
+      "demoSeconds": 0,
+      "deltaSeconds": 0.015625,
+      "isDiscontinuity": true
+    },
+    "markers": [
+      {
+        "slot": 0,
+        "team": 3,
+        "worldX": 620,
+        "worldY": -420,
+        "worldZ": -416,
+        "yawDegrees": 0,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "",
+        "isAlive": true,
+        "pitchDegrees": 0,
+        "duckAmount": 0,
+        "steamId": 0,
+        "place": "BombsiteA"
+      },
+      {
+        "slot": 1,
+        "team": 2,
+        "worldX": 1420,
+        "worldY": -760,
+        "worldZ": -700,
+        "yawDegrees": 0,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "",
+        "isAlive": true,
+        "pitchDegrees": 0,
+        "duckAmount": 0,
+        "steamId": 0,
+        "place": "Ramp"
+      },
+      {
+        "slot": 2,
+        "team": 3,
+        "worldX": 960,
+        "worldY": -640,
+        "worldZ": -416,
+        "yawDegrees": 0,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "",
+        "isAlive": true,
+        "pitchDegrees": 0,
+        "duckAmount": 0,
+        "steamId": 0,
+        "place": "BombsiteA"
+      },
+      {
+        "slot": 4,
+        "team": 2,
+        "worldX": -900,
+        "worldY": 200,
+        "worldZ": -416,
+        "yawDegrees": 0,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "",
+        "isAlive": true,
+        "pitchDegrees": 0,
+        "duckAmount": 0,
+        "steamId": 0,
+        "place": "Lobby"
+      },
+      {
+        "slot": 5,
+        "team": 3,
+        "worldX": -1300,
+        "worldY": -900,
+        "worldZ": -416,
+        "yawDegrees": 0,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "",
+        "isAlive": true,
+        "pitchDegrees": 0,
+        "duckAmount": 0,
+        "steamId": 0,
+        "place": "Outside"
+      },
+      {
+        "slot": 7,
+        "team": 3,
+        "worldX": -1340,
+        "worldY": -880,
+        "worldZ": -416,
+        "yawDegrees": 0,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "",
+        "isAlive": true,
+        "pitchDegrees": 0,
+        "duckAmount": 0,
+        "steamId": 0,
+        "place": "Outside"
+      },
+      {
+        "slot": 8,
+        "team": 2,
+        "worldX": 2600,
+        "worldY": 900,
+        "worldZ": -416,
+        "yawDegrees": 0,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "",
+        "isAlive": true,
+        "pitchDegrees": 0,
+        "duckAmount": 0,
+        "steamId": 0,
+        "place": "Silo"
+      },
+      {
+        "slot": 9,
+        "team": 3,
+        "worldX": 1380,
+        "worldY": -980,
+        "worldZ": -416,
+        "yawDegrees": 0,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "",
+        "isAlive": true,
+        "pitchDegrees": 0,
+        "duckAmount": 0,
+        "steamId": 0,
+        "place": "Ramp"
+      }
+    ],
+    "areaEffects": [],
+    "trails": [],
+    "killFeed": [],
+    "gameInfo": {
+      "phase": "\u2014",
+      "bombState": "\u2014",
+      "roundNumber": 0,
+      "roundsPlayed": -1,
+      "roundSeconds": "NaN",
+      "roundTime": "\u2014",
+      "bombTicking": false,
+      "defuseInProgress": false,
+      "defuseKitNote": "\u2014",
+      "defuseSeconds": "NaN",
+      "defuseTime": "\u2014",
+      "tScore": 0,
+      "ctScore": 0
+    },
+    "map": {
+      "mapName": "de_nuke",
+      "networkedBounds": {
+        "minX": -3453,
+        "minY": -4281,
+        "maxX": 3715,
+        "maxY": 2887
+      },
+      "observedBounds": {
+        "minX": -3453,
+        "minY": -4281,
+        "maxX": 3715,
+        "maxY": 2887
+      },
+      "radars": [
+        {
+          "name": "de_nuke.png",
+          "bounds": {
+            "minX": -3453,
+            "minY": -4281,
+            "maxX": 3715,
+            "maxY": 2887
+          },
+          "minZ": -495,
+          "maxZ": 10000
+        },
+        {
+          "name": "de_nuke_lower.png",
+          "bounds": {
+            "minX": -3453,
+            "minY": -4281,
+            "maxX": 3715,
+            "maxY": 2887
+          },
+          "minZ": -10000,
+          "maxZ": -495
+        }
+      ]
+    },
+    "vision": {
+      "isAvailable": false,
+      "cones": [],
+      "sightlines": []
+    },
+    "followSlot": -1
+  },
+  "notes": "A Result Card thumbnail: SituationThumbnailRenderer.BuildFrame over one sampled step of a positions file (ResultCardThumbnailTests.FixturePositions), eight alive markers with no label over de_nuke\u0027s two floors at the card\u0027s 320x180. Written by ResultCardThumbnailTests with RI_GOLDEN_UPDATE=1; the golden is dv2d golden update --name result-card-nuke."
+}

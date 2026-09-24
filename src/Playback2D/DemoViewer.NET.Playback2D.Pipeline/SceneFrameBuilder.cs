@@ -266,6 +266,13 @@ public sealed class SceneFrameBuilder
 
                 float duck = ReadFloat(pawn, "m_pMovementServices.m_flDuckAmount", 0);
 
+                // The empty string is what the pawn carries before it has stood in a named area; the
+                // round index treats that as no place, so the marker does too.
+                string? place = pawn is not null && pawn.TryGet("m_szLastPlaceName", out string? name)
+                                                 && !string.IsNullOrEmpty(name)
+                    ? name
+                    : null;
+
                 (RingState ring, double ringAlpha) =
                     _ringTracker.Evaluate(p.Slot, input.FrameIndex, alive, flash, health, shotsFired);
 
@@ -282,7 +289,8 @@ public sealed class SceneFrameBuilder
                     alive,
                     pitch,
                     duck,
-                    steamId));
+                    steamId,
+                    place));
             }
             else if (!alive && _lastKnownPos.TryGetValue(p.Slot, out (float X, float Y, float Z) last))
             {

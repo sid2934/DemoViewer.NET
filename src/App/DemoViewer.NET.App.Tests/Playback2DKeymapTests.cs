@@ -101,7 +101,7 @@ public class Playback2DKeymapTests
     [Test]
     public async Task TryResolve_UnboundKey_ReturnsFalse()
     {
-        await Assert.That(Playback2DKeymap.TryResolve(Key.J, KeyModifiers.None, false, out Playback2DAction a))
+        await Assert.That(Playback2DKeymap.TryResolve(Key.G, KeyModifiers.None, false, out Playback2DAction a))
             .IsFalse();
         await Assert.That(a).IsEqualTo(Playback2DAction.None);
     }

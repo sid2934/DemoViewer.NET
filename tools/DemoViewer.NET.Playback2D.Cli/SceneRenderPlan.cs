@@ -5,11 +5,15 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Overlay;
+using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
+using DemoViewer.NET.Playback2D.Pipeline.Overlay;
+using DemoViewer.NET.Playback2D.Pipeline.Query;
 using SkiaSharp;
 
 #endregion
@@ -126,10 +130,22 @@ internal sealed class SceneRenderPlan : IDisposable
     ///     <c>zones/&lt;name&gt;.zones.json</c> (<c>golden</c>, <c>bench</c>); see
     ///     <see cref="FixtureZones" />. Its diagnostics are warnings on stderr.
     /// </param>
+    /// <param name="query">
+    ///     The Query Canvas tokens to draw, or null. Arrives the same two ways the ink does:
+    ///     <c>--query</c> (<c>render</c>) or the corpus convention
+    ///     <c>queries/&lt;name&gt;.dvquery.json</c> (<c>golden</c>, <c>bench</c>). See
+    ///     <see cref="FixtureQuery" />.
+    /// </param>
+    /// <param name="overlay">
+    ///     The Overlay View points to draw, or null. Arrives the same two ways: <c>--overlay</c>
+    ///     (<c>render</c>) or the corpus convention <c>overlays/&lt;name&gt;.dvoverlay.json</c>
+    ///     (<c>golden</c>, <c>bench</c>). See <see cref="FixtureOverlay" />.
+    /// </param>
     public static SceneRenderPlan Build(CliArgs args, SKSizeI defaultSize, string? mapName,
         IReadOnlyList<string>? entryLayers = null, bool allowSizeOverride = true,
         RenderBackendPreference defaultBackend = RenderBackendPreference.Auto,
-        AnnotationSession? annotations = null, string? zonesOverlay = null)
+        AnnotationSession? annotations = null, string? zonesOverlay = null,
+        QueryCanvasDocument? query = null, OverlayDocument? overlay = null)
     {
         ArgumentNullException.ThrowIfNull(args);
 
@@ -165,12 +181,12 @@ internal sealed class SceneRenderPlan : IDisposable
         SceneCompositor compositor;
         try
         {
-            RequireFeedableOptIns(include, annotations, zones.Resolver);
+            RequireFeedableOptIns(include, annotations, zones.Resolver, query, overlay);
 
             // The SAME builder `dv2d export` and the app's export use. A second table would let a
             // golden and a real export draw two different stacks silently.
             compositor = SceneLayerCatalog.CreateSceneStack(include, exclude, annotations: annotations,
-                zones: zones.Resolver);
+                zones: zones.Resolver, query: query, overlay: overlay);
         }
         catch (ArgumentException e)
         {
@@ -263,8 +279,10 @@ internal sealed class SceneRenderPlan : IDisposable
     /// <param name="include">The resolved <c>--layers</c> / corpus-entry id set, or null.</param>
     /// <param name="annotations">The ink actually loaded, or null.</param>
     /// <param name="zones">The place resolver actually loaded, or null.</param>
+    /// <param name="query">The query fixture actually loaded, or null.</param>
+    /// <param name="overlay">The overlay fixture actually loaded, or null.</param>
     private static void RequireFeedableOptIns(IReadOnlyList<string>? include,
-        AnnotationSession? annotations, PlaceResolver? zones)
+        AnnotationSession? annotations, PlaceResolver? zones, QueryCanvasDocument? query, OverlayDocument? overlay)
     {
         if (include is null)
         {
@@ -296,6 +314,32 @@ internal sealed class SceneRenderPlan : IDisposable
                         $"--layers {raw} needs a map bundle with a {ZoneAssetPipeline.FileName} to draw: the scene " +
                         "must name a map, and --assets (or DV2D_ASSETS) must reach a directory holding that " +
                         "map's baked zones. --no-radar disables the asset root, zones included.");
+                }
+
+                continue;
+            }
+
+            if (string.Equals(id, SceneLayerIds.Query, StringComparison.Ordinal))
+            {
+                if (query is null)
+                {
+                    throw new CliUsageException(
+                        $"--layers {raw} needs a query to draw. Pass --query <file{QueryFixtureStore.SidecarExtension}>, " +
+                        $"or name a corpus entry with a {FixtureQuery.CorpusDirectoryName}/<name>{QueryFixtureStore.SidecarExtension} " +
+                        "fixture beside its scene.");
+                }
+
+                continue;
+            }
+
+            if (string.Equals(id, SceneLayerIds.Overlay, StringComparison.Ordinal))
+            {
+                if (overlay is null)
+                {
+                    throw new CliUsageException(
+                        $"--layers {raw} needs an overlay to draw. Pass --overlay <file{OverlayFixtureStore.SidecarExtension}>, " +
+                        $"or name a corpus entry with an {FixtureOverlay.CorpusDirectoryName}/<name>{OverlayFixtureStore.SidecarExtension} " +
+                        "fixture beside its scene.");
                 }
 
                 continue;

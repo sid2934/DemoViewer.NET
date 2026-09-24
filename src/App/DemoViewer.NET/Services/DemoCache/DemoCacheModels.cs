@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Clips;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.RoundIndex;
 
 #endregion
 
@@ -79,6 +80,14 @@ public sealed class CachedPlayerInfo
     public int Team { get; set; }
 
     public bool IsBot { get; set; }
+
+    /// <summary>
+    ///     <c>CCSPlayerController.m_iCoachingTeam != 0</c> at the last frame: a registered coach, who sits on
+    ///     a side without being one of its five. Additive (no schema bump, per this cache's convention): a
+    ///     record written before the field reads false, which is what every matchmaking replay measures
+    ///     anyway. Team Identity keeps coaches out of side keys.
+    /// </summary>
+    public bool IsCoach { get; set; }
 }
 
 /// <summary>A round boundary. Needed by clip lead-in flooring and by the round count.</summary>
@@ -209,6 +218,9 @@ public sealed class DemoCacheRecord
     /// <summary>The <see cref="RoundFacts" /> payload shape. Folded into <see cref="RoundFactsFingerprint" />, so a bump re-runs the evaluator alone.</summary>
     public const int RoundFactsSchema = 1;
 
+    /// <summary>The <c>.dvri.json</c> sidecar shape. Folded into <see cref="RoundIndexFingerprint" />, so a bump re-indexes alone.</summary>
+    public const int RoundIndexSchema = 1;
+
     // ── T0 identity ──────────────────────────────────────────────────────────
     public string Path { get; set; } = "";
 
@@ -225,6 +237,13 @@ public sealed class DemoCacheRecord
     public string? Map { get; set; }
     public string? Server { get; set; }
     public string? DemoVersion { get; set; }
+
+    /// <summary>
+    ///     The engine classifier's verdict on the file header (<c>DemoSourceKind</c> by name), written at
+    ///     tier 2 from the parse's profile. Additive: a record written before the field reads null, and
+    ///     Demo Provenance Labels then classifies from <see cref="Server" /> alone.
+    /// </summary>
+    public string? SourceKind { get; set; }
 
     // ── T2 parse ─────────────────────────────────────────────────────────────
     public TierStamp Parse { get; set; } = new();
@@ -289,6 +308,23 @@ public sealed class DemoCacheRecord
     ///     written. A mismatch marks the rows stale.
     /// </summary>
     public string? RoundFactsFingerprint { get; set; }
+
+    // ── Round index ──────────────────────────────────────────────────────────
+    // The stamp lives here; the rows do not. The sidecar under cache/round-index/ carries 55 to 90 KB
+    // of runs per demo, and this record is re-read on every Match Overview property touch, so putting
+    // them here would make every Library arrow-key a ten-times heavier read for a surface that never
+    // looks at them.
+
+    /// <summary>When the demo's <c>.dvri.json</c> was last written, at which schema. Never written = no index.</summary>
+    public TierStamp RoundIndex { get; set; } = new();
+
+    public RoundIndexState RoundIndexState { get; set; } = RoundIndexState.Pending;
+
+    /// <summary>The <see cref="RoundIndexFingerprint" /> the sidecar was built under; a mismatch marks it stale.</summary>
+    public string? RoundIndexFingerprint { get; set; }
+
+    /// <summary>Sampled rows in the sidecar, for the status strip; 0 when absent.</summary>
+    public int RoundIndexRowCount { get; set; }
 
     /// <summary>The highest tier actually present.</summary>
     [JsonIgnore]
@@ -365,6 +401,22 @@ public sealed class DemoCacheRecord
     public bool NeedsRoundFacts(string? currentFingerprint) =>
         currentFingerprint is not null && !IsRoundFactsCurrent(currentFingerprint);
 
+    /// <summary>Is the round index sidecar still valid under <paramref name="currentFingerprint" />?</summary>
+    /// <param name="currentFingerprint">The fingerprint in force for this demo's map.</param>
+    public bool IsRoundIndexCurrent(string currentFingerprint) =>
+        RoundIndex.IsPresent
+        && RoundIndexState == RoundIndexState.Indexed
+        && string.Equals(RoundIndexFingerprint, currentFingerprint, StringComparison.Ordinal);
+
+    /// <summary>
+    ///     Does this demo want the round index evaluator? Derived like <see cref="NeedsAnalysis" />, with
+    ///     <see cref="RoundIndexState.Failed" /> excluded for the same reason: retry is an explicit user
+    ///     action, never a heavy job on every pass.
+    /// </summary>
+    /// <param name="currentFingerprint">The fingerprint in force for this demo's map.</param>
+    public bool NeedsRoundIndex(string currentFingerprint) =>
+        RoundIndexState != RoundIndexState.Failed && !IsRoundIndexCurrent(currentFingerprint);
+
     /// <summary>
     ///     Does this record still describe the file on disk? Size + mtime, exactly as the library cache keys
     ///     freshness today: cheap, and a content hash is not affordable per reconcile pass.
@@ -382,6 +434,7 @@ public sealed class DemoCacheRecord
         Map = Map,
         Server = Server,
         DemoVersion = DemoVersion,
+        SourceKind = SourceKind,
         DurationSeconds = DurationSeconds,
         // The Library card prints player NAMES, so the index has to carry them; the richer per-player record
         // (slot / steamId / team / bot) stays in the sidecar. This is why an index row is ~780 B rather than
@@ -407,7 +460,12 @@ public sealed class DemoCacheRecord
         ConfigFingerprint = ConfigFingerprint,
         HighlightCount = Highlights.Count,
         RoundFactsSchema = RoundFacts?.Schema ?? 0,
-        RoundFactsFingerprint = RoundFactsFingerprint
+        RoundFactsFingerprint = RoundFactsFingerprint,
+        RoundIndexSchema = RoundIndex.Schema,
+        RoundIndexComputedAtTicks = RoundIndex.ComputedAtTicks,
+        RoundIndexState = RoundIndexState,
+        RoundIndexFingerprint = RoundIndexFingerprint,
+        RoundIndexRowCount = RoundIndexRowCount
     };
 }
 
@@ -426,6 +484,9 @@ public sealed class DemoCacheIndexEntry
     public string? Map { get; set; }
     public string? Server { get; set; }
     public string? DemoVersion { get; set; }
+
+    /// <summary>The classifier's <c>DemoSourceKind</c> by name; see <see cref="DemoCacheRecord.SourceKind" />. Mirrored so a label needs no sidecar.</summary>
+    public string? SourceKind { get; set; }
 
     public double DurationSeconds { get; set; }
 
@@ -469,6 +530,21 @@ public sealed class DemoCacheIndexEntry
     /// <summary>The fingerprint the sidecar's round facts were written under; see <see cref="DemoCacheRecord.RoundFactsFingerprint" />.</summary>
     public string? RoundFactsFingerprint { get; set; }
 
+    // The round index stamp, mirrored (about 50 bytes on a ~780-byte row) so the index backlog and the
+    // status strip's counts derive from the index without opening a sidecar, like NeedsAnalysis.
+
+    /// <summary>Schema of the demo's <c>.dvri.json</c>, 0 when it has never been written.</summary>
+    public int RoundIndexSchema { get; set; }
+
+    /// <summary>When the sidecar was written (UTC ticks): the Watched Situations watermark reads this.</summary>
+    public long RoundIndexComputedAtTicks { get; set; }
+
+    public RoundIndexState RoundIndexState { get; set; } = RoundIndexState.Pending;
+
+    public string? RoundIndexFingerprint { get; set; }
+
+    public int RoundIndexRowCount { get; set; }
+
     [JsonIgnore]
     public DemoCacheTier Tier =>
         AnalysisSchema > 0 ? DemoCacheTier.Analysis
@@ -498,6 +574,18 @@ public sealed class DemoCacheIndexEntry
         currentFingerprint is not null
         && !(RoundFactsSchema == DemoCacheRecord.RoundFactsSchema
              && string.Equals(RoundFactsFingerprint, currentFingerprint, StringComparison.Ordinal));
+
+    /// <summary>Index-level twin of <see cref="DemoCacheRecord.IsRoundIndexCurrent" />: same rule, no sidecar read.</summary>
+    /// <param name="currentFingerprint">The fingerprint in force for this demo's map.</param>
+    public bool IsRoundIndexCurrent(string currentFingerprint) =>
+        RoundIndexSchema > 0
+        && RoundIndexState == RoundIndexState.Indexed
+        && string.Equals(RoundIndexFingerprint, currentFingerprint, StringComparison.Ordinal);
+
+    /// <summary>Index-level twin of <see cref="DemoCacheRecord.NeedsRoundIndex" />: same rule, no sidecar read.</summary>
+    /// <param name="currentFingerprint">The fingerprint in force for this demo's map.</param>
+    public bool NeedsRoundIndex(string currentFingerprint) =>
+        RoundIndexState != RoundIndexState.Failed && !IsRoundIndexCurrent(currentFingerprint);
 
     public bool MatchesFile(long size, long modifiedTicks) =>
         Size == size && ModifiedTicks == modifiedTicks;

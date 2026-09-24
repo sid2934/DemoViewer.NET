@@ -38,6 +38,28 @@
             <Setter Property="Padding" Value="8 2" />
             <Setter Property="Margin" Value="0 0 6 0" />
         </Style>
+        <!-- The provenance chip (Demo Provenance Labels): a text button on the card's bottom row that
+             opens the label menu. The pinned state is text-carried (the tooltip says "set by you") and
+             brightened; the automatic state stays dim like the rest of the row. -->
+        <Style Selector="Button.provenanceChip">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource LibraryCardTextFaint}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="4 0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource LibraryCardTextDim}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.provenanceChip:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource LibraryCardBadgeBg}" />
+            <Setter Property="Foreground" Value="{DynamicResource LibraryCardTextBright}" />
+        </Style>
+        <Style Selector="Button.provenanceChip.pinned">
+            <Setter Property="Foreground" Value="{DynamicResource LibraryCardTextBright}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource LibraryCardTextMid}" />
+        </Style>
         <Style Selector="TextBlock.metaLabel">
             <Setter Property="Foreground" Value="{DynamicResource TextLabel}" />
             <Setter Property="FontSize" Value="10" />
@@ -150,6 +172,19 @@
                                       MaxWidth="180"
                                       IsVisible="{Binding !HasNoFolders}"
                                       VerticalAlignment="Center" Margin="0 0 8 0" ToolTip.Tip="Filter by player" />
+
+                            <!-- Single-select team filter: "All teams", "Us", then every visible team (Team Identity). -->
+                            <ComboBox ItemsSource="{Binding AvailableTeams}"
+                                      SelectedItem="{Binding SelectedTeam}" FontSize="12" MinWidth="110"
+                                      MaxWidth="180"
+                                      IsVisible="{Binding HasTeamFilter}"
+                                      VerticalAlignment="Center" Margin="0 0 8 0" ToolTip.Tip="Filter by team">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:TeamFilterItem">
+                                        <TextBlock Text="{Binding Display}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
 
                             <ComboBox SelectedIndex="{Binding SortIndex}" FontSize="12"
                                       IsVisible="{Binding !HasNoFolders}"
@@ -365,6 +400,27 @@
                                                                        FontSize="10"
                                                                        IsVisible="{Binding HasDuplicates}"
                                                                        ToolTip.Tip="{Binding DuplicateTooltip}" />
+                                                            <!-- Provenance label (official / scrim / our scrim / matchmaking), editable in
+                                                     place: the menu pins one or hands the card back to the heuristic. The
+                                                     items route through the code-behind because a MenuItem cannot carry
+                                                     both the card and the picked label as one command parameter. -->
+                                                            <Button Classes="provenanceChip"
+                                                                    Classes.pinned="{Binding ProvenanceIsOverride}"
+                                                                    Content="{Binding ProvenanceDisplay}"
+                                                                    ToolTip.Tip="{Binding ProvenanceTooltip}"
+                                                                    IsVisible="{Binding $parent[UserControl].((vm:LibraryTabViewModel)DataContext).HasProvenance}">
+                                                                <Button.Flyout>
+                                                                    <MenuFlyout>
+                                                                        <MenuItem Header="official" Tag="official" Click="OnProvenancePicked" />
+                                                                        <MenuItem Header="scrim" Tag="scrim" Click="OnProvenancePicked" />
+                                                                        <MenuItem Header="our scrim" Tag="our scrim" Click="OnProvenancePicked" />
+                                                                        <MenuItem Header="matchmaking" Tag="matchmaking" Click="OnProvenancePicked" />
+                                                                        <Separator />
+                                                                        <MenuItem Header="Automatic" Click="OnProvenancePicked"
+                                                                                  ToolTip.Tip="Let the clan tags, the header and Team Identity decide" />
+                                                                    </MenuFlyout>
+                                                                </Button.Flyout>
+                                                            </Button>
                                                         </StackPanel>
                                                         <TextBlock Grid.Column="1" Text="{Binding SizeDisplay}"
                                                                    Foreground="{DynamicResource LibraryCardTextDim}"

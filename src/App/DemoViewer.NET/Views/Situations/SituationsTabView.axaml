@@ -1,0 +1,68 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Situations"
+             xmlns:views="using:DemoViewer.NET.Views.Situations"
+             x:Class="DemoViewer.NET.Views.Situations.SituationsTabView"
+             x:DataType="vm:SituationsTabViewModel">
+
+    <!--
+      THE SITUATIONS TAB: Situation Search over the round index.
+
+      The index STATUS STRIP on top: "Indexed N of M demos · stale · indexing …", Rebuild index and Retry
+      failed. Below it the QUERY CANVAS (QueryCanvasView): the map picker, the ten-slot rail, the Skia
+      canvas and the Search button. Below that the RESULT CARDS (ResultCardsView): one card per hit of
+      the last search, a click seeking playback ten seconds before the match, and Overlay all N stacking
+      every matched state onto the canvas as a heatmap. The Tolerance Slider is its own build item.
+
+      Colour: every value is a {DynamicResource} token. State is carried by the words and the shared dot
+      classes, never by tinting the label (the StatusChip contrast contract). The browser host renders
+      the same strip and says what it cannot do, the ExportUnavailableNote shape.
+    -->
+
+    <DockPanel Margin="16">
+
+        <!-- The status strip. -->
+        <Border DockPanel.Dock="Top"
+                Background="{DynamicResource CardBg}"
+                BorderBrush="{DynamicResource BorderSubtle}"
+                BorderThickness="1" CornerRadius="6" Padding="12 10">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Round index" Classes="col-label"
+                           Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <Ellipse Grid.Column="0" Classes="dot" Width="10" Height="10" VerticalAlignment="Center"
+                             Classes.stateOff="{Binding !IsIndexing}"
+                             Classes.stateWorking="{Binding IsIndexing}"
+                             Classes.pulsing="{Binding IsIndexing}" />
+                    <TextBlock Grid.Column="1" Text="{Binding StatusLine}"
+                               Foreground="{DynamicResource TextValue}" FontSize="12"
+                               TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                        <!-- Retries the FAILED rows only; the difference from Rebuild is the whole point. -->
+                        <Button Content="Retry failed" Classes="ghost" FontSize="11" Padding="10 5"
+                                IsVisible="{Binding HasFailed}" Command="{Binding RetryFailedCommand}" />
+                        <Button Content="⟳ Rebuild index" Classes="ghost" FontSize="11" Padding="10 5"
+                                IsVisible="{Binding CanRebuild}" Command="{Binding RebuildIndexCommand}"
+                                ToolTip.Tip="Mark every demo's index stale and rebuild it in the background; the old rows keep answering until each is replaced" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- The token source, and the per-map fallback when the zones mode has no zones for a map. -->
+                <TextBlock Text="{Binding TokenSourceLine}" FontSize="11"
+                           Foreground="{DynamicResource TextMid}" TextWrapping="Wrap"
+                           IsVisible="{Binding !IsBrowser}" />
+            </StackPanel>
+        </Border>
+
+        <!-- The Query Canvas, and the Result Cards under it, in one scroll so a long result set never
+             squeezes the canvas. The Tolerance Slider lands beside them. -->
+        <ScrollViewer Margin="0 12 0 0" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="12">
+                <views:QueryCanvasView DataContext="{Binding Canvas}" />
+                <views:ResultCardsView DataContext="{Binding Results}" />
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+
+</UserControl>

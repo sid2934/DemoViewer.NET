@@ -161,6 +161,26 @@ internal sealed class Playback2DFakeContext : IModuleContext
         Advanced?.Invoke(new FakeSnapshot(CurrentFrameIndex, CurrentTick, Entities, states));
     }
 
+    /// <summary>
+    ///     <see cref="PushMarkers" /> with the pawn's place: what Find Rounds Like This reads off the
+    ///     scene. A null place is a pawn that has not stood in a named area.
+    /// </summary>
+    /// <param name="markers">Slot, team, world X/Y/Z and place per player.</param>
+    public void PushPlacedMarkers(params (int Slot, int Team, float X, float Y, float Z, string? Place)[] markers)
+    {
+        ArgumentNullException.ThrowIfNull(markers);
+
+        List<IPlayerState> states = new(markers.Length);
+        foreach ((int slot, int team, float x, float y, float z, string? place) in markers)
+        {
+            states.Add(LivePlayerState.Alive(slot, team, x, y, z, 0, place));
+        }
+
+        CurrentFrameIndex++;
+        CurrentTick += 2;
+        Advanced?.Invoke(new FakeSnapshot(CurrentFrameIndex, CurrentTick, Entities, states));
+    }
+
     public void RaiseDemoReset() => DemoReset?.Invoke();
 
     private sealed class FakeSnapshot(
@@ -220,7 +240,8 @@ internal sealed class Playback2DFakeContext : IModuleContext
         public IReadOnlyEntity? Controller { get; }
         public (float X, float Y, float Z)? WorldPosition { get; }
 
-        public static LivePlayerState Alive(int slot, int team, float x, float y, float z, float yaw)
+        public static LivePlayerState Alive(int slot, int team, float x, float y, float z, float yaw,
+            string? place = null)
         {
             FieldEntity pawn = new("CCSPlayerPawn");
             pawn.Fields["m_iHealth"] = 100;
@@ -229,6 +250,10 @@ internal sealed class Playback2DFakeContext : IModuleContext
             pawn.Fields["m_flFlashDuration"] = 0f;
             pawn.Fields["m_angEyeAngles"] = new Vector3(0, yaw, 0);
             pawn.Fields["m_ArmorValue"] = 100;
+            if (place is not null)
+            {
+                pawn.Fields["m_szLastPlaceName"] = place;
+            }
 
             FieldEntity controller = new("CCSPlayerController");
             return new LivePlayerState(slot, team, pawn, controller, (x, y, z));

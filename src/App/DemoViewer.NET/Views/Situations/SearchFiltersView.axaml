@@ -1,0 +1,122 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Situations"
+             x:Class="DemoViewer.NET.Views.Situations.SearchFiltersView"
+             x:DataType="vm:SearchFiltersViewModel">
+
+    <!--
+      THE FILTER RAIL: one single-select field per Round Facts fact (our side, CT buy, T buy, phase, clock
+      band, man count, score), the opponent from Team Identity, the date range from the cache row and the
+      source from Demo Provenance Labels. The map is the canvas's own picker above and is not repeated.
+
+      Every field is "any" until picked; the live count on the Search button follows every change. A
+      field whose service is not wired (no teams, no provenance) is not shown; the side field is shown
+      but disabled until a team is us, with the line saying why, so the absence is stated rather than
+      silent.
+
+      Colour: every value is a {DynamicResource} token. State is carried by the words, never by tinting
+      the label (the StatusChip contrast contract).
+    -->
+
+    <UserControl.DataTemplates>
+        <!-- Every field's options share one shape; the typed record derives from this base. -->
+        <DataTemplate DataType="vm:SearchFilterOption">
+            <TextBlock Text="{Binding Display}" />
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <UserControl.Styles>
+        <Style Selector="StackPanel.field">
+            <Setter Property="Spacing" Value="2" />
+        </Style>
+        <Style Selector="StackPanel.field > TextBlock">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="StackPanel.field > ComboBox">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinWidth" Value="120" />
+        </Style>
+        <Style Selector="StackPanel.field > CalendarDatePicker">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinWidth" Value="130" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Spacing="6">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <TextBlock Grid.Column="0" Text="Filters" Classes="col-label" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+            <TextBlock Grid.Column="1" Text="{Binding ActiveLine}" FontSize="11" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+            <Button Grid.Column="2" Content="Clear filters" Classes="ghost" FontSize="11" Padding="10 5"
+                    IsVisible="{Binding IsActive}" Command="{Binding ClearCommand}" />
+        </Grid>
+
+        <WrapPanel Orientation="Horizontal" ItemSpacing="10" LineSpacing="8">
+
+            <!-- Our side: the one relative field, joined per round through the us team. -->
+            <StackPanel Classes="field" IsVisible="{Binding HasTeams}"
+                        ToolTip.Tip="{x:Static vm:SearchFiltersViewModel.NoUsNote}">
+                <TextBlock Text="{Binding Side.Label}" />
+                <ComboBox ItemsSource="{Binding Side.Options}" SelectedItem="{Binding Side.Selected}"
+                          IsEnabled="{Binding HasUs}" />
+            </StackPanel>
+
+            <StackPanel Classes="field">
+                <TextBlock Text="{Binding BuyCt.Label}" />
+                <ComboBox ItemsSource="{Binding BuyCt.Options}" SelectedItem="{Binding BuyCt.Selected}" />
+            </StackPanel>
+
+            <StackPanel Classes="field">
+                <TextBlock Text="{Binding BuyT.Label}" />
+                <ComboBox ItemsSource="{Binding BuyT.Options}" SelectedItem="{Binding BuyT.Selected}" />
+            </StackPanel>
+
+            <StackPanel Classes="field">
+                <TextBlock Text="{Binding Phase.Label}" />
+                <ComboBox ItemsSource="{Binding Phase.Options}" SelectedItem="{Binding Phase.Selected}" />
+            </StackPanel>
+
+            <StackPanel Classes="field">
+                <TextBlock Text="{Binding Clock.Label}" />
+                <ComboBox ItemsSource="{Binding Clock.Options}" SelectedItem="{Binding Clock.Selected}" />
+            </StackPanel>
+
+            <StackPanel Classes="field">
+                <TextBlock Text="{Binding ManCount.Label}" />
+                <ComboBox ItemsSource="{Binding ManCount.Options}" SelectedItem="{Binding ManCount.Selected}" />
+            </StackPanel>
+
+            <StackPanel Classes="field">
+                <TextBlock Text="{Binding Score.Label}" />
+                <ComboBox ItemsSource="{Binding Score.Options}" SelectedItem="{Binding Score.Selected}" />
+            </StackPanel>
+
+            <StackPanel Classes="field" IsVisible="{Binding HasTeams}">
+                <TextBlock Text="{Binding Opponent.Label}" />
+                <ComboBox ItemsSource="{Binding Opponent.Options}" SelectedItem="{Binding Opponent.Selected}" />
+            </StackPanel>
+
+            <StackPanel Classes="field">
+                <TextBlock Text="From" />
+                <CalendarDatePicker SelectedDate="{Binding From}" Watermark="any date" />
+            </StackPanel>
+
+            <StackPanel Classes="field">
+                <TextBlock Text="To" />
+                <CalendarDatePicker SelectedDate="{Binding To}" Watermark="any date" />
+            </StackPanel>
+
+            <StackPanel Classes="field" IsVisible="{Binding HasProvenance}">
+                <TextBlock Text="{Binding Source.Label}" />
+                <ComboBox ItemsSource="{Binding Source.Options}" SelectedItem="{Binding Source.Selected}" />
+            </StackPanel>
+        </WrapPanel>
+
+        <!-- The side field's reason while it is disabled. -->
+        <TextBlock Text="{x:Static vm:SearchFiltersViewModel.NoUsNote}" FontSize="10"
+                   Foreground="{DynamicResource TextMid}" IsVisible="{Binding ShowNoUsNote}" />
+    </StackPanel>
+
+</UserControl>

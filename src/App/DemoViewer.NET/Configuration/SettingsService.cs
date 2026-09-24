@@ -504,7 +504,13 @@ public sealed class SettingsService
             new KeyValuePair<string, string?>("Playback2D:ExportEncoder",
                 settings.Playback2D.ExportEncoder),
             new KeyValuePair<string, string?>("Playback2D:ExportQuality",
-                settings.Playback2D.ExportQuality)
+                settings.Playback2D.ExportQuality),
+            // Situations: the tab renders on the browser head, so both keys are flattened even though
+            // no index can be built there.
+            new KeyValuePair<string, string?>("Situations:BackgroundIndex",
+                settings.Situations.BackgroundIndex ? "true" : "false"),
+            new KeyValuePair<string, string?>("Situations:TokenSource",
+                settings.Situations.TokenSource.ToString())
         };
 
         for (int i = 0; i < settings.Playback2D.AnnotationRecentColors.Length; i++)

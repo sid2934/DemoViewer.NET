@@ -18,7 +18,13 @@ public enum ToolKind
     Draw,
 
     /// <summary>Stroke-level eraser.</summary>
-    Erase
+    Erase,
+
+    /// <summary>
+    ///     The Situations tab's query canvas: places, moves and lifts place tokens. Registered only on
+    ///     that tab's host, so the playback surface never selects it and <c>LastTool</c> never holds it.
+    /// </summary>
+    QueryToken
 }
 
 /// <summary>Which physical button produced the event.</summary>

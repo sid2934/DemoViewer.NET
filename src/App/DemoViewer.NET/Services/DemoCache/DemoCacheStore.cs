@@ -454,6 +454,10 @@ public sealed class DemoCacheStore
     public static void StampAnalysis(DemoCacheRecord record) =>
         Stamp(record.Analysis, DemoCacheRecord.AnalysisSchema);
 
+    /// <summary>Stamps the round index sidecar as written now.</summary>
+    public static void StampRoundIndex(DemoCacheRecord record) =>
+        Stamp(record.RoundIndex, DemoCacheRecord.RoundIndexSchema);
+
     private static void Stamp(TierStamp stamp, int schema)
     {
         stamp.Schema = schema;
@@ -604,7 +608,13 @@ public sealed class DemoCacheStore
         }
     }
 
-    private static void WriteAtomic(string targetPath, string content)
+    /// <summary>
+    ///     Temp file plus replace: the one write idiom every store under the config root shares, so a
+    ///     crash mid-write leaves the previous file rather than a torn one.
+    /// </summary>
+    /// <param name="targetPath">The file to write.</param>
+    /// <param name="content">Its whole new content.</param>
+    internal static void WriteAtomic(string targetPath, string content)
     {
         string directory = Path.GetDirectoryName(targetPath)!;
         Directory.CreateDirectory(directory);

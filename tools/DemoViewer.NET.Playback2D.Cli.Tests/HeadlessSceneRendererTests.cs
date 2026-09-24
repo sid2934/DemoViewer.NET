@@ -93,7 +93,7 @@ public class HeadlessSceneRendererTests
     }
 
     /// <summary>
-    ///     The default stack is <b>the scene</b> (the seven non-opt-in ids) and the five opt-in ones are
+    ///     The default stack is <b>the scene</b> (the seven non-opt-in ids) and the seven opt-in ones are
     ///     absent unless named AND fed. With the debug grid registered the count was 1.
     /// </summary>
     [Test]

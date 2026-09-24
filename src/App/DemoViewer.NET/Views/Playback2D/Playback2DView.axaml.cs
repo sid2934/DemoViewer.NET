@@ -21,6 +21,7 @@ namespace DemoViewer.NET.Views.Playback2D;
 /// </summary>
 public partial class Playback2DView : UserControl
 {
+    private readonly MenuItem? _findRoundsMenuItem;
     private readonly MenuItem? _followMenuItem;
     private readonly ILevelSurface? _levelSurface;
     private readonly TextBlock? _mapApproxNote;
@@ -60,6 +61,7 @@ public partial class Playback2DView : UserControl
         }
 
         _followMenuItem = this.FindControl<MenuItem>("FollowMenuItem");
+        _findRoundsMenuItem = this.FindControl<MenuItem>("FindRoundsMenuItem");
         _modeLabel = this.FindControl<TextBlock>("ModeLabel");
         _mapApproxNote = this.FindControl<TextBlock>("MapApproxNote");
 
@@ -355,7 +357,19 @@ public partial class Playback2DView : UserControl
     // Populate the Follow-Player submenu from the VM's current players each time the menu opens.
     private void OnModeMenuOpened(object? sender, EventArgs e)
     {
-        if (_followMenuItem is null || DataContext is not Playback2DTabViewModel vm)
+        if (DataContext is not Playback2DTabViewModel vm)
+        {
+            return;
+        }
+
+        // The gesture in the header is the RESOLVED profile's, read on open so a rebind shows here at
+        // the same moment it reaches the router; the flyout is not in the visual tree for a binding.
+        if (_findRoundsMenuItem is not null)
+        {
+            _findRoundsMenuItem.Header = vm.FindRoundsLikeThisLabel;
+        }
+
+        if (_followMenuItem is null)
         {
             return;
         }
@@ -389,4 +403,8 @@ public partial class Playback2DView : UserControl
     // produce identical state.
     private void FollowSlot(int slot) =>
         (DataContext as Playback2DTabViewModel)?.NotifyFollowSlotChanged(slot);
+
+    // The menu pick takes the key's own funnel, so the two cannot drift.
+    private void OnFindRoundsLikeThis(object? sender, RoutedEventArgs e) =>
+        (DataContext as Playback2DTabViewModel)?.ExecuteAction(Playback2DAction.FindRoundsLikeThis);
 }

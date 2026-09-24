@@ -17,19 +17,26 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RuleWorkbench;
+using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Modules.Teams;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Highlights;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
+using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.ViewModels.Teams;
 using DemoViewer.NET.Views;
 using DemoViewer.NET.Views.RuleWorkbench;
 using Microsoft.Extensions.DependencyInjection;
@@ -720,6 +727,119 @@ public class App : Application
             sp.GetRequiredService<DemoCacheStore>(),
             sp.GetRequiredService<RoundFactsEvaluator>()));
 
+        // The Round Index: one row per (demo, live round, sampled second) with the per-side place-count
+        // token, written as a .dvri.json sidecar beside the cache by an evaluator on the same tier-2
+        // fan-out, one place after Round Facts so it reads the rows written in the same pass. The
+        // in-memory SituationIndex is the only reader at query time; it loads once at startup off the
+        // UI thread and merges each sidecar as the evaluator writes it. The zone resolver source is the
+        // seam Zone Baking's PlaceResolver plugs into; until it lands every map answers "no zones".
+        services.AddSingleton<IZonePlaceResolverSource>(NoZonePlaceResolverSource.Instance);
+        services.AddSingleton(sp =>
+        {
+            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
+            return new RoundIndexPlaceSources(
+                () => monitor?.CurrentValue.Situations.TokenSource ?? RoundIndexTokenSource.Pawn,
+                sp.GetRequiredService<IZonePlaceResolverSource>());
+        });
+        services.AddSingleton(sp => new RoundIndexStore(
+            AppPaths.DemoCacheDir,
+            sp.GetRequiredService<DemoCacheStore>()));
+        services.AddSingleton(sp =>
+        {
+            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
+            return new RoundIndexEvaluator(
+                sp.GetRequiredService<DemoCacheStore>(),
+                sp.GetRequiredService<RoundIndexStore>(),
+                sp.GetRequiredService<RoundIndexPlaceSources>(),
+                () => monitor?.CurrentValue.Situations.BackgroundIndex ?? true,
+                action => Dispatcher.UIThread.Post(action));
+        });
+        services.AddSingleton(sp => new SituationIndex(
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<RoundIndexStore>(),
+            sp.GetRequiredService<RoundIndexPlaceSources>(),
+            sp.GetRequiredService<IRoundFactsSource>(),
+            sp.GetRequiredService<IZonePlaceResolverSource>(),
+            sp.GetRequiredService<RoundIndexEvaluator>(),
+            action => Dispatcher.UIThread.Post(action)));
+        services.AddSingleton<ISituationIndex>(sp => sp.GetRequiredService<SituationIndex>());
+        // Result Cards seek playback through the shell's own funnels: the shared load core when the
+        // card's demo is not the loaded one, the controller's SeekToTick, and the tab switch by id.
+        // Every delegate reaches the shell at call time, never at construction.
+        services.AddSingleton<ISituationPlayback>(_ => new SituationPlaybackSeek(
+            () => Services?.GetService<MainViewModel>()?.LoadedDemoPath,
+            async path =>
+            {
+                if (Services?.GetService<MainViewModel>() is not { } shell)
+                {
+                    return false;
+                }
+
+                await shell.LoadDemoFromPathAsync(path);
+                return shell.HasFile;
+            },
+            tick => Services?.GetService<MainViewModel>()?.Playback.SeekToTick(tick),
+            tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false));
+        services.AddSingleton(sp =>
+        {
+            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
+            return new SituationsTabViewModel(
+                sp.GetRequiredService<ISituationIndex>(),
+                sp.GetRequiredService<RoundIndexEvaluator>(),
+                sp.GetRequiredService<DemoCacheStore>(),
+                sp.GetRequiredService<RoundIndexPlaceSources>(),
+                () => monitor?.CurrentValue.Situations.TokenSource ?? RoundIndexTokenSource.Pawn,
+                playback: () => sp.GetService<ISituationPlayback>(),
+                sidecars: sp.GetRequiredService<RoundIndexStore>(),
+                // The filter rail's opponent and our-side fields join through Team Identity; its source
+                // field through Demo Provenance Labels.
+                teams: sp.GetRequiredService<TeamIdentityService>(),
+                provenance: sp.GetRequiredService<IDemoProvenanceSource>());
+        });
+
+        // Team Identity: teams as data over the cache's rosters. Two files under the config root, the
+        // user's teams.json beside settings.json and the derived team-index.json under cache/; the
+        // service lifts side keys off DemoCacheStore.Changed and replays clustering off the UI thread.
+        // Round Facts is the join SideAtRound reads. Null config root (the browser) makes it session-only.
+        services.AddSingleton(sp => new TeamIdentityService(
+            AppPaths.ConfigRoot,
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<IRoundFactsSource>(),
+            action => Dispatcher.UIThread.Post(action)));
+        // Demo Provenance Labels: the override from teams.json else the heuristic over the cache row and
+        // the assignment. No store of its own; it re-raises the two stores' Changed on the UI thread.
+        services.AddSingleton(sp => new DemoProvenanceSource(
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<TeamIdentityService>(),
+            action => Dispatcher.UIThread.Post(action)));
+        services.AddSingleton<IDemoProvenanceSource>(sp => sp.GetRequiredService<DemoProvenanceSource>());
+        // The Teams tab VM: a container singleton resolved lazily on first activation. Opening a demo
+        // reaches the shell at call time, never at construction.
+        services.AddSingleton(sp => new TeamsTabViewModel(
+            sp.GetRequiredService<TeamIdentityService>(),
+            sp.GetRequiredService<DemoCacheStore>(),
+            async path =>
+            {
+                if (Services?.GetService<MainViewModel>() is { } shell)
+                {
+                    await shell.LoadDemoFromPathAsync(path);
+                }
+            }));
+
+        // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
+        // Like This, so the set the keys walk is the set the tab shows.
+        services.AddSingleton<ISituationResultWalk>(sp => new SituationResultWalk(
+            sp.GetRequiredService<SituationsTabViewModel>));
+
+        // Find Rounds Like This: the 2D tab's Ctrl+F hands its current tick through this seam. The tab
+        // VM resolves lazily (the same container singleton the module activates, so the canvas the key
+        // fills is the one the tab shows), and the tab switch reaches the shell at call time, the way
+        // the Settings factory reaches StartWalkthrough, never at construction.
+        services.AddSingleton<IFindRoundsLikeThis>(sp => new FindRoundsLikeThis(
+            sp.GetRequiredService<SituationsTabViewModel>,
+            sp.GetRequiredService<RoundIndexPlaceSources>(),
+            tabId => Services?.GetService<MainViewModel>()?.TrySelectTab(tabId) ?? false));
+
         // The "one parse, many evaluators" coordinator: the single submitter
         // that polls the registered IDemoEvaluators (Library + Highlights + Round Facts) for a demo and
         // coalesces their queue submissions onto ONE parse. The candidate universe re-polled on
@@ -734,16 +854,19 @@ public class App : Application
             HighlightScanService highlights =
                 sp.GetRequiredService<HighlightScanService>();
             RoundFactsEvaluator roundFacts = sp.GetRequiredService<RoundFactsEvaluator>();
+            RoundIndexEvaluator roundIndex = sp.GetRequiredService<RoundIndexEvaluator>();
             DemoEvaluationCoordinator coordinator = new(
-                [library, highlights, roundFacts],
+                [library, highlights, roundFacts, roundIndex],
                 sp.GetRequiredService<IDemoProcessingQueue>(),
                 () => library.Tier2Backlog()
                     .Concat(highlights.PendingPaths())
                     .Concat(roundFacts.PendingPaths())
+                    .Concat(roundIndex.PendingPaths())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList());
             library.Coordinator = coordinator;
             highlights.Coordinator = coordinator;
+            roundIndex.Coordinator = coordinator;
             return coordinator;
         });
 
@@ -778,6 +901,12 @@ public class App : Application
         // Force-construct the coordinator so its wiring side-effect (library.Coordinator = it) runs before
         // any rescan, independent of ValidateOnBuild's eager-construction behavior.
         provider.GetRequiredService<DemoEvaluationCoordinator>();
+        // The situation index's startup load: every current sidecar, off the UI thread (2 ms per demo
+        // measured). Queries before it finishes answer empty with IsReady false and the strip says so.
+        _ = provider.GetRequiredService<SituationIndex>().StartLoadAsync();
+        // Team Identity's startup: a rebuild from the sidecars when team-index.json is missing or behind,
+        // else the index-versus-cache diff. Off the UI thread; the tab reads whatever is there meanwhile.
+        _ = provider.GetRequiredService<TeamIdentityService>().StartAsync();
         Services = provider;
         return provider;
     }
@@ -842,7 +971,11 @@ public class App : Application
                 TourDemoLocator.FindSampleDemo,
                 // The unified demo cache: what a Library single-click renders on Match Overview without
                 // parsing anything.
-                sp.GetRequiredService<DemoCacheStore>());
+                sp.GetRequiredService<DemoCacheStore>(),
+                // Team Identity, for the Library's team filter.
+                sp.GetRequiredService<TeamIdentityService>(),
+                // Demo Provenance Labels, for the Library card's label chip.
+                sp.GetRequiredService<IDemoProvenanceSource>());
         }
         finally
         {
@@ -889,6 +1022,13 @@ public class App : Application
         // The tab VM is a container singleton (see BuildServices) so Match Overview's [ + ] and the tab
         // itself share ONE tray. Still resolved lazily. The module only invokes this on first activation.
         registry.Register(new HighlightsModule(sp.GetRequiredService<HighlightsTabViewModel>));
+
+        // The Situations tab. Registered on both hosts: the browser renders the strip and says there is
+        // no library index there. The VM is a container singleton resolved lazily on first activation.
+        registry.Register(new SituationsModule(sp.GetRequiredService<SituationsTabViewModel>));
+
+        // The Teams tab. Registered on both hosts: the browser keeps teams for the session and says so.
+        registry.Register(new TeamsModule(sp.GetRequiredService<TeamsTabViewModel>));
         return registry;
     }
 

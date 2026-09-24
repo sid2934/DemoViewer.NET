@@ -179,7 +179,7 @@ public class SceneFixtureTests
         Markers =
         [
             new PlayerMarker(0, 2, 10.5f, -20.25f, 64f, 91.5f, RingState.Shooting, 0.75, "NE", true,
-                -12.5f, 0.4f, 76561197960265728),
+                -12.5f, 0.4f, 76561197960265728, "BombsiteA"),
             new PlayerMarker(5, 3, -300f, 400f, 128f, 12f, RingState.Dead, 1.0, "KI", false)
         ],
         AreaEffects =

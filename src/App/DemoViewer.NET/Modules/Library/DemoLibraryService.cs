@@ -51,11 +51,13 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         WriteIndented = true
     };
 
-    // The only class the final-score replay reads, passed as EntityTracker.StoreClassFilter so every
-    // other class is decoded-and-discarded (bits consumed, fields not stored) for a cheaper replay.
+    // The classes the final-state replay reads, passed as EntityTracker.StoreClassFilter so every other
+    // class is decoded-and-discarded (bits consumed, fields not stored) for a cheaper replay. The score
+    // reads CCSTeam; the coach flag reads m_iCoachingTeam off the controllers, in the same pass.
     private static readonly IReadOnlySet<string> _scoreClasses = new HashSet<string>(StringComparer.Ordinal)
     {
-        "CCSTeam"
+        "CCSTeam",
+        "CCSPlayerController"
     };
 
     // Fan-out skip set for this evaluator's own tier-2 hand-off: when the Library slot hands its held
@@ -1132,6 +1134,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         string? map;
         int? ctScore = null, tScore = null;
         string? ctClan = null, tClan = null;
+        HashSet<int>? coachSlots = null;
         try
         {
             players = parsed.Players.Values
@@ -1163,7 +1166,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             // round_end are absent). Best-effort: a replay failure just leaves the score unset.
             try
             {
-                (ctScore, tScore, ctClan, tClan) = ExtractFinalScore(parsed);
+                (ctScore, tScore, ctClan, tClan, coachSlots) = ExtractFinalState(parsed);
             }
             catch (Exception)
             {
@@ -1231,7 +1234,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         List<CachedRound>? rounds = null;
         try
         {
-            (cachedPlayers, rounds) = ProjectTier2(parsed);
+            (cachedPlayers, rounds) = ProjectTier2(parsed, coachSlots);
         }
         catch (Exception)
         {
@@ -1323,6 +1326,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 }
 
                 record.Server = parsed.ServerName;
+                // The header classifier's verdict, stored by name: what Demo Provenance Labels reads
+                // as "matchmaking" without opening the file again.
+                record.SourceKind = parsed.Profile.SourceKind.ToString();
                 record.DurationSeconds = duration;
                 record.TickRate = parsed.TickRate;
                 record.TickCount = parsed.TickCount;
@@ -1364,7 +1370,16 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     ///     that matters (cached player count agrees with the cached rosters) is one this codebase has broken
     ///     before, when counting every named entry reported 13 players above rosters of ten.
     /// </summary>
-    internal static (List<CachedPlayerInfo> Players, List<CachedRound> Rounds) ProjectTier2(ParsedDemo parsed)
+    internal static (List<CachedPlayerInfo> Players, List<CachedRound> Rounds) ProjectTier2(ParsedDemo parsed) =>
+        ProjectTier2(parsed, null);
+
+    /// <param name="parsed">The parse.</param>
+    /// <param name="coachSlots">
+    ///     Slots whose controller coached a team at the last frame (<see cref="ExtractFinalState" />); null
+    ///     when the replay did not run, which reads as "no coach", the matchmaking truth.
+    /// </param>
+    internal static (List<CachedPlayerInfo> Players, List<CachedRound> Rounds) ProjectTier2(ParsedDemo parsed,
+        IReadOnlySet<int>? coachSlots)
     {
         List<CachedPlayerInfo> players =
         [
@@ -1380,7 +1395,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                     Name = p.Name, // RAW: sanitize at the render boundary only
                     SteamId64 = p.SteamId64.ToString(CultureInfo.InvariantCulture),
                     Team = p.Team,
-                    IsBot = p.IsBot
+                    IsBot = p.IsBot,
+                    IsCoach = coachSlots?.Contains(p.Slot) ?? false
                 })
         ];
 
@@ -1407,10 +1423,22 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // itself would display. Returns nulls for warmup-only / team-less demos so the card omits the score.
     internal static (int? Ct, int? T, string? CtClan, string? TClan) ExtractFinalScore(ParsedDemo parsed)
     {
+        (int? ct, int? t, string? ctClan, string? tClan, HashSet<int> _) = ExtractFinalState(parsed);
+        return (ct, t, ctClan, tClan);
+    }
+
+    // The score plus the coach slots, from one replay: the coach flag is CCSPlayerController.m_iCoachingTeam
+    // at the last frame, read off the controller seated at entity index slot + 1, so a registered coach
+    // (who sits on a side without being one of its five) stays out of Team Identity's side keys. Coach
+    // slots are returned even when the score is not, so a warmup-only demo still marks its coach.
+    internal static (int? Ct, int? T, string? CtClan, string? TClan, HashSet<int> CoachSlots) ExtractFinalState(
+        ParsedDemo parsed)
+    {
         IReadOnlyList<DemoFrame> frames = parsed.Frames;
+        HashSet<int> coachSlots = [];
         if (frames.Count == 0)
         {
-            return (null, null, null, null);
+            return (null, null, null, null, coachSlots);
         }
 
         // The score reads only CCSTeam. The entity bitstream is sequential (every entity must be
@@ -1456,12 +1484,23 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             }
         }
 
-        if (ct is null || t is null || ct + t == 0)
+        foreach (int slot in parsed.Players.Keys)
         {
-            return (null, null, null, null); // warmup-only / no teams → omit
+            EntityState? controller = tracker.CurrentEntities[slot + 1];
+            if (controller is not null
+                && controller.ClassName.Contains("PlayerController", StringComparison.OrdinalIgnoreCase)
+                && CoerceInt(controller["m_iCoachingTeam"]) != 0)
+            {
+                coachSlots.Add(slot);
+            }
         }
 
-        return (ct, t, ctClan, tClan);
+        if (ct is null || t is null || ct + t == 0)
+        {
+            return (null, null, null, null, coachSlots); // warmup-only / no teams → omit
+        }
+
+        return (ct, t, ctClan, tClan, coachSlots);
     }
 
     /// <summary>
