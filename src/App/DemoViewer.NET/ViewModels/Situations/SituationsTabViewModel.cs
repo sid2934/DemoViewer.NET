@@ -6,6 +6,7 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Provenance;
+using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Teams;
 
@@ -92,6 +93,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
     /// <param name="teams">Team Identity, for the rail's opponent and our-side fields; null offers neither. Used when <paramref name="canvas" /> is null.</param>
     /// <param name="provenance">Demo Provenance Labels, for the rail's source field; null offers none. Used when <paramref name="canvas" /> is null.</param>
     /// <param name="watched">Watched Situations; a session-only service over the same index and services when null.</param>
+    /// <param name="review">The Review Queue the cards send their set to; null hides the action. Used when <paramref name="results" /> is null.</param>
     public SituationsTabViewModel(
         ISituationIndex index,
         RoundIndexEvaluator? evaluator,
@@ -105,7 +107,8 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         RoundIndexStore? sidecars = null,
         TeamIdentityService? teams = null,
         IDemoProvenanceSource? provenance = null,
-        WatchedSituationsService? watched = null)
+        WatchedSituationsService? watched = null,
+        ReviewQueue? review = null)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(demoCache);
@@ -129,7 +132,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         // Their overlay is the canvas's own document, so the heatmap lands on the map the query was
         // drawn on.
         Results = results ?? new ResultCardsViewModel(demoCache, sidecars ?? new RoundIndexStore(null, demoCache),
-            sources, playback ?? (() => null), overlay: Canvas.Overlay);
+            sources, playback ?? (() => null), overlay: Canvas.Overlay, review: review);
         Canvas.Searched += Results.Load;
         Canvas.PropertyChanged += OnCanvasPropertyChanged;
 
