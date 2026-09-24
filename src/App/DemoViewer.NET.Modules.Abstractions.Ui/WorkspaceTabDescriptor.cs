@@ -37,12 +37,37 @@ public enum TabPlacement
 public sealed class WorkspaceTabDescriptor : INotifyPropertyChanged
 {
     private Control? _activeContent;
+    private string? _badge;
 
     /// <summary>Unique id within the module (e.g. <c>"builtin.parser"</c>). Session-persistence key.</summary>
     public required string TabId { get; init; }
 
     /// <summary>Tab header text.</summary>
     public required string Header { get; init; }
+
+    /// <summary>
+    ///     A short live annotation beside the header ("3 new"), or null for none. Settable after
+    ///     construction, unlike the header: a module moves it as its state moves, before and after the
+    ///     tab's VM exists. Display only; nothing keys on it.
+    /// </summary>
+    public string? Badge
+    {
+        get => _badge;
+        set
+        {
+            if (string.Equals(_badge, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _badge = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Badge)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasBadge)));
+        }
+    }
+
+    /// <summary>True while <see cref="Badge" /> has text.</summary>
+    public bool HasBadge => !string.IsNullOrEmpty(_badge);
 
     /// <summary>Optional header icon (Geometry / StreamGeometry / path key).</summary>
     public object? Icon { get; init; }

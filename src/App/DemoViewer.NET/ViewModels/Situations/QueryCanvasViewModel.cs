@@ -333,6 +333,34 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
                    + $"{placed} placed{overflow}";
     }
 
+    /// <summary>
+    ///     Re-run (Watched Situations): puts a saved query back on the canvas as it was drawn, the same
+    ///     tokens in the same slots at the same spots, the tolerance, and the rail's values through
+    ///     <see cref="SearchFiltersViewModel.Apply" />. The hint names the watch; the caller searches.
+    /// </summary>
+    /// <param name="watch">The saved query.</param>
+    public void Load(WatchedSituation watch)
+    {
+        ArgumentNullException.ThrowIfNull(watch);
+
+        Disarm();
+
+        // Listed before it is picked, for the reason LoadSnapshot gives: an unlisted selection is
+        // coerced to null and would clear the document under the tokens.
+        EnsureListed(watch.Map);
+        Map = watch.Map;
+        Document.Clear();
+        foreach (WatchedToken token in watch.Tokens)
+        {
+            Document.Place(token.ToToken());
+        }
+
+        Draft.Tolerance = watch.Tolerance;
+        Filters.Apply(watch.Filters);
+        HintLine = $"watched situation loaded: {watch.Name}";
+        RequestCount();
+    }
+
     /// <summary>The last search's hits, in the index's order; the Result Cards load from here.</summary>
     public event Action<IReadOnlyList<SituationHit>>? Searched;
 
