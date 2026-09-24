@@ -8,7 +8,8 @@
 
     <!--
       THE QUERY CANVAS: the map picker, the ten-slot token rail, the Skia canvas, the filter rail
-      (SearchFiltersView) and the Search button, which reads "Search, N rounds" from the live count.
+      (SearchFiltersView), the tolerance slider and the Search button, which reads "Search, N rounds"
+      from the live count.
 
       The rail is Avalonia; the tokens on the map are the scene's own layer. A rail chip ARMS a slot, the
       next press over the map places it, and the chip then names the place the drop resolved to. The place
@@ -36,7 +37,7 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="10">
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" RowSpacing="10">
 
         <!-- The map picker and the clear action. -->
         <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="10">
@@ -127,9 +128,27 @@
         <!-- The filter rail: the map is the picker above; everything else narrows here. -->
         <views:SearchFiltersView Grid.Row="3" DataContext="{Binding Filters}" />
 
+        <!-- The tolerance slider: exact at the left, any place at the right, one detent per stop. The
+             stops come from the VM (four with an adjacency graph, two without), and the line beside it
+             names the graph's source. Every move re-asks the count on the Search button. -->
+        <Grid Grid.Row="4" ColumnDefinitions="Auto,220,Auto,*" ColumnSpacing="10">
+            <TextBlock Grid.Column="0" Text="Tolerance" Classes="col-label" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
+            <Slider Grid.Column="1" Minimum="0" Maximum="{Binding ToleranceMaximum}"
+                    Value="{Binding ToleranceValue, Mode=TwoWay}"
+                    TickFrequency="1" IsSnapToTickEnabled="True" TickPlacement="BottomRight"
+                    IsEnabled="{Binding Map, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    ToolTip.Tip="{Binding ToleranceTip}" />
+            <TextBlock Grid.Column="2" Text="{Binding ToleranceLabel}" FontSize="12" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextValue}" />
+            <TextBlock Grid.Column="3" Text="{Binding AdjacencyLine}" FontSize="11" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextMid}" TextWrapping="Wrap"
+                       ToolTip.Tip="{Binding ToleranceTip}" />
+        </Grid>
+
         <!-- The tokens as the index stores them, the last search's statement (an empty set says so),
              the live coverage and the Search button carrying the live count. -->
-        <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+        <Grid Grid.Row="5" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
             <StackPanel Grid.Column="0" Spacing="2">
                 <TextBlock FontSize="11" Classes="mono" Foreground="{DynamicResource TextMid}">
                     <Run Text="CT " /><Run Text="{Binding CtToken}" />
@@ -144,7 +163,7 @@
                        Foreground="{DynamicResource TextMid}" />
             <Button Grid.Column="3" Content="{Binding SearchLabel}" Classes="primary" Padding="14 5"
                     Command="{Binding SearchCommand}"
-                    ToolTip.Tip="The count follows the tokens and filters as they change; it equals the number of cards a search returns" />
+                    ToolTip.Tip="The count follows the tokens, filters and tolerance as they change; it equals the number of cards a search returns" />
         </Grid>
     </Grid>
 
