@@ -12,7 +12,8 @@
       matched tick. A click opens 2D playback ten seconds before the match; J / K walk the set from
       inside playback. "Overlay all N" stacks every matched state of the set onto the canvas above as a
       heatmap, per floor, CT-tinted where CT stood and T-tinted where T stood; the line beside it says
-      what was stacked and how many rounds had no positions to give.
+      what was stacked and how many rounds had no positions to give. "Send N to Review" queues the
+      whole set in the Review tab under one title card.
 
       Every fact comes from the demo's Round Facts rows and reads "no data" when the demo has none:
       the stats-board rule, never a zero that reads as a score. A tile with no picture says why.
@@ -63,6 +64,15 @@
                     IsVisible="{Binding IsOverlayShown}" Command="{Binding ClearOverlayCommand}"
                     ToolTip.Tip="Take the heatmap off the map; the cards stay" />
             <TextBlock Grid.Column="2" Text="{Binding OverlayLine}" FontSize="11"
+                       Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" TextWrapping="Wrap" />
+        </Grid>
+
+        <!-- Send to Review: the whole set into the Review Queue under one title card. -->
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding HasReview}">
+            <Button Grid.Column="0" Content="{Binding SendToReviewLabel}" Classes="ghost" FontSize="11" Padding="10 5"
+                    Command="{Binding SendToReviewCommand}"
+                    ToolTip.Tip="Queue every round of this set in the Review tab, each from where its card opens to a few seconds past the match" />
+            <TextBlock Grid.Column="1" Text="{Binding ReviewLine}" FontSize="11"
                        Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" TextWrapping="Wrap" />
         </Grid>
 

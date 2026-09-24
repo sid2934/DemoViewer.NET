@@ -10,6 +10,7 @@ using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 
@@ -40,6 +41,11 @@ namespace DemoViewer.NET.ViewModels.Situations;
 ///         positions file contributes nothing and the line says how many did not.
 ///     </para>
 ///     <para>
+///         <b>Send to Review.</b> The whole set goes to the Review Queue under one title card, a clip
+///         per card from the card's seek tick to <see cref="ReviewTailSeconds" /> past the last matched
+///         tick, so the queue opens each round where the card does.
+///     </para>
+///     <para>
 ///         Delegate-injected (the Highlights precedent): the playback seam, the thumbnail renderer and
 ///         the bitmap decoder are all seams a test replaces, and the cache store, the sidecar store and
 ///         the place sources are the same singletons the strip and the canvas read.
@@ -56,12 +62,16 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     /// <summary>The overlay line when no hit in the set had a positions file to stack.</summary>
     public const string NoOverlayNote = "no positions for these rounds; rebuild the index";
 
+    /// <summary>How far past the last matched tick a clip sent to the Review Queue runs.</summary>
+    public const int ReviewTailSeconds = 5;
+
     private readonly SituationThumbnailCache _cache;
     private readonly Func<byte[], Bitmap?> _decode;
     private readonly DemoCacheStore _demoCache;
     private readonly Func<ISituationPlayback?> _playback;
     private readonly Action<Action> _post;
     private readonly Func<SituationThumbnailRenderer> _renderer;
+    private readonly ReviewQueue? _review;
     private readonly RoundIndexPlaceSources _sources;
     private readonly RoundIndexStore _store;
 
@@ -81,6 +91,10 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     [ObservableProperty]
     private ResultCardViewModel? _selectedCard;
 
+    /// <summary>"40 rounds sent to Review", or why none were; empty until the set is sent.</summary>
+    [ObservableProperty]
+    private string _reviewLine = "";
+
     /// <summary>"3 of 40", or what the last seek could not do.</summary>
     [ObservableProperty]
     private string _walkLine = "";
@@ -94,6 +108,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     /// <param name="post">UI-thread marshal for the worker's results; the dispatcher when null.</param>
     /// <param name="decode">PNG bytes to a bitmap; Avalonia's decoder when null, a stub in a test without a platform.</param>
     /// <param name="overlay">The canvas's overlay document the heatmap layer draws; a private one when null.</param>
+    /// <param name="review">The Review Queue the set is sent to; null hides the action.</param>
     public ResultCardsViewModel(
         DemoCacheStore demoCache,
         RoundIndexStore store,
@@ -103,7 +118,8 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         Func<SituationThumbnailRenderer>? renderer = null,
         Action<Action>? post = null,
         Func<byte[], Bitmap?>? decode = null,
-        OverlayDocument? overlay = null)
+        OverlayDocument? overlay = null,
+        ReviewQueue? review = null)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
         ArgumentNullException.ThrowIfNull(store);
@@ -117,6 +133,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         _renderer = renderer ?? (() => new SituationThumbnailRenderer());
         _post = post ?? (action => Dispatcher.UIThread.Post(action));
         _decode = decode ?? DecodePng;
+        _review = review;
         Overlay = overlay ?? new OverlayDocument();
         Overlay.Changed += OnOverlayChanged;
     }
@@ -150,6 +167,15 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
 
     /// <summary>"Overlay all 40".</summary>
     public string OverlayLabel => $"Overlay all {Cards.Count}";
+
+    /// <summary>This host has a Review Queue to send the set to.</summary>
+    public bool HasReview => _review is not null;
+
+    /// <summary>"Send 40 to Review".</summary>
+    public string SendToReviewLabel => $"Send {Cards.Count} to Review";
+
+    /// <summary>There is a set and a queue to send it to.</summary>
+    public bool CanSendToReview => _review is not null && Cards.Count > 0;
 
     /// <summary>There is a set to stack and no build in flight.</summary>
     public bool CanOverlay => Cards.Count > 0 && !IsOverlayBuilding;
@@ -276,7 +302,48 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         OnPropertyChanged(nameof(SelectedIndex));
         OnPropertyChanged(nameof(OverlayLabel));
         OnPropertyChanged(nameof(CanOverlay));
+        OnPropertyChanged(nameof(SendToReviewLabel));
+        OnPropertyChanged(nameof(CanSendToReview));
+        ReviewLine = "";
         OverlayAllCommand.NotifyCanExecuteChanged();
+        SendToReviewCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>
+    ///     The Review Queue clip for one card: from the card's seek tick (the moment a click opens) to
+    ///     <see cref="ReviewTailSeconds" /> past the last matched tick, in the card's tick rate.
+    /// </summary>
+    /// <param name="card">The card.</param>
+    public static ReviewEntry ReviewClipFor(ResultCardViewModel card)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+        SituationHit hit = card.Hit;
+        int rate = card.TickRate > 0 ? card.TickRate : 64;
+        int to = Math.Max(hit.FirstMatchTick, hit.LastMatchTick) + ReviewTailSeconds * rate;
+        return ReviewEntry.Clip(hit.DemoPath, card.SeekTick, to, $"{card.MatchLabel} · {card.RoundLabel}",
+            ReviewSources.Situation, rate, hit.DemoSha256);
+    }
+
+    /// <summary>
+    ///     Sends every card to the Review Queue in the set's order, under a title card naming the map.
+    ///     Cards already queued are skipped, so a second send adds only what the first did not.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanSendToReview))]
+    private void SendToReview()
+    {
+        if (_review is null || Cards.Count == 0)
+        {
+            return;
+        }
+
+        int added = _review.Add(Cards.Select(ReviewClipFor), $"Situations · {Cards[0].Map}",
+            Cards.Count == 1 ? "1 round" : $"{Cards.Count} rounds");
+        ReviewLine = added switch
+        {
+            0 => "already in Review",
+            1 => "1 round sent to Review",
+            _ => $"{added} rounds sent to Review"
+        };
     }
 
     /// <summary>

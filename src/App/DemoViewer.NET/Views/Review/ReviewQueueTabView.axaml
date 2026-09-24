@@ -1,0 +1,142 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Review"
+             x:Class="DemoViewer.NET.Views.Review.ReviewQueueTabView"
+             x:DataType="vm:ReviewQueueTabViewModel">
+
+    <!--
+      THE REVIEW TAB: the Review Queue walked top to bottom.
+
+      Top: the count line, the actions (new section, a clip at the playhead, clear with an inline
+      confirm), the browser note and the file problem line. Below: the queue in order. A title card
+      opens a section and says how many clips it holds; a clip shows its number, the demo, its range on
+      the demo's clock, where it came from, the note the sending surface wrote, and the one-line
+      question the reviewer answers. Texts write through when the box loses focus. A click on Open
+      takes 2D playback to the clip's first tick.
+
+      Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
+    -->
+
+    <UserControl.Styles>
+        <Style Selector="Border.reviewCard">
+            <Setter Property="Background" Value="{DynamicResource CardBg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="10 8" />
+            <Setter Property="Margin" Value="0 0 0 6" />
+        </Style>
+        <Style Selector="Border.titleCard">
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderAccent}" />
+            <Setter Property="Margin" Value="0 10 0 6" />
+        </Style>
+    </UserControl.Styles>
+
+    <DockPanel Margin="16">
+
+        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0 0 0 12">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <TextBlock Grid.Column="0" Text="{Binding HeaderLine}" FontSize="12"
+                           Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Content="New section" Classes="ghost" FontSize="11" Padding="10 5"
+                            Command="{Binding AddSectionCommand}"
+                            ToolTip.Tip="Add a title card at the end; every clip after it belongs to its section" />
+                    <Button Content="Add at playhead" Classes="ghost" FontSize="11" Padding="10 5"
+                            Command="{Binding AddAtPlayheadCommand}"
+                            ToolTip.Tip="Queue ten seconds of the open demo around its playhead" />
+                    <Button Content="Clear" Classes="ghost" FontSize="11" Padding="10 5"
+                            Command="{Binding ClearCommand}"
+                            ToolTip.Tip="Empty the queue, the Reels tray's clips with it" />
+                </StackPanel>
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding ShowClearConfirm}">
+                <TextBlock Grid.Column="0" Text="Empty the whole queue? The Reels tray empties with it." FontSize="11"
+                           Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="Clear" Classes="ghost" FontSize="11" Padding="10 5"
+                        Command="{Binding ConfirmClearCommand}" />
+                <Button Grid.Column="2" Content="Keep" Classes="ghost" FontSize="11" Padding="10 5"
+                        Command="{Binding CancelClearCommand}" />
+            </Grid>
+            <TextBlock Text="{x:Static vm:ReviewQueueTabViewModel.BrowserNote}" FontSize="11"
+                       Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsBrowser}" />
+            <TextBlock Text="{Binding FileProblem}" FontSize="11" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasFileProblem}" />
+            <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextMid}" />
+        </StackPanel>
+
+        <Panel>
+            <TextBlock IsVisible="{Binding !HasRows}" FontSize="12" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextMid}"
+                       Text="Nothing queued. Send clips here from the Reels tray, from Situation Search's result cards, or pick one at the playhead." />
+
+            <ScrollViewer IsVisible="{Binding HasRows}" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Rows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ReviewRowViewModel">
+                            <Panel>
+
+                                <!-- A title card. -->
+                                <Border Classes="reviewCard titleCard" IsVisible="{Binding IsSection}">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                        <StackPanel Grid.Column="0" Spacing="4">
+                                            <TextBox Text="{Binding Title, UpdateSourceTrigger=LostFocus}" FontSize="14"
+                                                     FontWeight="SemiBold" Watermark="Section title" />
+                                            <TextBox Text="{Binding Note, UpdateSourceTrigger=LostFocus}" FontSize="11"
+                                                     Watermark="A line under the title" />
+                                            <TextBlock Text="{Binding ClipCountText}" FontSize="11"
+                                                       Foreground="{DynamicResource TextMid}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top">
+                                            <Button Content="▲" Classes="ghost" FontSize="11" Padding="6 3"
+                                                    Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" />
+                                            <Button Content="▼" Classes="ghost" FontSize="11" Padding="6 3"
+                                                    Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down" />
+                                            <Button Content="✕" Classes="ghost" FontSize="11" Padding="6 3"
+                                                    Command="{Binding RemoveCommand}"
+                                                    ToolTip.Tip="Remove the title card; its clips join the section above" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- A clip. -->
+                                <Border Classes="reviewCard" IsVisible="{Binding IsClip}">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                        <TextBlock Grid.Column="0" Text="{Binding Position}" FontSize="12" Classes="mono"
+                                                   Foreground="{DynamicResource TextMid}" VerticalAlignment="Top" MinWidth="20" />
+                                        <StackPanel Grid.Column="1" Spacing="4">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="{Binding DemoLabel}" FontSize="12"
+                                                           Foreground="{DynamicResource TextValue}" />
+                                                <TextBlock Text="{Binding RangeText}" FontSize="11" Classes="mono"
+                                                           Foreground="{DynamicResource TextMid}" />
+                                                <TextBlock Text="{Binding SourceText}" FontSize="11"
+                                                           Foreground="{DynamicResource TextMid}" />
+                                            </StackPanel>
+                                            <TextBox Text="{Binding Note, UpdateSourceTrigger=LostFocus}" FontSize="11"
+                                                     Watermark="What this clip is" />
+                                            <TextBox Text="{Binding Question, UpdateSourceTrigger=LostFocus}" FontSize="12"
+                                                     Watermark="One question to answer while watching" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top">
+                                            <Button Content="Open" Classes="ghost" FontSize="11" Padding="8 3"
+                                                    Command="{Binding OpenCommand}"
+                                                    ToolTip.Tip="Open 2D playback at the clip's first tick" />
+                                            <Button Content="▲" Classes="ghost" FontSize="11" Padding="6 3"
+                                                    Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" />
+                                            <Button Content="▼" Classes="ghost" FontSize="11" Padding="6 3"
+                                                    Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down" />
+                                            <Button Content="✕" Classes="ghost" FontSize="11" Padding="6 3"
+                                                    Command="{Binding RemoveCommand}" ToolTip.Tip="Remove from the queue" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </Panel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Panel>
+    </DockPanel>
+</UserControl>
