@@ -6,6 +6,7 @@ using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Hud;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Vision;
+using DemoViewer.NET.Playback2D.Core.Zones;
 
 #endregion
 
@@ -39,7 +40,7 @@ public static class SceneLayerCatalog
 
     /// <summary>
     ///     <b>The table.</b> The ids <see cref="CreateSceneStack" /> can register: the seven scene
-    ///     layers, the ink, and the three HUD layers. The last four are
+    ///     layers, the ink, the zone outlines, and the three HUD layers. The last five are
     ///     <see cref="SceneLayerIds.OptIn" />. Every other layer list in the repository is asserted
     ///     against this one by <c>SceneLayerListParityTests</c> rather than hand-maintained beside it.
     ///     <para>
@@ -58,6 +59,7 @@ public static class SceneLayerCatalog
         SceneLayerIds.Markers,
         SceneLayerIds.Bomb,
         SceneLayerIds.FloorLabel,
+        SceneLayerIds.Zones,
         SceneLayerIds.Annotations,
         SceneLayerIds.HudRoster,
         SceneLayerIds.HudClock,
@@ -110,7 +112,7 @@ public static class SceneLayerCatalog
     ///         stack.
     ///     </para>
     ///     <para>
-    ///         The <see cref="SceneLayerIds.OptIn" /> layers (the three HUD layers and the ink) are
+    ///         The <see cref="SceneLayerIds.OptIn" /> layers (the three HUD layers, the ink and the zones) are
     ///         registered only when named in <paramref name="include" /> AND only when the source that
     ///         feeds them was supplied, so an export never burns in a scoreboard or someone else's
     ///         telestration by accident; <c>SceneExportSession.OptInLayerIds</c> enforces the same rule
@@ -134,11 +136,16 @@ public static class SceneLayerCatalog
     ///     the feed to artwork changes every frame it appears in, so it comes with a re-baseline and is
     ///     therefore the caller's decision, not this method's.
     /// </param>
+    /// <param name="zones">
+    ///     The place resolver the outline layer draws; null leaves <c>playback2d.zones</c> unregistered.
+    ///     Comes from <c>ZoneAssetPipeline.TryLoad</c> over the map's bundle directory, so a map with no
+    ///     <c>zones.json</c> starves the layer the same way a fixture starves the HUD.
+    /// </param>
     /// <exception cref="ArgumentException">An id is not in <see cref="SceneStackIds" />.</exception>
     public static SceneCompositor CreateSceneStack(IReadOnlyList<string>? include = null,
         IReadOnlyList<string>? exclude = null, IVisionSolver? vision = null, IHudDataSource? hud = null,
         AnnotationSession? annotations = null, MarkerSmoother? smoother = null,
-        IIconSource? icons = null)
+        IIconSource? icons = null, PlaceResolver? zones = null)
     {
         HashSet<string>? wanted = include is null
             ? null
@@ -185,12 +192,12 @@ public static class SceneLayerCatalog
                     continue;
                 }
 
-                if (optIn && Starved(id, hud, annotations))
+                if (optIn && Starved(id, hud, annotations, zones))
                 {
                     continue; // asked for, but nothing to feed it. Draw nothing rather than an empty box.
                 }
 
-                compositor.Add(BuildLayer(id, vision, hud, annotations, shared, text, icons));
+                compositor.Add(BuildLayer(id, vision, hud, annotations, shared, text, icons, zones));
             }
         }
         catch
@@ -202,17 +209,20 @@ public static class SceneLayerCatalog
         return compositor;
     }
 
-    // Which source an opt-in id starves without. Everything opt-in EXCEPT the ink feeds from the HUD
-    // source, so hud.roster needs no line here. Only a genuinely new kind of source would. The check
-    // is what lets BuildLayer keep its `hud!` / `annotations!`: an unfed layer never reaches it.
-    private static bool Starved(string id, IHudDataSource? hud, AnnotationSession? annotations) =>
-        string.Equals(id, SceneLayerIds.Annotations, StringComparison.Ordinal)
-            ? annotations is null
-            : hud is null;
+    // Which source an opt-in id starves without. Everything opt-in EXCEPT the ink and the zones feeds
+    // from the HUD source, so hud.roster needs no line here. Only a genuinely new kind of source would.
+    // The check is what lets BuildLayer keep its `hud!` / `annotations!`: an unfed layer never reaches it.
+    private static bool Starved(string id, IHudDataSource? hud, AnnotationSession? annotations,
+        PlaceResolver? zones) => id switch
+    {
+        SceneLayerIds.Annotations => annotations is null,
+        SceneLayerIds.Zones => zones is null,
+        _ => hud is null
+    };
 
     private static ISceneLayer BuildLayer(string id, IVisionSolver? vision, IHudDataSource? hud,
         AnnotationSession? annotations, MarkerSmoother smoother, TextBlobCache text,
-        IIconSource? icons) => id switch
+        IIconSource? icons, PlaceResolver? zones) => id switch
     {
         SceneLayerIds.Radar => new RadarLayer(),
         SceneLayerIds.Trails => new TrailLayer(),
@@ -222,6 +232,7 @@ public static class SceneLayerCatalog
         SceneLayerIds.Bomb => new BombLayer(),
         SceneLayerIds.FloorLabel => new FloorLabelLayer(text),
         SceneLayerIds.Annotations => new AnnotationLayer(annotations!),
+        SceneLayerIds.Zones => new ZoneOutlineLayer(zones!, text),
         SceneLayerIds.HudRoster => new RosterLayer(hud!, text: text),
         SceneLayerIds.HudClock => new ClockLayer(hud!, text: text),
         _ => new KillFeedLayer(hud!, text: text, icons: icons)
