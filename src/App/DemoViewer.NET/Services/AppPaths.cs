@@ -165,6 +165,21 @@ public static class AppPaths
     }
 
     /// <summary>
+    ///     The Round Tagger's store: <c>&lt;config&gt;/tags/</c>, holding <c>index.json</c> and one
+    ///     <c>demos/&lt;sha256&gt;.dvtag.json</c> per tagged demo (tag-store.md §3.1). User truth, so under
+    ///     the config root beside the cache rather than in it. A PURE path: the store creates directories
+    ///     on its first write. <c>null</c> on WASM, where the store keeps tags in memory.
+    /// </summary>
+    public static string? TagsDir
+    {
+        get
+        {
+            string? root = ConfigRoot;
+            return root is null ? null : Path.Combine(root, "tags");
+        }
+    }
+
+    /// <summary>
     ///     Directory for the unified diagnostics rolling log files: <c>&lt;config&gt;/logs/</c>. A stable,
     ///     discoverable location under the app-data root (NOT the OS temp dir, which is too ephemeral for
     ///     "attach recent logs to a user-reported issue"). A PURE path: no directory creation, so getter

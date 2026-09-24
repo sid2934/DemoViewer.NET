@@ -80,6 +80,14 @@ public static class FeatureCatalog
             "The teams found across your demos: name them, say which one is you, merge or split rosters, "
             + "and confirm your own accounts so every demo knows which side is ours.",
             null, null, false, Defaults(true, true, true)),
+        // The Round Tagger's Matrix tab: codes by labels across the library's tags. Default-visible like
+        // Situations and Teams. The module ships ahead of the tab, so until The Matrix lands this row
+        // gates nothing it can show. Only the id is a persisted key; the label is display text.
+        new(
+            "tab.tagger", FeatureScope.Tab, "Round Tagger",
+            "Tag stretches of a round with your own codes and labels, then pivot them across every demo "
+            + "in the Matrix.",
+            null, null, false, Defaults(true, true, true)),
         new(
             "tab.parser", FeatureScope.Tab, "Parser",
             "Wire-format message inspector. Needs a wire-format mental model → power-user+.",
@@ -157,7 +165,7 @@ public static class FeatureCatalog
         // ---------------- 2D PLAYBACK v2 SUB-FEATURES ----------------
         // One contiguous block so the rows read as one group in Settings. Every entry keeps GroupId = null,
         // so the parserDeepDive / graphDebug leader-lock ordering above is untouched. Later v2 phases insert
-        // their own rows HERE (final order: annotations · timeline · levels.auto · follow · export): the ids
+        // their own rows HERE (final order: annotations · timeline · levels.auto · follow · export · tagger): the ids
         // are persisted override keys and must never be renamed.
         new(
             "playback2d.annotations", FeatureScope.SubFeature, "Annotations",
@@ -182,6 +190,12 @@ public static class FeatureCatalog
         new(
             "playback2d.export", FeatureScope.SubFeature, "Video export",
             "Render the 2D playback to webm/mp4/gif. Desktop only.",
+            "tab.playback2d", null, false, Defaults(true, true, true)),
+        // The Round Tagger's palette docked in the 2D tab (tag-store.md §3.11). Works on both hosts: the
+        // browser keeps tags for the session and the palette says so.
+        new(
+            "playback2d.tagger", FeatureScope.SubFeature, "Tag palette",
+            "Tag the round you are watching with a hotkey palette; tags are saved per demo.",
             "tab.playback2d", null, false, Defaults(true, true, true)),
 
         // ---------------- CHROME (global; no ParentId → never cascaded) ----------------
