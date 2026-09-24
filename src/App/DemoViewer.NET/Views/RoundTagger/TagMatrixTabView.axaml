@@ -1,0 +1,226 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.RoundTagger"
+             xmlns:filters="using:DemoViewer.NET.ViewModels.Situations"
+             xmlns:tags="using:DemoViewer.NET.Services.Tags"
+             x:Class="DemoViewer.NET.Views.RoundTagger.TagMatrixTabView"
+             x:DataType="vm:TagMatrixTabViewModel">
+
+    <!--
+      THE MATRIX: tag instances pivoted, codes down the side and a label group across the top by default.
+
+      Top: the scope line in the words of the design's mock ("Falcons, last 6 demos, de_nuke, T side") and
+      the count line. Then the fields: the team (the multi-demo mode) with how many of its newest demos,
+      the map and the side it played; the axes with a swap; the slice (rounds, one label or fact group held
+      to a value, the source). Below: the table. Every non-zero count is a button that sends exactly those
+      clips to the Review Queue and shows the Review tab; a zero is text, because there is nothing to open.
+
+      Colour: every value is a {DynamicResource} token; state is carried by words, never by tint.
+    -->
+
+    <UserControl.DataTemplates>
+        <DataTemplate DataType="filters:SearchFilterOption">
+            <TextBlock Text="{Binding Display}" />
+        </DataTemplate>
+        <DataTemplate DataType="tags:TagMatrixAxis">
+            <TextBlock Text="{Binding Display}" />
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <UserControl.Styles>
+        <Style Selector="StackPanel.field">
+            <Setter Property="Spacing" Value="2" />
+        </Style>
+        <Style Selector="StackPanel.field > TextBlock">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="StackPanel.field > ComboBox">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinWidth" Value="120" />
+        </Style>
+        <Style Selector="TextBlock.rowKey">
+            <Setter Property="Width" Value="180" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <Style Selector="TextBlock.columnKey">
+            <Setter Property="Width" Value="84" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="TextBlock.total">
+            <Setter Property="Width" Value="84" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="Button.cell">
+            <Setter Property="Width" Value="84" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="0 4" />
+        </Style>
+    </UserControl.Styles>
+
+    <DockPanel Margin="16">
+
+        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0 0 0 12">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <StackPanel Grid.Column="0" Spacing="2">
+                    <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextValue}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding SummaryLine}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                    <TextBlock Text="updating" FontSize="11" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsBuilding}" />
+                    <Button Content="Swap axes" Classes="ghost" FontSize="11" Padding="10 5"
+                            Command="{Binding SwapAxesCommand}"
+                            ToolTip.Tip="Exchange rows and columns: the same counts, transposed" />
+                    <Button Content="Clear slice" Classes="ghost" FontSize="11" Padding="10 5"
+                            Command="{Binding ClearSliceCommand}"
+                            ToolTip.Tip="Every field but the team and the axes back to its default" />
+                </StackPanel>
+            </Grid>
+
+            <WrapPanel Orientation="Horizontal" ItemSpacing="10" LineSpacing="8">
+                <StackPanel Classes="field" IsVisible="{Binding HasTeams}"
+                            ToolTip.Tip="A team from Teams: the Matrix reads only the demos it played">
+                    <TextBlock Text="{Binding Team.Label}" />
+                    <ComboBox ItemsSource="{Binding Team.Options}" SelectedItem="{Binding Team.Selected}" />
+                </StackPanel>
+                <StackPanel Classes="field" ToolTip.Tip="The newest tagged demos in scope">
+                    <TextBlock Text="{Binding Last.Label}" />
+                    <ComboBox ItemsSource="{Binding Last.Options}" SelectedItem="{Binding Last.Selected}" />
+                </StackPanel>
+                <StackPanel Classes="field">
+                    <TextBlock Text="{Binding Map.Label}" />
+                    <ComboBox ItemsSource="{Binding Map.Options}" SelectedItem="{Binding Map.Selected}" />
+                </StackPanel>
+                <StackPanel Classes="field" IsVisible="{Binding HasTeams}"
+                            ToolTip.Tip="{x:Static vm:TagMatrixTabViewModel.NoTeamSideNote}">
+                    <TextBlock Text="{Binding Side.Label}" />
+                    <ComboBox ItemsSource="{Binding Side.Options}" SelectedItem="{Binding Side.Selected}"
+                              IsEnabled="{Binding HasTeam}" />
+                </StackPanel>
+                <StackPanel Classes="field">
+                    <TextBlock Text="Rows" />
+                    <ComboBox ItemsSource="{Binding Axes}" SelectedItem="{Binding RowAxis}" />
+                </StackPanel>
+                <StackPanel Classes="field">
+                    <TextBlock Text="Columns" />
+                    <ComboBox ItemsSource="{Binding Axes}" SelectedItem="{Binding ColumnAxis}" />
+                </StackPanel>
+            </WrapPanel>
+
+            <WrapPanel Orientation="Horizontal" ItemSpacing="10" LineSpacing="8">
+                <StackPanel Classes="field" ToolTip.Tip="Rounds to keep: 1-12, 13-24, or a list like 1, 5, 7-9">
+                    <TextBlock Text="Rounds" />
+                    <TextBox Text="{Binding RoundsText}" Watermark="every round" FontSize="12" MinWidth="120" />
+                </StackPanel>
+                <StackPanel Classes="field" ToolTip.Tip="Hold one label or fact group to one value">
+                    <TextBlock Text="{Binding Filter.Label}" />
+                    <ComboBox ItemsSource="{Binding Filter.Options}" SelectedItem="{Binding Filter.Selected}" />
+                </StackPanel>
+                <StackPanel Classes="field">
+                    <TextBlock Text="{Binding FilterValue.Label}" />
+                    <ComboBox ItemsSource="{Binding FilterValue.Options}" SelectedItem="{Binding FilterValue.Selected}" />
+                </StackPanel>
+                <StackPanel Classes="field">
+                    <TextBlock Text="{Binding Source.Label}" />
+                    <ComboBox ItemsSource="{Binding Source.Options}" SelectedItem="{Binding Source.Selected}" />
+                </StackPanel>
+            </WrapPanel>
+
+            <TextBlock Text="{Binding RoundsProblem}" FontSize="11" Foreground="{DynamicResource TextMid}" />
+            <TextBlock Text="{x:Static vm:TagMatrixTabViewModel.BrowserNote}" FontSize="11"
+                       Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsBrowser}" />
+            <TextBlock Text="{Binding StatusLine}" FontSize="11" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextMid}" />
+        </StackPanel>
+
+        <Panel>
+            <TextBlock IsVisible="{Binding !HasCells}" FontSize="12" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextMid}" Text="{Binding EmptyLine}" />
+
+            <ScrollViewer IsVisible="{Binding HasCells}" HorizontalScrollBarVisibility="Auto">
+                <StackPanel Spacing="2">
+                    <!-- Column keys over the cells; the first slot sits over the row keys. -->
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Classes="rowKey" Text="" />
+                        <ItemsControl ItemsSource="{Binding ColumnHeaders}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="4" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Classes="columnKey" Text="{Binding}" ToolTip.Tip="{Binding}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Classes="columnKey" Text="total" />
+                    </StackPanel>
+
+                    <ItemsControl ItemsSource="{Binding Rows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TagMatrixRowViewModel">
+                                <StackPanel Orientation="Horizontal" Spacing="4" Margin="0 0 0 2">
+                                    <TextBlock Classes="rowKey" Text="{Binding Display}" ToolTip.Tip="{Binding Display}" />
+                                    <ItemsControl ItemsSource="{Binding Cells}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" Spacing="4" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:TagMatrixCellViewModel">
+                                                <Panel>
+                                                    <Button Classes="cell ghost" Content="{Binding CountText}"
+                                                            IsVisible="{Binding !IsEmpty}"
+                                                            Command="{Binding OpenCommand}" ToolTip.Tip="{Binding Tip}" />
+                                                    <TextBlock Classes="total" Text="0" IsVisible="{Binding IsEmpty}" />
+                                                </Panel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Classes="total" Text="{Binding Total}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Instances per column, each once, and in the whole table. -->
+                    <StackPanel Orientation="Horizontal" Spacing="4" Margin="0 4 0 0">
+                        <TextBlock Classes="rowKey" Text="total" FontWeight="Normal" Foreground="{DynamicResource TextMid}" />
+                        <ItemsControl ItemsSource="{Binding ColumnTotals}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="4" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Classes="total" Text="{Binding}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Classes="total" Text="{Binding GrandTotal}" />
+                    </StackPanel>
+
+                    <TextBlock Margin="0 10 0 0" FontSize="11" Foreground="{DynamicResource TextMid}"
+                               Text="Click a count to send those clips to Review. A tag with two values on an axis counts under each; totals count it once." />
+                </StackPanel>
+            </ScrollViewer>
+        </Panel>
+    </DockPanel>
+</UserControl>
