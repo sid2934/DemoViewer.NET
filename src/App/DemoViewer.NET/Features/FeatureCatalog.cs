@@ -80,6 +80,14 @@ public static class FeatureCatalog
             "The teams found across your demos: name them, say which one is you, merge or split rosters, "
             + "and confirm your own accounts so every demo knows which side is ours.",
             null, null, false, Defaults(true, true, true)),
+        // The Review tab: the Review Queue every surface sends clips to, the Reels tray's included.
+        // Default-visible like Teams: the Reels tray stages into it whether or not it shows. Only the id
+        // is a persisted key; the label is display text.
+        new(
+            "tab.review", FeatureScope.Tab, "Review",
+            "One queue of clips from any demo: staged highlights, situation search results and picks at the "
+            + "playhead, in sections with a question per clip.",
+            null, null, false, Defaults(true, true, true)),
         // The Round Tagger's Matrix tab: codes by labels across the library's tags. Default-visible like
         // Situations and Teams. The module ships ahead of the tab, so until The Matrix lands this row
         // gates nothing it can show. Only the id is a persisted key; the label is display text.

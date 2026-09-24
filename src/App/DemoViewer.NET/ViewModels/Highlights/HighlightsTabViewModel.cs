@@ -6,6 +6,7 @@ using System.Text.Json;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CS2DemoKit.Analysis.Clips;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
@@ -13,6 +14,7 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.Review;
 using Microsoft.Extensions.Options;
 
 #endregion
@@ -38,6 +40,15 @@ namespace DemoViewer.NET.ViewModels.Highlights;
 ///         dictionary (O(1) <see cref="IsStaged" />, cross-demo stable, never cleared on demo switch), now
 ///         paired with an explicit ORDER list and rendered. Order is held here, not on the config pane's
 ///         group view-models, because those are rebuilt on every lead-in keystroke.
+///     </para>
+///     <para>
+///         <b>A client of the Review Queue.</b> The tray's canonical order is no longer its own: every
+///         staged highlight is a clip in the shared <see cref="ReviewQueue" />, carrying its
+///         <see cref="ReviewHighlightRef" />, and <c>_order</c> is re-derived from the queue's highlight
+///         clips on every queue change. Staging, removing, reordering and clearing here are queue
+///         mutations, so the Review tab sees the tray's clips where the tray put them, and a clip removed
+///         there leaves the tray too. The tray still sees only its own clips: clips other surfaces queued
+///         keep their places through a reorder and are never touched by Clear tray.
 ///     </para>
 ///     <para>
 ///         <b>Delegate-injected (Library precedent).</b> The VM owns no engine: it reads the unified
@@ -71,6 +82,15 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
     private readonly List<HighlightKey> _order = [];
 
     private readonly HighlightScanService _scanner;
+
+    // The queue entry behind each staged key, so a tray mutation can name the clip it means.
+    private readonly Dictionary<HighlightKey, Guid> _entryIds = [];
+
+    private readonly ReviewQueue _queue;
+
+    // Set while this VM drops lost clips from the queue inside a sync, so the nested Changed does not
+    // re-enter the sync it came from.
+    private bool _syncing;
 
     // The staged set, keyed for cross-rebuild / cross-demo stability. The VALUE bundles the owning cache row
     // so the config pane needs nothing else.
@@ -135,6 +155,10 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
     ///     ffmpeg presence probe for the reel pre-flight (the App passes <c>FfmpegDependency.Locate</c>).
     ///     Null (tests) = assume present, keeping the plan tests machine-independent.
     /// </param>
+    /// <param name="reviewQueue">
+    ///     The shared Review Queue the tray stages into. Null (tests, capture) gives the tray a private
+    ///     session-only queue, which behaves exactly as the tray always did.
+    /// </param>
     public HighlightsTabViewModel(
         DemoCacheStore demoCache,
         HighlightScanService scanner,
@@ -145,9 +169,11 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
         bool dryRunOnly = false,
         Func<string, bool>? fileExists = null,
         IFeatureGate? featureGate = null,
-        Func<FfmpegStatus>? ffmpegLocator = null)
+        Func<FfmpegStatus>? ffmpegLocator = null,
+        ReviewQueue? reviewQueue = null)
     {
         _demoCache = demoCache;
+        _queue = reviewQueue ?? new ReviewQueue(null);
         _scanner = scanner;
         _settingsService = settingsService;
         _featureGate = featureGate;
@@ -164,6 +190,7 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
 
         _demoCache.Changed += OnStoreChanged;
         _scanner.ScanProgressChanged += OnScanProgressChanged;
+        _queue.Changed += OnQueueChanged;
 
         // Careful: a GATE axis, not a LOAD axis. Skeleton-first forbids toggling a section because a parse
         // finished; a feature gate is user-initiated and stable for a whole load, and it must RE-RECONCILE.
@@ -422,13 +449,9 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
             bucket.Add(key);
         }
 
-        _order.Clear();
-        foreach (string g in groups)
-        {
-            _order.AddRange(byGroup.GetValueOrDefault(g, []));
-        }
-
-        PushTray();
+        // The queue re-lays the tray's clips into the slots they already hold, so a clip another surface
+        // queued between two of them stays put; the queue's Changed then re-derives _order.
+        _queue.ReorderSubset([.. groups.SelectMany(g => byGroup.GetValueOrDefault(g, [])).Select(k => _entryIds[k])]);
     }
 
     /// <inheritdoc />
@@ -440,13 +463,7 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
             return;
         }
 
-        foreach (HighlightKey key in doomed)
-        {
-            _selection.Remove(key);
-            _order.Remove(key);
-        }
-
-        PushTray();
+        _queue.Remove(doomed.Select(k => _entryIds[k]));
     }
 
     /// <inheritdoc />
@@ -520,30 +537,42 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
             ConfigColumnWidth = new GridLength(s.ConfigColumnStars, GridUnitType.Star);
         }
 
+        // The queue is the tray's truth now and persists itself, so the session's list is read only when
+        // the queue holds none of the tray's clips: the first launch after the queue arrived, or a host
+        // whose queue is session-only. Otherwise the two would fight and the older list would win.
+        if (_order.Count > 0)
+        {
+            return;
+        }
+
         // Keys are RE-RESOLVED against the live cache, never trusted. A demo can be deleted, re-scanned under
         // a new ruleset, or moved between sessions; a stale key would otherwise resurrect a clip whose window
         // maths (tickRate / tickCount / rounds) no longer exists, and the plan would silently be wrong.
-        _selection.Clear();
-        _order.Clear();
+        List<HighlightSelection> restored = [];
         int dropped = 0;
         foreach (StagedClipState clip in s.StagedClips ?? [])
         {
-            if (!StageQuietly(clip))
+            if (Resolve(new HighlightKey(clip.FilePath, clip.RulesetId, clip.HighlightId, clip.Tick,
+                    clip.PlayerSlot)) is { } selection)
+            {
+                restored.Add(selection);
+            }
+            else
             {
                 dropped++;
             }
         }
 
+        StageRange(restored);
         StatusMessage = dropped == 0
             ? ""
             : $"{dropped} staged clip{(dropped == 1 ? "" : "s")} could not be restored — the demo or its " +
               "highlights are no longer in the cache.";
-        PushTray();
     }
 
     /// <summary>O(1) staged test: Match Overview's <c>[ + ]</c> buttons call this per row build.</summary>
     /// <param name="key">The highlight's identity.</param>
-    public bool IsStaged(HighlightKey key) => _selection.ContainsKey(key);
+    public bool IsStaged(HighlightKey key) => _entryIds.ContainsKey(key);
 
     /// <summary>Stages one highlight at the END of the tray (no-op when already staged).</summary>
     /// <param name="record">The owning demo's cache record.</param>
@@ -566,19 +595,22 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
     {
         ArgumentNullException.ThrowIfNull(selections);
 
-        bool any = false;
+        // Seeded into _selection first so the sync the queue's Changed runs reuses the record in hand
+        // instead of reading the demo's sidecar again for every clip just staged.
+        List<ReviewEntry> clips = [];
+        HashSet<HighlightKey> seen = [];
         foreach (HighlightSelection selection in selections)
         {
-            if (_selection.TryAdd(selection.Key, selection))
+            if (!_entryIds.ContainsKey(selection.Key) && seen.Add(selection.Key))
             {
-                _order.Add(selection.Key);
-                any = true;
+                _selection[selection.Key] = selection;
+                clips.Add(ClipFor(selection));
             }
         }
 
-        if (any)
+        if (clips.Count > 0)
         {
-            PushTray();
+            _queue.Add(clips);
         }
     }
 
@@ -586,13 +618,10 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
     /// <param name="key">The highlight's identity.</param>
     public void Unstage(HighlightKey key)
     {
-        if (!_selection.Remove(key))
+        if (_entryIds.TryGetValue(key, out Guid id))
         {
-            return;
+            _queue.Remove([id]);
         }
-
-        _order.Remove(key);
-        PushTray();
     }
 
     /// <summary>Stages or un-stages one highlight and reports the resulting state.</summary>
@@ -765,9 +794,8 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
     private void ConfirmClearTray()
     {
         ShowClearConfirm = false;
-        _selection.Clear();
-        _order.Clear();
-        PushTray();
+        // The tray's clips only: whatever other surfaces queued is the Review tab's to clear.
+        _queue.Remove([.. _entryIds.Values]);
     }
 
     /// <summary>Dismisses the Clear-tray confirmation.</summary>
@@ -843,55 +871,122 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
     ///         per read, so without this the tray would keep computing against a detached snapshot, and would keep
     ///         showing highlights the re-run ruleset no longer emits, or a demo the user deleted while the tab
     ///         was open. <c>OnActivated</c> calls <c>RefreshStaleness()</c>, so this is reachable in ordinary
-    ///         use, not a corner case.
+    ///         use, not a corner case. A dropped clip leaves the queue too.
     ///     </para>
     /// </summary>
-    private void RefreshStagedAgainstStore()
-    {
-        if (_order.Count == 0)
-        {
-            return;
-        }
+    private void RefreshStagedAgainstStore() => SyncFromQueue(reresolve: true);
 
-        List<HighlightKey> survivors = new(_order.Count);
-        Dictionary<HighlightKey, HighlightSelection> refreshed = new(_order.Count);
-        foreach (HighlightKey key in _order)
+    private void OnQueueChanged()
+    {
+        if (!_syncing)
         {
-            if (Resolve(key) is { } selection)
+            SyncFromQueue(reresolve: false);
+        }
+    }
+
+    /// <summary>
+    ///     Re-derives the tray from the queue: its highlight clips, in queue order. A key already staged
+    ///     keeps its record unless <paramref name="reresolve" /> asks for the store's current one; a new
+    ///     key (staged here, or read back with the queue's file) is resolved against the cache, and one
+    ///     the cache no longer holds is dropped from the queue with a note.
+    /// </summary>
+    /// <param name="reresolve">Read every staged key's record again (a store change).</param>
+    private void SyncFromQueue(bool reresolve)
+    {
+        List<HighlightKey> order = [];
+        Dictionary<HighlightKey, HighlightSelection> selection = [];
+        Dictionary<HighlightKey, Guid> ids = [];
+        List<Guid> lost = [];
+        int gone = 0;
+        foreach (ReviewEntry clip in _queue.Clips)
+        {
+            if (clip.Highlight is not { } h)
             {
-                survivors.Add(key);
-                refreshed[key] = selection;
+                continue;
             }
+
+            HighlightKey key = new(clip.DemoPath, h.RulesetId, h.HighlightId, h.Tick, h.PlayerSlot);
+            if (ids.ContainsKey(key))
+            {
+                lost.Add(clip.Id); // a second clip for one highlight can only come from a hand-edited file
+                continue;
+            }
+
+            HighlightSelection? resolved = !reresolve && _selection.TryGetValue(key, out HighlightSelection? held)
+                ? held
+                : Resolve(key);
+            if (resolved is null)
+            {
+                lost.Add(clip.Id);
+                gone++;
+                continue;
+            }
+
+            order.Add(key);
+            selection[key] = resolved;
+            ids[key] = clip.Id;
         }
 
         // Nothing moved and nothing was re-fingerprinted → skip the push. Reproject runs on EVERY store
         // Changed (i.e. repeatedly through a long backfill), and rebuilding ClipGroups each time would tear
         // the tray's containers down under the user's pointer mid-drag.
-        bool unchanged = survivors.Count == _order.Count
-                         && survivors.All(k =>
-                             WindowInputs(refreshed[k].Record) == WindowInputs(_selection[k].Record));
-        if (unchanged)
-        {
-            return;
-        }
+        bool unchanged = order.SequenceEqual(_order)
+                         && order.All(k => _selection.TryGetValue(k, out HighlightSelection? old)
+                                           && WindowInputs(selection[k].Record) == WindowInputs(old.Record));
 
-        int dropped = _order.Count - survivors.Count;
         _selection.Clear();
-        foreach (KeyValuePair<HighlightKey, HighlightSelection> pair in refreshed)
+        foreach (KeyValuePair<HighlightKey, HighlightSelection> pair in selection)
         {
             _selection[pair.Key] = pair.Value;
         }
 
-        _order.Clear();
-        _order.AddRange(survivors);
-
-        if (dropped > 0)
+        _entryIds.Clear();
+        foreach (KeyValuePair<HighlightKey, Guid> pair in ids)
         {
-            StatusMessage = $"{dropped} staged clip{(dropped == 1 ? " is" : "s are")} no longer in the " +
-                            "highlights cache and " + (dropped == 1 ? "was" : "were") + " removed.";
+            _entryIds[pair.Key] = pair.Value;
         }
 
-        PushTray();
+        _order.Clear();
+        _order.AddRange(order);
+
+        if (gone > 0)
+        {
+            StatusMessage = $"{gone} staged clip{(gone == 1 ? " is" : "s are")} no longer in the " +
+                            "highlights cache and " + (gone == 1 ? "was" : "were") + " removed.";
+        }
+
+        if (lost.Count > 0)
+        {
+            _syncing = true;
+            try
+            {
+                _queue.Remove(lost);
+            }
+            finally
+            {
+                _syncing = false;
+            }
+        }
+
+        if (!unchanged)
+        {
+            PushTray();
+        }
+    }
+
+    // The queue clip a staged highlight becomes: the window the reel would cut at the current padding,
+    // so the Review tab opens the moment where the reel would, with the highlight's rendered title as the
+    // note. The reel never reads this range back; it computes its windows from the record, live.
+    private ReviewEntry ClipFor(HighlightSelection selection)
+    {
+        DemoCacheRecord record = selection.Record;
+        CachedHighlightEvent h = selection.Highlight;
+        int rate = record.TickRate > 0 ? record.TickRate : 64;
+        (long start, long end) = ClipWindows.Compute(
+            h.Tick, ClipWindows.RoundStartFor(record.Rounds.ToClipRounds(), h.Tick), rate,
+            ReelConfig.LeadInSeconds, ReelConfig.LeadOutSeconds, record.TickCount, 0, h.ClipStartTick);
+        return ReviewEntry.Clip(record.Path, (int)start, (int)end, h.RenderedTitle, ReviewSources.Highlight,
+            rate, record.Sha256, new ReviewHighlightRef(h.RulesetId, h.HighlightId, h.Tick, h.PlayerSlot));
     }
 
     // Resolves a staged identity against the live store. Shared by restore and the store-change refresh so
@@ -942,24 +1037,6 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
         {
             ShowClearConfirm = false;
         }
-    }
-
-    // Restore path: adds without pushing (the caller pushes once at the end).
-    private bool StageQuietly(StagedClipState clip)
-    {
-        HighlightSelection? selection = Resolve(new HighlightKey(
-            clip.FilePath, clip.RulesetId, clip.HighlightId, clip.Tick, clip.PlayerSlot));
-        if (selection is null)
-        {
-            return false;
-        }
-
-        if (_selection.TryAdd(selection.Key, selection))
-        {
-            _order.Add(selection.Key);
-        }
-
-        return true;
     }
 
     // The tray's group sequence, derived from the canonical order by first appearance: the SAME rule the
