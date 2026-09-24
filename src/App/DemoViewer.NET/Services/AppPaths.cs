@@ -180,6 +180,22 @@ public static class AppPaths
     }
 
     /// <summary>
+    ///     The tag palette drop-in directory: <c>&lt;config&gt;/palettes/</c>, one
+    ///     <c>&lt;name&gt;.tagpalette.json</c> per palette (tag-store.md §3.4), read by <c>TagPaletteStore</c>
+    ///     over the built-in palette the way <see cref="ThemesDirectory" /> drop-ins are read over the
+    ///     built-in themes. A PURE path; <see cref="EnsurePalettesDirectory" /> creates it once at app startup.
+    ///     <c>null</c> on WASM, where only the built-in palette is offered.
+    /// </summary>
+    public static string? PalettesDirectory
+    {
+        get
+        {
+            string? root = ConfigRoot;
+            return root is null ? null : Path.Combine(root, "palettes");
+        }
+    }
+
+    /// <summary>
     ///     Directory for the unified diagnostics rolling log files: <c>&lt;config&gt;/logs/</c>. A stable,
     ///     discoverable location under the app-data root (NOT the OS temp dir, which is too ephemeral for
     ///     "attach recent logs to a user-reported issue"). A PURE path: no directory creation, so getter
@@ -267,6 +283,31 @@ public static class AppPaths
         catch
         {
             // Best-effort, ZoneAssetPipeline checks File.Exists on the overlay and no-ops when absent.
+        }
+
+        return dir;
+    }
+
+    /// <summary>
+    ///     Best-effort creates <see cref="PalettesDirectory" /> so a user has somewhere to drop a palette
+    ///     (called once at startup, off the hot path). No-op on WASM; a failure is swallowed, the palette
+    ///     scan checks <c>Directory.Exists</c> and offers the built-in alone. Returns the path (or <c>null</c> on WASM).
+    /// </summary>
+    public static string? EnsurePalettesDirectory()
+    {
+        string? dir = PalettesDirectory;
+        if (dir is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(dir);
+        }
+        catch
+        {
+            // Best-effort, TagPaletteStore.Reload checks Directory.Exists and no-ops when absent.
         }
 
         return dir;

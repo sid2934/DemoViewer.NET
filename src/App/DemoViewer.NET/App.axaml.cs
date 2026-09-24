@@ -820,6 +820,16 @@ public class App : Application
         // holds it. Null root (the browser) keeps tags in memory for the session.
         services.AddSingleton(_ => new TagStore(AppPaths.TagsDir, action => Dispatcher.UIThread.Post(action)));
 
+        // The Tag Palette's vocabularies: the built-in palette plus <config>/palettes drop-ins, scanned on
+        // first resolve (the 2D tab's construction) the way themes are scanned at startup. The browser has
+        // no directory and offers the built-in alone.
+        services.AddSingleton(_ =>
+        {
+            TagPaletteStore palettes = new(AppPaths.EnsurePalettesDirectory());
+            palettes.Reload();
+            return palettes;
+        });
+
         // Team Identity: teams as data over the cache's rosters. Two files under the config root, the
         // user's teams.json beside settings.json and the derived team-index.json under cache/; the
         // service lifts side keys off DemoCacheStore.Changed and replays clustering off the UI thread.

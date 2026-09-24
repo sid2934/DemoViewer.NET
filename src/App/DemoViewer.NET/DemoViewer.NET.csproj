@@ -17,6 +17,12 @@
         <EmbeddedResource Include="Themes\*.json"/>
     </ItemGroup>
 
+    <!-- The built-in tag palette (tag-store.md §3.4), embedded for the same reason: TagPaletteStore reads it
+         through the parser and validator user drop-ins go through, so a first run can tag. -->
+    <ItemGroup>
+        <EmbeddedResource Include="Services\Tags\Palettes\*.tagpalette.json"/>
+    </ItemGroup>
+
     <ItemGroup>
         <PackageReference Include="Avalonia"/>
         <PackageReference Include="Avalonia.Controls.ColorPicker"/>
