@@ -672,7 +672,8 @@ upstream. Surface SteamId through the chain when that capability reports true.
 ### 7.5 Keybinds
 Declarative `Playback2DKeymap` (action → gesture table, conflict-checked at registration,
 future-rebindable), bound on the focusable host: Space play/pause, ←/→ step, ↑/↓ speed, Q/E round
-nav, F follow-cycle, D draw, E erase, Esc exit/bail, Ctrl+Z / Ctrl+Shift+Z / Ctrl+X (CS:DM parity).
+nav, F follow-cycle, D draw, E erase, Esc exit/bail, Ctrl+Z / Ctrl+Shift+Z / Ctrl+X (CS:DM parity),
+Ctrl+F find rounds like this (the Strat Room's Situation Search; plan D7 there, since F is taken).
 All playback mutations route through `PlaybackController` commands / capability-gated
 `IModuleContext.Request*`, the exact surfaces `SyncStateObserver` observes; a parallel path would
 silently bypass LiveSync. Must not collide with shell bindings (Ctrl+1..9, Ctrl+P/O/B/W).

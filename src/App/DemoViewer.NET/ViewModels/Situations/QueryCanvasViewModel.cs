@@ -5,6 +5,8 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.DemoCache;
@@ -216,6 +218,66 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         Document.Lift(slot.Side, slot.Slot);
     }
 
+    /// <summary>
+    ///     Find Rounds Like This: replaces the rail with the snapshot's alive players, one token per
+    ///     player at the spot they stood, on the floor that Z falls in, carrying the place the snapshot
+    ///     minted. A player whose place is unknown is still put on the map, hollow, so the man-count is
+    ///     visible; the query leaves it out, as it leaves out any unresolved drop.
+    ///     <para>
+    ///         The rail holds five per side. A side with more alive players than that (a custom game)
+    ///         keeps its first five and the hint says so, rather than failing the whole snapshot.
+    ///     </para>
+    /// </summary>
+    /// <param name="snapshot">The 2D scene's current tick, cut to alive players per side.</param>
+    public void LoadSnapshot(SituationSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        Disarm();
+
+        // Listed before it is picked: the ComboBox coerces a selection it cannot find to null, which
+        // would write null back into Map and clear the document under the tokens about to land.
+        EnsureListed(snapshot.Map);
+        Map = snapshot.Map;
+
+        // Setting the map only clears the document when the map changed; a snapshot over the map
+        // already picked replaces the rail just the same.
+        Document.Clear();
+
+        // The token's floor key is the pane's band floor, the way a drop stores it. The bands are the
+        // bundle's, the same list the host arranges panes from, so a token keyed here lands on the
+        // pane its player was on. With no bundle there is no pane to miss, and Z itself is the key.
+        MapSpaceFactory levels = new();
+        levels.SetAuthoritativeFloors(MapAsset?.Floors);
+        levels.Update(Scene2DFrame.Empty);
+        MapSpace space = levels.Space;
+
+        int placed = 0;
+        int dropped = 0;
+        foreach (QuerySide side in new[] { QuerySide.Ct, QuerySide.T })
+        {
+            IReadOnlyList<SituationSnapshotPlayer> players = snapshot.Players(side);
+            for (int i = 0; i < players.Count; i++)
+            {
+                if (i >= QueryCanvasDocument.SlotsPerSide)
+                {
+                    dropped++;
+                    continue;
+                }
+
+                SituationSnapshotPlayer player = players[i];
+                double floor = space.LevelFor(player.WorldZ)?.ZMin ?? player.WorldZ;
+                Document.Place(new QueryToken(side, i, player.WorldX, player.WorldY, MapSpace.QuantizeZ(floor),
+                    player.Place));
+                placed++;
+            }
+        }
+
+        string overflow = dropped > 0 ? $"; {dropped} more than the rail holds, left off" : "";
+        HintLine = $"tick {snapshot.Time.Tick} from 2D playback: {snapshot.Ct.Count} CT, {snapshot.T.Count} T, "
+                   + $"{placed} placed{overflow}";
+    }
+
     /// <summary>Runs the query against the index and shows the count. Synchronous: the count is microseconds.</summary>
     [RelayCommand(CanExecute = nameof(CanSearch))]
     private void Search()
@@ -296,6 +358,26 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         SearchCommand.NotifyCanExecuteChanged();
     }
 
+    // A snapshot can arrive over a demo the library has not indexed yet (the tab's own open, before
+    // the evaluator reaches it). The picked map stays listed so the next cache refresh does not pull
+    // the selection out from under the tokens.
+    private void EnsureListed(string map)
+    {
+        if (Maps.Contains(map, StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        int at = 0;
+        while (at < Maps.Count && StringComparer.OrdinalIgnoreCase.Compare(Maps[at], map) < 0)
+        {
+            at++;
+        }
+
+        Maps.Insert(at, map);
+        OnPropertyChanged(nameof(HasMaps));
+    }
+
     private void RefreshMaps()
     {
         List<string> maps =
@@ -303,6 +385,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
             .. _demoCache.Index.Select(r => r.Map)
                 .OfType<string>()
                 .Where(m => m.Length > 0)
+                .Concat(Map is { } picked ? [picked] : [])
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(m => m, StringComparer.OrdinalIgnoreCase)
         ];

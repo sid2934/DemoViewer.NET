@@ -744,6 +744,7 @@ therefore validates, **drops, and reports** instead. `FromOverrides(rows, out re
 | `Ctrl+X` | Always | Clear every annotation | CS:DM parity. Collides with Cut inside a focused `TextBox`, which the text-input rule below resolves. |
 | `Esc` | Always | Clear follow + re-fit the camera | |
 | `Esc` | WhenToolActive | Cancel the in-progress gesture | |
+| `Ctrl+F` | Always | Find rounds like this | Snapshots the current tick's alive players by side onto the Situations tab's Query Canvas, through the same place source the round index mints its rows with, and switches to that tab. Not `F`: bare `F` is follow cycling (Strat Room plan D7). Also on the mode menu and the `⌕ Rounds like this` button beside the kill nav. Unhandled with nobody alive, no demo, or the Situations tab gated off. |
 | `Home` | Always | Fit the camera (**reserved**, unbound) | Declared so the conflict checker guards the gesture before anything claims it. |
 
 **Text-input suppression is one global rule, not a per-binding flag.** The tunnelling handler bails

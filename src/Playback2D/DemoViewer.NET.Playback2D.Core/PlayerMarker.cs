@@ -42,4 +42,9 @@ public readonly record struct PlayerMarker(
     float DuckAmount = 0,
     // Annotations anchor by SteamId because SLOTS RECYCLE, and CameraScript.FollowPlayer(steamId) needs
     // the same join. 0 = unresolved.
-    ulong SteamId = 0);
+    ulong SteamId = 0,
+    // The pawn's m_szLastPlaceName, the nav place it last stood in: Valve's own vocabulary, the same
+    // string the round index tokenises. Find Rounds Like This encodes the current tick from it, which is
+    // why it is copied out here rather than re-read from the pooled entity after the callback. Null on a
+    // map with no named nav areas, and on the held death marker.
+    string? Place = null);

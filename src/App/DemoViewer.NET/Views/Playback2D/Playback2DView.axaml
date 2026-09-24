@@ -256,6 +256,11 @@
                                 </MenuItem>
                                 <Separator />
                                 <MenuItem x:Name="FollowMenuItem" Header="Follow Player" />
+                                <Separator />
+                                <!-- Find Rounds Like This: the header carries the resolved gesture and is
+                                     refreshed on open, like the Follow submenu, so a rebind shows here. -->
+                                <MenuItem x:Name="FindRoundsMenuItem" Header="Find rounds like this"
+                                          Click="OnFindRoundsLikeThis" />
                             </MenuFlyout>
                         </SplitButton.Flyout>
                     </SplitButton>
@@ -279,6 +284,12 @@
                             Command="{Binding NextKillCommand}"
                             IsVisible="{Binding HasKillEvents}"
                             ToolTip.Tip="Jump to the next kill (player_death)" />
+                    <!-- Find Rounds Like This (Strat Room): snapshot this tick's alive players onto the
+                         Situations query canvas. Same funnel as Ctrl+F; the tip reads the resolved profile. -->
+                    <Border Width="1" Background="{DynamicResource Pb2dHudDivider}" Margin="3,1" />
+                    <Button Content="⌕ Rounds like this" Padding="8,2" VerticalAlignment="Center"
+                            Command="{Binding FindRoundsLikeThisCommand}"
+                            ToolTip.Tip="{Binding FindRoundsLikeThisToolTip}" />
                 </StackPanel>
             </Border>
 

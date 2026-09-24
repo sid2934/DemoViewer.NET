@@ -140,7 +140,7 @@ public static class SceneFixtureSerializer
     private static PlayerMarker FromDto(PlayerMarkerDto dto) => new(
         dto.Slot, dto.Team, dto.WorldX, dto.WorldY, dto.WorldZ, dto.YawDegrees,
         ParseEnum<RingState>(dto.Ring), dto.RingAlpha, dto.Label ?? "", dto.IsAlive,
-        dto.PitchDegrees, dto.DuckAmount, dto.SteamId);
+        dto.PitchDegrees, dto.DuckAmount, dto.SteamId, dto.Place);
 
     private static AreaEffect FromDto(AreaEffectDto dto) => new(
         ParseEnum<AreaEffectKind>(dto.Kind), dto.WorldX, dto.WorldY, dto.WorldZ, dto.WorldRadius);
@@ -312,7 +312,8 @@ public static class SceneFixtureSerializer
         IsAlive = m.IsAlive,
         PitchDegrees = m.PitchDegrees,
         DuckAmount = m.DuckAmount,
-        SteamId = m.SteamId
+        SteamId = m.SteamId,
+        Place = m.Place
     };
 
     private static AreaEffectDto ToDto(AreaEffect a) => new()

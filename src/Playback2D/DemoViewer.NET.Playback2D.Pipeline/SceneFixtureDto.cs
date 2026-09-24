@@ -98,6 +98,7 @@ internal sealed class PlayerMarkerDto
     public float PitchDegrees { get; set; }
     public float DuckAmount { get; set; }
     public ulong SteamId { get; set; }
+    public string? Place { get; set; }
 }
 
 internal sealed class AreaEffectDto
