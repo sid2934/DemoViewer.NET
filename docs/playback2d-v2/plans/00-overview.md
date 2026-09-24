@@ -131,11 +131,12 @@ public interface ISceneLayer : IDisposable      // …Core.Compositing
 `Render(SKCanvas, in SceneRenderContext)` (B0, single pane) / `Render(SKCanvas, in SceneSubmission)`
 (B1 overload, multi-pane) / `InvalidateCaches` / `Dispose`. Sort key `(Slot, Order, Id)`.
 
-**Layer ids** (persisted keys). All **twelve**: `playback2d.radar`, `playback2d.trails`,
+**Layer ids** (persisted keys). All **thirteen**: `playback2d.radar`, `playback2d.trails`,
 `playback2d.areaeffects`, `playback2d.vision`, `playback2d.markers`, `playback2d.bomb`,
 `playback2d.floorlabel` (B1), `playback2d.annotations` (B2), `hud.roster` (D3b), `hud.clock`,
 `hud.killfeed` (B4), `playback2d.query` (the Strat Room's Query Canvas; opt-in, fed by a
-`QueryCanvasDocument`). `hud.roster` was missing from this list until D6 round 3. The registry is what a
+`QueryCanvasDocument`), `playback2d.overlay` (the Strat Room's Overlay View; opt-in, fed by an
+`OverlayDocument`). `hud.roster` was missing from this list until D6 round 3. The registry is what a
 reader checks a hand-written layer array against, so an id absent from it is an id that can be absent
 from four other places without anyone noticing (G-3).
 

@@ -5,11 +5,13 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
+using DemoViewer.NET.Playback2D.Pipeline.Overlay;
 using DemoViewer.NET.Playback2D.Pipeline.Query;
 using SkiaSharp;
 
@@ -119,10 +121,16 @@ internal sealed class SceneRenderPlan : IDisposable
     ///     <c>queries/&lt;name&gt;.dvquery.json</c> (<c>golden</c>, <c>bench</c>). See
     ///     <see cref="FixtureQuery" />.
     /// </param>
+    /// <param name="overlay">
+    ///     The Overlay View points to draw, or null. Arrives the same two ways: <c>--overlay</c>
+    ///     (<c>render</c>) or the corpus convention <c>overlays/&lt;name&gt;.dvoverlay.json</c>
+    ///     (<c>golden</c>, <c>bench</c>). See <see cref="FixtureOverlay" />.
+    /// </param>
     public static SceneRenderPlan Build(CliArgs args, SKSizeI defaultSize, string? mapName,
         IReadOnlyList<string>? entryLayers = null, bool allowSizeOverride = true,
         RenderBackendPreference defaultBackend = RenderBackendPreference.Auto,
-        AnnotationSession? annotations = null, QueryCanvasDocument? query = null)
+        AnnotationSession? annotations = null, QueryCanvasDocument? query = null,
+        OverlayDocument? overlay = null)
     {
         ArgumentNullException.ThrowIfNull(args);
 
@@ -138,12 +146,12 @@ internal sealed class SceneRenderPlan : IDisposable
         SceneCompositor compositor;
         try
         {
-            RequireFeedableOptIns(include, annotations, query);
+            RequireFeedableOptIns(include, annotations, query, overlay);
 
             // The SAME builder `dv2d export` and the app's export use. A second table would let a
             // golden and a real export draw two different stacks silently.
             compositor = SceneLayerCatalog.CreateSceneStack(include, exclude, annotations: annotations,
-                query: query);
+                query: query, overlay: overlay);
         }
         catch (ArgumentException e)
         {
@@ -240,8 +248,9 @@ internal sealed class SceneRenderPlan : IDisposable
     /// <param name="include">The resolved <c>--layers</c> / corpus-entry id set, or null.</param>
     /// <param name="annotations">The ink actually loaded, or null.</param>
     /// <param name="query">The query fixture actually loaded, or null.</param>
+    /// <param name="overlay">The overlay fixture actually loaded, or null.</param>
     private static void RequireFeedableOptIns(IReadOnlyList<string>? include,
-        AnnotationSession? annotations, QueryCanvasDocument? query)
+        AnnotationSession? annotations, QueryCanvasDocument? query, OverlayDocument? overlay)
     {
         if (include is null)
         {
@@ -272,6 +281,19 @@ internal sealed class SceneRenderPlan : IDisposable
                     throw new CliUsageException(
                         $"--layers {raw} needs a query to draw. Pass --query <file{QueryFixtureStore.SidecarExtension}>, " +
                         $"or name a corpus entry with a {FixtureQuery.CorpusDirectoryName}/<name>{QueryFixtureStore.SidecarExtension} " +
+                        "fixture beside its scene.");
+                }
+
+                continue;
+            }
+
+            if (string.Equals(id, SceneLayerIds.Overlay, StringComparison.Ordinal))
+            {
+                if (overlay is null)
+                {
+                    throw new CliUsageException(
+                        $"--layers {raw} needs an overlay to draw. Pass --overlay <file{OverlayFixtureStore.SidecarExtension}>, " +
+                        $"or name a corpus entry with an {FixtureOverlay.CorpusDirectoryName}/<name>{OverlayFixtureStore.SidecarExtension} " +
                         "fixture beside its scene.");
                 }
 
