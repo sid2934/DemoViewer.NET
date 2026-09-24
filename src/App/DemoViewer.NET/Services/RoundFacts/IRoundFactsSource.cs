@@ -80,9 +80,11 @@ public sealed class RoundFactsSource : IRoundFactsSource
                 continue;
             }
 
+            // No tick here: a tick-anchored field passes when any tick of the live window does.
+            int tickRate = rows.Clock?.TickRate ?? 0;
             foreach (RoundFacts round in rows.Rounds)
             {
-                if (Matches(round, filter))
+                if (Matches(record.Path, round, filter) && (!filter.HasTickAnchored || MatchesAnywhere(round, filter, tickRate)))
                 {
                     hits.Add((entry, round));
                 }
@@ -185,14 +187,17 @@ public sealed class RoundFactsSource : IRoundFactsSource
     }
 
     /// <summary>
-    ///     Whether one round passes a filter's round-level fields. Public so the round index can apply
-    ///     the same filter to its hits through the same rule; <see cref="RoundFactsFilter.Demos" /> is
-    ///     a demo-level field and is the caller's to apply.
+    ///     Whether one round passes a filter's round-level fields, <see cref="RoundFactsFilter.Where" />
+    ///     included. Public so the round index can apply the same filter to its hits through the same
+    ///     rule; <see cref="RoundFactsFilter.Demos" /> is a demo-level field and is the caller's to
+    ///     apply, and the tick-anchored fields are <see cref="MatchesAt" />'s.
     /// </summary>
+    /// <param name="demoPath">The demo the round belongs to: what <see cref="RoundFactsFilter.Where" /> sees.</param>
     /// <param name="round">The round.</param>
     /// <param name="filter">The filter.</param>
-    public static bool Matches(RoundFacts round, RoundFactsFilter filter)
+    public static bool Matches(string demoPath, RoundFacts round, RoundFactsFilter filter)
     {
+        ArgumentNullException.ThrowIfNull(demoPath);
         ArgumentNullException.ThrowIfNull(round);
         ArgumentNullException.ThrowIfNull(filter);
 
@@ -243,7 +248,127 @@ public sealed class RoundFactsSource : IRoundFactsSource
             }
         }
 
+        if (filter.Score is { } score && !ScoreMatches(round, score))
+        {
+            return false;
+        }
+
+        return filter.Where is null || filter.Where(demoPath, round);
+    }
+
+    /// <summary>
+    ///     Whether the tick-anchored fields pass at one tick: the phase, the clock band and the alive
+    ///     counts, each read through <see cref="RoundPhases" />. True when the filter has none.
+    /// </summary>
+    /// <param name="round">The round the tick falls in.</param>
+    /// <param name="filter">The filter.</param>
+    /// <param name="tick">Frame clock.</param>
+    /// <param name="tickRate">Ticks per second, for the clock band; 0 fails a band rather than guessing.</param>
+    public static bool MatchesAt(RoundFacts round, RoundFactsFilter filter, int tick, int tickRate)
+    {
+        ArgumentNullException.ThrowIfNull(round);
+        ArgumentNullException.ThrowIfNull(filter);
+
+        if (filter.Phase is { } phase)
+        {
+            // Retake is the CT name for the post-plant interval; the filter asks with no side, so the
+            // two names are one predicate.
+            RoundPhase at = RoundPhases.At(round, tick);
+            RoundPhase wanted = phase == RoundPhase.Retake ? RoundPhase.PostPlant : phase;
+            if (at != wanted)
+            {
+                return false;
+            }
+        }
+
+        if (filter.ClockBand is { } band && (tickRate <= 0 || BandOf(round, tick, tickRate) != band))
+        {
+            return false;
+        }
+
+        if (filter.ManCount is not null || filter.CtAlive is not null || filter.TAlive is not null)
+        {
+            (int ct, int t) = RoundPhases.AliveAt(round, tick);
+            if (filter.CtAlive is { } wantCt && ct != wantCt)
+            {
+                return false;
+            }
+
+            if (filter.TAlive is { } wantT && t != wantT)
+            {
+                return false;
+            }
+
+            if (filter.ManCount is { } state && state != (ct == t ? ManCountState.Even : ct > t ? ManCountState.CtUp : ManCountState.TUp))
+            {
+                return false;
+            }
+        }
+
         return true;
+    }
+
+    /// <summary>
+    ///     Whether some tick of the round's live window passes <see cref="MatchesAt" />. Every
+    ///     tick-anchored predicate is piecewise constant between the round's own ticks (freeze end,
+    ///     kills, plant, end) and the band edges, so testing each breakpoint is exact, not a sample.
+    /// </summary>
+    /// <param name="round">The round.</param>
+    /// <param name="filter">The filter.</param>
+    /// <param name="tickRate">Ticks per second.</param>
+    public static bool MatchesAnywhere(RoundFacts round, RoundFactsFilter filter, int tickRate)
+    {
+        ArgumentNullException.ThrowIfNull(round);
+        ArgumentNullException.ThrowIfNull(filter);
+
+        int end = round.EndTick ?? int.MaxValue;
+        List<int> breakpoints = [round.FreezeEndTick];
+        breakpoints.AddRange(round.Kills.Select(k => k.Tick));
+        if (round.OpeningKillTick is int opening)
+        {
+            breakpoints.Add(opening);
+        }
+
+        if (round.PlantTick is int plant)
+        {
+            breakpoints.Add(plant);
+        }
+
+        if (tickRate > 0)
+        {
+            breakpoints.Add(round.FreezeEndTick + EarlyBandSeconds * tickRate);
+            breakpoints.Add(round.FreezeEndTick + LateBandSeconds * tickRate);
+        }
+
+        return breakpoints.Any(tick => tick >= round.FreezeEndTick && tick < end && MatchesAt(round, filter, tick, tickRate));
+    }
+
+    /// <summary>Where <see cref="ClockBand.Early" /> ends, in seconds since the freeze end.</summary>
+    public const int EarlyBandSeconds = 30;
+
+    /// <summary>Where <see cref="ClockBand.Late" /> starts, in seconds since the freeze end.</summary>
+    public const int LateBandSeconds = 75;
+
+    private static ClockBand BandOf(RoundFacts round, int tick, int tickRate)
+    {
+        int seconds = (tick - round.FreezeEndTick) / tickRate;
+        return seconds < EarlyBandSeconds ? ClockBand.Early : seconds < LateBandSeconds ? ClockBand.Middle : ClockBand.Late;
+    }
+
+    private static bool ScoreMatches(RoundFacts round, ScoreSituation score)
+    {
+        int ct = round.Ct.ScoreBefore;
+        int t = round.T.ScoreBefore;
+        return score switch
+        {
+            ScoreSituation.Tied => ct == t,
+            ScoreSituation.CtLeading => ct > t,
+            ScoreSituation.TLeading => t > ct,
+            // One round from the regulation win: 12 under MR12. The thresholds are per side but carry
+            // the same regulation length, so either side's copy answers.
+            ScoreSituation.MatchPoint => Math.Max(ct, t) == round.Ct.Thresholds.RegulationRounds / 2,
+            _ => true
+        };
     }
 
     private static void Optional(List<FactLabel> labels, string group, string key, int? value)

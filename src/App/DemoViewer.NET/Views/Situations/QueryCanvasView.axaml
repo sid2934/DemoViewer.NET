@@ -2,11 +2,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:DemoViewer.NET.ViewModels.Situations"
              xmlns:situations="using:DemoViewer.NET.Modules.Situations"
+             xmlns:views="using:DemoViewer.NET.Views.Situations"
              x:Class="DemoViewer.NET.Views.Situations.QueryCanvasView"
              x:DataType="vm:QueryCanvasViewModel">
 
     <!--
-      THE QUERY CANVAS: the map picker, the ten-slot token rail, the Skia canvas and the Search button.
+      THE QUERY CANVAS: the map picker, the ten-slot token rail, the Skia canvas, the filter rail
+      (SearchFiltersView) and the Search button, which reads "Search, N rounds" from the live count.
 
       The rail is Avalonia; the tokens on the map are the scene's own layer. A rail chip ARMS a slot, the
       next press over the map places it, and the chip then names the place the drop resolved to. The place
@@ -34,7 +36,7 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="10">
 
         <!-- The map picker and the clear action. -->
         <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="10">
@@ -122,8 +124,12 @@
             </Panel>
         </Border>
 
-        <!-- The tokens as the index stores them, the Search button and the plain count. -->
-        <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+        <!-- The filter rail: the map is the picker above; everything else narrows here. -->
+        <views:SearchFiltersView Grid.Row="3" DataContext="{Binding Filters}" />
+
+        <!-- The tokens as the index stores them, the last search's statement (an empty set says so),
+             the live coverage and the Search button carrying the live count. -->
+        <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
             <StackPanel Grid.Column="0" Spacing="2">
                 <TextBlock FontSize="11" Classes="mono" Foreground="{DynamicResource TextMid}">
                     <Run Text="CT " /><Run Text="{Binding CtToken}" />
@@ -132,10 +138,13 @@
                     <Run Text="T  " /><Run Text="{Binding TToken}" />
                 </TextBlock>
             </StackPanel>
-            <TextBlock Grid.Column="2" Text="{Binding ResultLine}" FontSize="12" VerticalAlignment="Center"
-                       Foreground="{DynamicResource TextValue}" />
-            <Button Grid.Column="3" Content="Search" Classes="primary" Padding="14 5"
-                    Command="{Binding SearchCommand}" />
+            <TextBlock Grid.Column="1" Text="{Binding ResultLine}" FontSize="12" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextValue}" TextWrapping="Wrap" />
+            <TextBlock Grid.Column="2" Text="{Binding CoverageLine}" FontSize="11" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextMid}" />
+            <Button Grid.Column="3" Content="{Binding SearchLabel}" Classes="primary" Padding="14 5"
+                    Command="{Binding SearchCommand}"
+                    ToolTip.Tip="The count follows the tokens and filters as they change; it equals the number of cards a search returns" />
         </Grid>
     </Grid>
 
