@@ -80,6 +80,14 @@ public sealed class CachedPlayerInfo
     public int Team { get; set; }
 
     public bool IsBot { get; set; }
+
+    /// <summary>
+    ///     <c>CCSPlayerController.m_iCoachingTeam != 0</c> at the last frame: a registered coach, who sits on
+    ///     a side without being one of its five. Additive (no schema bump, per this cache's convention): a
+    ///     record written before the field reads false, which is what every matchmaking replay measures
+    ///     anyway. Team Identity keeps coaches out of side keys.
+    /// </summary>
+    public bool IsCoach { get; set; }
 }
 
 /// <summary>A round boundary. Needed by clip lead-in flooring and by the round count.</summary>
