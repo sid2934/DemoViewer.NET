@@ -69,9 +69,9 @@ public sealed class ZonePlaceSource : IPlaceSource
 
 /// <summary>
 ///     What the index needs from Zone Baking's per-map <c>PlaceResolver</c>: a name for a world point
-///     and the adjacency graph, both over the effective zone set. Zone Baking's resolver is not in the
-///     tree yet (part 1 baked the files; the resolver is its part 2), so this is the shape it plugs
-///     into: an adapter over <c>PlaceResolver.Resolve(world).Name</c> and <c>Adjacent(placeId)</c>.
+///     and the adjacency graph, both over the effective zone set. The app's adapter over
+///     <c>PlaceResolver.Resolve(world).Name</c> and <c>Adjacent(placeId)</c> is
+///     <c>Services.Zones.ZonePlaceResolverAdapter</c>.
 /// </summary>
 public interface IZonePlaceResolver
 {
@@ -106,7 +106,7 @@ public interface IZonePlaceResolverSource
     IZonePlaceResolver? TryGet(string map);
 }
 
-/// <summary>The source that has no zones for any map: the composition root's answer until Zone Baking's resolver lands.</summary>
+/// <summary>The source that has no zones for any map: the default for a consumer constructed without one.</summary>
 public sealed class NoZonePlaceResolverSource : IZonePlaceResolverSource
 {
     /// <summary>The one instance.</summary>

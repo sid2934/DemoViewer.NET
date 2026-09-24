@@ -29,6 +29,7 @@ using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Highlights;
@@ -731,9 +732,11 @@ public class App : Application
         // token, written as a .dvri.json sidecar beside the cache by an evaluator on the same tier-2
         // fan-out, one place after Round Facts so it reads the rows written in the same pass. The
         // in-memory SituationIndex is the only reader at query time; it loads once at startup off the
-        // UI thread and merges each sidecar as the evaluator writes it. The zone resolver source is the
-        // seam Zone Baking's PlaceResolver plugs into; until it lands every map answers "no zones".
-        services.AddSingleton<IZonePlaceResolverSource>(NoZonePlaceResolverSource.Instance);
+        // UI thread and merges each sidecar as the evaluator writes it. The zone resolver source is Zone
+        // Baking's PlaceResolver over the baked zones.json plus the user overlay, one load per map; a map
+        // without a zones file, and every map on the browser host, answers "no zones" and the empirical
+        // graph applies.
+        services.AddSingleton<IZonePlaceResolverSource>(new AssetZonePlaceResolverSource());
         services.AddSingleton(sp =>
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
