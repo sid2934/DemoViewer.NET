@@ -789,7 +789,11 @@ public class App : Application
                 sp.GetRequiredService<RoundIndexPlaceSources>(),
                 () => monitor?.CurrentValue.Situations.TokenSource ?? RoundIndexTokenSource.Pawn,
                 playback: () => sp.GetService<ISituationPlayback>(),
-                sidecars: sp.GetRequiredService<RoundIndexStore>());
+                sidecars: sp.GetRequiredService<RoundIndexStore>(),
+                // The filter rail's opponent and our-side fields join through Team Identity; its source
+                // field through Demo Provenance Labels.
+                teams: sp.GetRequiredService<TeamIdentityService>(),
+                provenance: sp.GetRequiredService<IDemoProvenanceSource>());
         });
 
         // Team Identity: teams as data over the cache's rosters. Two files under the config root, the

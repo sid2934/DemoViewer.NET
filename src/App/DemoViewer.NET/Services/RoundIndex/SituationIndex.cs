@@ -413,22 +413,18 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
                 }
 
                 DecodedRound round = demo.Rounds[roundIndex];
-                int first = int.MaxValue;
-                int last = int.MinValue;
-                int steps = 0;
+                List<(int From, int To)> matched = [];
                 foreach (DecodedRun run in round.Runs)
                 {
                     if ((ctMatch is null || ctMatch[run.CtId]) && (tMatch is null || tMatch[run.TId]))
                     {
-                        first = Math.Min(first, run.FromStep);
-                        last = Math.Max(last, run.ToStep);
-                        steps += run.ToStep - run.FromStep + 1;
+                        matched.Add((run.FromStep, run.ToStep));
                     }
                 }
 
-                if (steps > 0)
+                if (matched.Count > 0)
                 {
-                    candidates.Add(new Candidate(demo, round, first, last, steps));
+                    candidates.Add(new Candidate(demo, round, matched));
                 }
             }
         }
@@ -452,6 +448,9 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
         string? factsPath = null;
         foreach (Candidate candidate in candidates)
         {
+            int first = int.MaxValue;
+            int last = int.MinValue;
+            int steps = 0;
             if (query.Facts is { } filter)
             {
                 if (filter.Demos is not null && !filter.Demos.Contains(candidate.Demo.Path))
@@ -466,9 +465,45 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
                 }
 
                 RoundFacts.RoundFacts? facts = factsRows?.Rounds.FirstOrDefault(r => r.Number == candidate.Round.Number);
-                if (facts is null || !RoundFactsSource.Matches(facts, filter))
+                if (facts is null || !RoundFactsSource.Matches(candidate.Demo.Path, facts, filter))
                 {
                     continue;
+                }
+
+                // A tick-anchored field is read at each matched step: the round is a hit when the
+                // arrangement stood at a tick that also passes (post-plant, 3v2, late), and the match
+                // window narrows to those steps so the card seeks to one of them.
+                if (filter.HasTickAnchored)
+                {
+                    int tickRate = candidate.Demo.Document.Clock.TickRate;
+                    foreach ((int from, int to) in candidate.Matched)
+                    {
+                        for (int step = from; step <= to; step++)
+                        {
+                            int tick = candidate.Round.FreezeEndTick + step * candidate.Round.CadenceTicks;
+                            if (RoundFactsSource.MatchesAt(facts, filter, tick, tickRate))
+                            {
+                                first = Math.Min(first, step);
+                                last = Math.Max(last, step);
+                                steps++;
+                            }
+                        }
+                    }
+
+                    if (steps == 0)
+                    {
+                        continue;
+                    }
+                }
+            }
+
+            if (steps == 0)
+            {
+                foreach ((int from, int to) in candidate.Matched)
+                {
+                    first = Math.Min(first, from);
+                    last = Math.Max(last, to);
+                    steps += to - from + 1;
                 }
             }
 
@@ -480,9 +515,9 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
                 candidate.Demo.Map.Name,
                 candidate.Round.Number,
                 candidate.Round.FreezeEndTick,
-                candidate.Round.FreezeEndTick + candidate.FirstStep * candidate.Round.CadenceTicks,
-                candidate.Round.FreezeEndTick + candidate.LastStep * candidate.Round.CadenceTicks,
-                candidate.Steps));
+                candidate.Round.FreezeEndTick + first * candidate.Round.CadenceTicks,
+                candidate.Round.FreezeEndTick + last * candidate.Round.CadenceTicks,
+                steps));
         }
 
         return count;
@@ -498,7 +533,9 @@ public sealed class SituationIndex : ISituationIndex, IDisposable
         return _maps.TryGetValue(map, out MapIndex? index) && index.DemoCount > 0 ? index.Empirical() : null;
     }
 
-    private sealed record Candidate(LoadedDemo Demo, DecodedRound Round, int FirstStep, int LastStep, int Steps);
+    // The runs that held the arrangement, as step ranges; the hit's window is folded from them after
+    // the Round Facts join, which may narrow it to the steps a tick-anchored field also passes.
+    private sealed record Candidate(LoadedDemo Demo, DecodedRound Round, List<(int From, int To)> Matched);
 
     // ── Per-map structures ────────────────────────────────────────────────────
 
