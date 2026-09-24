@@ -167,6 +167,47 @@ public sealed class TagTrack : ITimelineTrack, IDisposable
         return markers;
     }
 
+    /// <summary>
+    ///     The instances merged into the band that starts at <paramref name="startFrame" />, in the track's
+    ///     order (by start, then by end), or none when no band starts there. A band click is how the Tag
+    ///     Palette's Label Mode picks a tag, and a run of several is walked one click at a time.
+    /// </summary>
+    /// <param name="data">The timeline data the bands were built from.</param>
+    /// <param name="startFrame">The band's first frame.</param>
+    public IReadOnlyList<Guid> InstancesInRun(ITimelineData data, int startFrame)
+    {
+        List<Span> spans = Spans(data);
+        if (spans.Count == 0)
+        {
+            return Array.Empty<Guid>();
+        }
+
+        // The merge of BuildBands, so a run here is exactly a band there.
+        int first = 0;
+        int end = spans[0].End;
+        for (int i = 1; i <= spans.Count; i++)
+        {
+            if (i < spans.Count && spans[i].Start <= end)
+            {
+                end = Math.Max(end, spans[i].End);
+                continue;
+            }
+
+            if (spans[first].Start == startFrame)
+            {
+                return spans.GetRange(first, i - first).ConvertAll(s => s.Instance.Id);
+            }
+
+            if (i < spans.Count)
+            {
+                first = i;
+                end = spans[i].End;
+            }
+        }
+
+        return Array.Empty<Guid>();
+    }
+
     /// <summary>The stand-in colour for a code: stable across processes, one of eight hues.</summary>
     /// <param name="code">The code.</param>
     public static uint DefaultColour(string code)

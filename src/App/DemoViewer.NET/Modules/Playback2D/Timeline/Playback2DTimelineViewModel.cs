@@ -339,6 +339,24 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         SeekRequested?.Invoke(Math.Clamp(frameIndex, 0, TotalFrames - 1));
     }
 
+    /// <summary>
+    ///     A click on a band, either row: raises <see cref="BandPressed" /> so the band's track can act on its
+    ///     own band, then seeks to the band's first frame.
+    /// </summary>
+    /// <param name="band">The band clicked.</param>
+    public void PressBand(TimelineBandViewModel band)
+    {
+        ArgumentNullException.ThrowIfNull(band);
+        BandPressed?.Invoke(band);
+        RequestSeekToFrame(band.StartFrameIndex);
+    }
+
+    /// <summary>
+    ///     Raised for a band click before its seek. The tab picks a tag for the Tag Palette's Label Mode
+    ///     from the tag lane with it; the timeline itself knows nothing of what a band stands for.
+    /// </summary>
+    public event Action<TimelineBandViewModel>? BandPressed;
+
     /// <summary>The x offset (px) of a frame index on the scrub bar. 0 for a single-frame or unsized demo.</summary>
     public double XForFrame(int frameIndex)
     {
