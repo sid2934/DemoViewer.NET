@@ -191,7 +191,7 @@ public class ToleranceSliderTests
     ///     and a parsed but unindexed train row so the picker offers a map with no graph. The canvas
     ///     counts inline with no debounce.
     /// </summary>
-    private sealed class Harness : IDisposable
+    internal sealed class Harness : IDisposable
     {
         public Harness(IZonePlaceResolverSource? zones = null)
         {
