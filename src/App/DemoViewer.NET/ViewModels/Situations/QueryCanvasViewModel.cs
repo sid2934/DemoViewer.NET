@@ -18,8 +18,17 @@ namespace DemoViewer.NET.ViewModels.Situations;
 
 /// <summary>
 ///     The Query Canvas: the map picker, the ten-slot token rail (five CT, five T), the query draft the
-///     rail and the canvas both edit, and the one Search button, wired to
-///     <see cref="ISituationIndex.Count" /> and a plain result count.
+///     rail and the canvas both edit, the filter rail (<see cref="Filters" />), and the one Search
+///     button, which reads "Search, N rounds" from the live count.
+///     <para>
+///         <b>The live count</b> (round-index.md §3.11) is <see cref="ISituationIndex.Count" /> over the
+///         draft as it stands, run through <see cref="SituationLiveCount" /> off the UI thread on every
+///         token, map, filter or index change, debounced, the newest request cancelling the pending one.
+///         It is the same code path as the search with the materialisation skipped, so the number on
+///         the button is the number of cards the search will show. The coverage beside it says how many
+///         of the library's demos the count ran over, so a small number is never mistaken for a rare
+///         situation.
+///     </para>
 ///     <para>
 ///         The rail arms a slot; the canvas tool places it on the next press over the map, and the
 ///         drop resolves to a place through <see cref="IQueryPlaceResolver" />. The rail then shows the
@@ -35,6 +44,7 @@ namespace DemoViewer.NET.ViewModels.Situations;
 /// </summary>
 public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 {
+    private readonly SituationLiveCount _counter;
     private readonly DemoCacheStore _demoCache;
     private readonly ISituationIndex _index;
     private readonly Func<string, LoadedMapAsset?> _loadMapAsset;
@@ -45,6 +55,14 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     /// <summary>The rail slot armed for the next press over the map; null when none.</summary>
     [ObservableProperty]
     private QueryRailSlotViewModel? _armedSlot;
+
+    /// <summary>True while a count is pending or running; the button reads plain "Search" meanwhile.</summary>
+    [ObservableProperty]
+    private bool _isCounting;
+
+    /// <summary>The count of the draft as it stands, or null while none is known (no map, index loading, a count in flight).</summary>
+    [ObservableProperty]
+    private int? _liveCount;
 
     /// <summary>The map the canvas shows and the query runs over; null before one is picked.</summary>
     [ObservableProperty]
@@ -74,12 +92,18 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     ///     Runs a replaced bundle's dispose after the host has rebound: a Background-priority dispatcher
     ///     post in the app, inline in a test.
     /// </param>
+    /// <param name="filters">The filter rail; one over the cache alone, with no team or source fields, when null.</param>
+    /// <param name="post">Marshals the live count's answer onto the UI thread; a dispatcher post in the app, inline in a test.</param>
+    /// <param name="countDelay">The live count's debounce; <see cref="SituationLiveCount.DefaultDelay" /> when null, zero in a test.</param>
     public QueryCanvasViewModel(
         ISituationIndex index,
         IQueryPlaceResolver resolver,
         DemoCacheStore demoCache,
         Func<string, LoadedMapAsset?>? loadMapAsset = null,
-        Action<Action>? retire = null)
+        Action<Action>? retire = null,
+        SearchFiltersViewModel? filters = null,
+        Action<Action>? post = null,
+        TimeSpan? countDelay = null)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(resolver);
@@ -88,10 +112,14 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         _demoCache = demoCache;
         _loadMapAsset = loadMapAsset ?? (map => MapAssetPipeline.TryLoad(map));
         _retire = retire ?? (dispose => Dispatcher.UIThread.Post(dispose, DispatcherPriority.Background));
+        _counter = new SituationLiveCount(index, post ?? (action => Dispatcher.UIThread.Post(action)), countDelay);
+        _counter.Counted += OnCounted;
 
         Document = new QueryCanvasDocument();
         Draft = new SituationQueryDraft(Document);
         Tool = new QueryTokenTool(Document, resolver);
+        Filters = filters ?? new SearchFiltersViewModel(demoCache);
+        Filters.Changed += OnFiltersChanged;
 
         for (int slot = 0; slot < QueryCanvasDocument.SlotsPerSide; slot++)
         {
@@ -110,6 +138,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         RefreshMaps();
         RefreshRail();
         HintLine = DefaultHint();
+        RequestCount();
     }
 
     /// <summary>The ten slots. Shared with the layer and the tool.</summary>
@@ -117,6 +146,20 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 
     /// <summary>The query object model over the document.</summary>
     public SituationQueryDraft Draft { get; }
+
+    /// <summary>The filter rail; its outputs are written into <see cref="Draft" /> on every change.</summary>
+    public SearchFiltersViewModel Filters { get; }
+
+    /// <summary>The live counter, for a test to await its pending run.</summary>
+    internal SituationLiveCount Counter => _counter;
+
+    /// <summary>"Search, 12 rounds" once the count is known; "Search" while it is not.</summary>
+    public string SearchLabel => LiveCount is int count ? $"Search, {Rounds(count)}" : "Search";
+
+    /// <summary>"over 240 of 277 demos" beside the count, "counting" while one is in flight, empty with no map.</summary>
+    public string CoverageLine => LiveCount is not null
+        ? $"over {_index.IndexedDemoCount} of {_demoCache.Index.Count} demos"
+        : IsCounting ? "counting" : "";
 
     /// <summary>The canvas tool the host registers on its router.</summary>
     public QueryTokenTool Tool { get; }
@@ -167,6 +210,10 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         }
 
         _disposed = true;
+        _counter.Counted -= OnCounted;
+        _counter.Dispose();
+        Filters.Changed -= OnFiltersChanged;
+        Filters.Dispose();
         Document.Changed -= OnDocumentChanged;
         Tool.Dropped -= OnDropped;
         _demoCache.Changed -= OnCacheChanged;
@@ -284,6 +331,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     /// <summary>
     ///     Runs the query against the index, shows the count and hands the hits to <see cref="Searched" />.
     ///     Synchronous: the query is microseconds, and the count is the hit list's length by construction.
+    ///     An empty set is stated, never a blank page: the line says nothing matched and what to loosen.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanSearch))]
     private void Search()
@@ -296,10 +344,67 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         IReadOnlyList<SituationHit> hits = _index.Query(Draft.ToQuery());
         int count = hits.Count;
         ResultCount = count;
-        string rounds = count == 1 ? "1 round" : $"{count} rounds";
         string scope = Draft.IsEmpty ? " (nothing placed: every indexed round)" : "";
-        ResultLine = $"{rounds} over {_index.IndexedDemoCount} indexed demos{scope}";
+        ResultLine = count == 0
+            ? $"no rounds match over {_index.IndexedDemoCount} indexed demos{scope}; {LoosenHint()}"
+            : $"{Rounds(count)} over {_index.IndexedDemoCount} indexed demos{scope}";
         Searched?.Invoke(hits);
+    }
+
+    private static string Rounds(int count) => count == 1 ? "1 round" : $"{count} rounds";
+
+    // What an empty set can be loosened by, in the order a user would try: a filter first, since it is
+    // the cheaper change, then a token.
+    private string LoosenHint() => Filters.IsActive
+        ? Draft.IsEmpty ? "clear a filter" : "clear a filter or lift a token"
+        : Draft.IsEmpty ? "the map has no indexed rounds under this query" : "lift a token";
+
+    /// <summary>
+    ///     Asks for a fresh count of the draft, or drops the pending one when there is nothing to count.
+    ///     The old number goes at once: a count beside a query it does not describe reads as its answer.
+    /// </summary>
+    private void RequestCount()
+    {
+        LiveCount = null;
+        if (Map is null || !_index.IsReady)
+        {
+            _counter.Cancel();
+            IsCounting = false;
+            return;
+        }
+
+        IsCounting = true;
+        _counter.Request(Draft.ToQuery());
+    }
+
+    // The newest request's answer, on the post thread; older ones never reach here.
+    private void OnCounted(SituationQuery query, int count)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        IsCounting = false;
+        LiveCount = count;
+    }
+
+    partial void OnLiveCountChanged(int? value)
+    {
+        OnPropertyChanged(nameof(SearchLabel));
+        OnPropertyChanged(nameof(CoverageLine));
+    }
+
+    partial void OnIsCountingChanged(bool value) => OnPropertyChanged(nameof(CoverageLine));
+
+    // The rail's outputs live on the draft, the one object the search and the count both read.
+    private void OnFiltersChanged()
+    {
+        Draft.Facts = Filters.ToFacts();
+        Draft.Demos = Filters.ToDemos();
+        ResultCount = null;
+        ResultLine = "";
+        RequestCount();
     }
 
     /// <summary>Empties every slot.</summary>
@@ -332,6 +437,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(MissingBundleNote));
         SearchCommand.NotifyCanExecuteChanged();
         MapChanged?.Invoke();
+        RequestCount();
     }
 
     private void OnDocumentChanged()
@@ -351,6 +457,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         RefreshRail();
         OnPropertyChanged(nameof(CtToken));
         OnPropertyChanged(nameof(TToken));
+        RequestCount();
     }
 
     // The release's answer, after the document already carries the placed token.
@@ -358,12 +465,24 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         ? $"resolved to {hit.Place} ({hit.Source})"
         : "no place near that drop; the token is on the map but not in the query";
 
-    private void OnCacheChanged(string? changedPath) => RefreshMaps();
+    // A row that arrived or left moves the coverage and, with a demo-level filter set, the demo set;
+    // the count is re-asked either way, debounced, so a library scan does not run one per row.
+    private void OnCacheChanged(string? changedPath)
+    {
+        RefreshMaps();
+        if (Filters.HasDemoFilter)
+        {
+            Draft.Demos = Filters.ToDemos();
+        }
+
+        RequestCount();
+    }
 
     private void OnIndexChanged()
     {
         RefreshMaps();
         SearchCommand.NotifyCanExecuteChanged();
+        RequestCount();
     }
 
     // A snapshot can arrive over a demo the library has not indexed yet (the tab's own open, before
