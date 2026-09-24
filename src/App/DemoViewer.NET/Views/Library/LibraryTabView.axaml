@@ -151,6 +151,19 @@
                                       IsVisible="{Binding !HasNoFolders}"
                                       VerticalAlignment="Center" Margin="0 0 8 0" ToolTip.Tip="Filter by player" />
 
+                            <!-- Single-select team filter: "All teams", "Us", then every visible team (Team Identity). -->
+                            <ComboBox ItemsSource="{Binding AvailableTeams}"
+                                      SelectedItem="{Binding SelectedTeam}" FontSize="12" MinWidth="110"
+                                      MaxWidth="180"
+                                      IsVisible="{Binding HasTeamFilter}"
+                                      VerticalAlignment="Center" Margin="0 0 8 0" ToolTip.Tip="Filter by team">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:TeamFilterItem">
+                                        <TextBlock Text="{Binding Display}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+
                             <ComboBox SelectedIndex="{Binding SortIndex}" FontSize="12"
                                       IsVisible="{Binding !HasNoFolders}"
                                       MinWidth="110" VerticalAlignment="Center" Margin="0 0 8 0">

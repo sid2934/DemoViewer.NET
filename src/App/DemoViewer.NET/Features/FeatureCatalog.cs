@@ -72,6 +72,14 @@ public static class FeatureCatalog
             "Find rounds by where the players stood — search the library's round index for a setup, "
             + "an execute or a retake and walk the hits.",
             null, null, false, Defaults(true, true, true)),
+        // The Teams tab: who played in which demo, which team is us, the opponent per demo. Default-visible
+        // like Situations: the Library's team filter and every "our / their" surface read what is decided
+        // here. Only the id is a persisted key; the label is display text.
+        new(
+            "tab.teams", FeatureScope.Tab, "Teams",
+            "The teams found across your demos: name them, say which one is you, merge or split rosters, "
+            + "and confirm your own accounts so every demo knows which side is ours.",
+            null, null, false, Defaults(true, true, true)),
         new(
             "tab.parser", FeatureScope.Tab, "Parser",
             "Wire-format message inspector. Needs a wire-format mental model → power-user+.",

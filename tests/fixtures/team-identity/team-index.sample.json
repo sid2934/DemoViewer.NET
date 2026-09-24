@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 1,
+  "builtAtTicks": 639201024000000000,
+  "demos": {
+    "demo1": {
+      "path": "C:\\demos\\one.dem",
+      "sha256": null,
+      "orderTicks": 639166464000000000,
+      "sides": {
+        "2": {
+          "key": [
+            "76560001",
+            "76560002",
+            "76560003",
+            "76560004",
+            "76560006"
+          ],
+          "names": [
+            "art",
+            "yuurih",
+            "KSCERATO",
+            "chelo",
+            "skullz"
+          ],
+          "clan": "FURIA",
+          "teamId": "3f2a0000-0000-4000-8000-000000000001",
+          "rosterId": "r1",
+          "overlap": 4,
+          "tier": 1,
+          "standIn": true,
+          "override": false
+        },
+        "3": {
+          "key": [
+            "76560011",
+            "76560012",
+            "76560013",
+            "76560014",
+            "76560015"
+          ],
+          "names": [
+            "a",
+            "b",
+            "c",
+            "d",
+            "e"
+          ],
+          "clan": null,
+          "teamId": null,
+          "rosterId": null,
+          "overlap": 0,
+          "tier": 0,
+          "standIn": false,
+          "override": false
+        }
+      },
+      "ourSide": null,
+      "ourSideSource": "None",
+      "opponentTeamId": null
+    },
+    "demo2": {
+      "path": "C:\\demos\\two.dem",
+      "sha256": "ab12",
+      "orderTicks": 639167328000000000,
+      "sides": {
+        "2": {
+          "key": [
+            "76560001",
+            "76560002",
+            "76560003",
+            "76560004",
+            "76560005"
+          ],
+          "names": [
+            "art",
+            "yuurih",
+            "KSCERATO",
+            "chelo",
+            "FalleN"
+          ],
+          "clan": "FURIA",
+          "teamId": "3f2a0000-0000-4000-8000-000000000001",
+          "rosterId": "r1",
+          "overlap": 5,
+          "tier": 1,
+          "standIn": false,
+          "override": false
+        },
+        "3": {
+          "key": [
+            "76560021",
+            "76560022",
+            "76560023",
+            "76560024",
+            "76560025"
+          ],
+          "names": [
+            "f",
+            "g",
+            "h",
+            "i",
+            "j"
+          ],
+          "clan": null,
+          "teamId": null,
+          "rosterId": null,
+          "overlap": 0,
+          "tier": 0,
+          "standIn": false,
+          "override": true
+        }
+      },
+      "ourSide": null,
+      "ourSideSource": "None",
+      "opponentTeamId": null
+    }
+  },
+  "members": {
+    "3f2a0000-0000-4000-8000-000000000001": {
+      "r1": {
+        "76560001": {
+          "count": 2,
+          "lastName": "art",
+          "firstTicks": 639166464000000000,
+          "lastTicks": 639167328000000000,
+          "standInCount": 0
+        },
+        "76560002": {
+          "count": 2,
+          "lastName": "yuurih",
+          "firstTicks": 639166464000000000,
+          "lastTicks": 639167328000000000,
+          "standInCount": 0
+        },
+        "76560003": {
+          "count": 2,
+          "lastName": "KSCERATO",
+          "firstTicks": 639166464000000000,
+          "lastTicks": 639167328000000000,
+          "standInCount": 0
+        },
+        "76560004": {
+          "count": 2,
+          "lastName": "chelo",
+          "firstTicks": 639166464000000000,
+          "lastTicks": 639167328000000000,
+          "standInCount": 0
+        },
+        "76560006": {
+          "count": 1,
+          "lastName": "skullz",
+          "firstTicks": 639166464000000000,
+          "lastTicks": 639166464000000000,
+          "standInCount": 1
+        },
+        "76560005": {
+          "count": 1,
+          "lastName": "FalleN",
+          "firstTicks": 639167328000000000,
+          "lastTicks": 639167328000000000,
+          "standInCount": 0
+        }
+      }
+    }
+  },
+  "unaffiliated": [
+    {
+      "demo": "demo1",
+      "side": 3
+    }
+  ]
+}
