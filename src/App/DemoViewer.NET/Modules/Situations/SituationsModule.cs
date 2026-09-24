@@ -11,8 +11,8 @@ namespace DemoViewer.NET.Modules.Situations;
 /// <summary>
 ///     The Situations tab module: Situation Search over the round index. Contributes one Main-strip
 ///     tab (<c>"situations.search"</c>, after Reels) whose VM owns the index status strip; the Query
-///     Canvas, Result Cards, Overlay View and the Tolerance Slider are their own build items and plug
-///     into this tab.
+///     Canvas (with its tolerance slider), Result Cards and Overlay View are their own build items and
+///     plug into this tab.
 ///     <para>
 ///         <b>The ids are persisted keys.</b> <c>TabId "situations.search"</c> and the feature id
 ///         <c>"tab.situations"</c> key the user's per-tab session state and feature overrides; the
