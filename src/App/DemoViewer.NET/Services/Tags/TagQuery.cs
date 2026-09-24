@@ -35,6 +35,57 @@ public enum LabelNamespace
 public sealed record LabelPredicate(LabelNamespace Namespace, string Group, IReadOnlySet<string> Values);
 
 /// <summary>
+///     Matches an instance that has at least one clicked point (a position, or either end of a movement)
+///     satisfying every non-null clause at once (tag-store.md §3.6, §3.7): the one position clause Search
+///     Filters asks of a slice. Places are the stored names, ordinal, so an unresolved point matches no
+///     place set; the polygon reads the coordinates themselves, which is what lets a query ask about an area
+///     no place name covers without re-tagging anything.
+/// </summary>
+/// <param name="Places">Accepted place names; null does not filter on the place.</param>
+/// <param name="Polygon">A world-XY polygon, closed implicitly, even-odd rule; null does not filter on the coordinates.</param>
+/// <param name="LevelMinZ">The floor key the point must carry (quantized band floor); null is any floor.</param>
+public sealed record PositionPredicate(
+    IReadOnlySet<string>? Places,
+    IReadOnlyList<(double X, double Y)>? Polygon = null,
+    double? LevelMinZ = null)
+{
+    /// <summary>Whether a stored point satisfies every clause.</summary>
+    /// <param name="point">A position, or one end of a movement.</param>
+    public bool Matches(TagPosition point)
+    {
+        ArgumentNullException.ThrowIfNull(point);
+        if (Places is not null && (point.Place is not { } place || !Places.Contains(place)))
+        {
+            return false;
+        }
+
+        if (LevelMinZ is { } floor && !point.LevelMinZ.Equals(floor))
+        {
+            return false;
+        }
+
+        return Polygon is null || Inside(Polygon, point.X, point.Y);
+    }
+
+    // Even-odd ray cast along +X. A polygon of fewer than three vertices encloses nothing.
+    private static bool Inside(IReadOnlyList<(double X, double Y)> polygon, double x, double y)
+    {
+        bool inside = false;
+        for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
+        {
+            (double xi, double yi) = polygon[i];
+            (double xj, double yj) = polygon[j];
+            if (yi > y != yj > y && x < (xj - xi) * (y - yi) / (yj - yi) + xi)
+            {
+                inside = !inside;
+            }
+        }
+
+        return polygon.Count >= 3 && inside;
+    }
+}
+
+/// <summary>
 ///     Which instances a query reads (tag-store.md §3.7). Every clause is an AND; a null clause does not
 ///     filter. The Matrix, Watched Situations and Search Filters all describe their question as one of these.
 /// </summary>
@@ -47,13 +98,18 @@ public sealed record LabelPredicate(LabelNamespace Namespace, string Group, IRea
 ///     human tag and an accepted proposal both count and an imported timeline does not unless asked for.
 /// </param>
 /// <param name="CreatedAfterUtc">Only instances created strictly after this: Watched Situations' "N new" cursor.</param>
+/// <param name="Positions">
+///     Position predicates, all of which must hold (each may be met by a different point); null or empty does
+///     not filter. The planned addition of tag-store.md §3.7, trailing so every earlier slice reads the same.
+/// </param>
 public sealed record TagSlice(
     IReadOnlySet<string>? Demos,
     IReadOnlySet<string>? Codes,
     IReadOnlyList<LabelPredicate> Where,
     IReadOnlySet<int>? Rounds,
     TagSource? Source,
-    DateTime? CreatedAfterUtc)
+    DateTime? CreatedAfterUtc,
+    IReadOnlyList<PositionPredicate>? Positions = null)
 {
     /// <summary>No clause set: every instance the default source rule admits.</summary>
     public static TagSlice Everything { get; } = new(null, null, [], null, null, null);
@@ -252,8 +308,22 @@ public static class TagQuery
             }
         }
 
+        if (slice.Positions is { } positions)
+        {
+            foreach (PositionPredicate predicate in positions)
+            {
+                if (!PointsOf(instance).Any(predicate.Matches))
+                {
+                    return false;
+                }
+            }
+        }
+
         return true;
     }
+
+    private static IEnumerable<TagPosition> PointsOf(TagInstance instance) =>
+        instance.Positions.Concat(instance.Movements.SelectMany(m => new[] { m.From, m.To }));
 
     // The stored source is a string so an unknown value survives a round trip. The default admits such a
     // value (it is not "import"); naming a source admits only its exact spelling.

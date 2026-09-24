@@ -678,6 +678,9 @@ J/K next and previous situation result (walking the Situations tab's cards from 
 C focuses the Tag Palette; while it has focus its own scope wins over the tool and always scopes, so
 Esc steps back out of a panel, Ctrl+M opens a note, Ctrl+Backspace clears the sticky labels, Ctrl+Z /
 Ctrl+Shift+Z undo and redo tags, and the palette file's button hotkeys fire (docs/tags-format.md).
+While it has focus a left click on the map puts a point on the tag being made (else the last one
+written), and a second click on the same tag makes a movement; Space, Ctrl and the middle button
+still pan.
 All playback mutations route through `PlaybackController` commands / capability-gated
 `IModuleContext.Request*`, the exact surfaces `SyncStateObserver` observes; a parallel path would
 silently bypass LiveSync. Must not collide with shell bindings (Ctrl+1..9, Ctrl+P/O/B/W).

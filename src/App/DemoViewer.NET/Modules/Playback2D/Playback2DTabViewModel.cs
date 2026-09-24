@@ -1340,6 +1340,30 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public bool TryHandleTagPaletteKey(Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers) =>
         IsTagPaletteFocused && TagPalette.TryHandleKey(key, modifiers);
 
+    /// <summary>
+    ///     A left click on the map while the palette has focus (Click To Tag Position): the point, on the
+    ///     clicked pane's floor at the playhead, goes on the tag being made or the last one written. The
+    ///     place comes from this map's zones when it has them, else from the nearest pawn on that floor in
+    ///     the frame on screen (<see cref="TagPositionResolver" />). False when the palette does not have
+    ///     focus or there is no tag to put the point on, and the press then goes to the pointer tools.
+    /// </summary>
+    /// <param name="level">The floor the clicked pane shows.</param>
+    /// <param name="worldX">World X of the click.</param>
+    /// <param name="worldY">World Y of the click.</param>
+    public bool TryTagPositionAt(MapLevel level, double worldX, double worldY)
+    {
+        ArgumentNullException.ThrowIfNull(level);
+        if (!IsTagPaletteFocused || TagPalette.IsEditingNote)
+        {
+            return false;
+        }
+
+        Scene2DFrame frame = CurrentFrame;
+        int tick = _context?.CurrentTick ?? frame.Time.Tick;
+        TagPosition position = TagPositionResolver.Resolve(worldX, worldY, level, tick, Zones, frame.Markers);
+        return TagPalette.AttachPosition(position);
+    }
+
     // The gate folds into the palette's focus: gated off, the palette cannot keep the keyboard, and a tag
     // it was making is written rather than stranded behind a hidden panel.
     private bool ToggleTagPaletteFocus()

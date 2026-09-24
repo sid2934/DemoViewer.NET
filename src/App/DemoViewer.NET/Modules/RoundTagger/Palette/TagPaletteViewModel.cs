@@ -70,6 +70,13 @@ public sealed class TagPaletteButtonViewModel
 ///         scopes (overview correction 21). Every key the palette owns is data (the palette file) or a
 ///         <see cref="Playback2DKeymap" /> row, so a user rebinds them in Settings like any other 2D key.
 ///     </para>
+///     <para>
+///         <b>Clicks on the map</b> (Click To Tag Position, tag-store.md §3.6). While the palette has focus a
+///         left click on the map is a point for the tag being made, else for the last one written; the
+///         tab resolves it (<see cref="TagPositionResolver" />) and hands it to <see cref="AttachPosition" />.
+///         The second click on the same tag turns that point into a movement from it to the new one, and
+///         the click after that starts a new point, so a tag can carry several of either.
+///     </para>
 ///     <para>UI-thread affine like the session it edits.</para>
 /// </summary>
 public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
@@ -91,6 +98,9 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
 
     private Playback2DKeymapProfile _keymap = Playback2DKeymapProfile.Default;
     private Guid? _lastId;
+
+    // The point the next click pairs with to make a movement: the tag it went on and the point itself.
+    private (Guid Id, TagPosition Point)? _openPoint;
 
     [ObservableProperty]
     private string _noteDraft = "";
@@ -177,7 +187,7 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     public string HintText =>
         $"{Gesture(Playback2DAction.FocusTagPalette)} focus · {Gesture(Playback2DAction.TagPaletteBack)} back · "
         + $"{Gesture(Playback2DAction.TagNote)} note · {Gesture(Playback2DAction.TagClearSticky)} clear sticky · "
-        + $"{Gesture(Playback2DAction.Undo)} undo";
+        + $"{Gesture(Playback2DAction.Undo)} undo · click map: point, again: movement";
 
     /// <summary>Raised when the user picks a palette, with its id, so the tab can persist the choice.</summary>
     public event Action<string>? PaletteChosen;
@@ -442,6 +452,40 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    ///     Attaches a clicked point to the tag being made, else to the last one written. The first click on a
+    ///     tag adds a position; the next one takes that position back out and writes a movement from it to
+    ///     this point. On a pending tag the point rides the tag's one batch; on a written one each click is
+    ///     its own undoable edit, so a Ctrl+Z takes back one click. False when there is no tag to put it on.
+    /// </summary>
+    /// <param name="position">The resolved point, from <see cref="TagPositionResolver" />.</param>
+    public bool AttachPosition(TagPosition position)
+    {
+        ArgumentNullException.ThrowIfNull(position);
+        if (_session.Document is null)
+        {
+            return false;
+        }
+
+        if (_pending is { } pending)
+        {
+            AddPoint(pending, position);
+            RaiseInstanceText();
+            return true;
+        }
+
+        if (LastInstance() is not { } last)
+        {
+            return false;
+        }
+
+        TagInstance edited = last.Clone();
+        AddPoint(edited, position);
+        _session.Apply(new TagDelta.Replace(last.Id, edited));
+        RaiseInstanceText();
+        return true;
+    }
+
+    /// <summary>
     ///     The span a code press makes: <paramref name="leadSeconds" /> before the playhead to
     ///     <paramref name="lagSeconds" /> after, in the document's ticks, clamped to the round the playhead is
     ///     in when <paramref name="clampToRound" />, and to the parse's first and last tick when known.
@@ -558,6 +602,28 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
         Finish();
     }
 
+    // Pairs with the open point only when it is still the last point on this tag: an undo, a refresh or a
+    // movement made since has taken it away, and a movement from a point the tag no longer holds would
+    // invent one. Matched by value because the session's history holds copies, never the live objects.
+    private void AddPoint(TagInstance instance, TagPosition position)
+    {
+        if (_openPoint is { } open && open.Id == instance.Id && instance.Positions.Count > 0
+            && SamePoint(instance.Positions[^1], open.Point))
+        {
+            TagPosition from = instance.Positions[^1];
+            instance.Positions.RemoveAt(instance.Positions.Count - 1);
+            instance.Movements.Add(new TagMovement { From = from, To = position });
+            _openPoint = null;
+            return;
+        }
+
+        instance.Positions.Add(position);
+        _openPoint = (instance.Id, position);
+    }
+
+    private static bool SamePoint(TagPosition a, TagPosition b) =>
+        a.X.Equals(b.X) && a.Y.Equals(b.Y) && a.LevelMinZ.Equals(b.LevelMinZ) && a.Tick == b.Tick;
+
     private static void AddLabel(TagInstance instance, string group, string value)
     {
         if (!instance.Labels.Any(l => string.Equals(l.Group, group, StringComparison.Ordinal)
@@ -614,8 +680,20 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     {
         string labels = string.Join(", ", instance.Labels.Select(l => l.Group.Length == 0 ? l.Value : $"{l.Group}={l.Value}"));
         string text = labels.Length == 0 ? instance.Code : $"{instance.Code} · {labels}";
+        if (instance.Positions.Count + instance.Movements.Count > 0)
+        {
+            IEnumerable<string> points = instance.Positions.Select(p => $"@{PlaceOf(p)}")
+                .Concat(instance.Movements.Select(m => $"{PlaceOf(m.From)}→{PlaceOf(m.To)}"));
+            text = $"{text} · {string.Join(", ", points)}";
+        }
+
         return instance.Note is { Length: > 0 } note ? $"{text} · “{note}”" : text;
     }
+
+    // An unresolved point still shows where it was clicked, so the line never hides a click.
+    private static string PlaceOf(TagPosition position) =>
+        position.Place ?? string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"{position.X:0},{position.Y:0}");
 
     private void RaiseInstanceText()
     {
